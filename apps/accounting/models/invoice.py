@@ -123,14 +123,7 @@ class Invoice(BaseXeroInvoiceDocument):
 
     @property
     def paid(self) -> bool:
-        """
-        Computes whether this invoice was already paid based on the amount due value.
-        """
-        return (
-            (self.amount_due == self.total_incl_tax and self.total_incl_tax > 0)
-            or (self.amount_due == self.total_excl_tax and self.total_incl_tax == 0)
-            or (self.amount_due == self.total_amount)
-        )
+        return self.status == "PAID"
 
 
 class Bill(BaseXeroInvoiceDocument):
