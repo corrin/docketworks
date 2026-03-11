@@ -42,7 +42,7 @@ class PaidFlagService:
         """
         start_time = timezone.now()
 
-        completed_jobs = Job.objects.filter(status="completed", paid=False)
+        completed_jobs = Job.objects.filter(status="recently_completed", paid=False)
 
         if verbose:
             logger.info(

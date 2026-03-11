@@ -2,6 +2,7 @@ from django.urls import path
 
 from apps.accounting.views import JobAgingAPIView
 from apps.accounting.views.kpi_view import KPICalendarAPIView, KPICalendarTemplateView
+from apps.accounting.views.rdti_spend_view import RDTISpendAPIView
 from apps.accounting.views.sales_forecast_view import (
     SalesForecastAPIView,
     SalesForecastMonthDetailAPIView,
@@ -71,6 +72,11 @@ urlpatterns = [
         "api/reports/staff-performance/<uuid:staff_id>/",
         StaffPerformanceDetailAPIView.as_view(),
         name="api_staff_performance_detail",
+    ),
+    path(
+        "api/reports/rdti-spend/",
+        RDTISpendAPIView.as_view(),
+        name="api_rdti_spend",
     ),
     path(
         "reports/calendar/",

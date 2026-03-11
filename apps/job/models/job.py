@@ -10,7 +10,7 @@ from simple_history.models import HistoricalRecords
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
-from apps.job.enums import SpeedQualityTradeoff
+from apps.job.enums import RDTIType, SpeedQualityTradeoff
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 from .costing import CostSet
@@ -54,6 +54,7 @@ class Job(models.Model):
         "quote_acceptance_date",
         "paid",
         "rejected_flag",
+        "rdti_type",
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -126,6 +127,14 @@ class Job(models.Model):
     rejected_flag: bool = models.BooleanField(
         default=False,
         help_text="Indicates if this job was rejected (shown in Archived with rejected styling)",
+    )
+
+    rdti_type = models.CharField(
+        max_length=20,
+        choices=RDTIType.choices,
+        null=True,
+        blank=True,
+        help_text="R&D Tax Incentive classification for this job",
     )
 
     PRICING_METHODOLOGY_CHOICES = [
@@ -564,6 +573,7 @@ class Job(models.Model):
                 "Job marked as COMPLEX JOB. This job requires special attention or has complex requirements",
                 "Job no longer marked as complex job",
             ),
+            "rdti_type": self._handle_rdti_type_change,
             "default_xero_pay_item_id": self._handle_xero_pay_item_change,
         }
 
@@ -755,6 +765,15 @@ class Job(models.Model):
         return (
             "job_updated",
             f"Speed/quality tradeoff changed from '{old_display}' to '{new_display}'",
+        )
+
+    def _handle_rdti_type_change(self, old_type, new_type):
+        """Handle RDTI type change with display names."""
+        old_display = dict(RDTIType.choices).get(old_type, old_type or "None")
+        new_display = dict(RDTIType.choices).get(new_type, new_type or "None")
+        return (
+            "job_updated",
+            f"RDTI classification changed from '{old_display}' to '{new_display}'",
         )
 
     def _handle_boolean_change(self, true_event, false_event, true_desc, false_desc):
