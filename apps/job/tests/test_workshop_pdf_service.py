@@ -7,7 +7,39 @@ conversion handles actual Quill editor output correctly.
 
 from django.test import SimpleTestCase
 
-from apps.job.services.workshop_pdf_service import convert_html_to_reportlab
+from apps.job.services.workshop_pdf_service import (
+    convert_html_to_reportlab,
+    format_hours_display,
+)
+
+
+class FormatHoursDisplayTests(SimpleTestCase):
+    """Tests for the format_hours_display function."""
+
+    def test_whole_hours(self):
+        self.assertEqual(format_hours_display(2.0), "2h")
+
+    def test_hours_and_minutes(self):
+        self.assertEqual(format_hours_display(2.5), "2h 30m")
+
+    def test_minutes_only(self):
+        self.assertEqual(format_hours_display(0.25), "15m")
+
+    def test_zero(self):
+        self.assertEqual(format_hours_display(0.0), "0h")
+
+    def test_none(self):
+        self.assertEqual(format_hours_display(None), "0h")
+
+    def test_large_value(self):
+        self.assertEqual(format_hours_display(10.75), "10h 45m")
+
+    def test_rounding(self):
+        # 1.33 hours = 79.8 minutes, rounds to 80 = 1h 20m
+        self.assertEqual(format_hours_display(1.33), "1h 20m")
+
+    def test_integer_input(self):
+        self.assertEqual(format_hours_display(3), "3h")
 
 
 class ConvertHtmlToReportlabTests(SimpleTestCase):

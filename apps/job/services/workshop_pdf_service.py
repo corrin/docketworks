@@ -27,6 +27,22 @@ from apps.workflow.services.error_persistence import persist_and_raise
 logger = logging.getLogger(__name__)
 
 
+def format_hours_display(hours: Optional[float]) -> str:
+    """Format hours as human-readable 'Xh Ym' string."""
+    if hours is None or not isinstance(hours, (int, float)):
+        return "0h"
+    total_minutes = round(hours * 60)
+    h = total_minutes // 60
+    m = total_minutes % 60
+    if h == 0 and m == 0:
+        return "0h"
+    if h == 0:
+        return f"{m}m"
+    if m == 0:
+        return f"{h}h"
+    return f"{h}h {m}m"
+
+
 def get_workshop_hours(job: Job) -> float:
     """
     Calculate workshop time allocated from the latest estimate or quote.
@@ -601,8 +617,8 @@ def add_time_used_table(pdf, y_position, job: Job):
         time_data.append(
             [
                 staff_entry["name"],
-                f"{staff_entry['hours']:.1f}",
-                f"{remaining:.1f}",
+                format_hours_display(staff_entry["hours"]),
+                format_hours_display(remaining),
             ]
         )
 
@@ -675,9 +691,15 @@ def add_workshop_details_table(pdf, y_position, job: Job):
     total = time_breakdown["budgeted_hours"]
 
     if time_breakdown["is_over_budget"]:
-        workshop_display = f"{abs(remaining):.1f} hours OVER BUDGET ({total:.1f} total)"
+        workshop_display = (
+            f"{format_hours_display(abs(remaining))} OVER BUDGET"
+            f" ({format_hours_display(total)} total)"
+        )
     else:
-        workshop_display = f"{remaining:.1f} hours remaining ({total:.1f} total)"
+        workshop_display = (
+            f"{format_hours_display(remaining)} remaining"
+            f" ({format_hours_display(total)} total)"
+        )
 
     pricing_suffix = (
         " (T&M)" if job.pricing_methodology == "time_materials" else " (Quoted)"
