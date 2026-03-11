@@ -1,0 +1,12 @@
+version: "2"
+
+tunnels:
+  backend:
+    addr: 8000
+    proto: http
+    domain: msm-workflow.ngrok-free.app
+
+  frontend:
+    addr: 5173
+    proto: http
+    domain: msm-workflow-front.ngrok-free.app
