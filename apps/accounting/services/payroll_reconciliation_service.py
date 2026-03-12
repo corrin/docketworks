@@ -7,6 +7,7 @@ from typing import Any
 from apps.accounts.models import Staff
 from apps.job.models import CostLine
 from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models.company_defaults import CompanyDefaults
 from apps.workflow.models.xero_payroll import XeroPayRun
 
 from .core import _persist_and_raise
@@ -35,6 +36,10 @@ class PayrollReconciliationService:
         Returns:
             Dict matching PayrollReconciliationResponseSerializer shape.
         """
+        payroll_start = CompanyDefaults.get_solo().xero_payroll_start_date
+        if payroll_start:
+            start_date = max(start_date, payroll_start)
+
         try:
             staff_map = _build_staff_xero_map()
 
@@ -115,6 +120,9 @@ class PayrollReconciliationService:
         Returns the Monday on or before ``start_date`` and the Sunday on
         or after ``end_date``.
         """
+        payroll_start = CompanyDefaults.get_solo().xero_payroll_start_date
+        if payroll_start:
+            start_date = max(start_date, payroll_start)
         aligned_start = _get_monday(start_date)
         aligned_end = _get_monday(end_date) + timedelta(days=6)
         return {
