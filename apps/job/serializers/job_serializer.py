@@ -237,6 +237,7 @@ class JobSerializer(serializers.ModelSerializer):
             "xero_invoices",
             "shop_job",
             "rejected_flag",
+            "rdti_type",
             "default_xero_pay_item_id",
             "default_xero_pay_item_name",
         ]
@@ -424,6 +425,7 @@ class JobEventSerializer(serializers.ModelSerializer):
                 "paid": "payment status",
                 "job_is_valid": "validity",
                 "rejected_flag": "rejection status",
+                "rdti_type": "RDTI classification",
                 "pricing_methodology": "pricing method",
             }
             field_names.append(field_labels.get(field, field.replace("_", " ")))
@@ -1002,6 +1004,7 @@ class TimelineEntrySerializer(serializers.Serializer):
                 "paid": "payment status",
                 "job_is_valid": "validity",
                 "rejected_flag": "rejection status",
+                "rdti_type": "RDTI classification",
                 "pricing_methodology": "pricing method",
             }
             field_names.append(field_labels.get(field, field.replace("_", " ")))
@@ -1099,6 +1102,15 @@ class JobPatchSerializer(serializers.Serializer):
         required=False,
         allow_null=True,
         help_text="Maximum amount to invoice for T&M jobs (do not exceed)",
+    )
+
+    # Classification
+    rdti_type = serializers.ChoiceField(
+        choices=Job.rdti_type.field.choices,
+        required=False,
+        allow_null=True,
+        allow_blank=True,
+        help_text="R&D Tax Incentive classification",
     )
 
     # Relationships (only IDs, no derived names)

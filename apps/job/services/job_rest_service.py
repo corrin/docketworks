@@ -929,6 +929,7 @@ class JobRestService:
                     "quote_acceptance_date": job.quote_acceptance_date,
                     "paid": job.paid,
                     "rejected_flag": job.rejected_flag,
+                    "rdti_type": job.rdti_type,
                 }
 
                 logger.debug(
@@ -1786,6 +1787,7 @@ class JobRestService:
             "contact_email": "Contact email",
             "contact_phone": "Contact phone",
             "complex_job": "Itemised billing",
+            "rdti_type": "RDTI classification",
             "delivery_date": "Delivery date",
             "quote_acceptance_date": "Quote acceptance date",
             "job_is_valid": "Job validity",

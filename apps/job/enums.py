@@ -11,6 +11,16 @@ class SpeedQualityTradeoff(models.TextChoices):
     QUALITY = "quality", "Quality - Prioritize Quality"
 
 
+class RDTIType(models.TextChoices):
+    """
+    R&D Tax Incentive classification for jobs.
+    """
+
+    NON_RD = "non_rd", "Non-R&D"
+    CORE_RD = "core_rd", "Core R&D"
+    SUPPORTING_RD = "supporting_rd", "Supporting R&D"
+
+
 class MetalType(models.TextChoices):
     """
     Types of metal used in jobs

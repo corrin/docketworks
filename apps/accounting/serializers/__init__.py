@@ -38,6 +38,13 @@ try:
             PayrollWeekSerializer,
             PayrollWeekTotalsSerializer,
         )
+        from .rdti_spend_serializers import (
+            RDTISpendCategorySummarySerializer,
+            RDTISpendJobDetailSerializer,
+            RDTISpendQuerySerializer,
+            RDTISpendResponseSerializer,
+            RDTISpendTotalsSerializer,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -65,6 +72,11 @@ __all__ = [
     "PayrollStaffWeekSerializer",
     "PayrollWeekSerializer",
     "PayrollWeekTotalsSerializer",
+    "RDTISpendCategorySummarySerializer",
+    "RDTISpendJobDetailSerializer",
+    "RDTISpendQuerySerializer",
+    "RDTISpendResponseSerializer",
+    "RDTISpendTotalsSerializer",
     "StaffPerformanceErrorResponseSerializer",
     "StaffPerformanceJobBreakdownSerializer",
     "StaffPerformancePeriodSummarySerializer",

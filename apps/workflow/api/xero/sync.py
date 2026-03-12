@@ -191,7 +191,12 @@ def sync_entities(
             logger.info(f"Skipping deleted {model_class.__name__} {xero_id}")
             continue
 
-        result = transform_func(item, xero_id)
+        try:
+            result = transform_func(item, xero_id)
+        except Exception as exc:
+            persist_xero_error(exc)
+            logger.error(f"Failed to sync {model_class.__name__} {xero_id}: {exc}")
+            continue
         if not result:
             continue
         instance, status = result

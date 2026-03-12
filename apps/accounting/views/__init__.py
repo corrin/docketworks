@@ -2,6 +2,7 @@
 
 from .job_aging_view import JobAgingAPIView
 from .kpi_view import KPICalendarAPIView, KPICalendarTemplateView
+from .rdti_spend_view import RDTISpendAPIView
 from .sales_forecast_view import (
     SalesForecastAPIView,
     SalesForecastMonthDetailAPIView,
@@ -17,6 +18,7 @@ __all__ = [
     "JobAgingAPIView",
     "KPICalendarAPIView",
     "KPICalendarTemplateView",
+    "RDTISpendAPIView",
     "SalesForecastAPIView",
     "SalesForecastMonthDetailAPIView",
     "SalesForecastTemplateView",

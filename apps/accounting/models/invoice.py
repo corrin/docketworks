@@ -123,6 +123,7 @@ class Invoice(BaseXeroInvoiceDocument):
 
     @property
     def paid(self) -> bool:
+        """Whether this invoice has been paid, as reported by Xero."""
         return self.status == "PAID"
 
 

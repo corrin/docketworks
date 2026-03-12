@@ -7,6 +7,7 @@ try:
     if apps.ready:
         from .core import JobAgingService, KPIService, StaffPerformanceService
         from .payroll_reconciliation_service import PayrollReconciliationService
+        from .rdti_spend_service import RDTISpendService
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -15,5 +16,6 @@ __all__ = [
     "JobAgingService",
     "KPIService",
     "PayrollReconciliationService",
+    "RDTISpendService",
     "StaffPerformanceService",
 ]

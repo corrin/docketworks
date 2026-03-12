@@ -80,7 +80,11 @@ def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
         document.amount_due = raw_data.get("_remaining_credit")
     else:
         document.amount_due = raw_data.get("_amount_due")
-    document.xero_last_modified = raw_data.get("_updated_date_utc")
+    updated_date_utc = raw_data.get("_updated_date_utc")
+    if updated_date_utc:
+        document.xero_last_modified = updated_date_utc
+    else:
+        document.xero_last_modified = document.xero_last_modified or timezone.now()
     document.xero_last_synced = timezone.now()
 
     # Set or create the client/supplier
