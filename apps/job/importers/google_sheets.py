@@ -377,7 +377,7 @@ def copy_template_for_job(job: Job) -> tuple[str, str]:
         from apps.workflow.models.company_defaults import CompanyDefaults
 
         # Get company defaults for the template
-        company_defaults = CompanyDefaults.get_instance()
+        company_defaults = CompanyDefaults.get_solo()
         if not company_defaults or not company_defaults.master_quote_template_id:
             raise RuntimeError(
                 "No master quote template configured in company defaults"

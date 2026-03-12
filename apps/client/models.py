@@ -198,7 +198,7 @@ class Client(models.Model):
                 f"singleton violated!"
             )
 
-        company_defaults = CompanyDefaults.objects.get()
+        company_defaults = CompanyDefaults.get_solo()
 
         # Require explicit shop_client_name configuration
         if not company_defaults.shop_client_name:

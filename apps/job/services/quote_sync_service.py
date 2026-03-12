@@ -47,7 +47,7 @@ def link_quote_sheet(job: Job, template_url: str | None = None) -> QuoteSpreadsh
 
     try:
         # Get company defaults
-        company_defaults = CompanyDefaults.objects.first()
+        company_defaults = CompanyDefaults.get_solo()
         if not company_defaults:
             raise RuntimeError("CompanyDefaults not configured")
 

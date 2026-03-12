@@ -36,7 +36,7 @@ class PayrollReconciliationService:
         Returns:
             Dict matching PayrollReconciliationResponseSerializer shape.
         """
-        payroll_start = CompanyDefaults.get_instance().xero_payroll_start_date
+        payroll_start = CompanyDefaults.get_solo().xero_payroll_start_date
         if payroll_start:
             start_date = max(start_date, payroll_start)
 
@@ -120,7 +120,7 @@ class PayrollReconciliationService:
         Returns the Monday on or before ``start_date`` and the Sunday on
         or after ``end_date``.
         """
-        payroll_start = CompanyDefaults.get_instance().xero_payroll_start_date
+        payroll_start = CompanyDefaults.get_solo().xero_payroll_start_date
         if payroll_start:
             start_date = max(start_date, payroll_start)
         aligned_start = _get_monday(start_date)

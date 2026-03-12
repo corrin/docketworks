@@ -29,7 +29,7 @@ class ChatAPIEndpointTests(BaseTestCase):
         self.client_api = APIClient()
 
         # Get test data from fixture
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client_obj = Client.objects.create(
             name="Test Client",
@@ -358,7 +358,7 @@ class ChatAPIPermissionTests(BaseTestCase):
         self.client_api = APIClient()
 
         # Get test data from fixture
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client_obj = Client.objects.create(
             name="Test Client",
@@ -442,7 +442,7 @@ class ChatAPIValidationTests(BaseTestCase):
         """Set up test data"""
         self.client_api = APIClient()
 
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client_obj = Client.objects.create(
             name="Test Client",

@@ -30,7 +30,7 @@ class CompanyDefaultsAPIView(APIView):
     serializer_class = CompanyDefaultsSerializer
 
     def get(self, request):
-        instance = CompanyDefaults.get_instance()
+        instance = CompanyDefaults.get_solo()
         serializer = CompanyDefaultsSerializer(instance)
         return Response(serializer.data)
 
@@ -42,7 +42,7 @@ class CompanyDefaultsAPIView(APIView):
             else request.data
         )
 
-        instance = CompanyDefaults.get_instance()
+        instance = CompanyDefaults.get_solo()
         serializer = CompanyDefaultsSerializer(
             instance, data=request_data, context={"request": request}
         )
@@ -58,7 +58,7 @@ class CompanyDefaultsAPIView(APIView):
             else request.data
         )
 
-        instance = CompanyDefaults.get_instance()
+        instance = CompanyDefaults.get_solo()
         serializer = CompanyDefaultsSerializer(
             instance, data=request_data, partial=True, context={"request": request}
         )

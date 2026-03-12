@@ -178,6 +178,7 @@ AUTH_USER_MODEL = "accounts.Staff"
 INSTALLED_APPS = [
     "corsheaders",
     "django_apscheduler",
+    "solo",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",

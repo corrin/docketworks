@@ -142,7 +142,7 @@ class PurchaseOrder(models.Model):
 
     def generate_po_number(self):
         """Generate the next sequential PO number based on the configured prefix."""
-        defaults = CompanyDefaults.get_instance()
+        defaults = CompanyDefaults.get_solo()
         start = defaults.starting_po_number
         po_prefix = defaults.po_prefix  # Get prefix from CompanyDefaults
 

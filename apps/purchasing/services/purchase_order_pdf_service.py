@@ -79,7 +79,7 @@ class PurchaseOrderPDFGenerator:
         if not os.path.exists(logo_path):
             logger.warning(f"Logo file not found at: {logo_path}")
             # Add company name as text instead of logo
-            company_name = CompanyDefaults.get_instance().company_name
+            company_name = CompanyDefaults.get_solo().company_name
             self.pdf.setFont("Helvetica-Bold", 16)
             self.pdf.setFillColor(PRIMARY_COLOR)
             self.pdf.drawString(
@@ -105,7 +105,7 @@ class PurchaseOrderPDFGenerator:
         except Exception as e:
             logger.warning(f"Failed to load logo from {logo_path}: {str(e)}")
             # Fallback to company name
-            company_name = CompanyDefaults.get_instance().company_name
+            company_name = CompanyDefaults.get_solo().company_name
             self.pdf.setFont("Helvetica-Bold", 16)
             self.pdf.setFillColor(PRIMARY_COLOR)
             self.pdf.drawString(

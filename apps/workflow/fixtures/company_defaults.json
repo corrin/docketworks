@@ -1,10 +1,10 @@
 [
   {
     "model": "workflow.companydefaults",
-    "pk": "Demo Company",
+    "pk": 1,
     "fields": {
+      "company_name": "Demo Company",
       "company_acronym": "DC",
-      "is_primary": true,
       "time_markup": "0.30",
       "materials_markup": "0.20",
       "charge_out_rate": "105.00",

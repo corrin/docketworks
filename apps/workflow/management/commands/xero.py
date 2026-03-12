@@ -240,7 +240,7 @@ class Command(BaseCommand):
             tenant_name = connections[0].tenant_name
 
             try:
-                company_defaults = CompanyDefaults.get_instance()
+                company_defaults = CompanyDefaults.get_solo()
                 company_defaults.xero_tenant_id = tenant_id
                 company_defaults.save()
 
@@ -305,7 +305,7 @@ class Command(BaseCommand):
             )
 
         # Step 3: Get CompanyDefaults
-        company = CompanyDefaults.objects.first()
+        company = CompanyDefaults.get_solo()
         if not company:
             self.stdout.write(
                 self.style.ERROR(

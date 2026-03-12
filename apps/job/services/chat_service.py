@@ -49,7 +49,7 @@ class ChatService:
 
     def _get_system_prompt(self, job: Job) -> str:
         """Generate system prompt with job context."""
-        company = CompanyDefaults.objects.first()
+        company = CompanyDefaults.get_solo()
         return f"""You are an intelligent quoting assistant for {company.company_name},
 a custom metal fabrication business. Your role is to help estimators create accurate
 quotes by using the available tools to find material pricing, compare suppliers,

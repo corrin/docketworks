@@ -481,7 +481,7 @@ def create_delivery_docket_main_document(job):
     pdf = canvas.Canvas(buffer, pagesize=A4)
 
     # Get company acronym for copy labels
-    company = CompanyDefaults.get_instance()
+    company = CompanyDefaults.get_solo()
     copy_label = (
         f"{company.company_acronym} Copy" if company.company_acronym else "Office Copy"
     )

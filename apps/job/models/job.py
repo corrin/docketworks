@@ -415,7 +415,7 @@ class Job(models.Model):
         ]
 
     def generate_job_number(self) -> int:
-        company_defaults: CompanyDefaults = CompanyDefaults.get_instance()
+        company_defaults: CompanyDefaults = CompanyDefaults.get_solo()
         starting_number: int = company_defaults.starting_job_number
         highest_job: int = (
             Job.objects.all().aggregate(Max("job_number"))["job_number__max"] or 0
@@ -438,7 +438,7 @@ class Job(models.Model):
             self.created_by = staff
 
         if self.charge_out_rate is None:
-            company_defaults = CompanyDefaults.objects.first()
+            company_defaults = CompanyDefaults.get_solo()
             self.charge_out_rate = company_defaults.charge_out_rate
 
         # Default to "Ordinary Time" pay item if not specified

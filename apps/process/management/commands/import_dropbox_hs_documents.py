@@ -662,7 +662,7 @@ class Command(BaseCommand):
             raise CommandError(f"Path is not a directory: {folder_path}")
 
         # Load company config — needed for Google Drive folder IDs
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
 
         if not dry_run and not company.gdrive_reference_library_folder_id:
             raise CommandError(

@@ -28,7 +28,7 @@ class Command(BaseCommand):
 
         if not client_name:
             # Use shop client name from CompanyDefaults
-            company_defaults = CompanyDefaults.objects.first()
+            company_defaults = CompanyDefaults.get_solo()
             if not company_defaults:
                 self.stdout.write(self.style.ERROR("CompanyDefaults not found"))
                 return

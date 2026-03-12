@@ -280,7 +280,7 @@ def parse_xlsx(
             try:
                 from apps.workflow.models import CompanyDefaults
 
-                defaults = CompanyDefaults.objects.first()
+                defaults = CompanyDefaults.get_solo()
                 if defaults:
                     wage_rate = defaults.wage_rate
                     charge_out_rate = defaults.charge_out_rate
@@ -535,7 +535,7 @@ def validate_totals(
             from apps.workflow.models import CompanyDefaults
 
             try:
-                defaults = CompanyDefaults.objects.first()
+                defaults = CompanyDefaults.get_solo()
                 if defaults:
                     our_charge_out_rate = defaults.charge_out_rate
                     our_materials_markup = defaults.materials_markup
@@ -938,7 +938,7 @@ def _validate_pricing_consistency(path: str, df) -> List[ValidationError]:
         try:
             from apps.workflow.models import CompanyDefaults
 
-            defaults = CompanyDefaults.objects.first()
+            defaults = CompanyDefaults.get_solo()
             if defaults:
                 expected_charge = defaults.charge_out_rate
                 expected_markup = defaults.materials_markup

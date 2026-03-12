@@ -191,7 +191,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
 
             try:
                 staff = Staff.objects.get(id=staff_id)
-                company_defaults = CompanyDefaults.objects.first()
+                company_defaults = CompanyDefaults.get_solo()
 
                 # Use staff wage_rate or company default
                 wage_rate = (

@@ -13,7 +13,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.service = PDFDataValidationService()
 
         # Get company defaults (singleton, loaded from fixture)
-        self.company = CompanyDefaults.get_instance()
+        self.company = CompanyDefaults.get_solo()
 
         # Create test supplier
         self.supplier = Client.objects.create(

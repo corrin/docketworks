@@ -1435,7 +1435,7 @@ def synchronise_xero_data(delay_between_requests=1):
         return
 
     try:
-        company_defaults = CompanyDefaults.objects.get()
+        company_defaults = CompanyDefaults.get_solo()
         now = timezone.now()
 
         # Sync pay items (leave types + earnings rates) - lightweight, 2 API calls
