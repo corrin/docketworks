@@ -124,6 +124,11 @@ class CompanyDefaults(models.Model):
         blank=True,
         help_text="Cached Xero Payroll calendar ID (set by xero --setup command)",
     )
+    xero_payroll_start_date = models.DateField(
+        null=True,
+        blank=True,
+        help_text="Date Xero payroll went live — reconciliation ignores data before this",
+    )
 
     # Default working hours (Mon-Fri, 7am - 3pm)
     mon_start = models.TimeField(default="07:00")

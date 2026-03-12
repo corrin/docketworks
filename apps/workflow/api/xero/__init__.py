@@ -60,6 +60,7 @@ try:
             get_all_xero_contacts,
             get_last_modified_time,
             get_or_fetch_client,
+            get_sync_cursor,
             map_costline_to_expense_entry,
             map_costline_to_time_entry,
             one_way_sync_all_xero_data,
@@ -92,6 +93,7 @@ try:
             transform_purchase_order,
             transform_quote,
             transform_stock,
+            update_sync_cursor,
         )
         from .xero import (
             create_default_task,
@@ -153,6 +155,7 @@ __all__ = [
     "get_payroll_calendar_id",
     "get_payroll_calendars",
     "get_projects",
+    "get_sync_cursor",
     "get_tenant_id",
     "get_tenant_id_from_connections",
     "get_token",
@@ -211,6 +214,7 @@ __all__ = [
     "update_expense_entries",
     "update_project",
     "update_stock_item_codes",
+    "update_sync_cursor",
     "update_time_entries",
     "validate_pay_items_for_week",
     "validate_stock_for_xero",

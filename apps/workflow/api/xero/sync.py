@@ -44,6 +44,7 @@ from apps.workflow.models import (
     XeroJournal,
     XeroPayRun,
     XeroPaySlip,
+    XeroSyncCursor,
 )
 from apps.workflow.services.error_persistence import persist_xero_error
 from apps.workflow.services.validation import validate_required_fields
@@ -956,6 +957,28 @@ def get_last_modified_time(model):
     return "2000-01-01T00:00:00Z"
 
 
+def get_sync_cursor(entity_key, model):
+    """Get the sync cursor for an entity, falling back to DB high-water mark.
+
+    Only the hourly sync should call this. Webhooks never touch cursors.
+    On first run after deployment, no cursor exists yet — fall back to the
+    model's max xero_last_modified (same as previous behavior).
+    """
+    cursor = XeroSyncCursor.objects.filter(entity_key=entity_key).first()
+    if not cursor:
+        return get_last_modified_time(model)
+    # Apply same 1-second backoff as get_last_modified_time for overlap safety
+    return (cursor.last_modified - timedelta(seconds=1)).isoformat()
+
+
+def update_sync_cursor(entity_key, timestamp):
+    """Upsert the sync cursor after a successful sync run."""
+    XeroSyncCursor.objects.update_or_create(
+        entity_key=entity_key,
+        defaults={"last_modified": timestamp},
+    )
+
+
 def process_xero_item(item, sync_function, entity_type):
     """Process one Xero item and return an event.
 
@@ -1002,6 +1025,7 @@ def sync_xero_data(
     additional_params=None,
     pagination_mode="single",
     xero_tenant_id=None,
+    entity_key=None,
 ):
     """Sync data from Xero with pagination support.
 
@@ -1014,6 +1038,7 @@ def sync_xero_data(
         additional_params: Extra parameters for the API call.
         pagination_mode: Offset or page pagination style.
         xero_tenant_id: Optional tenant identifier.
+        entity_key: Key for updating the sync cursor after success.
 
     Yields:
         Progress or error events as dictionaries.
@@ -1061,6 +1086,7 @@ def sync_xero_data(
     page = 1
     offset = 0
     total_processed = 0
+    max_updated_date_utc = None
 
     while True:
         # Update pagination params
@@ -1095,6 +1121,14 @@ def sync_xero_data(
         except Exception:
             raise
 
+        # Track the max updated_date_utc across all pages for cursor update
+        for item in items:
+            item_updated = getattr(item, "updated_date_utc", None)
+            if item_updated and (
+                max_updated_date_utc is None or item_updated > max_updated_date_utc
+            ):
+                max_updated_date_utc = item_updated
+
         yield {
             "datetime": timezone.now().isoformat(),
             "entity": our_entity_type,
@@ -1113,6 +1147,15 @@ def sync_xero_data(
             page += 1
         elif pagination_mode == "offset":
             offset = max(item.journal_number for item in items) + 1
+
+    # Update the sync cursor if we processed items and have a valid timestamp
+    if entity_key and total_processed > 0 and not max_updated_date_utc:
+        logger.warning(
+            f"Synced {total_processed} {our_entity_type} but none had "
+            f"updated_date_utc — cursor not advanced for '{entity_key}'"
+        )
+    if entity_key and max_updated_date_utc:
+        update_sync_cursor(entity_key, max_updated_date_utc)
 
     yield {
         "datetime": timezone.now().isoformat(),
@@ -1253,7 +1296,7 @@ def sync_all_xero_data(use_latest_timestamps=True, days_back=30, entities=None):
     # Get timestamps
     if use_latest_timestamps:
         timestamps = {
-            entity: get_last_modified_time(ENTITY_CONFIGS[entity][2])
+            entity: get_sync_cursor(entity, ENTITY_CONFIGS[entity][2])
             for entity in ENTITY_CONFIGS
         }
     else:
@@ -1294,6 +1337,7 @@ def sync_all_xero_data(use_latest_timestamps=True, days_back=30, entities=None):
             last_modified_time=timestamps[entity],
             additional_params=params,
             pagination_mode=pagination,
+            entity_key=entity if use_latest_timestamps else None,
         )
 
     # After syncing from Xero, sync local stock items back to Xero (bidirectional)
