@@ -54,7 +54,7 @@ def process_webhook_event(event: Dict[str, Any]) -> None:
         return
 
     # Verify tenant matches our configuration
-    company_defaults = CompanyDefaults.get_instance()
+    company_defaults = CompanyDefaults.get_solo()
     if company_defaults.xero_tenant_id != tenant_id:
         logger.warning(
             f"Webhook event for wrong tenant {tenant_id}, "

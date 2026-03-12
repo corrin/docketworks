@@ -138,7 +138,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "last_xero_sync": "xero",
     "last_xero_deep_sync": "xero",
     # Internal - auto-managed fields, not shown in UI
-    "is_primary": "internal",
+    "id": "internal",
     "created_at": "internal",
     "updated_at": "internal",
 }

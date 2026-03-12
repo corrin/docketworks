@@ -27,7 +27,7 @@ class JobQuoteChatModelTests(BaseTestCase):
     def setUp(self):
         """Set up test data"""
         # Get CompanyDefaults from fixture
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client = Client.objects.create(
             name="Test Client",
@@ -390,7 +390,7 @@ class JobQuoteChatQueryTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client = Client.objects.create(
             name="Test Client",

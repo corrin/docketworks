@@ -31,7 +31,7 @@ def create_purchase_order_email(purchase_order: PurchaseOrder) -> dict:
 
     from apps.workflow.models import CompanyDefaults
 
-    company = CompanyDefaults.objects.first()
+    company = CompanyDefaults.get_solo()
 
     subject = f"Purchase Order {purchase_order.po_number}"
     body = (

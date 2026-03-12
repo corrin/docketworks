@@ -335,7 +335,7 @@ class JobRestService:
             estimate_costset = job.cost_sets.get(kind="estimate")
 
             # Get company defaults for calculations
-            company_defaults = CompanyDefaults.objects.first()
+            company_defaults = CompanyDefaults.get_solo()
             if not company_defaults:
                 raise ValueError("CompanyDefaults not found")
 
@@ -1743,7 +1743,7 @@ class JobRestService:
         """
         from apps.workflow.models import CompanyDefaults
 
-        defaults = CompanyDefaults.get_instance()
+        defaults = CompanyDefaults.get_solo()
         return {
             "materials_markup": float(defaults.materials_markup),
             "time_markup": float(defaults.time_markup),

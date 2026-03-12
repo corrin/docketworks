@@ -182,7 +182,7 @@ class Command(BaseCommand):
     def _get_preserved_client_names(self):
         """Get the list of client names that should not be anonymized."""
         preserved_names = set()
-        company_defaults = CompanyDefaults.objects.get()
+        company_defaults = CompanyDefaults.get_solo()
         if company_defaults.shop_client_name:
             preserved_names.add(company_defaults.shop_client_name)
         if company_defaults.test_client_name:

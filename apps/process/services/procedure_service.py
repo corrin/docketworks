@@ -187,7 +187,7 @@ class ProcedureService:
                 f"Must be one of: {valid_types}"
             )
 
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
         folder_id = company.gdrive_reference_library_folder_id
         if not folder_id:
             raise ValueError(

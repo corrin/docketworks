@@ -48,7 +48,7 @@ class Command(BaseCommand):
 
         # Get the shop client from company defaults
         try:
-            company_defaults = CompanyDefaults.objects.get()
+            company_defaults = CompanyDefaults.get_solo()
         except CompanyDefaults.DoesNotExist:
             raise CommandError(
                 "CompanyDefaults not found. Please configure company defaults first."

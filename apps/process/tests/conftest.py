@@ -10,9 +10,9 @@ from apps.workflow.models import CompanyDefaults
 
 @pytest.fixture
 def job(db):
-    CompanyDefaults.objects.get_or_create(
-        defaults={"charge_out_rate": Decimal("105.00")}
-    )
+    defaults = CompanyDefaults.get_solo()
+    defaults.charge_out_rate = Decimal("105.00")
+    defaults.save()
     client = Client.objects.create(
         name="Test Client",
         xero_last_modified=timezone.now(),

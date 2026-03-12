@@ -525,7 +525,7 @@ class CreatePayRunAPIView(APIView):
             payment_date = week_end_date + timedelta(days=3)
 
             # Get tenant ID and shortcode from company defaults
-            company_defaults = CompanyDefaults.get_instance()
+            company_defaults = CompanyDefaults.get_solo()
             tenant_id = company_defaults.xero_tenant_id
             if not tenant_id:
                 raise ValueError("Xero tenant ID not configured in CompanyDefaults")

@@ -63,7 +63,7 @@ class GoogleDocsService:
 
     def __init__(self):
         """Initialize the service."""
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
         self.company_name = company.company_name
 
     def create_process_document(

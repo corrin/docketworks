@@ -44,7 +44,7 @@ class MCPChatService:
 
     def _get_system_prompt(self, job: Job) -> str:
         """Generate system prompt with job context and MCP tool descriptions."""
-        company = CompanyDefaults.objects.first()
+        company = CompanyDefaults.get_solo()
         return f"""You are an intelligent quoting assistant for {company.company_name},
 a sheet metal jobbing shop.
 

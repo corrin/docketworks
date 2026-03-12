@@ -103,7 +103,7 @@ def build_xero_payroll_url(pay_run_xero_id: str) -> Optional[str]:
     """
     from apps.workflow.models import CompanyDefaults
 
-    company = CompanyDefaults.get_instance()
+    company = CompanyDefaults.get_solo()
     shortcode = company.xero_shortcode
 
     if not shortcode:

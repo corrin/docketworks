@@ -55,7 +55,7 @@ class KPIService:
         """
         logger.info("Retrieving company thresholds for KPI calculations")
         try:
-            company_defaults: CompanyDefaults = CompanyDefaults.objects.first()
+            company_defaults: CompanyDefaults = CompanyDefaults.get_solo()
             if not company_defaults:
                 raise ValueError("No company defaults found")
             thresholds = {

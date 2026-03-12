@@ -963,7 +963,7 @@ def create_pay_run(
         raise ValueError("No Xero tenant ID configured")
 
     # Get calendar from CompanyDefaults
-    company = CompanyDefaults.get_instance()
+    company = CompanyDefaults.get_solo()
     target_calendar_name = company.xero_payroll_calendar_name
     if not target_calendar_name:
         raise ValueError("xero_payroll_calendar_name not configured in CompanyDefaults")
@@ -1049,7 +1049,7 @@ def get_payroll_calendar_id() -> str:
     Raises:
         ValueError: If calendar ID not configured (run xero --setup first)
     """
-    company = CompanyDefaults.get_instance()
+    company = CompanyDefaults.get_solo()
     if not company.xero_payroll_calendar_id:
         raise ValueError(
             "xero_payroll_calendar_id not configured in CompanyDefaults. "

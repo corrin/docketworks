@@ -90,7 +90,7 @@ class GeminiPriceExtractionProvider:
         if not supplier_info.get("name"):
             # Try to extract supplier name from filename - if it matches our company, it's us not the supplier
             filename = os.path.basename(file_path).lower()
-            company = CompanyDefaults.get_instance()
+            company = CompanyDefaults.get_solo()
             company_name_lower = company.company_name.lower()
             # Check if filename contains our company name (we're the customer, not the supplier)
             if company_name_lower in filename or any(

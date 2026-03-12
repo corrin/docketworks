@@ -119,7 +119,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client = Client.objects.create(
             name="Test Client",
@@ -290,7 +290,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client = Client.objects.create(
             name="Test Client",
@@ -440,7 +440,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client = Client.objects.create(
             name="Test Client",
@@ -639,7 +639,7 @@ class ChatServiceIntegrationTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client = Client.objects.create(
             name="Test Client",
@@ -727,7 +727,7 @@ class ChatServiceModeResponseTests(BaseTestCase):
 
     def setUp(self):
         """Set up test data"""
-        self.company_defaults = CompanyDefaults.get_instance()
+        self.company_defaults = CompanyDefaults.get_solo()
 
         self.client = Client.objects.create(
             name="Test Client",

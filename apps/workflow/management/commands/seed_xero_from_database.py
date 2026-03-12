@@ -254,7 +254,7 @@ class Command(BaseCommand):
     def process_contacts(self, dry_run):
         """Phase 1: Link/Create contacts for all clients with jobs + test client"""
         # Validate test client exists - required for testing Xero flows
-        cd = CompanyDefaults.get_instance()
+        cd = CompanyDefaults.get_solo()
         if not cd.test_client_name:
             raise ValueError(
                 "CompanyDefaults.test_client_name is not set. "

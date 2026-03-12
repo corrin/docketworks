@@ -44,7 +44,7 @@ class SafetyAIService:
 
     def _get_system_prompt(self) -> str:
         """Get the system prompt for safety document generation."""
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
         company_name = company.company_name
 
         return f"""You are a workplace safety expert specializing in New Zealand safety regulations,

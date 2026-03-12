@@ -89,7 +89,7 @@ def consume_stock(
         if job.shop_job:
             unit_rev = Decimal("0.00")
         elif unit_rev is None:
-            materials_markup = CompanyDefaults.get_instance().materials_markup
+            materials_markup = CompanyDefaults.get_solo().materials_markup
             unit_rev = item.unit_cost * (1 + materials_markup)
 
         # Ensure job has an actual cost set

@@ -177,7 +177,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         from apps.workflow.models import CompanyDefaults
 
         try:
-            loading = CompanyDefaults.get_instance().annual_leave_loading
+            loading = CompanyDefaults.get_solo().annual_leave_loading
         except CompanyDefaults.DoesNotExist:
             loading = Decimal("8.00")
         multiplier = Decimal("1") + loading / Decimal("100")

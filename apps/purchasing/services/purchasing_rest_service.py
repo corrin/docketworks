@@ -178,7 +178,7 @@ class PurchasingRestService:
             f"Allocating lines automatically for PO {po.po_number}, line: {line}"
         )
         stock_job = Stock.get_stock_holding_job()
-        defaults = CompanyDefaults.get_instance()
+        defaults = CompanyDefaults.get_solo()
         retail_rate_pct = defaults.materials_markup * 100
 
         # Handle stock allocation first
@@ -325,7 +325,7 @@ class PurchasingRestService:
 
     @staticmethod
     def get_last_purchase_order_number() -> str | None:
-        defaults = CompanyDefaults.get_instance()
+        defaults = CompanyDefaults.get_solo()
         po_prefix = defaults.po_prefix or ""
         prefix_len = len(po_prefix)
 

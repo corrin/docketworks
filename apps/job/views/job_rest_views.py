@@ -1448,7 +1448,7 @@ def get_company_defaults_api(request):
     API endpoint to fetch company default settings.
     Retrieves the singleton CompanyDefaults instance.
     """
-    defaults = CompanyDefaults.get_instance()
+    defaults = CompanyDefaults.get_solo()
     return JsonResponse(
         {
             "materials_markup": float(defaults.materials_markup),

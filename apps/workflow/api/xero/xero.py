@@ -257,7 +257,7 @@ def get_tenant_id_from_connections() -> str:
         raise Exception("No Xero tenants found.")
 
     # Get company defaults
-    company_defaults = CompanyDefaults.get_instance()
+    company_defaults = CompanyDefaults.get_solo()
     if not company_defaults.xero_tenant_id:
         raise Exception(
             "No Xero tenant ID configured in company defaults. Please set this up first."
@@ -557,7 +557,7 @@ def create_default_task(project_id: str) -> Any:
     projects_api = ProjectApi(api_client)
 
     # Get charge out rate from company defaults
-    company_defaults = CompanyDefaults.get_instance()
+    company_defaults = CompanyDefaults.get_solo()
 
     rate_amount = Amount(
         currency=CurrencyCode.NZD, value=float(company_defaults.charge_out_rate)

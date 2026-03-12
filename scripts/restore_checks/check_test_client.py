@@ -14,7 +14,7 @@ from django.utils import timezone
 from apps.client.models import Client
 from apps.workflow.models import CompanyDefaults
 
-cd = CompanyDefaults.get_instance()
+cd = CompanyDefaults.get_solo()
 client = Client.objects.filter(name=cd.test_client_name).first()
 
 if client:

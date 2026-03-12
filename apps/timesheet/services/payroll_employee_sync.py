@@ -263,7 +263,7 @@ class PayrollEmployeeSyncService:
         if cls._cached_weekly_calendar_id is not None:
             return cls._cached_weekly_calendar_id
 
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
         if not company.xero_payroll_calendar_name:
             raise ValueError(
                 "CompanyDefaults.xero_payroll_calendar_name is not configured."
@@ -312,7 +312,7 @@ class PayrollEmployeeSyncService:
             )
 
         # Get company defaults for address
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
         if not company.address_line1 or not company.city or not company.post_code:
             raise ValueError(
                 "CompanyDefaults is missing required address fields "

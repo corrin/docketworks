@@ -114,7 +114,7 @@ def _validate_and_prepare_allocations(
             )
 
         try:
-            defaults = CompanyDefaults.get_instance()
+            defaults = CompanyDefaults.get_solo()
             default_retail_rate_pct = defaults.materials_markup * 100
         except Exception as e:
             raise DeliveryReceiptValidationError(
