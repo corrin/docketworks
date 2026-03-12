@@ -39,7 +39,7 @@ def check_basic_restore():
 
     # Check company defaults
     try:
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
         checks.append(
             (
                 "Company defaults loaded",
@@ -92,7 +92,7 @@ def check_xero_config():
 
     # Check tenant ID
     try:
-        company = CompanyDefaults.get_instance()
+        company = CompanyDefaults.get_solo()
         has_tenant = bool(company.xero_tenant_id)
         checks.append(
             (

@@ -11,5 +11,5 @@ django.setup()
 
 from apps.workflow.models import CompanyDefaults
 
-company = CompanyDefaults.get_instance()
+company = CompanyDefaults.get_solo()
 print(f"Company defaults loaded: {company.company_name}")
