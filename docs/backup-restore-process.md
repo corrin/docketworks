@@ -257,22 +257,28 @@ SELECT 'workflow_job' as table_name, COUNT(*) as count FROM workflow_job
 UNION SELECT 'workflow_staff', COUNT(*) FROM workflow_staff
 UNION SELECT 'workflow_client', COUNT(*) FROM workflow_client
 UNION SELECT 'job_costset', COUNT(*) FROM job_costset
-UNION SELECT 'job_costline', COUNT(*) FROM job_costline;
+UNION SELECT 'job_costline', COUNT(*) FROM job_costline
+UNION SELECT 'process_form', COUNT(*) FROM process_form
+UNION SELECT 'process_form_entry', COUNT(*) FROM process_form_entry
+UNION SELECT 'process_procedure', COUNT(*) FROM process_procedure;
 "
 ```
 
 **Expected output (update with actual numbers):**
 
 ```
-+-------------------+-------+
-| table_name        | count |
-+-------------------+-------+
-| workflow_job      |  1054 |
-| workflow_staff    |    20 |
-| workflow_client   |  3739 |
-| job_costset       |  3162 |
-| job_costline      | 10334 |
-+-------------------+-------+
++---------------------+-------+
+| table_name          | count |
++---------------------+-------+
+| workflow_job        |  1054 |
+| workflow_staff      |    20 |
+| workflow_client     |  3739 |
+| job_costset         |  3162 |
+| job_costline        | 10334 |
+| process_form        |     5 |
+| process_form_entry  |   100 |
+| process_procedure   |    20 |
++---------------------+-------+
 ```
 
 #### Step 9: Apply Django Migrations
