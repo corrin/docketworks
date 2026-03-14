@@ -148,3 +148,17 @@ apps/workflow/fixtures/ai_providers_uat.json
 apps/process/fixtures/form_entries.json
 TestDropbox/
 staff_name_mapping.json
+
+# Frontend
+node_modules/
+dist-ssr/
+coverage/
+*.local
+*.tsbuildinfo
+pnpm-lock.yaml
+frontend/test-results/
+frontend/playwright-report/
+frontend/manual/.vitepress/cache/
+frontend/manual/.vitepress/dist/
+frontend/dist-manual/
+frontend/dist/

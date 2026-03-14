@@ -1,6 +1,6 @@
 ## 📝 Description
 
-_One or two sentences summarizing what this PR does and why._
+_Short explanation of what you’ve built and why._
 
 ## 🔗 Related Issue
 
@@ -8,23 +8,23 @@ Closes #[issue-number]
 
 ## 🚀 Changes
 
-- Brief bullet-list of the main changes (e.g. added `ChatMessageSerializer`, moved logic to `services/chat.py`, introduced pagination).
+- Bullet-list of feature additions or fixes (e.g. extracted `useChat` composable, split `ChatHistory` and `ChatInput` components, added Pinia store).
 - …
 
 ## ✅ Checklist
 
-**Django REST Framework**
+**Vue.js (Composition API)**
 
-- [ ] I used a `Serializer` for all request/response payloads
-- [ ] Business logic is isolated in a service layer (`services/…`)
-- [ ] Query optimizations (`select_related`/`prefetch_related`) applied where needed
-- [ ] Pagination and filtering are configured for list endpoints
-- [ ] Permissions and authentication classes are correct
-- [ ] Error handling is uniform (all errors return JSON with a `detail` field)
+- [ ] Used Composition API (`<script setup>` & composables), no heavy logic in templates
+- [ ] UI logic extracted to reusable composables (`useChat`, etc.)
+- [ ] Components are focused & small (<200 LOC)
+- [ ] Communication via `props` and `emit`, no direct parent/child ref duplication
+- [ ] State management in Pinia; no ad-hoc reactive globals
+- [ ] Routes/components lazy-loaded where appropriate
 
-**General**
+**Quality & Formatting**
 
-- [ ] Code is type-hinted and passes `tox -e mypy`
-- [ ] Formatted with Black/isort and linted with Flake8 (`tox -e lint`)
-- [ ] Covered by new or updated unit tests
-- [ ] Docstrings follow Google or NumPy style
+- [ ] Passes Prettier (`npx prettier --check .`)
+- [ ] Passes ESLint with zero warnings (`npx eslint . --ext .js,.ts,.vue`)
+- [ ] Added JSDoc comments for all props and emitted events
+- [ ] New or updated unit/E2E tests included
