@@ -109,3 +109,10 @@ repos:
         language: system
         pass_filenames: false
         always_run: true
+
+      - id: frontend-lint-staged
+        name: Frontend lint-staged
+        entry: bash -c 'cd frontend && npx lint-staged'
+        language: system
+        files: '^frontend/.*\.(js|ts|vue|json|md|yml|css)$'
+        pass_filenames: false
