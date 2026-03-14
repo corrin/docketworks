@@ -1,0 +1,18 @@
+# Add these lines to your ~/.zshrc or ~/.bashrc file
+
+# Alias to activate Jobs Manager Frontend environment
+alias jmf-activate="cd /path/to/jobs_manager_front && source activate_env.sh"
+
+# Alias to start the development server
+alias jmf-dev="jmf-activate && npm run dev"
+
+# Alias to build for production
+alias jmf-build="jmf-activate && npm run build"
+
+# Alias to run type checking
+alias jmf-typecheck="jmf-activate && npm run type-check"
+
+# After adding these lines, run:
+# source ~/.zshrc  # or source ~/.bashrc
+
+# Replace "/path/to/jobs_manager_front" with the actual path to your project

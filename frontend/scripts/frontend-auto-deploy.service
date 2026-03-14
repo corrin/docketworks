@@ -1,0 +1,15 @@
+[Unit]
+Description=Frontend Auto Deploy on Boot
+After=network.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/workflow_app/jobs_manager_front
+ExecStart=/opt/workflow_app/jobs_manager_front/scripts/deploy_frontend.sh
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

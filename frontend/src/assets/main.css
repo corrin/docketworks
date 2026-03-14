@@ -1,0 +1,470 @@
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+body {
+  font-family:
+    'Inter',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    Roboto,
+    sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  font-variation-settings: 'opsz' 32;
+}
+
+@theme inline {
+  --color-background: var(--background);
+
+  --color-foreground: var(--foreground);
+
+  --color-card: var(--card);
+
+  --color-card-foreground: var(--card-foreground);
+
+  --color-popover: var(--popover);
+
+  --color-popover-foreground: var(--popover-foreground);
+
+  --color-primary: var(--primary);
+
+  --color-primary-foreground: var(--primary-foreground);
+
+  --color-secondary: var(--secondary);
+
+  --color-secondary-foreground: var(--secondary-foreground);
+
+  --color-muted: var(--muted);
+
+  --color-muted-foreground: var(--muted-foreground);
+
+  --color-accent: var(--accent);
+
+  --color-accent-foreground: var(--accent-foreground);
+
+  --color-destructive: var(--destructive);
+
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-border: var(--border);
+
+  --color-input: var(--input);
+
+  --color-ring: var(--ring);
+
+  --color-chart-1: var(--chart-1);
+
+  --color-chart-2: var(--chart-2);
+
+  --color-chart-3: var(--chart-3);
+
+  --color-chart-4: var(--chart-4);
+
+  --color-chart-5: var(--chart-5);
+
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --radius-md: calc(var(--radius) - 2px);
+
+  --radius-lg: var(--radius);
+
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --color-sidebar: var(--sidebar);
+
+  --color-sidebar-foreground: var(--sidebar-foreground);
+
+  --color-sidebar-primary: var(--sidebar-primary);
+
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+
+  --color-sidebar-accent: var(--sidebar-accent);
+
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+
+  --color-sidebar-border: var(--sidebar-border);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  /* Standard color palette */
+  --color-white: #ffffff;
+  --color-gray-50: #f9fafb;
+  --color-gray-100: #f3f4f6;
+  --color-gray-200: #e5e7eb;
+  --color-gray-300: #d1d5db;
+  --color-gray-400: #9ca3af;
+  --color-gray-500: #6b7280;
+  --color-gray-600: #4b5563;
+  --color-gray-700: #374151;
+  --color-gray-800: #1f2937;
+  --color-gray-900: #111827;
+  --color-green-50: #f0fdf4;
+  --color-green-100: #dcfce7;
+  --color-green-200: #bbf7d0;
+  --color-green-600: #16a34a;
+  --color-green-700: #15803d;
+  --color-green-800: #166534;
+  --color-green-900: #14532d;
+  --color-yellow-50: #fefce8;
+  --color-yellow-200: #fef08a;
+  --color-yellow-600: #ca8a04;
+  --color-yellow-800: #854d0e;
+  --color-yellow-900: #713f12;
+  --color-red-50: #fef2f2;
+  --color-red-200: #fecaca;
+  --color-red-600: #dc2626;
+  --color-red-700: #b91c1c;
+  --color-red-800: #991b1b;
+  --color-red-900: #7f1d1d;
+  --color-blue-50: #eff6ff;
+  --color-blue-100: #dbeafe;
+  --color-blue-200: #bfdbfe;
+  --color-blue-300: #93c5fd;
+  --color-blue-400: #60a5fa;
+  --color-blue-500: #3b82f6;
+  --color-blue-600: #2563eb;
+  --color-blue-700: #1d4ed8;
+  --color-slate-800: #1e293b;
+  --color-slate-900: #0f172a;
+}
+
+:root {
+  --background: oklch(1 0 0);
+
+  --foreground: oklch(0.129 0.042 264.695);
+
+  --card: oklch(1 0 0);
+
+  --card-foreground: oklch(0.129 0.042 264.695);
+
+  --popover: oklch(1 0 0);
+
+  --popover-foreground: oklch(0.129 0.042 264.695);
+
+  --primary: oklch(0.208 0.042 265.755);
+
+  --primary-foreground: oklch(0.984 0.003 247.858);
+
+  --secondary: oklch(0.968 0.007 247.896);
+
+  --secondary-foreground: oklch(0.208 0.042 265.755);
+
+  --muted: oklch(0.968 0.007 247.896);
+
+  --muted-foreground: oklch(0.554 0.046 257.417);
+
+  --accent: oklch(0.968 0.007 247.896);
+
+  --accent-foreground: oklch(0.208 0.042 265.755);
+
+  --destructive: oklch(0.577 0.245 27.325);
+
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+
+  --border: oklch(0.929 0.013 255.508);
+
+  --input: oklch(0.929 0.013 255.508);
+
+  --ring: oklch(0.704 0.04 256.788);
+
+  --chart-1: oklch(0.646 0.222 41.116);
+
+  --chart-2: oklch(0.6 0.118 184.704);
+
+  --chart-3: oklch(0.398 0.07 227.392);
+
+  --chart-4: oklch(0.828 0.189 84.429);
+
+  --chart-5: oklch(0.769 0.188 70.08);
+
+  --radius: 0.625rem;
+
+  --sidebar: oklch(0.984 0.003 247.858);
+
+  --sidebar-foreground: oklch(0.129 0.042 264.695);
+
+  --sidebar-primary: oklch(0.208 0.042 265.755);
+
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+
+  --sidebar-accent: oklch(0.968 0.007 247.896);
+
+  --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
+
+  --sidebar-border: oklch(0.929 0.013 255.508);
+
+  --sidebar-ring: oklch(0.704 0.04 256.788);
+}
+
+.dark {
+  --background: oklch(0.129 0.042 264.695);
+
+  --foreground: oklch(0.984 0.003 247.858);
+
+  --card: oklch(0.129 0.042 264.695);
+
+  --card-foreground: oklch(0.984 0.003 247.858);
+
+  --popover: oklch(0.129 0.042 264.695);
+
+  --popover-foreground: oklch(0.984 0.003 247.858);
+
+  --primary: oklch(0.984 0.003 247.858);
+
+  --primary-foreground: oklch(0.208 0.042 265.755);
+
+  --secondary: oklch(0.279 0.041 260.031);
+
+  --secondary-foreground: oklch(0.984 0.003 247.858);
+
+  --muted: oklch(0.279 0.041 260.031);
+
+  --muted-foreground: oklch(0.704 0.04 256.788);
+
+  --accent: oklch(0.279 0.041 260.031);
+
+  --accent-foreground: oklch(0.984 0.003 247.858);
+
+  --destructive: oklch(0.396 0.141 25.723);
+
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+
+  --border: oklch(0.279 0.041 260.031);
+
+  --input: oklch(0.279 0.041 260.031);
+
+  --ring: oklch(0.446 0.043 257.281);
+
+  --chart-1: oklch(0.488 0.243 264.376);
+
+  --chart-2: oklch(0.696 0.17 162.48);
+
+  --chart-3: oklch(0.769 0.188 70.08);
+
+  --chart-4: oklch(0.627 0.265 303.9);
+
+  --chart-5: oklch(0.645 0.246 16.439);
+
+  --sidebar: oklch(0.208 0.042 265.755);
+
+  --sidebar-foreground: oklch(0.984 0.003 247.858);
+
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+
+  --sidebar-primary-foreground: oklch(0.984 0.003 247.858);
+
+  --sidebar-accent: oklch(0.279 0.041 260.031);
+
+  --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
+
+  --sidebar-border: oklch(0.279 0.041 260.031);
+
+  --sidebar-ring: oklch(0.446 0.043 257.281);
+}
+
+@layer base {
+  * {
+    @apply border-border;
+    outline-color: oklch(from var(--ring) l c h / 0.5);
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+}
+
+.staff-sortable-ghost {
+  opacity: 0.3;
+  transform: rotate(2deg) scale(0.95);
+  transition: all 0.2s ease;
+}
+
+.staff-sortable-chosen {
+  cursor: grabbing !important;
+  transform: scale(1.05);
+  opacity: 0.9;
+  z-index: 1000;
+  position: relative;
+}
+
+.staff-sortable-drag {
+  transform: rotate(3deg) scale(1.1);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.25);
+  cursor: grabbing !important;
+  z-index: 1001;
+  position: relative;
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.sortable-ghost {
+  @apply opacity-50 bg-blue-50 border-2 border-blue-300 border-dashed transform scale-105;
+}
+
+.sortable-chosen {
+  @apply shadow-lg ring-2 ring-blue-500/50 transform scale-105 z-50;
+}
+
+.sortable-drag {
+  @apply shadow-xl transform rotate-2 z-50;
+}
+
+.sortable-fallback {
+  @apply shadow-xl transform rotate-2 z-50 bg-white border-2 border-blue-400;
+}
+
+.is-dragging {
+  cursor: grabbing !important;
+}
+
+.is-dragging * {
+  cursor: grabbing !important;
+}
+
+.sortable-chosen *,
+.sortable-drag *,
+.sortable-ghost *,
+.sortable-fallback * {
+  pointer-events: none !important;
+}
+
+.kanban-column {
+  @apply min-w-[400px] max-w-[400px] flex-shrink-0;
+}
+
+.kanban-column-content {
+  @apply p-4 space-y-3;
+}
+
+/* Removed .jobs-grid - now using Tailwind space-y-3 for single column layout */
+/* To switch back to 2-column, change space-y-3 to grid grid-cols-2 gap-3 in KanbanColumn.vue */
+
+.job-card {
+  @apply bg-white rounded-lg shadow-sm border border-gray-200 p-3 hover:shadow-md transition-all duration-200 cursor-grab flex flex-col;
+  min-height: 144px;
+}
+
+.job-card:hover {
+  @apply border-blue-300 shadow-md;
+}
+
+.job-card:active {
+  cursor: grabbing;
+}
+
+.job-card-header {
+  @apply flex items-center justify-between mb-2;
+}
+
+.job-card-title {
+  @apply font-semibold text-sm text-gray-900 truncate;
+}
+
+.job-card-id {
+  @apply text-xs text-gray-500 font-mono;
+}
+
+.job-card-client {
+  @apply text-xs text-gray-600 mb-2 truncate;
+}
+
+.job-card-meta {
+  @apply flex items-center justify-between text-xs text-gray-500;
+}
+
+@media (max-width: 768px) {
+  .kanban-column {
+    @apply min-w-[350px] max-w-[350px];
+  }
+
+  /* Removed .jobs-grid mobile override - now handled via Tailwind in component */
+
+  .job-card {
+    @apply p-2;
+    min-height: 100px;
+  }
+}
+
+@media (max-width: 430px) {
+  .kanban-column {
+    @apply min-w-[320px] max-w-[320px];
+  }
+
+  .job-card {
+    @apply text-xs;
+    min-height: 90px;
+  }
+}
+
+.kanban-column.drag-over {
+  @apply bg-blue-50 border-blue-300;
+}
+
+.drop-zone-active {
+  @apply bg-gradient-to-b from-blue-50 to-blue-100 border-2 border-blue-300 border-dashed;
+}
+
+.drag-handle {
+  @apply p-1 rounded hover:bg-gray-100 cursor-grab touch-manipulation;
+}
+
+.drag-handle:active {
+  cursor: grabbing;
+}
+
+/* Workshop calendar: force light-blue blocks regardless of vendor classes */
+.vc-calendar .event-transition {
+  background-color: rgb(224 242 254) !important; /* sky-100 */
+  border-left: 4px solid rgb(14 165 233) !important; /* sky-500 */
+  color: rgb(30 41 59) !important; /* slate-800 */
+}
+
+.vc-calendar .event-transition:hover {
+  background-color: rgb(186 230 253) !important; /* sky-200 */
+}
+
+.workshop-calendar {
+  height: auto !important;
+}
+
+.workshop-calendar .vc-calendar-day,
+.workshop-calendar .vc-calendar-week {
+  height: auto;
+}
+
+.workshop-calendar .vc-calendar-day-grid,
+.workshop-calendar .vc-calendar-week-grid {
+  overflow: visible !important;
+  max-height: none;
+  flex: 1 1 auto !important;
+  width: 100%;
+}
+
+.drawer-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.drawer-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+
+.drawer-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.drawer-scroll::-webkit-scrollbar-thumb {
+  background-color: #cbd5e1;
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+
+.drawer-scroll::-webkit-scrollbar-thumb:hover {
+  background-color: #94a3b8;
+}
