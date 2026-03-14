@@ -6,21 +6,24 @@
 set -e  # Exit on any error
 
 # Configuration
-PROJECT_PATH="/opt/workflow_app/jobs_manager_front"
+PROJECT_PATH="/opt/workflow_app/jobs_manager/frontend"
 
 # Main deployment function
 main() {
     echo "Starting frontend deployment..."
 
-    cd "$PROJECT_PATH"
+    MONOREPO_ROOT="$(dirname "$(dirname "$PROJECT_PATH")")"
+    cd "$MONOREPO_ROOT"
     CURRENT_USER="$(whoami)"
 
     # Update code from git
     git switch main
     git fetch origin main
     git reset --hard origin/main
-    chmod +x scripts/deploy_frontend.sh
-    chown -R "$CURRENT_USER:$CURRENT_USER" "$PROJECT_PATH"
+    chmod +x frontend/scripts/deploy_frontend.sh
+    chown -R "$CURRENT_USER:$CURRENT_USER" "$MONOREPO_ROOT"
+
+    cd "$PROJECT_PATH"
 
     # Clean previous dependencies before npm ci
     if [ -d node_modules ]; then
