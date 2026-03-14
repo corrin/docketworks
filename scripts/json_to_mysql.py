@@ -62,6 +62,7 @@ class JSONToMySQLConverter:
             "delta_before",
             "delta_after",
             "delta_meta",
+            "form_schema",
         }
 
         # Mapping from Django model names to MySQL table names
@@ -88,6 +89,9 @@ class JSONToMySQLConverter:
             "purchasing.purchaseorder": "workflow_purchaseorder",
             "purchasing.purchaseorderline": "workflow_purchaseorderline",
             "purchasing.stock": "workflow_stock",
+            "process.form": "process_form",
+            "process.formentry": "process_form_entry",
+            "process.procedure": "process_procedure",
             "contenttypes.contenttype": "django_content_type",
             "migrations.migration": "django_migrations",
         }
@@ -179,6 +183,15 @@ class JSONToMySQLConverter:
                 "job": "job_id",
                 "source_parent_stock": "source_parent_stock_id",
                 "source_purchase_order_line": "source_purchase_order_line_id",
+            },
+            "process_form_entry": {
+                "form": "form_id",
+                "job": "job_id",
+                "staff": "staff_id",
+                "entered_by": "entered_by_id",
+            },
+            "process_procedure": {
+                "job": "job_id",
             },
         }
 

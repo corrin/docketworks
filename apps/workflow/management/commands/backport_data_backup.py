@@ -97,6 +97,9 @@ class Command(BaseCommand):
             "quoting.SupplierPriceList",
             "quoting.SupplierProduct",
             "quoting.ScrapeJob",
+            "process.Form",
+            "process.FormEntry",
+            "process.Procedure",
             "contenttypes",  # Django internal - needed for migrations
         ]
 
