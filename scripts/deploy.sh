@@ -5,13 +5,13 @@ detect_environment() {
     case "$(hostname)" in
         "msm")
             ENV="PROD"; PROJECT_DIR="/home/django_user/jobs_manager"
-            USER_DIR="/home/django_user"; APP_USER="django_user" ;;
+            APP_USER="django_user" ;;
         "uat-scheduler")
             ENV="SCHEDULER"; PROJECT_DIR="/opt/workflow_app/jobs_manager"
-            USER_DIR="/opt/workflow_app"; APP_USER="ubuntu" ;;
+            APP_USER="ubuntu" ;;
         "uat"|"uat-frontend")
             ENV="UAT"; PROJECT_DIR="/opt/workflow_app/jobs_manager"
-            USER_DIR="/opt/workflow_app"; APP_USER="ubuntu" ;;
+            APP_USER="ubuntu" ;;
         *)
             echo "ERROR: Unknown hostname $(hostname)"; exit 1 ;;
     esac
@@ -44,7 +44,7 @@ deploy_application() {
 build_frontend() {
     [ "$ENV" = "SCHEDULER" ] && return
     echo "=== Building Vue.js frontend ==="
-    cd "$USER_DIR/jobs_manager_front"
+    cd "$PROJECT_DIR/frontend"
     npm install
     npm run build
 }
