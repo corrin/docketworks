@@ -61,8 +61,8 @@ log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
 
 # --- Build dependencies ---
 
-log "Installing build dependencies (build-essential, libmysqlclient-dev, pkg-config)..."
-apt install -y build-essential libmysqlclient-dev pkg-config
+log "Installing build dependencies (build-essential, libmariadb-dev, pkg-config)..."
+apt install -y build-essential libmariadb-dev pkg-config
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
 
@@ -84,17 +84,17 @@ fi
 log_version "node" "$(node --version)"
 log_version "npm" "$(npm --version)"
 
-# --- MySQL 8.0 ---
+# --- MariaDB ---
 
-if dpkg -l | grep -q mysql-server; then
-    log "MySQL server already installed, skipping."
+if dpkg -l | grep -q mariadb-server; then
+    log "MariaDB server already installed, skipping."
 else
-    log "Installing MySQL server..."
-    apt install -y mysql-server
+    log "Installing MariaDB server..."
+    apt install -y mariadb-server
 fi
-log_version "mysql" "$(mysql --version)"
-log "Starting and enabling MySQL..."
-systemctl enable --now mysql
+log_version "mariadb" "$(mariadb --version)"
+log "Starting and enabling MariaDB..."
+systemctl enable --now mariadb
 
 # --- Nginx ---
 
@@ -107,11 +107,22 @@ fi
 log_version "nginx" "$(nginx -v 2>&1)"
 systemctl enable --now nginx
 
-# --- Certbot + DNS plugin ---
+# --- Certbot ---
 
-log "Installing Certbot and Cloudflare DNS plugin..."
-apt install -y certbot python3-certbot-nginx python3-certbot-dns-cloudflare
+log "Installing Certbot..."
+apt install -y certbot python3-certbot-nginx
 log_version "certbot" "$(certbot --version 2>&1)"
+
+# --- Certbot Dreamhost DNS hook scripts ---
+
+HOOK_DIR="/opt/docketworks/certbot-hooks"
+log "Installing Dreamhost DNS hook scripts to $HOOK_DIR..."
+mkdir -p "$HOOK_DIR"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cp "$SCRIPT_DIR/certbot-dreamhost-auth.sh" "$HOOK_DIR/auth.sh"
+cp "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh" "$HOOK_DIR/cleanup.sh"
+chmod 700 "$HOOK_DIR"/*.sh
+log "  Hooks installed: $HOOK_DIR/auth.sh, $HOOK_DIR/cleanup.sh"
 
 # --- Git ---
 
@@ -175,6 +186,16 @@ fi
 POETRY_VERSION="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && poetry --version' 2>&1)"
 log_version "poetry (docketworks user)" "$POETRY_VERSION"
 
+# --- Claude Code CLI ---
+
+if command -v claude &>/dev/null; then
+    log "Claude Code already installed, skipping."
+else
+    log "Installing Claude Code CLI..."
+    npm install -g @anthropic-ai/claude-code
+fi
+log_version "claude" "$(claude --version 2>&1 || echo 'not available')"
+
 # --- Base Nginx config (reject unknown hosts) ---
 
 log "Installing base Nginx config (reject unknown hosts)..."
@@ -210,11 +231,12 @@ etckeeper:  $(dpkg -s etckeeper | grep Version | awk '{print $2}')
 Python:     $(python3.12 --version 2>&1)
 Node.js:    $(node --version)
 npm:        $(npm --version)
-MySQL:      $(mysql --version)
+MariaDB:    $(mariadb --version)
 Nginx:      $(nginx -v 2>&1)
 Certbot:    $(certbot --version 2>&1)
 Git:        $(git --version)
 Poetry:     $POETRY_VERSION
+Claude:     $(claude --version 2>&1 || echo 'not available')
 
 ## System User
 
@@ -244,15 +266,20 @@ log "     sudo -u docketworks ssh-keygen -t ed25519 -C 'docketworks-demo' -f /op
 log "     cat /opt/docketworks/.ssh/id_ed25519.pub"
 log "     (Add as deploy key in GitHub repo settings)"
 log ""
-log "  2. Obtain wildcard SSL certificate (interactive):"
-log "     sudo certbot certonly --dns-cloudflare \\"
-log "         --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \\"
+log "  2. Save Dreamhost API key:"
+log "     echo 'YOUR_API_KEY' | sudo tee /etc/letsencrypt/dreamhost-api-key.txt"
+log "     sudo chmod 600 /etc/letsencrypt/dreamhost-api-key.txt"
+log ""
+log "  3. Obtain wildcard SSL certificate:"
+log "     sudo certbot certonly --manual --preferred-challenges dns \\"
+log "         --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \\"
+log "         --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \\"
 log "         -d '*.docketworks.site' -d 'docketworks.site'"
 log ""
-log "  3. Then test and reload Nginx:"
+log "  4. Then test and reload Nginx:"
 log "     sudo nginx -t && sudo systemctl reload nginx"
 log ""
-log "  4. Create instances:"
+log "  5. Create instances:"
 log "     sudo scripts/uat/uat-create-instance.sh msm"
 log ""
 log "Install log:      $SETUP_LOG"

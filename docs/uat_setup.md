@@ -44,19 +44,20 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - etckeeper (tracks /etc changes in git)
 - Python 3.12 + dev packages
 - Node.js 22 (NodeSource)
-- MySQL 8.0 server
+- MariaDB server
 - Nginx
-- Certbot + Cloudflare DNS plugin
-- Build dependencies (build-essential, libmysqlclient-dev, pkg-config)
+- Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
+- Claude Code CLI
+- Build dependencies (build-essential, libmariadb-dev, pkg-config)
 - Poetry (for the `docketworks` system user)
 - iptables rules for ports 80/443 (Oracle Cloud)
 
 ### After the script finishes
 
-**1. MySQL secure installation** (interactive):
+**1. MariaDB secure installation** (interactive):
 
 ```bash
-sudo mysql_secure_installation
+sudo mariadb-secure-installation
 ```
 
 **2. SSH deploy key** (so `docketworks` user can clone the repo):
@@ -67,32 +68,25 @@ cat /opt/docketworks/.ssh/id_ed25519.pub
 # Add the public key as a deploy key in GitHub repo settings
 ```
 
-**3. Wildcard SSL certificate** (interactive — requires DNS-01 challenge):
+**3. Wildcard SSL certificate** (Dreamhost DNS):
 
-Cloudflare DNS (recommended):
+Get a Dreamhost API key from `panel.dreamhost.com → Home > API` (grant `dns-*` permissions).
 
 ```bash
-# Create credentials file
+# Save API key
 sudo mkdir -p /etc/letsencrypt
-sudo tee /etc/letsencrypt/cloudflare.ini > /dev/null <<EOF
-dns_cloudflare_api_token = YOUR_CLOUDFLARE_API_TOKEN
-EOF
-sudo chmod 600 /etc/letsencrypt/cloudflare.ini
+echo 'YOUR_DREAMHOST_API_KEY' | sudo tee /etc/letsencrypt/dreamhost-api-key.txt
+sudo chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
 
-# Obtain wildcard cert
-sudo certbot certonly \
-    --dns-cloudflare \
-    --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
-    -d "*.docketworks.site" \
-    -d "docketworks.site"
-```
-
-Manual DNS TXT record (won't auto-renew):
-
-```bash
+# Obtain wildcard cert (hooks handle DNS TXT records automatically)
 sudo certbot certonly --manual --preferred-challenges dns \
+    --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
+    --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
     -d "*.docketworks.site" -d "docketworks.site"
 ```
+
+The hook scripts call Dreamhost's DNS API to add/remove TXT records automatically.
+Certs will auto-renew via `certbot renew` using the same hooks.
 
 **4. Test and reload Nginx** (after cert is obtained):
 
@@ -124,7 +118,7 @@ sudo systemctl restart gunicorn-<name>
    sudo -u docketworks git clone git@github.com:corrin/docketworks.git /opt/docketworks/<name>
    ```
 
-2. **Create MySQL database**
+2. **Create MariaDB database**
    ```bash
    sudo mysql -u root <<SQL
    CREATE DATABASE docketworks_<name> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -299,5 +293,5 @@ The server manifest at `/opt/docketworks/server-manifest.txt` lists all installe
 - Each Gunicorn service runs 3 workers
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
-- All packages (Python 3.12, Node 22, MySQL 8.0, etc.) have aarch64/ARM builds
-- The wildcard cert auto-renews if using a DNS plugin (Cloudflare, etc.)
+- All packages (Python 3.12, Node 22, MariaDB, etc.) have aarch64/ARM builds
+- The wildcard cert auto-renews via certbot with Dreamhost DNS hooks
