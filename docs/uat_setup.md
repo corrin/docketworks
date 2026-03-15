@@ -1,0 +1,303 @@
+# UAT/Demo Environment Setup
+
+Multi-instance demo server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
+Each prospect gets their own subdomain, database, and Xero credentials.
+
+```
+Architecture:
+  DNS: *.docketworks.site → 192.9.188.248
+  Instance "msm":  https://msm.docketworks.site   → /opt/docketworks/msm/
+  Instance "acme": https://acme.docketworks.site   → /opt/docketworks/acme/
+  Each instance: own DB, .env, Gunicorn service, Nginx server block
+  Single wildcard SSL cert covers all subdomains
+```
+
+---
+
+## Part A: Prerequisites
+
+- SSH access to `192.9.188.248` as `ubuntu` user
+- Wildcard DNS: `*.docketworks.site` A record → `192.9.188.248`
+- Per instance:
+  - Xero OAuth app credentials (client ID + secret)
+  - These are generated automatically: Django `SECRET_KEY`, DB password
+
+---
+
+## Part B: Base Server Setup (one-time)
+
+Run the automated base setup script as `ubuntu` with sudo. This installs all
+system dependencies, creates the `docketworks` user, configures the firewall,
+and sets up the base Nginx config.
+
+```bash
+sudo ./scripts/uat/uat-base-setup.sh
+```
+
+The script logs every action to `/var/log/docketworks-setup.log` with timestamps,
+and writes a manifest of installed software to `/opt/docketworks/server-manifest.txt`.
+
+It is **idempotent** — safe to re-run on an already-configured server.
+
+### What it installs
+
+- etckeeper (tracks /etc changes in git)
+- Python 3.12 + dev packages
+- Node.js 22 (NodeSource)
+- MySQL 8.0 server
+- Nginx
+- Certbot + Cloudflare DNS plugin
+- Build dependencies (build-essential, libmysqlclient-dev, pkg-config)
+- Poetry (for the `docketworks` system user)
+- iptables rules for ports 80/443 (Oracle Cloud)
+
+### After the script finishes
+
+**1. MySQL secure installation** (interactive):
+
+```bash
+sudo mysql_secure_installation
+```
+
+**2. SSH deploy key** (so `docketworks` user can clone the repo):
+
+```bash
+sudo -u docketworks ssh-keygen -t ed25519 -C "docketworks-demo" -f /opt/docketworks/.ssh/id_ed25519 -N ""
+cat /opt/docketworks/.ssh/id_ed25519.pub
+# Add the public key as a deploy key in GitHub repo settings
+```
+
+**3. Wildcard SSL certificate** (interactive — requires DNS-01 challenge):
+
+Cloudflare DNS (recommended):
+
+```bash
+# Create credentials file
+sudo mkdir -p /etc/letsencrypt
+sudo tee /etc/letsencrypt/cloudflare.ini > /dev/null <<EOF
+dns_cloudflare_api_token = YOUR_CLOUDFLARE_API_TOKEN
+EOF
+sudo chmod 600 /etc/letsencrypt/cloudflare.ini
+
+# Obtain wildcard cert
+sudo certbot certonly \
+    --dns-cloudflare \
+    --dns-cloudflare-credentials /etc/letsencrypt/cloudflare.ini \
+    -d "*.docketworks.site" \
+    -d "docketworks.site"
+```
+
+Manual DNS TXT record (won't auto-renew):
+
+```bash
+sudo certbot certonly --manual --preferred-challenges dns \
+    -d "*.docketworks.site" -d "docketworks.site"
+```
+
+**4. Test and reload Nginx** (after cert is obtained):
+
+```bash
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+---
+
+## Part C: Creating a Demo Instance
+
+### Automated (recommended)
+
+```bash
+sudo scripts/uat/uat-create-instance.sh <name>         # Empty database
+sudo scripts/uat/uat-create-instance.sh <name> --seed   # With demo fixtures
+```
+
+Then update Xero credentials in `/opt/docketworks/<name>/.env` and restart:
+
+```bash
+sudo systemctl restart gunicorn-<name>
+```
+
+### Manual steps (reference)
+
+1. **Clone repo**
+   ```bash
+   sudo -u docketworks git clone git@github.com:corrin/docketworks.git /opt/docketworks/<name>
+   ```
+
+2. **Create MySQL database**
+   ```bash
+   sudo mysql -u root <<SQL
+   CREATE DATABASE docketworks_<name> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER 'docketworks_<name>'@'localhost' IDENTIFIED BY '<password>';
+   GRANT ALL PRIVILEGES ON docketworks_<name>.* TO 'docketworks_<name>'@'localhost';
+   FLUSH PRIVILEGES;
+   SQL
+   ```
+
+3. **Generate `.env`** from `scripts/uat/templates/env-instance.template`
+   - Replace all `__PLACEHOLDER__` values
+   - `chmod 600 /opt/docketworks/<name>/.env`
+
+4. **Python environment**
+   ```bash
+   sudo -u docketworks bash -c "
+       cd /opt/docketworks/<name>
+       python3.12 -m venv .venv
+       source .venv/bin/activate
+       pip install --upgrade pip && pip install poetry
+       poetry install --no-interaction
+   "
+   ```
+
+5. **Migrate + collectstatic**
+   ```bash
+   sudo -u docketworks bash -c "
+       cd /opt/docketworks/<name>
+       source .venv/bin/activate
+       python manage.py migrate --no-input
+       python manage.py collectstatic --no-input
+   "
+   ```
+
+6. **Load fixtures** (optional)
+   ```bash
+   sudo -u docketworks bash -c "
+       cd /opt/docketworks/<name>
+       source .venv/bin/activate
+       python manage.py loaddata demo_fixtures
+   "
+   ```
+
+7. **Build frontend**
+   ```bash
+   sudo -u docketworks bash -c "
+       cd /opt/docketworks/<name>/frontend
+       npm install
+       VITE_API_BASE_URL='https://<name>.docketworks.site' npm run build
+   "
+   ```
+
+8. **Install systemd service**
+   ```bash
+   sudo sed 's/__INSTANCE__/<name>/g' scripts/uat/templates/gunicorn-instance.service.template \
+       > /etc/systemd/system/gunicorn-<name>.service
+   sudo systemctl daemon-reload
+   sudo systemctl enable --now gunicorn-<name>
+   ```
+
+9. **Install Nginx server block**
+   ```bash
+   sudo sed -e 's/__INSTANCE__/<name>/g' -e 's/__DOMAIN__/docketworks.site/g' \
+       scripts/uat/templates/nginx-instance.conf.template \
+       > /etc/nginx/sites-available/docketworks-<name>
+   sudo ln -sf /etc/nginx/sites-available/docketworks-<name> /etc/nginx/sites-enabled/
+   sudo nginx -t && sudo systemctl reload nginx
+   ```
+
+---
+
+## Part D: Managing Instances
+
+### Deploy (update to latest code)
+
+```bash
+sudo scripts/uat/uat-deploy-instance.sh <name>
+```
+
+This pulls latest code, installs dependencies, runs migrations, rebuilds frontend, and restarts Gunicorn.
+
+### Destroy (complete removal)
+
+```bash
+sudo scripts/uat/uat-destroy-instance.sh <name>
+```
+
+Prompts for confirmation, then drops DB, removes files, systemd service, and Nginx config.
+
+### List all instances
+
+```bash
+scripts/uat/uat-list-instances.sh
+```
+
+Shows instance name, Gunicorn status, and URL.
+
+---
+
+## Part E: Verification
+
+After creating an instance:
+
+```bash
+# Check Gunicorn is running
+sudo systemctl status gunicorn-<name>
+
+# Test API health endpoint
+curl -s https://<name>.docketworks.site/api/health
+
+# Open in browser — should show login page
+# https://<name>.docketworks.site
+```
+
+### Full verification sequence
+
+```bash
+# Create test instance
+sudo scripts/uat/uat-create-instance.sh test1
+
+# Verify
+systemctl status gunicorn-test1
+curl https://test1.docketworks.site/api/health
+
+# Create second instance with seed data
+sudo scripts/uat/uat-create-instance.sh test2 --seed
+
+# Verify both work independently
+curl https://test2.docketworks.site/api/health
+
+# Clean up
+sudo scripts/uat/uat-destroy-instance.sh test1
+sudo scripts/uat/uat-destroy-instance.sh test2
+```
+
+---
+
+## Part F: Continuous Deployment
+
+Pushes to `main` automatically deploy to the demo server via GitHub Actions (`.github/workflows/cd-demo.yml`).
+
+### Setup (one-time)
+
+Add these GitHub repository secrets:
+
+| Secret | Value |
+|--------|-------|
+| `DEMO_SSH_KEY` | Private SSH key that can connect to `192.9.188.248` as `ubuntu` |
+| `DEMO_SSH_HOST` | `192.9.188.248` |
+
+To generate the SSH key:
+
+```bash
+ssh-keygen -t ed25519 -C "github-actions-demo" -f demo_deploy_key -N ""
+# Add demo_deploy_key.pub to ~/.ssh/authorized_keys on the server
+# Add the contents of demo_deploy_key as the DEMO_SSH_KEY secret in GitHub
+```
+
+### How it works
+
+On push to `main`, the workflow SSHes into the server and runs `scripts/uat/uat-deploy-instance.sh` for every instance that has a systemd service. Each deploy: pulls code, installs deps, migrates, rebuilds frontend, restarts Gunicorn.
+
+### Install log
+
+All setup and instance operations are logged to `/var/log/docketworks-setup.log`.
+The server manifest at `/opt/docketworks/server-manifest.txt` lists all installed software with versions.
+
+---
+
+## Resource Notes
+
+- Each Gunicorn service runs 3 workers
+- Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
+- 5-10 concurrent demo instances should run comfortably
+- All packages (Python 3.12, Node 22, MySQL 8.0, etc.) have aarch64/ARM builds
+- The wildcard cert auto-renews if using a DNS plugin (Cloudflare, etc.)

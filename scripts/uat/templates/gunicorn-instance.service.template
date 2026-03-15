@@ -1,0 +1,19 @@
+[Unit]
+Description=Gunicorn instance for docketworks __INSTANCE__
+After=network.target
+
+[Service]
+User=docketworks
+Group=www-data
+WorkingDirectory=/opt/docketworks/__INSTANCE__
+UMask=0002
+ExecStart=/opt/docketworks/__INSTANCE__/.venv/bin/gunicorn \
+          --workers 3 \
+          --timeout 180 \
+          --umask 0002 \
+          --bind unix:/opt/docketworks/__INSTANCE__/gunicorn.sock \
+          jobs_manager.wsgi:application
+EnvironmentFile=/opt/docketworks/__INSTANCE__/.env
+
+[Install]
+WantedBy=multi-user.target
