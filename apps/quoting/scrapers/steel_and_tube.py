@@ -302,11 +302,9 @@ class SteelAndTubeScraper(BaseScraper):
                     self.logger.info(f"Selecting width: {width}")
 
                     # Use JavaScript to change width selection
-                    self.driver.execute_script(
-                        f"""
+                    self.driver.execute_script(f"""
                         $('#c0').val('{width}').trigger('change');
-                    """
-                    )
+                    """)
                     time.sleep(3)
 
                     # Extract variants for this width
@@ -341,8 +339,7 @@ class SteelAndTubeScraper(BaseScraper):
             )
 
             # Use JavaScript to get option data since select is hidden
-            options_data = self.driver.execute_script(
-                """
+            options_data = self.driver.execute_script("""
                 var select = document.getElementById('variantId');
                 var options = [];
                 for (var i = 0; i < select.options.length; i++) {
@@ -358,8 +355,7 @@ class SteelAndTubeScraper(BaseScraper):
                     }
                 }
                 return options;
-            """
-            )
+            """)
 
             self.logger.info(f"Found {len(options_data)} variants via JavaScript")
 
@@ -440,16 +436,13 @@ class SteelAndTubeScraper(BaseScraper):
             if variant_options:
                 first_variant_value = variant_options[0].get_attribute("value")
                 if first_variant_value and first_variant_value.upper() != "N/A":
-                    self.driver.execute_script(
-                        f"""
+                    self.driver.execute_script(f"""
                         $('#variantId').val('{first_variant_value}').trigger('change');
-                    """
-                    )
+                    """)
                     time.sleep(2)
 
             # Extract all variants for this width using JavaScript
-            options_data = self.driver.execute_script(
-                """
+            options_data = self.driver.execute_script("""
                 var select = document.getElementById('variantId');
                 var options = [];
                 for (var i = 0; i < select.options.length; i++) {
@@ -464,8 +457,7 @@ class SteelAndTubeScraper(BaseScraper):
                     }
                 }
                 return options;
-            """
-            )
+            """)
 
             self.logger.info(f"Found {len(options_data)} variants for width {width}")
 
