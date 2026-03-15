@@ -52,33 +52,18 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Poetry (for the `docketworks` system user)
 - iptables rules for ports 80/443 (Oracle Cloud)
 
+### Interactive steps during the script
+
+The script will pause and prompt you for:
+
+1. **SSH deploy key** — generates the key, displays the public key, and waits for you to add it as a deploy key in GitHub (Settings > Deploy keys)
+2. **Dreamhost API key** — prompts you to paste your API key (get one from `panel.dreamhost.com → Home > API` with `dns-*` permissions)
+
 ### After the script finishes
 
-**1. MariaDB secure installation** (interactive):
+**Wildcard SSL certificate:**
 
 ```bash
-sudo mariadb-secure-installation
-```
-
-**2. SSH deploy key** (so `docketworks` user can clone the repo):
-
-```bash
-sudo -u docketworks ssh-keygen -t ed25519 -C "docketworks-demo" -f /opt/docketworks/.ssh/id_ed25519 -N ""
-cat /opt/docketworks/.ssh/id_ed25519.pub
-# Add the public key as a deploy key in GitHub repo settings
-```
-
-**3. Wildcard SSL certificate** (Dreamhost DNS):
-
-Get a Dreamhost API key from `panel.dreamhost.com → Home > API` (grant `dns-*` permissions).
-
-```bash
-# Save API key
-sudo mkdir -p /etc/letsencrypt
-echo 'YOUR_DREAMHOST_API_KEY' | sudo tee /etc/letsencrypt/dreamhost-api-key.txt
-sudo chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
-
-# Obtain wildcard cert (hooks handle DNS TXT records automatically)
 sudo certbot certonly --manual --preferred-challenges dns \
     --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
     --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
@@ -88,7 +73,7 @@ sudo certbot certonly --manual --preferred-challenges dns \
 The hook scripts call Dreamhost's DNS API to add/remove TXT records automatically.
 Certs will auto-renew via `certbot renew` using the same hooks.
 
-**4. Test and reload Nginx** (after cert is obtained):
+Then reload Nginx:
 
 ```bash
 sudo nginx -t && sudo systemctl reload nginx

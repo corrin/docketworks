@@ -96,6 +96,21 @@ log_version "mariadb" "$(mariadb --version)"
 log "Starting and enabling MariaDB..."
 systemctl enable --now mariadb
 
+# Secure MariaDB (non-interactive equivalent of mariadb-secure-installation)
+log "Securing MariaDB installation..."
+mariadb -u root <<'EOSQL'
+-- Remove anonymous users
+DELETE FROM mysql.user WHERE User='';
+-- Disallow root remote login
+DELETE FROM mysql.user WHERE User='root' AND Host NOT IN ('localhost', '127.0.0.1', '::1');
+-- Remove test database
+DROP DATABASE IF EXISTS test;
+DELETE FROM mysql.db WHERE Db='test' OR Db='test\\_%';
+-- Reload privileges
+FLUSH PRIVILEGES;
+EOSQL
+log "  MariaDB secured (anonymous users removed, remote root disabled, test DB dropped)."
+
 # --- Nginx ---
 
 if dpkg -l | grep -q "ii  nginx "; then
@@ -172,6 +187,49 @@ log "Ensuring docketworks home directory structure..."
 mkdir -p /opt/docketworks/.ssh /opt/docketworks/.local/share /opt/docketworks/.local/bin
 chown -R docketworks:docketworks /opt/docketworks
 chmod 700 /opt/docketworks/.ssh
+
+# --- SSH deploy key for docketworks user ---
+
+if [[ -f /opt/docketworks/.ssh/id_ed25519 ]]; then
+    log "SSH deploy key already exists, skipping."
+else
+    log "Generating SSH deploy key for docketworks user..."
+    sudo -u docketworks ssh-keygen -t ed25519 -C "docketworks-demo" -f /opt/docketworks/.ssh/id_ed25519 -N ""
+    log "  Deploy key generated."
+    echo ""
+    echo "============================================================"
+    echo "  ACTION REQUIRED: Add this deploy key to GitHub repo settings"
+    echo "  (Settings > Deploy keys > Add deploy key)"
+    echo ""
+    cat /opt/docketworks/.ssh/id_ed25519.pub
+    echo ""
+    echo "  Press Enter once you've added it to continue..."
+    echo "============================================================"
+    read -r
+fi
+
+# --- Dreamhost API key for SSL cert renewal ---
+
+if [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
+    log "Dreamhost API key already configured, skipping."
+else
+    echo ""
+    echo "============================================================"
+    echo "  ACTION REQUIRED: Dreamhost API key needed for SSL certs"
+    echo "  Get one from: panel.dreamhost.com → Home > API"
+    echo "  Grant it dns-* permissions."
+    echo ""
+    read -rp "  Paste your Dreamhost API key (or leave blank to skip): " API_KEY
+    if [[ -n "$API_KEY" ]]; then
+        mkdir -p /etc/letsencrypt
+        echo "$API_KEY" > /etc/letsencrypt/dreamhost-api-key.txt
+        chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
+        log "  Dreamhost API key saved to /etc/letsencrypt/dreamhost-api-key.txt"
+    else
+        log "  WARNING: Dreamhost API key skipped. Wildcard SSL cert will need manual setup."
+    fi
+    echo "============================================================"
+fi
 
 # --- Poetry for docketworks user ---
 
@@ -259,25 +317,16 @@ log "Base server setup complete"
 log "=========================================="
 log ""
 log "Next steps:"
-log "  1. Set up SSH deploy key:"
-log "     sudo -u docketworks ssh-keygen -t ed25519 -C 'docketworks-demo' -f /opt/docketworks/.ssh/id_ed25519 -N ''"
-log "     cat /opt/docketworks/.ssh/id_ed25519.pub"
-log "     (Add as deploy key in GitHub repo settings)"
-log ""
-log "  2. Save Dreamhost API key:"
-log "     echo 'YOUR_API_KEY' | sudo tee /etc/letsencrypt/dreamhost-api-key.txt"
-log "     sudo chmod 600 /etc/letsencrypt/dreamhost-api-key.txt"
-log ""
-log "  3. Obtain wildcard SSL certificate:"
+log "  1. Obtain wildcard SSL certificate:"
 log "     sudo certbot certonly --manual --preferred-challenges dns \\"
 log "         --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \\"
 log "         --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \\"
 log "         -d '*.docketworks.site' -d 'docketworks.site'"
 log ""
-log "  4. Then test and reload Nginx:"
+log "  2. Test and reload Nginx:"
 log "     sudo nginx -t && sudo systemctl reload nginx"
 log ""
-log "  5. Create instances:"
+log "  3. Create instances:"
 log "     sudo scripts/uat/uat-create-instance.sh msm"
 log ""
 log "Install log:      $SETUP_LOG"
