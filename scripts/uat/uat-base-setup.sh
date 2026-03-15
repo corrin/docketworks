@@ -166,14 +166,12 @@ else
     log "  Created user 'docketworks' (home: /opt/docketworks, groups: www-data)."
 fi
 
-# --- SSH directory for docketworks user ---
+# --- Ensure home directory structure for docketworks user ---
 
-if [[ ! -d /opt/docketworks/.ssh ]]; then
-    log "Creating .ssh directory for docketworks user..."
-    mkdir -p /opt/docketworks/.ssh
-    chown docketworks:docketworks /opt/docketworks/.ssh
-    chmod 700 /opt/docketworks/.ssh
-fi
+log "Ensuring docketworks home directory structure..."
+mkdir -p /opt/docketworks/.ssh /opt/docketworks/.local/share /opt/docketworks/.local/bin
+chown -R docketworks:docketworks /opt/docketworks
+chmod 700 /opt/docketworks/.ssh
 
 # --- Poetry for docketworks user ---
 
