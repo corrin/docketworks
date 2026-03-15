@@ -120,7 +120,8 @@ else
     apt install -y nginx
 fi
 log_version "nginx" "$(nginx -v 2>&1)"
-systemctl enable --now nginx
+systemctl enable nginx
+# Don't start nginx yet — default config may reference SSL certs that don't exist
 
 # --- Certbot ---
 
@@ -255,7 +256,8 @@ log_version "claude" "$(claude --version 2>&1 || echo 'not available')"
 # --- Base Nginx config (reject unknown hosts) ---
 
 log "Installing base Nginx config (reject unknown hosts)..."
-cat > /etc/nginx/sites-available/default <<'EOF'
+if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
+    cat > /etc/nginx/sites-available/default <<'EOF'
 server {
     listen 80 default_server;
     listen 443 ssl default_server;
@@ -267,8 +269,19 @@ server {
     return 444;
 }
 EOF
-log "  Wrote /etc/nginx/sites-available/default"
-# Don't test/reload yet — SSL cert may not exist on first run
+    log "  Wrote default config with SSL (certs found)."
+    nginx -t && systemctl start nginx
+else
+    cat > /etc/nginx/sites-available/default <<'EOF'
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+EOF
+    log "  Wrote default config without SSL (no certs yet — run certbot, then re-run this script)."
+    nginx -t && systemctl start nginx
+fi
 
 # --- Write server manifest ---
 
