@@ -252,10 +252,28 @@ else
 fi
 log_version "claude" "$(claude --version 2>&1 || echo 'not available')"
 
+# --- Wildcard SSL certificate ---
+
+if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
+    log "Wildcard SSL certificate already exists, skipping."
+elif [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
+    log "Obtaining wildcard SSL certificate via Dreamhost DNS..."
+    log "  This will take ~2-4 minutes (DNS propagation wait)."
+    certbot certonly --manual --preferred-challenges dns \
+        --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
+        --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
+        -d "*.docketworks.site" -d "docketworks.site" \
+        --non-interactive --agree-tos --email admin@docketworks.site
+    log "  Wildcard SSL certificate obtained."
+else
+    log "WARNING: No Dreamhost API key — skipping SSL cert. Nginx will run HTTP-only."
+fi
+
 # --- Base Nginx config (reject unknown hosts) ---
 
 log "Installing base Nginx config (reject unknown hosts)..."
-cat > /etc/nginx/sites-available/default <<'EOF'
+if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
+    cat > /etc/nginx/sites-available/default <<'EOF'
 server {
     listen 80 default_server;
     listen 443 ssl default_server;
@@ -267,8 +285,19 @@ server {
     return 444;
 }
 EOF
-log "  Wrote /etc/nginx/sites-available/default"
-# Don't test/reload yet — SSL cert may not exist on first run
+    log "  Wrote default config with SSL."
+else
+    cat > /etc/nginx/sites-available/default <<'EOF'
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+EOF
+    log "  Wrote default config without SSL (no certs yet)."
+fi
+nginx -t && systemctl restart nginx
+log "  Nginx started."
 
 # --- Write server manifest ---
 
@@ -316,18 +345,8 @@ log "=========================================="
 log "Base server setup complete"
 log "=========================================="
 log ""
-log "Next steps:"
-log "  1. Obtain wildcard SSL certificate:"
-log "     sudo certbot certonly --manual --preferred-challenges dns \\"
-log "         --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \\"
-log "         --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \\"
-log "         -d '*.docketworks.site' -d 'docketworks.site'"
-log ""
-log "  2. Test and reload Nginx:"
-log "     sudo nginx -t && sudo systemctl reload nginx"
-log ""
-log "  3. Create instances:"
-log "     sudo scripts/uat/uat-create-instance.sh msm"
+log "Next step — create an instance:"
+log "  sudo scripts/uat/uat-create-instance.sh msm"
 log ""
 log "Install log:      $SETUP_LOG"
 log "Server manifest:  $MANIFEST"
