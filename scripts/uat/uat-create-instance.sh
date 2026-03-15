@@ -1,15 +1,17 @@
 #!/bin/bash
 set -euo pipefail
 
-# Creates a new UAT/demo instance of docketworks.
+# Creates a new UAT/demo instance of docketworks (thin instance — shared codebase).
 # Usage: uat-create-instance.sh <name> [--seed]
 #
 # Requires: run as root or with sudo
-# Assumes base server setup is complete (see docs/uat_setup.md)
+# Assumes base server setup is complete (see uat-base-setup.sh)
+# Assumes shared codebase exists at /opt/docketworks/shared/ (see uat-deploy-shared.sh)
 
 DOMAIN="docketworks.site"
 BASE_DIR="/opt/docketworks"
-REPO_URL="git@github.com:corrin/docketworks.git"
+SHARED_DIR="$BASE_DIR/shared"
+INSTANCES_DIR="$BASE_DIR/instances"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 SETUP_LOG="/var/log/docketworks-setup.log"
@@ -48,9 +50,16 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-INSTANCE_DIR="$BASE_DIR/$INSTANCE"
+INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 DB_NAME="docketworks_${INSTANCE//-/_}"
 DB_USER="docketworks_${INSTANCE//-/_}"
+
+# --- Verify shared codebase exists ---
+if [[ ! -d "$SHARED_DIR/.git" ]]; then
+    echo "ERROR: Shared codebase not found at $SHARED_DIR"
+    echo "Run uat-deploy-shared.sh first to set up the shared codebase."
+    exit 1
+fi
 
 if [[ -d "$INSTANCE_DIR" ]]; then
     log "Instance directory $INSTANCE_DIR already exists — will update in place."
@@ -63,18 +72,14 @@ log "  Database:  $DB_NAME"
 log "  URL:       https://$INSTANCE.$DOMAIN"
 log "=========================================="
 
+# --- Create instance directory structure ---
+log "Creating instance directory structure..."
+mkdir -p "$INSTANCE_DIR"/{logs,mediafiles}
+chown -R docketworks:docketworks "$INSTANCE_DIR"
+
 # --- Generate credentials (only if no .env yet) ---
 DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
 SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
-
-# --- Clone or update repository ---
-if [[ -d "$INSTANCE_DIR/.git" ]]; then
-    log "Repository already cloned — pulling latest..."
-    sudo -u docketworks git -C "$INSTANCE_DIR" pull --ff-only
-else
-    log "Cloning repository to $INSTANCE_DIR..."
-    sudo -u docketworks git clone "$REPO_URL" "$INSTANCE_DIR"
-fi
 
 # --- Create MySQL database and user ---
 log "Creating database $DB_NAME and user $DB_USER (if not exists)..."
@@ -106,45 +111,29 @@ else
     chmod 600 "$INSTANCE_DIR/.env"
 fi
 
-# --- Python virtual environment + dependencies ---
-log "Setting up Python environment..."
+# --- Run migrations using shared codebase ---
+log "Running migrations..."
 sudo -u docketworks bash -c "
-    cd '$INSTANCE_DIR'
-    if [[ ! -d .venv ]]; then
-        python3.12 -m venv .venv
-    fi
+    cd '$SHARED_DIR'
     source .venv/bin/activate
-    pip install --upgrade pip
-    export PATH='/opt/docketworks/.local/bin:\$PATH'
-    poetry install --no-interaction
-"
-
-# --- Run migrations ---
-log "Running migrations and collectstatic..."
-sudo -u docketworks bash -c "
-    cd '$INSTANCE_DIR'
-    source .venv/bin/activate
+    set -a
+    source '$INSTANCE_DIR/.env'
+    set +a
     python manage.py migrate --no-input
-    python manage.py collectstatic --no-input
 "
 
 # --- Optionally seed data ---
 if $SEED; then
     log "Loading demo fixtures..."
     sudo -u docketworks bash -c "
-        cd '$INSTANCE_DIR'
+        cd '$SHARED_DIR'
         source .venv/bin/activate
+        set -a
+        source '$INSTANCE_DIR/.env'
+        set +a
         python manage.py loaddata demo_fixtures
     "
 fi
-
-# --- Build frontend ---
-log "Building frontend..."
-sudo -u docketworks bash -c "
-    cd '$INSTANCE_DIR/frontend'
-    npm install
-    VITE_API_BASE_URL='https://$INSTANCE.$DOMAIN' npm run build
-"
 
 # --- Install systemd service ---
 log "Installing systemd service gunicorn-$INSTANCE..."

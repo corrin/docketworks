@@ -11,11 +11,11 @@ import { debugLog } from '@/utils/debug'
 // ETag / concurrency handling lives in api/client.ts (Zodios). This helper remains for auth (401/logout) and Xero only.
 
 export const getApiBaseUrl = () => {
-  const env = import.meta.env
-  if (!env?.VITE_API_BASE_URL) {
-    throw new Error('VITE_API_BASE_URL must be set in environment')
+  // Dev: Vite dev server and Django run on different ports
+  if (import.meta.env.DEV && import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL as string
   }
-  return env.VITE_API_BASE_URL as string
+  return window.location.origin
 }
 
 axios.defaults.baseURL = getApiBaseUrl()

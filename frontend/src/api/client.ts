@@ -67,10 +67,11 @@ export function setupPoReloadManager(manager: {
 }
 
 function getApiBaseUrl() {
-  if (!import.meta.env.VITE_API_BASE_URL) {
-    throw new Error('VITE_API_BASE_URL must be set in environment')
+  // Dev: Vite dev server and Django run on different ports
+  if (import.meta.env.DEV && import.meta.env.VITE_API_BASE_URL) {
+    return import.meta.env.VITE_API_BASE_URL
   }
-  return import.meta.env.VITE_API_BASE_URL
+  return window.location.origin
 }
 
 // Configure axios instance for the client

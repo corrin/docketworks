@@ -5,6 +5,7 @@ set -euo pipefail
 # Usage: uat-destroy-instance.sh <name>
 
 BASE_DIR="/opt/docketworks"
+INSTANCES_DIR="$BASE_DIR/instances"
 
 if [[ $# -ne 1 ]]; then
     echo "Usage: $0 <instance-name>"
@@ -12,7 +13,7 @@ if [[ $# -ne 1 ]]; then
 fi
 
 INSTANCE="$1"
-INSTANCE_DIR="$BASE_DIR/$INSTANCE"
+INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 DB_NAME="docketworks_${INSTANCE//-/_}"
 DB_USER="docketworks_${INSTANCE//-/_}"
 
