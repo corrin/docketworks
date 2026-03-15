@@ -13,7 +13,7 @@ jobs:
     steps:
       # Code Checkout
       - name: Checkout Repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       # AWS Configuration
       - name: Configure AWS credentials
