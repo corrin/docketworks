@@ -17,9 +17,9 @@ and centralised Zod schemas (generated and local).
    - Remove all manual response parsing (`response.data || []`)
    - Remove all manual type conversions (`convertedJobs.map(...)`)
    - Remove all fallback logic - trust the schema validation
-3. **Schema Migration**  
-   • Import generated schemas where available.  
-   • Create local schemas in `src/api/local/schemas.ts` for uncovered cases.  
+3. **Schema Migration**
+   • Import generated schemas where available.
+   • Create local schemas in `src/api/local/schemas.ts` for uncovered cases.
    • Replace interfaces with `z.infer<typeof XxxSchema>`.
 4. **Clean Up** - Remove all manual error handling, response parsing, data conversion
 5. **Lint** – run `npm run lint` until clean.
@@ -28,15 +28,15 @@ and centralised Zod schemas (generated and local).
 
 ## Anti-Patterns to ELIMINATE
 
-❌ `axios.get('/api/endpoint')`  
-❌ `response.data || []`  
-❌ `convertedJobs.map(job => ({ ...transformation }))`  
-❌ Manual error handling with try/catch for API calls  
+❌ `axios.get('/api/endpoint')`
+❌ `response.data || []`
+❌ `convertedJobs.map(job => ({ ...transformation }))`
+❌ Manual error handling with try/catch for API calls
 ❌ Manual type assertions and fallbacks
 
-✅ `api.getPurchasingJobs()`  
-✅ Direct usage of validated response  
-✅ Trust the schema validation  
+✅ `api.getPurchasingJobs()`
+✅ Direct usage of validated response
+✅ Trust the schema validation
 ✅ Let Zodios handle errors
 
 ## Checklist

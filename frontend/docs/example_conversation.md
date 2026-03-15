@@ -6,24 +6,24 @@ This shows a realistic, disciplined quoting interaction where the estimator driv
 
 ## 💬 Input Phase
 
-**Estimator:**  
+**Estimator:**
 We need 3 boxes, 700×700×400, brushed stainless. Welded seams, open top.
 
-**System:**  
+**System:**
 You've entered:
 
 - 3 × box
 - Dimensions: 700×700×400 mm
 - Material: brushed stainless
 
-❓ Confirm: Is this 304/4, 1.2 mm gauge?  
+❓ Confirm: Is this 304/4, 1.2 mm gauge?
 (If not, please specify.)
 
-**Estimator:**  
+**Estimator:**
 Yes, 304/4, 1.2 mm.
 
-**System:**  
-✅ Material confirmed.  
+**System:**
+✅ Material confirmed.
 📦 Welded 5-face box, open top. Folded seam allowances will be applied.
 
 Proceeding to material usage calculation.
@@ -32,11 +32,11 @@ Proceeding to material usage calculation.
 
 ## 📐 Material Calculation Phase
 
-**System:**  
-Unfolded layout: 4 sides + base = 5 faces  
-Each face = 700×400 mm = 0.28 m²  
-Total per box (before waste): 5 × 0.28 = 1.4 m²  
-Applying 12% waste = 1.4 × 1.12 = **1.57 m² per box**  
+**System:**
+Unfolded layout: 4 sides + base = 5 faces
+Each face = 700×400 mm = 0.28 m²
+Total per box (before waste): 5 × 0.28 = 1.4 m²
+Applying 12% waste = 1.4 × 1.12 = **1.57 m² per box**
 Total for 3 boxes = **4.71 m²**
 
 🔢 Method 1: Waste % → 4.71 m² ÷ 2.88 = 1.64 sheets
@@ -55,33 +55,33 @@ Total for 3 boxes = **4.71 m²**
 
 ❓ Confirm to proceed with sheet pricing lookup?
 
-**Estimator:**  
+**Estimator:**
 Confirmed. Proceed.
 
 ---
 
 ## 💰 Supplier Lookup Phase
 
-**System:**  
+**System:**
 Checking pricing via MCP tools...
 
-**Supplier options:**  
+**Supplier options:**
 | Supplier | Sheet Type | Price | Code | Delivery | Notes |
 |----------|----------------|-------|-------------|----------|-------------|
 | Rivtec | 304/4 1.2 mm | $198 | RVT-SS30412 | 2 days | In stock |
 | EDL | 304/4 1.2 mm | $236 | EDL-S30412 | 3 days | |
 
-📌 Cheapest: Rivtec ($198)  
+📌 Cheapest: Rivtec ($198)
 ⚠️ Large price gap → please confirm supplier choice
 
-**Estimator:**  
+**Estimator:**
 Stick with Rivtec. Confirmed.
 
 ---
 
 ## 🛠️ Labor Estimation Phase
 
-**System:**  
+**System:**
 Labor template: welded stainless box, 5 sides, 700 mm
 
 - Cutting: 0.2 hrs/box
@@ -102,7 +102,7 @@ Hourly rate: $95 → Labor cost = **$327.75**
 | Labor       | 3.45 | $95  | $327.75 | Welded box fabrication |
 | Total       |      |      | $723.75 |                        |
 
-Markup: 20%  
+Markup: 20%
 Quote total (excl. GST): **$868.50**
 
 ✅ Ready for export or further edits.

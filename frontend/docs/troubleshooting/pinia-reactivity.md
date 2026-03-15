@@ -19,7 +19,7 @@ const orders = store.orders // <- loses reactivity
 const loading = store.loading
 ```
 
-`store.orders` is a **`ref`** inside the store, but when we read it this way we get the _value_ at that moment – not a reactive reference.  
+`store.orders` is a **`ref`** inside the store, but when we read it this way we get the _value_ at that moment – not a reactive reference.
 Subsequent updates inside the store no longer reach the component, so the UI never updates.
 
 ---
@@ -34,7 +34,7 @@ const store = usePurchaseOrderStore()
 const { orders, loading } = storeToRefs(store)
 ```
 
-`storeToRefs` converts every state property of the store into its own `ref`, preserving full reactivity.  
+`storeToRefs` converts every state property of the store into its own `ref`, preserving full reactivity.
 After this change the component reacted immediately and all 116 rows appeared.
 
 ---
@@ -67,5 +67,5 @@ After this change the component reacted immediately and all 116 rows appeared.
 
 ### TL;DR
 
-> **Always wrap Pinia stores with `storeToRefs` if you plan to destructure their reactive state.**  
+> **Always wrap Pinia stores with `storeToRefs` if you plan to destructure their reactive state.**
 > It prevents silent reactivity loss and the “data in store but not on screen” headache.
