@@ -21,37 +21,4 @@ jobs:
           command_timeout: 10m
           script: |
             set -euo pipefail
-            BASE_DIR="/opt/docketworks"
-
-            # Find active instances (directories with a running gunicorn service)
-            DEPLOYED=0
-            FAILED=0
-
-            for dir in "$BASE_DIR"/*/; do
-                [ -d "$dir" ] || continue
-                instance="$(basename "$dir")"
-
-                # Skip if no gunicorn service exists
-                if [ ! -f "/etc/systemd/system/gunicorn-${instance}.service" ]; then
-                    echo "Skipping $instance — no systemd service."
-                    continue
-                fi
-
-                echo "=== Deploying instance: $instance ==="
-                if sudo "$BASE_DIR/$instance/scripts/uat/uat-deploy-instance.sh" "$instance"; then
-                    echo "=== $instance deployed successfully ==="
-                    DEPLOYED=$((DEPLOYED + 1))
-                else
-                    echo "=== $instance deployment FAILED ==="
-                    FAILED=$((FAILED + 1))
-                fi
-            done
-
-            echo ""
-            echo "=== Deployment summary ==="
-            echo "  Deployed: $DEPLOYED"
-            echo "  Failed:   $FAILED"
-
-            if [ "$FAILED" -gt 0 ]; then
-                exit 1
-            fi
+            sudo /opt/docketworks/shared/scripts/uat/uat-deploy-shared.sh
