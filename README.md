@@ -1,6 +1,6 @@
-# jobs_manager
+# DocketWorks
 
-A Django-based jobs/quotes/work management system customized for **Morris Sheetmetal** needs. Inspired by [django-timepiece](https://github.com/lincolnloop/django-timepiece), with added features such as:
+A Django + Vue.js job/project management system for custom manufacturing businesses. Originally built for [Morris Sheetmetal](https://www.morrissheetmetal.co.nz/). Inspired by [django-timepiece](https://github.com/lincolnloop/django-timepiece), with features including:
 
 - **CRM** with projects and businesses
 - **User dashboards** with budgeted hours based on project contracts
@@ -17,6 +17,7 @@ For detailed documentation including business context, technical details, and se
 
 - **Python 3.12+**
 - **[Poetry](https://python-poetry.org/)** (manages Python dependencies)
+- **Node.js 22+** (frontend)
 - **MariaDB 11.5.2** (locally)
 
 ### Installation
@@ -26,8 +27,8 @@ See [docs/initial_install.md](docs/initial_install.md) for installation instruct
 ### Starting
 
 1. **Backend**: `python manage.py runserver`
-2. **Frontend**: See the [frontend repository](https://github.com/corrin/jobs_manager_front) for setup and launch instructions
+2. **Frontend**: `cd frontend && npm install && npm run dev`
 
 ## License
 
-This project is proprietary to **Morris Sheetmetal**. For inquiries or usage permissions, contact the repository maintainer.
+This project is proprietary. For inquiries or usage permissions, contact the repository maintainer.
