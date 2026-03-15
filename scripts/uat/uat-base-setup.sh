@@ -349,6 +349,48 @@ MANIFEST
 
 log "Server manifest written to $MANIFEST"
 
+# --- Clone shared codebase ---
+
+REPO_URL="git@github.com:corrin/docketworks.git"
+SHARED_DIR="/opt/docketworks/shared"
+
+if [[ -d "$SHARED_DIR/.git" ]]; then
+    log "Shared codebase already cloned — pulling latest..."
+    sudo -u docketworks git -C "$SHARED_DIR" pull --ff-only
+else
+    log "Cloning shared codebase to $SHARED_DIR..."
+    sudo -u docketworks git clone "$REPO_URL" "$SHARED_DIR"
+fi
+
+log "Setting up shared Python environment..."
+sudo -u docketworks bash -c "
+    cd '$SHARED_DIR'
+    if [[ ! -d .venv ]]; then
+        python3.12 -m venv .venv
+    fi
+    source .venv/bin/activate
+    pip install --upgrade pip
+    export PATH='/opt/docketworks/.local/bin:\$PATH'
+    poetry install --no-interaction
+"
+
+log "Building shared frontend..."
+sudo -u docketworks bash -c "
+    cd '$SHARED_DIR/frontend'
+    npm install
+    npm run build
+"
+
+log "Collecting shared static files..."
+sudo -u docketworks bash -c "
+    cd '$SHARED_DIR'
+    source .venv/bin/activate
+    python manage.py collectstatic --no-input
+"
+
+mkdir -p /opt/docketworks/instances
+chown docketworks:docketworks /opt/docketworks/instances
+
 # --- Summary ---
 
 log "=========================================="

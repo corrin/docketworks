@@ -6,7 +6,7 @@ server {
 
     # Django backend — API and admin
     location /api/ {
-        proxy_pass http://unix:/opt/docketworks/__INSTANCE__/gunicorn.sock;
+        proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
@@ -20,21 +20,26 @@ server {
 
     # Django admin (served by Gunicorn)
     location /admin/ {
-        proxy_pass http://unix:/opt/docketworks/__INSTANCE__/gunicorn.sock;
+        proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
 
-    # Django static files (collectstatic output)
-    location /static/ {
-        alias /opt/docketworks/__INSTANCE__/staticfiles/;
+    # Django media files (per-instance uploads)
+    location /media/ {
+        alias /opt/docketworks/instances/__INSTANCE__/mediafiles/;
     }
 
-    # Vue.js frontend — everything else
+    # Django static files (shared collectstatic output)
+    location /static/ {
+        alias /opt/docketworks/shared/staticfiles/;
+    }
+
+    # Vue.js frontend — everything else (shared build)
     location / {
-        root /opt/docketworks/__INSTANCE__/frontend/dist;
+        root /opt/docketworks/shared/frontend/dist;
         try_files $uri $uri/ /index.html;
     }
 

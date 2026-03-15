@@ -4,15 +4,16 @@
 # Usage: uat-list-instances.sh
 
 BASE_DIR="/opt/docketworks"
+INSTANCES_DIR="$BASE_DIR/instances"
 DOMAIN="docketworks.site"
 
-if [[ ! -d "$BASE_DIR" ]]; then
-    echo "No instances found (base directory $BASE_DIR does not exist)."
+if [[ ! -d "$INSTANCES_DIR" ]]; then
+    echo "No instances found (directory $INSTANCES_DIR does not exist)."
     exit 0
 fi
 
 INSTANCES=()
-for dir in "$BASE_DIR"/*/; do
+for dir in "$INSTANCES_DIR"/*/; do
     [[ -d "$dir" ]] || continue
     name="$(basename "$dir")"
     INSTANCES+=("$name")

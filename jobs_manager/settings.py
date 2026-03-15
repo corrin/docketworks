@@ -594,6 +594,10 @@ STATICFILES_DIRS = []
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# Log directory — defaults to BASE_DIR/logs, overridable via LOG_DIR env var
+# (allows per-instance log directories in shared-codebase UAT deployments)
+LOG_DIR = os.getenv("LOG_DIR", os.path.join(BASE_DIR, "logs"))
+
 # Logging configuration
 LOGGING = {
     "version": 1,
@@ -621,7 +625,7 @@ LOGGING = {
         "sql_file": {
             "level": "DEBUG",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/debug_sql.log"),
+            "filename": os.path.join(LOG_DIR, "debug_sql.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
@@ -629,7 +633,7 @@ LOGGING = {
         "xero_file": {
             "level": "DEBUG",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/xero_integration.log"),
+            "filename": os.path.join(LOG_DIR, "xero_integration.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
@@ -637,7 +641,7 @@ LOGGING = {
         "purchase_file": {
             "level": "DEBUG",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/purchase_debug.log"),
+            "filename": os.path.join(LOG_DIR, "purchase_debug.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
@@ -645,7 +649,7 @@ LOGGING = {
         "app_file": {
             "level": "DEBUG",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/application.log"),
+            "filename": os.path.join(LOG_DIR, "application.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
@@ -653,7 +657,7 @@ LOGGING = {
         "scheduler_file": {
             "level": "INFO",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/scheduler.log"),
+            "filename": os.path.join(LOG_DIR, "scheduler.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
@@ -661,7 +665,7 @@ LOGGING = {
         "ai_extraction_file": {
             "level": "DEBUG",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/ai_extraction.log"),
+            "filename": os.path.join(LOG_DIR, "ai_extraction.log"),
             "maxBytes": 10 * 1024 * 1024,
             "backupCount": 10,
             "formatter": "verbose",
@@ -669,7 +673,7 @@ LOGGING = {
         "ai_chat_file": {
             "level": "DEBUG",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/ai_chat.log"),
+            "filename": os.path.join(LOG_DIR, "ai_chat.log"),
             "maxBytes": 10 * 1024 * 1024,
             "backupCount": 10,
             "formatter": "verbose",
@@ -677,7 +681,7 @@ LOGGING = {
         "access_file": {
             "level": "INFO",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/access.log"),
+            "filename": os.path.join(LOG_DIR, "access.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "access",
@@ -690,7 +694,7 @@ LOGGING = {
         "auth_file": {
             "level": "INFO",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(BASE_DIR, "logs/auth.log"),
+            "filename": os.path.join(LOG_DIR, "auth.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",

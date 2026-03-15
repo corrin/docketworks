@@ -41,6 +41,10 @@ EMAIL_HOST_USER=__EMAIL_USER__
 EMAIL_HOST_PASSWORD=__EMAIL_PASSWORD__
 DEFAULT_FROM_EMAIL=__EMAIL_USER__
 
+# Instance-specific paths (shared codebase layout)
+MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
+LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs
+
 # Feature flags
 WEEKEND_TIMESHEETS_ENABLED=True
 DEBUG_PAYLOAD=False

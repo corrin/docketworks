@@ -1,4 +1,4 @@
-name: Django CD
+name: CD
 
 on:
   push:
@@ -7,150 +7,51 @@ on:
 
 jobs:
   deploy:
-    name: Deploy to EC2
+    name: Deploy to Demo Server
     runs-on: ubuntu-latest
 
     steps:
-      # Code Checkout
-      - name: Checkout Repository
-        uses: actions/checkout@v6
-
-      # AWS Configuration
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v6
+      - name: Deploy all instances
+        uses: appleboy/ssh-action@v1
         with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ vars.AWS_REGION }}
+          host: ${{ secrets.DEMO_SSH_HOST }}
+          username: ubuntu
+          key: ${{ secrets.DEMO_SSH_KEY }}
+          script_stop: true
+          command_timeout: 10m
+          script: |
+            set -euo pipefail
+            BASE_DIR="/opt/docketworks"
 
-      - name: Debug All Variables
-        run: |
-          echo "SCHEDULER_INSTANCE_ID: ${{ vars.SCHEDULER_INSTANCE_ID }}"
-          echo "FRONTEND_INSTANCE_ID: ${{ vars.FRONTEND_INSTANCE_ID }}"
-          echo "AWS_REGION: ${{ vars.AWS_REGION }}"
-          echo "PROJECT_PATH: ${{ vars.PROJECT_PATH }}"
+            # Find active instances (directories with a running gunicorn service)
+            DEPLOYED=0
+            FAILED=0
 
-      - name: Deploy to Scheduler Machine
-        env:
-          SCHEDULER_INSTANCE_ID: ${{ vars.SCHEDULER_INSTANCE_ID }}
-          PROJECT_PATH: ${{ vars.PROJECT_PATH }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          echo "Deploying to Scheduler Machine: $SCHEDULER_INSTANCE_ID"
+            for dir in "$BASE_DIR"/*/; do
+                [ -d "$dir" ] || continue
+                instance="$(basename "$dir")"
 
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids $SCHEDULER_INSTANCE_ID \
-            --document-name "AWS-RunShellScript" \
-            --parameters "commands=['sudo su - ubuntu -c \"bash $PROJECT_PATH/scripts/deploy.sh\"']" \
-            --region $AWS_REGION \
-            --query 'Command.CommandId' \
-            --output text)
+                # Skip if no gunicorn service exists
+                if [ ! -f "/etc/systemd/system/gunicorn-${instance}.service" ]; then
+                    echo "Skipping $instance — no systemd service."
+                    continue
+                fi
 
-          echo "Command ID: $COMMAND_ID"
+                echo "=== Deploying instance: $instance ==="
+                if sudo "$BASE_DIR/$instance/scripts/uat/uat-deploy-instance.sh" "$instance"; then
+                    echo "=== $instance deployed successfully ==="
+                    DEPLOYED=$((DEPLOYED + 1))
+                else
+                    echo "=== $instance deployment FAILED ==="
+                    FAILED=$((FAILED + 1))
+                fi
+            done
 
-          # Wait for command to complete
-          aws ssm wait command-executed \
-            --command-id $COMMAND_ID \
-            --instance-id $SCHEDULER_INSTANCE_ID \
-            --region $AWS_REGION
+            echo ""
+            echo "=== Deployment summary ==="
+            echo "  Deployed: $DEPLOYED"
+            echo "  Failed:   $FAILED"
 
-          # Get command output
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $SCHEDULER_INSTANCE_ID \
-            --region $AWS_REGION \
-            --query 'Status' \
-            --output text)
-
-          OUTPUT=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $SCHEDULER_INSTANCE_ID \
-            --region $AWS_REGION \
-            --query 'StandardOutputContent' \
-            --output text)
-
-          ERROR_OUTPUT=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $SCHEDULER_INSTANCE_ID \
-            --region $AWS_REGION \
-            --query 'StandardErrorContent' \
-            --output text)
-
-          echo "Status: $STATUS"
-          echo "Output: $OUTPUT"
-          if [ "$ERROR_OUTPUT" != "None" ] && [ "$ERROR_OUTPUT" != "" ]; then
-            echo "Error Output: $ERROR_OUTPUT"
-          fi
-
-          if [ "$STATUS" != "Success" ]; then
-            echo "Scheduler machine deployment failed"
-            exit 1
-          else
-            echo "Scheduler machine deployment successful"
-          fi
-
-      - name: Deploy to Frontend/Backend Machine
-        continue-on-error: true
-        env:
-          FRONTEND_INSTANCE_ID: ${{ vars.FRONTEND_INSTANCE_ID }}
-          PROJECT_PATH: ${{ vars.PROJECT_PATH }}
-          AWS_REGION: ${{ vars.AWS_REGION }}
-        run: |
-          echo "Deploying to Frontend/Backend Machine: $FRONTEND_INSTANCE_ID"
-
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids $FRONTEND_INSTANCE_ID \
-            --document-name "AWS-RunShellScript" \
-            --parameters "commands=['sudo su - ubuntu -c \"bash $PROJECT_PATH/scripts/deploy.sh\"']" \
-            --region $AWS_REGION \
-            --query 'Command.CommandId' \
-            --output text)
-
-          echo "Command ID: $COMMAND_ID"
-
-          # Wait for command to complete
-          aws ssm wait command-executed \
-            --command-id $COMMAND_ID \
-            --instance-id $FRONTEND_INSTANCE_ID \
-            --region $AWS_REGION
-
-          # Get command output
-          STATUS=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $FRONTEND_INSTANCE_ID \
-            --region $AWS_REGION \
-            --query 'Status' \
-            --output text)
-
-          OUTPUT=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $FRONTEND_INSTANCE_ID \
-            --region $AWS_REGION \
-            --query 'StandardOutputContent' \
-            --output text)
-
-          ERROR_OUTPUT=$(aws ssm get-command-invocation \
-            --command-id $COMMAND_ID \
-            --instance-id $FRONTEND_INSTANCE_ID \
-            --region $AWS_REGION \
-            --query 'StandardErrorContent' \
-            --output text)
-
-          echo "Status: $STATUS"
-          echo "Output: $OUTPUT"
-          if [ "$ERROR_OUTPUT" != "None" ] && [ "$ERROR_OUTPUT" != "" ]; then
-            echo "Error Output: $ERROR_OUTPUT"
-          fi
-
-          if [ "$STATUS" != "Success" ]; then
-            echo "Frontend/Backend machine deployment failed or machine offline"
-            exit 1
-          else
-            echo "Frontend/Backend machine deployment successful"
-          fi
-
-      - name: Deployment Summary
-        run: |
-          echo "Deployment Summary:"
-          echo "- Scheduler machine: Required"
-          echo "- Frontend/Backend machine: Optional (may be offline)"
+            if [ "$FAILED" -gt 0 ]; then
+                exit 1
+            fi
