@@ -53,8 +53,7 @@ DB_NAME="docketworks_${INSTANCE//-/_}"
 DB_USER="docketworks_${INSTANCE//-/_}"
 
 if [[ -d "$INSTANCE_DIR" ]]; then
-    echo "ERROR: Instance directory $INSTANCE_DIR already exists."
-    exit 1
+    log "Instance directory $INSTANCE_DIR already exists — will update in place."
 fi
 
 log "=========================================="
@@ -64,46 +63,59 @@ log "  Database:  $DB_NAME"
 log "  URL:       https://$INSTANCE.$DOMAIN"
 log "=========================================="
 
-# --- Generate credentials ---
+# --- Generate credentials (only if no .env yet) ---
 DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-SECRET_KEY="$(python3 -c 'from django.core.management.utils import get_random_secret_key; print(get_random_secret_key())')"
+SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
 
-# --- Clone repository ---
-log "Cloning repository to $INSTANCE_DIR..."
-sudo -u docketworks git clone "$REPO_URL" "$INSTANCE_DIR"
+# --- Clone or update repository ---
+if [[ -d "$INSTANCE_DIR/.git" ]]; then
+    log "Repository already cloned — pulling latest..."
+    sudo -u docketworks git -C "$INSTANCE_DIR" pull --ff-only
+else
+    log "Cloning repository to $INSTANCE_DIR..."
+    sudo -u docketworks git clone "$REPO_URL" "$INSTANCE_DIR"
+fi
 
 # --- Create MySQL database and user ---
-log "Creating database $DB_NAME and user $DB_USER..."
+log "Creating database $DB_NAME and user $DB_USER (if not exists)..."
 mysql -u root <<EOSQL
-CREATE DATABASE \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
 GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOSQL
 
-# --- Generate .env from template ---
-log "Generating .env from template..."
-sed \
-    -e "s/__INSTANCE__/$INSTANCE/g" \
-    -e "s/__DOMAIN__/$DOMAIN/g" \
-    -e "s/__DB_PASSWORD__/$DB_PASSWORD/g" \
-    -e "s/__SECRET_KEY__/$SECRET_KEY/g" \
-    -e "s/__XERO_CLIENT_ID__/REPLACE_ME/g" \
-    -e "s/__XERO_CLIENT_SECRET__/REPLACE_ME/g" \
-    -e "s/__EMAIL_USER__/REPLACE_ME/g" \
-    -e "s/__EMAIL_PASSWORD__/REPLACE_ME/g" \
-    "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
-chown docketworks:docketworks "$INSTANCE_DIR/.env"
-chmod 600 "$INSTANCE_DIR/.env"
+# --- Generate .env from template (skip if already exists) ---
+if [[ -f "$INSTANCE_DIR/.env" ]]; then
+    log ".env already exists — skipping (credentials preserved)."
+else
+    log "Generating .env from template..."
+    sed \
+        -e "s/__INSTANCE__/$INSTANCE/g" \
+        -e "s/__DOMAIN__/$DOMAIN/g" \
+        -e "s/__DB_NAME__/$DB_NAME/g" \
+        -e "s/__DB_USER__/$DB_USER/g" \
+        -e "s/__DB_PASSWORD__/$DB_PASSWORD/g" \
+        -e "s/__SECRET_KEY__/$SECRET_KEY/g" \
+        -e "s/__XERO_CLIENT_ID__/REPLACE_ME/g" \
+        -e "s/__XERO_CLIENT_SECRET__/REPLACE_ME/g" \
+        -e "s/__EMAIL_USER__/REPLACE_ME/g" \
+        -e "s/__EMAIL_PASSWORD__/REPLACE_ME/g" \
+        "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
+    chown docketworks:docketworks "$INSTANCE_DIR/.env"
+    chmod 600 "$INSTANCE_DIR/.env"
+fi
 
 # --- Python virtual environment + dependencies ---
 log "Setting up Python environment..."
 sudo -u docketworks bash -c "
     cd '$INSTANCE_DIR'
-    python3.12 -m venv .venv
+    if [[ ! -d .venv ]]; then
+        python3.12 -m venv .venv
+    fi
     source .venv/bin/activate
     pip install --upgrade pip
-    pip install poetry
+    export PATH='/opt/docketworks/.local/bin:\$PATH'
     poetry install --no-interaction
 "
 
@@ -142,7 +154,7 @@ sed \
     > "/etc/systemd/system/gunicorn-$INSTANCE.service"
 systemctl daemon-reload
 systemctl enable "gunicorn-$INSTANCE"
-systemctl start "gunicorn-$INSTANCE"
+systemctl restart "gunicorn-$INSTANCE"
 
 # --- Install Nginx server block ---
 log "Installing Nginx config for $INSTANCE.$DOMAIN..."
