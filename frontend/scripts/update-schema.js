@@ -9,7 +9,7 @@ import { dirname, join, delimiter } from 'path'
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 const projectRoot = join(__dirname, '..')
-const backendPath = join(projectRoot, '..', 'jobs_manager')
+const backendPath = join(projectRoot, '..')
 const customVenvPath = process.env.JOBS_MANAGER_VENV_PATH?.trim()
 const isWindows = process.platform === 'win32'
 
