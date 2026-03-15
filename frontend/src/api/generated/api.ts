@@ -422,9 +422,9 @@ const AWSInstanceStatusResponse = z.object({
   details: z.string().optional(),
 })
 const CompanyDefaults = z.object({
+  id: z.number().int(),
   company_name: z.string(),
   company_acronym: z.string().max(10).nullish(),
-  is_primary: z.boolean().optional(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
   charge_out_rate: z.number().gt(-10000).lt(10000).optional(),
@@ -446,6 +446,7 @@ const CompanyDefaults = z.object({
   xero_shortcode: z.string().max(20).nullish(),
   xero_payroll_calendar_name: z.string().max(100).optional(),
   xero_payroll_calendar_id: z.string().uuid().nullish(),
+  xero_payroll_start_date: z.string().nullish(),
   mon_start: z.string().optional(),
   mon_end: z.string().optional(),
   tue_start: z.string().optional(),
@@ -481,7 +482,6 @@ const CompanyDefaults = z.object({
 const CompanyDefaultsRequest = z
   .object({
     company_acronym: z.string().max(10).nullable(),
-    is_primary: z.boolean(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
     charge_out_rate: z.number().gt(-10000).lt(10000),
@@ -503,6 +503,7 @@ const CompanyDefaultsRequest = z
     xero_shortcode: z.string().max(20).nullable(),
     xero_payroll_calendar_name: z.string().min(1).max(100),
     xero_payroll_calendar_id: z.string().uuid().nullable(),
+    xero_payroll_start_date: z.string().nullable(),
     mon_start: z.string(),
     mon_end: z.string(),
     tue_start: z.string(),
@@ -537,7 +538,6 @@ const CompanyDefaultsRequest = z
 const PatchedCompanyDefaultsRequest = z
   .object({
     company_acronym: z.string().max(10).nullable(),
-    is_primary: z.boolean(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
     charge_out_rate: z.number().gt(-10000).lt(10000),
@@ -559,6 +559,7 @@ const PatchedCompanyDefaultsRequest = z
     xero_shortcode: z.string().max(20).nullable(),
     xero_payroll_calendar_name: z.string().min(1).max(100),
     xero_payroll_calendar_id: z.string().uuid().nullable(),
+    xero_payroll_start_date: z.string().nullable(),
     mon_start: z.string(),
     mon_end: z.string(),
     tue_start: z.string(),

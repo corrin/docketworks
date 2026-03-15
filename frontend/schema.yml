@@ -8636,6 +8636,9 @@ components:
     CompanyDefaults:
       type: object
       properties:
+        id:
+          type: integer
+          readOnly: true
         company_name:
           type: string
           readOnly: true
@@ -8644,8 +8647,6 @@ components:
           nullable: true
           description: Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
           maxLength: 10
-        is_primary:
-          type: boolean
         time_markup:
           type: number
           format: double
@@ -8766,6 +8767,12 @@ components:
           format: uuid
           nullable: true
           description: Cached Xero Payroll calendar ID (set by xero --setup command)
+        xero_payroll_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Date Xero payroll went live — reconciliation ignores data before
+            this
         mon_start:
           type: string
           format: time
@@ -8937,6 +8944,7 @@ components:
       required:
         - company_name
         - created_at
+        - id
         - updated_at
     CompanyDefaultsJobDetail:
       type: object
@@ -8971,8 +8979,6 @@ components:
           nullable: true
           description: Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
           maxLength: 10
-        is_primary:
-          type: boolean
         time_markup:
           type: number
           format: double
@@ -9095,6 +9101,12 @@ components:
           format: uuid
           nullable: true
           description: Cached Xero Payroll calendar ID (set by xero --setup command)
+        xero_payroll_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Date Xero payroll went live — reconciliation ignores data before
+            this
         mon_start:
           type: string
           format: time
@@ -13598,8 +13610,6 @@ components:
           nullable: true
           description: Short acronym for the company (e.g., 'MSM' for Morris Sheetmetal)
           maxLength: 10
-        is_primary:
-          type: boolean
         time_markup:
           type: number
           format: double
@@ -13722,6 +13732,12 @@ components:
           format: uuid
           nullable: true
           description: Cached Xero Payroll calendar ID (set by xero --setup command)
+        xero_payroll_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Date Xero payroll went live — reconciliation ignores data before
+            this
         mon_start:
           type: string
           format: time

@@ -110,6 +110,20 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: update-frontend-schema
+        name: Update frontend OpenAPI schema
+        entry: bash -c 'poetry run python manage.py spectacular --format openapi > frontend/schema.yml && git add frontend/schema.yml'
+        language: system
+        files: '^apps/.*\.(py)$'
+        pass_filenames: false
+
+      - id: frontend-gen-api
+        name: Regenerate frontend API client from schema
+        entry: bash -c 'cd frontend && npm run gen:api && git add frontend/src/api/generated/api.ts'
+        language: system
+        files: '^frontend/schema\.yml$'
+        pass_filenames: false
+
       - id: frontend-lint-staged
         name: Frontend lint-staged
         entry: bash -c 'cd frontend && npx lint-staged'
