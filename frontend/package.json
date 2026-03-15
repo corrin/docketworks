@@ -50,7 +50,7 @@
     "dompurify": "^3.3.3",
     "event-source-polyfill": "^1.0.31",
     "js-cookie": "^3.0.5",
-    "lodash-es": "^4.17.21",
+    "lodash-es": "^4.17.23",
     "lucide-vue-next": "^0.513.0",
     "openapi-zod-client": "^1.18.3",
     "pdf-vue3": "^1.0.12",
