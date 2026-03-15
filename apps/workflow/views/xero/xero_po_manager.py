@@ -326,12 +326,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         )
         self._update_line_item_ids_from_xero(xero_po)
 
-        logger.info(
-            f"""
+        logger.info(f"""
             Successfully synced PO {self.purchase_order.id} to Xero.
             Xero ID: {xero_po.purchase_order_id}
-            """.strip()
-        )
+            """.strip())
         return {
             "success": True,
             "xero_id": str(xero_po.purchase_order_id),
@@ -647,12 +645,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                 "status": 404,
             }
 
-        logger.info(
-            f"""
+        logger.info(f"""
             Attempting to delete purchase order {self.purchase_order.id}
             (Xero ID: {xero_id}) by setting status to DELETED.
-            """.strip()
-        )
+            """.strip())
 
         try:
             # Prepare the minimal payload for deletion (setting status)
@@ -707,12 +703,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                     error_details = "; ".join(
                         [f"{err.message}" for err in xero_po_data.validation_errors]
                     )
-                    logger.error(
-                        f"""
+                    logger.error(f"""
                         Xero validation errors during delete for PO
                         {self.purchase_order.id}: {error_details}
-                        """.strip()
-                    )
+                        """.strip())
                     return {
                         "success": False,
                         "error": (
@@ -735,12 +729,10 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
                         update_fields=["xero_id", "xero_last_synced", "status"]
                     )
 
-                    logger.info(
-                        f"""
+                    logger.info(f"""
                         Successfully deleted purchase order {self.purchase_order.id}
                         in Xero (Xero ID: {xero_id}).
-                        """.strip()
-                    )
+                        """.strip())
                     return {"success": True, "action": "delete"}
                 else:
                     error_msg = (

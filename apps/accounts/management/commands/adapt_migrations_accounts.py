@@ -32,12 +32,10 @@ class Command(BaseCommand):
 
         # Check if the migrations are already applied
         with connection.cursor() as cursor:
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT * FROM django_migrations
                 WHERE app='accounts' AND name='0001_initial'
-                """
-            )
+                """)
             if cursor.fetchone():
                 self.stdout.write(
                     self.style.SUCCESS(
@@ -47,12 +45,10 @@ class Command(BaseCommand):
                 return
 
             # Get the date of admin.0001_initial migration
-            cursor.execute(
-                """
+            cursor.execute("""
                 SELECT applied FROM django_migrations
                 WHERE app='auth' AND name='0001_initial'
-                """
-            )
+                """)
             result = cursor.fetchone()
             if not result:
                 self.stdout.write(
@@ -92,18 +88,14 @@ class Command(BaseCommand):
             accounts_0002_date = accounts_applied_date + datetime.timedelta(seconds=1)
             if not dry_run:
                 try:
-                    cursor.execute(
-                        f"""
+                    cursor.execute(f"""
                         INSERT INTO django_migrations (app, name, applied)
                         VALUES ('accounts', '0001_initial', '{accounts_applied_date}')
-                        """
-                    )
-                    cursor.execute(
-                        f"""
+                        """)
+                    cursor.execute(f"""
                         INSERT INTO django_migrations (app, name, applied)
                         VALUES ('accounts', '0002_initial', '{accounts_0002_date}')
-                        """
-                    )
+                        """)
                     self.stdout.write(
                         self.style.SUCCESS(
                             "Successfully inserted migration records in "

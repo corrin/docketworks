@@ -10,6 +10,7 @@ and prints a Markdown table with:
 - date_latest_version
 - days_between
 """
+
 import sys
 from datetime import datetime
 
