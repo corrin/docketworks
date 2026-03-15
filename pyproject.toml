@@ -52,7 +52,7 @@ anthropic = "^0.54.0"
 pandas = "^2.3.0"
 numpy = "^2.3.0"
 httpx = "^0.28.1"
-pre-commit = "^4.2.0"
+pre-commit = "^4.5.1"
 django-stubs = ">=5.2.1"  # Awaiting django-stubs 6 release for Django 6 support
 drf-spectacular = "^0.28.0"
 httpcore = "^1.0.9"
