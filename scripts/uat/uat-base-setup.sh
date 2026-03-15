@@ -120,7 +120,17 @@ else
     apt install -y nginx
 fi
 log_version "nginx" "$(nginx -v 2>&1)"
+# Write a safe default config before enabling — previous runs may have left
+# a config referencing SSL certs that don't exist yet
+cat > /etc/nginx/sites-available/default <<'EOF'
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+EOF
 systemctl enable --now nginx
+# SSL config is written later after certbot obtains certs
 
 # --- Certbot ---
 
