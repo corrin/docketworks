@@ -119,7 +119,7 @@ repos:
 
       - id: frontend-gen-api
         name: Regenerate frontend API client from schema
-        entry: bash -c 'cd frontend && npm run gen:api && git add frontend/src/api/generated/api.ts'
+        entry: bash -c 'cd frontend && npm run gen:api && git add src/api/generated/api.ts'
         language: system
         files: '^frontend/schema\.yml$'
         pass_filenames: false
