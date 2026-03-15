@@ -2,7 +2,7 @@
 
 ## ✅ Implementation Status
 
-**Foundation Complete**: Chat interface, backend APIs, message persistence, file upload UI  
+**Foundation Complete**: Chat interface, backend APIs, message persistence, file upload UI
 **Next Phase**: Core quoting workflow and MCP integration
 
 ## Purpose
@@ -66,7 +66,7 @@ LLM confirms and reflects this understanding back to the estimator with clear as
 
 ### Phase 1: Material Interpretation & Expansion
 
-LLM role: confirm estimator intent and compute material requirements.  
+LLM role: confirm estimator intent and compute material requirements.
 This phase ends with a complete material plan—no quoting occurs until this is resolved.
 
 The system shows:
@@ -118,7 +118,7 @@ Once sheet usage is confirmed, the system:
 
 ### 5. Quote Checking Mode
 
-The tool supports a secondary mode: **quote verification**.  
+The tool supports a secondary mode: **quote verification**.
 In this mode:
 
 - The user provides both:
@@ -207,8 +207,8 @@ This allows the tool to be used not only for quote generation, but also for trai
 
 ## 🚀 Next Sprint Priority
 
-**Week 1**: LLM integration with structured parsing  
-**Week 2**: Implement confirmation phase and basic material extraction  
+**Week 1**: LLM integration with structured parsing
+**Week 2**: Implement confirmation phase and basic material extraction
 **Week 3**: Begin 3-method calculation engine
 
 Focus: Get the core interaction working before building calculation complexity.
