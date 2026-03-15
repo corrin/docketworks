@@ -5,9 +5,9 @@ After=network.target
 [Service]
 User=docketworks
 Group=www-data
-WorkingDirectory=/opt/docketworks/shared
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/code
 UMask=0002
-ExecStart=/opt/docketworks/shared/.venv/bin/gunicorn \
+ExecStart=/opt/docketworks/.venv/bin/gunicorn \
           --workers 3 \
           --timeout 180 \
           --umask 0002 \
