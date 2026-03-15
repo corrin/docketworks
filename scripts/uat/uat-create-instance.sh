@@ -95,10 +95,10 @@ if [[ ! -d "$SHARED_VENV" ]]; then
     log "Creating shared Python venv at $SHARED_VENV..."
     sudo -u docketworks python3.12 -m venv "$SHARED_VENV"
     sudo -u docketworks bash -c "
+        export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/docketworks/.local/bin'
         source '$SHARED_VENV/bin/activate'
         pip install --upgrade pip
         cd '$CODE_DIR'
-        export PATH='/opt/docketworks/.local/bin:\$PATH'
         poetry install --no-interaction
     "
 else

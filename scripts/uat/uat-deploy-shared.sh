@@ -86,10 +86,10 @@ log "  Dependencies consistent across all instances."
 # --- Update shared Python dependencies ---
 log "Updating shared Python dependencies..."
 sudo -u docketworks bash -c "
+    export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/docketworks/.local/bin'
     source '$SHARED_VENV/bin/activate'
     pip install --upgrade pip
     cd '$FIRST_DIR'
-    export PATH='/opt/docketworks/.local/bin:\$PATH'
     poetry install --no-interaction
 "
 
