@@ -10,27 +10,23 @@ def rename_field_if_needed(apps, schema_editor):
     """
     with schema_editor.connection.cursor() as cursor:
         # Check if the old field exists
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT COUNT(*)
             FROM information_schema.columns
             WHERE table_schema = DATABASE()
             AND table_name = 'workflow_jobpricing'
             AND column_name = 'pricing_methodology'
-        """
-        )
+        """)
         old_field_exists = cursor.fetchone()[0] > 0
 
         # Check if the new field exists
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT COUNT(*)
             FROM information_schema.columns
             WHERE table_schema = DATABASE()
             AND table_name = 'workflow_jobpricing'
             AND column_name = 'pricing_stage'
-        """
-        )
+        """)
         new_field_exists = cursor.fetchone()[0] > 0
 
         if old_field_exists and not new_field_exists:
@@ -62,15 +58,13 @@ def reverse_rename_field_if_needed(apps, schema_editor):
     """
     with schema_editor.connection.cursor() as cursor:
         # Check if the new field exists
-        cursor.execute(
-            """
+        cursor.execute("""
             SELECT COUNT(*)
             FROM information_schema.columns
             WHERE table_schema = DATABASE()
             AND table_name = 'workflow_jobpricing'
             AND column_name = 'pricing_stage'
-        """
-        )
+        """)
         new_field_exists = cursor.fetchone()[0] > 0
 
         if new_field_exists:
