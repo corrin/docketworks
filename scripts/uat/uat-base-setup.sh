@@ -243,7 +243,7 @@ fi
 
 # --- Poetry for docketworks user ---
 
-if sudo -u docketworks bash -c 'command -v poetry' &>/dev/null; then
+if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v poetry' &>/dev/null; then
     log "Poetry already installed for docketworks user, skipping."
 else
     log "Installing Poetry for docketworks user..."
