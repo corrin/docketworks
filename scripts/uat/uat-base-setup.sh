@@ -120,7 +120,8 @@ else
     apt install -y nginx
 fi
 log_version "nginx" "$(nginx -v 2>&1)"
-systemctl enable --now nginx
+systemctl enable nginx
+# Don't start nginx yet — config may reference SSL certs that don't exist
 
 # --- Certbot ---
 
