@@ -57,27 +57,13 @@ It is **idempotent** — safe to re-run on an already-configured server.
 The script will pause and prompt you for:
 
 1. **SSH deploy key** — generates the key, displays the public key, and waits for you to add it as a deploy key in GitHub (Settings > Deploy keys)
-2. **Dreamhost API key** — prompts you to paste your API key (get one from `panel.dreamhost.com → Home > API` with `dns-*` permissions)
+2. **Dreamhost API key** — prompts you to paste your API key (get one from `panel.dreamhost.com/?tree=home.api` with `dns-*` permissions)
 
-### After the script finishes
+The script then automatically:
+- Obtains a wildcard SSL cert via Dreamhost DNS API (~2-4 min for DNS propagation)
+- Configures and starts Nginx with the SSL cert
 
-**Wildcard SSL certificate:**
-
-```bash
-sudo certbot certonly --manual --preferred-challenges dns \
-    --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
-    --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
-    -d "*.docketworks.site" -d "docketworks.site"
-```
-
-The hook scripts call Dreamhost's DNS API to add/remove TXT records automatically.
-Certs will auto-renew via `certbot renew` using the same hooks.
-
-Then reload Nginx:
-
-```bash
-sudo nginx -t && sudo systemctl reload nginx
-```
+Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 
 ---
 
