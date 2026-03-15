@@ -41,8 +41,9 @@ EMAIL_HOST_USER=__EMAIL_USER__
 EMAIL_HOST_PASSWORD=__EMAIL_PASSWORD__
 DEFAULT_FROM_EMAIL=__EMAIL_USER__
 
-# Instance-specific paths (shared codebase layout)
+# Instance-specific paths
 MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
+STATIC_ROOT=/opt/docketworks/instances/__INSTANCE__/staticfiles
 LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs
 
 # Feature flags

@@ -1,17 +1,18 @@
 #!/bin/bash
 set -euo pipefail
 
-# Creates a new UAT/demo instance of docketworks (thin instance — shared codebase).
-# Usage: uat-create-instance.sh <name> [--seed]
+# Creates a new UAT/demo instance of docketworks (own git clone, shared deps).
+# Usage: uat-create-instance.sh <name> [--seed] [--branch <branch>]
 #
 # Requires: run as root or with sudo
 # Assumes base server setup is complete (see uat-base-setup.sh)
-# Assumes shared codebase exists at /opt/docketworks/shared/ (see uat-deploy-shared.sh)
 
 DOMAIN="docketworks.site"
 BASE_DIR="/opt/docketworks"
-SHARED_DIR="$BASE_DIR/shared"
 INSTANCES_DIR="$BASE_DIR/instances"
+SHARED_VENV="$BASE_DIR/.venv"
+SHARED_NODE_MODULES="$BASE_DIR/node_modules"
+REPO_URL="git@github.com:corrin/docketworks.git"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 SETUP_LOG="/var/log/docketworks-setup.log"
@@ -23,10 +24,11 @@ log() {
 }
 
 usage() {
-    echo "Usage: $0 <instance-name> [--seed]"
+    echo "Usage: $0 <instance-name> [--seed] [--branch <branch>]"
     echo ""
     echo "  <instance-name>  Short name (e.g., 'msm', 'acme'). Alphanumeric and hyphens only."
     echo "  --seed           Load demo fixtures after migration."
+    echo "  --branch <name>  Git branch to check out (default: main)."
     exit 1
 }
 
@@ -36,6 +38,7 @@ fi
 
 INSTANCE="$1"
 SEED=false
+BRANCH="main"
 
 if [[ ! "$INSTANCE" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
     echo "ERROR: Instance name must be lowercase alphanumeric (hyphens allowed, cannot start with hyphen)."
@@ -46,20 +49,15 @@ shift
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --seed) SEED=true; shift ;;
+        --branch) BRANCH="$2"; shift 2 ;;
         *) echo "Unknown option: $1"; usage ;;
     esac
 done
 
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
+CODE_DIR="$INSTANCE_DIR/code"
 DB_NAME="docketworks_${INSTANCE//-/_}"
 DB_USER="docketworks_${INSTANCE//-/_}"
-
-# --- Verify shared codebase exists ---
-if [[ ! -d "$SHARED_DIR/.git" ]]; then
-    echo "ERROR: Shared codebase not found at $SHARED_DIR"
-    echo "Run uat-deploy-shared.sh first to set up the shared codebase."
-    exit 1
-fi
 
 if [[ -d "$INSTANCE_DIR" ]]; then
     log "Instance directory $INSTANCE_DIR already exists — will update in place."
@@ -68,14 +66,84 @@ fi
 log "=========================================="
 log "Creating docketworks instance: $INSTANCE"
 log "  Directory: $INSTANCE_DIR"
+log "  Code:      $CODE_DIR (branch: $BRANCH)"
 log "  Database:  $DB_NAME"
 log "  URL:       https://$INSTANCE.$DOMAIN"
 log "=========================================="
 
 # --- Create instance directory structure ---
 log "Creating instance directory structure..."
-mkdir -p "$INSTANCE_DIR"/{logs,mediafiles}
+mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,staticfiles}
 chown -R docketworks:docketworks "$INSTANCE_DIR"
+
+# --- Clone codebase into instance code/ ---
+if [[ -d "$CODE_DIR/.git" ]]; then
+    log "Code already cloned — pulling latest on branch $BRANCH..."
+    sudo -u docketworks bash -c "
+        cd '$CODE_DIR'
+        git fetch origin
+        git checkout '$BRANCH'
+        git pull --ff-only
+    "
+else
+    log "Cloning codebase to $CODE_DIR (branch: $BRANCH)..."
+    sudo -u docketworks git clone --branch "$BRANCH" "$REPO_URL" "$CODE_DIR"
+fi
+
+# --- Shared venv (create if first instance) ---
+if [[ ! -d "$SHARED_VENV" ]]; then
+    log "Creating shared Python venv at $SHARED_VENV..."
+    sudo -u docketworks python3.12 -m venv "$SHARED_VENV"
+    sudo -u docketworks bash -c "
+        source '$SHARED_VENV/bin/activate'
+        pip install --upgrade pip
+        cd '$CODE_DIR'
+        export PATH='/opt/docketworks/.local/bin:\$PATH'
+        poetry install --no-interaction
+    "
+else
+    log "Shared venv already exists at $SHARED_VENV."
+fi
+
+# Symlink .venv into code/
+if [[ -L "$CODE_DIR/.venv" ]]; then
+    log "  .venv symlink already exists."
+elif [[ -d "$CODE_DIR/.venv" ]]; then
+    log "  ERROR: $CODE_DIR/.venv is a real directory, not a symlink. Remove it first."
+    exit 1
+else
+    ln -s "$SHARED_VENV" "$CODE_DIR/.venv"
+    log "  Symlinked $CODE_DIR/.venv → $SHARED_VENV"
+fi
+
+# --- Shared node_modules (create if first instance) ---
+if [[ ! -d "$SHARED_NODE_MODULES" ]]; then
+    log "Installing shared node_modules at $SHARED_NODE_MODULES..."
+    sudo -u docketworks bash -c "
+        cd '$CODE_DIR/frontend'
+        npm install --prefix '$BASE_DIR' --install-links
+    "
+else
+    log "Shared node_modules already exists at $SHARED_NODE_MODULES."
+fi
+
+# Symlink node_modules into code/frontend/
+if [[ -L "$CODE_DIR/frontend/node_modules" ]]; then
+    log "  node_modules symlink already exists."
+elif [[ -d "$CODE_DIR/frontend/node_modules" ]]; then
+    log "  ERROR: $CODE_DIR/frontend/node_modules is a real directory, not a symlink. Remove it first."
+    exit 1
+else
+    ln -s "$SHARED_NODE_MODULES" "$CODE_DIR/frontend/node_modules"
+    log "  Symlinked $CODE_DIR/frontend/node_modules → $SHARED_NODE_MODULES"
+fi
+
+# --- Build frontend (per-instance, uses symlinked node_modules) ---
+log "Building frontend for instance $INSTANCE..."
+sudo -u docketworks bash -c "
+    cd '$CODE_DIR/frontend'
+    npm run build
+"
 
 # --- Generate credentials (only if no .env yet) ---
 DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
@@ -111,10 +179,21 @@ else
     chmod 600 "$INSTANCE_DIR/.env"
 fi
 
-# --- Run migrations using shared codebase ---
+# --- Collect static files (per-instance) ---
+log "Collecting static files for instance $INSTANCE..."
+sudo -u docketworks bash -c "
+    cd '$CODE_DIR'
+    source .venv/bin/activate
+    set -a
+    source '$INSTANCE_DIR/.env'
+    set +a
+    python manage.py collectstatic --no-input
+"
+
+# --- Run migrations ---
 log "Running migrations..."
 sudo -u docketworks bash -c "
-    cd '$SHARED_DIR'
+    cd '$CODE_DIR'
     source .venv/bin/activate
     set -a
     source '$INSTANCE_DIR/.env'
@@ -126,7 +205,7 @@ sudo -u docketworks bash -c "
 if $SEED; then
     log "Loading demo fixtures..."
     sudo -u docketworks bash -c "
-        cd '$SHARED_DIR'
+        cd '$CODE_DIR'
         source .venv/bin/activate
         set -a
         source '$INSTANCE_DIR/.env'
@@ -161,6 +240,7 @@ log "=========================================="
 log "Instance '$INSTANCE' created successfully"
 log "  URL:        https://$INSTANCE.$DOMAIN"
 log "  Directory:  $INSTANCE_DIR"
+log "  Code:       $CODE_DIR (branch: $BRANCH)"
 log "  Database:   $DB_NAME"
 log "  Service:    gunicorn-$INSTANCE"
 log "=========================================="
