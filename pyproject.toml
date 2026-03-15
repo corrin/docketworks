@@ -11,7 +11,7 @@ Django = "^6.0"
 django-encrypted-model-fields = "^0.6.5"
 #django-xero = "^0.0.3"
 django-simple-history = "^3.11.0"  # 3.11.0+ required for Django 6 support
-pytz = "^2025.2"
+pytz = "^2026.1"
 python-dotenv = "^1.1.1"
 xero-python = ">=9.1.0"
 requests = "^2.32.4"
