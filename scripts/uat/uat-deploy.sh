@@ -66,9 +66,8 @@ for instance in "${TARGETS[@]}"; do
     code_dir="$INSTANCES_DIR/$instance/code"
     instance_user="dw-$instance"
     log "Pulling latest code for $instance..."
-    git -C "$code_dir" fetch origin
-    git -C "$code_dir" pull --ff-only
-    chown -R "$instance_user:$instance_user" "$code_dir"
+    sudo -u "$instance_user" git -C "$code_dir" fetch origin
+    sudo -u "$instance_user" git -C "$code_dir" pull --ff-only
 done
 
 # --- Update shared Python dependencies (from local repo) ---

@@ -107,14 +107,13 @@ EOSQL
     # --- Clone code from local repo into instance dir ---
     if [[ -d "$CODE_DIR/.git" ]]; then
         log "Code already cloned — pulling latest on branch $BRANCH..."
-        git -C "$CODE_DIR" fetch origin
-        git -C "$CODE_DIR" checkout "$BRANCH"
-        git -C "$CODE_DIR" pull --ff-only
+        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" fetch origin
+        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" checkout "$BRANCH"
+        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" pull --ff-only
     else
         log "Cloning codebase to $CODE_DIR from local repo (branch: $BRANCH)..."
-        git clone --branch "$BRANCH" "$LOCAL_REPO" "$CODE_DIR"
+        sudo -u "$INSTANCE_USER" git clone --branch "$BRANCH" "$LOCAL_REPO" "$CODE_DIR"
     fi
-    chown -R "$INSTANCE_USER:$INSTANCE_USER" "$CODE_DIR"
 
     # --- Build frontend ---
     log "Building frontend for instance $INSTANCE..."

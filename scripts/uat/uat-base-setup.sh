@@ -349,6 +349,11 @@ else
     sudo -u docketworks git clone "$REMOTE_REPO_URL" "$LOCAL_REPO"
 fi
 
+# Mark the local repo as safe so instance users (dw-*) can clone from it.
+# Uses --system so it applies to all users on the server.
+git config --system --add safe.directory "$LOCAL_REPO"
+git config --system --add safe.directory "${LOCAL_REPO}/.git"
+
 # --- Create shared Python venv + install dependencies ---
 
 SHARED_VENV="/opt/docketworks/.venv"
