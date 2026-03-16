@@ -57,7 +57,11 @@ log "=========================================="
 log "Deploying: ${TARGETS[*]}"
 log "=========================================="
 
-# --- Pull latest code for all target instances ---
+# --- Update local repo from GitHub ---
+log "Pulling latest from GitHub into local repo..."
+sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
+
+# --- Pull latest code for all target instances (from local repo) ---
 for instance in "${TARGETS[@]}"; do
     code_dir="$INSTANCES_DIR/$instance/code"
     instance_user="dw-$instance"
@@ -67,22 +71,22 @@ for instance in "${TARGETS[@]}"; do
     chown -R "$instance_user:$instance_user" "$code_dir"
 done
 
-# --- Update shared Python dependencies (from first target's pyproject.toml) ---
-FIRST_CODE="$INSTANCES_DIR/${TARGETS[0]}/code"
+# --- Update shared Python dependencies (from local repo) ---
 log "Updating shared Python dependencies..."
 sudo -u docketworks bash -c "
     export PATH='/opt/docketworks/.local/bin:\$PATH'
+    export POETRY_VIRTUALENVS_CREATE=false
     source '$SHARED_VENV/bin/activate'
     pip install --upgrade pip
-    cd '$FIRST_CODE'
+    cd '$LOCAL_REPO'
     poetry install --no-interaction
 "
 
 # --- Update shared node_modules ---
 log "Updating shared node_modules..."
 sudo -u docketworks bash -c "
-    cp '$FIRST_CODE/frontend/package.json' '$BASE_DIR/package.json'
-    cp '$FIRST_CODE/frontend/package-lock.json' '$BASE_DIR/package-lock.json'
+    cp '$LOCAL_REPO/frontend/package.json' '$BASE_DIR/package.json'
+    cp '$LOCAL_REPO/frontend/package-lock.json' '$BASE_DIR/package-lock.json'
     cd '$BASE_DIR'
     npm install
 "

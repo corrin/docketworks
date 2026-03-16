@@ -56,17 +56,20 @@ do_create() {
     else
         log "Creating system user '$INSTANCE_USER'..."
         useradd --system --shell /bin/bash --no-create-home "$INSTANCE_USER"
-        usermod -aG docketworks "$INSTANCE_USER"
-        usermod -aG www-data "$INSTANCE_USER"
-        log "  Created user '$INSTANCE_USER' (groups: docketworks, www-data)."
+        log "  Created user '$INSTANCE_USER' (no supplementary groups)."
     fi
 
     # --- Create instance directory structure ---
+    # Instance dir is 750 with group www-data so nginx can traverse to
+    # staticfiles, mediafiles, frontend/dist, and gunicorn.sock.
+    # .env and logs stay owner-only (dw-<name>:dw-<name>, 600/700).
+    # Instance users have NO supplementary groups, so dw-acme cannot
+    # traverse dw-msm's dir (not owner, not in www-data).
     log "Creating instance directory structure..."
     mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,staticfiles}
-    chown -R "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR"
-    chmod 700 "$INSTANCE_DIR"
-    chmod 755 "$INSTANCE_DIR/staticfiles"
+    chown -R "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
+    chmod 750 "$INSTANCE_DIR"
+    chmod 700 "$INSTANCE_DIR/logs"
 
     # --- Generate credentials + DB + .env (skip all if .env exists) ---
     if [[ -f "$INSTANCE_DIR/.env" ]]; then
@@ -101,15 +104,15 @@ EOSQL
         chmod 600 "$INSTANCE_DIR/.env"
     fi
 
-    # --- Clone code into instance dir ---
+    # --- Clone code from local repo into instance dir ---
     if [[ -d "$CODE_DIR/.git" ]]; then
         log "Code already cloned — pulling latest on branch $BRANCH..."
         git -C "$CODE_DIR" fetch origin
         git -C "$CODE_DIR" checkout "$BRANCH"
         git -C "$CODE_DIR" pull --ff-only
     else
-        log "Cloning codebase to $CODE_DIR (branch: $BRANCH)..."
-        git clone --branch "$BRANCH" "$REPO_URL" "$CODE_DIR"
+        log "Cloning codebase to $CODE_DIR from local repo (branch: $BRANCH)..."
+        git clone --branch "$BRANCH" "$LOCAL_REPO" "$CODE_DIR"
     fi
     chown -R "$INSTANCE_USER:$INSTANCE_USER" "$CODE_DIR"
 

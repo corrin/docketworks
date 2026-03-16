@@ -4,7 +4,7 @@ After=network.target
 
 [Service]
 User=dw-__INSTANCE__
-Group=docketworks
+Group=www-data
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/code
 ExecStart=/opt/docketworks/.venv/bin/gunicorn \
           --workers 3 \

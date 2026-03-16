@@ -338,15 +338,15 @@ chown docketworks:docketworks /opt/docketworks/instances
 
 # --- Clone repository (HTTPS, no SSH key needed) ---
 
-REPO_URL="https://github.com/corrin/docketworks.git"
-REPO_DIR="/opt/docketworks/repo"
+REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
+LOCAL_REPO="/opt/docketworks/repo"
 
-if [[ -d "$REPO_DIR/.git" ]]; then
-    log "Repository already cloned at $REPO_DIR, pulling latest..."
-    sudo -u docketworks git -C "$REPO_DIR" pull --ff-only
+if [[ -d "$LOCAL_REPO/.git" ]]; then
+    log "Repository already cloned at $LOCAL_REPO, pulling latest..."
+    sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 else
-    log "Cloning repository to $REPO_DIR..."
-    sudo -u docketworks git clone "$REPO_URL" "$REPO_DIR"
+    log "Cloning repository to $LOCAL_REPO..."
+    sudo -u docketworks git clone "$REMOTE_REPO_URL" "$LOCAL_REPO"
 fi
 
 # --- Create shared Python venv + install dependencies ---
@@ -362,9 +362,10 @@ fi
 
 sudo -u docketworks bash -c "
     export PATH='/opt/docketworks/.local/bin:\$PATH'
+    export POETRY_VIRTUALENVS_CREATE=false
     source '$SHARED_VENV/bin/activate'
     pip install --upgrade pip
-    cd '$REPO_DIR'
+    cd '$LOCAL_REPO'
     poetry install --no-interaction
 "
 log "  Shared Python dependencies installed."
@@ -373,8 +374,8 @@ log "  Shared Python dependencies installed."
 
 log "Installing shared node_modules..."
 sudo -u docketworks bash -c "
-    cp '$REPO_DIR/frontend/package.json' '/opt/docketworks/package.json'
-    cp '$REPO_DIR/frontend/package-lock.json' '/opt/docketworks/package-lock.json'
+    cp '$LOCAL_REPO/frontend/package.json' '/opt/docketworks/package.json'
+    cp '$LOCAL_REPO/frontend/package-lock.json' '/opt/docketworks/package-lock.json'
     cd /opt/docketworks
     npm install
 "
