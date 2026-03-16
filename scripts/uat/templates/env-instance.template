@@ -15,7 +15,6 @@ DB_PORT=3306
 CORS_ALLOWED_ORIGINS=https://__INSTANCE__.__DOMAIN__
 CSRF_TRUSTED_ORIGINS=https://__INSTANCE__.__DOMAIN__
 CORS_ALLOW_CREDENTIALS=True
-CORS_ALLOWED_HEADERS=content-type,authorization,x-csrftoken
 COOKIE_SAMESITE=Lax
 
 # App domain configuration

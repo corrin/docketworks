@@ -53,10 +53,10 @@ do_create() {
         exit 1
     fi
 
-    # Source and validate all required values
-    # (use eval to read into current scope — 'source' inside a function
-    # with 'local' declarations would shadow the sourced values)
-    eval "$(grep -v '^\s*#' "$CREDS_FILE" | grep -v '^\s*$')"
+    # Source credentials into current scope
+    set -a
+    source "$CREDS_FILE"
+    set +a
 
     local MISSING=()
     [[ -z "${XERO_CLIENT_ID:-}" ]] && MISSING+=("XERO_CLIENT_ID")
@@ -107,6 +107,9 @@ do_create() {
     chown -R "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
     chmod 750 "$INSTANCE_DIR"
     chmod 700 "$INSTANCE_DIR/logs"
+    # Lock down credentials file — not needed by www-data
+    chmod 600 "$CREDS_FILE"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$CREDS_FILE"
 
     # --- Generate credentials + DB + .env (skip all if .env exists) ---
     if [[ -f "$INSTANCE_DIR/.env" ]]; then

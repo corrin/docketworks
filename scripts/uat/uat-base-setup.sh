@@ -242,9 +242,9 @@ else
     fi
     cat > "$SHARED_ENV" <<SHARED_EOF
 # Shared credentials — sourced by all instance .env files via uat-instance.sh
-EMAIL_HOST_USER=$EMAIL_USER
-EMAIL_HOST_PASSWORD=$EMAIL_PASSWORD
-DEFAULT_FROM_EMAIL=$EMAIL_USER
+EMAIL_HOST_USER='$EMAIL_USER'
+EMAIL_HOST_PASSWORD='$EMAIL_PASSWORD'
+DEFAULT_FROM_EMAIL='$EMAIL_USER'
 SHARED_EOF
     chmod 600 "$SHARED_ENV"
     chown docketworks:docketworks "$SHARED_ENV"
@@ -277,8 +277,8 @@ else
         exit 1
     fi
     cat >> "$SHARED_ENV" <<GOOGLE_EOF
-GOOGLE_MAPS_API_KEY=$MAPS_KEY
-GCP_CREDENTIALS=$GCP_PATH
+GOOGLE_MAPS_API_KEY='$MAPS_KEY'
+GCP_CREDENTIALS='$GCP_PATH'
 GOOGLE_EOF
     log "  Google config appended to $SHARED_ENV"
     echo "============================================================"
@@ -413,7 +413,10 @@ fi
 
 # Mark the local repo as safe so instance users (dw-*) can clone from it.
 # Uses --system so it applies to all users on the server.
+# Idempotent: remove any existing entries before adding
+git config --system --unset-all safe.directory "$LOCAL_REPO" 2>/dev/null || true
 git config --system --add safe.directory "$LOCAL_REPO"
+git config --system --unset-all safe.directory "${LOCAL_REPO}/.git" 2>/dev/null || true
 git config --system --add safe.directory "${LOCAL_REPO}/.git"
 
 # --- Create shared Python venv + install dependencies ---
