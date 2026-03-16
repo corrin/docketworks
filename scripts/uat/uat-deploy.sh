@@ -74,7 +74,7 @@ done
 # --- Update shared Python dependencies (from local repo) ---
 log "Updating shared Python dependencies..."
 sudo -u docketworks bash -c "
-    export PATH='/opt/docketworks/.local/bin:\$PATH'
+    export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
     export POETRY_VIRTUALENVS_CREATE=false
     source '$SHARED_VENV/bin/activate'
     pip install --upgrade pip
