@@ -222,6 +222,36 @@ else
     echo "============================================================"
 fi
 
+# --- Email credentials (shared across all instances) ---
+
+SHARED_ENV="/opt/docketworks/shared.env"
+if [[ -f "$SHARED_ENV" ]]; then
+    log "Shared email config already exists at $SHARED_ENV, skipping."
+else
+    echo ""
+    echo "============================================================"
+    echo "  Email configuration (shared across all instances)"
+    echo "  Used for password resets and system notifications."
+    echo ""
+    read -rp "  Gmail address (EMAIL_HOST_USER): " EMAIL_USER
+    read -rsp "  Gmail app password (EMAIL_HOST_PASSWORD): " EMAIL_PASSWORD
+    echo ""
+    if [[ -z "$EMAIL_USER" || -z "$EMAIL_PASSWORD" ]]; then
+        echo "ERROR: Email credentials are required. Password resets will not work without them."
+        exit 1
+    fi
+    cat > "$SHARED_ENV" <<SHARED_EOF
+# Shared credentials — sourced by all instance .env files via uat-instance.sh
+EMAIL_HOST_USER=$EMAIL_USER
+EMAIL_HOST_PASSWORD=$EMAIL_PASSWORD
+DEFAULT_FROM_EMAIL=$EMAIL_USER
+SHARED_EOF
+    chmod 600 "$SHARED_ENV"
+    chown docketworks:docketworks "$SHARED_ENV"
+    log "  Email config saved to $SHARED_ENV"
+    echo "============================================================"
+fi
+
 # --- Poetry for docketworks user ---
 
 if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v poetry' &>/dev/null; then
