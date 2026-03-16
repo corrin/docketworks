@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Creates a new UAT/demo instance of docketworks (own git clone, shared deps).
+# Creates a new UAT/demo instance of docketworks.
+# Root-only operations here; all app-level work delegated to uat-instance-worker.sh.
 # Usage: uat-create-instance.sh <name> [--seed] [--branch <branch>]
 #
 # Requires: run as root or with sudo
@@ -10,9 +11,6 @@ set -euo pipefail
 DOMAIN="docketworks.site"
 BASE_DIR="/opt/docketworks"
 INSTANCES_DIR="$BASE_DIR/instances"
-SHARED_VENV="$BASE_DIR/.venv"
-SHARED_NODE_MODULES="$BASE_DIR/node_modules"
-REPO_URL="git@github.com:corrin/docketworks.git"
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 SETUP_LOG="/var/log/docketworks-setup.log"
@@ -55,7 +53,6 @@ while [[ $# -gt 0 ]]; do
 done
 
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-CODE_DIR="$INSTANCE_DIR/code"
 DB_NAME="docketworks_${INSTANCE//-/_}"
 DB_USER="docketworks_${INSTANCE//-/_}"
 
@@ -66,90 +63,21 @@ fi
 log "=========================================="
 log "Creating docketworks instance: $INSTANCE"
 log "  Directory: $INSTANCE_DIR"
-log "  Code:      $CODE_DIR (branch: $BRANCH)"
+log "  Code:      $INSTANCE_DIR/code (branch: $BRANCH)"
 log "  Database:  $DB_NAME"
 log "  URL:       https://$INSTANCE.$DOMAIN"
 log "=========================================="
 
-# --- Create instance directory structure ---
+# --- Create instance directory structure (root) ---
 log "Creating instance directory structure..."
 mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,staticfiles}
 chown -R docketworks:docketworks "$INSTANCE_DIR"
 
-# --- Clone codebase into instance code/ ---
-if [[ -d "$CODE_DIR/.git" ]]; then
-    log "Code already cloned — pulling latest on branch $BRANCH..."
-    sudo -u docketworks bash -c "
-        cd '$CODE_DIR'
-        git fetch origin
-        git checkout '$BRANCH'
-        git pull --ff-only
-    "
-else
-    log "Cloning codebase to $CODE_DIR (branch: $BRANCH)..."
-    sudo -u docketworks git clone --branch "$BRANCH" "$REPO_URL" "$CODE_DIR"
-fi
-
-# --- Shared venv (create if first instance) ---
-if [[ ! -d "$SHARED_VENV" ]]; then
-    log "Creating shared Python venv at $SHARED_VENV..."
-    sudo -u docketworks python3.12 -m venv "$SHARED_VENV"
-    sudo -u docketworks bash -c "
-        export PATH='/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/docketworks/.local/bin'
-        source '$SHARED_VENV/bin/activate'
-        pip install --upgrade pip
-        cd '$CODE_DIR'
-        poetry install --no-interaction
-    "
-else
-    log "Shared venv already exists at $SHARED_VENV."
-fi
-
-# Symlink .venv into code/
-if [[ -L "$CODE_DIR/.venv" ]]; then
-    log "  .venv symlink already exists."
-elif [[ -d "$CODE_DIR/.venv" ]]; then
-    log "  ERROR: $CODE_DIR/.venv is a real directory, not a symlink. Remove it first."
-    exit 1
-else
-    ln -s "$SHARED_VENV" "$CODE_DIR/.venv"
-    log "  Symlinked $CODE_DIR/.venv → $SHARED_VENV"
-fi
-
-# --- Shared node_modules (create if first instance) ---
-if [[ ! -d "$SHARED_NODE_MODULES" ]]; then
-    log "Installing shared node_modules at $SHARED_NODE_MODULES..."
-    sudo -u docketworks bash -c "
-        cd '$CODE_DIR/frontend'
-        npm install --prefix '$BASE_DIR' --install-links
-    "
-else
-    log "Shared node_modules already exists at $SHARED_NODE_MODULES."
-fi
-
-# Symlink node_modules into code/frontend/
-if [[ -L "$CODE_DIR/frontend/node_modules" ]]; then
-    log "  node_modules symlink already exists."
-elif [[ -d "$CODE_DIR/frontend/node_modules" ]]; then
-    log "  ERROR: $CODE_DIR/frontend/node_modules is a real directory, not a symlink. Remove it first."
-    exit 1
-else
-    ln -s "$SHARED_NODE_MODULES" "$CODE_DIR/frontend/node_modules"
-    log "  Symlinked $CODE_DIR/frontend/node_modules → $SHARED_NODE_MODULES"
-fi
-
-# --- Build frontend (per-instance, uses symlinked node_modules) ---
-log "Building frontend for instance $INSTANCE..."
-sudo -u docketworks bash -c "
-    cd '$CODE_DIR/frontend'
-    npm run build
-"
-
-# --- Generate credentials (only if no .env yet) ---
+# --- Generate credentials ---
 DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
 SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
 
-# --- Create MySQL database and user ---
+# --- Create MySQL database and user (root) ---
 log "Creating database $DB_NAME and user $DB_USER (if not exists)..."
 mysql -u root <<EOSQL
 CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
@@ -158,7 +86,7 @@ GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
 FLUSH PRIVILEGES;
 EOSQL
 
-# --- Generate .env from template (skip if already exists) ---
+# --- Generate .env from template (root, skip if already exists) ---
 if [[ -f "$INSTANCE_DIR/.env" ]]; then
     log ".env already exists — skipping (credentials preserved)."
 else
@@ -179,42 +107,11 @@ else
     chmod 600 "$INSTANCE_DIR/.env"
 fi
 
-# --- Collect static files (per-instance) ---
-log "Collecting static files for instance $INSTANCE..."
-sudo -u docketworks bash -c "
-    cd '$CODE_DIR'
-    source .venv/bin/activate
-    set -a
-    source '$INSTANCE_DIR/.env'
-    set +a
-    python manage.py collectstatic --no-input
-"
+# --- Run worker script as docketworks user (all app-level work) ---
+log "Running worker script as docketworks user..."
+sudo -u docketworks bash "$SCRIPT_DIR/uat-instance-worker.sh" "$INSTANCE" "$BRANCH" "$SEED"
 
-# --- Run migrations ---
-log "Running migrations..."
-sudo -u docketworks bash -c "
-    cd '$CODE_DIR'
-    source .venv/bin/activate
-    set -a
-    source '$INSTANCE_DIR/.env'
-    set +a
-    python manage.py migrate --no-input
-"
-
-# --- Optionally seed data ---
-if $SEED; then
-    log "Loading demo fixtures..."
-    sudo -u docketworks bash -c "
-        cd '$CODE_DIR'
-        source .venv/bin/activate
-        set -a
-        source '$INSTANCE_DIR/.env'
-        set +a
-        python manage.py loaddata demo_fixtures
-    "
-fi
-
-# --- Install systemd service ---
+# --- Install systemd service (root) ---
 log "Installing systemd service gunicorn-$INSTANCE..."
 sed \
     -e "s/__INSTANCE__/$INSTANCE/g" \
@@ -224,7 +121,7 @@ systemctl daemon-reload
 systemctl enable "gunicorn-$INSTANCE"
 systemctl restart "gunicorn-$INSTANCE"
 
-# --- Install Nginx server block ---
+# --- Install Nginx server block (root) ---
 log "Installing Nginx config for $INSTANCE.$DOMAIN..."
 sed \
     -e "s/__INSTANCE__/$INSTANCE/g" \
@@ -240,7 +137,7 @@ log "=========================================="
 log "Instance '$INSTANCE' created successfully"
 log "  URL:        https://$INSTANCE.$DOMAIN"
 log "  Directory:  $INSTANCE_DIR"
-log "  Code:       $CODE_DIR (branch: $BRANCH)"
+log "  Code:       $INSTANCE_DIR/code (branch: $BRANCH)"
 log "  Database:   $DB_NAME"
 log "  Service:    gunicorn-$INSTANCE"
 log "=========================================="
