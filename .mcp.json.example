@@ -2,7 +2,7 @@
   "mcpServers": {
     "frontend": {
       "command": "claude-code-mcp",
-      "args": ["/home/corrin/src/jobs_manager_front"]
+      "args": ["<path-to-frontend-repo>"]
     },
     "github": {
       "command": "npx",
@@ -14,6 +14,13 @@
     "context7": {
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp@latest"]
+    },
+    "mariadb": {
+      "command": "uv",
+      "args": ["run", "--directory", "<path-to-mariadb-mcp>", "python", "src/server.py"],
+      "env": {
+        "DB_NAME": "msm_workflow"
+      }
     }
   }
 }

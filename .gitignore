@@ -162,3 +162,6 @@ frontend/manual/.vitepress/cache/
 frontend/manual/.vitepress/dist/
 frontend/dist-manual/
 frontend/dist/
+
+# Claude Code MCP config (developer-specific paths and credentials)
+.mcp.json

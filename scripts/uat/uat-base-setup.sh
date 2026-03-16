@@ -32,6 +32,8 @@ fi
 
 mkdir -p "$(dirname "$SETUP_LOG")"
 touch "$SETUP_LOG"
+chown docketworks:docketworks "$SETUP_LOG" 2>/dev/null || true
+chmod 664 "$SETUP_LOG"
 
 log "=========================================="
 log "Base server setup starting"
@@ -194,29 +196,8 @@ fi
 # --- Ensure home directory structure for docketworks user ---
 
 log "Ensuring docketworks home directory structure..."
-mkdir -p /opt/docketworks/.ssh /opt/docketworks/.local/share /opt/docketworks/.local/bin
+mkdir -p /opt/docketworks/.local/share /opt/docketworks/.local/bin
 chown -R docketworks:docketworks /opt/docketworks
-chmod 700 /opt/docketworks/.ssh
-
-# --- SSH deploy key for docketworks user ---
-
-if [[ -f /opt/docketworks/.ssh/id_ed25519 ]]; then
-    log "SSH deploy key already exists, skipping."
-else
-    log "Generating SSH deploy key for docketworks user..."
-    sudo -u docketworks ssh-keygen -t ed25519 -C "docketworks-demo" -f /opt/docketworks/.ssh/id_ed25519 -N ""
-    log "  Deploy key generated."
-    echo ""
-    echo "============================================================"
-    echo "  ACTION REQUIRED: Add this deploy key to GitHub repo settings"
-    echo "  (Settings > Deploy keys > Add deploy key)"
-    echo ""
-    cat /opt/docketworks/.ssh/id_ed25519.pub
-    echo ""
-    echo "  Press Enter once you've added it to continue..."
-    echo "============================================================"
-    read -r
-fi
 
 # --- Dreamhost API key for SSL cert renewal ---
 
@@ -355,6 +336,51 @@ log "Server manifest written to $MANIFEST"
 mkdir -p /opt/docketworks/instances
 chown docketworks:docketworks /opt/docketworks/instances
 
+# --- Clone repository (HTTPS, no SSH key needed) ---
+
+REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
+LOCAL_REPO="/opt/docketworks/repo"
+
+if [[ -d "$LOCAL_REPO/.git" ]]; then
+    log "Repository already cloned at $LOCAL_REPO, pulling latest..."
+    sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
+else
+    log "Cloning repository to $LOCAL_REPO..."
+    sudo -u docketworks git clone "$REMOTE_REPO_URL" "$LOCAL_REPO"
+fi
+
+# --- Create shared Python venv + install dependencies ---
+
+SHARED_VENV="/opt/docketworks/.venv"
+
+if [[ -d "$SHARED_VENV" ]]; then
+    log "Shared venv already exists, updating dependencies..."
+else
+    log "Creating shared Python venv at $SHARED_VENV..."
+    sudo -u docketworks python3.12 -m venv "$SHARED_VENV"
+fi
+
+sudo -u docketworks bash -c "
+    export PATH='/opt/docketworks/.local/bin:\$PATH'
+    export POETRY_VIRTUALENVS_CREATE=false
+    source '$SHARED_VENV/bin/activate'
+    pip install --upgrade pip
+    cd '$LOCAL_REPO'
+    poetry install --no-interaction
+"
+log "  Shared Python dependencies installed."
+
+# --- Install shared node_modules ---
+
+log "Installing shared node_modules..."
+sudo -u docketworks bash -c "
+    cp '$LOCAL_REPO/frontend/package.json' '/opt/docketworks/package.json'
+    cp '$LOCAL_REPO/frontend/package-lock.json' '/opt/docketworks/package-lock.json'
+    cd /opt/docketworks
+    npm install
+"
+log "  Shared node_modules installed."
+
 # --- Summary ---
 
 log "=========================================="
@@ -362,7 +388,7 @@ log "Base server setup complete"
 log "=========================================="
 log ""
 log "Next step — create an instance:"
-log "  sudo scripts/uat/uat-create-instance.sh msm"
+log "  sudo scripts/uat/uat-instance.sh create msm"
 log ""
 log "Install log:      $SETUP_LOG"
 log "Server manifest:  $MANIFEST"
