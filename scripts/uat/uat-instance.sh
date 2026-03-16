@@ -140,7 +140,7 @@ EOSQL
             -e "s/__XERO_DEFAULT_USER_ID__/$XERO_DEFAULT_USER_ID/g" \
             "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
 
-        # Append shared email credentials (required — base-setup must have run first)
+        # Append shared config: email + Google credentials (base-setup must have run first)
         local SHARED_ENV="$BASE_DIR/shared.env"
         if [[ ! -f "$SHARED_ENV" ]]; then
             echo "ERROR: $SHARED_ENV not found. Run uat-base-setup.sh first."
@@ -148,7 +148,7 @@ EOSQL
         fi
         echo "" >> "$INSTANCE_DIR/.env"
         cat "$SHARED_ENV" >> "$INSTANCE_DIR/.env"
-        log "  Appended shared email config from $SHARED_ENV"
+        log "  Appended shared config (email + Google) from $SHARED_ENV"
         chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.env"
         chmod 600 "$INSTANCE_DIR/.env"
     fi

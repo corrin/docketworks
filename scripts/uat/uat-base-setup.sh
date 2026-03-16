@@ -252,6 +252,38 @@ SHARED_EOF
     echo "============================================================"
 fi
 
+# --- Google integration (shared across all instances) ---
+
+if grep -q '^GOOGLE_MAPS_API_KEY=' "$SHARED_ENV" 2>/dev/null; then
+    log "Google config already in $SHARED_ENV, skipping."
+else
+    echo ""
+    echo "============================================================"
+    echo "  Google integration (shared across all instances)"
+    echo "  Used for address validation and Google Sheets integration."
+    echo ""
+    read -rp "  Google Maps API key (GOOGLE_MAPS_API_KEY): " MAPS_KEY
+    if [[ -z "$MAPS_KEY" ]]; then
+        echo "ERROR: GOOGLE_MAPS_API_KEY is required."
+        exit 1
+    fi
+    read -rp "  Path to GCP service account JSON key file (GCP_CREDENTIALS): " GCP_PATH
+    if [[ -z "$GCP_PATH" ]]; then
+        echo "ERROR: GCP_CREDENTIALS path is required."
+        exit 1
+    fi
+    if [[ ! -f "$GCP_PATH" ]]; then
+        echo "ERROR: File not found: $GCP_PATH"
+        exit 1
+    fi
+    cat >> "$SHARED_ENV" <<GOOGLE_EOF
+GOOGLE_MAPS_API_KEY=$MAPS_KEY
+GCP_CREDENTIALS=$GCP_PATH
+GOOGLE_EOF
+    log "  Google config appended to $SHARED_ENV"
+    echo "============================================================"
+fi
+
 # --- Poetry for docketworks user ---
 
 if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v poetry' &>/dev/null; then
