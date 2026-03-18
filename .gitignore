@@ -105,6 +105,7 @@ activate_env.sh
 check_env.py
 ENV_SETUP.md
 shell_alias_setup.txt
+ngrok.yml
 
 /.__debug_sql.lock
 /node_modules/

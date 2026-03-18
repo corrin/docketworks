@@ -63,29 +63,18 @@ The application requires a dedicated database and user.
 `ngrok` creates a secure tunnel to your local machine, providing a public HTTPS URL needed for Xero's callbacks.
 
 1.  **Sign up/Log in:** Create an account at [ngrok.com](https://ngrok.com/).
-2.  **Install & Authenticate:** Follow their instructions to install the ngrok client and connect it to your account using your authtoken (`ngrok config add-authtoken <your_token>`).
-3.  **Choose Your Static Domains:** You need predictable hostnames for both backend and frontend.
+2.  **Install ngrok:** Follow the instructions at [ngrok.com](https://ngrok.com/) to install the ngrok client.
+3.  **Get your authtoken:** Find your authtoken in the ngrok dashboard under "Your Authtoken".
+4.  **Choose Your Static Domains:** You need predictable hostnames for both backend and frontend.
     - _Free Plan:_ You can use static domains provided on the free tier (e.g., `<your-app-name>.ngrok-free.app` and `<your-app-name>-front.ngrok-free.app`). Find this option in your ngrok dashboard.
     - _Paid Plan:_ You can configure custom static domains.
     - **Decide on your domain names now.** You will need them for the Xero setup in the next step.
-    - **Details to Record:** Your chosen ngrok static domains for backend and frontend.
-4.  **Configure ngrok tunnels:** Edit your ngrok config file (`~/.config/ngrok/ngrok.yml` on Linux, or run `ngrok config edit`) to define both tunnels:
-    ```yaml
-    version: "2"
-    authtoken: YOUR_AUTH_TOKEN_HERE
-
-    tunnels:
-      backend:
-        addr: 8000
-        proto: http
-        domain: <your-app-name>.ngrok-free.app
-
-      frontend:
-        addr: 5173
-        proto: http
-        domain: <your-app-name>-front.ngrok-free.app
+    - **Details to Record:** Your authtoken and your chosen ngrok static domains for backend and frontend.
+5.  **Configure ngrok tunnels:** Copy `ngrok.yml.example` to `ngrok.yml` and fill in your authtoken and domains:
+    ```bash
+    cp ngrok.yml.example ngrok.yml
     ```
-    This allows you to start both tunnels with a single command: `ngrok start --all`
+    See [development_session.md](development_session.md) for the command to start tunnels.
 
 ### Step 4: Set Up Xero Developer Account & App
 
@@ -185,12 +174,7 @@ poetry install
 ### Step 8: Start Ngrok Tunnels
 
 1.  Open a **new, separate terminal window**.
-2.  Start both backend and frontend tunnels using the config you set up in Step 3:
-
-    ```bash
-    ngrok start --all
-    ```
-
+2.  Start tunnels following the instructions in [development_session.md](development_session.md).
 3.  Keep this ngrok terminal open. It forwards traffic from your public ngrok URLs to your local development servers (backend on port 8000, frontend on port 5173).
 
 ### Step 9: Start Development Server

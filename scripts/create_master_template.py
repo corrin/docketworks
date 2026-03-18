@@ -11,14 +11,18 @@ from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-SERVICE_ACCOUNT_FILE = "service_account.json"
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 
 
 def get_drive_service():
     """Initializes the Google Drive service."""
+    key_file = os.getenv("GCP_CREDENTIALS")
+    if not key_file:
+        raise RuntimeError("GCP_CREDENTIALS environment variable not set")
+    if not os.path.exists(key_file):
+        raise RuntimeError(f"Google service account key file not found: {key_file}")
     creds = service_account.Credentials.from_service_account_file(
-        SERVICE_ACCOUNT_FILE, scopes=SCOPES
+        key_file, scopes=SCOPES
     )
     return build("drive", "v3", credentials=creds)
 
