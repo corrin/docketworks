@@ -194,7 +194,6 @@ extend-ignore = [
 # Scripts need Django setup before imports, so E402 is expected
 per-file-ignores = [
     "scripts/*:E402",
-    "check_db.py:E402",
     "test_gzip.py:E402",
 ]
 

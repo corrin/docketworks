@@ -2,7 +2,7 @@
 
 ## Delete
 
-- [ ] `docker-compose.yml` — Docker not used, no Dockerfile exists
-- [ ] `check_db.py` — Hardcoded path to another dev's Mac, not useful as reference
-- [ ] `mypy_completed_files.txt` — Stale tracking, superseded by pre-commit mypy
-- [ ] `mypy_remaining_files.txt` — Same
+- [x] `docker-compose.yml` — Deleted. Docker not used, no Dockerfile exists
+- [x] `check_db.py` — Deleted. Hardcoded path to another dev's Mac, not useful as reference
+- [x] `mypy_completed_files.txt` — Deleted. Stale tracking, superseded by pre-commit mypy
+- [x] `mypy_remaining_files.txt` — Deleted. Same
