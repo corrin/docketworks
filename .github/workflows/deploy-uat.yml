@@ -1,0 +1,17 @@
+name: Deploy to UAT
+on:
+  push:
+    branches: [main]
+jobs:
+  pull-repo:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Pull latest on UAT server
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.UAT_HOST }}
+          username: ${{ secrets.UAT_USER }}
+          key: ${{ secrets.UAT_SSH_KEY }}
+          script: |
+            git -C /opt/docketworks/repo fetch origin
+            git -C /opt/docketworks/repo reset --hard origin/main
