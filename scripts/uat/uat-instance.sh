@@ -182,8 +182,8 @@ EOSQL
             exit 1
         fi
         echo "" >> "$INSTANCE_DIR/.env"
-        cat "$SHARED_ENV" >> "$INSTANCE_DIR/.env"
-        log "  Appended shared config (Google) from $SHARED_ENV"
+        grep '^GOOGLE_MAPS_API_KEY=' "$SHARED_ENV" >> "$INSTANCE_DIR/.env"
+        log "  Appended Google Maps API key from $SHARED_ENV"
         chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.env"
         chmod 600 "$INSTANCE_DIR/.env"
     fi
