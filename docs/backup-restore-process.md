@@ -504,7 +504,7 @@ If you get 200, **SKIP this step** - frontend is already running.
 **If curl fails, start the frontend (in separate terminal):**
 
 ```bash
-cd ../jobs_manager_front && npm run dev
+cd frontend && npm run dev
 ```
 
 **Check:** Re-run the curl command above - should return 200.
@@ -514,7 +514,7 @@ cd ../jobs_manager_front && npm run dev
 **Command:**
 
 ```bash
-pushd ../jobs_manager_front && npx tsx tests/scripts/xero-login.ts && popd
+cd frontend && npx tsx tests/scripts/xero-login.ts && cd ..
 ```
 
 **What this does:**
@@ -693,7 +693,7 @@ python scripts/restore_checks/test_kanban_api.py
 **Command:**
 
 ```bash
-cd ../jobs_manager_front && npx playwright test
+cd frontend && npx playwright test
 ```
 
 **Expected:** All tests pass.
