@@ -1,8 +1,8 @@
 # Cruft Cleanup — scripts/ directory
 
-  For each item, investigate how it's actually used in practice, fix any issues you find (missing .gitignore, missing .example, stale docs, duplicated instructions), and make everything consistent before moving on. Don't just  
+  For each item, investigate how it's actually used in practice, fix any issues you find (missing .gitignore, missing .example, stale docs, duplicated instructions), and make everything consistent before moving on. Don't just
   decide keep/delete.
-  
+
 ## Delete
 
 - [x] `explore_google_drive.py` — Fixed to use GCP_CREDENTIALS env var instead of hardcoded placeholder
