@@ -67,6 +67,8 @@ do_create() {
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
     [[ -z "${XERO_DEFAULT_USER_ID:-}" ]] && MISSING+=("XERO_DEFAULT_USER_ID")
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
+    [[ -z "${EMAIL_HOST_USER:-}" ]] && MISSING+=("EMAIL_HOST_USER")
+    [[ -z "${EMAIL_HOST_PASSWORD:-}" ]] && MISSING+=("EMAIL_HOST_PASSWORD")
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $CREDS_FILE:"
@@ -151,6 +153,9 @@ EOSQL
         ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
         ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
         ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
+        local ESC_EMAIL_HOST_USER ESC_EMAIL_HOST_PASSWORD
+        ESC_EMAIL_HOST_USER="$(sed_escape "$EMAIL_HOST_USER")"
+        ESC_EMAIL_HOST_PASSWORD="$(sed_escape "$EMAIL_HOST_PASSWORD")"
 
         local GCP_DEST="$INSTANCE_DIR/gcp-credentials.json"
         sed \
@@ -166,9 +171,11 @@ EOSQL
             -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
             -e "s|__XERO_DEFAULT_USER_ID__|$ESC_XERO_DEFAULT_USER_ID|g" \
             -e "s|__GCP_CREDENTIALS_PATH__|$GCP_DEST|g" \
+            -e "s|__EMAIL_HOST_USER__|$ESC_EMAIL_HOST_USER|g" \
+            -e "s|__EMAIL_HOST_PASSWORD__|$ESC_EMAIL_HOST_PASSWORD|g" \
             "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
 
-        # Append shared config: email + Google credentials (base-setup must have run first)
+        # Append shared config: Google credentials (base-setup must have run first)
         local SHARED_ENV="$BASE_DIR/shared.env"
         if [[ ! -f "$SHARED_ENV" ]]; then
             echo "ERROR: $SHARED_ENV not found. Run uat-base-setup.sh first."
@@ -176,7 +183,7 @@ EOSQL
         fi
         echo "" >> "$INSTANCE_DIR/.env"
         cat "$SHARED_ENV" >> "$INSTANCE_DIR/.env"
-        log "  Appended shared config (email + Google) from $SHARED_ENV"
+        log "  Appended shared config (Google) from $SHARED_ENV"
         chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.env"
         chmod 600 "$INSTANCE_DIR/.env"
     fi

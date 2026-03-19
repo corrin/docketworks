@@ -36,12 +36,15 @@ XERO_SYNC_PROJECTS=False
 XERO_DEFAULT_USER_ID=__XERO_DEFAULT_USER_ID__
 XERO_WEBHOOK_KEY=__XERO_WEBHOOK_KEY__
 
-# Email Configuration (from shared.env, appended during instance creation)
+# Email Configuration
 EMAIL_HOST=smtp.gmail.com
 EMAIL_PORT=587
 EMAIL_USE_TLS=True
-# EMAIL_HOST_USER, EMAIL_HOST_PASSWORD, DEFAULT_FROM_EMAIL appended below
-# GOOGLE_MAPS_API_KEY also appended from shared.env
+EMAIL_HOST_USER=__EMAIL_HOST_USER__
+EMAIL_HOST_PASSWORD=__EMAIL_HOST_PASSWORD__
+DEFAULT_FROM_EMAIL=__EMAIL_HOST_USER__
+
+# GOOGLE_MAPS_API_KEY appended from shared.env
 
 # GCP Integration (per-instance service account)
 GCP_CREDENTIALS=__GCP_CREDENTIALS_PATH__
