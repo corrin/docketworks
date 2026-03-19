@@ -49,7 +49,7 @@ def validate_required_settings() -> None:
         "DEFAULT_FROM_EMAIL",
         # CORS and Authentication
         "CORS_ALLOWED_ORIGINS",
-        "CORS_ALLOWED_HEADERS",
+
         "CORS_ALLOW_CREDENTIALS",
         "ENABLE_JWT_AUTH",
         "AUTH_COOKIE_DOMAIN",
@@ -275,29 +275,22 @@ if ngrok_domain and ngrok_domain not in CORS_ALLOWED_ORIGINS:
 
 CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS", "True").lower() == "true"
 
-# CORS Allowed Headers - read from environment or use defaults
-cors_headers_env = os.getenv("CORS_ALLOWED_HEADERS", "")
-if cors_headers_env:
-    CORS_ALLOWED_HEADERS = [
-        header.strip() for header in cors_headers_env.split(",") if header.strip()
-    ]
-else:
-    CORS_ALLOWED_HEADERS = [
-        "accept",
-        "accept-encoding",
-        "authorization",
-        "content-type",
-        "dnt",
-        "origin",
-        "user-agent",
-        "x-csrftoken",
-        "x-requested-with",
-        "x-actual-users",  # Custom header for staff filtering
-        "X-Actual-Users",  # Case sensitive version for proper CORS support
-        # For optimistic concurrency control (ETags)
-        "if-match",
-        "if-none-match",
-    ]
+CORS_ALLOWED_HEADERS = [
+    "accept",
+    "accept-encoding",
+    "authorization",
+    "content-type",
+    "dnt",
+    "origin",
+    "user-agent",
+    "x-csrftoken",
+    "x-requested-with",
+    "x-actual-users",  # Custom header for staff filtering
+    "X-Actual-Users",  # Case sensitive version for proper CORS support
+    # For optimistic concurrency control (ETags)
+    "if-match",
+    "if-none-match",
+]
 
 CORS_ALLOWED_METHODS = [
     "DELETE",
