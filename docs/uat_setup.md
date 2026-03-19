@@ -229,7 +229,10 @@ sudo scripts/uat/uat-destroy-instance.sh test2
 
 ## Part F: Continuous Deployment
 
-Pushes to `main` automatically deploy to the demo server via GitHub Actions (`.github/workflows/cd-demo.yml`).
+Merging a PR to `main` triggers a two-step deployment process:
+
+1. **Automatic** — GitHub Actions pulls the repo on the server (`.github/workflows/deploy-uat.yml`)
+2. **Manual** — Admin SSHes in and runs `uat-deploy.sh` when ready to deploy to instances
 
 ### Setup (one-time)
 
@@ -237,20 +240,33 @@ Add these GitHub repository secrets:
 
 | Secret | Value |
 |--------|-------|
-| `DEMO_SSH_KEY` | Private SSH key that can connect to `192.9.188.248` as `ubuntu` |
-| `DEMO_SSH_HOST` | `192.9.188.248` |
+| `UAT_SSH_KEY` | Private SSH key that can connect to the server as `docketworks` |
+| `UAT_HOST` | Server IP address |
+| `UAT_USER` | `docketworks` |
 
 To generate the SSH key:
 
 ```bash
-ssh-keygen -t ed25519 -C "github-actions-demo" -f demo_deploy_key -N ""
-# Add demo_deploy_key.pub to ~/.ssh/authorized_keys on the server
-# Add the contents of demo_deploy_key as the DEMO_SSH_KEY secret in GitHub
+ssh-keygen -t ed25519 -C "github-actions-uat" -f uat_deploy_key -N ""
+# Add uat_deploy_key.pub to ~docketworks/.ssh/authorized_keys on the server
+# Add the contents of uat_deploy_key as the UAT_SSH_KEY secret in GitHub
 ```
 
 ### How it works
 
-On push to `main`, the workflow SSHes into the server and runs `scripts/uat/uat-deploy-instance.sh` for every instance that has a systemd service. Each deploy: pulls code, installs deps, migrates, rebuilds frontend, restarts Gunicorn.
+**Step 1 (automatic):** On push to `main`, `deploy-uat.yml` SSHes into the server as `docketworks` and pulls the latest code into `/opt/docketworks/repo`. This only updates the shared repo — no instances are touched.
+
+**Step 2 (manual):** When ready to deploy to instances, SSH into the server and run:
+
+```bash
+# Deploy all instances
+sudo ./scripts/uat/uat-deploy.sh --all
+
+# Or a single instance
+sudo ./scripts/uat/uat-deploy.sh <name>
+```
+
+This updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts Gunicorn.
 
 ### Install log
 

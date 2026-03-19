@@ -9,7 +9,7 @@ Morris Sheetmetal Works Job Management System is a Django-based web application 
 ```mermaid
 graph TB
     subgraph Frontend
-        Vue[Vue.js Frontend<br/>../jobs_manager_front/]
+        Vue[Vue.js Frontend<br/>frontend/]
         Django[Django Templates<br/>Bootstrap + jQuery]
     end
 
@@ -191,9 +191,9 @@ erDiagram
 - **Quill 2.0.3**: Rich text editing
 - **Chart.js 4.4.9 & Highcharts 12.0.2**: Data visualization
 
-### Future Vue.js Frontend
+### Vue.js Frontend
 
-Located in `../jobs_manager_front/`:
+Located in `frontend/`:
 
 - **Vue 3**: TypeScript and Composition API
 - **Vite**: Build tooling and development server
