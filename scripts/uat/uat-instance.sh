@@ -10,6 +10,9 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 source "$SCRIPT_DIR/uat-common.sh"
 
+# Escape special chars for sed replacement strings (handles / & \ in values)
+sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\]/\\&/g'; }
+
 # ============================================================
 # create
 # ============================================================
@@ -38,7 +41,7 @@ do_create() {
     local CREDS_FILE="$INSTANCES_DIR/$INSTANCE/credentials.env"
     if [[ ! -f "$CREDS_FILE" ]]; then
         mkdir -p "$INSTANCES_DIR/$INSTANCE"
-        sed "s/__INSTANCE__/$INSTANCE/g" "$TEMPLATE_DIR/credentials-instance.template" \
+        sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
             > "$CREDS_FILE"
         echo ""
         echo "============================================================"
@@ -53,7 +56,7 @@ do_create() {
         exit 1
     fi
 
-    # Source credentials into current scope
+    # Safe: edited only by the sysadmin who already has root access to run this script
     set -a
     source "$CREDS_FILE"
     set +a
@@ -63,12 +66,20 @@ do_create() {
     [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
     [[ -z "${XERO_DEFAULT_USER_ID:-}" ]] && MISSING+=("XERO_DEFAULT_USER_ID")
+    [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $CREDS_FILE:"
         for var in "${MISSING[@]}"; do
             echo "  - $var"
         done
+        exit 1
+    fi
+
+    # Validate GCP credentials file exists at the path provided
+    if [[ ! -f "$GCP_CREDENTIALS" ]]; then
+        echo "ERROR: GCP_CREDENTIALS file not found: $GCP_CREDENTIALS"
+        echo "  Provide a valid path to a GCP service account JSON key in $CREDS_FILE"
         exit 1
     fi
 
@@ -107,9 +118,14 @@ do_create() {
     chown -R "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
     chmod 750 "$INSTANCE_DIR"
     chmod 700 "$INSTANCE_DIR/logs"
+    chmod 700 "$INSTANCE_DIR/dropbox"
     # Lock down credentials file — not needed by www-data
     chmod 600 "$CREDS_FILE"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$CREDS_FILE"
+    # Copy GCP service account key into instance dir with restricted perms
+    cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
+    chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
 
     # --- Generate credentials + DB + .env (skip all if .env exists) ---
     if [[ -f "$INSTANCE_DIR/.env" ]]; then
@@ -129,18 +145,27 @@ FLUSH PRIVILEGES;
 EOSQL
 
         log "Generating .env from template..."
+        # Escape sed-special chars in values that come from human-edited credentials.env
+        local ESC_XERO_CLIENT_ID ESC_XERO_CLIENT_SECRET ESC_XERO_WEBHOOK_KEY ESC_XERO_DEFAULT_USER_ID
+        ESC_XERO_CLIENT_ID="$(sed_escape "$XERO_CLIENT_ID")"
+        ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
+        ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
+        ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
+
+        local GCP_DEST="$INSTANCE_DIR/gcp-credentials.json"
         sed \
-            -e "s/__INSTANCE__/$INSTANCE/g" \
-            -e "s/__DOMAIN__/$DOMAIN/g" \
-            -e "s/__DB_NAME__/$DB_NAME/g" \
-            -e "s/__DB_USER__/$DB_USER/g" \
-            -e "s/__DB_PASSWORD__/$DB_PASSWORD/g" \
-            -e "s/__SECRET_KEY__/$SECRET_KEY/g" \
-            -e "s/__BEARER_SECRET__/$BEARER_SECRET/g" \
-            -e "s/__XERO_CLIENT_ID__/$XERO_CLIENT_ID/g" \
-            -e "s/__XERO_CLIENT_SECRET__/$XERO_CLIENT_SECRET/g" \
-            -e "s/__XERO_WEBHOOK_KEY__/$XERO_WEBHOOK_KEY/g" \
-            -e "s/__XERO_DEFAULT_USER_ID__/$XERO_DEFAULT_USER_ID/g" \
+            -e "s|__INSTANCE__|$INSTANCE|g" \
+            -e "s|__DOMAIN__|$DOMAIN|g" \
+            -e "s|__DB_NAME__|$DB_NAME|g" \
+            -e "s|__DB_USER__|$DB_USER|g" \
+            -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
+            -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
+            -e "s|__BEARER_SECRET__|$BEARER_SECRET|g" \
+            -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
+            -e "s|__XERO_CLIENT_SECRET__|$ESC_XERO_CLIENT_SECRET|g" \
+            -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
+            -e "s|__XERO_DEFAULT_USER_ID__|$ESC_XERO_DEFAULT_USER_ID|g" \
+            -e "s|__GCP_CREDENTIALS_PATH__|$GCP_DEST|g" \
             "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
 
         # Append shared config: email + Google credentials (base-setup must have run first)
@@ -202,7 +227,7 @@ EOSQL
     # --- Install systemd service ---
     log "Installing systemd service gunicorn-$INSTANCE..."
     sed \
-        -e "s/__INSTANCE__/$INSTANCE/g" \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
         "$TEMPLATE_DIR/gunicorn-instance.service.template" \
         > "/etc/systemd/system/gunicorn-$INSTANCE.service"
     systemctl daemon-reload
@@ -212,8 +237,8 @@ EOSQL
     # --- Install Nginx server block ---
     log "Installing Nginx config for $INSTANCE.$DOMAIN..."
     sed \
-        -e "s/__INSTANCE__/$INSTANCE/g" \
-        -e "s/__DOMAIN__/$DOMAIN/g" \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__DOMAIN__|$DOMAIN|g" \
         "$TEMPLATE_DIR/nginx-instance.conf.template" \
         > "/etc/nginx/sites-available/docketworks-$INSTANCE"
     ln -sf "/etc/nginx/sites-available/docketworks-$INSTANCE" "/etc/nginx/sites-enabled/"

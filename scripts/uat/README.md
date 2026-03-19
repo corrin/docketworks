@@ -15,7 +15,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 | Dreamhost API key | panel.dreamhost.com → API → generate key with `dns-*` permissions | Wildcard SSL cert (DNS-01 challenge) |
 | Gmail address + app password | Google Account → Security → App passwords | Password resets, notifications |
 | Google Maps API key | console.cloud.google.com/apis/credentials (enable Address Validation API) | Address validation |
-| GCP service account JSON key | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server | Google Sheets/Drive integration |
+| GCP service account JSON key (per instance) | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server | Google Sheets/Drive integration |
 
 ## Server Setup (One-Time)
 
@@ -28,9 +28,9 @@ Installs everything: Python 3.12, Node 22, MariaDB, Nginx, Certbot, Poetry, Clau
 Prompts interactively for:
 1. Dreamhost API key (for SSL)
 2. Gmail address + app password (for email)
-3. Google Maps API key + path to GCP service account JSON (for Google integrations)
+3. Google Maps API key (for address validation)
 
-These shared credentials are stored in `/opt/docketworks/shared.env` and appended to every instance's `.env`.
+These shared credentials are stored in `/opt/docketworks/shared.env` and appended to every instance's `.env`. GCP service account keys are configured per-instance (see below).
 
 Idempotent — safe to re-run (skips already-completed steps).
 
@@ -59,13 +59,14 @@ After creation, the instance is live at `https://mycompany.docketworks.site`.
 
 ## Per-Instance Xero Setup
 
-The credentials file needs four values:
+The credentials file needs five values:
 
 ```
 XERO_CLIENT_ID=
 XERO_CLIENT_SECRET=
 XERO_WEBHOOK_KEY=
 XERO_DEFAULT_USER_ID=
+GCP_CREDENTIALS=
 ```
 
 How to get them:
@@ -75,6 +76,7 @@ How to get them:
 3. **Copy Client ID and Client Secret** into the credentials file
 4. **Create a webhook subscription** in the Xero app, copy the webhook key
 5. **XERO_DEFAULT_USER_ID:** Create the instance first (it will work without Xero initially), create a Staff member in the app's admin, then copy that staff member's UUID into the credentials file and re-run create
+6. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
 
 ## Deploying Updates
 
@@ -112,14 +114,15 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 /opt/docketworks/
 ├── .venv/                    # Shared Python venv (all instances use this)
 ├── repo/                     # Local git clone (source for instance clones)
-├── shared.env                # Email + Google creds (appended to each .env)
+├── shared.env                # Email + Maps API key (appended to each .env)
 ├── package.json              # Shared node_modules
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 └── instances/
     └── <name>/
-        ├── credentials.env   # Xero secrets (user-filled)
-        ├── .env              # Full env (generated from template + shared.env)
-        ├── code/             # Git clone (always on main)
+        ├── credentials.env       # Xero + GCP secrets (user-filled)
+        ├── gcp-credentials.json  # Copied from path in credentials.env (mode 600)
+        ├── .env                  # Full env (generated from template + shared.env)
+        ├── code/                 # Git clone (always on main)
         │   └── frontend/dist/
         ├── staticfiles/
         ├── mediafiles/
@@ -131,9 +134,11 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ### How Env Vars Flow
 
 ```
-credentials.env (user fills Xero values)
+credentials.env (user fills Xero + GCP values)
         ↓
 uat-instance.sh reads + validates
+        ↓
+GCP key file copied to instance dir (gcp-credentials.json)
         ↓
 sed substitutes into env-instance.template → .env
         ↓
