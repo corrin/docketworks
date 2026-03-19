@@ -191,6 +191,7 @@ EOSQL
     # --- Clone code from local repo into instance dir ---
     if [[ -d "$CODE_DIR/.git" ]]; then
         log "Code already cloned — pulling latest on main..."
+        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" remote set-url origin "$LOCAL_REPO"
         sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" fetch origin
         sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" checkout main
         sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" pull --ff-only
