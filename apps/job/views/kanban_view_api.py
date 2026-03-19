@@ -466,7 +466,7 @@ class FetchJobsByColumnAPIView(APIView):
 
     def get(self, request: Request, column_id: str) -> Response:
         try:
-            max_jobs = int(request.GET.get("max_jobs", 50))
+            max_jobs = int(request.GET.get("max_jobs", 100))
             search_term = request.GET.get("search", "")
 
             # Use the new categorized kanban service
