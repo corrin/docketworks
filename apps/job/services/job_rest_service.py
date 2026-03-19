@@ -971,6 +971,14 @@ class JobRestService:
 
                 job = serializer.save(staff=user)
 
+                # When status changes via edit, place job at top of new column
+                if (
+                    "job_status" in delta_payload.fields
+                    and job.status != original_values["status"]
+                ):
+                    job.priority = Job._calculate_next_priority_for_status(job.status)
+                    job.save(update_fields=["priority"])
+
                 # When client changes, auto-set contact to new client's primary contact.
                 # This eliminates the need for frontend to make a separate API call.
                 # Only do this if contact_id was NOT explicitly provided in the update.

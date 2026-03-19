@@ -11,7 +11,7 @@ TEMPLATE_DIR="$SCRIPT_DIR/templates"
 source "$SCRIPT_DIR/uat-common.sh"
 
 # Escape special chars for sed replacement strings (handles / & \ in values)
-sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\]/\\&/g'; }
+sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\\"]/\\&/g'; }
 
 # ============================================================
 # create
