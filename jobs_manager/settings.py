@@ -49,7 +49,6 @@ def validate_required_settings() -> None:
         "DEFAULT_FROM_EMAIL",
         # CORS and Authentication
         "CORS_ALLOWED_ORIGINS",
-
         "CORS_ALLOW_CREDENTIALS",
         "ENABLE_JWT_AUTH",
         "AUTH_COOKIE_DOMAIN",
