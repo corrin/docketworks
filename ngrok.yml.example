@@ -1,0 +1,13 @@
+version: "2"
+authtoken: YOUR_AUTH_TOKEN_HERE
+
+tunnels:
+  backend:
+    addr: 8000
+    proto: http
+    domain: docketworks-<your-company-name>.ngrok-free.app
+
+  frontend:
+    addr: 5173
+    proto: http
+    domain: docketworks-<your-company-name>-front.ngrok-free.app

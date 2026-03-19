@@ -21,10 +21,10 @@ Each development session requires starting these services:
 Start both backend and frontend tunnels with a single command:
 
 ```bash
-ngrok start --all
+ngrok start --config ngrok.yml --all
 ```
 
-This requires tunnels to be configured in your ngrok config file (`~/.config/ngrok/ngrok.yml`). See [initial_install.md](initial_install.md) for setup instructions.
+This uses the `ngrok.yml` in the project root. See [initial_install.md](initial_install.md) for setup instructions.
 
 ### 2. Start Django Server
 

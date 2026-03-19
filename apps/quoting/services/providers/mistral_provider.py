@@ -287,7 +287,7 @@ class MistralPriceExtractionProvider:
     def extract_price_data(
         self, file_path: str, content_type: Optional[str] = None
     ) -> Tuple[Optional[Dict[str, Any]], Optional[str]]:
-        """Extract OCR data using Mistral - EXACTLY what adhoc/mistral_parsing.py does."""
+        """Extract OCR data using Mistral."""
         try:
             # Initialize the client
             if not self.api_key:

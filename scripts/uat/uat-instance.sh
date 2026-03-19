@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Manage UAT/demo instances of docketworks.
-# Usage: uat-instance.sh create <name> [--seed] [--branch <branch>]
+# Usage: uat-instance.sh create <name> [--seed]
 #        uat-instance.sh destroy <name>
 #        uat-instance.sh list
 
@@ -10,14 +10,17 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 source "$SCRIPT_DIR/uat-common.sh"
 
+# Escape special chars for sed replacement strings (handles / & \ in values)
+sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\]/\\&/g'; }
+
 # ============================================================
 # create
 # ============================================================
 do_create() {
-    local INSTANCE="" SEED=false BRANCH="main"
+    local INSTANCE="" SEED=false
 
     if [[ $# -lt 1 ]]; then
-        echo "Usage: $0 create <instance-name> [--seed] [--branch <branch>]"
+        echo "Usage: $0 create <instance-name> [--seed]"
         exit 1
     fi
 
@@ -30,10 +33,55 @@ do_create() {
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --seed) SEED=true; shift ;;
-            --branch) BRANCH="$2"; shift 2 ;;
             *) echo "Unknown option: $1"; exit 1 ;;
         esac
     done
+
+    # --- Read instance credentials file ---
+    local CREDS_FILE="$INSTANCES_DIR/$INSTANCE/credentials.env"
+    if [[ ! -f "$CREDS_FILE" ]]; then
+        mkdir -p "$INSTANCES_DIR/$INSTANCE"
+        sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
+            > "$CREDS_FILE"
+        echo ""
+        echo "============================================================"
+        echo "  Credentials file created at:"
+        echo "    $CREDS_FILE"
+        echo ""
+        echo "  Fill it out, then re-run:"
+        echo "    sudo $0 create $INSTANCE"
+        echo ""
+        echo "  See instructions in the file for Xero app setup."
+        echo "============================================================"
+        exit 1
+    fi
+
+    # Safe: edited only by the sysadmin who already has root access to run this script
+    set -a
+    source "$CREDS_FILE"
+    set +a
+
+    local MISSING=()
+    [[ -z "${XERO_CLIENT_ID:-}" ]] && MISSING+=("XERO_CLIENT_ID")
+    [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
+    [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
+    [[ -z "${XERO_DEFAULT_USER_ID:-}" ]] && MISSING+=("XERO_DEFAULT_USER_ID")
+    [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
+
+    if [[ ${#MISSING[@]} -gt 0 ]]; then
+        echo "ERROR: Missing required values in $CREDS_FILE:"
+        for var in "${MISSING[@]}"; do
+            echo "  - $var"
+        done
+        exit 1
+    fi
+
+    # Validate GCP credentials file exists at the path provided
+    if [[ ! -f "$GCP_CREDENTIALS" ]]; then
+        echo "ERROR: GCP_CREDENTIALS file not found: $GCP_CREDENTIALS"
+        echo "  Provide a valid path to a GCP service account JSON key in $CREDS_FILE"
+        exit 1
+    fi
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER="dw-$INSTANCE"
@@ -45,7 +93,7 @@ do_create() {
     log "Creating docketworks instance: $INSTANCE"
     log "  Directory: $INSTANCE_DIR"
     log "  User:      $INSTANCE_USER"
-    log "  Code:      $CODE_DIR (branch: $BRANCH)"
+    log "  Code:      $CODE_DIR (branch: main)"
     log "  Database:  $DB_NAME"
     log "  URL:       https://$INSTANCE.$DOMAIN"
     log "=========================================="
@@ -66,18 +114,27 @@ do_create() {
     # Instance users have NO supplementary groups, so dw-acme cannot
     # traverse dw-msm's dir (not owner, not in www-data).
     log "Creating instance directory structure..."
-    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,staticfiles}
+    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,staticfiles,dropbox}
     chown -R "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
     chmod 750 "$INSTANCE_DIR"
     chmod 700 "$INSTANCE_DIR/logs"
+    chmod 700 "$INSTANCE_DIR/dropbox"
+    # Lock down credentials file — not needed by www-data
+    chmod 600 "$CREDS_FILE"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$CREDS_FILE"
+    # Copy GCP service account key into instance dir with restricted perms
+    cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
+    chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
 
     # --- Generate credentials + DB + .env (skip all if .env exists) ---
     if [[ -f "$INSTANCE_DIR/.env" ]]; then
         log ".env already exists — skipping (credentials preserved)."
     else
-        local DB_PASSWORD SECRET_KEY
+        local DB_PASSWORD SECRET_KEY BEARER_SECRET
         DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
         SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
+        BEARER_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
 
         log "Creating database $DB_NAME and user $DB_USER (if not exists)..."
         mysql -u root <<EOSQL
@@ -88,33 +145,52 @@ FLUSH PRIVILEGES;
 EOSQL
 
         log "Generating .env from template..."
+        # Escape sed-special chars in values that come from human-edited credentials.env
+        local ESC_XERO_CLIENT_ID ESC_XERO_CLIENT_SECRET ESC_XERO_WEBHOOK_KEY ESC_XERO_DEFAULT_USER_ID
+        ESC_XERO_CLIENT_ID="$(sed_escape "$XERO_CLIENT_ID")"
+        ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
+        ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
+        ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
+
+        local GCP_DEST="$INSTANCE_DIR/gcp-credentials.json"
         sed \
-            -e "s/__INSTANCE__/$INSTANCE/g" \
-            -e "s/__DOMAIN__/$DOMAIN/g" \
-            -e "s/__DB_NAME__/$DB_NAME/g" \
-            -e "s/__DB_USER__/$DB_USER/g" \
-            -e "s/__DB_PASSWORD__/$DB_PASSWORD/g" \
-            -e "s/__SECRET_KEY__/$SECRET_KEY/g" \
-            -e "s/__XERO_CLIENT_ID__/REPLACE_ME/g" \
-            -e "s/__XERO_CLIENT_SECRET__/REPLACE_ME/g" \
-            -e "s/__EMAIL_USER__/REPLACE_ME/g" \
-            -e "s/__EMAIL_PASSWORD__/REPLACE_ME/g" \
+            -e "s|__INSTANCE__|$INSTANCE|g" \
+            -e "s|__DOMAIN__|$DOMAIN|g" \
+            -e "s|__DB_NAME__|$DB_NAME|g" \
+            -e "s|__DB_USER__|$DB_USER|g" \
+            -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
+            -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
+            -e "s|__BEARER_SECRET__|$BEARER_SECRET|g" \
+            -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
+            -e "s|__XERO_CLIENT_SECRET__|$ESC_XERO_CLIENT_SECRET|g" \
+            -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
+            -e "s|__XERO_DEFAULT_USER_ID__|$ESC_XERO_DEFAULT_USER_ID|g" \
+            -e "s|__GCP_CREDENTIALS_PATH__|$GCP_DEST|g" \
             "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
+
+        # Append shared config: email + Google credentials (base-setup must have run first)
+        local SHARED_ENV="$BASE_DIR/shared.env"
+        if [[ ! -f "$SHARED_ENV" ]]; then
+            echo "ERROR: $SHARED_ENV not found. Run uat-base-setup.sh first."
+            exit 1
+        fi
+        echo "" >> "$INSTANCE_DIR/.env"
+        cat "$SHARED_ENV" >> "$INSTANCE_DIR/.env"
+        log "  Appended shared config (email + Google) from $SHARED_ENV"
         chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.env"
         chmod 600 "$INSTANCE_DIR/.env"
     fi
 
     # --- Clone code from local repo into instance dir ---
     if [[ -d "$CODE_DIR/.git" ]]; then
-        log "Code already cloned — pulling latest on branch $BRANCH..."
-        git -C "$CODE_DIR" fetch origin
-        git -C "$CODE_DIR" checkout "$BRANCH"
-        git -C "$CODE_DIR" pull --ff-only
+        log "Code already cloned — pulling latest on main..."
+        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" fetch origin
+        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" checkout main
+        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" pull --ff-only
     else
-        log "Cloning codebase to $CODE_DIR from local repo (branch: $BRANCH)..."
-        git clone --branch "$BRANCH" "$LOCAL_REPO" "$CODE_DIR"
+        log "Cloning codebase to $CODE_DIR from local repo (branch: main)..."
+        sudo -u "$INSTANCE_USER" git clone --branch main "$LOCAL_REPO" "$CODE_DIR"
     fi
-    chown -R "$INSTANCE_USER:$INSTANCE_USER" "$CODE_DIR"
 
     # --- Build frontend ---
     log "Building frontend for instance $INSTANCE..."
@@ -151,7 +227,7 @@ EOSQL
     # --- Install systemd service ---
     log "Installing systemd service gunicorn-$INSTANCE..."
     sed \
-        -e "s/__INSTANCE__/$INSTANCE/g" \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
         "$TEMPLATE_DIR/gunicorn-instance.service.template" \
         > "/etc/systemd/system/gunicorn-$INSTANCE.service"
     systemctl daemon-reload
@@ -161,8 +237,8 @@ EOSQL
     # --- Install Nginx server block ---
     log "Installing Nginx config for $INSTANCE.$DOMAIN..."
     sed \
-        -e "s/__INSTANCE__/$INSTANCE/g" \
-        -e "s/__DOMAIN__/$DOMAIN/g" \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__DOMAIN__|$DOMAIN|g" \
         "$TEMPLATE_DIR/nginx-instance.conf.template" \
         > "/etc/nginx/sites-available/docketworks-$INSTANCE"
     ln -sf "/etc/nginx/sites-available/docketworks-$INSTANCE" "/etc/nginx/sites-enabled/"
@@ -175,19 +251,13 @@ EOSQL
     log "  URL:        https://$INSTANCE.$DOMAIN"
     log "  Directory:  $INSTANCE_DIR"
     log "  User:       $INSTANCE_USER"
-    log "  Code:       $CODE_DIR (branch: $BRANCH)"
+    log "  Code:       $CODE_DIR (branch: main)"
     log "  Database:   $DB_NAME"
     log "  Service:    gunicorn-$INSTANCE"
     log "=========================================="
 
     echo ""
-    echo "  DB password saved in: $INSTANCE_DIR/.env"
-    echo ""
-    echo "  IMPORTANT: Update the following in $INSTANCE_DIR/.env:"
-    echo "    - XERO_CLIENT_ID / XERO_CLIENT_SECRET"
-    echo "    - EMAIL_USER / EMAIL_PASSWORD (if email needed)"
-    echo ""
-    echo "  Then restart: sudo systemctl restart gunicorn-$INSTANCE"
+    echo "  Instance is live at: https://$INSTANCE.$DOMAIN"
 }
 
 # ============================================================

@@ -66,15 +66,14 @@ for instance in "${TARGETS[@]}"; do
     code_dir="$INSTANCES_DIR/$instance/code"
     instance_user="dw-$instance"
     log "Pulling latest code for $instance..."
-    git -C "$code_dir" fetch origin
-    git -C "$code_dir" pull --ff-only
-    chown -R "$instance_user:$instance_user" "$code_dir"
+    sudo -u "$instance_user" git -C "$code_dir" fetch origin
+    sudo -u "$instance_user" git -C "$code_dir" pull --ff-only
 done
 
 # --- Update shared Python dependencies (from local repo) ---
 log "Updating shared Python dependencies..."
 sudo -u docketworks bash -c "
-    export PATH='/opt/docketworks/.local/bin:\$PATH'
+    export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
     export POETRY_VIRTUALENVS_CREATE=false
     source '$SHARED_VENV/bin/activate'
     pip install --upgrade pip

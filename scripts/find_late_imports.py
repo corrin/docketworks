@@ -48,7 +48,7 @@ EASY_APP_IMPORTS = [
 # Patterns in comments that indicate intentional late imports
 LATE_IMPORT_EXCUSE_PATTERNS = [
     r"circular\s+import",
-    r"AppRTegistryNotReady",
+    r"AppRegistryNotReady",
     r"avoid.*import.*error",
     r"Django\s+startup",
 ]

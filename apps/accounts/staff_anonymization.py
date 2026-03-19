@@ -3,7 +3,6 @@ Shared staff anonymization profiles and utilities.
 
 Used by:
 - apps/workflow/management/commands/backport_data_backup.py
-- scripts/anonymize_staff.py
 """
 
 import random

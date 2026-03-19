@@ -222,6 +222,59 @@ else
     echo "============================================================"
 fi
 
+# --- Email credentials (shared across all instances) ---
+
+SHARED_ENV="/opt/docketworks/shared.env"
+if [[ -f "$SHARED_ENV" ]]; then
+    log "Shared email config already exists at $SHARED_ENV, skipping."
+else
+    echo ""
+    echo "============================================================"
+    echo "  Email configuration (shared across all instances)"
+    echo "  Used for password resets and system notifications."
+    echo ""
+    read -rp "  Gmail address (EMAIL_HOST_USER): " EMAIL_USER
+    read -rsp "  Gmail app password (EMAIL_HOST_PASSWORD): " EMAIL_PASSWORD
+    echo ""
+    if [[ -z "$EMAIL_USER" || -z "$EMAIL_PASSWORD" ]]; then
+        echo "ERROR: Email credentials are required. Password resets will not work without them."
+        exit 1
+    fi
+    cat > "$SHARED_ENV" <<SHARED_EOF
+# Shared credentials — sourced by all instance .env files via uat-instance.sh
+EMAIL_HOST_USER='$EMAIL_USER'
+EMAIL_HOST_PASSWORD='$EMAIL_PASSWORD'
+DEFAULT_FROM_EMAIL='$EMAIL_USER'
+SHARED_EOF
+    chmod 600 "$SHARED_ENV"
+    chown docketworks:docketworks "$SHARED_ENV"
+    log "  Email config saved to $SHARED_ENV"
+    echo "============================================================"
+fi
+
+# --- Google integration (shared across all instances) ---
+
+if grep -q '^GOOGLE_MAPS_API_KEY=' "$SHARED_ENV" 2>/dev/null; then
+    log "Google config already in $SHARED_ENV, skipping."
+else
+    echo ""
+    echo "============================================================"
+    echo "  Google integration (shared across all instances)"
+    echo "  Used for address validation."
+    echo "  (GCP service account keys are configured per-instance in credentials.env)"
+    echo ""
+    read -rp "  Google Maps API key (GOOGLE_MAPS_API_KEY): " MAPS_KEY
+    if [[ -z "$MAPS_KEY" ]]; then
+        echo "ERROR: GOOGLE_MAPS_API_KEY is required."
+        exit 1
+    fi
+    cat >> "$SHARED_ENV" <<GOOGLE_EOF
+GOOGLE_MAPS_API_KEY='$MAPS_KEY'
+GOOGLE_EOF
+    log "  Google config appended to $SHARED_ENV"
+    echo "============================================================"
+fi
+
 # --- Poetry for docketworks user ---
 
 if sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && command -v poetry' &>/dev/null; then
@@ -349,6 +402,14 @@ else
     sudo -u docketworks git clone "$REMOTE_REPO_URL" "$LOCAL_REPO"
 fi
 
+# Mark the local repo as safe so instance users (dw-*) can clone from it.
+# Uses --system so it applies to all users on the server.
+# Idempotent: remove any existing entries before adding
+git config --system --unset-all safe.directory "$LOCAL_REPO" 2>/dev/null || true
+git config --system --add safe.directory "$LOCAL_REPO"
+git config --system --unset-all safe.directory "${LOCAL_REPO}/.git" 2>/dev/null || true
+git config --system --add safe.directory "${LOCAL_REPO}/.git"
+
 # --- Create shared Python venv + install dependencies ---
 
 SHARED_VENV="/opt/docketworks/.venv"
@@ -361,7 +422,7 @@ else
 fi
 
 sudo -u docketworks bash -c "
-    export PATH='/opt/docketworks/.local/bin:\$PATH'
+    export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
     export POETRY_VIRTUALENVS_CREATE=false
     source '$SHARED_VENV/bin/activate'
     pip install --upgrade pip

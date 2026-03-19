@@ -102,6 +102,14 @@ repos:
         pass_filenames: false
         always_run: true
 
+      # Catch stdlib imports hiding inside functions (circular-import workarounds excluded)
+      - id: find-late-imports
+        name: Check for late stdlib imports
+        entry: poetry run python scripts/find_late_imports.py
+        language: system
+        pass_filenames: false
+        always_run: true
+
       # Custom duplicate finder - catches class attribute duplicates that other tools miss
       - id: find-duplicates
         name: Check for duplicate definitions from bad merges
