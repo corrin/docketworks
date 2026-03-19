@@ -5,7 +5,7 @@ set -euo pipefail
 # Runs once on a fresh Ubuntu 24.04 ARM server as the 'ubuntu' user.
 # Idempotent — safe to re-run.
 #
-# Usage: sudo ./uat-base-setup.sh
+# Usage: sudo ./uat-base-setup.sh <dreamhost-api-key> <google-maps-api-key>
 
 SETUP_LOG="/var/log/docketworks-setup.log"
 MANIFEST="/opt/docketworks/server-manifest.txt"
@@ -29,6 +29,17 @@ if [[ $EUID -ne 0 ]]; then
     echo "ERROR: This script must be run as root (use sudo)."
     exit 1
 fi
+
+if [[ $# -ne 2 ]]; then
+    echo "Usage: $0 <dreamhost-api-key> <google-maps-api-key>"
+    echo ""
+    echo "  dreamhost-api-key:   panel.dreamhost.com → Home > API (grant dns-* permissions)"
+    echo "  google-maps-api-key: GCP console → APIs & Services → Credentials"
+    exit 1
+fi
+
+DREAMHOST_API_KEY="$1"
+GOOGLE_MAPS_API_KEY="$2"
 
 mkdir -p "$(dirname "$SETUP_LOG")"
 touch "$SETUP_LOG"
@@ -199,53 +210,26 @@ log "Ensuring docketworks home directory structure..."
 mkdir -p /opt/docketworks/.local/share /opt/docketworks/.local/bin
 chown -R docketworks:docketworks /opt/docketworks
 
-# --- Dreamhost API key for SSL cert renewal ---
+# --- Install Dreamhost API key for certbot hooks ---
 
 if [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
     log "Dreamhost API key already configured, skipping."
 else
-    echo ""
-    echo "============================================================"
-    echo "  ACTION REQUIRED: Dreamhost API key needed for SSL certs"
-    echo "  Get one from: panel.dreamhost.com → Home > API"
-    echo "  Grant it dns-* permissions."
-    echo ""
-    read -rp "  Paste your Dreamhost API key (or leave blank to skip): " API_KEY
-    if [[ -n "$API_KEY" ]]; then
-        mkdir -p /etc/letsencrypt
-        echo "$API_KEY" > /etc/letsencrypt/dreamhost-api-key.txt
-        chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
-        log "  Dreamhost API key saved to /etc/letsencrypt/dreamhost-api-key.txt"
-    else
-        log "  WARNING: Dreamhost API key skipped. Wildcard SSL cert will need manual setup."
-    fi
-    echo "============================================================"
+    mkdir -p /etc/letsencrypt
+    echo "$DREAMHOST_API_KEY" > /etc/letsencrypt/dreamhost-api-key.txt
+    chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
+    log "  Dreamhost API key saved to /etc/letsencrypt/dreamhost-api-key.txt"
 fi
 
-# --- Google integration (shared across all instances) ---
+# --- Write shared.env (Google Maps key, sourced by instance .env files) ---
 
 SHARED_ENV="/opt/docketworks/shared.env"
-if grep -q '^GOOGLE_MAPS_API_KEY=' "$SHARED_ENV" 2>/dev/null; then
-    log "Google config already in $SHARED_ENV, skipping."
-else
-    echo ""
-    echo "============================================================"
-    echo "  Google integration (shared across all instances)"
-    echo "  Used for address validation."
-    echo "  (GCP service account keys are configured per-instance in credentials.env)"
-    echo ""
-    read -rp "  Google Maps API key (GOOGLE_MAPS_API_KEY): " MAPS_KEY
-    if [[ -z "$MAPS_KEY" ]]; then
-        echo "ERROR: GOOGLE_MAPS_API_KEY is required."
-        exit 1
-    fi
-    cat > "$SHARED_ENV" <<GOOGLE_EOF
-# Shared credentials — sourced by all instance .env files via uat-instance.sh
-GOOGLE_MAPS_API_KEY='$MAPS_KEY'
-GOOGLE_EOF
-    log "  Google config appended to $SHARED_ENV"
-    echo "============================================================"
-fi
+cat > "$SHARED_ENV" <<SHARED_EOF
+GOOGLE_MAPS_API_KEY='$GOOGLE_MAPS_API_KEY'
+SHARED_EOF
+chown docketworks:docketworks "$SHARED_ENV"
+chmod 600 "$SHARED_ENV"
+log "  Shared config written to $SHARED_ENV"
 
 # --- Poetry for docketworks user ---
 
@@ -273,7 +257,7 @@ log_version "claude" "$CLAUDE_VERSION"
 
 if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
     log "Wildcard SSL certificate already exists, skipping."
-elif [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
+else
     log "Obtaining wildcard SSL certificate via Dreamhost DNS..."
     log "  This will take ~2-4 minutes (DNS propagation wait)."
     certbot certonly --manual --preferred-challenges dns \
@@ -282,15 +266,12 @@ elif [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
         -d "*.docketworks.site" -d "docketworks.site" \
         --non-interactive --agree-tos --email admin@docketworks.site
     log "  Wildcard SSL certificate obtained."
-else
-    log "WARNING: No Dreamhost API key — skipping SSL cert. Nginx will run HTTP-only."
 fi
 
 # --- Base Nginx config (reject unknown hosts) ---
 
 log "Installing base Nginx config (reject unknown hosts)..."
-if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
-    cat > /etc/nginx/sites-available/default <<'EOF'
+cat > /etc/nginx/sites-available/default <<'EOF'
 server {
     listen 80 default_server;
     listen 443 ssl default_server;
@@ -302,17 +283,6 @@ server {
     return 444;
 }
 EOF
-    log "  Wrote default config with SSL."
-else
-    cat > /etc/nginx/sites-available/default <<'EOF'
-server {
-    listen 80 default_server;
-    server_name _;
-    return 444;
-}
-EOF
-    log "  Wrote default config without SSL (no certs yet)."
-fi
 nginx -t && systemctl restart nginx
 log "  Nginx started."
 
