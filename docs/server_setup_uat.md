@@ -1,7 +1,9 @@
-# Django Environment Setup
+# Django Environment Setup (OBSOLETE)
+
+> **This document is obsolete.** The UAT environment has moved from AWS single-instance to Oracle Cloud multi-tenant. See [uat_setup.md](uat_setup.md) for the current UAT setup. The production setup sections below may still be partially relevant.
 
 Dev: Windows, WSL, or MacOS.
-UAT: Ubuntu. Runs in AWS currently. Oracle is considered as a replacement
+UAT: ~~Runs in AWS currently. Oracle is considered as a replacement~~ **Migrated to Oracle Cloud multi-tenant — see [uat_setup.md](uat_setup.md)**
 Prod: Hyper-V VM running Ubuntu
 
 Note that I currently have UAT split over two VMs (a scheduler on 24/7 and a main app on as needed)

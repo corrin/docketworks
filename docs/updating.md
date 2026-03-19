@@ -1,6 +1,6 @@
 # Updating the Application
 
-This guide covers updating an existing installation to the latest version. For first-time setup, see [initial_install.md](initial_install.md).
+This guide covers updating an existing installation to the latest version.
 
 ## Development Environment
 
@@ -26,63 +26,25 @@ If you're running the application locally for development:
 
 4. Restart the development server if running
 
-## Production-like Environment
+## UAT Environment (Multi-Tenant)
 
-For servers running with Gunicorn and requiring Xero integration:
+See [uat_setup.md](uat_setup.md) for full architecture details.
 
-1. Ensure you have sudo access and the required backup directories exist:
+Deployment is a two-step process:
 
-   ```bash
-   sudo mkdir -p /var/backups/jobs_manager
-   ```
+1. **Merge a PR to `main`** — GitHub Actions (`deploy-uat.yml`) automatically pulls the latest code into `/opt/docketworks/repo` on the server.
 
-2. Run the deployment script:
+2. **Deploy to instances** — SSH into the server and run:
 
    ```bash
-   sudo /path/to/jobs_manager/scripts/deploy.sh
+   # All instances
+   sudo ./scripts/uat/uat-deploy.sh --all
+
+   # Single instance
+   sudo ./scripts/uat/uat-deploy.sh <name>
    ```
 
-   This script will:
-
-   - Back up the current code and database
-   - Copy backups to Google Drive
-   - Pull latest code
-   - Update dependencies
-   - Apply migrations
-   - Restart Gunicorn
-
-### Manual Update (if needed)
-
-If you need to update manually on a production-like system:
-
-1. Back up the database:
-
-   ```bash
-   mysqldump -u root jobs_manager | gzip > /var/backups/jobs_manager/db_$(date +%Y%m%d_%H%M%S).sql.gz
-   ```
-
-2. Back up the code:
-
-   ```bash
-   tar -zcf /var/backups/jobs_manager/code_$(date +%Y%m%d_%H%M%S).tgz -C /home/django_user --exclude='gunicorn.sock' jobs_manager
-   ```
-
-3. Switch to the application user:
-
-   ```bash
-   su - django_user
-   ```
-
-4. Update and restart:
-   ```bash
-   cd /home/django_user/jobs_manager
-   source .venv/bin/activate
-   git pull
-   poetry install
-   python manage.py migrate
-   exit  # back to root
-   systemctl restart gunicorn
-   ```
+   This updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts Gunicorn.
 
 ## Troubleshooting
 
@@ -97,10 +59,4 @@ If you encounter issues after updating:
 
    ```bash
    python manage.py showmigrations workflow
-   ```
-
-3. For production environments, you can rollback using:
-
-   ```bash
-   sudo /path/to/adhoc/rollback_release.sh
    ```
