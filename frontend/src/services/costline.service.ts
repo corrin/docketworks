@@ -14,7 +14,7 @@ export const getTimesheetEntries = async (
   date: string,
 ): Promise<TimesheetEntriesResponse> => {
   try {
-    return await api.job_rest_timesheet_entries_retrieve({
+    return await api.job_timesheet_entries_retrieve({
       queries: { staff_id: staffId, date },
     })
   } catch (error) {
@@ -44,10 +44,10 @@ export const createCostLine = async (
 
   const result =
     kind === 'actual'
-      ? await api.job_rest_jobs_cost_sets_actual_cost_lines_create(body, {
+      ? await api.job_jobs_cost_sets_actual_cost_lines_create(body, {
           params: { job_id: String(jobId) },
         })
-      : await api.job_rest_jobs_cost_sets_cost_lines_create(body, {
+      : await api.job_jobs_cost_sets_cost_lines_create(body, {
           params: { job_id: String(jobId), kind },
         })
 
@@ -59,7 +59,7 @@ export const updateCostLine = async (
   id: string,
   payload: PatchedCostLineRequest,
 ): Promise<CostLineResponse> => {
-  const result = await api.job_rest_cost_lines_partial_update(payload, {
+  const result = await api.job_cost_lines_partial_update(payload, {
     params: { cost_line_id: id },
   })
   return schemas.CostLine.parse(result)
@@ -76,7 +76,7 @@ export const deleteCostLine = async (id: string): Promise<void> => {
   debugLog('COSTLINE SERVICE - Deleting cost line:', id)
 
   try {
-    await api.job_rest_cost_lines_delete_destroy(undefined, {
+    await api.job_cost_lines_delete_destroy(undefined, {
       params: { cost_line_id: id },
     })
     debugLog('SERVICE: DELETE request completed successfully')

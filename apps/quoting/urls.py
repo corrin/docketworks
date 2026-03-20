@@ -5,19 +5,19 @@ from . import views, views_django_jobs
 
 router = DefaultRouter()
 router.register(
-    r"api/django-jobs",
+    r"django-jobs",
     views_django_jobs.DjangoJobViewSet,
     basename="django-job",
 )
 router.register(
-    r"api/django-job-executions",
+    r"django-job-executions",
     views_django_jobs.DjangoJobExecutionViewSet,
     basename="django-job-execution",
 )
 
 urlpatterns = [
     path(
-        "api/extract-supplier-price-list/",
+        "extract-supplier-price-list/",
         views.extract_supplier_price_list_data_view,
         name="extract_supplier_price_list_data",
     ),

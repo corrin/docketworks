@@ -53,7 +53,7 @@ def test_direct_api():
     print("TESTING DIRECT API CALLS")
     print("=" * 80)
 
-    api_url = "http://localhost:8000/accounts/api/token/"
+    api_url = "http://localhost:8000/api/accounts/token/"
 
     # Test 1: Failed login
     print("\nTest 1: Direct API - Failed login")

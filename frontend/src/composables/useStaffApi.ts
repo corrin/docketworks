@@ -15,7 +15,7 @@ export function useStaffApi() {
     error.value = null
     try {
       // Use the regular staff endpoint that returns complete Staff objects
-      const result = await api.accounts_api_staff_list()
+      const result = await api.accounts_staff_list()
 
       // For AdminView, we want to see ALL staff without any filtering
       // Filtering should only be done on Kanban via the backend
@@ -34,7 +34,7 @@ export function useStaffApi() {
   async function createStaff(data: StaffCreate): Promise<Staff> {
     error.value = null
     try {
-      return await api.accounts_api_staff_create(data)
+      return await api.accounts_staff_create(data)
     } catch (e: unknown) {
       if (e instanceof Error) {
         error.value = e.message
@@ -48,7 +48,7 @@ export function useStaffApi() {
   async function updateStaff(id: string | number, data: Record<string, unknown>): Promise<Staff> {
     error.value = null
     try {
-      const result = await api.accounts_api_staff_partial_update(
+      const result = await api.accounts_staff_partial_update(
         data as z.infer<typeof schemas.PatchedStaffRequest>,
         {
           params: { id: String(id) },
@@ -68,7 +68,7 @@ export function useStaffApi() {
   async function removeStaff(id: string | number): Promise<void> {
     error.value = null
     try {
-      await api.accounts_api_staff_destroy(undefined, { params: { id: String(id) } })
+      await api.accounts_staff_destroy(undefined, { params: { id: String(id) } })
     } catch (e: unknown) {
       if (e instanceof Error) {
         error.value = e.message
@@ -85,7 +85,7 @@ export function useStaffApi() {
       // Explicitly pass today's date to avoid backend warning
       // Pass actual_users: 'true' to exclude system/test accounts
       const today = toLocalDateString()
-      const result = await api.accounts_api_staff_all_list({
+      const result = await api.accounts_staff_all_list({
         queries: { date: today, actual_users: 'true' },
       })
       return result

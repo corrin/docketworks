@@ -50,26 +50,26 @@ class CategoriesView(APIView):
 
 rest_urlpatterns = [
     # ─── Categories (discovery endpoint for frontend navigation) ────────────
-    path("rest/categories/", CategoriesView.as_view(), name="process_categories"),
+    path("categories/", CategoriesView.as_view(), name="process_categories"),
     # ─── Procedures (written docs, Google Doc-backed) ───────────────────────
     # Generation endpoints must come BEFORE the <str:category> patterns
     path(
-        "rest/procedures/safety/generate-sop/",
+        "procedures/safety/generate-sop/",
         SOPGenerateView.as_view(),
         name="sop_generate",
     ),
     path(
-        "rest/procedures/safety/generate-swp/",
+        "procedures/safety/generate-swp/",
         SWPGenerateView.as_view(),
         name="swp_generate",
     ),
     path(
-        "rest/procedures/<str:category>/",
+        "procedures/<str:category>/",
         ProcedureViewSet.as_view({"get": "list", "post": "create"}),
         name="procedure_list",
     ),
     path(
-        "rest/procedures/<str:category>/<uuid:pk>/",
+        "procedures/<str:category>/<uuid:pk>/",
         ProcedureViewSet.as_view(
             {
                 "get": "retrieve",
@@ -81,18 +81,18 @@ rest_urlpatterns = [
         name="procedure_detail",
     ),
     path(
-        "rest/procedures/<str:category>/<uuid:pk>/content/",
+        "procedures/<str:category>/<uuid:pk>/content/",
         ProcedureContentView.as_view(),
         name="procedure_content",
     ),
     # ─── Forms (definitions with entries) ──────────────────────────────────
     path(
-        "rest/forms/<str:category>/",
+        "forms/<str:category>/",
         FormViewSet.as_view({"get": "list", "post": "create"}),
         name="form_list",
     ),
     path(
-        "rest/forms/<str:category>/<uuid:pk>/",
+        "forms/<str:category>/<uuid:pk>/",
         FormViewSet.as_view(
             {
                 "get": "retrieve",
@@ -104,17 +104,17 @@ rest_urlpatterns = [
         name="form_detail",
     ),
     path(
-        "rest/forms/<str:category>/<uuid:pk>/fill/",
+        "forms/<str:category>/<uuid:pk>/fill/",
         FormFillView.as_view(),
         name="form_fill",
     ),
     path(
-        "rest/forms/<str:category>/<uuid:document_pk>/entries/",
+        "forms/<str:category>/<uuid:document_pk>/entries/",
         FormEntryViewSet.as_view({"get": "list", "post": "create"}),
         name="form_entries",
     ),
     path(
-        "rest/forms/<str:category>/<uuid:document_pk>/entries/<uuid:pk>/",
+        "forms/<str:category>/<uuid:document_pk>/entries/<uuid:pk>/",
         FormEntryViewSet.as_view(
             {"put": "update", "patch": "partial_update", "delete": "destroy"}
         ),
@@ -122,33 +122,33 @@ rest_urlpatterns = [
     ),
     # ─── JSA (nested under jobs) ──────────────────────────────────────────
     path(
-        "rest/jobs/<uuid:job_id>/jsa/",
+        "jobs/<uuid:job_id>/jsa/",
         JSAListView.as_view(),
         name="jsa_list",
     ),
     path(
-        "rest/jobs/<uuid:job_id>/jsa/generate/",
+        "jobs/<uuid:job_id>/jsa/generate/",
         JSAGenerateView.as_view(),
         name="jsa_generate",
     ),
     # ─── Safety AI ────────────────────────────────────────────────────────
     path(
-        "rest/safety-ai/generate-hazards/",
+        "safety-ai/generate-hazards/",
         AIGenerateHazardsView.as_view(),
         name="ai_generate_hazards",
     ),
     path(
-        "rest/safety-ai/generate-controls/",
+        "safety-ai/generate-controls/",
         AIGenerateControlsView.as_view(),
         name="ai_generate_controls",
     ),
     path(
-        "rest/safety-ai/improve-section/",
+        "safety-ai/improve-section/",
         AIImproveSectionView.as_view(),
         name="ai_improve_section",
     ),
     path(
-        "rest/safety-ai/improve-document/",
+        "safety-ai/improve-document/",
         AIImproveDocumentView.as_view(),
         name="ai_improve_document",
     ),

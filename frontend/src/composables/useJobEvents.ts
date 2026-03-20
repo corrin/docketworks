@@ -22,7 +22,7 @@ export function useJobEvents(jobId: string | Ref<string | null>) {
     error.value = null
 
     try {
-      const response = await api.job_rest_jobs_events_retrieve({
+      const response = await api.job_jobs_events_retrieve({
         params: { job_id: id },
       })
       jobEvents.value = response?.events || []

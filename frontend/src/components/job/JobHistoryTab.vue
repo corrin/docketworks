@@ -327,7 +327,7 @@ async function loadTimeline() {
   if (!props.jobId) return
   isLoading.value = true
   try {
-    const response = await api.job_rest_jobs_timeline_retrieve({ params: { job_id: props.jobId } })
+    const response = await api.job_jobs_timeline_retrieve({ params: { job_id: props.jobId } })
     timelineEntries.value = response.timeline || []
   } catch (e) {
     toast.error('Failed to load timeline')
@@ -423,7 +423,7 @@ async function undoChange(entry: TimelineEntry) {
   isUndoing.value = true
   try {
     const body: JobUndoRequest = { change_id: entry.change_id }
-    await api.job_rest_jobs_undo_change_create(body, {
+    await api.job_jobs_undo_change_create(body, {
       params: { job_id: props.jobId },
     })
 

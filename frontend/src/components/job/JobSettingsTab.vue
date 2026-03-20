@@ -379,7 +379,7 @@ onMounted(async () => {
           // Load header data
           (async () => {
             try {
-              const response = await api.job_rest_jobs_header_retrieve({
+              const response = await api.job_jobs_header_retrieve({
                 params: { job_id: props.jobId },
               })
               if (response) {
@@ -416,7 +416,7 @@ onMounted(async () => {
     // Load Xero pay items for the dropdown
     (async () => {
       try {
-        const payItems = await api.api_workflow_xero_pay_items_list()
+        const payItems = await api.workflow_xero_pay_items_list()
         xeroPayItems.value = payItems
       } catch {
         console.error('Failed to load Xero pay items')
@@ -1533,7 +1533,7 @@ onMounted(() => {
   unbindConcurrencyRetry = onConcurrencyRetry(props.jobId, async () => {
     // Reload fresh data from server to get current ETag/version
     try {
-      const response = await api.job_rest_jobs_header_retrieve({
+      const response = await api.job_jobs_header_retrieve({
         params: { job_id: props.jobId },
       })
       if (response) {

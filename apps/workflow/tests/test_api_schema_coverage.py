@@ -34,12 +34,10 @@ ALLOWED_NON_SCHEMA_PATTERNS = {
     "api/enums/",
     # DRF router root (meta-endpoint)
     "api/workflow/",
-    # HTML template pages
-    "xero/",
-    "xero/sync-progress/",
-    "app-errors/",
-    "rest/app-errors/",
-    "xero-errors/",
+    # App/Xero error endpoints (DRF browsable API, not frontend-consumed)
+    "api/app-errors/",
+    "api/rest/app-errors/",
+    "api/xero-errors/",
     # Static/media files
     "static",
     "media",

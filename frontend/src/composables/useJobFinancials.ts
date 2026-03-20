@@ -19,10 +19,10 @@ export function useJobFinancials(jobId: Ref<string>) {
     try {
       // Fetch both cost summary and invoices in parallel
       const [costSummary, invoicesResponse] = await Promise.all([
-        api.job_rest_jobs_costs_summary_retrieve({
+        api.job_jobs_costs_summary_retrieve({
           params: { job_id: jobId.value },
         }),
-        api.job_rest_jobs_invoices_retrieve({
+        api.job_jobs_invoices_retrieve({
           params: { job_id: jobId.value },
         }),
       ])

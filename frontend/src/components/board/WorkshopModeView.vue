@@ -52,7 +52,7 @@ const filteredJobs = computed(() => {
 const loadJobs = async () => {
   loading.value = true
   try {
-    jobs.value = await api.job_api_jobs_workshop_list()
+    jobs.value = await api.job_jobs_workshop_list()
     // If we have an activeJobId from storage, find and update the full job data
     if (activeJobId.value) {
       const foundJob = jobs.value.find((j) => j.id === activeJobId.value)

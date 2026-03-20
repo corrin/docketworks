@@ -3,9 +3,9 @@ info:
   title: Jobs Manager API
   version: 1.0.0
 paths:
-  /accounting/api/reports/calendar/:
+  /api/accounting/reports/calendar/:
     get:
-      operationId: accounting_api_reports_calendar_retrieve
+      operationId: accounting_reports_calendar_retrieve
       description: Returns aggregated KPIs for display in calendar
       summary: Get KPI calendar data
       parameters:
@@ -42,9 +42,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/StandardError'
           description: ''
-  /accounting/api/reports/job-aging/:
+  /api/accounting/reports/job-aging/:
     get:
-      operationId: accounting_api_reports_job_aging_retrieve
+      operationId: accounting_reports_job_aging_retrieve
       description: |-
         Get job aging data.
 
@@ -65,9 +65,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobAgingResponse'
           description: ''
-  /accounting/api/reports/job-movement/:
+  /api/accounting/reports/job-movement/:
     get:
-      operationId: accounting_api_reports_job_movement_retrieve
+      operationId: accounting_reports_job_movement_retrieve
       description: Handle GET request for job movement metrics.
       tags:
         - accounting
@@ -81,9 +81,9 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
-  /accounting/api/reports/payroll-date-range/:
+  /api/accounting/reports/payroll-date-range/:
     get:
-      operationId: accounting_api_reports_payroll_date_range_retrieve
+      operationId: accounting_reports_payroll_date_range_retrieve
       description: Given arbitrary start/end dates, returns the Monday on or before
         start_date and the Sunday on or after end_date.
       summary: Get pay-period aligned date range
@@ -119,9 +119,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/StandardError'
           description: ''
-  /accounting/api/reports/payroll-reconciliation/:
+  /api/accounting/reports/payroll-reconciliation/:
     get:
-      operationId: accounting_api_reports_payroll_reconciliation_retrieve
+      operationId: accounting_reports_payroll_reconciliation_retrieve
       description: Reconciles Xero pay runs against JM CostLine time entries for each
         week in the given date range.
       summary: Get payroll reconciliation report
@@ -163,9 +163,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/StandardError'
           description: ''
-  /accounting/api/reports/profit-and-loss/:
+  /api/accounting/reports/profit-and-loss/:
     get:
-      operationId: accounting_api_reports_profit_and_loss_retrieve
+      operationId: accounting_reports_profit_and_loss_retrieve
       tags:
         - accounting
       security:
@@ -178,9 +178,9 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
-  /accounting/api/reports/rdti-spend/:
+  /api/accounting/reports/rdti-spend/:
     get:
-      operationId: accounting_api_reports_rdti_spend_retrieve
+      operationId: accounting_reports_rdti_spend_retrieve
       description: API endpoint for the RDTI spend report.
       parameters:
         - in: query
@@ -212,7 +212,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/StandardError'
           description: ''
-  /accounting/api/reports/sales-forecast/:
+  /api/accounting/reports/sales-forecast/:
     get:
       operationId: sales_forecast_list
       description: Returns monthly sales comparison between Xero invoices and Job
@@ -262,7 +262,7 @@ paths:
                   error:
                     type: string
           description: ''
-  /accounting/api/reports/sales-forecast/{month}/:
+  /api/accounting/reports/sales-forecast/{month}/:
     get:
       operationId: sales_forecast_month_detail
       description: Returns detailed invoice and job data for a specific month, showing
@@ -346,9 +346,9 @@ paths:
                   error:
                     type: string
           description: ''
-  /accounting/api/reports/staff-performance-summary/:
+  /api/accounting/reports/staff-performance-summary/:
     get:
-      operationId: accounting_api_reports_staff_performance_summary_retrieve
+      operationId: accounting_reports_staff_performance_summary_retrieve
       description: API endpoint for staff performance summary (all staff)
       tags:
         - accounting
@@ -361,9 +361,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/StaffPerformanceResponse'
           description: ''
-  /accounting/api/reports/staff-performance/{staff_id}/:
+  /api/accounting/reports/staff-performance/{staff_id}/:
     get:
-      operationId: accounting_api_reports_staff_performance_retrieve
+      operationId: accounting_reports_staff_performance_retrieve
       description: API endpoint for individual staff performance detail
       parameters:
         - in: path
@@ -383,9 +383,51 @@ paths:
               schema:
                 $ref: '#/components/schemas/StaffPerformanceResponse'
           description: ''
-  /accounts/api/staff/:
+  /api/accounts/logout/:
+    post:
+      operationId: accounts_logout_create
+      description: Custom logout view that clears JWT httpOnly cookies
+      summary: Logs out the current user by clearing JWT cookies
+      tags:
+        - accounts
+      security:
+        - cookieAuth: []
+        - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/accounts/me/:
     get:
-      operationId: accounts_api_staff_list
+      operationId: accounts_me_retrieve
+      description: Get current authenticated user information via JWT from httpOnly
+        cookie
+      summary: Returns the current authenticated user profile
+      tags:
+        - accounts
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+          description: ''
+  /api/accounts/staff/:
+    get:
+      operationId: accounts_staff_list
       description: API endpoint for listing all staff members and creating new staff
         members. Supports multipart/form data for file uploads (e.g., profile pictures).
       summary: List and create staff members
@@ -403,7 +445,7 @@ paths:
                   $ref: '#/components/schemas/Staff'
           description: ''
     post:
-      operationId: accounts_api_staff_create
+      operationId: accounts_staff_create
       description: Create a new staff member with the provided details. Supports multipart/form
         data for file uploads (e.g., profile pictures).
       summary: Create a new staff member
@@ -427,9 +469,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/Staff'
           description: ''
-  /accounts/api/staff/{id}/:
+  /api/accounts/staff/{id}/:
     get:
-      operationId: accounts_api_staff_retrieve
+      operationId: accounts_staff_retrieve
       description: API endpoint for retrieving, updating, and deleting individual
         staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
         Includes comprehensive logging for update operations and handles multipart/form
@@ -454,7 +496,7 @@ paths:
                 $ref: '#/components/schemas/Staff'
           description: ''
     put:
-      operationId: accounts_api_staff_update
+      operationId: accounts_staff_update
       description: API endpoint for retrieving, updating, and deleting individual
         staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
         Includes comprehensive logging for update operations and handles multipart/form
@@ -488,7 +530,7 @@ paths:
                 $ref: '#/components/schemas/Staff'
           description: ''
     patch:
-      operationId: accounts_api_staff_partial_update
+      operationId: accounts_staff_partial_update
       description: API endpoint for retrieving, updating, and deleting individual
         staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
         Includes comprehensive logging for update operations and handles multipart/form
@@ -521,7 +563,7 @@ paths:
                 $ref: '#/components/schemas/Staff'
           description: ''
     delete:
-      operationId: accounts_api_staff_destroy
+      operationId: accounts_staff_destroy
       description: API endpoint for retrieving, updating, and deleting individual
         staff members. Supports GET (retrieve), PUT/PATCH (update), and DELETE operations.
         Includes comprehensive logging for update operations and handles multipart/form
@@ -541,9 +583,9 @@ paths:
       responses:
         '204':
           description: No response body
-  /accounts/api/staff/all/:
+  /api/accounts/staff/all/:
     get:
-      operationId: accounts_api_staff_all_list
+      operationId: accounts_staff_all_list
       description: |-
         API endpoint for retrieving list of staff members for Kanban board.
 
@@ -587,9 +629,9 @@ paths:
                 items:
                   $ref: '#/components/schemas/KanbanStaff'
           description: ''
-  /accounts/api/token/:
+  /api/accounts/token/:
     post:
-      operationId: accounts_api_token_create
+      operationId: accounts_token_create
       description: Obtains JWT tokens for authentication. When ENABLE_JWT_AUTH=True,
         tokens are set as httpOnly cookies and the response body will be an empty
         object. Otherwise, the response body will contain the tokens. Also checks
@@ -617,9 +659,9 @@ paths:
           description: ''
         '401':
           description: No response body
-  /accounts/api/token/refresh/:
+  /api/accounts/token/refresh/:
     post:
-      operationId: accounts_api_token_refresh_create
+      operationId: accounts_token_refresh_create
       description: Refreshes the JWT access token using a refresh token. When ENABLE_JWT_AUTH=True,
         the new access token is set as an httpOnly cookie and removed from the JSON
         response. Otherwise, the response contains the new access token.
@@ -646,9 +688,9 @@ paths:
           description: ''
         '401':
           description: No response body
-  /accounts/api/token/verify/:
+  /api/accounts/token/verify/:
     post:
-      operationId: accounts_api_token_verify_create
+      operationId: accounts_token_verify_create
       description: |-
         Takes a token and indicates if it is valid.  This view provides no
         information about a token's fitness for a particular use.
@@ -669,957 +711,7 @@ paths:
       responses:
         '200':
           description: No response body
-  /accounts/logout/:
-    post:
-      operationId: accounts_logout_create
-      description: Custom logout view that clears JWT httpOnly cookies
-      summary: Logs out the current user by clearing JWT cookies
-      tags:
-        - accounts
-      security:
-        - cookieAuth: []
-        - {}
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-  /accounts/me/:
-    get:
-      operationId: accounts_me_retrieve
-      description: Get current authenticated user information via JWT from httpOnly
-        cookie
-      summary: Returns the current authenticated user profile
-      tags:
-        - accounts
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/UserProfile'
-          description: ''
-  /api/company-defaults/:
-    get:
-      operationId: api_company_defaults_retrieve
-      description: |-
-        API view for managing company default settings.
-
-        This view provides endpoints to retrieve and update the company's default
-        configuration settings. All authenticated users can retrieve settings,
-        but only authenticated users can update them.
-
-        Endpoints:
-            GET: Retrieve current company defaults
-            PUT: Update all company defaults (full update)
-            PATCH: Partially update company defaults
-
-        Permissions:
-            - IsAuthenticated: Any logged-in user can access this API
-
-        Returns:
-            Company defaults data serialized using CompanyDefaultsSerializer
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyDefaults'
-          description: ''
-    put:
-      operationId: api_company_defaults_update
-      description: |-
-        API view for managing company default settings.
-
-        This view provides endpoints to retrieve and update the company's default
-        configuration settings. All authenticated users can retrieve settings,
-        but only authenticated users can update them.
-
-        Endpoints:
-            GET: Retrieve current company defaults
-            PUT: Update all company defaults (full update)
-            PATCH: Partially update company defaults
-
-        Permissions:
-            - IsAuthenticated: Any logged-in user can access this API
-
-        Returns:
-            Company defaults data serialized using CompanyDefaultsSerializer
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CompanyDefaultsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CompanyDefaultsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CompanyDefaultsRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyDefaults'
-          description: ''
-    patch:
-      operationId: api_company_defaults_partial_update
-      description: |-
-        API view for managing company default settings.
-
-        This view provides endpoints to retrieve and update the company's default
-        configuration settings. All authenticated users can retrieve settings,
-        but only authenticated users can update them.
-
-        Endpoints:
-            GET: Retrieve current company defaults
-            PUT: Update all company defaults (full update)
-            PATCH: Partially update company defaults
-
-        Permissions:
-            - IsAuthenticated: Any logged-in user can access this API
-
-        Returns:
-            Company defaults data serialized using CompanyDefaultsSerializer
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedCompanyDefaultsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedCompanyDefaultsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedCompanyDefaultsRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyDefaults'
-          description: ''
-  /api/company-defaults/schema/:
-    get:
-      operationId: api_company_defaults_schema_retrieve
-      description: Return schema metadata for CompanyDefaults fields.
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyDefaultsSchema'
-              examples:
-                ExampleResponse:
-                  value:
-                    sections:
-                      - key: general
-                        title: General Settings
-                        order: 1
-                        fields:
-                          - key: company_name
-                            label: Company Name
-                            type: text
-                            required: true
-                            help_text: ''
-                            section: general
-                  summary: Example Response
-          description: ''
-  /api/workflow/ai-providers/:
-    get:
-      operationId: api_workflow_ai_providers_list
-      description: |-
-        API endpoint that allows AI Providers to be viewed or edited.
-
-        Provides standard CRUD operations and a custom action to set a
-        provider as the default for the company.
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/AIProvider'
-          description: ''
-    post:
-      operationId: api_workflow_ai_providers_create
-      description: |-
-        API endpoint that allows AI Providers to be viewed or edited.
-
-        Provides standard CRUD operations and a custom action to set a
-        provider as the default for the company.
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIProviderCreateUpdate'
-          description: ''
-  /api/workflow/ai-providers/{id}/:
-    get:
-      operationId: api_workflow_ai_providers_retrieve
-      description: |-
-        API endpoint that allows AI Providers to be viewed or edited.
-
-        Provides standard CRUD operations and a custom action to set a
-        provider as the default for the company.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: integer
-          description: A unique integer value identifying this AI Provider.
-          required: true
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIProvider'
-          description: ''
-    put:
-      operationId: api_workflow_ai_providers_update
-      description: |-
-        API endpoint that allows AI Providers to be viewed or edited.
-
-        Provides standard CRUD operations and a custom action to set a
-        provider as the default for the company.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: integer
-          description: A unique integer value identifying this AI Provider.
-          required: true
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIProviderCreateUpdate'
-          description: ''
-    patch:
-      operationId: api_workflow_ai_providers_partial_update
-      description: |-
-        API endpoint that allows AI Providers to be viewed or edited.
-
-        Provides standard CRUD operations and a custom action to set a
-        provider as the default for the company.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: integer
-          description: A unique integer value identifying this AI Provider.
-          required: true
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedAIProviderCreateUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedAIProviderCreateUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedAIProviderCreateUpdateRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIProviderCreateUpdate'
-          description: ''
-    delete:
-      operationId: api_workflow_ai_providers_destroy
-      description: |-
-        API endpoint that allows AI Providers to be viewed or edited.
-
-        Provides standard CRUD operations and a custom action to set a
-        provider as the default for the company.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: integer
-          description: A unique integer value identifying this AI Provider.
-          required: true
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /api/workflow/ai-providers/{id}/set-default/:
-    post:
-      operationId: api_workflow_ai_providers_set_default_create
-      description: |-
-        Set this provider as the default.
-        This will atomically unset any other provider that is currently the default.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: integer
-          description: A unique integer value identifying this AI Provider.
-          required: true
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AIProviderRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AIProviderRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AIProviderRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AIProvider'
-          description: ''
-  /api/workflow/app-errors/:
-    get:
-      operationId: api_workflow_app_errors_list
-      description: |-
-        ViewSet for AppError with filtering capabilities and resolution actions.
-
-        Provides list, retrieve, and resolution management for application errors.
-        Includes comprehensive filtering and search capabilities for error analysis.
-
-        Endpoints:
-        - GET /api/app-errors/
-        - GET /api/app-errors/<id>/
-        - POST /api/app-errors/<id>/mark_resolved/
-        - POST /api/app-errors/<id>/mark_unresolved/
-      parameters:
-        - in: query
-          name: app
-          schema:
-            type: string
-        - in: query
-          name: app__icontains
-          schema:
-            type: string
-        - in: query
-          name: file
-          schema:
-            type: string
-        - in: query
-          name: file__icontains
-          schema:
-            type: string
-        - in: query
-          name: function
-          schema:
-            type: string
-        - in: query
-          name: function__icontains
-          schema:
-            type: string
-        - in: query
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-        - name: ordering
-          required: false
-          in: query
-          description: Which field to use when ordering the results.
-          schema:
-            type: string
-        - name: page
-          required: false
-          in: query
-          description: A page number within the paginated result set.
-          schema:
-            type: integer
-        - in: query
-          name: resolved
-          schema:
-            type: boolean
-        - name: search
-          required: false
-          in: query
-          description: A search term.
-          schema:
-            type: string
-        - in: query
-          name: severity
-          schema:
-            type: integer
-        - in: query
-          name: severity__gte
-          schema:
-            type: integer
-        - in: query
-          name: severity__lte
-          schema:
-            type: integer
-        - in: query
-          name: timestamp__gte
-          schema:
-            type: string
-            format: date-time
-        - in: query
-          name: timestamp__lte
-          schema:
-            type: string
-            format: date-time
-        - in: query
-          name: user_id
-          schema:
-            type: string
-            format: uuid
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedAppErrorList'
-          description: ''
-  /api/workflow/app-errors/{id}/:
-    get:
-      operationId: api_workflow_app_errors_retrieve
-      description: |-
-        ViewSet for AppError with filtering capabilities and resolution actions.
-
-        Provides list, retrieve, and resolution management for application errors.
-        Includes comprehensive filtering and search capabilities for error analysis.
-
-        Endpoints:
-        - GET /api/app-errors/
-        - GET /api/app-errors/<id>/
-        - POST /api/app-errors/<id>/mark_resolved/
-        - POST /api/app-errors/<id>/mark_unresolved/
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Application Error.
-          required: true
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppError'
-          description: ''
-  /api/workflow/app-errors/{id}/mark_resolved/:
-    post:
-      operationId: api_workflow_app_errors_mark_resolved_create
-      description: Mark an error as resolved.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Application Error.
-          required: true
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AppErrorRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AppErrorRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AppErrorRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppError'
-          description: ''
-  /api/workflow/app-errors/{id}/mark_unresolved/:
-    post:
-      operationId: api_workflow_app_errors_mark_unresolved_create
-      description: Mark an error as unresolved.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Application Error.
-          required: true
-      tags:
-        - api
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AppErrorRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AppErrorRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AppErrorRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AppError'
-          description: ''
-  /api/workflow/xero-pay-items/:
-    get:
-      operationId: api_workflow_xero_pay_items_list
-      description: |-
-        API endpoint for Xero pay items (earnings rates and leave types).
-
-        Read-only - these are synced from Xero, not created locally.
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/XeroPayItem'
-          description: ''
-  /api/workflow/xero-pay-items/{id}/:
-    get:
-      operationId: api_workflow_xero_pay_items_retrieve
-      description: |-
-        API endpoint for Xero pay items (earnings rates and leave types).
-
-        Read-only - these are synced from Xero, not created locally.
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Xero Pay Item.
-          required: true
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroPayItem'
-          description: ''
-  /api/xero/create_invoice/{job_id}:
-    post:
-      operationId: api_xero_create_invoice_create
-      description: Creates an invoice in Xero for the specified job
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-  /api/xero/create_purchase_order/{purchase_order_id}:
-    post:
-      operationId: api_xero_create_purchase_order_create
-      description: Creates or updates a Purchase Order in Xero.
-      parameters:
-        - in: path
-          name: purchase_order_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-  /api/xero/create_quote/{job_id}:
-    post:
-      operationId: api_xero_create_quote_create
-      description: Creates a quote in Xero for the specified job
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - Xero
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/XeroQuoteCreateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/XeroQuoteCreateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/XeroQuoteCreateRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-  /api/xero/delete_invoice/{job_id}:
-    delete:
-      operationId: api_xero_delete_invoice_destroy
-      description: Deletes a specific invoice in Xero for a given job, identified
-        by its Xero ID.
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-          required: true
-        - in: query
-          name: xero_invoice_id
-          schema:
-            type: string
-          required: true
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-  /api/xero/delete_purchase_order/{purchase_order_id}:
-    delete:
-      operationId: api_xero_delete_purchase_order_destroy
-      description: Deletes a purchase order in Xero for the specified purchase order
-      parameters:
-        - in: path
-          name: purchase_order_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-  /api/xero/delete_quote/{job_id}:
-    delete:
-      operationId: api_xero_delete_quote_destroy
-      description: Deletes a quote in Xero for the specified job
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroDocumentErrorResponse'
-          description: ''
-  /api/xero/disconnect/:
-    post:
-      operationId: api_xero_disconnect_create
-      description: Disconnects from Xero by clearing the token from cache and database.
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroPingResponse'
-          description: ''
-  /api/xero/ping/:
-    get:
-      operationId: api_xero_ping_retrieve
-      description: Check if the user is authenticated with Xero.
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroPingResponse'
-          description: ''
-  /api/xero/sync/:
-    post:
-      operationId: api_xero_sync_create
-      description: Start a Xero sync as a background task.
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroSyncStartResponse'
-          description: ''
-  /api/xero/sync-info/:
-    get:
-      operationId: api_xero_sync_info_retrieve
-      description: Get current sync status and last sync times for all entities.
-      tags:
-        - Xero
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroSyncInfoResponse'
-          description: ''
-  /app-errors/:
+  /api/app-errors/:
     get:
       operationId: app_errors_list
       description: |-
@@ -1676,7 +768,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedAppErrorList'
           description: ''
-  /app-errors/{id}/:
+  /api/app-errors/{id}/:
     get:
       operationId: app_errors_retrieve
       description: |-
@@ -1705,7 +797,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AppError'
           description: ''
-  /clients/{client_id}/:
+  /api/clients/{client_id}/:
     get:
       operationId: clients_retrieve
       description: Retrieve detailed information for a specific client.
@@ -1741,7 +833,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /clients/{client_id}/jobs/:
+  /api/clients/{client_id}/jobs/:
     get:
       operationId: clients_jobs_retrieve
       description: Retrieve all jobs for a specific client.
@@ -1777,7 +869,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /clients/{client_id}/update/:
+  /api/clients/{client_id}/update/:
     put:
       operationId: clients_update_update
       description: Update an existing client's information.
@@ -1882,7 +974,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /clients/addresses/validate/:
+  /api/clients/addresses/validate/:
     post:
       operationId: clients_addresses_validate_create
       description: Validate an address and return structured candidates.
@@ -1946,7 +1038,7 @@ paths:
               schema:
                 description: Google API unavailable or not configured
           description: ''
-  /clients/all/:
+  /api/clients/all/:
     get:
       operationId: clients_all_list
       description: Returns a list of all clients with basic information (id and name)
@@ -1971,7 +1063,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /clients/contacts/:
+  /api/clients/contacts/:
     get:
       operationId: clients_contacts_list
       description: List all contacts, optionally filtered by client_id.
@@ -2033,7 +1125,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientContact'
           description: ''
-  /clients/contacts/{id}/:
+  /api/clients/contacts/{id}/:
     get:
       operationId: clients_contacts_retrieve
       description: |-
@@ -2189,7 +1281,7 @@ paths:
       responses:
         '204':
           description: No response body
-  /clients/create/:
+  /api/clients/create/:
     post:
       operationId: clients_create_create
       description: Creates a new client in Xero first, then syncs locally. Requires
@@ -2242,7 +1334,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /clients/jobs/{job_id}/contact/:
+  /api/clients/jobs/{job_id}/contact/:
     get:
       operationId: clients_jobs_contact_retrieve
       description: Retrieve contact information for a specific job.
@@ -2331,7 +1423,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /clients/pickup-addresses/:
+  /api/clients/pickup-addresses/:
     get:
       operationId: clients_pickup_addresses_list
       description: List all pickup addresses, optionally filtered by supplier_id.
@@ -2393,7 +1485,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/SupplierPickupAddress'
           description: ''
-  /clients/pickup-addresses/{id}/:
+  /api/clients/pickup-addresses/{id}/:
     get:
       operationId: clients_pickup_addresses_retrieve
       description: |-
@@ -2549,7 +1641,7 @@ paths:
       responses:
         '204':
           description: No response body
-  /clients/search/:
+  /api/clients/search/:
     get:
       operationId: clients_search_retrieve
       description: Lists/searches clients with pagination and sorting.
@@ -2598,9 +1690,152 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /job/api/company_defaults/:
+  /api/company-defaults/:
     get:
-      operationId: job_api_company_defaults_retrieve
+      operationId: company_defaults_retrieve
+      description: |-
+        API view for managing company default settings.
+
+        This view provides endpoints to retrieve and update the company's default
+        configuration settings. All authenticated users can retrieve settings,
+        but only authenticated users can update them.
+
+        Endpoints:
+            GET: Retrieve current company defaults
+            PUT: Update all company defaults (full update)
+            PATCH: Partially update company defaults
+
+        Permissions:
+            - IsAuthenticated: Any logged-in user can access this API
+
+        Returns:
+            Company defaults data serialized using CompanyDefaultsSerializer
+      tags:
+        - company-defaults
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaults'
+          description: ''
+    put:
+      operationId: company_defaults_update
+      description: |-
+        API view for managing company default settings.
+
+        This view provides endpoints to retrieve and update the company's default
+        configuration settings. All authenticated users can retrieve settings,
+        but only authenticated users can update them.
+
+        Endpoints:
+            GET: Retrieve current company defaults
+            PUT: Update all company defaults (full update)
+            PATCH: Partially update company defaults
+
+        Permissions:
+            - IsAuthenticated: Any logged-in user can access this API
+
+        Returns:
+            Company defaults data serialized using CompanyDefaultsSerializer
+      tags:
+        - company-defaults
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyDefaultsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyDefaultsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyDefaultsRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaults'
+          description: ''
+    patch:
+      operationId: company_defaults_partial_update
+      description: |-
+        API view for managing company default settings.
+
+        This view provides endpoints to retrieve and update the company's default
+        configuration settings. All authenticated users can retrieve settings,
+        but only authenticated users can update them.
+
+        Endpoints:
+            GET: Retrieve current company defaults
+            PUT: Update all company defaults (full update)
+            PATCH: Partially update company defaults
+
+        Permissions:
+            - IsAuthenticated: Any logged-in user can access this API
+
+        Returns:
+            Company defaults data serialized using CompanyDefaultsSerializer
+      tags:
+        - company-defaults
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedCompanyDefaultsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedCompanyDefaultsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedCompanyDefaultsRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaults'
+          description: ''
+  /api/company-defaults/schema/:
+    get:
+      operationId: company_defaults_schema_retrieve
+      description: Return schema metadata for CompanyDefaults fields.
+      tags:
+        - company-defaults
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaultsSchema'
+              examples:
+                ExampleResponse:
+                  value:
+                    sections:
+                      - key: general
+                        title: General Settings
+                        order: 1
+                        fields:
+                          - key: company_name
+                            label: Company Name
+                            type: text
+                            required: true
+                            help_text: ''
+                            section: general
+                  summary: Example Response
+          description: ''
+  /api/job/company_defaults/:
+    get:
+      operationId: job_company_defaults_retrieve
       description: Fetch company default settings.
       tags:
         - Jobs
@@ -2613,790 +1848,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyDefaultsJobDetail'
           description: ''
-  /job/api/job/{job_id}/assignment:
-    post:
-      operationId: job_api_job_assignment_create
-      description: API Endpoint to assign staff to a job (POST /api/job/<job_id>/assignment)
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/AssignJobRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/AssignJobRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/AssignJobRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssignJobResponse'
-          description: ''
-  /job/api/job/{job_id}/assignment/{staff_id}:
-    delete:
-      operationId: job_api_job_assignment_destroy
-      description: API Endpoint to remove staff from a job (DELETE /api/job/<job_id>/assignment/<staff_id>)
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-        - in: path
-          name: staff_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AssignJobResponse'
-          description: ''
-  /job/api/job/completed/:
-    get:
-      operationId: job_api_job_completed_list
-      description: API Endpoint to provide Job data for archiving display
-      parameters:
-        - name: page
-          required: false
-          in: query
-          description: A page number within the paginated result set.
-          schema:
-            type: integer
-        - name: page_size
-          required: false
-          in: query
-          description: Number of results to return per page.
-          schema:
-            type: integer
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PaginatedCompleteJobList'
-          description: ''
-  /job/api/job/completed/archive:
-    post:
-      operationId: job_api_job_completed_archive_create
-      description: API Endpoint to set 'paid' flag as True in the received jobs
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ArchiveJobsRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ArchiveJobsRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ArchiveJobsRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ArchiveJobs'
-          description: ''
-  /job/api/jobs/{job_id}/quote-chat/:
-    get:
-      operationId: job_api_jobs_quote_chat_retrieve
-      description: |-
-        Load all chat messages for a specific job.
-
-        Response format matches job_quote_chat_plan.md specification.
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobQuoteChatHistoryResponse'
-          description: ''
-    post:
-      operationId: job_api_jobs_quote_chat_create
-      description: Save a new chat message (user or assistant) for a job
-      summary: Save a new chat message
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobQuoteChatCreateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobQuoteChatCreateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobQuoteChatCreateRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobQuoteChatInteractionSuccessResponse'
-          description: ''
-    delete:
-      operationId: quote_chat_delete_all
-      description: Delete all chat messages for a job (start fresh).
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /job/api/jobs/{job_id}/quote-chat/{message_id}/:
+  /api/job/cost_lines/{cost_line_id}/:
     patch:
-      operationId: job_api_jobs_quote_chat_partial_update
-      description: |-
-        Update an existing message (useful for streaming responses).
-
-        Expected JSON:
-        {
-            "content": "Updated message content",
-            "metadata": {"final": true}
-        }
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-        - in: path
-          name: message_id
-          schema:
-            type: string
-          required: true
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedJobQuoteChatUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedJobQuoteChatUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedJobQuoteChatUpdateRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobQuoteChatUpdate'
-          description: ''
-    delete:
-      operationId: quote_chat_delete_one
-      description: Delete an individual chat message.
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-        - in: path
-          name: message_id
-          schema:
-            type: string
-          required: true
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-  /job/api/jobs/{job_id}/quote-chat/interaction/:
-    post:
-      operationId: job_api_jobs_quote_chat_interaction_create
-      description: Sends user message to AI assistant and returns the generated response
-      summary: Get AI assistant response
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobQuoteChatInteractionRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobQuoteChatInteractionRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobQuoteChatInteractionRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobQuoteChatInteractionSuccessResponse'
-          description: AI response generated successfully
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobQuoteChatInteractionErrorResponse'
-          description: Invalid input data or configuration error
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobQuoteChatInteractionErrorResponse'
-          description: Job not found
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/JobQuoteChatInteractionErrorResponse'
-          description: Internal server error
-  /job/api/jobs/{job_id}/reorder/:
-    post:
-      operationId: job_api_jobs_reorder_create
-      description: Reorder a job within or between kanban columns.
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobReorderRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobReorderRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobReorderRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanSuccessResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanErrorResponse'
-          description: ''
-  /job/api/jobs/{job_id}/update-status/:
-    post:
-      operationId: job_api_jobs_update_status_create
-      description: Update the status of a job on the Kanban board.
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-          required: true
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/JobStatusUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/JobStatusUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/JobStatusUpdateRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanSuccessResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanErrorResponse'
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanErrorResponse'
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/KanbanErrorResponse'
-          description: ''
-  /job/api/jobs/advanced-search/:
-    get:
-      operationId: job_api_jobs_advanced_search_retrieve
-      description: Endpoint for advanced job search - API endpoint.
-      parameters:
-        - in: query
-          name: client_name
-          schema:
-            type: string
-          description: Filter by client name
-        - in: query
-          name: contact_person
-          schema:
-            type: string
-          description: Filter by contact person
-        - in: query
-          name: created_after
-          schema:
-            type: string
-          description: Filter jobs created after this date (YYYY-MM-DD)
-        - in: query
-          name: created_before
-          schema:
-            type: string
-          description: Filter jobs created before this date (YYYY-MM-DD)
-        - in: query
-          name: created_by
-          schema:
-            type: string
-          description: Filter by creator
-        - in: query
-          name: description
-          schema:
-            type: string
-          description: Filter by job description
-        - in: query
-          name: job_number
-          schema:
-            type: string
-          description: Filter by job number
-        - in: query
-          name: name
-          schema:
-            type: string
-          description: Filter by job name
-        - in: query
-          name: paid
-          schema:
-            type: string
-          description: Filter by paid status
-        - in: query
-          name: q
-          schema:
-            type: string
-          description: Universal search - searches across job number, name, description,
-            and client name with OR logic
-        - in: query
-          name: rejected_flag
-          schema:
-            type: string
-          description: Filter by rejected status
-        - in: query
-          name: status
-          schema:
-            type: string
-          description: Filter by job status (can be multiple)
-        - in: query
-          name: xero_invoice_params
-          schema:
-            type: string
-          description: Filter by Xero invoice parameters
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AdvancedSearchResponse'
-          description: ''
-  /job/api/jobs/fetch-all/:
-    get:
-      operationId: job_api_jobs_fetch_all_retrieve
-      description: Fetch all jobs for Kanban board - API endpoint.
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FetchAllJobsResponse'
-          description: ''
-  /job/api/jobs/fetch-by-column/{column_id}/:
-    get:
-      operationId: job_api_jobs_fetch_by_column_retrieve
-      description: Fetch jobs by kanban column using new categorization system.
-      parameters:
-        - in: path
-          name: column_id
-          schema:
-            type: string
-          required: true
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FetchJobsByColumnResponse'
-          description: ''
-  /job/api/jobs/fetch/{status}/:
-    get:
-      operationId: job_api_jobs_fetch_retrieve
-      description: Fetch jobs by status with optional search - API endpoint.
-      parameters:
-        - in: path
-          name: status
-          schema:
-            type: string
-          required: true
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FetchJobsResponse'
-          description: ''
-  /job/api/jobs/status-values/:
-    get:
-      operationId: job_api_jobs_status_values_retrieve
-      description: Return available status values for Kanban - API endpoint.
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/FetchStatusValuesResponse'
-          description: ''
-  /job/api/jobs/workshop:
-    get:
-      operationId: job_api_jobs_workshop_list
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/WorkshopJob'
-          description: ''
-  /job/api/workshop/timesheets/:
-    get:
-      operationId: job_api_workshop_timesheets_retrieve
-      description: Return all timesheet entries for the staff member on a given date.
-      parameters:
-        - in: query
-          name: date
-          schema:
-            type: string
-            format: date
-          description: Optional date (YYYY-MM-DD). Defaults to today.
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkshopTimesheetListResponse'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-    post:
-      operationId: job_api_workshop_timesheets_create
-      description: Create a new timesheet entry for the authenticated staff.
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/WorkshopTimesheetEntryRequestRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/WorkshopTimesheetEntryRequestRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/WorkshopTimesheetEntryRequestRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkshopTimesheetEntry'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-    patch:
-      operationId: job_api_workshop_timesheets_partial_update
-      description: Update an existing timesheet entry belonging to the staff member.
-      tags:
-        - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedWorkshopTimesheetEntryUpdateRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedWorkshopTimesheetEntryUpdateRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedWorkshopTimesheetEntryUpdateRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkshopTimesheetEntry'
-          description: ''
-        '400':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-    delete:
-      operationId: job_api_workshop_timesheets_destroy
-      description: Delete a timesheet entry belonging to the staff member.
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
-        '400':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '403':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '404':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-        '500':
-          content:
-            application/json:
-              schema:
-                type: object
-                additionalProperties: {}
-          description: ''
-  /job/job/{job_id}/workshop-pdf/:
-    get:
-      operationId: job_job_workshop_pdf_retrieve
-      description: Generate and return a workshop PDF for printing.
-      parameters:
-        - in: path
-          name: job_id
-          schema:
-            type: string
-            format: uuid
-          required: true
-      tags:
-        - job
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/WorkshopPDFResponse'
-          description: ''
-  /job/rest/cost_lines/{cost_line_id}/:
-    patch:
-      operationId: job_rest_cost_lines_partial_update
+      operationId: job_cost_lines_partial_update
       description: |-
         Update a cost line
         Dynamically infers the stock adjustment based on quantity change
@@ -3447,7 +1901,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CostLineErrorResponse'
           description: ''
-  /job/rest/cost_lines/{cost_line_id}/approve/:
+  /api/job/cost_lines/{cost_line_id}/approve/:
     post:
       operationId: approveCostLine
       description: |-
@@ -3484,9 +1938,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/CostLineErrorResponse'
           description: ''
-  /job/rest/cost_lines/{cost_line_id}/delete/:
+  /api/job/cost_lines/{cost_line_id}/delete/:
     delete:
-      operationId: job_rest_cost_lines_delete_destroy
+      operationId: job_cost_lines_delete_destroy
       description: Delete an existing CostLine by ID
       parameters:
         - in: path
@@ -3514,7 +1968,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/CostLineErrorResponse'
           description: ''
-  /job/rest/data-integrity/scan/:
+  /api/job/data-integrity/scan/:
     get:
       operationId: scan_data_integrity
       description: Check all foreign key relationships, JSON references, and business
@@ -3538,7 +1992,7 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
-  /job/rest/data-quality/archived-jobs-compliance/:
+  /api/job/data-quality/archived-jobs-compliance/:
     get:
       operationId: check_archived_jobs_compliance
       description: Verify that all archived jobs are either cancelled or fully invoiced
@@ -3562,9 +2016,126 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
-  /job/rest/jobs/:
+  /api/job/job/{job_id}/assignment:
     post:
-      operationId: job_rest_jobs_create
+      operationId: job_job_assignment_create
+      description: API Endpoint to assign staff to a job (POST /api/job/<job_id>/assignment)
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignJobRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AssignJobRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AssignJobRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignJobResponse'
+          description: ''
+  /api/job/job/{job_id}/assignment/{staff_id}:
+    delete:
+      operationId: job_job_assignment_destroy
+      description: API Endpoint to remove staff from a job (DELETE /api/job/<job_id>/assignment/<staff_id>)
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: staff_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssignJobResponse'
+          description: ''
+  /api/job/job/completed/:
+    get:
+      operationId: job_job_completed_list
+      description: API Endpoint to provide Job data for archiving display
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: A page number within the paginated result set.
+          schema:
+            type: integer
+        - name: page_size
+          required: false
+          in: query
+          description: Number of results to return per page.
+          schema:
+            type: integer
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedCompleteJobList'
+          description: ''
+  /api/job/job/completed/archive:
+    post:
+      operationId: job_job_completed_archive_create
+      description: API Endpoint to set 'paid' flag as True in the received jobs
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArchiveJobsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ArchiveJobsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ArchiveJobsRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveJobs'
+          description: ''
+  /api/job/jobs/:
+    post:
+      operationId: job_jobs_create
       description: Create a new Job. Concurrency is controlled in this endpoint (E-tag/If-Match).
       tags:
         - Jobs
@@ -3595,7 +2166,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/:
+  /api/job/jobs/{job_id}/:
     get:
       operationId: getFullJob
       description: Fetch complete job data including financial information. Concurrency
@@ -3619,7 +2190,7 @@ paths:
                 $ref: '#/components/schemas/JobDetailResponse'
           description: ''
     put:
-      operationId: job_rest_jobs_update
+      operationId: job_jobs_update
       description: Update Job data (autosave). Concurrency is controlled in this endpoint
         (E-tag/If-Match).
       parameters:
@@ -3659,7 +2230,7 @@ paths:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
     patch:
-      operationId: job_rest_jobs_partial_update
+      operationId: job_jobs_partial_update
       description: Partially update Job data. Only updates the fields provided in
         the request body. Concurrency is controlled in this endpoint (E-tag/If-Match).
       parameters:
@@ -3698,7 +2269,7 @@ paths:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
     delete:
-      operationId: job_rest_jobs_destroy
+      operationId: job_jobs_destroy
       description: Delete a Job if permitted. Concurrency is controlled in this endpoint
         (E-tag/If-Match).
       parameters:
@@ -3725,9 +2296,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/basic-info/:
+  /api/job/jobs/{job_id}/basic-info/:
     get:
-      operationId: job_rest_jobs_basic_info_retrieve
+      operationId: job_jobs_basic_info_retrieve
       description: Fetch job basic information (description, delivery date, order
         number, notes). Concurrency is controlled in this endpoint (E-tag/If-Match)
       parameters:
@@ -3754,9 +2325,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/cost_sets/{kind}/cost_lines/:
+  /api/job/jobs/{job_id}/cost_sets/{kind}/cost_lines/:
     post:
-      operationId: job_rest_jobs_cost_sets_cost_lines_create
+      operationId: job_jobs_cost_sets_cost_lines_create
       description: Create a new cost line
       parameters:
         - in: path
@@ -3811,9 +2382,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/CostLineErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/cost_sets/actual/cost_lines/:
+  /api/job/jobs/{job_id}/cost_sets/actual/cost_lines/:
     post:
-      operationId: job_rest_jobs_cost_sets_actual_cost_lines_create
+      operationId: job_jobs_cost_sets_actual_cost_lines_create
       description: Create a new cost line
       parameters:
         - in: path
@@ -3863,9 +2434,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/CostLineErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/cost_sets/quote/revise/:
+  /api/job/jobs/{job_id}/cost_sets/quote/revise/:
     get:
-      operationId: job_rest_jobs_cost_sets_quote_revise_retrieve
+      operationId: job_jobs_cost_sets_quote_revise_retrieve
       description: Returns a list of archived quote revisions for the specified job.
         Each revision contains summary and cost line data as archived at the time
         of revision.
@@ -3889,7 +2460,7 @@ paths:
                 $ref: '#/components/schemas/QuoteRevisionsList'
           description: ''
     post:
-      operationId: job_rest_jobs_cost_sets_quote_revise_create
+      operationId: job_jobs_cost_sets_quote_revise_create
       description: Archives the current quote cost lines and summary for the specified
         job, clears all current cost lines from the quote CostSet, and starts a new
         quote revision. Returns details of the archived revision and status.
@@ -3923,9 +2494,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuoteRevisionResponse'
           description: ''
-  /job/rest/jobs/{job_id}/costs/summary/:
+  /api/job/jobs/{job_id}/costs/summary/:
     get:
-      operationId: job_rest_jobs_costs_summary_retrieve
+      operationId: job_jobs_costs_summary_retrieve
       description: Fetch job cost summary across all cost sets. Concurrency is controlled
         in this endpoint (E-tag/If-Match)
       parameters:
@@ -3952,7 +2523,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/delivery-docket/:
+  /api/job/jobs/{job_id}/delivery-docket/:
     get:
       operationId: generateDeliveryDocketRest
       description: Generate a delivery docket PDF for a job and save it as a JobFile
@@ -3974,7 +2545,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkshopPDFResponse'
           description: ''
-  /job/rest/jobs/{job_id}/delta-rejections/:
+  /api/job/jobs/{job_id}/delta-rejections/:
     get:
       operationId: job_rest_job_delta_rejections_list
       description: Fetch delta rejections recorded for this job.
@@ -4012,9 +2583,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/events/:
+  /api/job/jobs/{job_id}/events/:
     get:
-      operationId: job_rest_jobs_events_retrieve
+      operationId: job_jobs_events_retrieve
       description: Fetch job events list. Concurrency is controlled in this endpoint
         (E-tag/If-Match)
       parameters:
@@ -4041,7 +2612,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/events/create/:
+  /api/job/jobs/{job_id}/events/create/:
     post:
       operationId: job_rest_jobs_events_create
       description: Add a manual event to the Job with duplicate prevention. Concurrency
@@ -4094,7 +2665,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/files/:
+  /api/job/jobs/{job_id}/files/:
     get:
       operationId: listJobFiles
       description: List all active files for a job.
@@ -4166,7 +2737,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobFileErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/files/{file_id}/:
+  /api/job/jobs/{job_id}/files/{file_id}/:
     get:
       operationId: getJobFile
       description: Download/view a specific job file.
@@ -4330,7 +2901,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobFileErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/files/{file_id}/thumbnail/:
+  /api/job/jobs/{job_id}/files/{file_id}/thumbnail/:
     get:
       operationId: getJobFileThumbnail
       description: Get JPEG thumbnail for a job file (images only).
@@ -4365,9 +2936,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobFileThumbnailErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/header/:
+  /api/job/jobs/{job_id}/header/:
     get:
-      operationId: job_rest_jobs_header_retrieve
+      operationId: job_jobs_header_retrieve
       description: Fetch essential job header information for fast loading. Concurrency
         is controlled in this endpoint (E-tag/If-Match)
       parameters:
@@ -4394,9 +2965,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/invoices/:
+  /api/job/jobs/{job_id}/invoices/:
     get:
-      operationId: job_rest_jobs_invoices_retrieve
+      operationId: job_jobs_invoices_retrieve
       description: Fetch job invoices list. Concurrency is controlled in this endpoint
         (E-tag/If-Match)
       parameters:
@@ -4423,9 +2994,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/quote/:
+  /api/job/jobs/{job_id}/quote/:
     get:
-      operationId: job_rest_jobs_quote_retrieve
+      operationId: job_jobs_quote_retrieve
       description: Fetch job quote. Concurrency is controlled in this endpoint (E-tag/If-Match)
       parameters:
         - in: path
@@ -4451,9 +3022,205 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/quote/accept/:
+  /api/job/jobs/{job_id}/quote-chat/:
+    get:
+      operationId: job_jobs_quote_chat_retrieve
+      description: |-
+        Load all chat messages for a specific job.
+
+        Response format matches job_quote_chat_plan.md specification.
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQuoteChatHistoryResponse'
+          description: ''
     post:
-      operationId: job_rest_jobs_quote_accept_create
+      operationId: job_jobs_quote_chat_create
+      description: Save a new chat message (user or assistant) for a job
+      summary: Save a new chat message
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobQuoteChatCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JobQuoteChatCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JobQuoteChatCreateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQuoteChatInteractionSuccessResponse'
+          description: ''
+    delete:
+      operationId: quote_chat_delete_all
+      description: Delete all chat messages for a job (start fresh).
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/job/jobs/{job_id}/quote-chat/{message_id}/:
+    patch:
+      operationId: job_jobs_quote_chat_partial_update
+      description: |-
+        Update an existing message (useful for streaming responses).
+
+        Expected JSON:
+        {
+            "content": "Updated message content",
+            "metadata": {"final": true}
+        }
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: message_id
+          schema:
+            type: string
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedJobQuoteChatUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedJobQuoteChatUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedJobQuoteChatUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQuoteChatUpdate'
+          description: ''
+    delete:
+      operationId: quote_chat_delete_one
+      description: Delete an individual chat message.
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: message_id
+          schema:
+            type: string
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/job/jobs/{job_id}/quote-chat/interaction/:
+    post:
+      operationId: job_jobs_quote_chat_interaction_create
+      description: Sends user message to AI assistant and returns the generated response
+      summary: Get AI assistant response
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobQuoteChatInteractionRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JobQuoteChatInteractionRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JobQuoteChatInteractionRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQuoteChatInteractionSuccessResponse'
+          description: AI response generated successfully
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQuoteChatInteractionErrorResponse'
+          description: Invalid input data or configuration error
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQuoteChatInteractionErrorResponse'
+          description: Job not found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobQuoteChatInteractionErrorResponse'
+          description: Internal server error
+  /api/job/jobs/{job_id}/quote/accept/:
+    post:
+      operationId: job_jobs_quote_accept_create
       description: Accept a quote for the job. Sets the quote_acceptance_date to current
         datetime. Concurrency is controlled in this endpoint (E-tag/If-Match).
       parameters:
@@ -4492,9 +3259,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/quote/status/:
+  /api/job/jobs/{job_id}/quote/status/:
     get:
-      operationId: job_rest_jobs_quote_status_retrieve
+      operationId: job_jobs_quote_status_retrieve
       description: Get quote status for job
       parameters:
         - in: path
@@ -4514,7 +3281,58 @@ paths:
               schema:
                 $ref: '#/components/schemas/QuoteImportStatusResponse'
           description: ''
-  /job/rest/jobs/{job_id}/summary/:
+  /api/job/jobs/{job_id}/reorder/:
+    post:
+      operationId: job_jobs_reorder_create
+      description: Reorder a job within or between kanban columns.
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobReorderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JobReorderRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JobReorderRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanSuccessResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
+  /api/job/jobs/{job_id}/summary/:
     get:
       operationId: getJobSummary
       description: Fetch job summary with cost set totals but no individual cost lines
@@ -4543,9 +3361,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/timeline/:
+  /api/job/jobs/{job_id}/timeline/:
     get:
-      operationId: job_rest_jobs_timeline_retrieve
+      operationId: job_jobs_timeline_retrieve
       description: Fetch unified job timeline (events + cost lines)
       parameters:
         - in: path
@@ -4571,9 +3389,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/undo-change/:
+  /api/job/jobs/{job_id}/undo-change/:
     post:
-      operationId: job_rest_jobs_undo_change_create
+      operationId: job_jobs_undo_change_create
       description: Undo a previously applied job delta (requires delta envelope undo
         support).
       parameters:
@@ -4612,9 +3430,60 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/{job_id}/workshop-pdf/:
+  /api/job/jobs/{job_id}/update-status/:
+    post:
+      operationId: job_jobs_update_status_create
+      description: Update the status of a job on the Kanban board.
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobStatusUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/JobStatusUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/JobStatusUpdateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanSuccessResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KanbanErrorResponse'
+          description: ''
+  /api/job/jobs/{job_id}/workshop-pdf/:
     get:
-      operationId: job_rest_jobs_workshop_pdf_retrieve
+      operationId: job_jobs_workshop_pdf_retrieve
       description: Generate and return a workshop PDF for printing.
       parameters:
         - in: path
@@ -4634,9 +3503,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkshopPDFResponse'
           description: ''
-  /job/rest/jobs/{id}/cost_sets/{kind}/:
+  /api/job/jobs/{id}/cost_sets/{kind}/:
     get:
-      operationId: job_rest_jobs_cost_sets_retrieve
+      operationId: job_jobs_cost_sets_retrieve
       description: |-
         Get the latest CostSet for a job by kind.
 
@@ -4669,9 +3538,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/CostSet'
           description: ''
-  /job/rest/jobs/{id}/quote/apply/:
+  /api/job/jobs/{id}/quote/apply/:
     post:
-      operationId: job_rest_jobs_quote_apply_create
+      operationId: job_jobs_quote_apply_create
       description: |-
         Apply quote import from linked Google Sheet.
 
@@ -4706,9 +3575,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApplyQuoteResponse'
           description: ''
-  /job/rest/jobs/{id}/quote/link/:
+  /api/job/jobs/{id}/quote/link/:
     post:
-      operationId: job_rest_jobs_quote_link_create
+      operationId: job_jobs_quote_link_create
       description: |-
         Link a job to a Google Sheets quote template.
 
@@ -4742,9 +3611,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/LinkQuoteSheet'
           description: ''
-  /job/rest/jobs/{id}/quote/preview/:
+  /api/job/jobs/{id}/quote/preview/:
     post:
-      operationId: job_rest_jobs_quote_preview_create
+      operationId: job_jobs_quote_preview_create
       description: |-
         Preview quote import from linked Google Sheet.
 
@@ -4778,7 +3647,89 @@ paths:
               schema:
                 $ref: '#/components/schemas/PreviewQuoteResponse'
           description: ''
-  /job/rest/jobs/delta-rejections/:
+  /api/job/jobs/advanced-search/:
+    get:
+      operationId: job_jobs_advanced_search_retrieve
+      description: Endpoint for advanced job search - API endpoint.
+      parameters:
+        - in: query
+          name: client_name
+          schema:
+            type: string
+          description: Filter by client name
+        - in: query
+          name: contact_person
+          schema:
+            type: string
+          description: Filter by contact person
+        - in: query
+          name: created_after
+          schema:
+            type: string
+          description: Filter jobs created after this date (YYYY-MM-DD)
+        - in: query
+          name: created_before
+          schema:
+            type: string
+          description: Filter jobs created before this date (YYYY-MM-DD)
+        - in: query
+          name: created_by
+          schema:
+            type: string
+          description: Filter by creator
+        - in: query
+          name: description
+          schema:
+            type: string
+          description: Filter by job description
+        - in: query
+          name: job_number
+          schema:
+            type: string
+          description: Filter by job number
+        - in: query
+          name: name
+          schema:
+            type: string
+          description: Filter by job name
+        - in: query
+          name: paid
+          schema:
+            type: string
+          description: Filter by paid status
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Universal search - searches across job number, name, description,
+            and client name with OR logic
+        - in: query
+          name: rejected_flag
+          schema:
+            type: string
+          description: Filter by rejected status
+        - in: query
+          name: status
+          schema:
+            type: string
+          description: Filter by job status (can be multiple)
+        - in: query
+          name: xero_invoice_params
+          schema:
+            type: string
+          description: Filter by Xero invoice parameters
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdvancedSearchResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/:
     get:
       operationId: job_rest_jobs_delta_rejections_admin_list
       description: Fetch rejected job delta envelopes (global admin view).
@@ -4816,9 +3767,66 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
-  /job/rest/jobs/status-choices/:
+  /api/job/jobs/fetch-all/:
     get:
-      operationId: job_rest_jobs_status_choices_retrieve
+      operationId: job_jobs_fetch_all_retrieve
+      description: Fetch all jobs for Kanban board - API endpoint.
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FetchAllJobsResponse'
+          description: ''
+  /api/job/jobs/fetch-by-column/{column_id}/:
+    get:
+      operationId: job_jobs_fetch_by_column_retrieve
+      description: Fetch jobs by kanban column using new categorization system.
+      parameters:
+        - in: path
+          name: column_id
+          schema:
+            type: string
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FetchJobsByColumnResponse'
+          description: ''
+  /api/job/jobs/fetch/{status}/:
+    get:
+      operationId: job_jobs_fetch_retrieve
+      description: Fetch jobs by status with optional search - API endpoint.
+      parameters:
+        - in: path
+          name: status
+          schema:
+            type: string
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FetchJobsResponse'
+          description: ''
+  /api/job/jobs/status-choices/:
+    get:
+      operationId: job_jobs_status_choices_retrieve
       description: Fetch job status choices. Concurrency is controlled in this endpoint
         (E-tag/If-Match)
       tags:
@@ -4832,9 +3840,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobStatusChoicesResponse'
           description: ''
-  /job/rest/jobs/weekly-metrics/:
+  /api/job/jobs/status-values/:
     get:
-      operationId: job_rest_jobs_weekly_metrics_list
+      operationId: job_jobs_status_values_retrieve
+      description: Return available status values for Kanban - API endpoint.
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FetchStatusValuesResponse'
+          description: ''
+  /api/job/jobs/weekly-metrics/:
+    get:
+      operationId: job_jobs_weekly_metrics_list
       description: Fetch weekly metrics data for jobs with time entries in the specified
         week. Concurrency is controlled in this endpoint (E-tag/If-Match).
       parameters:
@@ -4856,9 +3879,25 @@ paths:
                 items:
                   $ref: '#/components/schemas/WeeklyMetrics'
           description: ''
-  /job/rest/month-end/:
+  /api/job/jobs/workshop:
     get:
-      operationId: job_rest_month_end_retrieve
+      operationId: job_jobs_workshop_list
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkshopJob'
+          description: ''
+  /api/job/month-end/:
+    get:
+      operationId: job_month_end_retrieve
       description: |-
         REST API view for month-end processing of special jobs and stock data.
 
@@ -4876,7 +3915,7 @@ paths:
                 $ref: '#/components/schemas/MonthEndGetResponse'
           description: ''
     post:
-      operationId: job_rest_month_end_create
+      operationId: job_month_end_create
       description: |-
         REST API view for month-end processing of special jobs and stock data.
 
@@ -4906,7 +3945,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/MonthEndPostResponse'
           description: ''
-  /job/rest/reports/job-profitability/:
+  /api/job/reports/job-profitability/:
     get:
       operationId: job_profitability_report
       description: Returns profitability data for completed/archived jobs in a date
@@ -4960,9 +3999,9 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
-  /job/rest/timesheet/entries/:
+  /api/job/timesheet/entries/:
     get:
-      operationId: job_rest_timesheet_entries_retrieve
+      operationId: job_timesheet_entries_retrieve
       description: Fetches all timesheet entries (CostLines) for a specific staff
         member and date.
       summary: Get timesheet entries for a staff member on a specific date
@@ -5009,7 +4048,7 @@ paths:
                 $ref: '#/components/schemas/ModernTimesheetErrorResponse'
           description: ''
     post:
-      operationId: job_rest_timesheet_entries_create
+      operationId: job_timesheet_entries_create
       description: Creates a new timesheet entry for a staff member on a specific
         date.
       summary: Create a timesheet entry as a CostLine
@@ -5054,9 +4093,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ModernTimesheetErrorResponse'
           description: ''
-  /job/rest/timesheet/jobs/{job_id}/:
+  /api/job/timesheet/jobs/{job_id}/:
     get:
-      operationId: job_rest_timesheet_jobs_retrieve
+      operationId: job_timesheet_jobs_retrieve
       description: Get all timesheet cost lines for a job
       parameters:
         - in: path
@@ -5076,9 +4115,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ModernTimesheetJobGetResponse'
           description: ''
-  /job/rest/timesheet/staff/{staff_id}/date/{entry_date}/:
+  /api/job/timesheet/staff/{staff_id}/date/{entry_date}/:
     get:
-      operationId: job_rest_timesheet_staff_date_retrieve
+      operationId: job_timesheet_staff_date_retrieve
       description: Get all cost lines for a staff member on a specific date
       parameters:
         - in: path
@@ -5103,9 +4142,183 @@ paths:
               schema:
                 $ref: '#/components/schemas/ModernTimesheetDayGetResponse'
           description: ''
-  /process/rest/categories/:
+  /api/job/workshop/timesheets/:
     get:
-      operationId: process_rest_categories_retrieve
+      operationId: job_workshop_timesheets_retrieve
+      description: Return all timesheet entries for the staff member on a given date.
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+            format: date
+          description: Optional date (YYYY-MM-DD). Defaults to today.
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopTimesheetListResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    post:
+      operationId: job_workshop_timesheets_create
+      description: Create a new timesheet entry for the authenticated staff.
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkshopTimesheetEntryRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/WorkshopTimesheetEntryRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/WorkshopTimesheetEntryRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopTimesheetEntry'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    patch:
+      operationId: job_workshop_timesheets_partial_update
+      description: Update an existing timesheet entry belonging to the staff member.
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkshopTimesheetEntryUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkshopTimesheetEntryUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedWorkshopTimesheetEntryUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopTimesheetEntry'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+    delete:
+      operationId: job_workshop_timesheets_destroy
+      description: Delete a timesheet entry belonging to the staff member.
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+        '400':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/process/categories/:
+    get:
+      operationId: process_categories_retrieve
       description: Return available categories for procedures and forms.
       tags:
         - process
@@ -5118,9 +4331,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/CategoriesResponse'
           description: ''
-  /process/rest/forms/{category}/:
+  /api/process/forms/{category}/:
     get:
-      operationId: process_rest_forms_list
+      operationId: process_forms_list
       description: |-
         CRUD for form/register definitions (fillable templates with entries, no Google Docs).
 
@@ -5160,7 +4373,7 @@ paths:
                   $ref: '#/components/schemas/FormList'
           description: ''
     post:
-      operationId: process_rest_forms_create
+      operationId: process_forms_create
       description: |-
         CRUD for form/register definitions (fillable templates with entries, no Google Docs).
 
@@ -5194,9 +4407,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/FormDetail'
           description: ''
-  /process/rest/forms/{category}/{document_pk}/entries/:
+  /api/process/forms/{category}/{document_pk}/entries/:
     get:
-      operationId: process_rest_forms_entries_list
+      operationId: process_forms_entries_list
       description: |-
         CRUD endpoints for FormEntry, nested under a form document.
 
@@ -5231,7 +4444,7 @@ paths:
                   $ref: '#/components/schemas/FormEntry'
           description: ''
     post:
-      operationId: process_rest_forms_entries_create
+      operationId: process_forms_entries_create
       description: |-
         CRUD endpoints for FormEntry, nested under a form document.
 
@@ -5275,9 +4488,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/FormEntry'
           description: ''
-  /process/rest/forms/{category}/{document_pk}/entries/{id}/:
+  /api/process/forms/{category}/{document_pk}/entries/{id}/:
     put:
-      operationId: process_rest_forms_entries_update
+      operationId: process_forms_entries_update
       description: |-
         CRUD endpoints for FormEntry, nested under a form document.
 
@@ -5328,7 +4541,7 @@ paths:
                 $ref: '#/components/schemas/FormEntry'
           description: ''
     patch:
-      operationId: process_rest_forms_entries_partial_update
+      operationId: process_forms_entries_partial_update
       description: |-
         CRUD endpoints for FormEntry, nested under a form document.
 
@@ -5378,7 +4591,7 @@ paths:
                 $ref: '#/components/schemas/FormEntry'
           description: ''
     delete:
-      operationId: process_rest_forms_entries_destroy
+      operationId: process_forms_entries_destroy
       description: |-
         CRUD endpoints for FormEntry, nested under a form document.
 
@@ -5412,9 +4625,9 @@ paths:
       responses:
         '204':
           description: No response body
-  /process/rest/forms/{category}/{id}/:
+  /api/process/forms/{category}/{id}/:
     get:
-      operationId: process_rest_forms_retrieve
+      operationId: process_forms_retrieve
       description: |-
         CRUD for form/register definitions (fillable templates with entries, no Google Docs).
 
@@ -5443,7 +4656,7 @@ paths:
                 $ref: '#/components/schemas/FormDetail'
           description: ''
     put:
-      operationId: process_rest_forms_update
+      operationId: process_forms_update
       description: |-
         CRUD for form/register definitions (fillable templates with entries, no Google Docs).
 
@@ -5483,7 +4696,7 @@ paths:
                 $ref: '#/components/schemas/FormDetail'
           description: ''
     patch:
-      operationId: process_rest_forms_partial_update
+      operationId: process_forms_partial_update
       description: |-
         CRUD for form/register definitions (fillable templates with entries, no Google Docs).
 
@@ -5523,7 +4736,7 @@ paths:
                 $ref: '#/components/schemas/FormDetail'
           description: ''
     delete:
-      operationId: process_rest_forms_destroy
+      operationId: process_forms_destroy
       description: |-
         CRUD for form/register definitions (fillable templates with entries, no Google Docs).
 
@@ -5547,9 +4760,9 @@ paths:
       responses:
         '204':
           description: No response body
-  /process/rest/forms/{category}/{id}/fill/:
+  /api/process/forms/{category}/{id}/fill/:
     post:
-      operationId: process_rest_forms_fill_create
+      operationId: process_forms_fill_create
       description: Create a new FormEntry from a Form definition.
       parameters:
         - in: path
@@ -5585,9 +4798,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/FormEntry'
           description: ''
-  /process/rest/jobs/{job_id}/jsa/:
+  /api/process/jobs/{job_id}/jsa/:
     get:
-      operationId: process_rest_jobs_jsa_list
+      operationId: process_jobs_jsa_list
       description: List all JSAs for a job.
       parameters:
         - in: path
@@ -5609,9 +4822,9 @@ paths:
                 items:
                   $ref: '#/components/schemas/ProcedureList'
           description: ''
-  /process/rest/jobs/{job_id}/jsa/generate/:
+  /api/process/jobs/{job_id}/jsa/generate/:
     post:
-      operationId: process_rest_jobs_jsa_generate_create
+      operationId: process_jobs_jsa_generate_create
       description: Generate a new JSA for a job.
       parameters:
         - in: path
@@ -5631,9 +4844,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
-  /process/rest/procedures/{category}/:
+  /api/process/procedures/{category}/:
     get:
-      operationId: process_rest_procedures_list
+      operationId: process_procedures_list
       description: |-
         CRUD for procedure documents (Google Doc-backed written documents).
 
@@ -5673,7 +4886,7 @@ paths:
                   $ref: '#/components/schemas/ProcedureList'
           description: ''
     post:
-      operationId: process_rest_procedures_create
+      operationId: process_procedures_create
       description: |-
         CRUD for procedure documents (Google Doc-backed written documents).
 
@@ -5707,9 +4920,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
-  /process/rest/procedures/{category}/{id}/:
+  /api/process/procedures/{category}/{id}/:
     get:
-      operationId: process_rest_procedures_retrieve
+      operationId: process_procedures_retrieve
       description: |-
         CRUD for procedure documents (Google Doc-backed written documents).
 
@@ -5738,7 +4951,7 @@ paths:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
     put:
-      operationId: process_rest_procedures_update
+      operationId: process_procedures_update
       description: |-
         CRUD for procedure documents (Google Doc-backed written documents).
 
@@ -5778,7 +4991,7 @@ paths:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
     patch:
-      operationId: process_rest_procedures_partial_update
+      operationId: process_procedures_partial_update
       description: |-
         CRUD for procedure documents (Google Doc-backed written documents).
 
@@ -5818,7 +5031,7 @@ paths:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
     delete:
-      operationId: process_rest_procedures_destroy
+      operationId: process_procedures_destroy
       description: |-
         CRUD for procedure documents (Google Doc-backed written documents).
 
@@ -5842,9 +5055,9 @@ paths:
       responses:
         '204':
           description: No response body
-  /process/rest/procedures/{category}/{id}/content/:
+  /api/process/procedures/{category}/{id}/content/:
     get:
-      operationId: process_rest_procedures_content_retrieve
+      operationId: process_procedures_content_retrieve
       description: |-
         GET/PUT content for a procedure stored in Google Docs.
 
@@ -5874,7 +5087,7 @@ paths:
                 $ref: '#/components/schemas/ProcedureContentResponse'
           description: ''
     put:
-      operationId: process_rest_procedures_content_update
+      operationId: process_procedures_content_update
       description: |-
         GET/PUT content for a procedure stored in Google Docs.
 
@@ -5914,9 +5127,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
-  /process/rest/procedures/safety/generate-sop/:
+  /api/process/procedures/safety/generate-sop/:
     post:
-      operationId: process_rest_procedures_safety_generate_sop_create
+      operationId: process_procedures_safety_generate_sop_create
       description: Generate a new Standard Operating Procedure.
       tags:
         - process
@@ -5941,9 +5154,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
-  /process/rest/procedures/safety/generate-swp/:
+  /api/process/procedures/safety/generate-swp/:
     post:
-      operationId: process_rest_procedures_safety_generate_swp_create
+      operationId: process_procedures_safety_generate_swp_create
       description: Generate a new Safe Work Procedure.
       tags:
         - process
@@ -5968,9 +5181,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProcedureDetail'
           description: ''
-  /process/rest/safety-ai/generate-controls/:
+  /api/process/safety-ai/generate-controls/:
     post:
-      operationId: process_rest_safety_ai_generate_controls_create
+      operationId: process_safety_ai_generate_controls_create
       description: Generate controls for hazards using AI.
       tags:
         - process
@@ -5995,9 +5208,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/GenerateControlsResponse'
           description: ''
-  /process/rest/safety-ai/generate-hazards/:
+  /api/process/safety-ai/generate-hazards/:
     post:
-      operationId: process_rest_safety_ai_generate_hazards_create
+      operationId: process_safety_ai_generate_hazards_create
       description: Generate hazards for a task description using AI.
       tags:
         - process
@@ -6022,9 +5235,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/GenerateHazardsResponse'
           description: ''
-  /process/rest/safety-ai/improve-document/:
+  /api/process/safety-ai/improve-document/:
     post:
-      operationId: process_rest_safety_ai_improve_document_create
+      operationId: process_safety_ai_improve_document_create
       description: Improve an entire document using AI.
       tags:
         - process
@@ -6049,9 +5262,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ImproveDocumentResponse'
           description: ''
-  /process/rest/safety-ai/improve-section/:
+  /api/process/safety-ai/improve-section/:
     post:
-      operationId: process_rest_safety_ai_improve_section_create
+      operationId: process_safety_ai_improve_section_create
       description: Improve a section of text using AI.
       tags:
         - process
@@ -6076,9 +5289,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ImproveSectionResponse'
           description: ''
-  /purchasing/rest/all-jobs/:
+  /api/purchasing/all-jobs/:
     get:
-      operationId: purchasing_rest_all_jobs_retrieve
+      operationId: purchasing_all_jobs_retrieve
       description: Get all jobs with stock holding job flag.
       tags:
         - purchasing
@@ -6091,9 +5304,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/AllJobsResponse'
           description: ''
-  /purchasing/rest/delivery-receipts/:
+  /api/purchasing/delivery-receipts/:
     post:
-      operationId: purchasing_rest_delivery_receipts_create
+      operationId: purchasing_delivery_receipts_create
       description: |-
         REST API view for processing delivery receipts.
 
@@ -6128,9 +5341,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/DeliveryReceiptResponse'
           description: ''
-  /purchasing/rest/jobs/:
+  /api/purchasing/jobs/:
     get:
-      operationId: purchasing_rest_jobs_retrieve
+      operationId: purchasing_jobs_retrieve
       description: Get list of jobs suitable for purchasing operations.
       tags:
         - purchasing
@@ -6143,7 +5356,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchasingJobsResponse'
           description: ''
-  /purchasing/rest/product-mappings/:
+  /api/purchasing/product-mappings/:
     get:
       operationId: listProductMappings
       description: Get list of product mappings prioritizing unvalidated ones.
@@ -6158,7 +5371,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProductMappingListResponse'
           description: ''
-  /purchasing/rest/product-mappings/{mapping_id}/validate/:
+  /api/purchasing/product-mappings/{mapping_id}/validate/:
     post:
       operationId: validateProductMapping
       description: Validate a product parsing mapping.
@@ -6203,7 +5416,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/ProductMappingValidateResponse'
           description: ''
-  /purchasing/rest/purchase-orders/:
+  /api/purchasing/purchase-orders/:
     get:
       operationId: listPurchaseOrders
       description: Get list of purchase orders with optional status filtering.
@@ -6257,7 +5470,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchasingErrorResponse'
           description: ''
-  /purchasing/rest/purchase-orders/{po_id}/:
+  /api/purchasing/purchase-orders/{po_id}/:
     get:
       operationId: retrievePurchaseOrder
       description: Get purchase order details including lines.
@@ -6280,7 +5493,7 @@ paths:
                 $ref: '#/components/schemas/PurchaseOrderDetail'
           description: ''
     patch:
-      operationId: purchasing_rest_purchase_orders_partial_update
+      operationId: purchasing_purchase_orders_partial_update
       description: |-
         Update purchase order.
 
@@ -6314,9 +5527,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchaseOrderUpdate'
           description: ''
-  /purchasing/rest/purchase-orders/{po_id}/allocations/:
+  /api/purchasing/purchase-orders/{po_id}/allocations/:
     get:
-      operationId: purchasing_rest_purchase_orders_allocations_retrieve
+      operationId: purchasing_purchase_orders_allocations_retrieve
       description: Get existing allocations for a purchase order.
       parameters:
         - in: path
@@ -6336,7 +5549,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchaseOrderAllocationsResponse'
           description: ''
-  /purchasing/rest/purchase-orders/{po_id}/allocations/{allocation_type}/{allocation_id}/details/:
+  /api/purchasing/purchase-orders/{po_id}/allocations/{allocation_type}/{allocation_id}/details/:
     get:
       operationId: getAllocationDetails
       description: Get details about a specific allocation before deletion.
@@ -6369,7 +5582,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AllocationDetailsResponse'
           description: ''
-  /purchasing/rest/purchase-orders/{po_id}/email/:
+  /api/purchasing/purchase-orders/{po_id}/email/:
     post:
       operationId: getPurchaseOrderEmail
       description: Generate email data for the specified purchase order.
@@ -6408,7 +5621,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchaseOrderEmailResponse'
           description: ''
-  /purchasing/rest/purchase-orders/{po_id}/events/:
+  /api/purchasing/purchase-orders/{po_id}/events/:
     get:
       operationId: listPurchaseOrderEvents
       description: List all events/comments for a purchase order.
@@ -6481,7 +5694,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchasingErrorResponse'
           description: ''
-  /purchasing/rest/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/:
+  /api/purchasing/purchase-orders/{po_id}/lines/{line_id}/allocations/delete/:
     post:
       operationId: deleteAllocation
       description: Delete a specific allocation (Stock item or CostLine) from a purchase
@@ -6528,7 +5741,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AllocationDeleteResponse'
           description: ''
-  /purchasing/rest/purchase-orders/{po_id}/pdf/:
+  /api/purchasing/purchase-orders/{po_id}/pdf/:
     get:
       operationId: getPurchaseOrderPDF
       description: Generate and download PDF for the specified purchase order.
@@ -6563,7 +5776,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchasingErrorResponse'
           description: ''
-  /purchasing/rest/purchase-orders/last-number/:
+  /api/purchasing/purchase-orders/last-number/:
     get:
       operationId: getLastPurchaseOrderNumber
       description: Return the most recent purchase order number.
@@ -6584,9 +5797,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/PurchasingErrorResponse'
           description: ''
-  /purchasing/rest/stock/:
+  /api/purchasing/stock/:
     get:
-      operationId: purchasing_rest_stock_list
+      operationId: purchasing_stock_list
       description: |-
         ViewSet for Stock CRUD operations.
 
@@ -6614,7 +5827,7 @@ paths:
                   $ref: '#/components/schemas/StockItem'
           description: ''
     post:
-      operationId: purchasing_rest_stock_create
+      operationId: purchasing_stock_create
       description: |-
         ViewSet for Stock CRUD operations.
 
@@ -6651,9 +5864,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/StockItem'
           description: ''
-  /purchasing/rest/stock/{id}/:
+  /api/purchasing/stock/{id}/:
     get:
-      operationId: purchasing_rest_stock_retrieve
+      operationId: purchasing_stock_retrieve
       description: |-
         ViewSet for Stock CRUD operations.
 
@@ -6687,7 +5900,7 @@ paths:
                 $ref: '#/components/schemas/StockItem'
           description: ''
     put:
-      operationId: purchasing_rest_stock_update
+      operationId: purchasing_stock_update
       description: |-
         ViewSet for Stock CRUD operations.
 
@@ -6733,7 +5946,7 @@ paths:
                 $ref: '#/components/schemas/StockItem'
           description: ''
     patch:
-      operationId: purchasing_rest_stock_partial_update
+      operationId: purchasing_stock_partial_update
       description: |-
         ViewSet for Stock CRUD operations.
 
@@ -6778,7 +5991,7 @@ paths:
                 $ref: '#/components/schemas/StockItem'
           description: ''
     delete:
-      operationId: purchasing_rest_stock_destroy
+      operationId: purchasing_stock_destroy
       description: |-
         ViewSet for Stock CRUD operations.
 
@@ -6807,7 +6020,7 @@ paths:
       responses:
         '204':
           description: No response body
-  /purchasing/rest/stock/{id}/consume/:
+  /api/purchasing/stock/{id}/consume/:
     post:
       operationId: consumeStock
       description: Consume stock for a job, reducing available quantity.
@@ -6842,7 +6055,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/StockConsumeResponse'
           description: ''
-  /purchasing/rest/supplier-price-status/:
+  /api/purchasing/supplier-price-status/:
     get:
       operationId: getSupplierPriceStatus
       description: |-
@@ -6861,9 +6074,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/SupplierPriceStatusResponse'
           description: ''
-  /purchasing/rest/xero-items/:
+  /api/purchasing/xero-items/:
     get:
-      operationId: purchasing_rest_xero_items_retrieve
+      operationId: purchasing_xero_items_retrieve
       description: Return list of items from Xero.
       tags:
         - purchasing
@@ -6876,9 +6089,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/XeroItemListResponse'
           description: ''
-  /quoting/api/django-job-executions/:
+  /api/quoting/django-job-executions/:
     get:
-      operationId: quoting_api_django_job_executions_list
+      operationId: quoting_django_job_executions_list
       parameters:
         - name: search
           required: false
@@ -6899,9 +6112,9 @@ paths:
                 items:
                   $ref: '#/components/schemas/DjangoJobExecution'
           description: ''
-  /quoting/api/django-job-executions/{id}/:
+  /api/quoting/django-job-executions/{id}/:
     get:
-      operationId: quoting_api_django_job_executions_retrieve
+      operationId: quoting_django_job_executions_retrieve
       parameters:
         - in: path
           name: id
@@ -6920,9 +6133,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/DjangoJobExecution'
           description: ''
-  /quoting/api/django-jobs/:
+  /api/quoting/django-jobs/:
     get:
-      operationId: quoting_api_django_jobs_list
+      operationId: quoting_django_jobs_list
       parameters:
         - name: search
           required: false
@@ -6944,7 +6157,7 @@ paths:
                   $ref: '#/components/schemas/DjangoJob'
           description: ''
     post:
-      operationId: quoting_api_django_jobs_create
+      operationId: quoting_django_jobs_create
       tags:
         - quoting
       requestBody:
@@ -6968,9 +6181,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/DjangoJob'
           description: ''
-  /quoting/api/django-jobs/{id}/:
+  /api/quoting/django-jobs/{id}/:
     get:
-      operationId: quoting_api_django_jobs_retrieve
+      operationId: quoting_django_jobs_retrieve
       parameters:
         - in: path
           name: id
@@ -6990,7 +6203,7 @@ paths:
                 $ref: '#/components/schemas/DjangoJob'
           description: ''
     put:
-      operationId: quoting_api_django_jobs_update
+      operationId: quoting_django_jobs_update
       parameters:
         - in: path
           name: id
@@ -7022,7 +6235,7 @@ paths:
                 $ref: '#/components/schemas/DjangoJob'
           description: ''
     patch:
-      operationId: quoting_api_django_jobs_partial_update
+      operationId: quoting_django_jobs_partial_update
       parameters:
         - in: path
           name: id
@@ -7053,7 +6266,7 @@ paths:
                 $ref: '#/components/schemas/DjangoJob'
           description: ''
     delete:
-      operationId: quoting_api_django_jobs_destroy
+      operationId: quoting_django_jobs_destroy
       parameters:
         - in: path
           name: id
@@ -7068,7 +6281,7 @@ paths:
       responses:
         '204':
           description: No response body
-  /rest/app-errors/:
+  /api/rest/app-errors/:
     get:
       operationId: rest_app_errors_retrieve
       description: |-
@@ -7090,7 +6303,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/AppErrorListResponse'
           description: ''
-  /timesheets/api/daily/{target_date}/:
+  /api/timesheets/daily/{target_date}/:
     get:
       operationId: getDailyTimesheetSummaryByDate
       description: |-
@@ -7118,9 +6331,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/DailyTimesheetSummary'
           description: ''
-  /timesheets/api/jobs/:
+  /api/timesheets/jobs/:
     get:
-      operationId: timesheets_api_jobs_retrieve
+      operationId: timesheets_jobs_retrieve
       description: Get list of active jobs for timesheet entries using CostSet system.
       tags:
         - timesheets
@@ -7133,9 +6346,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobsListResponse'
           description: ''
-  /timesheets/api/payroll/pay-runs/:
+  /api/timesheets/payroll/pay-runs/:
     get:
-      operationId: timesheets_api_payroll_pay_runs_retrieve
+      operationId: timesheets_payroll_pay_runs_retrieve
       description: Return all pay runs for the configured payroll calendar.
       summary: List pay runs
       tags:
@@ -7155,9 +6368,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /timesheets/api/payroll/pay-runs/create:
+  /api/timesheets/payroll/pay-runs/create:
     post:
-      operationId: timesheets_api_payroll_pay_runs_create_create
+      operationId: timesheets_payroll_pay_runs_create_create
       description: Create a new pay run for the specified week.
       summary: Create pay run for a week
       tags:
@@ -7201,9 +6414,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /timesheets/api/payroll/pay-runs/refresh:
+  /api/timesheets/payroll/pay-runs/refresh:
     post:
-      operationId: timesheets_api_payroll_pay_runs_refresh_create
+      operationId: timesheets_payroll_pay_runs_refresh_create
       description: Synchronize local pay run cache with Xero.
       summary: Refresh cached pay runs from Xero
       tags:
@@ -7235,9 +6448,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /timesheets/api/payroll/post-staff-week/:
+  /api/timesheets/payroll/post-staff-week/:
     post:
-      operationId: timesheets_api_payroll_post_staff_week_create
+      operationId: timesheets_payroll_post_staff_week_create
       description: |-
         Start posting timesheets. Returns a task_id to use with the stream endpoint.
 
@@ -7262,9 +6475,9 @@ paths:
       responses:
         '200':
           description: No response body
-  /timesheets/api/staff/:
+  /api/timesheets/staff/:
     get:
-      operationId: timesheets_api_staff_retrieve
+      operationId: timesheets_staff_retrieve
       description: Get filtered list of staff members for a specific date.
       summary: Returns staff members excluding system and users for a specific date
       parameters:
@@ -7284,7 +6497,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/StaffListResponse'
           description: ''
-  /timesheets/api/staff/{staff_id}/daily/{target_date}/:
+  /api/timesheets/staff/{staff_id}/daily/{target_date}/:
     get:
       operationId: getStaffDailyTimesheetDetailByDate
       description: |-
@@ -7318,9 +6531,9 @@ paths:
               schema:
                 $ref: '#/components/schemas/DailyTimesheetSummary'
           description: ''
-  /timesheets/api/weekly/:
+  /api/timesheets/weekly/:
     get:
-      operationId: timesheets_api_weekly_retrieve
+      operationId: timesheets_weekly_retrieve
       description: Return weekly timesheet data with payroll fields (5/7 days).
       summary: Weekly overview with payroll data (Mon–Sun/Mon–Fri)
       parameters:
@@ -7354,7 +6567,467 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
-  /xero-errors/:
+  /api/workflow/ai-providers/:
+    get:
+      operationId: workflow_ai_providers_list
+      description: |-
+        API endpoint that allows AI Providers to be viewed or edited.
+
+        Provides standard CRUD operations and a custom action to set a
+        provider as the default for the company.
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AIProvider'
+          description: ''
+    post:
+      operationId: workflow_ai_providers_create
+      description: |-
+        API endpoint that allows AI Providers to be viewed or edited.
+
+        Provides standard CRUD operations and a custom action to set a
+        provider as the default for the company.
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIProviderCreateUpdate'
+          description: ''
+  /api/workflow/ai-providers/{id}/:
+    get:
+      operationId: workflow_ai_providers_retrieve
+      description: |-
+        API endpoint that allows AI Providers to be viewed or edited.
+
+        Provides standard CRUD operations and a custom action to set a
+        provider as the default for the company.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this AI Provider.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIProvider'
+          description: ''
+    put:
+      operationId: workflow_ai_providers_update
+      description: |-
+        API endpoint that allows AI Providers to be viewed or edited.
+
+        Provides standard CRUD operations and a custom action to set a
+        provider as the default for the company.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this AI Provider.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AIProviderCreateUpdateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIProviderCreateUpdate'
+          description: ''
+    patch:
+      operationId: workflow_ai_providers_partial_update
+      description: |-
+        API endpoint that allows AI Providers to be viewed or edited.
+
+        Provides standard CRUD operations and a custom action to set a
+        provider as the default for the company.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this AI Provider.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedAIProviderCreateUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedAIProviderCreateUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedAIProviderCreateUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIProviderCreateUpdate'
+          description: ''
+    delete:
+      operationId: workflow_ai_providers_destroy
+      description: |-
+        API endpoint that allows AI Providers to be viewed or edited.
+
+        Provides standard CRUD operations and a custom action to set a
+        provider as the default for the company.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this AI Provider.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/workflow/ai-providers/{id}/set-default/:
+    post:
+      operationId: workflow_ai_providers_set_default_create
+      description: |-
+        Set this provider as the default.
+        This will atomically unset any other provider that is currently the default.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: integer
+          description: A unique integer value identifying this AI Provider.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AIProviderRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AIProviderRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AIProviderRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AIProvider'
+          description: ''
+  /api/workflow/app-errors/:
+    get:
+      operationId: workflow_app_errors_list
+      description: |-
+        ViewSet for AppError with filtering capabilities and resolution actions.
+
+        Provides list, retrieve, and resolution management for application errors.
+        Includes comprehensive filtering and search capabilities for error analysis.
+
+        Endpoints:
+        - GET /api/app-errors/
+        - GET /api/app-errors/<id>/
+        - POST /api/app-errors/<id>/mark_resolved/
+        - POST /api/app-errors/<id>/mark_unresolved/
+      parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: app__icontains
+          schema:
+            type: string
+        - in: query
+          name: file
+          schema:
+            type: string
+        - in: query
+          name: file__icontains
+          schema:
+            type: string
+        - in: query
+          name: function
+          schema:
+            type: string
+        - in: query
+          name: function__icontains
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - name: ordering
+          required: false
+          in: query
+          description: Which field to use when ordering the results.
+          schema:
+            type: string
+        - name: page
+          required: false
+          in: query
+          description: A page number within the paginated result set.
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - name: search
+          required: false
+          in: query
+          description: A search term.
+          schema:
+            type: string
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: severity__gte
+          schema:
+            type: integer
+        - in: query
+          name: severity__lte
+          schema:
+            type: integer
+        - in: query
+          name: timestamp__gte
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: timestamp__lte
+          schema:
+            type: string
+            format: date-time
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedAppErrorList'
+          description: ''
+  /api/workflow/app-errors/{id}/:
+    get:
+      operationId: workflow_app_errors_retrieve
+      description: |-
+        ViewSet for AppError with filtering capabilities and resolution actions.
+
+        Provides list, retrieve, and resolution management for application errors.
+        Includes comprehensive filtering and search capabilities for error analysis.
+
+        Endpoints:
+        - GET /api/app-errors/
+        - GET /api/app-errors/<id>/
+        - POST /api/app-errors/<id>/mark_resolved/
+        - POST /api/app-errors/<id>/mark_unresolved/
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Application Error.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+          description: ''
+  /api/workflow/app-errors/{id}/mark_resolved/:
+    post:
+      operationId: workflow_app_errors_mark_resolved_create
+      description: Mark an error as resolved.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Application Error.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppErrorRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppErrorRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppErrorRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+          description: ''
+  /api/workflow/app-errors/{id}/mark_unresolved/:
+    post:
+      operationId: workflow_app_errors_mark_unresolved_create
+      description: Mark an error as unresolved.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Application Error.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AppErrorRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/AppErrorRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/AppErrorRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AppError'
+          description: ''
+  /api/workflow/xero-pay-items/:
+    get:
+      operationId: workflow_xero_pay_items_list
+      description: |-
+        API endpoint for Xero pay items (earnings rates and leave types).
+
+        Read-only - these are synced from Xero, not created locally.
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/XeroPayItem'
+          description: ''
+  /api/workflow/xero-pay-items/{id}/:
+    get:
+      operationId: workflow_xero_pay_items_retrieve
+      description: |-
+        API endpoint for Xero pay items (earnings rates and leave types).
+
+        Read-only - these are synced from Xero, not created locally.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Xero Pay Item.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroPayItem'
+          description: ''
+  /api/xero-errors/:
     get:
       operationId: xero_errors_list
       description: |-
@@ -7383,7 +7056,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/PaginatedXeroErrorList'
           description: ''
-  /xero-errors/{id}/:
+  /api/xero-errors/{id}/:
     get:
       operationId: xero_errors_retrieve
       description: |-
@@ -7411,6 +7084,311 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/XeroError'
+          description: ''
+  /api/xero/create_invoice/{job_id}:
+    post:
+      operationId: xero_create_invoice_create
+      description: Creates an invoice in Xero for the specified job
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+  /api/xero/create_purchase_order/{purchase_order_id}:
+    post:
+      operationId: xero_create_purchase_order_create
+      description: Creates or updates a Purchase Order in Xero.
+      parameters:
+        - in: path
+          name: purchase_order_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+  /api/xero/create_quote/{job_id}:
+    post:
+      operationId: xero_create_quote_create
+      description: Creates a quote in Xero for the specified job
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Xero
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroQuoteCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/XeroQuoteCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/XeroQuoteCreateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+  /api/xero/delete_invoice/{job_id}:
+    delete:
+      operationId: xero_delete_invoice_destroy
+      description: Deletes a specific invoice in Xero for a given job, identified
+        by its Xero ID.
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+          required: true
+        - in: query
+          name: xero_invoice_id
+          schema:
+            type: string
+          required: true
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+  /api/xero/delete_purchase_order/{purchase_order_id}:
+    delete:
+      operationId: xero_delete_purchase_order_destroy
+      description: Deletes a purchase order in Xero for the specified purchase order
+      parameters:
+        - in: path
+          name: purchase_order_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+  /api/xero/delete_quote/{job_id}:
+    delete:
+      operationId: xero_delete_quote_destroy
+      description: Deletes a quote in Xero for the specified job
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentSuccessResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroDocumentErrorResponse'
+          description: ''
+  /api/xero/disconnect/:
+    post:
+      operationId: xero_disconnect_create
+      description: Disconnects from Xero by clearing the token from cache and database.
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroPingResponse'
+          description: ''
+  /api/xero/ping/:
+    get:
+      operationId: xero_ping_retrieve
+      description: Check if the user is authenticated with Xero.
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroPingResponse'
+          description: ''
+  /api/xero/sync/:
+    post:
+      operationId: xero_sync_create
+      description: Start a Xero sync as a background task.
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroSyncStartResponse'
+          description: ''
+  /api/xero/sync-info/:
+    get:
+      operationId: xero_sync_info_retrieve
+      description: Get current sync status and last sync times for all entities.
+      tags:
+        - Xero
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroSyncInfoResponse'
           description: ''
 components:
   schemas:

@@ -257,16 +257,10 @@ CSRF_COOKIE_HTTPONLY = False  # CSRF cookies need to be accessible to JS
 
 FRONT_END_URL = os.getenv("FRONT_END_URL", "")
 LOGIN_URL = FRONT_END_URL.rstrip("/") + "/login"
-LOGOUT_URL = "accounts:logout"
+LOGOUT_URL = "accounts:api_logout"
 LOGIN_REDIRECT_URL = FRONT_END_URL
 LOGIN_EXEMPT_URLS = [
-    "accounts:logout",
     "accounts:api_logout",
-    "accounts:password_reset",
-    "accounts:password_reset_done",
-    "accounts:reset",
-    "accounts:password_reset_confirm",
-    "accounts:password_reset_complete",
     "accounts:token_obtain_pair",
     "accounts:token_refresh",
     "accounts:token_verify",
@@ -274,23 +268,7 @@ LOGIN_EXEMPT_URLS = [
 
 # API path prefixes - single source of truth for middlewares
 # These paths bypass browser redirect and use DRF/JWT authentication
-API_PATH_PREFIXES = [
-    "/api/",
-    "/clients/",
-    "/job/api/",
-    "/job/rest/",
-    "/purchasing/api/",
-    "/accounts/api/",
-    "/accounts/me/",
-    "/accounts/logout/",
-    "/timesheets/api/",
-    "/quoting/api/",
-    "/accounting/api/",
-    "/api/schema/",
-    "/api/docs",
-    "/api/xero/",
-    "/login",
-]
+API_PATH_PREFIXES = ["/api/"]
 
 # For OpenAPI schema generator
 SPECTACULAR_SETTINGS = {

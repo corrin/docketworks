@@ -41,7 +41,7 @@ function isTimesheetMeta(meta: unknown): meta is { staff_id: string; date?: stri
 
 async function loadStaff() {
   try {
-    const staff: KanbanStaff[] = await api.accounts_api_staff_all_list({
+    const staff: KanbanStaff[] = await api.accounts_staff_all_list({
       queries: { include_inactive: 'true' },
     })
     staffMap.value = staff.reduce(

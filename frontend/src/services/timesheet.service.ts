@@ -14,10 +14,10 @@ type CostLine = z.infer<typeof schemas.CostLine>
 export class TimesheetService {
   static async getStaff(): Promise<Staff[]> {
     try {
-      const staffResponse = await api.timesheets_api_staff_retrieve()
+      const staffResponse = await api.timesheets_staff_retrieve()
       const staffList = staffResponse.staff ?? []
 
-      const defaults = await api.api_company_defaults_retrieve()
+      const defaults = await api.company_defaults_retrieve()
       const defaultWageRate = defaults.wage_rate ?? 0
 
       const normalizedStaff = staffList.map((staff) => ({
@@ -55,7 +55,7 @@ export class TimesheetService {
 
   static async getJobs(): Promise<Job[]> {
     try {
-      const jobsResponse = await api.timesheets_api_jobs_retrieve()
+      const jobsResponse = await api.timesheets_jobs_retrieve()
       return jobsResponse.jobs || []
     } catch (error) {
       debugLog('Error fetching jobs:', error)

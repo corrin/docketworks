@@ -8,11 +8,11 @@ export type PatchedCompanyDefaults = z.infer<typeof schemas.PatchedCompanyDefaul
 export type AIProvider = z.infer<typeof schemas.AIProvider>
 
 export async function getCompanyDefaults(): Promise<CompanyDefaults> {
-  return await api.api_company_defaults_retrieve()
+  return await api.company_defaults_retrieve()
 }
 
 export async function updateCompanyDefaults(
   payload: Partial<PatchedCompanyDefaults>,
 ): Promise<CompanyDefaults> {
-  return await api.api_company_defaults_partial_update(payload)
+  return await api.company_defaults_partial_update(payload)
 }

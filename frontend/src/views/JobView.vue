@@ -335,7 +335,7 @@ onMounted(async () => {
   try {
     await Promise.all([
       (async () => {
-        const headerResponse = await api.job_rest_jobs_header_retrieve({
+        const headerResponse = await api.job_jobs_header_retrieve({
           params: { job_id: jobId.value },
         })
         jobsStore.setHeader(headerResponse)
@@ -564,7 +564,7 @@ const quoteRevisionsData = ref<{ total_revisions: number } | null>(null)
 async function fetchQuoteRevisions() {
   if (!jobId.value) return
   try {
-    const response = await api.job_rest_jobs_cost_sets_quote_revise_retrieve({
+    const response = await api.job_jobs_cost_sets_quote_revise_retrieve({
       params: { job_id: jobId.value },
     })
     quoteRevisionsData.value = response

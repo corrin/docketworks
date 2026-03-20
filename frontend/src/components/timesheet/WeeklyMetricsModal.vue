@@ -396,8 +396,8 @@ const loadJobs = async () => {
   try {
     console.log('Props - WEEKLY METRICS MODAL: ', props)
     const response = props.weekDate
-      ? await api.job_rest_jobs_weekly_metrics_list({ queries: { week: props.weekDate } })
-      : await api.job_rest_jobs_weekly_metrics_list()
+      ? await api.job_jobs_weekly_metrics_list({ queries: { week: props.weekDate } })
+      : await api.job_jobs_weekly_metrics_list()
     jobs.value = response || []
     console.log(`📊 Loaded ${jobs.value.length} jobs for week: ${props.weekDate || 'current'}`)
   } catch (error) {

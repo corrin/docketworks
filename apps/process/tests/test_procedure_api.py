@@ -37,7 +37,7 @@ class TestProcedureAPI:
             tags=["safety", "sop"],
         )
 
-        resp = api_client.get("/process/rest/procedures/safety/")
+        resp = api_client.get("/api/process/procedures/safety/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
         assert resp.data[0]["title"] == "Drill Press SOP"
@@ -54,7 +54,7 @@ class TestProcedureAPI:
             tags=["safety"],
         )
 
-        resp = api_client.get("/process/rest/procedures/training/")
+        resp = api_client.get("/api/process/procedures/training/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
         assert resp.data[0]["title"] == "Induction Plan"
@@ -66,7 +66,7 @@ class TestProcedureAPI:
             tags=[],
         )
 
-        resp = api_client.get("/process/rest/procedures/reference/")
+        resp = api_client.get("/api/process/procedures/reference/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
         assert resp.data[0]["title"] == "Org Chart"
@@ -78,14 +78,14 @@ class TestProcedureAPI:
             tags=["safety", "swp"],
         )
 
-        resp = api_client.get(f"/process/rest/procedures/safety/{doc.pk}/")
+        resp = api_client.get(f"/api/process/procedures/safety/{doc.pk}/")
         assert resp.status_code == status.HTTP_200_OK
         assert "form_schema" not in resp.data
         assert "google_doc_url" in resp.data
         assert "google_doc_id" in resp.data
 
     def test_unknown_category_returns_404(self, api_client):
-        resp = api_client.get("/process/rest/procedures/nonexistent/")
+        resp = api_client.get("/api/process/procedures/nonexistent/")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
     def test_list_excludes_form_schema(self, api_client):
@@ -95,7 +95,7 @@ class TestProcedureAPI:
             tags=["safety"],
         )
 
-        resp = api_client.get("/process/rest/procedures/safety/")
+        resp = api_client.get("/api/process/procedures/safety/")
         assert resp.status_code == status.HTTP_200_OK
         assert "form_schema" not in resp.data[0]
         assert "google_doc_url" in resp.data[0]
@@ -112,7 +112,7 @@ class TestProcedureAPI:
             tags=["safety", "sop"],
         )
 
-        resp = api_client.get("/process/rest/procedures/safety/?tags=swp")
+        resp = api_client.get("/api/process/procedures/safety/?tags=swp")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
         assert resp.data[0]["title"] == "SWP1"
@@ -128,7 +128,7 @@ class TestProcedureAPI:
         MockService.return_value.create_blank_procedure.return_value = doc
 
         resp = api_client.post(
-            "/process/rest/procedures/safety/",
+            "/api/process/procedures/safety/",
             {"title": "New SWP"},
             format="json",
         )
@@ -144,7 +144,7 @@ class TestProcedureAPI:
         )
 
         resp = api_client.patch(
-            f"/process/rest/procedures/safety/{doc.pk}/",
+            f"/api/process/procedures/safety/{doc.pk}/",
             {"title": "New Title"},
             format="json",
         )
@@ -158,7 +158,7 @@ class TestProcedureAPI:
             tags=["safety"],
         )
 
-        resp = api_client.delete(f"/process/rest/procedures/safety/{doc.pk}/")
+        resp = api_client.delete(f"/api/process/procedures/safety/{doc.pk}/")
         assert resp.status_code == status.HTTP_204_NO_CONTENT
         assert not Procedure.objects.filter(pk=doc.pk).exists()
 
@@ -166,13 +166,13 @@ class TestProcedureAPI:
 @pytest.mark.django_db
 class TestRemovedEndpoints:
     def test_process_documents_endpoint_removed(self, api_client):
-        resp = api_client.get("/process/rest/process-documents/")
+        resp = api_client.get("/api/process/process-documents/")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
     def test_sop_list_endpoint_removed(self, api_client):
-        resp = api_client.get("/process/rest/sop/")
+        resp = api_client.get("/api/process/sop/")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
     def test_swp_list_endpoint_removed(self, api_client):
-        resp = api_client.get("/process/rest/swp/")
+        resp = api_client.get("/api/process/swp/")
         assert resp.status_code == status.HTTP_404_NOT_FOUND

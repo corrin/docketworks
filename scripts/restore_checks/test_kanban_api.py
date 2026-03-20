@@ -34,7 +34,7 @@ def test_kanban_api() -> bool:
     client.force_login(admin_user)
 
     # Make authenticated request to Kanban API
-    response = client.get("/job/api/jobs/fetch-all/", HTTP_HOST="localhost:8000")
+    response = client.get("/api/job/jobs/fetch-all/", HTTP_HOST="localhost:8000")
 
     if response.status_code != 200:
         print(f"✗ ERROR: API returned status {response.status_code}")

@@ -12,7 +12,7 @@ export async function fetchMonthEnd(): Promise<{
   stockJob: MonthEndStockJob
 }> {
   // Note: Month parameter might need to be handled differently - check if endpoint supports query params
-  const response: MonthEndGetResponse = await api.job_rest_month_end_retrieve()
+  const response: MonthEndGetResponse = await api.job_month_end_retrieve()
   return { jobs: response.jobs, stockJob: response.stock_job }
 }
 
@@ -20,7 +20,7 @@ export async function runMonthEnd(
   jobIds: string[],
 ): Promise<{ processed: string[]; errors: string[] }> {
   // Using proper request body format for month-end processing
-  const response: MonthEndPostResponse = await api.job_rest_month_end_create({
+  const response: MonthEndPostResponse = await api.job_month_end_create({
     job_ids: jobIds,
   })
   return { processed: response.processed, errors: response.errors }

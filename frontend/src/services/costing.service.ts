@@ -8,7 +8,7 @@ export const fetchCostSet = async (
   jobId: string,
   kind: 'estimate' | 'quote' | 'actual' = 'estimate',
 ): Promise<CostSet> => {
-  const response = await api.job_rest_jobs_cost_sets_retrieve({
+  const response = await api.job_jobs_cost_sets_retrieve({
     params: {
       id: jobId,
       kind,

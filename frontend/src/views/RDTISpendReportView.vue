@@ -395,7 +395,7 @@ const loadData = async () => {
   error.value = null
 
   try {
-    const response = await api.accounting_api_reports_rdti_spend_retrieve({
+    const response = await api.accounting_reports_rdti_spend_retrieve({
       queries: { start_date: filters.value.startDate, end_date: filters.value.endDate },
     })
 

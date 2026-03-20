@@ -69,7 +69,7 @@ export interface PostStaffWeekCallbacks {
  * @throws Error if pay run already exists, invalid date, or Xero API error
  */
 export async function createPayRun(weekStartDate: string): Promise<CreatePayRunResponse> {
-  const response = await api.timesheets_api_payroll_pay_runs_create_create({
+  const response = await api.timesheets_payroll_pay_runs_create_create({
     week_start_date: weekStartDate,
   })
   return response as CreatePayRunResponse
@@ -162,7 +162,7 @@ export async function postStaffWeek(
  * @returns List of all pay runs
  */
 export async function fetchAllPayRuns(): Promise<PayRunListResponse> {
-  const response = await api.timesheets_api_payroll_pay_runs_retrieve()
+  const response = await api.timesheets_payroll_pay_runs_retrieve()
   return response as PayRunListResponse
 }
 

@@ -33,7 +33,7 @@ class KPIService {
     try {
       // Use the generated API
       const lookupDate = new Date(params.start_date)
-      return await api.accounting_api_reports_calendar_retrieve({
+      return await api.accounting_reports_calendar_retrieve({
         queries: {
           month: lookupDate.getMonth() + 1,
           year: lookupDate.getFullYear(),
@@ -52,7 +52,7 @@ class KPIService {
       debugLog('Fetching KPI data with params:', params)
 
       // Use the generated Zodios client with query parameters
-      const response = await api.accounting_api_reports_calendar_retrieve({
+      const response = await api.accounting_reports_calendar_retrieve({
         queries: {
           year: params.year,
           month: params.month,

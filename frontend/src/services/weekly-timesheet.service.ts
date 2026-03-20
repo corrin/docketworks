@@ -17,7 +17,7 @@ export async function fetchWeeklyOverview(startDate?: string): Promise<WeeklyTim
   if (startDate) {
     queries.start_date = startDate
   }
-  const response = await api.timesheets_api_weekly_retrieve({ queries })
+  const response = await api.timesheets_weekly_retrieve({ queries })
   return response
 }
 

@@ -543,7 +543,7 @@ onMounted(async () => {
 
       // Try to load Xero quote if available
       try {
-        const xeroQuoteResponse: Quote = await api.job_rest_jobs_quote_retrieve({
+        const xeroQuoteResponse: Quote = await api.job_jobs_quote_retrieve({
           params: { job_id: props.jobId },
         })
         xeroQuote.value = xeroQuoteResponse
@@ -710,7 +710,7 @@ async function refreshQuoteData() {
 
     // Refresh Xero quote data
     try {
-      const xeroQuoteResponse: Quote = await api.job_rest_jobs_quote_retrieve({
+      const xeroQuoteResponse: Quote = await api.job_jobs_quote_retrieve({
         params: { job_id: props.jobId },
       })
       xeroQuote.value = xeroQuoteResponse
@@ -737,7 +737,7 @@ async function fetchQuoteRevisions() {
 
   isLoading.value = true
   try {
-    const response = await api.job_rest_jobs_cost_sets_quote_revise_retrieve({
+    const response = await api.job_jobs_cost_sets_quote_revise_retrieve({
       params: { job_id: props.jobId },
     })
 
@@ -757,7 +757,7 @@ async function onCreateNewRevision() {
   isCreatingRevision.value = true
   toast.info('Creating new quote revision...', { id: 'create-revision' })
   try {
-    const response = await api.job_rest_jobs_cost_sets_quote_revise_create(
+    const response = await api.job_jobs_cost_sets_quote_revise_create(
       { reason: 'Manual revision creation' },
       {
         params: { job_id: props.jobId },
@@ -806,7 +806,7 @@ const executeCreateQuote = async (breakdown: boolean) => {
   isCreatingQuote.value = true
   showXeroExportModal.value = false
   try {
-    const response = await api.api_xero_create_quote_create(
+    const response = await api.xero_create_quote_create(
       { breakdown },
       {
         params: { job_id: props.jobId },
@@ -847,7 +847,7 @@ const acceptQuote = async () => {
       quote_acceptance_date: new Date().toISOString(),
       message: 'Quote accepted via frontend',
     }
-    const response = await api.job_rest_jobs_quote_accept_create(acceptancePayload, {
+    const response = await api.job_jobs_quote_accept_create(acceptancePayload, {
       params: { job_id: props.jobId },
     })
     if (response.success) {
@@ -875,7 +875,7 @@ const deleteQuoteOnXero = async () => {
   if (!props.jobId || isDeletingQuote.value) return
   isDeletingQuote.value = true
   try {
-    const response = await api.api_xero_delete_quote_destroy(undefined, {
+    const response = await api.xero_delete_quote_destroy(undefined, {
       params: { job_id: props.jobId },
     })
     if (!response.success) {

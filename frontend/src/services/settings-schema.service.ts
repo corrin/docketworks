@@ -23,7 +23,7 @@ export const SettingsSchemaService = {
 
     try {
       debugLog('[SettingsSchema] Fetching schema from API...')
-      const response = await api.api_company_defaults_schema_retrieve()
+      const response = await api.company_defaults_schema_retrieve()
       cachedSchema = response
       debugLog('[SettingsSchema] Schema loaded successfully:', cachedSchema)
       return cachedSchema

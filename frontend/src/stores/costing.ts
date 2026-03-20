@@ -59,7 +59,7 @@ export const useCostingStore = defineStore('costing', () => {
     try {
       debugLog(`Loading costing data for job ${jobId}, kind: ${targetKind}`)
 
-      const data = await api.job_rest_jobs_cost_sets_retrieve({
+      const data = await api.job_jobs_cost_sets_retrieve({
         params: {
           id: jobId,
           kind: targetKind,

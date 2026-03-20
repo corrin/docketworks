@@ -78,7 +78,7 @@ export const useAuthStore = defineStore('auth', () => {
         }),
       )
 
-      await api.accounts_api_token_create(plainCredentials)
+      await api.accounts_token_create(plainCredentials)
 
       const userResponse = await api.accounts_me_retrieve()
       user.value = userResponse

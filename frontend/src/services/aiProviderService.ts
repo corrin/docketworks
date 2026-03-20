@@ -20,7 +20,7 @@ export class AIProviderService {
 
   async getProviders(): Promise<AIProvider[]> {
     try {
-      return await api.api_workflow_ai_providers_list()
+      return await api.workflow_ai_providers_list()
     } catch (error) {
       debugLog('Failed to fetch AI providers:', error)
       throw error
@@ -29,7 +29,7 @@ export class AIProviderService {
 
   async createProvider(providerData: AIProviderCreateUpdate): Promise<AIProvider> {
     try {
-      const created = await api.api_workflow_ai_providers_create(providerData)
+      const created = await api.workflow_ai_providers_create(providerData)
       return schemas.AIProvider.parse(created)
     } catch (error) {
       debugLog('Failed to create AI provider:', error)
@@ -42,7 +42,7 @@ export class AIProviderService {
     providerData: Partial<AIProviderCreateUpdate>,
   ): Promise<AIProvider> {
     try {
-      const updated = await api.api_workflow_ai_providers_partial_update(providerData, {
+      const updated = await api.workflow_ai_providers_partial_update(providerData, {
         params: { id },
       })
       return schemas.AIProvider.parse(updated)
@@ -54,7 +54,7 @@ export class AIProviderService {
 
   async deleteProvider(id: number): Promise<void> {
     try {
-      await api.api_workflow_ai_providers_destroy(undefined, { params: { id } })
+      await api.workflow_ai_providers_destroy(undefined, { params: { id } })
     } catch (error) {
       debugLog(`Failed to delete AI provider ${id}:`, error)
       throw error
@@ -63,7 +63,7 @@ export class AIProviderService {
 
   async getProvider(id: number): Promise<AIProvider> {
     try {
-      return await api.api_workflow_ai_providers_retrieve({ params: { id } })
+      return await api.workflow_ai_providers_retrieve({ params: { id } })
     } catch (error) {
       debugLog(`Failed to get AI provider ${id}:`, error)
       throw error
@@ -72,7 +72,7 @@ export class AIProviderService {
 
   async setDefaultProvider(id: number, providerData: AIProvider): Promise<AIProvider> {
     try {
-      const response = await api.api_workflow_ai_providers_set_default_create(providerData, {
+      const response = await api.workflow_ai_providers_set_default_create(providerData, {
         params: { id },
       })
       return schemas.AIProvider.parse(response)

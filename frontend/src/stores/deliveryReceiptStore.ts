@@ -63,7 +63,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
     error.value = null
 
     try {
-      const response = await api.purchasing_rest_all_jobs_retrieve()
+      const response = await api.purchasing_all_jobs_retrieve()
       const data = response as AllJobsResponse
 
       if (!data.success) {
@@ -117,7 +117,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
         allocations: receiptData,
       }
 
-      await api.purchasing_rest_delivery_receipts_create(payload)
+      await api.purchasing_delivery_receipts_create(payload)
     } catch (err) {
       const errorMessage = handleApiError(
         err,
@@ -199,7 +199,7 @@ export const useDeliveryReceiptStore = defineStore('deliveryReceipts', () => {
 
     try {
       debugLog(`Fetching existing allocations for PO: ${purchaseOrderId}`)
-      const response = await api.purchasing_rest_purchase_orders_allocations_retrieve({
+      const response = await api.purchasing_purchase_orders_allocations_retrieve({
         params: { po_id: purchaseOrderId },
       })
       debugLog('Existing allocations response:', response)
