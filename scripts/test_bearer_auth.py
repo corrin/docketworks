@@ -201,67 +201,22 @@ def test_bearer_invalid_credentials(backend_url, username, password):
         return print_test("test_bearer_invalid_credentials", False, f"Error: {e}")
 
 
-def test_bearer_cross_domain(backend_url, frontend_url, username, password):
-    """Bearer tokens work cross-domain (tunnel test)."""
-    if not frontend_url or "localhost" in backend_url:
-        return print_test("test_bearer_cross_domain", True, "SKIPPED (no tunnel URLs)")
-
-    try:
-        # Get token
-        response = requests.post(
-            f"{backend_url}/accounts/api/bearer-token/",
-            json={"username": username, "password": password},
-            headers={"Origin": frontend_url},
-            timeout=10,
-        )
-
-        if response.status_code != 200:
-            return print_test("test_bearer_cross_domain", False, "Failed to get token")
-
-        token = response.json().get("token")
-
-        # Use token cross-domain
-        response = requests.get(
-            f"{backend_url}/accounts/me/",
-            headers={"Authorization": f"Bearer {token}", "Origin": frontend_url},
-            timeout=10,
-        )
-
-        if response.status_code == 200:
-            email = response.json().get("email")
-            return print_test(
-                "test_bearer_cross_domain", True, f"Cross-domain works: {email}"
-            )
-
-        return print_test(
-            "test_bearer_cross_domain",
-            False,
-            f"Expected 200, got {response.status_code}",
-        )
-    except Exception as e:
-        return print_test("test_bearer_cross_domain", False, f"Error: {e}")
-
-
 def read_env_file():
-    """Read URLs from .env file."""
+    """Read URL from .env file."""
     env_path = Path(__file__).parent.parent / ".env"
     if not env_path.exists():
-        return None, None
+        return None
 
     env_vars = dotenv_values(env_path)
-    backend = env_vars.get("TUNNEL_URL", "http://localhost:8000")
-    frontend = env_vars.get("FRONT_END_URL", "")
-
-    return backend, frontend
+    return env_vars.get("TUNNEL_URL", "http://localhost:8000")
 
 
 def main():
-    backend_from_env, frontend_from_env = read_env_file()
+    backend_from_env = read_env_file()
 
     parser = argparse.ArgumentParser(description="Test bearer token authentication")
     parser.add_argument("tests", nargs="*", help="Specific tests to run")
     parser.add_argument("--backend", default=backend_from_env, help="Backend URL")
-    parser.add_argument("--frontend", default=frontend_from_env, help="Frontend URL")
     parser.add_argument(
         "--username", default="defaultadmin@example.com", help="Username"
     )
@@ -285,7 +240,6 @@ def main():
         "test_invalid_bearer_token_rejected": test_invalid_bearer_token_rejected,
         "test_cookie_auth_still_works": test_cookie_auth_still_works,
         "test_bearer_invalid_credentials": test_bearer_invalid_credentials,
-        "test_bearer_cross_domain": test_bearer_cross_domain,
     }
 
     # Determine which tests to run
@@ -304,12 +258,7 @@ def main():
     # Run tests
     results = []
     for test_name, test_func in tests_to_run.items():
-        if test_name == "test_bearer_cross_domain":
-            results.append(
-                test_func(args.backend, args.frontend, args.username, args.password)
-            )
-        else:
-            results.append(test_func(args.backend, args.username, args.password))
+        results.append(test_func(args.backend, args.username, args.password))
 
     # Summary
     passed = sum(results)

@@ -19,11 +19,12 @@ class Command(BaseCommand):
                 )
             )
             return
-        django_port = os.environ.get("DJANGO_PORT", "8000")
+        # Default to Vite dev server port — Vite proxies /api and /admin to Django
+        tunnel_port = os.environ.get("TUNNEL_PORT", "5173")
 
         # Create ngrok command with the custom domain
         ngrok_command = (
-            f"ngrok http --domain={app_domain} --pooling-enabled {django_port}"
+            f"ngrok http --domain={app_domain} --pooling-enabled {tunnel_port}"
         )
 
         # Start ngrok process

@@ -111,8 +111,8 @@ def get_auth_cookie_domain():
     """
     Get cookie domain from AUTH_COOKIE_DOMAIN env var.
 
-    Now that configure_tunnels.py automatically manages this value,
-    we trust it directly instead of trying to auto-detect tunnels.
+    In UAT/prod, set to the parent domain (e.g., .docketworks.site) for
+    cross-subdomain cookie sharing. In dev, leave unset (same-origin).
     """
     value = os.getenv("AUTH_COOKIE_DOMAIN", "").strip()
     return value or None
@@ -123,7 +123,7 @@ def get_auth_cookie_samesite():
     Get SameSite attribute for auth cookies.
 
     Uses COOKIE_SAMESITE env var if set, otherwise defaults to "Lax".
-    For cross-origin scenarios (different ngrok subdomains), you should set COOKIE_SAMESITE=None.
+    With single-origin dev (Vite proxy) and same-subdomain UAT, Lax is correct everywhere.
 
     Returns:
         None (Python value) if COOKIE_SAMESITE=None (for SameSite=None cookies)

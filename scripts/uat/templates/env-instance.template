@@ -11,11 +11,8 @@ DB_PASSWORD=__DB_PASSWORD__
 DB_HOST=127.0.0.1
 DB_PORT=3306
 
-# CORS / CSRF — single subdomain, no cross-origin needed
+# Used by settings.py for both CORS and CSRF trusted origins (single-origin)
 CORS_ALLOWED_ORIGINS=https://__INSTANCE__.__DOMAIN__
-CSRF_TRUSTED_ORIGINS=https://__INSTANCE__.__DOMAIN__
-CORS_ALLOW_CREDENTIALS=True
-COOKIE_SAMESITE=Lax
 
 # App domain configuration
 APP_DOMAIN=__INSTANCE__.__DOMAIN__
@@ -24,9 +21,6 @@ FRONT_END_URL=https://__INSTANCE__.__DOMAIN__
 
 # JWT Configuration
 ENABLE_JWT_AUTH=True
-AUTH_COOKIE_DOMAIN=.__DOMAIN__
-ALLOW_BEARER_TOKEN_AUTHENTICATION=False
-BEARER_TOKEN_SECRET=__BEARER_SECRET__
 
 # Xero Integration
 XERO_CLIENT_ID=__XERO_CLIENT_ID__

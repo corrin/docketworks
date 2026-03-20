@@ -25,7 +25,7 @@ Based on codebase analysis and requirements:
   - Use `tests/` folder
   - Install browsers
 - Create `playwright.config.ts` with:
-  - Base URL from environment variable (defaults to ngrok frontend)
+  - Base URL from environment variable (defaults to ngrok dev URL)
   - 60s timeout for operations
   - Headless mode enabled
   - Screenshot configuration
@@ -136,7 +136,7 @@ Based on codebase analysis and requirements:
   ```
 - Create `.env.test.example`:
   ```
-  E2E_BASE_URL=https://msm-workflow-front.ngrok-free.app
+  E2E_BASE_URL=https://docketworks-msm-dev.ngrok-free.app
   E2E_TEST_USERNAME=your-test-user@example.com
   E2E_TEST_PASSWORD=your-secure-password
   MYSQL_HOST=localhost
@@ -164,7 +164,7 @@ Based on codebase analysis and requirements:
 **Actions:**
 
 - Create `.env.test` with actual credentials (not committed)
-- Ensure ngrok tunnels are running
+- Ensure ngrok tunnel is running
 - Run `npm run test:e2e`
 - Verify:
   - Database backup created
@@ -209,7 +209,7 @@ Based on codebase analysis and requirements:
 - **Build Tool**: Vite 6.2.4
 - **Framework**: Vue 3.5.13 with TypeScript
 - **Dev Server**: Port 5173
-- **Auth Method**: Bearer token (stored in localStorage)
+- **Auth Method**: Cookie-based (same-origin via Vite proxy)
 
 ### Key Routes:
 
@@ -221,11 +221,8 @@ Based on codebase analysis and requirements:
 
 ### API Configuration:
 
-- Configured via `VITE_API_BASE_URL` in `.env`
-- Current ngrok URLs:
-  - Frontend: `https://msm-workflow-front.ngrok-free.app`
-  - Backend: `https://msm-workflow.ngrok-free.app`
-- Fallback: `http://localhost:8000`
+- Vite dev server proxies `/api` requests to `http://localhost:8000`
+- Single ngrok tunnel: `https://docketworks-msm-dev.ngrok-free.app` (port 5173)
 
 ### Authentication:
 

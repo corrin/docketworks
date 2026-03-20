@@ -2,45 +2,43 @@
 
 Steps to start a development session. For first-time setup, see [initial_install.md](initial_install.md).
 
-This document uses my real development URLs (msm-workflow.ngrok-free.app and msm-workflow-front.ngrok-free.app). Replace with your own domains from initial setup.
+This document uses my real development URL (docketworks-msm-dev.ngrok-free.app). Replace with your own domain from initial setup.
 
 ## Quick Start Checklist
 
 Each development session requires starting these services:
 
-1. **Ngrok tunnels** (terminal 1) - both backend and frontend
-2. **Django server** (VS Code debugger or terminal 2)
-3. **Frontend dev server** (terminal 3, in frontend repo)
+1. **Django server** (VS Code debugger or terminal 1)
+2. **Frontend dev server** (terminal 2)
+3. **Ngrok tunnel** (terminal 3) - single tunnel to Vite, which proxies `/api` to Django
 4. **Connect to Xero** (in browser, if token expired)
 5. **Background scheduler** (terminal 4) - keeps Xero token alive
 
 ## Detailed Steps
 
-### 1. Start Ngrok Tunnels
-
-Start both backend and frontend tunnels with a single command:
-
-```bash
-ngrok start --config ngrok.yml --all
-```
-
-This uses the `ngrok.yml` in the project root. See [initial_install.md](initial_install.md) for setup instructions.
-
-### 2. Start Django Server
+### 1. Start Django Server
 
 VS Code: Run menu > Start Debugging (F5)
 
-### 3. Start Frontend Dev Server
+### 2. Start Frontend Dev Server
 
-In the frontend repository:
+In the frontend directory:
 
 ```bash
 npm run dev
 ```
 
+### 3. Start Ngrok Tunnel
+
+```bash
+ngrok start --config ngrok.yml --all
+```
+
+This uses the `ngrok.yml` in the project root. A single tunnel points to Vite on port 5173; Vite proxies `/api` requests to Django on localhost:8000. See [initial_install.md](initial_install.md) for setup instructions.
+
 ### 4. Connect to Xero
 
-Visit https://msm-workflow-front.ngrok-free.app/xero and click "Login with Xero" if token has expired.
+Visit https://docketworks-msm-dev.ngrok-free.app/xero and click "Login with Xero" if token has expired.
 
 ### 5. Start Background Scheduler
 
@@ -50,9 +48,8 @@ python manage.py run_scheduler
 
 ## Verifying Everything is Running
 
-- **Backend**: Visit https://msm-workflow.ngrok-free.app - should show the Django app
-- **Frontend**: Visit https://msm-workflow-front.ngrok-free.app - should show the Vue app
-- **ngrok tunnels**: The ngrok terminal should show both tunnels active
+- **App**: Visit https://docketworks-msm-dev.ngrok-free.app - should show the Vue app (Vite proxies API requests to Django)
+- **ngrok tunnel**: The ngrok terminal should show the tunnel active
 
 ## Troubleshooting
 

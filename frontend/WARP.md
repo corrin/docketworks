@@ -22,10 +22,11 @@ Commands
 Environment
 
 - .env.example documents these variables:
-  - VITE_API_BASE_URL: Backend API base URL
   - VITE_ALLOWED_HOSTS: Comma-separated list used by Vite dev server allowedHosts
   - VITE_UAT_URL: UAT environment URL
+  - VITE_AUTH_METHOD: Authentication method ('cookie' for both dev and prod)
 - Vite config reads VITE_ALLOWED_HOSTS to populate dev server allowedHosts.
+- Vite dev server proxies `/api` requests to `http://localhost:8000` (single-origin dev setup).
 
 Tech stack and tooling
 
@@ -43,7 +44,7 @@ Critical rules (from CLAUDE.md)
   - Use backend-provided schemas only (generated types from src/api/generated).
   - Never create local types mirroring API data, never comment out broken imports, never use // @ts-ignore for missing schemas.
 - Backend coordination: You cannot read the backend repo here; coordinate through the user for business logic, API contract questions, or schema updates.
-- No Fallbacks rule: Don’t add fallbacks for our own API/config values (e.g., avoid job.job_number || job.number and avoid env fallbacks for VITE_API_BASE_URL).
+- No Fallbacks rule: Don’t add fallbacks for our own API/config values (e.g., avoid job.job_number || job.number).
 
 High-level architecture
 
@@ -63,7 +64,7 @@ High-level architecture
   - logout: posts to /accounts/logout/ (Axios), clears frontend state.
   - userIsLogged: verifies session by calling accounts_me_retrieve.
 - Axios integration: src/plugins/axios.ts
-  - Base URL from import.meta.env.VITE_API_BASE_URL (see note in CLAUDE.md about avoiding fallbacks).
+  - Base URL defaults to window.location.origin (same-origin via Vite proxy in dev, same-origin in prod).
   - withCredentials enabled; response interceptor handles 401 by routing to /login and invoking Xero auth flow when required.
 - API client generation: scripts/gen-api.js
   - Parses schema.yml, generates Zod schemas and Zodios client into src/api/generated/api.ts, ensures export { endpoints } is present.
