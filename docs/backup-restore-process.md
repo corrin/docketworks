@@ -443,23 +443,15 @@ python scripts/restore_checks/check_test_client.py
 
 **Expected output:** `Test client already exists: ABC Carpet Cleaning TEST IGNORE ...` or `Created test client: ...`
 
-#### Step 18: Start ngrok Tunnels (skip for UAT)
+#### Step 18: Start ngrok Tunnel (skip for UAT)
 
-**Commands (run in separate terminals):**
-
-Note, these are often already running.  Check first.
+Note, this is often already running. Check first.
 
 ```bash
-# Terminal 1: ngrok for backend (replace with your domain)
-ngrok http 8000 --domain=your-backend.ngrok-free.app
-
-# Terminal 2: ngrok for frontend (replace with your domain)
-ngrok http 5173 --domain=your-frontend.ngrok-free.app
+ngrok http 5173 --domain=your-domain.ngrok-free.app
 ```
 
-**Windows (PowerShell):** same commands as above.
-
-**Check:** Both ngrok tunnels should show "Forwarding" status with public URLs.
+**Check:** The ngrok tunnel should show "Forwarding" status with a public URL. Vite proxies `/api` to Django.
 
 #### Step 19: Start Development Server (skip for UAT)
 
