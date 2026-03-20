@@ -235,12 +235,12 @@ export function useWorkshopTimesheetForm(options: {
       isSubmitting.value = true
       isDayLoading.value = true
       if (editingEntryId.value) {
-        await api.job_api_workshop_timesheets_partial_update({
+        await api.job_workshop_timesheets_partial_update({
           entry_id: editingEntryId.value,
           ...payload,
         })
       } else {
-        await api.job_api_workshop_timesheets_create(payload)
+        await api.job_workshop_timesheets_create(payload)
       }
       toast.success('Time saved.')
       resetForm()

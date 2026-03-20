@@ -101,7 +101,7 @@ async function fetchJobs() {
   loading.value = true
   error.value = ''
   try {
-    const response = await api.job_api_job_completed_list()
+    const response = await api.job_job_completed_list()
     jobs.value = response.results || []
     selectedLeft.value = []
     toArchive.value = []
@@ -140,7 +140,7 @@ async function saveArchive() {
   message.value = ''
   const toastId = toast.info('Archiving jobs...')
   try {
-    const response = await api.job_api_job_completed_archive_create({
+    const response = await api.job_job_completed_archive_create({
       ids: toArchive.value.map((j) => j.id),
     })
     const archiveResult = response as {

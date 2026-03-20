@@ -32,7 +32,7 @@ export const useStockStore = defineStore('stock', () => {
     return (async () => {
       try {
         // Use the list endpoint to fetch all active stock items
-        const response = await api.purchasing_rest_stock_list({ signal, timeout })
+        const response = await api.purchasing_stock_list({ signal, timeout })
         items.value = response || []
         return items.value
       } catch (error: unknown) {
@@ -120,12 +120,12 @@ export const useStockStore = defineStore('stock', () => {
   }
 
   async function create(payload: StockCreateRequest) {
-    const response = await api.purchasing_rest_stock_create(payload)
+    const response = await api.purchasing_stock_create(payload)
     return response
   }
 
   async function deactivate(id: string) {
-    await api.purchasing_rest_stock_destroy(undefined, { params: { id } })
+    await api.purchasing_stock_destroy(undefined, { params: { id } })
   }
 
   return { items, loading, fetchStock, fetchStockSafe, consumeStock, create, deactivate }

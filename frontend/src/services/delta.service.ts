@@ -25,7 +25,7 @@ export async function submitJobDelta(
   envelope: JobDeltaEnvelope,
 ): Promise<{ success: true; data: JobDetailResponse } | { success: false; error: string }> {
   try {
-    const response = await api.job_rest_jobs_partial_update(envelope, {
+    const response = await api.job_jobs_partial_update(envelope, {
       params: { job_id: jobId },
     })
     return { success: true, data: response }

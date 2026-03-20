@@ -37,7 +37,7 @@ class TestFormAPI:
             tags=["safety", "inspection"],
         )
 
-        resp = api_client.get("/process/rest/forms/safety/")
+        resp = api_client.get("/api/process/forms/safety/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
         assert resp.data[0]["title"] == "Ladder Inspection"
@@ -49,7 +49,7 @@ class TestFormAPI:
             tags=["training"],
         )
 
-        resp = api_client.get("/process/rest/forms/training/")
+        resp = api_client.get("/api/process/forms/training/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
 
@@ -60,7 +60,7 @@ class TestFormAPI:
             tags=["incident"],
         )
 
-        resp = api_client.get("/process/rest/forms/incident/")
+        resp = api_client.get("/api/process/forms/incident/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
 
@@ -76,7 +76,7 @@ class TestFormAPI:
             tags=["administration"],
         )
 
-        resp = api_client.get("/process/rest/forms/meeting/")
+        resp = api_client.get("/api/process/forms/meeting/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 2
 
@@ -87,7 +87,7 @@ class TestFormAPI:
             tags=[],
         )
 
-        resp = api_client.get("/process/rest/forms/register/")
+        resp = api_client.get("/api/process/forms/register/")
         assert resp.status_code == status.HTTP_200_OK
         assert len(resp.data) == 1
 
@@ -99,14 +99,14 @@ class TestFormAPI:
             form_schema={"fields": [{"key": "item", "type": "text"}]},
         )
 
-        resp = api_client.get(f"/process/rest/forms/safety/{doc.pk}/")
+        resp = api_client.get(f"/api/process/forms/safety/{doc.pk}/")
         assert resp.status_code == status.HTTP_200_OK
         assert "form_schema" in resp.data
         assert "google_doc_url" not in resp.data
         assert "google_doc_id" not in resp.data
 
     def test_unknown_category_returns_404(self, api_client):
-        resp = api_client.get("/process/rest/forms/nonexistent/")
+        resp = api_client.get("/api/process/forms/nonexistent/")
         assert resp.status_code == status.HTTP_404_NOT_FOUND
 
     def test_entry_allowed_for_form_document(self, api_client):
@@ -117,7 +117,7 @@ class TestFormAPI:
         )
 
         resp = api_client.post(
-            f"/process/rest/forms/safety/{doc.pk}/entries/",
+            f"/api/process/forms/safety/{doc.pk}/entries/",
             {"entry_date": "2026-03-07", "data": {"note": "test"}},
             format="json",
         )
@@ -131,7 +131,7 @@ class TestFormAPI:
         )
 
         resp = api_client.post(
-            f"/process/rest/forms/register/{doc.pk}/entries/",
+            f"/api/process/forms/register/{doc.pk}/entries/",
             {"entry_date": "2026-03-07", "data": {"chemical": "acetone"}},
             format="json",
         )
@@ -149,7 +149,7 @@ class TestFormAPI:
         MockService.return_value.create_form.return_value = doc
 
         resp = api_client.post(
-            "/process/rest/forms/safety/",
+            "/api/process/forms/safety/",
             {
                 "title": "New Checklist",
                 "form_schema": {"fields": [{"key": "item", "type": "text"}]},
@@ -169,7 +169,7 @@ class TestFormAPI:
         )
 
         resp = api_client.patch(
-            f"/process/rest/forms/safety/{doc.pk}/",
+            f"/api/process/forms/safety/{doc.pk}/",
             {"title": "Updated Form"},
             format="json",
         )
@@ -183,7 +183,7 @@ class TestFormAPI:
             tags=["safety"],
         )
 
-        resp = api_client.delete(f"/process/rest/forms/safety/{doc.pk}/")
+        resp = api_client.delete(f"/api/process/forms/safety/{doc.pk}/")
         assert resp.status_code == status.HTTP_204_NO_CONTENT
         assert not Form.objects.filter(pk=doc.pk).exists()
 
@@ -195,7 +195,7 @@ class TestFormAPI:
         )
 
         resp = api_client.post(
-            f"/process/rest/forms/safety/{form.pk}/fill/",
+            f"/api/process/forms/safety/{form.pk}/fill/",
             {"data": {"item": "Ladder"}},
             format="json",
         )

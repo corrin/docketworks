@@ -914,7 +914,7 @@ npx playwright test --workers=4
 
 #### **Dev Environment** - Full Suite with Xero
 
-- **Target**: Dev ngrok URLs or localhost
+- **Target**: Dev ngrok URL (https://docketworks-msm-dev.ngrok-free.app) or localhost:5173
 - **Database**: Dev MySQL database
 - **Xero**: Demo company (all operations allowed)
 - **Test Suite**: All tests including `@xero` tagged tests

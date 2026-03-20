@@ -21,7 +21,6 @@ try:
             LoginRequiredMiddleware,
             PasswordStrengthMiddleware,
         )
-        from .middleware_bearer import BearerIdentityMiddleware
         from .permissions import F
         from .scheduler import get_scheduler, stop_scheduler
         from .scheduler_jobs import (
@@ -32,7 +31,6 @@ try:
         from .serializers import (
             AIProviderCreateUpdateSerializer,
             AIProviderSerializer,
-            AWSInstanceStatusResponseSerializer,
             AppErrorDetailResponseSerializer,
             AppErrorListResponseSerializer,
             AppErrorSerializer,
@@ -79,13 +77,11 @@ __all__ = [
     "AIProviderCreateUpdateSerializer",
     "AIProviderSerializer",
     "AIProviderTypes",
-    "AWSInstanceStatusResponseSerializer",
     "AccessLoggingMiddleware",
     "AlreadyLoggedException",
     "AppErrorDetailResponseSerializer",
     "AppErrorListResponseSerializer",
     "AppErrorSerializer",
-    "BearerIdentityMiddleware",
     "CompanyDefaultsSchemaSerializer",
     "CompanyDefaultsSerializer",
     "DisallowedHostMiddleware",

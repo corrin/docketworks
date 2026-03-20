@@ -425,7 +425,7 @@ const createInvoice = async () => {
   if (!props.jobId || isCreatingInvoice.value) return
   isCreatingInvoice.value = true
   try {
-    const response = await api.api_xero_create_invoice_create(undefined, {
+    const response = await api.xero_create_invoice_create(undefined, {
       params: { job_id: props.jobId },
     })
     if (!response.success) {
@@ -464,7 +464,7 @@ const deleteInvoiceOnXero = async (invoiceXeroId: string) => {
   if (!props.jobId || deletingInvoiceId.value) return
   deletingInvoiceId.value = invoiceXeroId
   try {
-    await api.api_xero_delete_invoice_destroy(undefined, {
+    await api.xero_delete_invoice_destroy(undefined, {
       params: { job_id: props.jobId },
       queries: { xero_invoice_id: invoiceXeroId },
     })
@@ -514,7 +514,7 @@ async function checkAndUpdateNegativeStocks() {
 async function loadStaff() {
   try {
     // Include inactive staff since this job may have historical time entries
-    const staff: KanbanStaff[] = await api.accounts_api_staff_all_list({
+    const staff: KanbanStaff[] = await api.accounts_staff_all_list({
       queries: { include_inactive: 'true' },
     })
     staffMap.value = staff.reduce(
@@ -550,7 +550,7 @@ async function loadActualCosts() {
 async function loadCostsSummary() {
   costsSummaryLoading.value = true
   try {
-    const response = await api.job_rest_jobs_costs_summary_retrieve({
+    const response = await api.job_jobs_costs_summary_retrieve({
       params: { job_id: props.jobId },
     })
     estimateTotal.value = response.estimate?.rev || 0
@@ -564,7 +564,7 @@ async function loadCostsSummary() {
 
 async function loadInvoices() {
   try {
-    const response = await api.job_rest_jobs_invoices_retrieve({
+    const response = await api.job_jobs_invoices_retrieve({
       params: { job_id: props.jobId },
     })
     // Zodios returns data directly, not wrapped in {success, data}

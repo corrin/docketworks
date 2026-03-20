@@ -5,7 +5,6 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .aws_service import AWSService
         from .error_persistence import (
             extract_job_context,
             extract_request_context,
@@ -22,7 +21,6 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
-    "AWSService",
     "LLMService",
     "XeroSyncService",
     "extract_job_context",

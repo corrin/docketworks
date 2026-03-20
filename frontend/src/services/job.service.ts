@@ -135,7 +135,7 @@ async function updateJobHeaderPartial(
       fields: keys,
     })
 
-    const res = await api.job_rest_jobs_partial_update(envelope, {
+    const res = await api.job_jobs_partial_update(envelope, {
       params: { job_id: jobId },
     })
 
@@ -180,18 +180,18 @@ type JobReorderPayload = z.infer<typeof schemas.JobReorderRequest>
 export const jobService = {
   // Job retrieval
   getAllJobs(): Promise<FetchAllJobsResponse> {
-    return api.job_api_jobs_fetch_all_retrieve()
+    return api.job_jobs_fetch_all_retrieve()
   },
 
   // Partial update for header autosave
   updateJobHeaderPartial,
 
   getJobsByStatus(status: string): Promise<FetchJobsResponse> {
-    return api.job_api_jobs_fetch_retrieve({ params: { status } })
+    return api.job_jobs_fetch_retrieve({ params: { status } })
   },
 
   getJobsByColumn(columnId: string): Promise<FetchJobsByColumnResponse> {
-    return api.job_api_jobs_fetch_by_column_retrieve({
+    return api.job_jobs_fetch_by_column_retrieve({
       params: { column_id: columnId },
     })
   },
@@ -216,12 +216,12 @@ export const jobService = {
         recently_completed: 'Work has just finished on this job',
       },
     })
-    // return api.job_api_jobs_status_values_retrieve()
+    // return api.job_jobs_status_values_retrieve()
   },
 
   // Job CRUD
   createJob(jobData: JobCreateData): Promise<JobCreateResponse> {
-    return api.job_rest_jobs_create(jobData)
+    return api.job_jobs_create(jobData)
   },
 
   getJob(jobId: string): Promise<JobDetailResponse> {
@@ -234,7 +234,7 @@ export const jobService = {
 
   deleteJob(jobId: string): Promise<{ success: boolean; error?: string; message?: string }> {
     return api
-      .job_rest_jobs_destroy(undefined, { params: { job_id: jobId } })
+      .job_jobs_destroy(undefined, { params: { job_id: jobId } })
       .then((response: JobDeleteResponse) => ({
         success: response.success,
         message: response.message,
@@ -258,11 +258,11 @@ export const jobService = {
 
   // Archive
   getCompletedJobs(): Promise<PaginatedCompleteJobList> {
-    return api.job_api_job_completed_list()
+    return api.job_job_completed_list()
   },
 
   archiveJobs(jobIds: string[]): Promise<ArchiveJobsRequest> {
-    return api.job_api_job_completed_archive_create({ ids: jobIds })
+    return api.job_job_completed_archive_create({ ids: jobIds })
   },
 
   // Files
@@ -299,12 +299,12 @@ export const jobService = {
 
   // Settings
   getCompanyDefaults(): Promise<CompanyDefaults> {
-    return api.api_company_defaults_retrieve()
+    return api.company_defaults_retrieve()
   },
 
   // Quote
   getQuoteStatus(jobId: string): Promise<QuoteImportStatusResponse> {
-    return api.job_rest_jobs_quote_status_retrieve({ params: { job_id: jobId } })
+    return api.job_jobs_quote_status_retrieve({ params: { job_id: jobId } })
   },
 
   // Local search
@@ -331,14 +331,14 @@ export const jobService = {
     }
 
     console.log('Advanced search filters:', processedFilters)
-    return api.job_api_jobs_advanced_search_retrieve({ queries: processedFilters })
+    return api.job_jobs_advanced_search_retrieve({ queries: processedFilters })
   },
 
   // Update job status
   updateJobStatus(jobId: string, newStatus: string): Promise<JobStatusUpdateResponse> {
     debugLog('[jobService.updateJobStatus] ->', { jobId, newStatus })
     return api
-      .job_api_jobs_update_status_create({ status: newStatus }, { params: { job_id: jobId } })
+      .job_jobs_update_status_create({ status: newStatus }, { params: { job_id: jobId } })
       .then((r) => {
         debugLog('[jobService.updateJobStatus] ok', { jobId, newStatus })
         return r
@@ -393,7 +393,7 @@ export const jobService = {
 
     debugLog('[jobService.reorderJob] ->', { jobId, payload })
     return api
-      .job_api_jobs_reorder_create(payload, { params: { job_id: jobId } })
+      .job_jobs_reorder_create(payload, { params: { job_id: jobId } })
       .then((r) => {
         debugLog('[jobService.reorderJob] ok', { jobId })
         return r

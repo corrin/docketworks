@@ -340,6 +340,19 @@
                 >
                   <component :is="page.icon" class="w-4 h-4 mr-2" /> {{ page.label }}
                 </router-link>
+                <template v-if="adminExternalLinks.length">
+                  <div class="border-t border-gray-200 my-1"></div>
+                  <a
+                    v-for="link in adminExternalLinks"
+                    :key="link.key"
+                    :href="link.externalUrl"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                  >
+                    <component :is="link.icon" class="w-4 h-4 mr-2" /> {{ link.label }}
+                  </a>
+                </template>
               </div>
             </Transition>
           </div>
@@ -794,6 +807,20 @@
                     >
                       <component :is="page.icon" class="w-4 h-4 mr-2" /> {{ page.label }}
                     </router-link>
+                    <template v-if="adminExternalLinks.length">
+                      <div class="border-t border-gray-200 my-1 mx-2"></div>
+                      <a
+                        v-for="link in adminExternalLinks"
+                        :key="link.key"
+                        :href="link.externalUrl"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        class="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-50"
+                        @click="closeMobileMenu"
+                      >
+                        <component :is="link.icon" class="w-4 h-4 mr-2" /> {{ link.label }}
+                      </a>
+                    </template>
                   </div>
                 </Transition>
               </div>
@@ -839,7 +866,7 @@ import {
   FlaskConical,
 } from 'lucide-vue-next'
 import { useAppLayout } from '@/composables/useAppLayout'
-import { adminPages } from '@/config/adminPages'
+import { adminPages, adminExternalLinks } from '@/config/adminPages'
 import { useProcessDocumentsStore } from '@/stores/processDocuments'
 import WorkshopOfficeToggle from '@/components/board/WorkshopOfficeToggle.vue'
 

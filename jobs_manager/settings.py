@@ -47,13 +47,8 @@ def validate_required_settings() -> None:
         "EMAIL_HOST_USER",
         "EMAIL_HOST_PASSWORD",
         "DEFAULT_FROM_EMAIL",
-        # CORS and Authentication
-        "CORS_ALLOWED_ORIGINS",
-        "CORS_ALLOW_CREDENTIALS",
+        # Authentication
         "ENABLE_JWT_AUTH",
-        "AUTH_COOKIE_DOMAIN",
-        "ALLOW_BEARER_TOKEN_AUTHENTICATION",
-        "BEARER_TOKEN_SECRET",
         # Frontend Integration
         "FRONT_END_URL",
     ]
@@ -107,37 +102,6 @@ def use_secure_cookies():
 # =======================
 # Cookie Configuration
 # =======================
-def get_auth_cookie_domain():
-    """
-    Get cookie domain from AUTH_COOKIE_DOMAIN env var.
-
-    Now that configure_tunnels.py automatically manages this value,
-    we trust it directly instead of trying to auto-detect tunnels.
-    """
-    value = os.getenv("AUTH_COOKIE_DOMAIN", "").strip()
-    return value or None
-
-
-def get_auth_cookie_samesite():
-    """
-    Get SameSite attribute for auth cookies.
-
-    Uses COOKIE_SAMESITE env var if set, otherwise defaults to "Lax".
-    For cross-origin scenarios (different ngrok subdomains), you should set COOKIE_SAMESITE=None.
-
-    Returns:
-        None (Python value) if COOKIE_SAMESITE=None (for SameSite=None cookies)
-        "Lax", "Strict", or other string values otherwise
-    """
-    env = os.getenv("COOKIE_SAMESITE")
-    if not env:
-        return "Lax"
-    # Handle "None" specially - return Python None, not string "None"
-    if env.lower() == "none":
-        return "none"
-    return env.capitalize()
-
-
 # Control scheduler registration - only register jobs when explicitly enabled
 RUN_SCHEDULER = os.getenv("DJANGO_RUN_SCHEDULER")
 
@@ -175,7 +139,6 @@ AUTH_USER_MODEL = "accounts.Staff"
 
 # Application definition
 INSTALLED_APPS = [
-    "corsheaders",
     "django_apscheduler",
     "solo",
     "django.contrib.auth",
@@ -201,7 +164,6 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
-    "corsheaders.middleware.CorsMiddleware",
     "django.middleware.security.SecurityMiddleware",
     "apps.workflow.middleware.DisallowedHostMiddleware",
     "django.middleware.gzip.GZipMiddleware",
@@ -209,7 +171,6 @@ MIDDLEWARE = [
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
-    "apps.workflow.middleware_bearer.BearerIdentityMiddleware",
     "apps.workflow.middleware.FrontendRedirectMiddleware",
     "apps.workflow.middleware.AccessLoggingMiddleware",
     "apps.workflow.middleware.LoginRequiredMiddleware",
@@ -251,80 +212,8 @@ CSRF_TRUSTED_ORIGINS = (
     ]
 )
 
-# CORS Configuration - Load from environment variables
-cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
-if cors_origins_env:
-    CORS_ALLOWED_ORIGINS = [
-        origin.strip() for origin in cors_origins_env.split(",") if origin.strip()
-    ]
-else:
-    # Fallback for development if not set in .env
-    CORS_ALLOWED_ORIGINS = [
-        "http://localhost:3000",  # Vue.js default dev server
-        "http://localhost:8080",  # Vue CLI default port
-        "http://localhost:5173",  # Vite default port
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080",
-    ]
-
-# Add ngrok domain from environment if available
-if ngrok_domain and ngrok_domain not in CORS_ALLOWED_ORIGINS:
-    CORS_ALLOWED_ORIGINS.append(ngrok_domain)
-
-CORS_ALLOW_CREDENTIALS = os.getenv("CORS_ALLOW_CREDENTIALS", "True").lower() == "true"
-
-CORS_ALLOWED_HEADERS = [
-    "accept",
-    "accept-encoding",
-    "authorization",
-    "content-type",
-    "dnt",
-    "origin",
-    "user-agent",
-    "x-csrftoken",
-    "x-requested-with",
-    "x-actual-users",  # Custom header for staff filtering
-    "X-Actual-Users",  # Case sensitive version for proper CORS support
-    # For optimistic concurrency control (ETags)
-    "if-match",
-    "if-none-match",
-]
-
-CORS_ALLOWED_METHODS = [
-    "DELETE",
-    "GET",
-    "OPTIONS",
-    "PATCH",
-    "POST",
-    "PUT",
-]
-
-CORS_PREFLIGHT_MAX_AGE = 86400
-
-# Expose ETag so the frontend can read it from responses (for If-Match on mutations)
-CORS_EXPOSE_HEADERS = ["ETag"]
-
-# Ensure ETag request headers are allowed even when overridden via env
-# (Keep case-insensitive comparison)
-_missing_cors = [
-    h
-    for h in ["if-match", "if-none-match"]
-    if h.lower() not in [x.lower() for x in CORS_ALLOWED_HEADERS]
-]
-if _missing_cors:
-    CORS_ALLOWED_HEADERS += _missing_cors
-
-# The django-cors-headers setting name uses CORS_ALLOW_HEADERS; mirror our list.
-CORS_ALLOW_HEADERS = CORS_ALLOWED_HEADERS
-
 # JWT/authentication settings
 ENABLE_JWT_AUTH = os.getenv("ENABLE_JWT_AUTH", "True").lower() == "true"
-
-ALLOW_BEARER_TOKEN_AUTHENTICATION = (
-    os.getenv("ALLOW_BEARER_TOKEN_AUTHENTICATION").lower() == "true"
-)
-BEARER_TOKEN_SECRET = os.getenv("BEARER_TOKEN_SECRET")
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": ["jobs_manager.authentication.JWTAuthentication"],
@@ -351,12 +240,12 @@ SIMPLE_JWT = {
     "AUTH_COOKIE": "access_token",
     "AUTH_COOKIE_SECURE": use_secure_cookies(),  # Secure cookies for production, UAT, and tunnels
     "AUTH_COOKIE_HTTP_ONLY": True,
-    "AUTH_COOKIE_SAMESITE": get_auth_cookie_samesite(),
-    "AUTH_COOKIE_DOMAIN": get_auth_cookie_domain(),
+    "AUTH_COOKIE_SAMESITE": "Lax",
+    "AUTH_COOKIE_DOMAIN": None,
     "REFRESH_COOKIE": "refresh_token",
     "REFRESH_COOKIE_SECURE": use_secure_cookies(),  # Secure cookies for production, UAT, and tunnels
     "REFRESH_COOKIE_HTTP_ONLY": True,
-    "REFRESH_COOKIE_SAMESITE": get_auth_cookie_samesite(),
+    "REFRESH_COOKIE_SAMESITE": "Lax",
 }
 
 # Session cookie settings
@@ -368,16 +257,10 @@ CSRF_COOKIE_HTTPONLY = False  # CSRF cookies need to be accessible to JS
 
 FRONT_END_URL = os.getenv("FRONT_END_URL", "")
 LOGIN_URL = FRONT_END_URL.rstrip("/") + "/login"
-LOGOUT_URL = "accounts:logout"
+LOGOUT_URL = "accounts:api_logout"
 LOGIN_REDIRECT_URL = FRONT_END_URL
 LOGIN_EXEMPT_URLS = [
-    "accounts:logout",
     "accounts:api_logout",
-    "accounts:password_reset",
-    "accounts:password_reset_done",
-    "accounts:reset",
-    "accounts:password_reset_confirm",
-    "accounts:password_reset_complete",
     "accounts:token_obtain_pair",
     "accounts:token_refresh",
     "accounts:token_verify",
@@ -385,23 +268,7 @@ LOGIN_EXEMPT_URLS = [
 
 # API path prefixes - single source of truth for middlewares
 # These paths bypass browser redirect and use DRF/JWT authentication
-API_PATH_PREFIXES = [
-    "/api/",
-    "/clients/",
-    "/job/api/",
-    "/job/rest/",
-    "/purchasing/api/",
-    "/accounts/api/",
-    "/accounts/me/",
-    "/accounts/logout/",
-    "/timesheets/api/",
-    "/quoting/api/",
-    "/accounting/api/",
-    "/api/schema/",
-    "/api/docs",
-    "/api/xero/",
-    "/login",
-]
+API_PATH_PREFIXES = ["/api/"]
 
 # For OpenAPI schema generator
 SPECTACULAR_SETTINGS = {
@@ -890,36 +757,16 @@ if PRODUCTION_LIKE:
         }
     }
 
-    # CORS Configuration - stricter for production
-    cors_origins_env = os.getenv("CORS_ALLOWED_ORIGINS")
-    if cors_origins_env:
-        CORS_ALLOWED_ORIGINS = [
-            origin.strip() for origin in cors_origins_env.split(",") if origin.strip()
-        ]
-    else:
-        CORS_ALLOWED_ORIGINS = []
-
-    # Add ngrok domain from environment if available
-    ngrok_domain = os.getenv("NGROK_DOMAIN")
-    if ngrok_domain and ngrok_domain not in CORS_ALLOWED_ORIGINS:
-        CORS_ALLOWED_ORIGINS.append(ngrok_domain)
-
-    # Add regex patterns for ngrok domains
-    CORS_ALLOWED_ORIGIN_REGEXES = [
-        r"^https://.*\.ngrok\.io$",
-        r"^https://.*\.ngrok-free\.app$",
-    ]
-
     # JWT Configuration for production - secure cookies
     SIMPLE_JWT.update(
         {
             "AUTH_COOKIE_SECURE": True,  # Require HTTPS for auth cookies in production
             "AUTH_COOKIE_HTTP_ONLY": True,  # httpOnly for security
-            "AUTH_COOKIE_SAMESITE": get_auth_cookie_samesite(),
+            "AUTH_COOKIE_SAMESITE": "Lax",
             "REFRESH_COOKIE": "refresh_token",
             "REFRESH_COOKIE_SECURE": True,  # Require HTTPS for refresh cookies
             "REFRESH_COOKIE_HTTP_ONLY": True,
-            "REFRESH_COOKIE_SAMESITE": get_auth_cookie_samesite(),
+            "REFRESH_COOKIE_SAMESITE": "Lax",
         }
     )
 

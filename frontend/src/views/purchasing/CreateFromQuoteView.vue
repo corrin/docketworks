@@ -194,7 +194,7 @@ const handleSubmit = async () => {
     formData.append('quote_file', selectedFile.value)
 
     // Call the extract endpoint with extended timeout for AI processing
-    const response = await api.post('/purchasing/api/supplier-quotes/extract/', formData, {
+    const response = await api.post('/api/purchasing/supplier-quotes/extract/', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },

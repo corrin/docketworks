@@ -107,7 +107,7 @@ export function useXeroAuth() {
   }
   async function logoutXero() {
     try {
-      await api.api_xero_disconnect_create(undefined)
+      await api.xero_disconnect_create(undefined)
       isAuthenticated.value = false
       router.push('/')
     } catch (err) {
@@ -118,7 +118,7 @@ export function useXeroAuth() {
 
   async function ensureAuth(): Promise<boolean> {
     try {
-      await api.api_xero_ping_retrieve()
+      await api.xero_ping_retrieve()
       return true
     } catch (err: unknown) {
       if (
@@ -142,7 +142,7 @@ export function useXeroAuth() {
     loading.value = true
     error.value = ''
     try {
-      const pingRes = await api.api_xero_ping_retrieve()
+      const pingRes = await api.xero_ping_retrieve()
       console.log('[Xero Debug] Ping response:', pingRes)
       const shouldAuth = !!(pingRes && pingRes.connected)
       console.log('[Xero Debug] Setting isAuthenticated to:', shouldAuth)
@@ -153,7 +153,7 @@ export function useXeroAuth() {
         loading.value = false
         return
       }
-      const syncInfo = await api.api_xero_sync_info_retrieve()
+      const syncInfo = await api.xero_sync_info_retrieve()
       entities.value = Object.keys(syncInfo.last_syncs || {})
       for (const entity of entities.value) {
         entityStats[entity] = {
@@ -182,7 +182,7 @@ export function useXeroAuth() {
   async function startSync() {
     error.value = ''
     try {
-      const res = await api.api_xero_sync_create(undefined)
+      const res = await api.xero_sync_create(undefined)
       if (!res || res.status !== 'success') throw new Error('Failed to start sync')
       startSSE()
     } catch (err: unknown) {
@@ -222,15 +222,7 @@ export function useXeroAuth() {
     }
     // SSE endpoint - intentionally excluded from OpenAPI schema
     // OpenAPI doesn't support SSE well; must use EventSource API directly
-    // EventSource cannot send Authorization headers. When using bearer auth,
-    // pass token as query param. With cookie auth, withCredentials handles it.
-    let sseUrl = `${getApiBaseUrl()}/api/xero/sync-stream/`
-    if (import.meta.env.VITE_AUTH_METHOD === 'bearer') {
-      const token = localStorage.getItem('auth_token')
-      if (token) {
-        sseUrl += `?token=${encodeURIComponent(token)}`
-      }
-    }
+    const sseUrl = `${getApiBaseUrl()}/api/xero/sync-stream/`
     eventSource.value = new EventSource(sseUrl, { withCredentials: true })
     eventSource.value.onmessage = (event: MessageEvent) => {
       const data = JSON.parse(event.data) as XeroSseEvent

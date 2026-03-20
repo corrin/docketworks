@@ -134,7 +134,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     try {
       debugLog(`Loading cost lines for job ${targetJobId}, kind: ${targetKind}`)
 
-      const costSet = await api.job_rest_jobs_cost_sets_retrieve({
+      const costSet = await api.job_jobs_cost_sets_retrieve({
         params: {
           id: targetJobId,
           kind: targetKind,
@@ -165,7 +165,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     error.value = null
 
     try {
-      const newLine = (await api.job_rest_jobs_cost_sets_cost_lines_create(payload, {
+      const newLine = (await api.job_jobs_cost_sets_cost_lines_create(payload, {
         params: {
           job_id: jobId.value,
           kind: kind.value,
@@ -191,7 +191,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     error.value = null
 
     try {
-      const updatedLine = (await api.job_rest_cost_lines_partial_update(payload, {
+      const updatedLine = (await api.job_cost_lines_partial_update(payload, {
         params: { cost_line_id: id },
       })) as CostLine
 
@@ -220,7 +220,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     error.value = null
 
     try {
-      await api.job_rest_cost_lines_delete_destroy(undefined, { params: { cost_line_id: id } })
+      await api.job_cost_lines_delete_destroy(undefined, { params: { cost_line_id: id } })
 
       lines.value = lines.value.filter((line) => line.id !== id)
 
@@ -279,7 +279,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
 
   async function loadCompanyDefaults() {
     try {
-      await api.api_company_defaults_retrieve()
+      await api.company_defaults_retrieve()
     } catch (err) {
       debugLog('Error loading company defaults:', err)
     }
@@ -290,7 +290,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     error.value = null
 
     try {
-      const response = await api.timesheets_api_staff_retrieve()
+      const response = await api.timesheets_staff_retrieve()
       staff.value = response.staff
     } catch (err) {
       error.value = 'Failed to load staff members'
@@ -305,7 +305,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     error.value = null
 
     try {
-      const response = await api.timesheets_api_jobs_retrieve()
+      const response = await api.timesheets_jobs_retrieve()
 
       // Fail early if backend contract is broken
       validateFields(
@@ -326,7 +326,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
 
   async function loadXeroPayItems() {
     try {
-      const items = await api.api_workflow_xero_pay_items_list()
+      const items = await api.workflow_xero_pay_items_list()
       xeroPayItems.value = items
       debugLog('Loaded Xero pay items:', items.length)
     } catch (err) {
@@ -376,7 +376,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
       const weekStart = startDate || toLocalDateString()
       debugLog('Loading weekly overview for:', weekStart)
 
-      currentWeekData.value = await api.timesheets_api_weekly_retrieve({
+      currentWeekData.value = await api.timesheets_weekly_retrieve({
         queries: { start_date: weekStart },
       })
 
@@ -441,10 +441,9 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         meta: costLineMeta,
       }
 
-      const newCostLine = (await api.job_rest_jobs_cost_sets_actual_cost_lines_create(
-        costLineData,
-        { params: { job_id: entryData.jobId } },
-      )) as CostLine
+      const newCostLine = (await api.job_jobs_cost_sets_actual_cost_lines_create(costLineData, {
+        params: { job_id: entryData.jobId },
+      })) as CostLine
 
       if (newCostLine) {
         // Add to lines if we're viewing the same job
@@ -508,7 +507,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         updatePayload.meta = mergedMeta
       }
 
-      const updatedCostLine = (await api.job_rest_cost_lines_partial_update(updatePayload, {
+      const updatedCostLine = (await api.job_cost_lines_partial_update(updatePayload, {
         params: { cost_line_id: entryId },
       })) as CostLine
 

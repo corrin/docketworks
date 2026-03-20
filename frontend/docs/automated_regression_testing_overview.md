@@ -3,7 +3,7 @@ Project brief: Add minimal E2E test + auto-screenshots for Django + Vue app
 Goal (MVP, ~4 hours)
 Add a single end-to-end smoke test that:
 
-Runs against the Vue frontend via ngrok (https://msm-workflow-front.ngrok-free.app).
+Runs against the Vue frontend via ngrok (https://docketworks-msm-dev.ngrok-free.app).
 
 Exercises one critical user flow end-to-end (login → core screen → core action).
 
@@ -15,11 +15,11 @@ Exposes a simple npm run test:e2e command as a pre-release check.
 
 Assume:
 
-Frontend: Vue (running behind ngrok).
+Frontend: Vue (running behind ngrok, proxying API requests to Django).
 
-Backend: Django (behind a separate ngrok URL).
+Backend: Django (accessed via Vite's `/api` proxy — no separate tunnel needed).
 
-Owner can start both servers and both ngrok tunnels manually before running the tests.
+Owner can start both servers and a single ngrok tunnel manually before running the tests.
 
 Phase 1 — Recon and assumptions
 
@@ -41,7 +41,7 @@ Find the components and selectors used there (labels, role names, data-testids, 
 
 Confirm how the frontend talks to the backend:
 
-Look for the API base URL (likely https://msm-workflow.ngrok-free.app) in an env file or config.
+The frontend uses Vite’s proxy to forward `/api` requests to Django on localhost:8000.
 
 Don’t change that for now; just note it.
 
@@ -76,7 +76,7 @@ import { defineConfig } from '@playwright/test';
 
 const baseURL =
 process.env.MSM_FRONTEND_URL ??
-'https://msm-workflow-front.ngrok-free.app';
+'https://docketworks-msm-dev.ngrok-free.app';
 
 export default defineConfig({
 timeout: 60_000,
@@ -99,7 +99,7 @@ Objective: one test that covers login + core flow + screenshots.
 
 Use Playwright’s codegen to bootstrap selectors:
 
-npx playwright codegen https://msm-workflow-front.ngrok-free.app
+npx playwright codegen https://docketworks-msm-dev.ngrok-free.app
 
 In the browser window:
 
@@ -197,7 +197,7 @@ Check DRF viewsets / views for something like /api/jobs/ or similar.
 If a suitable read endpoint exists, use page.request in the Playwright test to check it after the UI flow:
 
 const resp = await page.request.get(
-'https://msm-workflow.ngrok-free.app/api/jobs/',
+'https://docketworks-msm-dev.ngrok-free.app/api/jobs/',
 { params: { search: itemName } } // adapt to actual filters
 );
 expect(resp.ok()).toBeTruthy();
@@ -269,7 +269,7 @@ Start Django locally.
 
 Start Vue frontend locally.
 
-Start both ngrok tunnels so the frontend is at https://msm-workflow-front.ngrok-free.app and the backend at https://msm-workflow.ngrok-free.app.
+Start the ngrok tunnel so the app is at https://docketworks-msm-dev.ngrok-free.app (Vite proxies `/api` to Django).
 
 Run:
 
@@ -289,7 +289,7 @@ Add a short docs/testing.md or a README section explaining:
 
 Prereqs:
 
-“Start Django, Vue, and ngrok tunnels for frontend and backend.”
+“Start Django, Vue, and the ngrok tunnel.”
 
 Command:
 

@@ -291,7 +291,7 @@ const handleStaffClick = async (staff: KanbanJobPerson, event?: Event): Promise<
     operationSuccess.value = false
 
     try {
-      await api.job_api_job_assignment_destroy(undefined, {
+      await api.job_job_assignment_destroy(undefined, {
         params: { job_id: props.job.id, staff_id: staff.id },
       })
 
@@ -332,7 +332,7 @@ const assignStaffToJob = async (staffId: string | null): Promise<void> => {
   operationSuccess.value = false
 
   try {
-    await api.job_api_job_assignment_create(payload, {
+    await api.job_job_assignment_create(payload, {
       params: {
         job_id: props.job.id,
       },

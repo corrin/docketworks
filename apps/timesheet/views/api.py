@@ -720,7 +720,7 @@ class PostWeekToXeroPayrollAPIView(APIView):
         return Response(
             {
                 "task_id": task_id,
-                "stream_url": f"/timesheets/api/payroll/post-staff-week/stream/{task_id}/",
+                "stream_url": f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/",
             }
         )
 
@@ -731,7 +731,7 @@ def stream_payroll_post(request, task_id):
     """
     SSE endpoint to stream payroll posting progress.
 
-    Connect with: new EventSource('/timesheets/api/payroll/post-staff-week/stream/{task_id}/')
+    Connect with: new EventSource('/api/timesheets/payroll/post-staff-week/stream/{task_id}/')
     """
     # Check authentication - return 401 JSON instead of redirect for API endpoints
     guard = _require_authenticated_api(request)

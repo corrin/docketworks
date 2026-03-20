@@ -29,12 +29,10 @@ Require `GCP_CREDENTIALS` env var pointing to a service account JSON file:
 - **`cleanup_backups.py`** — Backup retention (keep 24h, daily for a week, monthly beyond)
 - **`cleanup_backups.sh`** — Wrapper that activates venv and runs `cleanup_backups.py`
 
-## Development setup
-
-- **`configure_tunnels.py`** — Updates `.env` files with tunnel URLs for ngrok/localtunnel
-
 ## Archive
 
 `scripts/archive/` contains scripts that were useful historically but are no longer active:
 
-- **`auto_shutdown.sh`** — AWS cost-saving auto-shutdown (obsolete since move to Oracle)
+- **`configure_tunnels.py`** — Old tunnel URL configuration (replaced by Vite proxy)
+- **`test_cross_domain_cookies.py`** — Old cross-domain cookie testing (obsolete with single-origin)
+- **`auto_shutdown.sh`** — Old AWS auto-shutdown (obsolete since move to docketworks.site)

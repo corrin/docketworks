@@ -206,7 +206,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                     raise exception
 
                 rate_multiplier = Decimal(rate_multiplier_value)
-                final_wage = wage_rate * rate_multiplier
+                final_wage = (wage_rate * rate_multiplier).quantize(Decimal("0.01"))
                 self.validated_data["unit_cost"] = final_wage
                 logger.debug(
                     f"Auto-calculated unit_cost: {final_wage} for staff {staff_id}"

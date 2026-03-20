@@ -25,7 +25,7 @@ export class QuoteChatService {
 
   async getChatHistory(jobId: string): Promise<JobQuoteChatHistoryResponse> {
     try {
-      return await api.job_api_jobs_quote_chat_retrieve({ params: { job_id: jobId } })
+      return await api.job_jobs_quote_chat_retrieve({ params: { job_id: jobId } })
     } catch (error) {
       debugLog('Failed to load chat history:', error)
       throw error
@@ -37,7 +37,7 @@ export class QuoteChatService {
     message: JobQuoteChatCreateRequest,
   ): Promise<JobQuoteChatInteractionSuccessResponse> {
     try {
-      return await api.job_api_jobs_quote_chat_create(message, { params: { job_id: jobId } })
+      return await api.job_jobs_quote_chat_create(message, { params: { job_id: jobId } })
     } catch (error) {
       debugLog('Failed to save chat message:', error)
       throw error
@@ -54,7 +54,7 @@ export class QuoteChatService {
         content: updates.content,
         metadata: updates.metadata,
       }
-      return await api.job_api_jobs_quote_chat_partial_update(payload, {
+      return await api.job_jobs_quote_chat_partial_update(payload, {
         params: { job_id: jobId, message_id: messageId },
       })
     } catch (error) {
@@ -103,7 +103,7 @@ export class QuoteChatService {
   ): Promise<JobQuoteChat> {
     try {
       const request: JobQuoteChatInteractionRequest = { message, mode }
-      const response = await api.job_api_jobs_quote_chat_interaction_create(request, {
+      const response = await api.job_jobs_quote_chat_interaction_create(request, {
         params: { job_id: jobId },
         timeout: 120000, // 2 minutes for AI processing
       })

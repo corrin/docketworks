@@ -32,7 +32,7 @@ const getJobDescription = (job: Job) => {
 onMounted(async () => {
   loading.value = true
   try {
-    jobs.value = await api.job_api_jobs_workshop_list()
+    jobs.value = await api.job_jobs_workshop_list()
   } catch (error) {
     debugLog('Error when trying to load jobs for workshop kanban: ', error)
     toast('Failed to load jobs. Please try again and contact Corrin if the problem persists.')

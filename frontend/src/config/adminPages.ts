@@ -6,7 +6,7 @@ import {
   AlertTriangle,
   Bot,
   Brain,
-  Server,
+  ExternalLink,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { APP_NAME } from '@/config/app'
@@ -18,6 +18,7 @@ export interface AdminPage {
   title: string // Page title (app name appended automatically)
   icon: Component
   component: () => Promise<Component>
+  externalUrl?: string // If set, opens this URL in a new tab instead of routing
 }
 
 // Define pages with short titles - APP_NAME is appended in the getter
@@ -59,7 +60,6 @@ const adminPagesConfig = [
     icon: Brain,
     view: 'AdminAIProvidersView',
   },
-  { key: 'uat', label: 'Manage UAT', title: 'Manage UAT', icon: Server, view: 'UATManagementView' },
 ] as const
 
 export const adminPages: AdminPage[] = adminPagesConfig.map((page) => ({
@@ -70,6 +70,19 @@ export const adminPages: AdminPage[] = adminPagesConfig.map((page) => ({
   icon: page.icon,
   component: () => import(`@/views/${page.view}.vue`),
 }))
+
+// External links shown alongside admin pages in menus (open in new tab)
+export const adminExternalLinks: AdminPage[] = [
+  {
+    key: 'uat',
+    name: 'open-uat',
+    label: 'Open UAT',
+    title: 'Open UAT',
+    icon: ExternalLink,
+    component: () => Promise.resolve({} as Component),
+    externalUrl: import.meta.env.VITE_UAT_URL,
+  },
+]
 
 // Default admin page (for redirect from /admin)
 export const defaultAdminPage = adminPages[0]

@@ -299,26 +299,3 @@ class TokenRefreshResponseSerializer(serializers.Serializer):
         required=False,
         help_text="New JWT access token (only present when not using httpOnly cookies)",
     )
-
-
-class BearerTokenSerializer(serializers.Serializer):
-    """
-    Serializer for bearer token generation request.
-    """
-
-    username = serializers.CharField(
-        required=True, help_text="Username or email address"
-    )
-    password = serializers.CharField(
-        required=True, help_text="User password", write_only=True
-    )
-
-
-class BearerTokenResponseSerializer(serializers.Serializer):
-    """
-    Serializer for bearer token generation response.
-    """
-
-    token = serializers.CharField(
-        required=True, help_text="Bearer token for API authentication"
-    )

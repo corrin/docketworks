@@ -64,7 +64,7 @@ export function useWorkshopTimesheetDay(selectedDate: Ref<string>) {
     }
 
     try {
-      const response = await api.job_api_workshop_timesheets_retrieve({
+      const response = await api.job_workshop_timesheets_retrieve({
         queries: { date: dateKey },
       })
       dailyData.value = {

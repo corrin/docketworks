@@ -138,7 +138,7 @@ sudo systemctl restart gunicorn-<name>
    sudo -u docketworks bash -c "
        cd /opt/docketworks/<name>/frontend
        npm install
-       VITE_API_BASE_URL='https://<name>.docketworks.site' npm run build
+       npm run build
    "
    ```
 

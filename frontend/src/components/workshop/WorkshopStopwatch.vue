@@ -71,7 +71,7 @@ async function recordStopwatchTime() {
     const description = `Recorded from workshop stopwatch${props.jobName ? ` for ${props.jobName}` : ''}`
     const rateMultiplierOrd = 1 // 'Ord' multiplier
 
-    await api.job_api_workshop_timesheets_create({
+    await api.job_workshop_timesheets_create({
       job_id: props.jobId,
       accounting_date: accountingDate,
       start_time,

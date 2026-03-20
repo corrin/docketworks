@@ -237,7 +237,7 @@ async function fetchJobs() {
   try {
     debugLog('Loading jobs for purchase order...')
     // Use the all-jobs endpoint which returns the expected format with jobs array
-    const response = await api.purchasing_rest_all_jobs_retrieve()
+    const response = await api.purchasing_all_jobs_retrieve()
     debugLog('Zodios response:', response)
 
     if (!response.success) {
@@ -750,7 +750,7 @@ async function syncWithXero() {
   toast.info('Syncing with Xero…', { id: 'po-sync-loading' })
 
   try {
-    const data = await api.api_xero_create_purchase_order_create(undefined, {
+    const data = await api.xero_create_purchase_order_create(undefined, {
       params: { purchase_order_id: orderId },
     })
 

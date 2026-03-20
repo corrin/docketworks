@@ -271,7 +271,7 @@ export const useJobsStore = defineStore('jobs', () => {
 
   const loadBasicInfo = async (jobId: string): Promise<JobBasicInfo | null> => {
     try {
-      const data = await api.job_rest_jobs_basic_info_retrieve({
+      const data = await api.job_jobs_basic_info_retrieve({
         params: { job_id: jobId },
       })
 
@@ -407,7 +407,7 @@ export const useJobsStore = defineStore('jobs', () => {
       // 2) Also fetch the lightweight header directly to guarantee the latest name/status/etc.
       //    This ensures views bound to headersById reflect backend changes immediately.
       try {
-        const headerResponse = await api.job_rest_jobs_header_retrieve({
+        const headerResponse = await api.job_jobs_header_retrieve({
           params: { job_id: jobId },
         })
         setHeader(headerResponse)
@@ -425,7 +425,7 @@ export const useJobsStore = defineStore('jobs', () => {
 
       // 3) Refresh Basic Info to reflect immediately in JobSettingsTab
       try {
-        const bi = await api.job_rest_jobs_basic_info_retrieve({
+        const bi = await api.job_jobs_basic_info_retrieve({
           params: { job_id: jobId },
         })
         setBasicInfo(jobId, bi)

@@ -24,8 +24,8 @@
 
 **Target**:
 
-- Frontend: `https://msm-workflow-front.ngrok-free.app` (or localhost)
-- Backend: `https://msm-workflow.ngrok-free.app` (or localhost)
+- Dev URL: `https://docketworks-msm-dev.ngrok-free.app` (or localhost:5173)
+- Vite proxies `/api` to Django on localhost:8000 (single tunnel)
 
 **Xero**: Demo company (safe to pollute)
 

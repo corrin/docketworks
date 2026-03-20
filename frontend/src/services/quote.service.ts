@@ -14,18 +14,18 @@ class QuoteService {
   async linkQuote(jobId: string, templateUrl?: string): Promise<QuoteSpreadsheet | null> {
     const payload: LinkQuoteSheetRequest = templateUrl ? { template_url: templateUrl } : {}
 
-    await api.job_rest_jobs_quote_link_create(payload, { params: { id: jobId } })
+    await api.job_jobs_quote_link_create(payload, { params: { id: jobId } })
 
     const jobResponse = await api.getJobSummary({ params: { job_id: jobId } })
     return jobResponse.data?.job?.quote_sheet ?? null
   }
 
   async previewQuote(jobId: string): Promise<PreviewQuoteResponse> {
-    return api.job_rest_jobs_quote_preview_create({}, { params: { id: jobId } })
+    return api.job_jobs_quote_preview_create({}, { params: { id: jobId } })
   }
 
   async applyQuote(jobId: string): Promise<ApplyQuoteResponse> {
-    return api.job_rest_jobs_quote_apply_create({ success: true }, { params: { id: jobId } })
+    return api.job_jobs_quote_apply_create({ success: true }, { params: { id: jobId } })
   }
 
   hasLinkedSheet(job: Job): boolean {
@@ -37,7 +37,7 @@ class QuoteService {
   }
 
   async getQuoteStatus(jobId: string): Promise<QuoteImportStatusResponse> {
-    return await api.job_rest_jobs_quote_status_retrieve({ params: { job_id: jobId } })
+    return await api.job_jobs_quote_status_retrieve({ params: { job_id: jobId } })
   }
 }
 

@@ -203,7 +203,7 @@ const ensureSummary = (s?: JobCostSetSummaryOutput | null): NormalizedCostSummar
 async function loadAll() {
   loading.value = true
   try {
-    const resp: JobCostSummaryResponse = await api.job_rest_jobs_costs_summary_retrieve({
+    const resp: JobCostSummaryResponse = await api.job_jobs_costs_summary_retrieve({
       params: { job_id: props.jobId },
     })
 

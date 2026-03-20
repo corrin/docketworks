@@ -30,7 +30,7 @@ class ProcessDocumentsService {
   // ============================================================
 
   async getCategories(): Promise<CategoriesResponse> {
-    return api.process_rest_categories_retrieve()
+    return api.process_categories_retrieve()
   }
 
   // ============================================================
@@ -55,30 +55,27 @@ class ProcessDocumentsService {
       }
     }
 
-    return api.process_rest_forms_list({ params: { category }, queries })
+    return api.process_forms_list({ params: { category }, queries })
   }
 
   async getForm(category: string, id: string): Promise<FormDetail> {
-    return api.process_rest_forms_retrieve({ params: { category, id } })
+    return api.process_forms_retrieve({ params: { category, id } })
   }
 
   async createForm(category: string, payload: FormCreateRequest): Promise<FormDetail> {
-    return api.process_rest_forms_create(payload, { params: { category } })
+    return api.process_forms_create(payload, { params: { category } })
   }
 
   async updateForm(category: string, id: string, payload: FormUpdateRequest): Promise<FormDetail> {
-    return api.process_rest_forms_update(payload, { params: { category, id } })
+    return api.process_forms_update(payload, { params: { category, id } })
   }
 
   async deleteForm(category: string, id: string): Promise<void> {
-    await api.process_rest_forms_destroy(undefined, { params: { category, id } })
+    await api.process_forms_destroy(undefined, { params: { category, id } })
   }
 
   async fillForm(category: string, id: string, jobId?: string): Promise<FormEntry> {
-    return api.process_rest_forms_fill_create(
-      { job_id: jobId ?? null },
-      { params: { category, id } },
-    )
+    return api.process_forms_fill_create({ job_id: jobId ?? null }, { params: { category, id } })
   }
 
   // ============================================================
@@ -86,7 +83,7 @@ class ProcessDocumentsService {
   // ============================================================
 
   async listEntries(category: string, documentId: string): Promise<FormEntry[]> {
-    return api.process_rest_forms_entries_list({
+    return api.process_forms_entries_list({
       params: { category, document_pk: documentId },
     })
   }
@@ -96,7 +93,7 @@ class ProcessDocumentsService {
     documentId: string,
     payload: FormEntryRequest,
   ): Promise<FormEntry> {
-    return api.process_rest_forms_entries_create(payload, {
+    return api.process_forms_entries_create(payload, {
       params: { category, document_pk: documentId },
     })
   }
@@ -107,7 +104,7 @@ class ProcessDocumentsService {
     entryId: string,
     payload: FormEntryRequest,
   ): Promise<FormEntry> {
-    return api.process_rest_forms_entries_update(payload, {
+    return api.process_forms_entries_update(payload, {
       params: { category, document_pk: documentId, id: entryId },
     })
   }
@@ -134,18 +131,18 @@ class ProcessDocumentsService {
       }
     }
 
-    return api.process_rest_procedures_list({ params: { category }, queries })
+    return api.process_procedures_list({ params: { category }, queries })
   }
 
   async getProcedure(category: string, id: string): Promise<ProcedureDetail> {
-    return api.process_rest_procedures_retrieve({ params: { category, id } })
+    return api.process_procedures_retrieve({ params: { category, id } })
   }
 
   async createProcedure(
     category: string,
     payload: ProcedureCreateRequest,
   ): Promise<ProcedureDetail> {
-    return api.process_rest_procedures_create(payload, { params: { category } })
+    return api.process_procedures_create(payload, { params: { category } })
   }
 
   async updateProcedure(
@@ -153,11 +150,11 @@ class ProcessDocumentsService {
     id: string,
     payload: ProcedureUpdateRequest,
   ): Promise<ProcedureDetail> {
-    return api.process_rest_procedures_update(payload, { params: { category, id } })
+    return api.process_procedures_update(payload, { params: { category, id } })
   }
 
   async deleteProcedure(category: string, id: string): Promise<void> {
-    await api.process_rest_procedures_destroy(undefined, { params: { category, id } })
+    await api.process_procedures_destroy(undefined, { params: { category, id } })
   }
 
   // ============================================================
@@ -165,7 +162,7 @@ class ProcessDocumentsService {
   // ============================================================
 
   async getProcedureContent(category: string, id: string): Promise<SafetyDocumentContent> {
-    const response = await api.process_rest_procedures_content_retrieve({
+    const response = await api.process_procedures_content_retrieve({
       params: { category, id },
     })
     return {
@@ -180,7 +177,7 @@ class ProcessDocumentsService {
     id: string,
     content: Partial<SafetyDocumentContent>,
   ): Promise<ProcedureDetail> {
-    return api.process_rest_procedures_content_update(content, {
+    return api.process_procedures_content_update(content, {
       params: { category, id },
     })
   }
@@ -190,15 +187,15 @@ class ProcessDocumentsService {
   // ============================================================
 
   async listJobJSAs(jobId: string): Promise<ProcedureListItem[]> {
-    return api.process_rest_jobs_jsa_list({ params: { job_id: jobId } })
+    return api.process_jobs_jsa_list({ params: { job_id: jobId } })
   }
 
   async generateJobJSA(jobId: string): Promise<ProcedureDetail> {
-    return api.process_rest_jobs_jsa_generate_create(undefined, { params: { job_id: jobId } })
+    return api.process_jobs_jsa_generate_create(undefined, { params: { job_id: jobId } })
   }
 
   async generateSWP(request: SWPGenerateRequest): Promise<ProcedureDetail> {
-    return api.process_rest_procedures_safety_generate_swp_create(request)
+    return api.process_procedures_safety_generate_swp_create(request)
   }
 
   // ============================================================
@@ -206,14 +203,14 @@ class ProcessDocumentsService {
   // ============================================================
 
   async generateHazards(taskDescription: string): Promise<string[]> {
-    const response = await api.process_rest_safety_ai_generate_hazards_create({
+    const response = await api.process_safety_ai_generate_hazards_create({
       task_description: taskDescription,
     })
     return response.hazards
   }
 
   async generateControls(hazards: string[], taskDescription?: string): Promise<ControlMeasure[]> {
-    const response = await api.process_rest_safety_ai_generate_controls_create({
+    const response = await api.process_safety_ai_generate_controls_create({
       hazards,
       task_description: taskDescription,
     })
@@ -225,7 +222,7 @@ class ProcessDocumentsService {
     sectionType: SectionType,
     context?: string,
   ): Promise<string> {
-    const response = await api.process_rest_safety_ai_improve_section_create({
+    const response = await api.process_safety_ai_improve_section_create({
       section_text: sectionText,
       section_type: sectionType,
       context,
@@ -237,7 +234,7 @@ class ProcessDocumentsService {
     rawText: string,
     documentType: SafetyDocumentType,
   ): Promise<SafetyDocumentContent> {
-    const response = await api.process_rest_safety_ai_improve_document_create({
+    const response = await api.process_safety_ai_improve_document_create({
       raw_text: rawText,
       document_type: documentType,
     })

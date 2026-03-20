@@ -64,28 +64,6 @@ class AccessLoggingMiddleware:
                 # If JWT authentication fails, continue with anonymous user
                 pass
 
-        # Fallback: token query param (for SSE where cookies don't work)
-        if not request.user.is_authenticated:
-            token = request.GET.get("token")
-            if token:
-                try:
-                    import jwt
-                    from django.contrib.auth import get_user_model
-                    from django.core.exceptions import ObjectDoesNotExist
-
-                    payload = jwt.decode(
-                        token,
-                        settings.BEARER_TOKEN_SECRET,
-                        algorithms=["HS256"],
-                        options={"verify_exp": True},
-                    )
-                    if payload.get("user_id"):
-                        request.user = get_user_model().objects.get(
-                            id=payload["user_id"]
-                        )
-                except (jwt.InvalidTokenError, ObjectDoesNotExist):
-                    pass
-
         # Handle unhappy case first - unauthenticated users
         if not request.user.is_authenticated:
             return self.get_response(request)
@@ -241,7 +219,7 @@ class LoginRequiredMiddleware:
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
         # Debug logging for client create endpoint
-        if request.path_info == "/clients/create/":
+        if request.path_info == "/api/clients/create/":
             access_logger.info(
                 f"DEBUG LoginRequiredMiddleware: Processing {request.path_info}"
             )
@@ -254,15 +232,14 @@ class LoginRequiredMiddleware:
 
         # In DEBUG mode, skip login requirements entirely
         if settings.DEBUG:
-            if request.path_info == "/clients/create/":
+            if request.path_info == "/api/clients/create/":
                 access_logger.info(
                     "DEBUG LoginRequiredMiddleware: Skipping due to DEBUG mode"
                 )
             return self.get_response(request)
 
-        login_path = reverse("accounts:login")
-        # Allow POST requests to login endpoint
-        login_path = reverse("accounts:login").rstrip("/")
+        # Allow POST requests to JWT login endpoint
+        login_path = reverse("accounts:token_obtain_pair").rstrip("/")
         req_path = request.path_info.rstrip("/")
         if request.method == "POST" and req_path == login_path:
             return self.get_response(request)
@@ -286,14 +263,14 @@ class LoginRequiredMiddleware:
             if any(
                 request.path_info.startswith(endpoint) for endpoint in drf_endpoints
             ):
-                if request.path_info == "/clients/create/":
+                if request.path_info == "/api/clients/create/":
                     access_logger.info(
                         f"DEBUG LoginRequiredMiddleware: Allowing DRF endpoint {request.path_info}"
                     )
                 # Allow cost set endpoint without authentication for testing
                 if (
                     settings.DEBUG_PAYLOAD
-                    and request.path_info.startswith("/job/rest/jobs/")
+                    and request.path_info.startswith("/api/job/jobs/")
                     and "cost-sets" in request.path_info
                 ):
                     access_logger.info(
@@ -345,8 +322,7 @@ class PasswordStrengthMiddleware:
         if request.user.is_authenticated and request.user.password_needs_reset:
             exempt_urls = [
                 reverse("accounts:password_change"),
-                reverse("accounts:password_change_done"),
-                reverse("accounts:logout"),
+                reverse("accounts:api_logout"),
                 reverse("accounts:token_obtain_pair"),
                 reverse("accounts:token_refresh"),
                 reverse("accounts:token_verify"),
