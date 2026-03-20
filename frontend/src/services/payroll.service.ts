@@ -105,15 +105,7 @@ export async function postStaffWeek(
 
   // Step 2: Connect to SSE stream using EventSource (matches Xero sync pattern)
   // Prefix with API base URL since frontend/backend may be on different origins
-  // EventSource cannot send Authorization headers - pass token via query param for bearer auth
-  let sseUrl = `${getApiBaseUrl()}${stream_url}`
-  if (import.meta.env.VITE_AUTH_METHOD === 'bearer') {
-    const token = localStorage.getItem('auth_token')
-    if (token) {
-      const separator = sseUrl.includes('?') ? '&' : '?'
-      sseUrl += `${separator}token=${encodeURIComponent(token)}`
-    }
-  }
+  const sseUrl = `${getApiBaseUrl()}${stream_url}`
 
   return new Promise((resolve, reject) => {
     const eventSource = new EventSource(sseUrl, { withCredentials: true })

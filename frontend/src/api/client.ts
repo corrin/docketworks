@@ -90,14 +90,6 @@ axios.interceptors.request.use(
       config.params = trimStringsDeep(config.params)
     }
 
-    // Add bearer token if using bearer auth
-    if (import.meta.env.VITE_AUTH_METHOD === 'bearer') {
-      const token = localStorage.getItem('auth_token')
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`
-      }
-    }
-
     // Add If-Match header for job mutation endpoints
     const url = config.url || ''
     if (isJobMutationEndpoint(url)) {
