@@ -324,19 +324,6 @@ class AppErrorDetailResponseSerializer(serializers.Serializer):
     resolved_timestamp = serializers.DateTimeField(allow_null=True)
 
 
-# ---------------------------------------------------------------------------
-# AWS Instance Management Serializers
-# ---------------------------------------------------------------------------
-
-
-class AWSInstanceStatusResponseSerializer(serializers.Serializer):
-    """Serializer for AWS instance status responses."""
-
-    success = serializers.BooleanField()
-    status = serializers.CharField(required=False)
-    error = serializers.CharField(required=False)
-    details = serializers.CharField(required=False)
-
 
 # ---------------------------------------------------------------------------
 # Company Defaults Schema Serializers

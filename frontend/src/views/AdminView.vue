@@ -25,6 +25,14 @@
             {{ tab.label }}
           </RouterLink>
         </li>
+        <li v-for="link in externalLinks" :key="link.key">
+          <a :href="link.url" target="_blank" rel="noopener noreferrer" class="tab-link">
+            <span v-if="link.icon" class="tab-icon">
+              <component :is="link.icon" />
+            </span>
+            {{ link.label }}
+          </a>
+        </li>
       </ul>
       <div class="sidebar-footer text-white bold">Admin Panel</div>
     </nav>
@@ -42,7 +50,7 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAppLayout } from '@/composables/useAppLayout'
-import { adminPages } from '@/config/adminPages'
+import { adminPages, adminExternalLinks } from '@/config/adminPages'
 import { debugLog } from '../utils/debug'
 
 const { userInfo } = useAppLayout()
@@ -74,6 +82,17 @@ const tabs = computed(() =>
     route: page.name,
     icon: page.icon,
   })),
+)
+
+const externalLinks = computed(() =>
+  adminExternalLinks
+    .filter((link) => link.externalUrl)
+    .map((link) => ({
+      key: link.key,
+      label: link.label,
+      icon: link.icon,
+      url: link.externalUrl,
+    })),
 )
 
 function isActive(key: string) {

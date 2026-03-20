@@ -48,13 +48,6 @@ from apps.workflow.views.app_error_view import (
     AppErrorRestListView,
     AppErrorViewSet,
 )
-from apps.workflow.views.aws_instance_view import (
-    AWSInstanceManagementView,
-    get_instance_status,
-    reboot_instance,
-    start_instance,
-    stop_instance,
-)
 from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
 from apps.workflow.views.xero import xero_view
@@ -76,15 +69,6 @@ home_pattern.functional_group = "Main Redirect"  # type: ignore[attr-defined]
 urlpatterns = [
     # Redirect to Kanban board
     home_pattern,
-    path(
-        "api/aws/instance/",
-        AWSInstanceManagementView.as_view(),
-        name="aws_instance_management",
-    ),
-    path("api/aws/instance/status/", get_instance_status, name="aws_instance_status"),
-    path("api/aws/instance/start/", start_instance, name="aws_instance_start"),
-    path("api/aws/instance/stop/", stop_instance, name="aws_instance_stop"),
-    path("api/aws/instance/reboot/", reboot_instance, name="aws_instance_reboot"),
     path("api/enums/<str:enum_name>/", get_enum_choices, name="get_enum_choices"),
     path(
         "api/xero/authenticate/",

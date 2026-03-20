@@ -19,7 +19,7 @@ class JWTAuthentication(BaseJWTAuthentication):
         if not getattr(settings, "ENABLE_JWT_AUTH", False):
             return None
 
-        # If user already authenticated by middleware (e.g., BearerIdentityMiddleware), use that
+        # If user already authenticated by middleware, use that
         # Use underlying Django request to avoid triggering DRF's _authenticate() recursion
         django_request = getattr(request, "_request", request)
         if hasattr(django_request, "user") and django_request.user.is_authenticated:
@@ -46,7 +46,6 @@ class JWTAuthentication(BaseJWTAuthentication):
                 )
 
             # Only look at cookies, not Authorization header
-            # Authorization: Bearer is handled by BearerIdentityMiddleware
             raw_token = self.get_raw_token_from_cookie(request)
             result = None
             if raw_token is not None:

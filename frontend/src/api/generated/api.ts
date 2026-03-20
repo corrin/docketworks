@@ -275,11 +275,6 @@ const StaffPerformanceResponse = z.object({
   staff: z.array(StaffPerformanceStaffData),
   period_summary: StaffPerformancePeriodSummary,
 })
-const BearerTokenRequest = z.object({
-  username: z.string().min(1),
-  password: z.string().min(1),
-})
-const BearerTokenResponse = z.object({ token: z.string() })
 const Staff = z.object({
   id: z.string().uuid(),
   email: z.string().max(254).email(),
@@ -414,12 +409,6 @@ const UserProfile = z.object({
   fullName: z.string(),
   is_office_staff: z.boolean(),
   is_superuser: z.boolean(),
-})
-const AWSInstanceStatusResponse = z.object({
-  success: z.boolean(),
-  status: z.string().optional(),
-  error: z.string().optional(),
-  details: z.string().optional(),
 })
 const CompanyDefaults = z.object({
   id: z.number().int(),
@@ -2844,8 +2833,6 @@ export const schemas = {
   StaffPerformanceStaffData,
   StaffPerformancePeriodSummary,
   StaffPerformanceResponse,
-  BearerTokenRequest,
-  BearerTokenResponse,
   Staff,
   StaffCreateRequest,
   StaffRequest,
@@ -2857,7 +2844,6 @@ export const schemas = {
   TokenRefreshResponse,
   TokenVerifyRequest,
   UserProfile,
-  AWSInstanceStatusResponse,
   CompanyDefaults,
   CompanyDefaultsRequest,
   PatchedCompanyDefaultsRequest,
@@ -3418,33 +3404,6 @@ Returns:
     response: StaffPerformanceResponse,
   },
   {
-    method: 'post',
-    path: '/accounts/api/bearer-token/',
-    alias: 'accounts_api_bearer_token_create',
-    description: `Generate bearer token. Only enabled when ALLOW_BEARER_TOKEN_AUTHENTICATION&#x3D;True.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: BearerTokenRequest,
-      },
-    ],
-    response: z.object({ token: z.string() }),
-    errors: [
-      {
-        status: 401,
-        description: `No response body`,
-        schema: z.void(),
-      },
-      {
-        status: 403,
-        description: `No response body`,
-        schema: z.void(),
-      },
-    ],
-  },
-  {
     method: 'get',
     path: '/accounts/api/staff/',
     alias: 'accounts_api_staff_list',
@@ -3646,38 +3605,6 @@ information about a token&#x27;s fitness for a particular use.`,
     description: `Get current authenticated user information via JWT from httpOnly cookie`,
     requestFormat: 'json',
     response: UserProfile,
-  },
-  {
-    method: 'post',
-    path: '/api/aws/instance/reboot/',
-    alias: 'api_aws_instance_reboot_create',
-    description: `Reboot the UAT instance`,
-    requestFormat: 'json',
-    response: AWSInstanceStatusResponse,
-  },
-  {
-    method: 'post',
-    path: '/api/aws/instance/start/',
-    alias: 'api_aws_instance_start_create',
-    description: `Start the UAT instance`,
-    requestFormat: 'json',
-    response: AWSInstanceStatusResponse,
-  },
-  {
-    method: 'get',
-    path: '/api/aws/instance/status/',
-    alias: 'api_aws_instance_status_retrieve',
-    description: `Get current status of the UAT instance`,
-    requestFormat: 'json',
-    response: AWSInstanceStatusResponse,
-  },
-  {
-    method: 'post',
-    path: '/api/aws/instance/stop/',
-    alias: 'api_aws_instance_stop_create',
-    description: `Stop the UAT instance`,
-    requestFormat: 'json',
-    response: AWSInstanceStatusResponse,
   },
   {
     method: 'get',

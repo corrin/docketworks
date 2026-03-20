@@ -383,35 +383,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/StaffPerformanceResponse'
           description: ''
-  /accounts/api/bearer-token/:
-    post:
-      operationId: accounts_api_bearer_token_create
-      description: Generate bearer token. Only enabled when ALLOW_BEARER_TOKEN_AUTHENTICATION=True.
-      tags:
-        - accounts
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/BearerTokenRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/BearerTokenRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/BearerTokenRequest'
-        required: true
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/BearerTokenResponse'
-          description: ''
-        '401':
-          description: No response body
-        '403':
-          description: No response body
   /accounts/api/staff/:
     get:
       operationId: accounts_api_staff_list
@@ -739,66 +710,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UserProfile'
-          description: ''
-  /api/aws/instance/reboot/:
-    post:
-      operationId: api_aws_instance_reboot_create
-      description: Reboot the UAT instance
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AWSInstanceStatusResponse'
-          description: ''
-  /api/aws/instance/start/:
-    post:
-      operationId: api_aws_instance_start_create
-      description: Start the UAT instance
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AWSInstanceStatusResponse'
-          description: ''
-  /api/aws/instance/status/:
-    get:
-      operationId: api_aws_instance_status_retrieve
-      description: Get current status of the UAT instance
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AWSInstanceStatusResponse'
-          description: ''
-  /api/aws/instance/stop/:
-    post:
-      operationId: api_aws_instance_stop_create
-      description: Stop the UAT instance
-      tags:
-        - api
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/AWSInstanceStatusResponse'
           description: ''
   /api/company-defaults/:
     get:
@@ -7634,20 +7545,6 @@ components:
       required:
         - name
         - provider_type
-    AWSInstanceStatusResponse:
-      type: object
-      description: Serializer for AWS instance status responses.
-      properties:
-        success:
-          type: boolean
-        status:
-          type: string
-        error:
-          type: string
-        details:
-          type: string
-      required:
-        - success
     AdvancedSearchResponse:
       type: object
       description: Serializer for advanced_search response.
@@ -8086,31 +7983,6 @@ components:
       required:
         - message
         - success
-    BearerTokenRequest:
-      type: object
-      description: Serializer for bearer token generation request.
-      properties:
-        username:
-          type: string
-          minLength: 1
-          description: Username or email address
-        password:
-          type: string
-          writeOnly: true
-          minLength: 1
-          description: User password
-      required:
-        - password
-        - username
-    BearerTokenResponse:
-      type: object
-      description: Serializer for bearer token generation response.
-      properties:
-        token:
-          type: string
-          description: Bearer token for API authentication
-      required:
-        - token
     BlankEnum:
       enum:
         - ''

@@ -64,28 +64,6 @@ class AccessLoggingMiddleware:
                 # If JWT authentication fails, continue with anonymous user
                 pass
 
-        # Fallback: token query param (for SSE where cookies don't work)
-        if not request.user.is_authenticated:
-            token = request.GET.get("token")
-            if token:
-                try:
-                    import jwt
-                    from django.contrib.auth import get_user_model
-                    from django.core.exceptions import ObjectDoesNotExist
-
-                    payload = jwt.decode(
-                        token,
-                        settings.BEARER_TOKEN_SECRET,
-                        algorithms=["HS256"],
-                        options={"verify_exp": True},
-                    )
-                    if payload.get("user_id"):
-                        request.user = get_user_model().objects.get(
-                            id=payload["user_id"]
-                        )
-                except (jwt.InvalidTokenError, ObjectDoesNotExist):
-                    pass
-
         # Handle unhappy case first - unauthenticated users
         if not request.user.is_authenticated:
             return self.get_response(request)

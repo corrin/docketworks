@@ -4,15 +4,6 @@
 
 ## API Endpoints
 
-#### Aws Management
-| URL Pattern | View | Name | Description |
-|-------------|------|------|-------------|
-| `/api/aws/instance/` | `aws_instance_view.AWSInstanceManagementView` | `aws_instance_management` | Combined view for AWS instance management operations |
-| `/api/aws/instance/reboot/` | `aws_instance_view.reboot_instance` | `aws_instance_reboot` | Reboot the UAT instance |
-| `/api/aws/instance/start/` | `aws_instance_view.start_instance` | `aws_instance_start` | Start the UAT instance |
-| `/api/aws/instance/status/` | `aws_instance_view.get_instance_status` | `aws_instance_status` | Get current status of the UAT instance |
-| `/api/aws/instance/stop/` | `aws_instance_view.stop_instance` | `aws_instance_stop` | Stop the UAT instance |
-
 #### Reports
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|

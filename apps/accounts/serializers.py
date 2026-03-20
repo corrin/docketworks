@@ -301,24 +301,3 @@ class TokenRefreshResponseSerializer(serializers.Serializer):
     )
 
 
-class BearerTokenSerializer(serializers.Serializer):
-    """
-    Serializer for bearer token generation request.
-    """
-
-    username = serializers.CharField(
-        required=True, help_text="Username or email address"
-    )
-    password = serializers.CharField(
-        required=True, help_text="User password", write_only=True
-    )
-
-
-class BearerTokenResponseSerializer(serializers.Serializer):
-    """
-    Serializer for bearer token generation response.
-    """
-
-    token = serializers.CharField(
-        required=True, help_text="Bearer token for API authentication"
-    )

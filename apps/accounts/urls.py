@@ -2,7 +2,6 @@ from django.contrib.auth import views as auth_views
 from django.urls import path
 from rest_framework_simplejwt.views import TokenVerifyView
 
-from apps.accounts.views.bearer_token_view import BearerTokenView
 from apps.accounts.views.password_views import SecurityPasswordChangeView
 from apps.accounts.views.staff_api import (
     StaffListCreateAPIView,
@@ -31,7 +30,6 @@ urlpatterns = [
     path("api/token/", CustomTokenObtainPairView.as_view(), name="token_obtain_pair"),
     path("api/token/refresh/", CustomTokenRefreshView.as_view(), name="token_refresh"),
     path("api/token/verify/", TokenVerifyView.as_view(), name="token_verify"),
-    path("api/bearer-token/", BearerTokenView.as_view(), name="bearer_token"),
     # User profile API endpoints
     path("me/", GetCurrentUserAPIView.as_view(), name="get_current_user"),
     path("logout/", LogoutUserAPIView.as_view(), name="api_logout"),  # Authentication
