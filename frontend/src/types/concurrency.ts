@@ -49,7 +49,7 @@ export function isConcurrencyError(error: unknown): error is ConcurrencyError {
  * Utility function to extract job ID from a job endpoint URL
  */
 export function extractJobId(url: string): string | null {
-  const match = url.match(/\/job\/rest\/jobs\/([0-9a-f-]{36})/i)
+  const match = url.match(/\/api\/job\/jobs\/([0-9a-f-]{36})/i)
   return match ? match[1] : null
 }
 
@@ -58,7 +58,7 @@ export function extractJobId(url: string): string | null {
  */
 export function isJobEndpoint(url: string): boolean {
   return (
-    /\/job\/rest\/jobs\//.test(url) &&
+    /\/api\/job\/jobs\//.test(url) &&
     !url.includes('/jobs/status-choices') &&
     !url.includes('/jobs/weekly-metrics')
   )
@@ -69,10 +69,10 @@ export function isJobEndpoint(url: string): boolean {
  */
 export function isJobMutationEndpoint(url: string): boolean {
   const mutationPatterns = [
-    /\/job\/rest\/jobs\/[^\/]+\/?$/, // PUT/PATCH/DELETE on job detail
-    /\/job\/rest\/jobs\/[^\/]+\/events/, // POST events
-    /\/job\/rest\/jobs\/[^\/]+\/undo-change/, // POST undo change
-    /\/job\/rest\/jobs\/[^\/]+\/quote\/accept/, // POST quote accept
+    /\/api\/job\/jobs\/[^\/]+\/?$/, // PUT/PATCH/DELETE on job detail
+    /\/api\/job\/jobs\/[^\/]+\/events/, // POST events
+    /\/api\/job\/jobs\/[^\/]+\/undo-change/, // POST undo change
+    /\/api\/job\/jobs\/[^\/]+\/quote\/accept/, // POST quote accept
   ]
 
   return mutationPatterns.some((pattern) => pattern.test(url))
@@ -82,7 +82,7 @@ export function isJobMutationEndpoint(url: string): boolean {
  * Utility function to extract purchase order ID from a PO endpoint URL
  */
 export function extractPoId(url: string): string | null {
-  const match = url.match(/\/purchasing\/rest\/purchase-orders\/([0-9a-f-]{36})/i)
+  const match = url.match(/\/api\/purchasing\/purchase-orders\/([0-9a-f-]{36})/i)
   return match ? match[1] : null
 }
 
@@ -90,7 +90,7 @@ export function extractPoId(url: string): string | null {
  * Utility function to check if a URL is a purchase order endpoint that requires ETag handling
  */
 export function isPoEndpoint(url: string): boolean {
-  return /\/purchasing\/rest\/purchase-orders\//.test(url)
+  return /\/api\/purchasing\/purchase-orders\//.test(url)
 }
 
 /**
@@ -98,8 +98,8 @@ export function isPoEndpoint(url: string): boolean {
  */
 export function isPoMutationEndpoint(url: string): boolean {
   const mutationPatterns = [
-    /\/purchasing\/rest\/purchase-orders\/[^\/]+\/?$/, // PATCH on PO detail
-    /\/purchasing\/rest\/delivery-receipts\/?$/, // POST delivery receipts
+    /\/api\/purchasing\/purchase-orders\/[^\/]+\/?$/, // PATCH on PO detail
+    /\/api\/purchasing\/delivery-receipts\/?$/, // POST delivery receipts
   ]
 
   return mutationPatterns.some((pattern) => pattern.test(url))

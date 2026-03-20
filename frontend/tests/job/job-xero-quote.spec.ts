@@ -10,23 +10,21 @@ const getJobIdFromUrl = (url: string): string => {
 }
 
 const summarizeQuoteCostSet = async (page: import('@playwright/test').Page, jobId: string) => {
-  const apiBaseUrl = process.env.VITE_API_BASE_URL
-  const baseLabel = apiBaseUrl ? 'apiBase' : 'frontendBase'
-  const baseUrl = apiBaseUrl ?? new URL(page.url()).origin
-  const url = new URL(`/job/rest/jobs/${jobId}/cost_sets/`, baseUrl)
+  const baseUrl = new URL(page.url()).origin
+  const url = new URL(`/api/job/jobs/${jobId}/cost_sets/`, baseUrl)
   url.searchParams.set('kind', 'quote')
 
   const response = await page.request.get(url.toString())
   const contentType = response.headers()['content-type'] || ''
 
   if (!response.ok()) {
-    return `quote cost set fetch failed: ${response.status()} ${response.statusText()} ${baseLabel}`
+    return `quote cost set fetch failed: ${response.status()} ${response.statusText()}`
   }
 
   const raw = await response.text()
   if (!raw.trim().startsWith('{') && !raw.trim().startsWith('[')) {
     const preview = raw.slice(0, 120).replace(/\s+/g, ' ').trim()
-    return `quote cost set non-json response: ${preview || 'empty'} ${baseLabel} ${contentType}`
+    return `quote cost set non-json response: ${preview || 'empty'} ${contentType}`
   }
 
   const data = JSON.parse(raw) as { cost_lines?: unknown[] }

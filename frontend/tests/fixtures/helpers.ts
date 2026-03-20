@@ -196,7 +196,7 @@ export async function waitForAutosave(page: Page) {
 
       // Job header save (PATCH, status 200)
       if (
-        url.includes('/job/rest/jobs/') &&
+        url.includes('/api/job/jobs/') &&
         !url.includes('/cost_sets/') &&
         method === 'PATCH' &&
         status === 200
@@ -215,12 +215,12 @@ export async function waitForAutosave(page: Page) {
       }
 
       // Cost line update (PATCH, status 200)
-      if (url.includes('/job/rest/cost_lines/') && method === 'PATCH' && status === 200) {
+      if (url.includes('/api/job/cost_lines/') && method === 'PATCH' && status === 200) {
         return true
       }
 
       // Cost line delete (DELETE, status 204)
-      if (url.includes('/job/rest/cost_lines/') && method === 'DELETE' && status === 204) {
+      if (url.includes('/api/job/cost_lines/') && method === 'DELETE' && status === 204) {
         return true
       }
 
@@ -263,7 +263,7 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   // Save the PO - wait for the API response
   const savePromise = page.waitForResponse(
     (response) =>
-      response.url().includes('/purchasing/rest/purchase-orders') &&
+      response.url().includes('/api/purchasing/purchase-orders') &&
       response.request().method() === 'POST' &&
       response.status() === 201,
     { timeout: 30000 },

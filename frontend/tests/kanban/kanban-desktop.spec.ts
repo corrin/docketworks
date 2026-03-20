@@ -125,7 +125,7 @@ test.describe.serial('kanban desktop', () => {
 
     const statusResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/job/api/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300
@@ -160,7 +160,7 @@ test.describe.serial('kanban desktop', () => {
 
     const assignResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/job/api/job/${jobId}/assignment`) &&
+        response.url().includes(`/api/job/job/${jobId}/assignment`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300

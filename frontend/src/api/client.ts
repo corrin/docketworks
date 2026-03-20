@@ -67,10 +67,6 @@ export function setupPoReloadManager(manager: {
 }
 
 function getApiBaseUrl() {
-  // Dev: Vite dev server and Django run on different ports
-  if (import.meta.env.DEV && import.meta.env.VITE_API_BASE_URL) {
-    return import.meta.env.VITE_API_BASE_URL
-  }
   return window.location.origin
 }
 
@@ -108,7 +104,7 @@ axios.interceptors.request.use(
       let poId: string | null = null
 
       // For delivery receipts, extract PO ID from request body
-      if (url.includes('/purchasing/rest/delivery-receipts/')) {
+      if (url.includes('/api/purchasing/delivery-receipts/')) {
         try {
           const body = typeof config.data === 'string' ? JSON.parse(config.data) : config.data
           poId = body?.purchase_order_id || null

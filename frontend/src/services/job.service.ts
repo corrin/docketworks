@@ -275,7 +275,7 @@ export const jobService = {
   // PDF
   async getWorkshopPdf(jobId: string): Promise<Blob> {
     try {
-      const response = await axios.get(`/job/rest/jobs/${jobId}/workshop-pdf/`, {
+      const response = await axios.get(`/api/job/jobs/${jobId}/workshop-pdf/`, {
         responseType: 'blob',
       })
       return response.data
@@ -287,7 +287,7 @@ export const jobService = {
 
   async getDeliveryDocket(jobId: string): Promise<Blob> {
     try {
-      const response = await axios.get(`/job/rest/jobs/${jobId}/delivery-docket/`, {
+      const response = await axios.get(`/api/job/jobs/${jobId}/delivery-docket/`, {
         responseType: 'blob',
       })
       return response.data
@@ -435,7 +435,7 @@ export const jobService = {
       })
 
       // Use axios directly to bypass incorrect Zod validation
-      const response = await axios.post(`/job/rest/jobs/${jobId}/files/`, formData, {
+      const response = await axios.post(`/api/job/jobs/${jobId}/files/`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data',
         },

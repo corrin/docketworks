@@ -137,7 +137,7 @@ test.describe('debug: drag-and-drop bugs', () => {
     let dropCompleted = false
     const statusResponsePromise = page.waitForResponse(
       (response) =>
-        response.url().includes(`/job/api/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300,
@@ -201,7 +201,7 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     const statusResponse1 = page.waitForResponse(
       (response) =>
-        response.url().includes(`/job/api/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300,
@@ -236,7 +236,7 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     const statusResponse2 = page.waitForResponse(
       (response) =>
-        response.url().includes(`/job/api/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300,
@@ -335,7 +335,7 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     const statusResponse = page.waitForResponse(
       (response) =>
-        response.url().includes(`/job/api/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300,

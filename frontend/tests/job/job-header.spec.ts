@@ -18,7 +18,7 @@ const waitForHeaderSave = (page: Page, jobId: string) =>
       const status = response.status()
 
       if (
-        url.includes(`/job/rest/jobs/${jobId}/`) &&
+        url.includes(`/api/job/jobs/${jobId}/`) &&
         method === 'PATCH' &&
         status >= 200 &&
         status < 300
@@ -27,7 +27,7 @@ const waitForHeaderSave = (page: Page, jobId: string) =>
       }
 
       if (
-        url.includes(`/job/api/jobs/${jobId}/update-status/`) &&
+        url.includes(`/api/job/jobs/${jobId}/update-status/`) &&
         method === 'POST' &&
         status >= 200 &&
         status < 300

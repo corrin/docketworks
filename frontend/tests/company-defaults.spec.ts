@@ -1,16 +1,9 @@
 import { test, expect } from './fixtures/auth'
 
 test('test can call backend API directly', async ({ authenticatedPage: page }) => {
-  const apiBaseUrl = process.env.VITE_API_BASE_URL
-  if (!apiBaseUrl) {
-    throw new Error('VITE_API_BASE_URL must be set in .env')
-  }
-
-  const headers: Record<string, string> = {
-    Accept: 'application/json',
-  }
-
-  const response = await page.request.get(`${apiBaseUrl}/api/company-defaults/`, { headers })
+  const response = await page.request.get('/api/company-defaults/', {
+    headers: { Accept: 'application/json' },
+  })
 
   console.log(`API response status: ${response.status()}`)
 

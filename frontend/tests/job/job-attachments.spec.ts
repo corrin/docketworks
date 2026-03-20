@@ -40,7 +40,7 @@ test.describe('job attachments', () => {
     await Promise.all([
       page.waitForResponse((response) => {
         return (
-          response.url().includes(`/job/rest/jobs/${jobId}/files/`) &&
+          response.url().includes(`/api/job/jobs/${jobId}/files/`) &&
           response.request().method() === 'POST' &&
           response.status() >= 200 &&
           response.status() < 300

@@ -82,7 +82,7 @@ export const adminExternalLinks: AdminPage[] = [
     component: () => Promise.resolve({} as Component),
     externalUrl: import.meta.env.VITE_UAT_URL,
   },
-]
+].filter((link) => link.externalUrl)
 
 // Default admin page (for redirect from /admin)
 export const defaultAdminPage = adminPages[0]

@@ -259,7 +259,7 @@ export function useWorkshopTimesheetForm(options: {
     if (!id) return
     try {
       isDayLoading.value = true
-      await axios.delete('/job/api/workshop/timesheets/', { data: { entry_id: id } })
+      await axios.delete('/api/job/workshop/timesheets/', { data: { entry_id: id } })
       toast.success('Entry deleted.')
       await loadDay(selectedDate.value)
     } catch (error) {

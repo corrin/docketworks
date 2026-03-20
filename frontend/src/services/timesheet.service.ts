@@ -42,7 +42,7 @@ export class TimesheetService {
   // Legacy method - use CostLine queries instead
   static async getTimeEntries(staffId: string, date: string): Promise<CostLine[]> {
     try {
-      const response = await axios.get('/job/rest/timesheet/entries/', {
+      const response = await axios.get('/api/job/timesheet/entries/', {
         params: { staff_id: staffId, date },
       })
       const parsed = schemas.ModernTimesheetEntryGetResponse.parse(response.data)
