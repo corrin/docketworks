@@ -299,5 +299,3 @@ class TokenRefreshResponseSerializer(serializers.Serializer):
         required=False,
         help_text="New JWT access token (only present when not using httpOnly cookies)",
     )
-
-
