@@ -8,7 +8,9 @@ urlpatterns = [
     path("api/job/", include("apps.job.urls", namespace="jobs")),
     path("api/accounts/", include("apps.accounts.urls")),
     path("api/timesheets/", include("apps.timesheet.urls")),
-    path("api/quoting/", include(("apps.quoting.urls", "quoting"), namespace="quoting")),
+    path(
+        "api/quoting/", include(("apps.quoting.urls", "quoting"), namespace="quoting")
+    ),
     path("api/clients/", include("apps.client.urls_rest", namespace="clients")),
     path("api/purchasing/", include("apps.purchasing.urls", namespace="purchasing")),
     path("api/accounting/", include("apps.accounting.urls", namespace="accounting")),

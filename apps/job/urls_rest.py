@@ -57,9 +57,7 @@ rest_urlpatterns = [
     # Job CRUD operations (REST style)
     path("jobs/", JobCreateRestView.as_view(), name="job_create_rest"),
     path("month-end/", MonthEndRestView.as_view(), name="month_end_rest"),
-    path(
-        "jobs/<uuid:job_id>/", JobDetailRestView.as_view(), name="job_detail_rest"
-    ),
+    path("jobs/<uuid:job_id>/", JobDetailRestView.as_view(), name="job_detail_rest"),
     path(
         "jobs/<uuid:job_id>/summary/",
         JobSummaryRestView.as_view(),
