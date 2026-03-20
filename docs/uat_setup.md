@@ -6,8 +6,10 @@ Each prospect gets their own subdomain, database, and Xero credentials.
 ```
 Architecture:
   DNS: *.docketworks.site → 192.9.188.248
-  Instance "msm":  https://msm.docketworks.site   → /opt/docketworks/msm/
-  Instance "acme": https://acme.docketworks.site   → /opt/docketworks/acme/
+       docketworks.site   → 192.9.188.248
+  Website:     https://docketworks.site        → /opt/docketworks-website/ (separate repo, Astro/PM2)
+  Instance "msm":  https://msm.docketworks.site   → /opt/docketworks/instances/msm/
+  Instance "acme": https://acme.docketworks.site   → /opt/docketworks/instances/acme/
   Each instance: own DB, .env, Gunicorn service, Nginx server block
   Single wildcard SSL cert covers all subdomains
 ```
@@ -47,6 +49,7 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - MariaDB server
 - Nginx
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
+- pnpm (via corepack) and pm2 (for marketing website)
 - Claude Code CLI
 - Build dependencies (build-essential, libmariadb-dev, pkg-config)
 - Poetry (for the `docketworks` system user)
@@ -272,6 +275,20 @@ This updates shared Python/Node deps, then for each instance: builds frontend, r
 
 All setup and instance operations are logged to `/var/log/docketworks-setup.log`.
 The server manifest at `/opt/docketworks/server-manifest.txt` lists all installed software with versions.
+
+---
+
+## Part G: Marketing Website
+
+The bare domain (`docketworks.site` and `www.docketworks.site`) serves the marketing website — a separate project from the docketworks app.
+
+- **Repo**: `docketworks-website` (not this repo)
+- **Location on server**: `/opt/docketworks-website/`
+- **Runtime**: Node server (Astro) managed by PM2 on port 4321, proxied by nginx
+- **Nginx config**: `/etc/nginx/sites-available/docketworks-website`
+- **Setup and deployment**: Managed from the website repo, not from here
+
+The base setup script (Part B) installs the dependencies the website needs (pnpm, pm2), but the website's own repo handles cloning, building, and configuring its nginx server block and PM2 process.
 
 ---
 

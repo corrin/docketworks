@@ -5,7 +5,8 @@ set -euo pipefail
 # Runs once on a fresh Ubuntu 24.04 ARM server as the 'ubuntu' user.
 # Idempotent — safe to re-run.
 #
-# Usage: sudo ./uat-base-setup.sh <dreamhost-api-key> <google-maps-api-key>
+# First run:  sudo ./uat-base-setup.sh <dreamhost-api-key> <google-maps-api-key>
+# Re-run:     sudo ./uat-base-setup.sh   (reads keys from files saved on first run)
 
 SETUP_LOG="/var/log/docketworks-setup.log"
 MANIFEST="/opt/docketworks/server-manifest.txt"
@@ -30,16 +31,36 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-if [[ $# -ne 2 ]]; then
-    echo "Usage: $0 <dreamhost-api-key> <google-maps-api-key>"
+DREAMHOST_KEY_FILE="/etc/letsencrypt/dreamhost-api-key.txt"
+SHARED_ENV_FILE="/opt/docketworks/shared.env"
+
+if [[ $# -eq 2 ]]; then
+    DREAMHOST_API_KEY="$1"
+    GOOGLE_MAPS_API_KEY="$2"
+elif [[ $# -eq 0 ]]; then
+    # Re-run: read keys from files saved on first run
+    if [[ ! -f "$DREAMHOST_KEY_FILE" ]]; then
+        echo "ERROR: No Dreamhost API key found at $DREAMHOST_KEY_FILE"
+        echo "First run requires: $0 <dreamhost-api-key> <google-maps-api-key>"
+        exit 1
+    fi
+    if [[ ! -f "$SHARED_ENV_FILE" ]]; then
+        echo "ERROR: No Google Maps API key found at $SHARED_ENV_FILE"
+        echo "First run requires: $0 <dreamhost-api-key> <google-maps-api-key>"
+        exit 1
+    fi
+    DREAMHOST_API_KEY="$(cat "$DREAMHOST_KEY_FILE")"
+    GOOGLE_MAPS_API_KEY="$(grep GOOGLE_MAPS_API_KEY "$SHARED_ENV_FILE" | cut -d"'" -f2)"
+else
+    echo "Usage: $0 [<dreamhost-api-key> <google-maps-api-key>]"
+    echo ""
+    echo "  First run:  $0 <dreamhost-api-key> <google-maps-api-key>"
+    echo "  Re-run:     $0   (reads keys from files saved on first run)"
     echo ""
     echo "  dreamhost-api-key:   panel.dreamhost.com → Home > API (grant dns-* permissions)"
     echo "  google-maps-api-key: GCP console → APIs & Services → Credentials"
     exit 1
 fi
-
-DREAMHOST_API_KEY="$1"
-GOOGLE_MAPS_API_KEY="$2"
 
 mkdir -p "$(dirname "$SETUP_LOG")"
 touch "$SETUP_LOG"
@@ -242,6 +263,27 @@ fi
 POETRY_VERSION="$(sudo -u docketworks bash -c 'export PATH="/opt/docketworks/.local/bin:$PATH" && poetry --version' 2>&1)"
 log_version "poetry (docketworks user)" "$POETRY_VERSION"
 
+# --- pnpm (via corepack) ---
+
+if command -v pnpm &>/dev/null; then
+    log "pnpm already installed, skipping."
+else
+    log "Installing pnpm via corepack..."
+    corepack enable
+    corepack prepare pnpm@latest --activate
+fi
+log_version "pnpm" "$(pnpm --version)"
+
+# --- pm2 (Node process manager) ---
+
+if command -v pm2 &>/dev/null; then
+    log "pm2 already installed, skipping."
+else
+    log "Installing pm2..."
+    npm install -g pm2
+fi
+log_version "pm2" "$(pm2 --version)"
+
 # --- Claude Code CLI ---
 
 if command -v claude &>/dev/null; then
@@ -308,6 +350,8 @@ Nginx:      $(nginx -v 2>&1)
 Certbot:    $(certbot --version 2>&1)
 Git:        $(git --version)
 Poetry:     $POETRY_VERSION
+pnpm:       $(pnpm --version)
+pm2:        $(pm2 --version)
 Claude:     $CLAUDE_VERSION
 
 ## System User
