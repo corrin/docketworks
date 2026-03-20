@@ -384,7 +384,8 @@ const refreshData = async () => {
   error.value = null
 
   try {
-    const data = await api.get('/job/rest/data-quality/archived-jobs-compliance/')
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const data = await api.check_archived_jobs_compliance() as any
 
     // Update statistics from the new structure
     totalRecords.value = data?.total_archived_jobs || 0
