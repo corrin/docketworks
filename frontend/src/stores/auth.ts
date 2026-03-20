@@ -118,7 +118,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const logout = async (): Promise<void> => {
     try {
-      await axios.post('/accounts/logout/')
+      await axios.post('/api/accounts/logout/')
     } catch (err) {
       debugLog('Backend logout failed:', err)
     } finally {

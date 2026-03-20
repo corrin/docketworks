@@ -137,7 +137,7 @@ test.describe.serial('kanban mobile', () => {
 
     const assignResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/job/api/job/${jobId}/assignment`) &&
+        response.url().includes(`/api/job/job/${jobId}/assignment`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300

@@ -33,7 +33,7 @@ test.describe('create staff', () => {
       // Wait for API response
       const responsePromise = page.waitForResponse(
         (response) =>
-          response.url().includes('/accounts/api/staff') &&
+          response.url().includes('/api/accounts/staff') &&
           response.request().method() === 'POST' &&
           response.status() === 201,
         { timeout: 15000 },

@@ -83,7 +83,7 @@ async function waitForTimesheetResponse(
 ): Promise<void> {
   await page.waitForResponse(
     (response) =>
-      response.url().includes('/job/api/workshop/timesheets/') &&
+      response.url().includes('/api/job/workshop/timesheets/') &&
       response.request().method() === method &&
       (response.status() === 200 || response.status() === 201 || response.status() === 204),
     { timeout: 15000 },
@@ -193,7 +193,7 @@ test.describe.serial('workshop my time view', () => {
       await expect(submitButton).toBeEnabled({ timeout: 10000 })
       const createResponsePromise = page.waitForResponse(
         (response) =>
-          response.url().includes('/job/api/workshop/timesheets/') &&
+          response.url().includes('/api/job/workshop/timesheets/') &&
           response.request().method() === 'POST' &&
           (response.status() === 200 || response.status() === 201),
         { timeout: 15000 },

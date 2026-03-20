@@ -686,7 +686,7 @@ const loadData = async () => {
     const response = await axios.get<{
       jobs: JobProfitability[]
       summary: ProfitabilitySummary
-    }>(`/job/rest/reports/job-profitability/?${params.toString()}`)
+    }>(`/api/job/reports/job-profitability/?${params.toString()}`)
 
     jobs.value = response.data.jobs
     summary.value = response.data.summary

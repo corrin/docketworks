@@ -1,8 +1,0 @@
-version: "2"
-authtoken: 61KSCtymQtidYkcbZ6e6F_578KN7PJvqZjFC17zVF7r
-
-tunnels:
-  dev:
-    addr: 5173
-    proto: http
-    domain: docketworks-msm-dev.ngrok-free.app

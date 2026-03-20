@@ -118,7 +118,7 @@ export const usePurchaseOrderStore = defineStore('purchaseOrders', () => {
 
     try {
       // Use the updated endpoint
-      const response = await axios.get(`/purchasing/rest/purchase-orders/${id}/pdf/`, {
+      const response = await axios.get(`/api/purchasing/purchase-orders/${id}/pdf/`, {
         responseType: 'blob',
       })
 
