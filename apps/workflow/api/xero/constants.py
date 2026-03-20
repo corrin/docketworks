@@ -6,9 +6,8 @@ XERO_SCOPES = [
     "profile",
     "email",
     "accounting.contacts",
-    "accounting.transactions",
+    "accounting.invoices",
     "accounting.attachments",
-    "accounting.reports.read",
     "accounting.settings",
     "accounting.journals.read",
     # "accounting.inventory",  # REMOVED - invalid scope, use accounting.settings instead
