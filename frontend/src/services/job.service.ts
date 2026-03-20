@@ -234,7 +234,7 @@ export const jobService = {
 
   deleteJob(jobId: string): Promise<{ success: boolean; error?: string; message?: string }> {
     return api
-      .job_rest_jobs_destroy(undefined, { params: { job_id: jobId } })
+      .job_jobs_destroy(undefined, { params: { job_id: jobId } })
       .then((response: JobDeleteResponse) => ({
         success: response.success,
         message: response.message,
@@ -338,7 +338,7 @@ export const jobService = {
   updateJobStatus(jobId: string, newStatus: string): Promise<JobStatusUpdateResponse> {
     debugLog('[jobService.updateJobStatus] ->', { jobId, newStatus })
     return api
-      .job_api_jobs_update_status_create({ status: newStatus }, { params: { job_id: jobId } })
+      .job_jobs_update_status_create({ status: newStatus }, { params: { job_id: jobId } })
       .then((r) => {
         debugLog('[jobService.updateJobStatus] ok', { jobId, newStatus })
         return r
@@ -393,7 +393,7 @@ export const jobService = {
 
     debugLog('[jobService.reorderJob] ->', { jobId, payload })
     return api
-      .job_api_jobs_reorder_create(payload, { params: { job_id: jobId } })
+      .job_jobs_reorder_create(payload, { params: { job_id: jobId } })
       .then((r) => {
         debugLog('[jobService.reorderJob] ok', { jobId })
         return r
