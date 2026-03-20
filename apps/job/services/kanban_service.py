@@ -182,7 +182,8 @@ class KanbanService:
         try:
             job = Job.objects.get(pk=job_id)
             job.status = new_status
-            job.save(update_fields=["status"])
+            job.priority = Job._calculate_next_priority_for_status(new_status)
+            job.save(update_fields=["status", "priority"])
             return True
         except Job.DoesNotExist:
             logger.error(f"Job {job_id} not found for status update")
