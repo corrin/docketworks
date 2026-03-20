@@ -324,7 +324,6 @@ class AppErrorDetailResponseSerializer(serializers.Serializer):
     resolved_timestamp = serializers.DateTimeField(allow_null=True)
 
 
-
 # ---------------------------------------------------------------------------
 # Company Defaults Schema Serializers
 # ---------------------------------------------------------------------------

@@ -4,11 +4,6 @@
 
 ## API Endpoints
 
-#### Bearer-Token Management
-| URL Pattern | View | Name | Description |
-|-------------|------|------|-------------|
-| `/api/bearer-token/` | `bearer_token_view.BearerTokenView` | `accounts:bearer_token` | Generate bearer tokens. |
-
 #### Staff Management
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
