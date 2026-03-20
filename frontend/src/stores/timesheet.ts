@@ -441,10 +441,9 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         meta: costLineMeta,
       }
 
-      const newCostLine = (await api.job_jobs_cost_sets_actual_cost_lines_create(
-        costLineData,
-        { params: { job_id: entryData.jobId } },
-      )) as CostLine
+      const newCostLine = (await api.job_jobs_cost_sets_actual_cost_lines_create(costLineData, {
+        params: { job_id: entryData.jobId },
+      })) as CostLine
 
       if (newCostLine) {
         // Add to lines if we're viewing the same job

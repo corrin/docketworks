@@ -2,22 +2,6 @@
 
 <!-- This file is auto-generated. To regenerate, run: python scripts/generate_url_docs.py -->
 
-## API Endpoints
-
-#### Staff Management
-| URL Pattern | View | Name | Description |
-|-------------|------|------|-------------|
-| `/api/staff/` | `staff_api.StaffListCreateAPIView` | `accounts:api_staff_list_create` | API endpoint for listing and creating staff members. |
-| `/api/staff/<uuid:pk>/` | `staff_api.StaffRetrieveUpdateDestroyAPIView` | `accounts:api_staff_detail` | API endpoint for retrieving, updating, and deleting individual staff members. |
-| `/api/staff/all/` | `staff_views.StaffListAPIView` | `accounts:api_staff_all_list` | API endpoint for retrieving list of staff members for Kanban board. |
-| `/api/staff/rates/<uuid:staff_id>/` | `staff_views.get_staff_rates` | `accounts:get_staff_rates` | Retrieve wage rates for a specific staff member. |
-
-#### Token Management
-| URL Pattern | View | Name | Description |
-|-------------|------|------|-------------|
-| `/api/token/` | `token_view.CustomTokenObtainPairView` | `accounts:token_obtain_pair` | Customized token obtain view that handles password reset requirement |
-| `/api/token/refresh/` | `token_view.CustomTokenRefreshView` | `accounts:token_refresh` | Customized token refresh view that uses httpOnly cookies |
-
 ### Authentication
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
@@ -32,3 +16,17 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/password_change/` | `password_views.SecurityPasswordChangeView` | `accounts:password_change` | Custom password change view with enhanced security requirements. |
+
+### Staff Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/staff/` | `staff_api.StaffListCreateAPIView` | `accounts:api_staff_list_create` | API endpoint for listing and creating staff members. |
+| `/staff/<uuid:pk>/` | `staff_api.StaffRetrieveUpdateDestroyAPIView` | `accounts:api_staff_detail` | API endpoint for retrieving, updating, and deleting individual staff members. |
+| `/staff/all/` | `staff_views.StaffListAPIView` | `accounts:api_staff_all_list` | API endpoint for retrieving list of staff members for Kanban board. |
+| `/staff/rates/<uuid:staff_id>/` | `staff_views.get_staff_rates` | `accounts:get_staff_rates` | Retrieve wage rates for a specific staff member. |
+
+### Token Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/token/` | `token_view.CustomTokenObtainPairView` | `accounts:token_obtain_pair` | Customized token obtain view that handles password reset requirement |
+| `/token/refresh/` | `token_view.CustomTokenRefreshView` | `accounts:token_refresh` | Customized token refresh view that uses httpOnly cookies |

@@ -75,10 +75,7 @@ class ProcessDocumentsService {
   }
 
   async fillForm(category: string, id: string, jobId?: string): Promise<FormEntry> {
-    return api.process_forms_fill_create(
-      { job_id: jobId ?? null },
-      { params: { category, id } },
-    )
+    return api.process_forms_fill_create({ job_id: jobId ?? null }, { params: { category, id } })
   }
 
   // ============================================================

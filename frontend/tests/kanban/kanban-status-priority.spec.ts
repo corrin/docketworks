@@ -18,8 +18,14 @@ const waitForHeaderSave = (page: Page, jobId: string) =>
       const status = response.status()
 
       return (
-        (url.includes(`/job/rest/jobs/${jobId}/`) && method === 'PATCH' && status >= 200 && status < 300) ||
-        (url.includes(`/job/api/jobs/${jobId}/update-status/`) && method === 'POST' && status >= 200 && status < 300)
+        (url.includes(`/job/rest/jobs/${jobId}/`) &&
+          method === 'PATCH' &&
+          status >= 200 &&
+          status < 300) ||
+        (url.includes(`/job/api/jobs/${jobId}/update-status/`) &&
+          method === 'POST' &&
+          status >= 200 &&
+          status < 300)
       )
     },
     { timeout: 20000 },
