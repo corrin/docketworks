@@ -282,13 +282,95 @@ The server manifest at `/opt/docketworks/server-manifest.txt` lists all installe
 
 The bare domain (`docketworks.site` and `www.docketworks.site`) serves the marketing website — a separate project from the docketworks app.
 
-- **Repo**: `docketworks-website` (not this repo)
+- **Repo**: `https://github.com/corrin/docketworks-website.git`
 - **Location on server**: `/opt/docketworks-website/`
 - **Runtime**: Node server (Astro) managed by PM2 on port 4321, proxied by nginx
 - **Nginx config**: `/etc/nginx/sites-available/docketworks-website`
-- **Setup and deployment**: Managed from the website repo, not from here
 
-The base setup script (Part B) installs the dependencies the website needs (pnpm, pm2), but the website's own repo handles cloning, building, and configuring its nginx server block and PM2 process.
+The base setup script (Part B) installs the dependencies the website needs (pnpm, pm2).
+
+### Initial setup (one-time)
+
+```bash
+# 1. Clone and build
+sudo mkdir -p /opt/docketworks-website
+sudo chown ubuntu:ubuntu /opt/docketworks-website
+git clone https://github.com/corrin/docketworks-website.git /opt/docketworks-website
+cd /opt/docketworks-website
+pnpm install
+pnpm build
+
+# 2. Create nginx server block
+sudo tee /etc/nginx/sites-available/docketworks-website > /dev/null <<'NGINX'
+server {
+    listen 80;
+    server_name docketworks.site www.docketworks.site;
+    return 301 https://$host$request_uri;
+}
+
+server {
+    listen 443 ssl;
+    server_name docketworks.site www.docketworks.site;
+
+    ssl_certificate /etc/letsencrypt/live/docketworks.site/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/docketworks.site/privkey.pem;
+
+    # Static assets — served directly by nginx
+    location /assets/ {
+        alias /opt/docketworks-website/dist/client/assets/;
+        expires 1y;
+        add_header Cache-Control "public, immutable";
+    }
+
+    location /favicon.svg {
+        alias /opt/docketworks-website/dist/client/favicon.svg;
+        expires 1y;
+    }
+
+    # Everything else — proxy to Astro Node server
+    location / {
+        proxy_pass http://127.0.0.1:4321;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+NGINX
+
+# 3. Enable the site and reload nginx
+sudo ln -sf /etc/nginx/sites-available/docketworks-website /etc/nginx/sites-enabled/
+sudo nginx -t && sudo systemctl reload nginx
+
+# 4. Start the site with PM2
+cd /opt/docketworks-website
+pm2 start ecosystem.config.cjs
+pm2 save
+pm2 startup   # run whatever command it prints
+```
+
+### Deploying updates
+
+After pushing changes to the `master` branch:
+
+```bash
+cd /opt/docketworks-website
+./deploy/deploy.sh
+```
+
+This pulls, installs deps, rebuilds, and restarts PM2.
+
+### Verification
+
+```bash
+# Node server responding
+curl -s http://localhost:4321/ | head -5
+
+# Nginx proxying correctly with SSL
+curl -sI https://docketworks.site/
+# Should return HTTP/2 200
+```
 
 ---
 
