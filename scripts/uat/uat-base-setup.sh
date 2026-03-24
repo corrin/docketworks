@@ -310,6 +310,20 @@ else
     log "  Wildcard SSL certificate obtained."
 fi
 
+# certbot certonly --manual doesn't create the standard SSL config files
+# that the nginx plugin would. Instance nginx configs reference these,
+# so we must ensure they exist.
+if [[ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]]; then
+    log "Creating /etc/letsencrypt/options-ssl-nginx.conf..."
+    curl -fsSL -o /etc/letsencrypt/options-ssl-nginx.conf \
+        https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf
+fi
+if [[ ! -f /etc/letsencrypt/ssl-dhparams.pem ]]; then
+    log "Creating /etc/letsencrypt/ssl-dhparams.pem..."
+    curl -fsSL -o /etc/letsencrypt/ssl-dhparams.pem \
+        https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem
+fi
+
 # --- Base Nginx config (reject unknown hosts) ---
 
 log "Installing base Nginx config (reject unknown hosts)..."
