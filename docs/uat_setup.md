@@ -164,6 +164,80 @@ sudo systemctl restart gunicorn-<name>
 
 ---
 
+## Part C.1: Post-Create Setup
+
+After `uat-instance.sh create` completes, the instance has infrastructure but no data.
+Choose the path that matches your scenario:
+
+### Path A: Backup Restore (e.g. MSM demo)
+
+For instances that need production data:
+
+1. **Instance created** — `uat-instance.sh create <name>` completed
+2. **Follow backup-restore-process.md** steps 1-17, running Django commands as the instance user:
+   ```bash
+   sudo -u dw-<name> bash -c "
+       source /opt/docketworks/.venv/bin/activate
+       set -a
+       source /opt/docketworks/instances/<name>/.env
+       set +a
+       cd /opt/docketworks/instances/<name>/code
+       python manage.py <command>
+   "
+   ```
+3. **Xero setup** — follow backup-restore-process.md steps 21-27
+
+### Path B: Fresh Prospect (new Xero org)
+
+For a prospect trying DocketWorks with their own Xero:
+
+1. **Instance created** — admin user auto-created (`defaultadmin@example.com` / `Default-admin-password`)
+
+2. **Load CompanyDefaults fixture**
+   ```bash
+   # Copy the template and edit with prospect's details
+   cp apps/workflow/fixtures/company_defaults_prospect.json \
+      /opt/docketworks/instances/<name>/company_defaults.json
+
+   # Edit: replace all __PLACEHOLDER__ values with prospect's info
+   # Key fields: company_name, acronym, address, email, po_prefix,
+   #             xero_payroll_calendar_name (must match their Xero calendar)
+
+   # Load it
+   sudo -u dw-<name> bash -c "
+       source /opt/docketworks/.venv/bin/activate
+       set -a
+       source /opt/docketworks/instances/<name>/.env
+       set +a
+       cd /opt/docketworks/instances/<name>/code
+       python manage.py loaddata /opt/docketworks/instances/<name>/company_defaults.json
+   "
+   ```
+
+3. **Xero OAuth** — log into `https://<name>.docketworks.site` as admin, go to Admin > Xero Settings, click "Login with Xero" and authorize
+
+4. **Xero configuration** (run as instance user, same pattern as step 2)
+   ```bash
+   python manage.py xero --setup
+   python manage.py xero --configure-payroll
+   python manage.py start_xero_sync --entity accounts
+   ```
+
+5. **Import staff from Xero**
+   ```bash
+   # Preview first
+   python manage.py xero --import-staff-dry-run
+
+   # Then import
+   python manage.py xero --import-staff
+   ```
+   This pulls employees from Xero Payroll and creates Staff records with their
+   wage rates and working hours. All imported staff get `password_needs_reset=True`.
+
+6. **Verify** — log in as admin, check Staff list, mark office staff via admin UI
+
+---
+
 ## Part D: Managing Instances
 
 ### Deploy (update to latest code)

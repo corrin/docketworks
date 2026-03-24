@@ -20,6 +20,8 @@ from apps.timesheet.services.demo_payroll_data import (
 )
 from apps.workflow.api.xero.payroll import (
     create_payroll_employee,
+    get_employee_salary_and_wages,
+    get_employee_working_patterns,
     get_employees,
     get_payroll_calendars,
     update_employee_name,
@@ -422,3 +424,178 @@ class PayrollEmployeeSyncService:
         if max_length is not None:
             return cleaned[:max_length]
         return cleaned
+
+    @classmethod
+    def import_staff_from_xero(
+        cls,
+        *,
+        dry_run: bool = False,
+        initial_password: str,
+    ) -> Dict[str, Any]:
+        """
+        Import employees from Xero Payroll and create local Staff records.
+
+        For fresh prospect instances where Xero is the source of truth for employees.
+        Fetches each employee's salary/wage and working pattern from Xero to populate
+        base_wage_rate and hours_mon-sun.
+
+        Fails if an employee has no email (cannot create a login) or no wage data
+        (wage rate is critical for costing). Falls back to CompanyDefaults working
+        hours if no working pattern is set in Xero.
+
+        Args:
+            dry_run: If True, preview what would be imported without creating records.
+            initial_password: Password to set for all imported Staff.
+
+        Returns:
+            Summary dict with created, skipped, and error details.
+        """
+        company = CompanyDefaults.get_solo()
+        if not company.xero_payroll_calendar_name:
+            raise ValueError(
+                "CompanyDefaults.xero_payroll_calendar_name is not configured. "
+                "Load the company defaults fixture first."
+            )
+
+        xero_employees = get_employees()
+
+        # Filter to active employees (no end_date or end_date in future)
+        today = date.today()
+        active_employees = [
+            emp
+            for emp in xero_employees
+            if not getattr(emp, "end_date", None) or emp.end_date > today
+        ]
+
+        summary: Dict[str, Any] = {
+            "total_xero_employees": len(xero_employees),
+            "active_employees": len(active_employees),
+            "created": [],
+            "skipped": [],
+            "errors": [],
+            "dry_run": dry_run,
+        }
+
+        def _hours_between(start, end):
+            """Compute hours between two TimeField values."""
+            if not start or not end:
+                return 0.0
+            from datetime import datetime as dt
+
+            d = dt(2000, 1, 1)
+            delta = dt.combine(d, end) - dt.combine(d, start)
+            return max(delta.total_seconds() / 3600, 0.0)
+
+        default_hours = {
+            "monday": _hours_between(company.mon_start, company.mon_end),
+            "tuesday": _hours_between(company.tue_start, company.tue_end),
+            "wednesday": _hours_between(company.wed_start, company.wed_end),
+            "thursday": _hours_between(company.thu_start, company.thu_end),
+            "friday": _hours_between(company.fri_start, company.fri_end),
+            "saturday": 0.0,
+            "sunday": 0.0,
+        }
+
+        for emp in active_employees:
+            employee_id = str(emp.employee_id)
+            first_name = (getattr(emp, "first_name", "") or "").strip()
+            last_name = (getattr(emp, "last_name", "") or "").strip()
+            email = (getattr(emp, "email", "") or "").strip().lower()
+            emp_label = f"{first_name} {last_name} ({email or 'NO EMAIL'})"
+
+            if not email:
+                summary["errors"].append(
+                    {
+                        "employee": emp_label,
+                        "reason": "No email address in Xero — cannot create login",
+                    }
+                )
+                continue
+
+            # Check if Staff with this email already exists
+            if Staff.objects.filter(email=email).exists():
+                summary["skipped"].append(
+                    {
+                        "employee": emp_label,
+                        "reason": "Staff with this email already exists",
+                    }
+                )
+                continue
+
+            # Fetch salary/wage data
+            wage_records = get_employee_salary_and_wages(employee_id)
+            active_wage = None
+            for record in wage_records:
+                status = getattr(record, "status", None)
+                if status and str(status).lower() == "active":
+                    active_wage = record
+                    break
+            if not active_wage and wage_records:
+                active_wage = wage_records[0]
+
+            if not active_wage or not getattr(active_wage, "rate_per_unit", None):
+                summary["errors"].append(
+                    {
+                        "employee": emp_label,
+                        "reason": "No salary/wage data in Xero — add wage rate in Xero first",
+                    }
+                )
+                continue
+
+            hourly_rate = float(active_wage.rate_per_unit)
+
+            # Fetch working pattern (fall back to company defaults)
+            patterns = get_employee_working_patterns(employee_id)
+            if patterns:
+                hours = patterns[0]
+            else:
+                hours = default_hours
+                logger.info(
+                    "No working pattern for %s, using company defaults", emp_label
+                )
+
+            if dry_run:
+                summary["created"].append(
+                    {
+                        "employee": emp_label,
+                        "xero_employee_id": employee_id,
+                        "hourly_rate": hourly_rate,
+                        "hours_per_week": sum(hours.values()),
+                    }
+                )
+                continue
+
+            staff = Staff.objects.create_user(
+                email=email,
+                password=initial_password,
+                first_name=first_name,
+                last_name=last_name,
+                base_wage_rate=hourly_rate,
+                xero_user_id=employee_id,
+                password_needs_reset=True,
+                is_office_staff=False,
+                hours_mon=hours["monday"],
+                hours_tue=hours["tuesday"],
+                hours_wed=hours["wednesday"],
+                hours_thu=hours["thursday"],
+                hours_fri=hours["friday"],
+                hours_sat=hours["saturday"],
+                hours_sun=hours["sunday"],
+            )
+            summary["created"].append(
+                {
+                    "employee": emp_label,
+                    "staff_id": str(staff.id),
+                    "xero_employee_id": employee_id,
+                    "hourly_rate": hourly_rate,
+                    "hours_per_week": sum(hours.values()),
+                }
+            )
+            logger.info(
+                "Created Staff %s from Xero employee %s ($%.2f/hr)",
+                staff.email,
+                employee_id,
+                hourly_rate,
+            )
+
+        return summary
