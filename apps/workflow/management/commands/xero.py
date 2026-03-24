@@ -145,6 +145,27 @@ class Command(BaseCommand):
             help="Preview staff creation without modifying Xero or the database",
         )
         parser.add_argument(
+            "--import-staff",
+            action="store_true",
+            help="Import employees from Xero Payroll as local Staff records (for fresh prospect instances)",
+        )
+        parser.add_argument(
+            "--import-staff-dry-run",
+            action="store_true",
+            help="Preview staff import without creating records",
+        )
+        parser.add_argument(
+            "--import-staff-password",
+            type=str,
+            default="Default-staff-password",
+            help="Initial password for imported staff (default: Default-staff-password)",
+        )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Bypass safety checks (e.g. allow --import-staff when Staff already exist)",
+        )
+        parser.add_argument(
             "--raw-api",
             action="store_true",
             help="DEV ONLY: Use the RAW API workaround for demo company with invalid contractor data",
@@ -193,6 +214,13 @@ class Command(BaseCommand):
 
         if options["configure_payroll"]:
             self.configure_payroll()
+            return
+
+        import_staff_requested = options["import_staff"] or options.get(
+            "import_staff_dry_run"
+        )
+        if import_staff_requested:
+            self.import_staff(options)
             return
 
         link_staff_requested = (
@@ -845,3 +873,67 @@ class Command(BaseCommand):
                 return current_value
 
         return type_name
+
+    def import_staff(self, options):
+        """Import employees from Xero Payroll as local Staff records."""
+        dry_run = options.get("import_staff_dry_run", False)
+        force = options.get("force", False)
+        initial_password = options.get(
+            "import_staff_password", "Default-staff-password"
+        )
+
+        # Guard against double-import
+        existing_staff = Staff.objects.filter(base_wage_rate__gt=0).count()
+        if existing_staff > 0 and not force:
+            raise CommandError(
+                f"Found {existing_staff} existing Staff with wage rates. "
+                "This command is for fresh instances only. "
+                "Use --force to bypass this check."
+            )
+
+        mode = "DRY RUN" if dry_run else "IMPORTING"
+        self.stdout.write(f"\n{'=' * 50}")
+        self.stdout.write(f"  {mode}: Import Staff from Xero Payroll")
+        self.stdout.write(f"{'=' * 50}\n")
+
+        summary = PayrollEmployeeSyncService.import_staff_from_xero(
+            dry_run=dry_run,
+            initial_password=initial_password,
+        )
+
+        # Print results
+        self.stdout.write(f"\nXero employees found: {summary['total_xero_employees']}")
+        self.stdout.write(f"Active employees: {summary['active_employees']}")
+
+        if summary["created"]:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"\n{'Created' if not dry_run else 'Would create'}: {len(summary['created'])} staff"
+                )
+            )
+            for item in summary["created"]:
+                self.stdout.write(
+                    f"  + {item['employee']} — ${item['hourly_rate']:.2f}/hr, "
+                    f"{item['hours_per_week']:.0f} hrs/week"
+                )
+
+        if summary["skipped"]:
+            self.stdout.write(
+                self.style.WARNING(f"\nSkipped: {len(summary['skipped'])}")
+            )
+            for item in summary["skipped"]:
+                self.stdout.write(f"  - {item['employee']}: {item['reason']}")
+
+        if summary["errors"]:
+            self.stdout.write(self.style.ERROR(f"\nErrors: {len(summary['errors'])}"))
+            for item in summary["errors"]:
+                self.stdout.write(f"  ! {item['employee']}: {item['reason']}")
+
+        if not dry_run and summary["created"]:
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"\nDone. {len(summary['created'])} staff imported. "
+                    f"Initial password: {initial_password}"
+                )
+            )
+            self.stdout.write("All imported staff have password_needs_reset=True.")

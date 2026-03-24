@@ -572,6 +572,106 @@ def _create_employee_leave_setup(
     )
 
 
+def get_employee_salary_and_wages(employee_id: str) -> List[SalaryAndWage]:
+    """
+    Get salary and wage records for a Xero Payroll employee.
+
+    Returns:
+        List of SalaryAndWage objects (typically one active record per employee)
+
+    Raises:
+        Exception: If API call fails
+    """
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        raise Exception("No Xero tenant ID configured")
+
+    payroll_api = PayrollNzApi(api_client)
+
+    try:
+        logger.info("Fetching salary/wage for employee %s", employee_id)
+        response = payroll_api.get_employee_salary_and_wages(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+        )
+        time.sleep(SLEEP_TIME)
+        records = response.salary_and_wages if response.salary_and_wages else []
+        logger.info(
+            "Retrieved %d salary/wage records for employee %s",
+            len(records),
+            employee_id,
+        )
+        return records
+    except Exception as exc:
+        logger.error(
+            "Failed to get salary/wage for employee %s: %s",
+            employee_id,
+            exc,
+            exc_info=True,
+        )
+        persist_and_raise(exc)
+
+
+def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
+    """
+    Get working pattern (weekly hours per day) for a Xero Payroll employee.
+
+    Returns:
+        List of dicts with keys: monday, tuesday, ..., sunday (float hours).
+        Typically one active pattern per employee.
+
+    Raises:
+        Exception: If API call fails
+    """
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        raise Exception("No Xero tenant ID configured")
+
+    payroll_api = PayrollNzApi(api_client)
+
+    try:
+        logger.info("Fetching working patterns for employee %s", employee_id)
+        response = payroll_api.get_employee_working_patterns(
+            xero_tenant_id=tenant_id,
+            employee_id=employee_id,
+        )
+        time.sleep(SLEEP_TIME)
+
+        patterns = []
+        if response and response.working_patterns:
+            for pattern in response.working_patterns:
+                if not pattern.working_weeks:
+                    continue
+                # Use the first (typically only) working week
+                week = pattern.working_weeks[0]
+                patterns.append(
+                    {
+                        "monday": float(week.monday or 0),
+                        "tuesday": float(week.tuesday or 0),
+                        "wednesday": float(week.wednesday or 0),
+                        "thursday": float(week.thursday or 0),
+                        "friday": float(week.friday or 0),
+                        "saturday": float(week.saturday or 0),
+                        "sunday": float(week.sunday or 0),
+                    }
+                )
+
+        logger.info(
+            "Retrieved %d working patterns for employee %s",
+            len(patterns),
+            employee_id,
+        )
+        return patterns
+    except Exception as exc:
+        logger.error(
+            "Failed to get working patterns for employee %s: %s",
+            employee_id,
+            exc,
+            exc_info=True,
+        )
+        persist_and_raise(exc)
+
+
 def get_payroll_calendars() -> List[Dict[str, Any]]:
     """
     Get list of Xero Payroll calendars.

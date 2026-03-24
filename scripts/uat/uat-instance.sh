@@ -223,6 +223,17 @@ EOSQL
         python manage.py migrate --no-input
     "
 
+    # --- Create initial admin user ---
+    log "Creating initial admin user..."
+    sudo -u "$INSTANCE_USER" bash -c "
+        source '$SHARED_VENV/bin/activate'
+        set -a
+        source '$INSTANCE_DIR/.env'
+        set +a
+        cd '$CODE_DIR'
+        python scripts/setup_dev_logins.py
+    "
+
     # --- Optionally seed data ---
     if [[ "$SEED" == "true" ]]; then
         log "Loading demo fixtures..."
