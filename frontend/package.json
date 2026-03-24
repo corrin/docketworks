@@ -40,7 +40,7 @@
     "@vueuse/core": "^13.9.0",
     "@zodios/core": "^10.9.6",
     "ag-grid-community": "^35.1.0",
-    "ag-grid-vue3": "^33.3.2",
+    "ag-grid-vue3": "^35.1.0",
     "axios": "^1.13.6",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
