@@ -26,14 +26,20 @@ ALLOWED_NON_SCHEMA_PATTERNS = {
     "api/xero/authenticate/",
     # SSE streams (not REST, special protocol)
     "api/xero/sync-stream/",
+    "api/timesheets/payroll/post-staff-week/stream/",
     # Webhooks (called by external services, not frontend)
     "api/xero/webhook/",
     # AWS instance management (internal ops, not frontend)
     "api/aws/",
     # Enum endpoint (internal, values embedded in schema)
     "api/enums/",
-    # DRF router root (meta-endpoint)
+    # DRF router roots (meta-endpoints listing sub-routes, not real APIs)
     "api/workflow/",
+    "api/clients/",
+    "api/purchasing/",
+    "api/quoting/",
+    # Django template-based password change (not a JSON API)
+    "api/accounts/password_change/",
     # App/Xero error endpoints (DRF browsable API, not frontend-consumed)
     "api/app-errors/",
     "api/rest/app-errors/",
@@ -87,6 +93,8 @@ class APISchemaComplianceTest(TestCase):
         path = url_pattern.rstrip("$")
         # Convert <type:name> or <name> to {name}
         path = re.sub(r"<(?:\w+:)?(\w+)>", r"{\1}", path)
+        # drf_spectacular renames {pk} to {id} in schema paths
+        path = re.sub(r"\{pk\}", "{id}", path)
         # Normalize trailing slash
         return path.rstrip("/")
 

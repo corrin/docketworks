@@ -5,8 +5,14 @@ from uuid import UUID
 from django.http import JsonResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import OpenApiParameter, extend_schema, extend_schema_view
-from rest_framework import generics
+from drf_spectacular.utils import (
+    OpenApiParameter,
+    extend_schema,
+    extend_schema_view,
+    inline_serializer,
+)
+from rest_framework import generics, serializers
+from rest_framework.decorators import api_view
 from rest_framework.permissions import IsAuthenticated
 
 from apps.accounts.models import Staff
@@ -101,18 +107,30 @@ class StaffListAPIView(generics.ListAPIView):
         return {"request": self.request}
 
 
+@extend_schema(
+    operation_id="getStaffRates",
+    summary="Retrieve wage rates for a specific staff member",
+    tags=["Staff Management"],
+    responses={
+        200: inline_serializer(
+            "StaffRatesResponse",
+            fields={
+                "base_wage_rate": serializers.FloatField(),
+                "wage_rate": serializers.FloatField(),
+            },
+        ),
+        403: inline_serializer(
+            "StaffRatesErrorResponse",
+            fields={"error": serializers.CharField()},
+        ),
+    },
+)
+@api_view(["GET"])
 def get_staff_rates(request, staff_id):
     """Retrieve wage rates for a specific staff member.
 
     Returns JSON response with staff member's wage rate information.
     Restricted to authenticated staff managers only.
-
-    Args:
-        request: HTTP request object
-        staff_id: UUID of the staff member
-
-    Returns:
-        JsonResponse: Staff wage rate data or error message
     """
     if not request.user.is_authenticated or not request.user.is_staff_manager():
         return JsonResponse({"error": "Unauthorized"}, status=403)
