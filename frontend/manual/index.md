@@ -2,7 +2,7 @@
 title: Home
 ---
 
-# Jobs Manager Training Manual
+# DocketWorks Training Manual
 
 Welcome to the training manual. This is a cookbook for doing your job - not a software manual.
 

@@ -1,6 +1,6 @@
 # Chat Function Testing Suite
 
-Comprehensive testing framework for the chat functionality in the jobs manager system.
+Comprehensive testing framework for the chat functionality in the DocketWorks system.
 
 ## Overview
 

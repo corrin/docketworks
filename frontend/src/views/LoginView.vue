@@ -29,7 +29,7 @@
         <h1
           class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent animate-fade-in-up animation-delay-300"
         >
-          Jobs Manager
+          DocketWorks
         </h1>
         <p class="mt-3 text-gray-600 animate-fade-in-up animation-delay-500">
           Welcome back! Sign in to your account
@@ -138,7 +138,7 @@
 
         <!-- Footer -->
         <div class="mt-8 text-center animate-fade-in-up animation-delay-1200">
-          <p class="text-xs text-gray-500">Jobs Manager System</p>
+          <p class="text-xs text-gray-500">DocketWorks System</p>
         </div>
       </div>
     </div>

@@ -1,7 +1,7 @@
-# Jobs Manager Frontend
+# DocketWorks Frontend
 
-This repository contains the Vue 3 front‑end for the Jobs Manager application.
-It communicates with the [Jobs Manager backend](https://github.com/corrin/jobs_manager).
+This repository contains the Vue 3 front‑end for the DocketWorks application.
+It communicates with the [DocketWorks backend](https://github.com/corrin/jobs_manager).
 
 ## Getting Started
 

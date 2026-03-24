@@ -2,9 +2,9 @@
   <AppLayout>
     <div class="p-6">
       <div class="bg-white rounded-lg shadow-sm border border-gray-200 p-8">
-        <h1 class="text-3xl font-bold text-gray-900 mb-4">About Jobs Manager</h1>
+        <h1 class="text-3xl font-bold text-gray-900 mb-4">About DocketWorks</h1>
         <p class="text-gray-700">
-          This is the Jobs Manager application - a comprehensive workflow management system.
+          This is the DocketWorks application - a comprehensive workflow management system.
         </p>
       </div>
     </div>

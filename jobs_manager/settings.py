@@ -272,7 +272,7 @@ API_PATH_PREFIXES = ["/api/"]
 
 # For OpenAPI schema generator
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Jobs Manager API",
+    "TITLE": "DocketWorks API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     # Split request/response schemas so code generators don't require readOnly fields
@@ -782,7 +782,7 @@ if PRODUCTION_LIKE:
             if apps.is_installed("django.contrib.sites"):
                 Site = apps.get_model("sites", "Site")
                 current_domain = os.getenv("DJANGO_SITE_DOMAIN")
-                current_name = "Jobs Manager"
+                current_name = "DocketWorks"
 
                 try:
                     site = Site.objects.get(pk=SITE_ID)

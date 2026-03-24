@@ -8,7 +8,7 @@ title: Run Reports
 
 ## What You'll Need
 
-- [ ] Access to Jobs Manager (you need to be logged in)
+- [ ] Access to DocketWorks (you need to be logged in)
 - [ ] A rough idea of the date range you're interested in
 
 ## Available Reports
@@ -95,7 +95,7 @@ The negative numbers you'll sometimes see for time on jobs are internal jobs -- 
 - Reports update in real time as staff enter time, materials, and adjustments throughout the day
 - Use the data to spot problems early -- a run of red days means something needs attention
 - Share exports with your accountant or use them in team meetings
-- The Reconciliation reports (Payroll and P&L) are for checking that Jobs Manager lines up with what's in Xero
+- The Reconciliation reports (Payroll and P&L) are for checking that DocketWorks lines up with what's in Xero
 
 ## Tips
 

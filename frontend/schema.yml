@@ -1,6 +1,6 @@
 openapi: 3.0.3
 info:
-  title: Jobs Manager API
+  title: DocketWorks API
   version: 1.0.0
 paths:
   /api/accounting/reports/calendar/:

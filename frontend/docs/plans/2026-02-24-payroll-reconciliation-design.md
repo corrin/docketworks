@@ -113,7 +113,7 @@ Add after the job-profitability route block:
   path: '/reports/payroll-reconciliation',
   name: 'payroll-reconciliation-report',
   component: () => import('@/views/PayrollReconciliationReportView.vue'),
-  meta: { requiresAuth: true, title: 'Payroll Reconciliation - Jobs Manager' },
+  meta: { requiresAuth: true, title: 'Payroll Reconciliation - DocketWorks' },
 },
 ```
 

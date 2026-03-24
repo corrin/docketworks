@@ -4,7 +4,7 @@ title: Run Payroll
 
 # Run Payroll
 
-> **When to use:** You need to check that what Xero paid in payroll matches what Jobs Manager calculated from timesheets.
+> **When to use:** You need to check that what Xero paid in payroll matches what DocketWorks calculated from timesheets.
 
 ## What You'll Need
 
@@ -34,7 +34,7 @@ The dates snap to week boundaries automatically -- you don't need to worry about
 At the top you'll see three cards:
 
 - **Xero Total** -- What Xero says was paid in gross payroll
-- **JM Total** -- What Jobs Manager calculated from timesheets and wage rates
+- **JM Total** -- What DocketWorks calculated from timesheets and wage rates
 - **Difference** -- The gap between the two, shown in dollars and as a percentage
 
 If the difference is small (a few dollars), everything's fine. If it's significant, something needs investigating.

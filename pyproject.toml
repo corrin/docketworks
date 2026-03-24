@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "jobs-manager"
+name = "docketworks"
 version = "0.1.0"
 description = "Django app for managing quotes and jobs"
 authors = ["Corrin Lakeland <corrin.lakeland@cmeconnect.com>"]

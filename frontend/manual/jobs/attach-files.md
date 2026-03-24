@@ -9,7 +9,7 @@ title: Attach Files to a Job
 ## What You'll Need
 
 - [ ] The file(s) you want to attach (drawings, photos, PDFs, etc.)
-- [ ] The job open in Jobs Manager
+- [ ] The job open in DocketWorks
 
 ## Steps
 
@@ -31,7 +31,7 @@ Your files will appear in the attachments list. They're available immediately to
 
 Any files you add to a job will immediately turn up in Dropbox as well. This is particularly helpful for the laser cutter -- upload a drawing to the job and it's available on the workshop machine straight away.
 
-The same applies in reverse. Any files you add to the job's Dropbox folder will appear in Jobs Manager. So if it's easier to drop something into Dropbox from your phone or desktop, that works too.
+The same applies in reverse. Any files you add to the job's Dropbox folder will appear in DocketWorks. So if it's easier to drop something into Dropbox from your phone or desktop, that works too.
 
 ## What Happens Next
 

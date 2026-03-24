@@ -2,7 +2,7 @@
 
 ## Overview
 
-Create three API endpoints for reconciling Jobs Manager data against Xero accounting data:
+Create three API endpoints for reconciling DocketWorks data against Xero accounting data:
 - **Wages Reconciliation** - Compare JM timesheet costs with Xero Payroll
 - **Materials Reconciliation** - Compare JM material CostLines with Xero purchases
 - **Adjustments Report** - Show JM adjustment CostLines (no Xero comparison - just visibility)

@@ -2,7 +2,7 @@
 
 ## Overview
 
-This document outlines the comprehensive end-to-end testing strategy for the Jobs Manager application, organized by feature area with both targeted tests and a comprehensive "feature coverage" test.
+This document outlines the comprehensive end-to-end testing strategy for the DocketWorks application, organized by feature area with both targeted tests and a comprehensive "feature coverage" test.
 
 ## Testing Principles
 

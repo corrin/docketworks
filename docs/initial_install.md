@@ -1,6 +1,6 @@
 # Initial Installation Guide
 
-This guide details the steps required to set up the Jobs Manager application for local development. The setup involves configuring several external services **before** initializing the application itself. **Xero integration is mandatory** for the application's core functionality.
+This guide details the steps required to set up the DocketWorks application for local development. The setup involves configuring several external services **before** initializing the application itself. **Xero integration is mandatory** for the application's core functionality.
 
 **Core Dependencies:**
 

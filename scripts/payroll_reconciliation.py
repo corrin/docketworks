@@ -1,5 +1,5 @@
 """
-Weekly Payroll Reconciliation: Xero vs Jobs Manager
+Weekly Payroll Reconciliation: Xero vs DocketWorks
 
 DRAFT for handover to dev. The functions here approximate what the API service
 layer will need. The __main__ block just dumps results for validation.
