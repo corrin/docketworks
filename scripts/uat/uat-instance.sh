@@ -129,7 +129,7 @@ do_create() {
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
 
-    # --- Generate credentials + DB + .env (skip all if .env exists) ---
+    # --- Generate .env (skip if it already exists) ---
     if [[ -f "$INSTANCE_DIR/.env" ]]; then
         log ".env already exists — skipping (credentials preserved)."
     else
@@ -137,14 +137,6 @@ do_create() {
         DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
         SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
         BEARER_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
-
-        log "Creating database $DB_NAME and user $DB_USER (if not exists)..."
-        mysql -u root <<EOSQL
-CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
-GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
-FLUSH PRIVILEGES;
-EOSQL
 
         log "Generating .env from template..."
         # Escape sed-special chars in values that come from human-edited credentials.env
@@ -188,6 +180,19 @@ EOSQL
         chmod 600 "$INSTANCE_DIR/.env"
     fi
 
+    # --- Ensure database and DB user exist (always, even if .env was preserved) ---
+    # Read DB_PASSWORD from the .env file so we can ensure the DB user matches
+    local DB_PASSWORD
+    DB_PASSWORD="$(grep '^DB_PASSWORD=' "$INSTANCE_DIR/.env" | cut -d= -f2)"
+    log "Ensuring database $DB_NAME and user $DB_USER exist..."
+    mysql -u root <<EOSQL
+CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
+ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
+GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
+FLUSH PRIVILEGES;
+EOSQL
+
     # --- Clone code from local repo into instance dir ---
     if [[ -d "$CODE_DIR/.git" ]]; then
         log "Code already cloned — pulling latest on main..."
@@ -208,14 +213,13 @@ EOSQL
     "
 
     # --- Run Django commands as instance user ---
-    log "Running Django setup (collectstatic + migrate)..."
+    log "Running Django migrate..."
     sudo -u "$INSTANCE_USER" bash -c "
         source '$SHARED_VENV/bin/activate'
         set -a
         source '$INSTANCE_DIR/.env'
         set +a
         cd '$CODE_DIR'
-        python manage.py collectstatic --no-input
         python manage.py migrate --no-input
     "
 
