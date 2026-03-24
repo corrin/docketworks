@@ -18,6 +18,11 @@ try:
         )
         from .payroll_employee_sync import PayrollEmployeeSyncService
         from .weekly_timesheet_service import WeeklyTimesheetService
+        from .xero_hours import (
+            build_staff_lookup,
+            get_jm_hours_for_staff_week,
+            get_xero_hours_by_staff_week,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -26,9 +31,12 @@ __all__ = [
     "DailyTimesheetService",
     "PayrollEmployeeSyncService",
     "WeeklyTimesheetService",
+    "build_staff_lookup",
     "ensure_json_serializable",
     "generate_ird_number",
     "get_bank_account",
+    "get_jm_hours_for_staff_week",
+    "get_xero_hours_by_staff_week",
     "setup_employee_bank",
     "setup_employee_leave",
     "setup_employee_tax",
