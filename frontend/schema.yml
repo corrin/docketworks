@@ -629,6 +629,39 @@ paths:
                 items:
                   $ref: '#/components/schemas/KanbanStaff'
           description: ''
+  /api/accounts/staff/rates/{staff_id}/:
+    get:
+      operationId: getStaffRates
+      description: |-
+        Retrieve wage rates for a specific staff member.
+
+        Returns JSON response with staff member's wage rate information.
+        Restricted to authenticated staff managers only.
+      summary: Retrieve wage rates for a specific staff member
+      parameters:
+        - in: path
+          name: staff_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Staff Management
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffRatesResponse'
+          description: ''
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StaffRatesErrorResponse'
+          description: ''
   /api/accounts/token/:
     post:
       operationId: accounts_token_create
@@ -16666,6 +16699,25 @@ components:
         - total_hours
         - total_profit
         - total_revenue
+    StaffRatesErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error
+    StaffRatesResponse:
+      type: object
+      properties:
+        base_wage_rate:
+          type: number
+          format: double
+        wage_rate:
+          type: number
+          format: double
+      required:
+        - base_wage_rate
+        - wage_rate
     StaffRequest:
       type: object
       description: Base serializer for Staff model with shared logic for create and

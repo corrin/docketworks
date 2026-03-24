@@ -395,6 +395,11 @@ const KanbanStaff = z.object({
   icon_url: z.string().nullable(),
   display_name: z.string(),
 })
+const StaffRatesResponse = z.object({
+  base_wage_rate: z.number(),
+  wage_rate: z.number(),
+})
+const StaffRatesErrorResponse = z.object({ error: z.string() })
 const CustomTokenObtainPairRequest = z.object({
   username: z.string().min(1),
   password: z.string().min(1),
@@ -2839,6 +2844,8 @@ export const schemas = {
   StaffRequest,
   PatchedStaffRequest,
   KanbanStaff,
+  StaffRatesResponse,
+  StaffRatesErrorResponse,
   CustomTokenObtainPairRequest,
   TokenObtainPairResponse,
   TokenRefreshRequest,
@@ -3545,6 +3552,30 @@ based on the &#x27;actual_users&#x27; query parameter.`,
       },
     ],
     response: z.array(KanbanStaff),
+  },
+  {
+    method: 'get',
+    path: '/api/accounts/staff/rates/:staff_id/',
+    alias: 'getStaffRates',
+    description: `Retrieve wage rates for a specific staff member.
+
+Returns JSON response with staff member&#x27;s wage rate information.
+Restricted to authenticated staff managers only.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'staff_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: StaffRatesResponse,
+    errors: [
+      {
+        status: 403,
+        schema: z.object({ error: z.string() }),
+      },
+    ],
   },
   {
     method: 'post',

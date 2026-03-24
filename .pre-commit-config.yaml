@@ -120,7 +120,7 @@ repos:
 
       - id: update-frontend-schema
         name: Update frontend OpenAPI schema
-        entry: bash -c 'poetry run python manage.py spectacular --format openapi > frontend/schema.yml && git add frontend/schema.yml'
+        entry: bash -c 'poetry run python manage.py spectacular --format openapi | npx --prefix frontend prettier --stdin-filepath frontend/schema.yml > frontend/schema.yml && git add frontend/schema.yml'
         language: system
         files: '^apps/.*\.(py)$'
         pass_filenames: false
