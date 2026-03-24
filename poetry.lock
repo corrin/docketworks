@@ -2100,18 +2100,18 @@ tests = ["pytest"]
 
 [[package]]
 name = "holidays"
-version = "0.75"
+version = "0.93"
 description = "Open World Holidays Framework"
 optional = false
-python-versions = ">=3.9"
+python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "holidays-0.75-py3-none-any.whl", hash = "sha256:f87a75e9274ba60c0ae2b65fb91b8ee1b9547f384875b0fa6ee3e5a45012bdfc"},
-    {file = "holidays-0.75.tar.gz", hash = "sha256:73441b6f7ca2f2b8f67c1554b6850e5dfd84cb62831b6c756de81c43b1efee73"},
+    {file = "holidays-0.93-py3-none-any.whl", hash = "sha256:2bf4585b5b0956aa608e3dcab3cf7d19b69bf34f664f5881a4b9fdf87a0907da"},
+    {file = "holidays-0.93.tar.gz", hash = "sha256:6b04c45f759bce7c8df70863918ccaab0b465afd6c630a62c9855c99965704e5"},
 ]
 
 [package.dependencies]
-python-dateutil = "*"
+python-dateutil = ">=2.9.0.post0,<3"
 
 [[package]]
 name = "httpcore"
@@ -6171,4 +6171,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "7c22f12894b861358bdfb4274eb230c2639f23c9ed90e4d18a48661181b66390"
+content-hash = "c73279464a6a7e71772890ccd0062b9fc97819906b437b7667c50f2d02a30c3d"
