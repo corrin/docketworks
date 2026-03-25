@@ -108,15 +108,8 @@ for instance in "${TARGETS[@]}"; do
 
     # Collect static files + run migrations
     log "  Running collectstatic + migrate..."
-    if sudo -u "$instance_user" bash -c "
-        source '$SHARED_VENV/bin/activate'
-        set -a
-        source '$instance_dir/.env'
-        set +a
-        cd '$code_dir'
-        python manage.py collectstatic --no-input
-        python manage.py migrate --no-input
-    "; then
+    if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py collectstatic --no-input && \
+       "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
         log "  Django commands complete for $instance"
     else
         log "  ERROR: Django commands failed for $instance"

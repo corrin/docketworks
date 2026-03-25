@@ -21,7 +21,7 @@ import os
 import sys
 from typing import List
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 import django
 
 django.setup()

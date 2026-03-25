@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "jobs-manager"
+name = "docketworks"
 version = "0.1.0"
 description = "Django app for managing quotes and jobs"
 authors = ["Corrin Lakeland <corrin.lakeland@cmeconnect.com>"]
@@ -105,7 +105,7 @@ exclude = '\.git|\.hg|\.mypy_cache|\.tox|\.venv|_build|buck-out|build|dist|migra
 [tool.isort]
 profile = "black"  # This ensures compatibility if you're also using the Black formatter
 line_length = 88
-known_first_party = ["apps", "jobs_manager"]
+known_first_party = ["apps", "docketworks"]
 multi_line_output = 3
 include_trailing_comma = true
 force_grid_wrap = 0
@@ -142,12 +142,12 @@ max-line-length = 88
 py-version = "3.12"
 ignore = ["migrations", "__pycache__", "site-packages", ".tox"]
 load-plugins = "pylint_django"
-django-settings-module = "jobs_manager.settings"
+django-settings-module = "docketworks.settings"
 
 # Django-specific settings
 [tool.pylint.MASTER]
 load-plugins = "pylint_django"
-django-settings-module = "jobs_manager.settings"
+django-settings-module = "docketworks.settings"
 
 [tool.pylint.messages-control]
 disable = [
@@ -196,9 +196,9 @@ per-file-ignores = [
 ]
 
 [tool.pytest.ini_options]
-DJANGO_SETTINGS_MODULE = "jobs_manager.settings"
+DJANGO_SETTINGS_MODULE = "docketworks.settings"
 testpaths = ["apps"]
 addopts = "-q"
 
 [tool.django-stubs]
-django_settings_module = "jobs_manager.settings"
+django_settings_module = "docketworks.settings"

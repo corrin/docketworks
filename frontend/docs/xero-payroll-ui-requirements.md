@@ -292,7 +292,7 @@ The REST API endpoints will call:
 
 ## Visual Design Notes
 
-- Use existing Jobs Manager color scheme and component library
+- Use existing DocketWorks color scheme and component library
 - Pay run status should be prominent and clear
 - Posting progress/results should be non-intrusive but visible
 - Error messages should be helpful and actionable

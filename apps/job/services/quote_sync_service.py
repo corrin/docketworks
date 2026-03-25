@@ -1,4 +1,4 @@
-# filepath: jobs_manager\apps\job\services\quote_sync_service.py
+# filepath: apps/job/services/quote_sync_service.py
 """
 Quote Sync Service
 
@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 def link_quote_sheet(job: Job, template_url: str | None = None) -> QuoteSpreadsheet:
     """
-    1. Ensure the parent 'Jobs Manager' folder exists inside
+    1. Ensure the parent 'DocketWorks' folder exists inside
        CompanyDefaults.gdrive_quotes_folder_id (create if missing and update
        CompanyDefaults).
     2. Create or locate a sub-folder named '{job.job_number} – {job.name}'.
@@ -69,15 +69,15 @@ def link_quote_sheet(job: Job, template_url: str | None = None) -> QuoteSpreadsh
                 "gdrive_quotes_folder_id not configured in CompanyDefaults"
             )
 
-        # Ensure 'Jobs Manager' folder exists
-        jobs_manager_folder_id = _ensure_jobs_manager_folder(
+        # Ensure 'DocketWorks' folder exists
+        docketworks_folder_id = _ensure_docketworks_folder(
             quotes_folder_id, company_defaults
         )
 
         # Create or locate job sub-folder
         job_folder_name = f"{job.job_number} – {job.name}"
         job_folder_id = _create_or_get_job_folder(
-            jobs_manager_folder_id, job_folder_name
+            docketworks_folder_id, job_folder_name
         )
         # Copy template to job folder
         quote_file_name = f"{job.job_number} Quote"
@@ -369,11 +369,11 @@ def _find_folder_by_name_in_parent(folder_name: str, parent_id: str) -> str | No
         return None
 
 
-def _ensure_jobs_manager_folder(
+def _ensure_docketworks_folder(
     parent_folder_id: str, company_defaults: CompanyDefaults
 ) -> str:
     """
-    Ensure 'Jobs Manager' folder exists in the parent folder.
+    Ensure 'DocketWorks' folder exists in the parent folder.
     Search for existing folder by name, create if missing.
 
     Args:
@@ -381,26 +381,26 @@ def _ensure_jobs_manager_folder(
         company_defaults: CompanyDefaults instance
 
     Returns:
-        str: Jobs Manager folder ID
+        str: DocketWorks folder ID
     """
     try:
-        # Search for existing 'Jobs Manager' folder in the parent directory
+        # Search for existing 'DocketWorks' folder in the parent directory
         existing_folder_id = _find_folder_by_name_in_parent(
-            "Jobs Manager", parent_folder_id
+            "DocketWorks", parent_folder_id
         )
 
         if existing_folder_id:
-            logger.info(f"Found existing Jobs Manager folder: {existing_folder_id}")
+            logger.info(f"Found existing DocketWorks folder: {existing_folder_id}")
             return existing_folder_id
 
-        # Create new 'Jobs Manager' folder
-        jobs_manager_folder_id = create_folder("Jobs Manager", parent_folder_id)
+        # Create new 'DocketWorks' folder
+        docketworks_folder_id = create_folder("DocketWorks", parent_folder_id)
 
-        logger.info(f"Created Jobs Manager folder: {jobs_manager_folder_id}")
-        return jobs_manager_folder_id
+        logger.info(f"Created DocketWorks folder: {docketworks_folder_id}")
+        return docketworks_folder_id
 
     except Exception as e:
-        raise RuntimeError(f"Failed to ensure Jobs Manager folder: {str(e)}") from e
+        raise RuntimeError(f"Failed to ensure DocketWorks folder: {str(e)}") from e
 
 
 def _create_or_get_job_folder(parent_folder_id: str, folder_name: str) -> str:

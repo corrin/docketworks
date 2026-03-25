@@ -46,7 +46,7 @@ repos:
         name: Format Python code with black
         entry: poetry run black --quiet
         language: system
-        files: '^(?:apps/|jobs_manager/|scripts/).+\.py$|^[^/]+\.py$'
+        files: '^(?:apps/|docketworks/|scripts/).+\.py$|^[^/]+\.py$'
         types: [python]
 
       # isort - uses poetry-installed version (single source of truth: pyproject.toml)
@@ -54,7 +54,7 @@ repos:
         name: Sort imports with isort
         entry: poetry run isort --profile=black --skip-glob=**/__init__.py
         language: system
-        files: '^(?:apps/|jobs_manager/|scripts/).+\.py$|^[^/]+\.py$'
+        files: '^(?:apps/|docketworks/|scripts/).+\.py$|^[^/]+\.py$'
         types: [python]
         exclude: |
           (?x)^(
@@ -67,7 +67,7 @@ repos:
         name: Lint Python with flake8
         entry: poetry run flake8
         language: system
-        files: '^(?:apps/|jobs_manager/|scripts/).+\.py$|^[^/]+\.py$'
+        files: '^(?:apps/|docketworks/|scripts/).+\.py$|^[^/]+\.py$'
         types: [python]
 
       # ruff - fast linter for redefinitions and duplicate dict keys
@@ -75,7 +75,7 @@ repos:
         name: Check for redefinitions with ruff
         entry: poetry run ruff check --select=F811,F601
         language: system
-        files: '^(?:apps/|jobs_manager/|scripts/).+\.py$|^[^/]+\.py$'
+        files: '^(?:apps/|docketworks/|scripts/).+\.py$|^[^/]+\.py$'
         types: [python]
         exclude: '.*/migrations/.*\.py$'
 

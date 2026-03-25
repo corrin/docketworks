@@ -17,7 +17,7 @@ os.chdir(project_root)
 
 import django
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 django.setup()
 
 from django.conf import settings

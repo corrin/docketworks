@@ -216,13 +216,15 @@ CSRF_TRUSTED_ORIGINS = (
 ENABLE_JWT_AUTH = os.getenv("ENABLE_JWT_AUTH", "True").lower() == "true"
 
 REST_FRAMEWORK = {
-    "DEFAULT_AUTHENTICATION_CLASSES": ["jobs_manager.authentication.JWTAuthentication"],
+    "DEFAULT_AUTHENTICATION_CLASSES": [
+        "apps.workflow.authentication.JWTAuthentication"
+    ],
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
     "DEFAULT_SCHEMA_CLASS": "drf_spectacular.openapi.AutoSchema",
     "COERCE_DECIMAL_TO_STRING": False,
-    "EXCEPTION_HANDLER": "jobs_manager.exception_handlers.custom_exception_handler",
+    "EXCEPTION_HANDLER": "apps.workflow.exception_handlers.custom_exception_handler",
 }
 
 SIMPLE_JWT = {
@@ -272,7 +274,7 @@ API_PATH_PREFIXES = ["/api/"]
 
 # For OpenAPI schema generator
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Jobs Manager API",
+    "TITLE": "DocketWorks API",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     # Split request/response schemas so code generators don't require readOnly fields
@@ -344,7 +346,7 @@ SPECTACULAR_SETTINGS = {
     },
 }
 
-ROOT_URLCONF = "jobs_manager.urls"
+ROOT_URLCONF = "docketworks.urls"
 
 TEMPLATES = [
     {
@@ -372,8 +374,8 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = "jobs_manager.wsgi.application"
-ASGI_APPLICATION = "jobs_manager.asgi.application"
+WSGI_APPLICATION = "docketworks.wsgi.application"
+ASGI_APPLICATION = "docketworks.asgi.application"
 
 # Django Channels configuration
 CHANNEL_LAYERS = {
@@ -405,7 +407,7 @@ DATABASES = {
         "HOST": os.getenv("DB_HOST"),
         "PORT": os.getenv("DB_PORT"),
         "TEST": {
-            "NAME": "test_msm_workflow",
+            "NAME": os.getenv("MYSQL_DATABASE"),
         },
     },
 }
@@ -782,7 +784,7 @@ if PRODUCTION_LIKE:
             if apps.is_installed("django.contrib.sites"):
                 Site = apps.get_model("sites", "Site")
                 current_domain = os.getenv("DJANGO_SITE_DOMAIN")
-                current_name = "Jobs Manager"
+                current_name = "DocketWorks"
 
                 try:
                     site = Site.objects.get(pk=SITE_ID)

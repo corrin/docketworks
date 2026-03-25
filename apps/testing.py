@@ -1,5 +1,5 @@
 """
-Shared test utilities and base classes for the jobs_manager project.
+Shared test utilities and base classes for the docketworks project.
 
 All test classes that need database models should inherit from BaseTestCase
 to ensure required fixtures are loaded.

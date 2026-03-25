@@ -1,5 +1,5 @@
 """
-Weekly Payroll Reconciliation: Xero vs Jobs Manager
+Weekly Payroll Reconciliation: Xero vs DocketWorks
 
 DRAFT for handover to dev. The functions here approximate what the API service
 layer will need. The __main__ block just dumps results for validation.
@@ -74,7 +74,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import django  # noqa: E402

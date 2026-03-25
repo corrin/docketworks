@@ -814,19 +814,19 @@ git commit -m "feat(process-docs): add library page view"
   path: '/process-documents',
   name: 'process-documents',
   component: () => import('@/views/ProcessDocumentsView.vue'),
-  meta: { requiresAuth: true, title: 'Process Documents - Jobs Manager' },
+  meta: { requiresAuth: true, title: 'Process Documents - DocketWorks' },
 },
 {
   path: '/process-documents/forms/:id',
   name: 'form-entries',
   component: () => import('@/views/FormEntriesView.vue'),
-  meta: { requiresAuth: true, title: 'Form Entries - Jobs Manager' },
+  meta: { requiresAuth: true, title: 'Form Entries - DocketWorks' },
 },
 {
   path: '/process-documents/:id',
   name: 'process-document-detail',
   component: () => import('@/views/ProcessDocumentDetailView.vue'),
-  meta: { requiresAuth: true, title: 'Process Document - Jobs Manager' },
+  meta: { requiresAuth: true, title: 'Process Document - DocketWorks' },
 },
 ```
 

@@ -3,7 +3,7 @@
 
 import os
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 
 import django
 

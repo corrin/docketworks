@@ -20,7 +20,7 @@ const router = createRouter({
       meta: {
         requiresGuest: true,
         allowWorkshopStaff: true,
-        title: 'Login - Jobs Manager',
+        title: 'Login - DocketWorks',
       },
     },
     {
@@ -30,7 +30,7 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         allowWorkshopStaff: true,
-        title: 'Kanban Board - Jobs Manager',
+        title: 'Kanban Board - DocketWorks',
       },
     },
     {
@@ -39,7 +39,7 @@ const router = createRouter({
       component: () => import('@/views/JobCreateView.vue'),
       meta: {
         requiresAuth: true,
-        title: 'Create Job - Jobs Manager',
+        title: 'Create Job - DocketWorks',
       },
     },
     {
@@ -49,7 +49,7 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         allowWorkshopStaff: true,
-        title: 'Job (Workshop) - Jobs Manager',
+        title: 'Job (Workshop) - DocketWorks',
       },
     },
     {
@@ -59,7 +59,7 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         allowWorkshopStaff: true,
-        title: 'Job - Jobs Manager',
+        title: 'Job - DocketWorks',
       },
     },
     {
@@ -72,7 +72,7 @@ const router = createRouter({
       component: () => import('@/views/QuotingChatView.vue'),
       meta: {
         requiresAuth: true,
-        title: 'Interactive Quote Chat - Jobs Manager',
+        title: 'Interactive Quote Chat - DocketWorks',
       },
     },
     {
@@ -81,7 +81,7 @@ const router = createRouter({
       component: () => import('@/views/TimesheetEntryView.vue'),
       meta: {
         requiresAuth: true,
-        title: 'Timesheet Entry - Jobs Manager',
+        title: 'Timesheet Entry - DocketWorks',
       },
     },
     {
@@ -101,7 +101,7 @@ const router = createRouter({
       component: () => import('@/views/DailyTimesheetView.vue'),
       meta: {
         requiresAuth: true,
-        title: 'Daily Timesheet Overview - Jobs Manager',
+        title: 'Daily Timesheet Overview - DocketWorks',
         allowScroll: true,
       },
     },
@@ -126,7 +126,7 @@ const router = createRouter({
     {
       path: '/admin',
       component: () => import('@/views/AdminView.vue'),
-      meta: { requiresAuth: true, requiresSuperUser: true, title: 'Admin - Jobs Manager' },
+      meta: { requiresAuth: true, requiresSuperUser: true, title: 'Admin - DocketWorks' },
       children: [
         // Generated from adminPages config (single source of truth)
         ...adminPages.map((page) => ({
@@ -148,76 +148,76 @@ const router = createRouter({
       meta: {
         requiresAuth: true,
         requiresSuperUser: true,
-        title: 'Xero Sync - Jobs Manager',
+        title: 'Xero Sync - DocketWorks',
       },
     },
     {
       path: '/reports/clients',
       name: 'clients',
       component: () => import('@/views/ClientsView.vue'),
-      meta: { requiresAuth: true, title: 'Clients - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Clients - DocketWorks' },
     },
     {
       path: '/reports/clients/:id',
       name: 'client-detail',
       component: () => import('@/views/ClientDetailView.vue'),
-      meta: { requiresAuth: true, title: 'Client Details - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Client Details - DocketWorks' },
       props: true,
     },
     {
       path: '/purchasing/po',
       name: 'purchase-orders',
       component: () => import('@/views/purchasing/PurchaseOrderView.vue'),
-      meta: { requiresAuth: true, title: 'Purchase Orders - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Purchase Orders - DocketWorks' },
     },
     {
       path: '/purchasing/po/create',
       name: 'purchase-order-create',
       component: () => import('@/views/purchasing/PoCreateView.vue'),
-      meta: { requiresAuth: true, title: 'Create Purchase Order - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Create Purchase Order - DocketWorks' },
     },
     {
       path: '/purchasing/po/create-from-quote',
       name: 'purchase-order-create-from-quote',
       component: () => import('@/views/purchasing/CreateFromQuoteView.vue'),
-      meta: { requiresAuth: true, title: 'Create PO from Quote - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Create PO from Quote - DocketWorks' },
     },
     {
       path: '/purchasing/po/:id',
       name: 'purchase-order-form',
       component: () => import('@/views/purchasing/PurchaseOrderFormView.vue'),
-      meta: { requiresAuth: true, title: 'Purchase Order - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Purchase Order - DocketWorks' },
       props: true,
     },
     {
       path: '/purchasing/stock',
       name: 'stock',
       component: () => import('@/views/purchasing/StockView.vue'),
-      meta: { requiresAuth: true, title: 'Stock - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Stock - DocketWorks' },
     },
     {
       path: '/purchasing/mappings',
       name: 'product-mappings',
       component: () => import('@/views/purchasing/ProductMappingValidationView.vue'),
-      meta: { requiresAuth: true, title: 'Product Mappings - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Product Mappings - DocketWorks' },
     },
     {
       path: '/purchasing/pricing',
       name: 'supplier-pricing',
       component: () => import('@/views/purchasing/SupplierPricingUploadView.vue'),
-      meta: { requiresAuth: true, title: 'Supplier Pricing - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Supplier Pricing - DocketWorks' },
     },
     {
       path: '/reports/kpi',
       name: 'kpi-reports',
       component: () => import('@/views/KPIReportsView.vue'),
-      meta: { requiresAuth: true, title: 'KPI Reports - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'KPI Reports - DocketWorks' },
     },
     {
       path: '/reports/job-aging',
       name: 'job-aging-report',
       component: () => import('@/views/JobAgingReportView.vue'),
-      meta: { requiresAuth: true, title: 'Job Aging Report - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Job Aging Report - DocketWorks' },
     },
     {
       path: '/reports/staff-performance',
@@ -225,7 +225,7 @@ const router = createRouter({
       component: () => import('@/views/StaffPerformanceReportView.vue'),
       meta: {
         requiresAuth: true,
-        title: 'Staff Performance Report - Jobs Manager',
+        title: 'Staff Performance Report - DocketWorks',
         allowScroll: true,
       },
     },
@@ -233,25 +233,25 @@ const router = createRouter({
       path: '/reports/sales-forecast',
       name: 'sales-forecast-report',
       component: () => import('@/views/SalesForecastReportView.vue'),
-      meta: { requiresAuth: true, title: 'Sales Forecast Report - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Sales Forecast Report - DocketWorks' },
     },
     {
       path: '/reports/profit-and-loss',
       name: 'profit-loss-report',
       component: () => import('@/views/ProfitLossReportView.vue'),
-      meta: { requiresAuth: true, title: 'Profit & Loss Report - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Profit & Loss Report - DocketWorks' },
     },
     {
       path: '/reports/job-movement',
       name: 'job-movement-report',
       component: () => import('@/views/JobMovementReportView.vue'),
-      meta: { requiresAuth: true, title: 'Job Movement Report - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Job Movement Report - DocketWorks' },
     },
     {
       path: '/reports/data-quality/archived-jobs',
       name: 'data-quality-archived-jobs',
       component: () => import('@/views/DataQualityArchivedJobsView.vue'),
-      meta: { requiresAuth: true, title: 'Archived Jobs Validation - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Archived Jobs Validation - DocketWorks' },
     },
     {
       path: '/reports/job-profitability',
@@ -259,7 +259,7 @@ const router = createRouter({
       component: () => import('@/views/JobProfitabilityReportView.vue'),
       meta: {
         requiresAuth: true,
-        title: 'Job Profitability Report - Jobs Manager',
+        title: 'Job Profitability Report - DocketWorks',
         allowScroll: true,
       },
     },
@@ -267,13 +267,13 @@ const router = createRouter({
       path: '/reports/rdti-spend',
       name: 'rdti-spend-report',
       component: () => import('@/views/RDTISpendReportView.vue'),
-      meta: { requiresAuth: true, title: 'RDTI Spend Report - Jobs Manager', allowScroll: true },
+      meta: { requiresAuth: true, title: 'RDTI Spend Report - DocketWorks', allowScroll: true },
     },
     {
       path: '/reports/payroll-reconciliation',
       name: 'payroll-reconciliation-report',
       component: () => import('@/views/PayrollReconciliationReportView.vue'),
-      meta: { requiresAuth: true, title: 'Payroll Reconciliation - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Payroll Reconciliation - DocketWorks' },
     },
     {
       path: '/process-documents',
@@ -283,19 +283,19 @@ const router = createRouter({
       path: '/process-documents/forms/:category',
       name: 'process-documents-forms',
       component: () => import('@/views/ProcessDocumentsView.vue'),
-      meta: { requiresAuth: true, title: 'Forms - Jobs Manager', documentType: 'forms' },
+      meta: { requiresAuth: true, title: 'Forms - DocketWorks', documentType: 'forms' },
     },
     {
       path: '/process-documents/procedures/:category',
       name: 'process-documents-procedures',
       component: () => import('@/views/ProcessDocumentsView.vue'),
-      meta: { requiresAuth: true, title: 'Procedures - Jobs Manager', documentType: 'procedures' },
+      meta: { requiresAuth: true, title: 'Procedures - DocketWorks', documentType: 'procedures' },
     },
     {
       path: '/process-documents/forms/:category/:id',
       name: 'form-entries',
       component: () => import('@/views/FormEntriesView.vue'),
-      meta: { requiresAuth: true, title: 'Form Entries - Jobs Manager' },
+      meta: { requiresAuth: true, title: 'Form Entries - DocketWorks' },
     },
   ],
 })

@@ -171,8 +171,8 @@ def main():
     parser.add_argument(
         "dirs",
         nargs="*",
-        default=["apps", "jobs_manager"],
-        help="Directories to scan (default: apps jobs_manager)",
+        default=["apps", "docketworks"],
+        help="Directories to scan (default: apps docketworks)",
     )
     args = parser.parse_args()
 

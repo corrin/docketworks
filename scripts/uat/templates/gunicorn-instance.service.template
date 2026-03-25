@@ -10,7 +10,7 @@ ExecStart=/opt/docketworks/.venv/bin/gunicorn \
           --workers 3 \
           --timeout 180 \
           --bind unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock \
-          jobs_manager.wsgi:application
+          docketworks.wsgi:application
 EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
 
 [Install]

@@ -1,7 +1,7 @@
 import { defineConfig } from 'vitepress'
 
 export default defineConfig({
-  title: 'Jobs Manager Training Manual',
+  title: 'DocketWorks Training Manual',
   description: 'How to do your job - a cookbook for staff',
 
   // Served at /manual/ alongside the main app

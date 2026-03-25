@@ -327,8 +327,8 @@ def update_init_py(target_dir: str, verbose: bool = False) -> int:
 
     # Files/directories to exclude from auto-generation
     EXCLUDED_PATHS = {
-        os.path.normpath("jobs_manager/settings/__init__.py"),
-        os.path.normpath("jobs_manager/__init__.py"),  # Main project init
+        os.path.normpath("docketworks/settings/__init__.py"),
+        os.path.normpath("docketworks/__init__.py"),  # Main project init
     }
 
     # Directories that should never have their __init__.py modified
@@ -362,12 +362,12 @@ def update_init_py(target_dir: str, verbose: bool = False) -> int:
             )
             return 0  # Success, but skipped
 
-    # Additional exclusion for the main jobs_manager directory itself
-    if os.path.basename(target_dir) == "jobs_manager" and target_dir.endswith(
-        "jobs_manager"
+    # Additional exclusion for the main docketworks directory itself
+    if os.path.basename(target_dir) == "docketworks" and target_dir.endswith(
+        "docketworks"
     ):
         os.path.dirname(target_dir)
-        # Check if this is the main project directory (not an app named jobs_manager)
+        # Check if this is the main project directory (not an app named docketworks)
         if os.path.exists(os.path.join(target_dir, "settings")) and os.path.exists(
             os.path.join(target_dir, "wsgi.py")
         ):
@@ -535,7 +535,7 @@ def find_all_init_directories() -> list[str]:
         # Special check for main Django project directory
         if os.path.basename(
             normalized_dir
-        ) == "jobs_manager" and normalized_dir.endswith("jobs_manager"):
+        ) == "docketworks" and normalized_dir.endswith("docketworks"):
             if os.path.exists(
                 os.path.join(normalized_dir, "settings")
             ) and os.path.exists(os.path.join(normalized_dir, "wsgi.py")):

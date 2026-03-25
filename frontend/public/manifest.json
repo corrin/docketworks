@@ -1,6 +1,6 @@
 {
-  "name": "Jobs Manager",
-  "short_name": "Jobs Manager",
+  "name": "DocketWorks",
+  "short_name": "DocketWorks",
   "description": "Workflow Management System",
   "start_url": "/",
   "display": "standalone",

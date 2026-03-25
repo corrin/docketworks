@@ -141,7 +141,7 @@ Based on codebase analysis and requirements:
   E2E_TEST_PASSWORD=your-secure-password
   MYSQL_HOST=localhost
   MYSQL_PORT=3306
-  MYSQL_DATABASE=msm_workflow
+  MYSQL_DATABASE=dw_msm_dev
   MYSQL_USER=your-db-user
   MYSQL_PASSWORD=your-db-password
   ```

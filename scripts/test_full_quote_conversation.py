@@ -15,7 +15,7 @@ import sys
 import django
 
 # Setup Django
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 django.setup()
 
 from apps.job.models import Job, JobQuoteChat

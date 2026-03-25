@@ -216,7 +216,7 @@ test('view KPI report', { tag: '@readonly' }, async ({ page }) => {
 ```bash
 MYSQL_HOST=localhost
 MYSQL_PORT=3306
-MYSQL_DATABASE=msm_workflow
+MYSQL_DATABASE=dw_msm_dev
 MYSQL_USER=your_user
 MYSQL_PASSWORD=your_password
 ```

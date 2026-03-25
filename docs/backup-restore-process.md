@@ -136,7 +136,7 @@ Select-String -Path .env -Pattern '^(MYSQL_DATABASE|MYSQL_DB_USER|DB_PASSWORD|DB
 **Must show:**
 
 ```
-MYSQL_DATABASE=msm_workflow
+MYSQL_DATABASE=dw_msm_dev
 MYSQL_DB_USER=django_user
 DB_PASSWORD=your_dev_password
 DB_HOST=localhost
@@ -172,7 +172,7 @@ Remove-Item Env:MYSQL_PWD
 export MYSQL_PWD="$DB_PASSWORD" && mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "SHOW TABLES;"
 # Should return: Empty set (0.00 sec)
 export MYSQL_PWD="$DB_PASSWORD" && mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" -e "SHOW DATABASES;" | grep "$MYSQL_DATABASE"
-# Should show: msm_workflow
+# Should show: dw_msm_dev
 ```
 
 #### Step 6: Apply Production Schema
@@ -226,7 +226,7 @@ ls -la restore/prod_backup_YYYYMMDD_HHMMSS.sql
 head -10 restore/prod_backup_YYYYMMDD_HHMMSS.sql
 # Should show:
 # -- MySQL dump converted from Django JSON backup
-# USE msm_workflow;
+# USE dw_msm_dev;
 # SET FOREIGN_KEY_CHECKS=0;
 # INSERT INTO `workflow_job` (`id`, `name`, `client_id`...
 grep "INSERT INTO" restore/prod_backup_YYYYMMDD_HHMMSS.sql | wc -l

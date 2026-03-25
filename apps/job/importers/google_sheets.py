@@ -361,7 +361,7 @@ def copy_template_for_job(job: Job) -> tuple[str, str]:
     """
     Copy a quote template for a specific job.
 
-    Creates a "Jobs Manager" folder if it doesn't exist, then copies the template
+    Creates a "DocketWorks" folder if it doesn't exist, then copies the template
     spreadsheet with a name following the pattern: "Job {job_number} - {job_name}"
 
     Args:
@@ -385,8 +385,8 @@ def copy_template_for_job(job: Job) -> tuple[str, str]:
 
         template_id = extract_file_id(company_defaults.master_quote_template_id)
 
-        # Create or find "Jobs Manager" folder
-        folder_id = _get_or_create_jobs_manager_folder()
+        # Create or find "DocketWorks" folder
+        folder_id = _get_or_create_docketworks_folder()
 
         # Generate file name
         file_name = f"Job {job.job_number} - {job.name}"
@@ -410,9 +410,9 @@ def copy_template_for_job(job: Job) -> tuple[str, str]:
         raise RuntimeError(f"Failed to copy template: {str(e)}")
 
 
-def _get_or_create_jobs_manager_folder() -> str:
+def _get_or_create_docketworks_folder() -> str:
     """
-    Get or create the "Jobs Manager" folder in Google Drive.
+    Get or create the "DocketWorks" folder in Google Drive.
 
     Returns:
         str: Folder ID
@@ -420,9 +420,9 @@ def _get_or_create_jobs_manager_folder() -> str:
     try:
         drive_service = _svc("drive", "v3")
 
-        # Search for existing "Jobs Manager" folder
+        # Search for existing "DocketWorks" folder
         query = (
-            "name='Jobs Manager' and mimeType='application/vnd.google-apps.folder' "
+            "name='DocketWorks' and mimeType='application/vnd.google-apps.folder' "
             "and trashed=false"
         )
         results = (
@@ -440,17 +440,17 @@ def _get_or_create_jobs_manager_folder() -> str:
 
         if folders:
             folder_id = folders[0]["id"]
-            logger.debug(f"Found existing Jobs Manager folder: {folder_id}")
+            logger.debug(f"Found existing DocketWorks folder: {folder_id}")
             return str(folder_id) if folder_id else ""
 
         # Create new folder
-        folder_id = create_folder("Jobs Manager")
-        logger.info(f"Created Jobs Manager folder: {folder_id}")
+        folder_id = create_folder("DocketWorks")
+        logger.info(f"Created DocketWorks folder: {folder_id}")
         return folder_id
 
     except Exception as e:
-        logger.error(f"Failed to get/create Jobs Manager folder: {str(e)}")
-        raise RuntimeError(f"Failed to access Jobs Manager folder: {str(e)}")
+        logger.error(f"Failed to get/create DocketWorks folder: {str(e)}")
+        raise RuntimeError(f"Failed to access DocketWorks folder: {str(e)}")
 
 
 def populate_sheet_from_costset(sheet_id: str, costset: CostSet) -> None:

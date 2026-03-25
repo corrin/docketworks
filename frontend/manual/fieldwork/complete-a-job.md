@@ -8,7 +8,7 @@ title: Complete a Job On-Site
 
 ## What You'll Need
 
-- [ ] Access to Jobs Manager (phone or tablet is fine)
+- [ ] Access to DocketWorks (phone or tablet is fine)
 - [ ] Any required sign-off or photos from the customer
 
 ## Steps

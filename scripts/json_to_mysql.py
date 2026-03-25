@@ -6,6 +6,7 @@ Takes the anonymized JSON backup and produces SQL INSERT statements.
 
 import json
 import logging
+import os
 import sys
 from datetime import datetime
 from typing import Any, Dict, List
@@ -349,7 +350,8 @@ class JSONToMySQLConverter:
             f.write("-- MySQL dump converted from Django JSON backup\n")
             f.write(f"-- Generated on {datetime.now()}\n")
             f.write("-- \n\n")
-            f.write("USE msm_workflow;\n")
+            db_name = os.getenv("MYSQL_DATABASE", "dw_msm_dev")
+            f.write(f"USE {db_name};\n")
             f.write("SET FOREIGN_KEY_CHECKS=0;\n\n")
 
             # Process each record

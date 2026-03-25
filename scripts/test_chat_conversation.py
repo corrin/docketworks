@@ -12,7 +12,7 @@ import uuid
 import django
 
 # Setup Django
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 django.setup()
 
 from apps.job.helpers import get_job_folder_path

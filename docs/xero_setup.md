@@ -1,8 +1,8 @@
 # Xero Setup Guide
 
-The Jobs Manager requires you to have a Xero subscripton.  The app focuses on jobs management, and leaves Xero to handle invoices, payroll, etc. There is a very tight integration between the two, for example time spent on a job is posted to Xero for payroll, and added to the invoice.
+DocketWorks requires you to have a Xero subscripton.  The app focuses on jobs management, and leaves Xero to handle invoices, payroll, etc. There is a very tight integration between the two, for example time spent on a job is posted to Xero for payroll, and added to the invoice.
 
-This file documents how to set up Xero to work with jobs manager.
+This file documents how to set up Xero to work with DocketWorks.
 
 ## Step 1: Configure Xero
 

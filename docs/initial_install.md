@@ -1,6 +1,6 @@
 # Initial Installation Guide
 
-This guide details the steps required to set up the Jobs Manager application for local development. The setup involves configuring several external services **before** initializing the application itself. **Xero integration is mandatory** for the application's core functionality.
+This guide details the steps required to set up the DocketWorks application for local development. The setup involves configuring several external services **before** initializing the application itself. **Xero integration is mandatory** for the application's core functionality.
 
 **Core Dependencies:**
 
@@ -11,16 +11,20 @@ This guide details the steps required to set up the Jobs Manager application for
 
 ## Defining Your Application Name
 
-To maintain consistency throughout this guide, choose a name for your application based on your company or project. For example, if your company is "MSM Sheetmetal", a suitable app name might be `msm_workflow`.
+To maintain consistency throughout this guide, choose a short client code and environment suffix. For example, if your company is "MSM Sheetmetal", your client code is `msm` and for development the database name would be `dw_msm_dev`.
 
-This "App Name" will be used to construct:
+The naming convention is `dw_<client>_<env>` where:
+- `<client>` is your short company code (e.g., `msm`)
+- `<env>` is the environment: `dev`, `test`, or `prod`
 
-- Your MariaDB database name (e.g., `<your-app-name>`)
-- Your MariaDB database username (e.g., `<your-app-name>`)
-- Part of your ngrok subdomain (e.g., `<your-app-name>-dev.ngrok-free.app`). Note that ngrok's free tier may not guarantee your requested name, so you might need to tweak it slightly.
-- Part of your Xero App name (e.g., `<your-app-name> Development`).
+This will be used to construct:
 
-**Decide on your App Name now and use it consistently throughout this guide.** We'll refer to it as `<your-app-name>`.
+- Your MariaDB database name (e.g., `dw_msm_dev`)
+- Your MariaDB database username (e.g., `dw_msm_dev`)
+- Part of your ngrok subdomain (e.g., `docketworks-msm-dev.ngrok-free.app`). Note that ngrok's free tier may not guarantee your requested name, so you might need to tweak it slightly.
+- Part of your Xero App name (e.g., `docketworks-msm Development`).
+
+**Decide on your client code now and use it consistently throughout this guide.** We'll refer to the database name as `<db-name>` (e.g., `dw_msm_dev`).
 
 ## Phase 1: Prerequisites & External Service Setup
 
@@ -42,12 +46,12 @@ The application requires a dedicated database and user.
     ```
 2.  Run the following SQL commands. **Choose a strong password** for the database user and **record it securely**:
     ```sql
-    -- Replace <your-app-name> with your chosen application name
-    CREATE DATABASE <your-app-name>;
-    -- Replace <your-app-name> with your chosen application name
+    -- Replace <db-name> with your chosen application name
+    CREATE DATABASE <db-name>;
+    -- Replace <db-name> with your chosen application name
     -- Replace 'your-strong-password' with your chosen password
-    CREATE USER '<your-app-name>'@'localhost' IDENTIFIED BY 'your-strong-password';
-    GRANT ALL PRIVILEGES ON <your-app-name>.* TO '<your-app-name>'@'localhost';
+    CREATE USER '<db-name>'@'localhost' IDENTIFIED BY 'your-strong-password';
+    GRANT ALL PRIVILEGES ON <db-name>.* TO '<db-name>'@'localhost';
     FLUSH PRIVILEGES;
     EXIT;
     ```
@@ -56,7 +60,7 @@ The application requires a dedicated database and user.
     # Install timezone data from system zoneinfo files
     sudo mysql_tzinfo_to_sql /usr/share/zoneinfo | sudo mysql mysql
     ```
-    - **Details to Record:** Database name (`<your-app-name>`), DB username (`<your-app-name>`), DB password (`your-strong-password`).
+    - **Details to Record:** Database name (`<db-name>`), DB username (`<db-name>`), DB password (`your-strong-password`).
 
 ### Step 3: Set Up ngrok
 
@@ -66,7 +70,7 @@ The application requires a dedicated database and user.
 2.  **Install ngrok:** Follow the instructions at [ngrok.com](https://ngrok.com/) to install the ngrok client.
 3.  **Get your authtoken:** Find your authtoken in the ngrok dashboard under "Your Authtoken".
 4.  **Choose Your Static Domains:** You need predictable hostnames for both backend and frontend.
-    - _Free Plan:_ You can use static domains provided on the free tier (e.g., `<your-app-name>.ngrok-free.app` and `<your-app-name>-front.ngrok-free.app`). Find this option in your ngrok dashboard.
+    - _Free Plan:_ You can use static domains provided on the free tier (e.g., `<db-name>.ngrok-free.app` and `<db-name>-front.ngrok-free.app`). Find this option in your ngrok dashboard.
     - _Paid Plan:_ You can configure custom static domains.
     - **Decide on your domain names now.** You will need them for the Xero setup in the next step.
     - **Details to Record:** Your authtoken and your chosen ngrok static domains for backend and frontend.
@@ -83,11 +87,11 @@ The application syncs data with Xero. You need to register a Xero application.
 1.  **Sign up/Log in:** Go to the Xero Developer Portal: [https://developer.xero.com/](https://developer.xero.com/) and create an account or log in.
 2.  **Create a New App:**
     - Click "New App".
-    - Give it a name (e.g., `<your-app-name> Development`).
+    - Give it a name (e.g., `<db-name> Development`).
     - Select "Web app" as the integration type.
     - Company or Practice Name: Enter your details.
     - **OAuth 2.0 Redirect URI:** This is critical. Enter the URL formed by your ngrok domain from Step 3, followed by `/xero/callback`.
-      - Example: `https://<your-app-name>-dev.ngrok-free.app/xero/callback`
+      - Example: `https://<db-name>-dev.ngrok-free.app/xero/callback`
       - _(Make sure to use HTTPS and replace the example domain with your actual ngrok domain)_.
     - Agree to the terms and conditions and create the app.
 3.  **Get Credentials:** Once the app is created, navigate to its configuration page.
@@ -102,8 +106,8 @@ Now that the external services are prepared, set up the application code.
 ### Step 5: Clone Repository & Install Dependencies
 
 ```bash
-git clone https://github.com/corrin/jobs_manager.git
-cd jobs_manager
+git clone https://github.com/corrin/docketworks.git
+cd docketworks
 poetry install
 ```
 
@@ -116,14 +120,14 @@ poetry install
     ```
 2.  Open the `.env` file in a text editor.
 3.  **Populate with Recorded Details:** Fill in the following values using the details you recorded in Phase 1:
-    - `DATABASE_URL`: Construct using your DB user, password, and name (e.g., `mysql://<your-app-name>:your-strong-password@localhost:3306/<your-app-name>`).
+    - `DATABASE_URL`: Construct using your DB user, password, and name (e.g., `mysql://<db-name>:your-strong-password@localhost:3306/<db-name>`).
     - `XERO_CLIENT_ID`: Paste your Xero app's Client ID.
     - `XERO_CLIENT_SECRET`: Paste your Xero app's Client Secret.
     - Review other settings and adjust if needed (e.g., `DJANGO_SECRET_KEY` should be changed for any non-local testing).
 4.  **Configure Tunnel URLs:** Use the configuration script to set up all tunnel-related environment variables:
     ```bash
     # Replace with your actual backend and frontend ngrok domains
-    python scripts/configure_tunnels.py --backend https://<your-app-name>-dev.ngrok-free.app --frontend https://<your-app-name>-front.ngrok-free.app
+    python scripts/configure_tunnels.py --backend https://<db-name>-dev.ngrok-free.app --frontend https://<db-name>-front.ngrok-free.app
     ```
     This script automatically updates:
     - Backend `.env` file (11 variables including CORS, CSRF, Xero redirect URI, etc.)
@@ -189,7 +193,7 @@ poetry install
 
 ### Step 10: Connect Application to Xero
 
-1.  **Access Application:** Open your web browser and navigate to your public ngrok URL (e.g., `https://<your-app-name>-dev.ngrok-free.app`).
+1.  **Access Application:** Open your web browser and navigate to your public ngrok URL (e.g., `https://<db-name>-dev.ngrok-free.app`).
 2.  **Log In:** Use the default admin credentials (`defaultadmin@example.com` / `Default-admin-password`).
 3.  **Initiate Xero Connection:** Find the "Connect to Xero" or similar option (likely in Settings/Admin). Click it.
 4.  **Authorize in Xero:** You'll be redirected to Xero. Log in if needed. **Crucially, select and authorize the "Demo Company (Global)"**. Do _not_ use your live company data for development.
@@ -221,7 +225,7 @@ For running in a mode closer to production:
 3.  Start **Celery** worker(s) for handling background tasks (check project specifics).
 4.  Run using **Gunicorn** (or another WSGI server):
     ```bash
-    gunicorn --bind 0.0.0.0:8000 jobs_manager.wsgi
+    gunicorn --bind 0.0.0.0:8000 docketworks.wsgi
     ```
     _(In actual production, this would run behind a reverse proxy like Nginx)._
 
@@ -233,14 +237,14 @@ To wipe the local database and start fresh:
 
     ```sql
     -- WARNING: This script DROPS the database!
-    DROP DATABASE IF EXISTS <your-app-name>;
-    CREATE DATABASE <your-app-name>;
+    DROP DATABASE IF EXISTS <db-name>;
+    CREATE DATABASE <db-name>;
     -- Use the SAME password as in your .env file
-    GRANT ALL PRIVILEGES ON <your-app-name>.* TO '<your-app-name>'@'localhost' IDENTIFIED BY 'your-strong-password';
+    GRANT ALL PRIVILEGES ON <db-name>.* TO '<db-name>'@'localhost' IDENTIFIED BY 'your-strong-password';
     FLUSH PRIVILEGES;
     ```
 
-    _(Replace `<your-app-name>` with your application name and `your-strong-password` with your actual DB password)_.
+    _(Replace `<db-name>` with your application name and `your-strong-password` with your actual DB password)_.
 
 2.  **Execute Reset Script:** (You might need MariaDB root password)
 

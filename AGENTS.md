@@ -1,6 +1,6 @@
 # AGENTS.md
 
-Authoritative guidance for AI coding agents working in the Jobs Manager backend. Rules are distilled from `CLAUDE.md`, `.kilocode/rules/*.md`, and project readmes.
+Authoritative guidance for AI coding agents working in the DocketWorks backend. Rules are distilled from `CLAUDE.md`, `.kilocode/rules/*.md`, and project readmes.
 
 ## Mission Context
 

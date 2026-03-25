@@ -285,7 +285,7 @@ python manage.py import_dropbox_hs_documents
 
 ### 7h. Logo
 
-Currently the logo file needs to be placed at `jobs_manager/logo_msm.png` in the codebase. This is hardcoded and will need to be made client-configurable in future.
+Currently the logo file needs to be placed at `static/logo_msm.png` in the codebase. This is hardcoded and will need to be made client-configurable in future.
 
 ---
 
@@ -303,4 +303,4 @@ Currently the logo file needs to be placed at `jobs_manager/logo_msm.png` in the
 | AI provider keys | AIProvider model (Admin > AI Providers) |
 | Staff members | Staff model (Admin > Staff) |
 | SOPs, procedures, forms | Imported via management command |
-| Logo | `jobs_manager/logo_msm.png` (hardcoded — needs fix) |
+| Logo | `static/logo_msm.png` (hardcoded — needs fix) |
