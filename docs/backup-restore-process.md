@@ -54,6 +54,13 @@ You should end up with:
 3. Steps 22-27: Xero configuration
 4. Steps 28-30: Testing ONLY AFTER Xero is connected
 
+## One-Time Machine Setup (before first restore)
+
+These must be in place before running the process. They persist across restores.
+
+1. **`.env`** — Copy from `.env.example` and configure `MYSQL_DATABASE`, `MYSQL_DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and all other required variables.
+2. **`apps/workflow/fixtures/ai_providers.json`** — Copy from `ai_providers.json.example` and add real API keys for Claude, Gemini, and Mistral.
+
 ## Technical Notes
 
 - Use `--execute="source file.sql"` not `< file.sql` for SQL scripts (large files fail with redirection)
@@ -153,18 +160,10 @@ Note. If you're using Claude or similar, you need to specify these explicitly on
 **Command:**
 
 ```bash
-sudo mysql -u root --execute="source scripts/reset_database.sql"
+sudo ./scripts/setup_database.sh --drop
 ```
 
-**Windows (PowerShell):**
-
-```powershell
-$env:MYSQL_PWD = '<mysql_root_password_if_needed>'
-mysql.exe -u root --execute="source scripts/reset_database.sql"
-Remove-Item Env:MYSQL_PWD
-```
-
-**Note:** Adjust for your MySQL setup - add password (`MYSQL_PWD=password`), host (`-h host`), or port (`-P port`) as needed.
+**Note:** The script reads DB name, user, and password from `.env`. On Windows, run the equivalent MySQL commands manually.
 
 **Check:**
 
@@ -313,10 +312,7 @@ python scripts/restore_checks/check_company_defaults.py
 
 **Expected output:** `Company defaults loaded: Demo Company`
 
-#### Step 11: Load AI Providers Fixture (Optional)
-
-
-**Prerequisite:** Copy `apps/workflow/fixtures/ai_providers.json.example` to `ai_providers.json` and add your real API keys.
+#### Step 11: Load AI Providers Fixture
 
 **Command:**
 
@@ -695,7 +691,7 @@ cd frontend && npx playwright test
 ### Reset Script Fails
 
 **Symptoms:** Permission denied errors
-**Solution:** run the create database as root: `sudo mysql --execute="source scripts/reset_database.sql"`
+**Solution:** run the reset script as root: `sudo ./scripts/setup_database.sh --drop`
 
 ## File Locations
 
@@ -703,7 +699,7 @@ cd frontend && npx playwright test
 - **Production schema:** `prod_backup_YYYYMMDD_HHMMSS.schema.sql` (inside zip)
 - **Production data:** `prod_backup_YYYYMMDD_HHMMSS.json.gz` (inside zip)
 - **Development restore:** `restore/` directory
-- **Reset script:** `scripts/reset_database.sql`
+- **Reset script:** `scripts/setup_database.sh`
 - **Converter script:** `scripts/json_to_mysql.py`
 - **Generated SQL:** `restore/prod_backup_YYYYMMDD_HHMMSS.sql` (auto-generated from JSON)
 

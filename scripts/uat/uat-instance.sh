@@ -2,9 +2,15 @@
 set -euo pipefail
 
 # Manage UAT/demo instances of docketworks.
-# Usage: uat-instance.sh create <name> [--seed]
-#        uat-instance.sh destroy <name>
+# Usage: uat-instance.sh create <client> <env> [--seed]
+#        uat-instance.sh destroy <client> <env>
 #        uat-instance.sh list
+#
+# Naming convention: dw_<client>_<env>
+#   Instance name: <client>-<env>  (e.g., msm-uat)
+#   Database:      dw_<client>_<env> (e.g., dw_msm_uat)
+#   OS user:       dw-<client>-<env> (e.g., dw-msm-uat)
+#   URL:           <client>-<env>.docketworks.site
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
@@ -17,18 +23,24 @@ sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\\"]/\\&/g'; }
 # create
 # ============================================================
 do_create() {
-    local INSTANCE="" SEED=false
+    local CLIENT="" ENV="" SEED=false
 
-    if [[ $# -lt 1 ]]; then
-        echo "Usage: $0 create <instance-name> [--seed]"
+    if [[ $# -lt 2 ]]; then
+        echo "Usage: $0 create <client> <env> [--seed]"
+        echo "  env must be one of: $VALID_ENVS"
         exit 1
     fi
 
-    INSTANCE="$1"; shift
-    if [[ ! "$INSTANCE" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
-        echo "ERROR: Instance name must be lowercase alphanumeric (hyphens allowed, cannot start with hyphen)."
+    CLIENT="$1"; shift
+    ENV="$1"; shift
+
+    if [[ ! "$CLIENT" =~ ^[a-z0-9]+$ ]]; then
+        echo "ERROR: Client name must be lowercase alphanumeric (no hyphens)."
         exit 1
     fi
+    validate_env "$ENV"
+
+    local INSTANCE="${CLIENT}-${ENV}"
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
@@ -87,12 +99,14 @@ do_create() {
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER="dw-$INSTANCE"
-    local DB_NAME="dw_${INSTANCE//-/_}"
-    local DB_USER="dw_${INSTANCE//-/_}"
+    local DB_NAME="dw_${CLIENT}_${ENV}"
+    local DB_USER="dw_${CLIENT}_${ENV}"
     local CODE_DIR="$INSTANCE_DIR/code"
 
     log "=========================================="
     log "Creating docketworks instance: $INSTANCE"
+    log "  Client:    $CLIENT"
+    log "  Env:       $ENV"
     log "  Directory: $INSTANCE_DIR"
     log "  User:      $INSTANCE_USER"
     log "  Code:      $CODE_DIR (branch: main)"
@@ -181,17 +195,11 @@ do_create() {
     fi
 
     # --- Ensure database and DB user exist (always, even if .env was preserved) ---
-    # Read DB_PASSWORD from the .env file so we can ensure the DB user matches
     local DB_PASSWORD
     DB_PASSWORD="$(grep '^DB_PASSWORD=' "$INSTANCE_DIR/.env" | cut -d= -f2)"
     log "Ensuring database $DB_NAME and user $DB_USER exist..."
-    mysql -u root <<EOSQL
-CREATE DATABASE IF NOT EXISTS \`$DB_NAME\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-CREATE USER IF NOT EXISTS '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
-ALTER USER '$DB_USER'@'localhost' IDENTIFIED BY '$DB_PASSWORD';
-GRANT ALL PRIVILEGES ON \`$DB_NAME\`.* TO '$DB_USER'@'localhost';
-FLUSH PRIVILEGES;
-EOSQL
+    "$SCRIPT_DIR/../../scripts/setup_database.sh" \
+        --db "$DB_NAME" --user "$DB_USER" --password "$DB_PASSWORD" --host localhost
 
     # --- Clone code from local repo into instance dir ---
     if [[ -d "$CODE_DIR/.git" ]]; then
@@ -266,16 +274,26 @@ EOSQL
 # destroy
 # ============================================================
 do_destroy() {
-    if [[ $# -ne 1 ]]; then
-        echo "Usage: $0 destroy <instance-name>"
+    if [[ $# -ne 2 ]]; then
+        echo "Usage: $0 destroy <client> <env>"
+        echo "  env must be one of: $VALID_ENVS"
         exit 1
     fi
 
-    local INSTANCE="$1"
+    local CLIENT="$1"
+    local ENV="$2"
+
+    if [[ ! "$CLIENT" =~ ^[a-z0-9]+$ ]]; then
+        echo "ERROR: Client name must be lowercase alphanumeric (no hyphens)."
+        exit 1
+    fi
+    validate_env "$ENV"
+
+    local INSTANCE="${CLIENT}-${ENV}"
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER="dw-$INSTANCE"
-    local DB_NAME="dw_${INSTANCE//-/_}"
-    local DB_USER="dw_${INSTANCE//-/_}"
+    local DB_NAME="dw_${CLIENT}_${ENV}"
+    local DB_USER="dw_${CLIENT}_${ENV}"
 
     echo "=== Destroying instance: $INSTANCE ==="
     echo ""
@@ -385,6 +403,9 @@ do_list() {
 # ============================================================
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 {create|destroy|list} [args...]"
+    echo "  create  <client> <env> [--seed]"
+    echo "  destroy <client> <env>"
+    echo "  list"
     exit 1
 fi
 
@@ -399,5 +420,5 @@ case "$COMMAND" in
     create)  do_create "$@" ;;
     destroy) do_destroy "$@" ;;
     list)    do_list ;;
-    *)       echo "Unknown command: $COMMAND"; echo "Usage: $0 {create|destroy|list} [args...]"; exit 1 ;;
+    *)       echo "Unknown command: $COMMAND"; echo "Usage: $0 {create|destroy|list} <client> <env>"; exit 1 ;;
 esac
