@@ -7,14 +7,16 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 
-# Configuration
-BASE = "/var/backups/jobs_manager"
-REMOTE = "gdrive:msm_backups"
+REMOTE = "gdrive:dw_backups"
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="Prune timestamped backups under " + BASE
+        description="Prune timestamped backups and sync to remote"
+    )
+    parser.add_argument(
+        "backup_dir",
+        help="Path to the backup directory (e.g., /opt/docketworks/instances/msm/backups)",
     )
     parser.add_argument(
         "--delete",
@@ -125,10 +127,11 @@ def sync_remote(root, dry_run):
 
 def main():
     args = parse_arguments()
+    backup_dir = args.backup_dir
     dry_run = not args.delete
 
-    entries = list_backup_dirs(BASE)
-    validate_entries(BASE, entries)
+    entries = list_backup_dirs(backup_dir)
+    validate_entries(backup_dir, entries)
     pairs = parse_timestamps(entries)
 
     now = datetime.now()
@@ -136,8 +139,8 @@ def main():
 
     print("Keeping:", sorted(keep))
 
-    delete_and_purge(BASE, pairs, keep, dry_run)
-    sync_remote(BASE, dry_run)
+    delete_and_purge(backup_dir, pairs, keep, dry_run)
+    sync_remote(backup_dir, dry_run)
 
 
 if __name__ == "__main__":

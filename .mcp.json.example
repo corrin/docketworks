@@ -19,7 +19,7 @@
       "command": "uv",
       "args": ["run", "--directory", "<path-to-mariadb-mcp>", "python", "src/server.py"],
       "env": {
-        "DB_NAME": "msm_workflow"
+        "DB_NAME": "dw_msm_dev"
       }
     }
   }

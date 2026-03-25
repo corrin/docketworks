@@ -1,4 +1,4 @@
-# filepath: jobs_manager\apps\job\services\quote_sync_service.py
+# filepath: apps/job/services/quote_sync_service.py
 """
 Quote Sync Service
 

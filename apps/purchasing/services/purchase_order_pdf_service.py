@@ -73,8 +73,7 @@ class PurchaseOrderPDFGenerator:
 
     def add_logo(self, y_position):
         """Add company logo to the PDF."""
-        # Use the specific logo path within jobs_manager
-        logo_path = os.path.join(settings.BASE_DIR, "jobs_manager", "logo_msm.png")
+        logo_path = os.path.join(settings.BASE_DIR, "static", "logo_msm.png")
 
         if not os.path.exists(logo_path):
             logger.warning(f"Logo file not found at: {logo_path}")

@@ -10,10 +10,13 @@ try:
 
     if apps.ready:
         from .authentication import (
+            JWTAuthentication,
             ServiceAPIKeyAuthentication,
             service_api_key_required,
         )
         from .context_processors import debug_mode
+        from .exception_handlers import custom_exception_handler
+        from .extensions import CookieJWTScheme
         from .middleware import (
             AccessLoggingMiddleware,
             DisallowedHostMiddleware,
@@ -84,9 +87,11 @@ __all__ = [
     "AppErrorSerializer",
     "CompanyDefaultsSchemaSerializer",
     "CompanyDefaultsSerializer",
+    "CookieJWTScheme",
     "DisallowedHostMiddleware",
     "F",
     "FrontendRedirectMiddleware",
+    "JWTAuthentication",
     "LoginRequiredMiddleware",
     "PasswordStrengthMiddleware",
     "ServiceAPIKeyAuthentication",
@@ -113,6 +118,7 @@ __all__ = [
     "XeroWebhookView",
     "build_xero_payroll_url",
     "check_company_defaults_field_sections",
+    "custom_exception_handler",
     "debug_mode",
     "extract_messages",
     "get_machine_id",

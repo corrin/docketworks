@@ -518,7 +518,7 @@ def create_delivery_docket_main_document(job):
 
 def add_logo(pdf, y_position):
     """Draw the logo centred at the top and return the updated y position."""
-    logo_path = os.path.join(settings.BASE_DIR, "jobs_manager/logo_msm.png")
+    logo_path = os.path.join(settings.BASE_DIR, "static", "logo_msm.png")
     if not os.path.exists(logo_path):
         return y_position
     logo = ImageReader(logo_path)

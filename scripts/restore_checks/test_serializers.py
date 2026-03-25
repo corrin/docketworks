@@ -21,7 +21,7 @@ import time
 from typing import Any, Dict
 
 # Setup Django environment
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 os.environ.setdefault("HTTP_HOST", "localhost:8000")
 
 import django

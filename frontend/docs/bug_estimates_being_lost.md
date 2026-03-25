@@ -40,7 +40,7 @@ The frontend flow that will pick up backend-created CostLines:
 
 ### Instructions for Backend Claude
 
-**File to modify:** `/home/corrin/src/jobs_manager/apps/job/views/job_rest_views.py` (or wherever the job creation endpoint lives)
+**File to modify:** `/home/corrin/src/docketworks/apps/job/views/job_rest_views.py` (or wherever the job creation endpoint lives)
 
 **Changes needed:**
 
@@ -122,7 +122,7 @@ The frontend flow that will pick up backend-created CostLines:
 
 ## Frontend Changes Required ✅ COMPLETED
 
-**File:** `/home/corrin/src/jobs_manager_front/src/views/JobCreateView.vue`
+**File:** `/home/corrin/src/docketworks/frontend/src/views/JobCreateView.vue`
 
 ### Changes (Implemented):
 

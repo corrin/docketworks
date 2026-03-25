@@ -74,7 +74,7 @@ from collections import defaultdict
 from datetime import date, timedelta
 from decimal import Decimal
 
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import django  # noqa: E402

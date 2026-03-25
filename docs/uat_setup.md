@@ -79,7 +79,7 @@ sudo scripts/uat/uat-create-instance.sh <name>         # Empty database
 sudo scripts/uat/uat-create-instance.sh <name> --seed   # With demo fixtures
 ```
 
-Then update Xero credentials in `/opt/docketworks/<name>/.env` and restart:
+Then update Xero credentials in `/opt/docketworks/instances/<name>/.env` and restart:
 
 ```bash
 sudo systemctl restart gunicorn-<name>
@@ -89,57 +89,43 @@ sudo systemctl restart gunicorn-<name>
 
 1. **Clone repo**
    ```bash
-   sudo -u docketworks git clone git@github.com:corrin/docketworks.git /opt/docketworks/<name>
+   sudo -u dw-<name> git clone git@github.com:corrin/docketworks.git /opt/docketworks/instances/<name>/code
    ```
 
 2. **Create MariaDB database**
    ```bash
    sudo mysql -u root <<SQL
-   CREATE DATABASE docketworks_<name> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   CREATE USER 'docketworks_<name>'@'localhost' IDENTIFIED BY '<password>';
-   GRANT ALL PRIVILEGES ON docketworks_<name>.* TO 'docketworks_<name>'@'localhost';
+   CREATE DATABASE dw_<name> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+   CREATE USER 'dw_<name>'@'localhost' IDENTIFIED BY '<password>';
+   GRANT ALL PRIVILEGES ON dw_<name>.* TO 'dw_<name>'@'localhost';
    FLUSH PRIVILEGES;
    SQL
    ```
 
 3. **Generate `.env`** from `scripts/uat/templates/env-instance.template`
    - Replace all `__PLACEHOLDER__` values
-   - `chmod 600 /opt/docketworks/<name>/.env`
+   - `chmod 600 /opt/docketworks/instances/<name>/.env`
 
-4. **Python environment**
+4. **Install dependencies** (uses shared venv)
    ```bash
-   sudo -u docketworks bash -c "
-       cd /opt/docketworks/<name>
-       python3.12 -m venv .venv
-       source .venv/bin/activate
-       pip install --upgrade pip && pip install poetry
-       poetry install --no-interaction
-   "
+   scripts/uat/dw-run.sh <name> poetry install --no-interaction
    ```
 
 5. **Migrate + collectstatic**
    ```bash
-   sudo -u docketworks bash -c "
-       cd /opt/docketworks/<name>
-       source .venv/bin/activate
-       python manage.py migrate --no-input
-       python manage.py collectstatic --no-input
-   "
+   scripts/uat/dw-run.sh <name> python manage.py migrate --no-input
+   scripts/uat/dw-run.sh <name> python manage.py collectstatic --no-input
    ```
 
 6. **Load fixtures** (optional)
    ```bash
-   sudo -u docketworks bash -c "
-       cd /opt/docketworks/<name>
-       source .venv/bin/activate
-       python manage.py loaddata demo_fixtures
-   "
+   scripts/uat/dw-run.sh <name> python manage.py loaddata demo_fixtures
    ```
 
 7. **Build frontend**
    ```bash
-   sudo -u docketworks bash -c "
-       cd /opt/docketworks/<name>/frontend
+   sudo -u dw-<name> bash -c "
+       cd /opt/docketworks/instances/<name>/code/frontend
        npm install
        npm run build
    "
@@ -174,16 +160,9 @@ Choose the path that matches your scenario:
 For instances that need production data:
 
 1. **Instance created** — `uat-instance.sh create <name>` completed
-2. **Follow backup-restore-process.md** steps 1-17, running Django commands as the instance user:
+2. **Follow backup-restore-process.md** steps 1-17, running Django commands via the helper:
    ```bash
-   sudo -u dw-<name> bash -c "
-       source /opt/docketworks/.venv/bin/activate
-       set -a
-       source /opt/docketworks/instances/<name>/.env
-       set +a
-       cd /opt/docketworks/instances/<name>/code
-       python manage.py <command>
-   "
+   scripts/uat/dw-run.sh <name> python manage.py <command>
    ```
 3. **Xero setup** — follow backup-restore-process.md steps 21-27
 
@@ -204,32 +183,25 @@ For a prospect trying DocketWorks with their own Xero:
    #             xero_payroll_calendar_name (must match their Xero calendar)
 
    # Load it
-   sudo -u dw-<name> bash -c "
-       source /opt/docketworks/.venv/bin/activate
-       set -a
-       source /opt/docketworks/instances/<name>/.env
-       set +a
-       cd /opt/docketworks/instances/<name>/code
-       python manage.py loaddata /opt/docketworks/instances/<name>/company_defaults.json
-   "
+   scripts/uat/dw-run.sh <name> python manage.py loaddata /opt/docketworks/instances/<name>/company_defaults.json
    ```
 
 3. **Xero OAuth** — log into `https://<name>.docketworks.site` as admin, go to Admin > Xero Settings, click "Login with Xero" and authorize
 
-4. **Xero configuration** (run as instance user, same pattern as step 2)
+4. **Xero configuration**
    ```bash
-   python manage.py xero --setup
-   python manage.py xero --configure-payroll
-   python manage.py start_xero_sync --entity accounts
+   scripts/uat/dw-run.sh <name> python manage.py xero --setup
+   scripts/uat/dw-run.sh <name> python manage.py xero --configure-payroll
+   scripts/uat/dw-run.sh <name> python manage.py start_xero_sync --entity accounts
    ```
 
 5. **Import staff from Xero**
    ```bash
    # Preview first
-   python manage.py xero --import-staff-dry-run
+   scripts/uat/dw-run.sh <name> python manage.py xero --import-staff-dry-run
 
    # Then import
-   python manage.py xero --import-staff
+   scripts/uat/dw-run.sh <name> python manage.py xero --import-staff
    ```
    This pulls employees from Xero Payroll and creates Staff records with their
    wage rates and working hours. All imported staff get `password_needs_reset=True`.

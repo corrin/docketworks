@@ -1,22 +1,33 @@
 #!/bin/bash
 set -euo pipefail
 
-# Usage: rollback_release.sh 20250130_221922
-# Provide the date/time suffix of the backup folder to restore.
+# Usage: rollback_release.sh <instance> <backup_timestamp>
+# Example: rollback_release.sh msm 20250130_221922
 
-if [[ $# -lt 1 ]]; then
-  echo "Usage: $0 <BACKUP_TIMESTAMP>"
-  echo "Example: $0 20250130_221922"
+if [[ $# -lt 2 ]]; then
+  echo "Usage: $0 <instance> <backup_timestamp>"
+  echo "Example: $0 msm 20250130_221922"
   exit 1
 fi
 
-BACKUP_TIMESTAMP="$1"
-BACKUP_ROOT="/var/backups/jobs_manager"
-DATE_DIR="$BACKUP_ROOT/$BACKUP_TIMESTAMP"
+INSTANCE="$1"
+BACKUP_TIMESTAMP="$2"
+INSTANCE_DIR="/opt/docketworks/instances/$INSTANCE"
+INSTANCE_USER="dw-$INSTANCE"
+BACKUP_DIR="$INSTANCE_DIR/backups"
+DATE_DIR="$BACKUP_DIR/$BACKUP_TIMESTAMP"
 CODE_BACKUP="$DATE_DIR/code_${BACKUP_TIMESTAMP}.tgz"
 DB_BACKUP="$DATE_DIR/db_${BACKUP_TIMESTAMP}.sql.gz"
-PROJECT_DIR="/home/django_user/jobs_manager"
-SERVICE="gunicorn"  # Adjust if your service name differs
+CODE_DIR="$INSTANCE_DIR/code"
+SERVICE="gunicorn-$INSTANCE"
+ENV_FILE="$INSTANCE_DIR/.env"
+
+# Read MYSQL_DATABASE from instance .env
+MYSQL_DATABASE=$(grep -E '^MYSQL_DATABASE=' "$ENV_FILE" | cut -d= -f2)
+if [[ -z "$MYSQL_DATABASE" ]]; then
+  echo "ERROR: MYSQL_DATABASE not set in $ENV_FILE" >&2
+  exit 1
+fi
 
 # 1) Ensure backups actually exist
 if [[ ! -f "$CODE_BACKUP" ]]; then
@@ -33,17 +44,17 @@ echo "=== Stopping $SERVICE..."
 systemctl stop "$SERVICE"
 
 # 3) Remove current code
-echo "=== Removing existing code at $PROJECT_DIR..."
-rm -rf "$PROJECT_DIR"
+echo "=== Removing existing code at $CODE_DIR..."
+rm -rf "$CODE_DIR"
 
 # 4) Restore code from tarball
 echo "=== Restoring code from $CODE_BACKUP..."
-tar -zxf "$CODE_BACKUP" -C /home/django_user
-chown -R django_user:django_user "$PROJECT_DIR"
+tar -zxf "$CODE_BACKUP" -C "$INSTANCE_DIR"
+chown -R "$INSTANCE_USER:$INSTANCE_USER" "$CODE_DIR"
 
 # 5) Restore DB
 echo "=== Restoring DB from $DB_BACKUP..."
-gunzip < "$DB_BACKUP" | mysql -u root jobs_manager
+gunzip < "$DB_BACKUP" | mysql -u root "$MYSQL_DATABASE"
 
 # 6) Restart Gunicorn
 echo "=== Starting $SERVICE..."

@@ -25,7 +25,7 @@ def setup_django():
     """Setup Django environment with improved error handling."""
     try:
         # Set up Django environment
-        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+        os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 
         # Ensure we're in the right directory
         script_dir = Path(__file__).parent

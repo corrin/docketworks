@@ -87,8 +87,8 @@ do_create() {
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER="dw-$INSTANCE"
-    local DB_NAME="docketworks_${INSTANCE//-/_}"
-    local DB_USER="docketworks_${INSTANCE//-/_}"
+    local DB_NAME="dw_${INSTANCE//-/_}"
+    local DB_USER="dw_${INSTANCE//-/_}"
     local CODE_DIR="$INSTANCE_DIR/code"
 
     log "=========================================="
@@ -214,37 +214,16 @@ EOSQL
 
     # --- Run Django commands as instance user ---
     log "Running Django migrate..."
-    sudo -u "$INSTANCE_USER" bash -c "
-        source '$SHARED_VENV/bin/activate'
-        set -a
-        source '$INSTANCE_DIR/.env'
-        set +a
-        cd '$CODE_DIR'
-        python manage.py migrate --no-input
-    "
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py migrate --no-input
 
     # --- Create initial admin user ---
     log "Creating initial admin user..."
-    sudo -u "$INSTANCE_USER" bash -c "
-        source '$SHARED_VENV/bin/activate'
-        set -a
-        source '$INSTANCE_DIR/.env'
-        set +a
-        cd '$CODE_DIR'
-        python scripts/setup_dev_logins.py
-    "
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py
 
     # --- Optionally seed data ---
     if [[ "$SEED" == "true" ]]; then
         log "Loading demo fixtures..."
-        sudo -u "$INSTANCE_USER" bash -c "
-            source '$SHARED_VENV/bin/activate'
-            set -a
-            source '$INSTANCE_DIR/.env'
-            set +a
-            cd '$CODE_DIR'
-            python manage.py loaddata demo_fixtures
-        "
+        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
     fi
 
     # --- Install systemd service ---
@@ -295,8 +274,8 @@ do_destroy() {
     local INSTANCE="$1"
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER="dw-$INSTANCE"
-    local DB_NAME="docketworks_${INSTANCE//-/_}"
-    local DB_USER="docketworks_${INSTANCE//-/_}"
+    local DB_NAME="dw_${INSTANCE//-/_}"
+    local DB_USER="dw_${INSTANCE//-/_}"
 
     echo "=== Destroying instance: $INSTANCE ==="
     echo ""

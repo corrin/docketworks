@@ -1,6 +1,6 @@
 # Codebase Overview
 
-This project is a front-end built with **Vue 3** and **TypeScript** using Vite as the bundler. It communicates with the [DocketWorks backend](https://github.com/corrin/jobs_manager).
+This project is a front-end built with **Vue 3** and **TypeScript** using Vite as the bundler. It communicates with the [DocketWorks backend](https://github.com/corrin/docketworks).
 
 ## Key Concepts
 

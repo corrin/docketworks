@@ -1,7 +1,7 @@
 # DocketWorks Frontend
 
 This repository contains the Vue 3 front‑end for the DocketWorks application.
-It communicates with the [DocketWorks backend](https://github.com/corrin/jobs_manager).
+It communicates with the [DocketWorks backend](https://github.com/corrin/docketworks).
 
 ## Getting Started
 

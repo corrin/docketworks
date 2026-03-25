@@ -8,4 +8,4 @@ class AccountsConfig(AppConfig):
 
     def ready(self) -> None:
         # Import here to avoid AppRegistryNotReady during Django startup
-        import jobs_manager.extensions  # noqa: F401
+        import apps.workflow.extensions  # noqa: F401
