@@ -22,10 +22,10 @@ CODE_DIR="$INSTANCE_DIR/code"
 SERVICE="gunicorn-$INSTANCE"
 ENV_FILE="$INSTANCE_DIR/.env"
 
-# Read MYSQL_DATABASE from instance .env
-MYSQL_DATABASE=$(grep -E '^MYSQL_DATABASE=' "$ENV_FILE" | cut -d= -f2)
-if [[ -z "$MYSQL_DATABASE" ]]; then
-  echo "ERROR: MYSQL_DATABASE not set in $ENV_FILE" >&2
+# Read DB_NAME from instance .env
+DB_NAME=$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2)
+if [[ -z "$DB_NAME" ]]; then
+  echo "ERROR: DB_NAME not set in $ENV_FILE" >&2
   exit 1
 fi
 
@@ -54,7 +54,7 @@ chown -R "$INSTANCE_USER:$INSTANCE_USER" "$CODE_DIR"
 
 # 5) Restore DB
 echo "=== Restoring DB from $DB_BACKUP..."
-gunzip < "$DB_BACKUP" | mysql -u root "$MYSQL_DATABASE"
+gunzip < "$DB_BACKUP" | sudo -u postgres psql "$DB_NAME"
 
 # 6) Restart Gunicorn
 echo "=== Starting $SERVICE..."

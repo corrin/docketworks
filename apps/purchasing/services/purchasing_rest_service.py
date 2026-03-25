@@ -6,9 +6,9 @@ from typing import Any, Dict, List
 
 from django.core.cache import cache
 from django.core.exceptions import ValidationError
-from django.db import models, transaction
+from django.db import transaction
 from django.db.models import IntegerField
-from django.db.models.expressions import RawSQL
+from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Cast, Substr
 from django.http import Http404
 from django.shortcuts import get_object_or_404
@@ -215,11 +215,7 @@ class PurchasingRestService:
 
         has_costlines = (
             CostLine.objects.annotate(
-                po_line_id=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(ext_refs, '$.purchase_order_line_id'))",
-                    (),
-                    output_field=models.CharField(),
-                )
+                po_line_id=KeyTextTransform("purchase_order_line_id", "ext_refs"),
             )
             .filter(po_line_id=str(line.id))
             .exists()

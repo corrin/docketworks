@@ -3,7 +3,7 @@ from decimal import Decimal
 from typing import Any, Optional
 from uuid import UUID
 
-from django.db import connection, transaction
+from django.db import transaction
 from django.utils import timezone
 
 from apps.job.models import CostLine, CostSet, Job
@@ -33,15 +33,9 @@ def merge_stock_into(source_stock_id: UUID, target_stock_id: UUID) -> None:
     )
 
     # 2. Update CostLine ext_refs JSON where stock_id matches source
-    with connection.cursor() as cursor:
-        cursor.execute(
-            """
-            UPDATE job_costline
-            SET ext_refs = JSON_SET(ext_refs, '$.stock_id', %s)
-            WHERE JSON_EXTRACT(ext_refs, '$.stock_id') = %s
-            """,
-            [target_str, source_str],
-        )
+    for cl in CostLine.objects.filter(ext_refs__stock_id=source_str):
+        cl.ext_refs["stock_id"] = target_str
+        cl.save(update_fields=["ext_refs"])
 
     # 3. Delete the source stock
     Stock.objects.filter(id=source_stock_id).delete()

@@ -13,7 +13,13 @@ def forwards(apps, schema_editor):
 
     Idempotent: checks current state before making changes, so it's safe
     to run even if a previous partial migration already modified the table.
+
+    MySQL-specific: on PostgreSQL the SeparateDatabaseAndState below handles
+    the schema change via standard Django operations, so this is a no-op.
     """
+    if schema_editor.connection.vendor != "mysql":
+        return
+
     table = "workflow_companydefaults"
     cursor = schema_editor.connection.cursor()
 
@@ -40,6 +46,9 @@ def forwards(apps, schema_editor):
 
 def backwards(apps, schema_editor):
     """Reverse: drop id column, restore company_name as PK, add is_primary."""
+    if schema_editor.connection.vendor != "mysql":
+        return
+
     table = "workflow_companydefaults"
     schema_editor.execute(
         f"ALTER TABLE `{table}` "

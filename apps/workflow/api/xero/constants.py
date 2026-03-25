@@ -9,8 +9,6 @@ XERO_SCOPES = [
     "accounting.invoices",
     "accounting.attachments",
     "accounting.settings",
-    "accounting.journals.read",
-    # "accounting.inventory",  # REMOVED - invalid scope, use accounting.settings instead
     "projects",
     "payroll.timesheets",
     "payroll.payruns",

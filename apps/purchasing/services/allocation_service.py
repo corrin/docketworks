@@ -3,8 +3,9 @@ from dataclasses import asdict, dataclass
 from decimal import Decimal
 from typing import Dict, Literal, Tuple, Union
 
-from django.db import models, transaction
-from django.db.models import F, Func, Sum, Value
+from django.db import transaction
+from django.db.models import F, Sum, Value
+from django.db.models.fields.json import KeyTextTransform
 from django.db.models.functions import Coalesce, Greatest
 
 from apps.job.models import CostLine
@@ -125,13 +126,7 @@ class AllocationService:
                 stock_item = AllocationService._get_stock_or_error(po, allocation_id)
 
                 consuming_qs = CostLine.objects.annotate(
-                    stock_id=Func(
-                        F("ext_refs"),
-                        Value("$.stock_id"),
-                        function="JSON_UNQUOTE",
-                        template="JSON_UNQUOTE(JSON_EXTRACT(%(expressions)s))",
-                        output_field=models.CharField(),
-                    )
+                    stock_id=KeyTextTransform("stock_id", "ext_refs"),
                 ).filter(stock_id=str(stock_item.id))
 
                 return {
@@ -198,20 +193,8 @@ class AllocationService:
             - purchase_order_line_id
         Verifying both here.
         """
-        po_id = Func(
-            Func(F("ext_refs"), Value("$.purchase_order_id"), function="JSON_EXTRACT"),
-            function="JSON_UNQUOTE",
-            output_field=models.CharField(),
-        )
-        po_line_id = Func(
-            Func(
-                F("ext_refs"),
-                Value("$.purchase_order_line_id"),
-                function="JSON_EXTRACT",
-            ),
-            function="JSON_UNQUOTE",
-            output_field=models.CharField(),
-        )
+        po_id = KeyTextTransform("purchase_order_id", "ext_refs")
+        po_line_id = KeyTextTransform("purchase_order_line_id", "ext_refs")
         try:
             line = (
                 CostLine.objects.select_related("cost_set__job")
@@ -259,15 +242,9 @@ class AllocationService:
         po_line: PurchaseOrderLine,
         stock_item: Stock,
     ) -> DeletionResult:
-        stock_id = Func(
-            Func(F("ext_refs"), Value("$.stock_id"), function="JSON_EXTRACT"),
-            function="JSON_UNQUOTE",
-            output_field=models.CharField(),
-        )
-
-        consuming_qs = CostLine.objects.annotate(stock_id=stock_id).filter(
-            stock_id=str(stock_item.id)
-        )
+        consuming_qs = CostLine.objects.annotate(
+            stock_id=KeyTextTransform("stock_id", "ext_refs"),
+        ).filter(stock_id=str(stock_item.id))
 
         consumed_count = consuming_qs.count()
         if consumed_count:

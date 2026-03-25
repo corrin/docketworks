@@ -13,8 +13,7 @@ from datetime import date
 from decimal import Decimal
 from typing import Dict, List
 
-from django.db import models
-from django.db.models.expressions import RawSQL
+from django.db.models.fields.json import KeyTextTransform
 
 from apps.accounts.models import Staff
 from apps.accounts.utils import get_excluded_staff
@@ -112,11 +111,7 @@ class DailyTimesheetService:
             # Get cost lines for this staff and date (kind='time')
 
             qs = CostLine.objects.annotate(
-                staff_id=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))",
-                    (),
-                    output_field=models.CharField(),
-                ),
+                staff_id=KeyTextTransform("staff_id", "meta"),
             )
 
             cost_lines = qs.filter(

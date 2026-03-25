@@ -6,7 +6,7 @@ This guide details the steps required to set up the DocketWorks application for 
 
 - Python 3.12+
 - [Poetry](https://python-poetry.org/)
-- MariaDB Server & Client (Version 11.5.2+ recommended)
+- PostgreSQL Server (Version 16+ recommended)
 - [ngrok](https://ngrok.com/) Client
 
 ## Defining Your Application Name
@@ -19,8 +19,8 @@ The naming convention is `dw_<client>_<env>` where:
 
 This will be used to construct:
 
-- Your MariaDB database name (e.g., `dw_msm_dev`)
-- Your MariaDB database username (e.g., `dw_msm_dev`)
+- Your PostgreSQL database name (e.g., `dw_msm_dev`)
+- Your PostgreSQL database username (e.g., `dw_msm_dev`)
 - Part of your ngrok subdomain (e.g., `docketworks-msm-dev.ngrok-free.app`). Note that ngrok's free tier may not guarantee your requested name, so you might need to tweak it slightly.
 - Part of your Xero App name (e.g., `docketworks-msm Development`).
 
@@ -32,33 +32,27 @@ Complete these steps first to gather all necessary credentials and configuration
 
 ### Step 1: Install Core Software
 
-Ensure you have installed Python, Poetry, the MariaDB server/client, and the ngrok client on your development machine. Follow the official installation instructions for each tool specific to your operating system.
+Ensure you have installed Python, Poetry, PostgreSQL, and the ngrok client on your development machine. Follow the official installation instructions for each tool specific to your operating system.
 
-### Step 2: Set Up MariaDB Database
+### Step 2: Set Up PostgreSQL Database
 
 The application requires a dedicated database and user.
 
-1.  Log into your MariaDB server as root (or another privileged user):
+1.  Connect to PostgreSQL as the superuser:
     ```bash
-    # Example for Linux/macOS using sudo
-    sudo mysql -u root -p
-    # Windows might involve opening the MariaDB client/shell directly
+    # Linux
+    sudo -u postgres psql
+    # macOS (Homebrew)
+    psql postgres
+    # Windows: use pgAdmin or psql from the Start Menu
     ```
 2.  Run the following SQL commands. **Choose a strong password** for the database user and **record it securely**:
     ```sql
     -- Replace <db-name> with your chosen application name
-    CREATE DATABASE <db-name>;
-    -- Replace <db-name> with your chosen application name
-    -- Replace 'your-strong-password' with your chosen password
-    CREATE USER '<db-name>'@'localhost' IDENTIFIED BY 'your-strong-password';
-    GRANT ALL PRIVILEGES ON <db-name>.* TO '<db-name>'@'localhost';
-    FLUSH PRIVILEGES;
-    EXIT;
-    ```
-3.  **Install Timezone Data:** After creating the database, install timezone data into MySQL/MariaDB. This is required for Django's timezone-aware database functions to work correctly:
-    ```bash
-    # Install timezone data from system zoneinfo files
-    sudo mysql_tzinfo_to_sql /usr/share/zoneinfo | sudo mysql mysql
+    CREATE ROLE "<db-name>" WITH LOGIN PASSWORD 'your-strong-password';
+    CREATE DATABASE "<db-name>" OWNER "<db-name>";
+    GRANT ALL PRIVILEGES ON DATABASE "<db-name>" TO "<db-name>";
+    \q
     ```
     - **Details to Record:** Database name (`<db-name>`), DB username (`<db-name>`), DB password (`your-strong-password`).
 
@@ -120,10 +114,12 @@ poetry install
     ```
 2.  Open the `.env` file in a text editor.
 3.  **Populate with Recorded Details:** Fill in the following values using the details you recorded in Phase 1:
-    - `DATABASE_URL`: Construct using your DB user, password, and name (e.g., `mysql://<db-name>:your-strong-password@localhost:3306/<db-name>`).
+    - `DB_NAME`: Your database name (e.g., `dw_msm_dev`).
+    - `DB_USER`: Your database username (e.g., `dw_msm_dev`).
+    - `DB_PASSWORD`: Your database password.
     - `XERO_CLIENT_ID`: Paste your Xero app's Client ID.
     - `XERO_CLIENT_SECRET`: Paste your Xero app's Client Secret.
-    - Review other settings and adjust if needed (e.g., `DJANGO_SECRET_KEY` should be changed for any non-local testing).
+    - Review other settings and adjust if needed (e.g., `SECRET_KEY` should be changed for any non-local testing).
 4.  **Configure Tunnel URLs:** Use the configuration script to set up all tunnel-related environment variables:
     ```bash
     # Replace with your actual backend and frontend ngrok domains
@@ -157,7 +153,6 @@ poetry install
     python manage.py loaddata apps/workflow/fixtures/initial_data.json
     # OR...  restore from prod
     python manage.py backport_data_restore
-
     ```
 
     **Default Admin Credentials (from initial_data.json):**
@@ -233,19 +228,15 @@ For running in a mode closer to production:
 
 To wipe the local database and start fresh:
 
-1.  **Run the reset script** (reads DB name, user, and password from `.env`):
+1.  **Run the setup script with --drop:**
 
     ```bash
-    sudo ./scripts/setup_database.sh --drop
+    ./scripts/setup_database.sh --drop
     ```
 
-3.  **Re-install Timezone Data:** (Required for timezone-aware database functions)
+    This drops the existing database and recreates it with the correct user and permissions (reads from your `.env` file).
 
-    ```bash
-    sudo mysql_tzinfo_to_sql /usr/share/zoneinfo | sudo mysql mysql
-    ```
-
-4.  **Re-initialize Application:** (Activate `poetry shell` if needed)
+2.  **Re-initialize Application:** (Activate `poetry shell` if needed)
 
     ```bash
     python manage.py migrate
@@ -254,7 +245,7 @@ To wipe the local database and start fresh:
     # Optional: python manage.py backport_data_restore restore/prod_backup_YYYYMMDD_HHMMSS.json
     ```
 
-5.  **Re-Connect Xero and Setup:** After resetting, you **must** repeat the Xero connection steps:
+3.  **Re-Connect Xero and Setup:** After resetting, you **must** repeat the Xero connection steps:
     - Log into the app and click "Connect to Xero"
     - Authorize the organisation
     - Run `python manage.py xero --setup`
@@ -266,8 +257,8 @@ To wipe the local database and start fresh:
 If you encounter issues:
 
 1.  **Dependencies:** Rerun `poetry install`. Check for errors.
-2.  **.env File:** Verify `DATABASE_URL`, Xero keys, `NGROK_DOMAIN`.
-3.  **Database:** Is MariaDB running? Do credentials in `.env` match the `CREATE USER` command?
+2.  **.env File:** Verify `DB_NAME`, `DB_USER`, `DB_PASSWORD`, Xero keys, `NGROK_DOMAIN`.
+3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
 6.  **Xero Config:** Double-check Redirect URI in Xero Dev portal. Check Client ID/Secret.

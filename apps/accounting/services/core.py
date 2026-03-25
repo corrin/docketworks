@@ -9,7 +9,7 @@ from zoneinfo import ZoneInfo
 
 import holidays
 from django.db import models
-from django.db.models.expressions import RawSQL
+from django.db.models.fields.json import KeyTextTransform
 from django.utils import timezone
 
 from apps.accounts.models import Staff
@@ -166,16 +166,8 @@ class KPIService:
         cost_lines = (
             CostLine.objects.annotate(
                 # Extract staff_id and is_billable from meta JSONField
-                staff_id=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))",
-                    (),
-                    output_field=models.CharField(),
-                ),
-                is_billable=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.is_billable'))",
-                    (),
-                    output_field=models.BooleanField(),
-                ),
+                staff_id=KeyTextTransform("staff_id", "meta"),
+                is_billable=KeyTextTransform("is_billable", "meta"),
             )
             .filter(
                 cost_set__kind="actual",
@@ -216,7 +208,7 @@ class KPIService:
                 }
 
             # Only count billable time revenue if not shop client
-            if line.is_billable and str(job.client_id) != cls.shop_client_id:
+            if line.is_billable == "true" and str(job.client_id) != cls.shop_client_id:
                 job_data[job_number]["labour_revenue"] += float(line.total_rev)
 
             job_data[job_number]["labour_cost"] += float(line.total_cost)
@@ -278,7 +270,7 @@ class KPIService:
             for line in time_lines:
                 if (
                     line.cost_set.job.job_number == job_number
-                    and line.is_billable
+                    and line.is_billable == "true"
                     and str(line.cost_set.job.client_id) != cls.shop_client_id
                 ):
                     billable_hours += float(line.quantity)
@@ -377,16 +369,8 @@ class KPIService:
         # Extract staff_id and is_billable from meta JSONField
         cost_lines_time = (
             CostLine.objects.annotate(
-                staff_id=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))",
-                    (),
-                    output_field=models.CharField(),
-                ),
-                is_billable=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.is_billable'))",
-                    (),
-                    output_field=models.BooleanField(),
-                ),
+                staff_id=KeyTextTransform("staff_id", "meta"),
+                is_billable=KeyTextTransform("is_billable", "meta"),
             )
             .filter(
                 cost_set__kind="actual",
@@ -416,7 +400,7 @@ class KPIService:
 
             # Check if billable and not shop client
             if (
-                line.is_billable
+                line.is_billable == "true"
                 and str(line.cost_set.job.client_id) != cls.shop_client_id
             ):
                 time_entries_by_date[line_date]["billable_hours"] += hours
@@ -1201,14 +1185,8 @@ class StaffPerformanceService:
             # Get time entries from CostLine
             cost_lines = (
                 CostLine.objects.annotate(
-                    staff_id_meta=RawSQL(
-                        "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))", ()
-                    ),
-                    is_billable_meta=RawSQL(
-                        "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.is_billable'))",
-                        (),
-                        output_field=models.BooleanField(),
-                    ),
+                    staff_id_meta=KeyTextTransform("staff_id", "meta"),
+                    is_billable_meta=KeyTextTransform("is_billable", "meta"),
                 )
                 .filter(
                     cost_set__kind="actual",
@@ -1295,7 +1273,7 @@ class StaffPerformanceService:
             sum(
                 line.quantity
                 for line in cost_lines
-                if line.is_billable_meta
+                if line.is_billable_meta == "true"
                 and str(line.cost_set.job.client_id) != shop_client_id
             )
         )
@@ -1369,7 +1347,7 @@ class StaffPerformanceService:
             # Shop jobs are always non-billable regardless of the is_billable flag
             shop_client_id = Client.get_shop_client_id()
             is_shop_job = str(line.cost_set.job.client_id) == shop_client_id
-            is_billable = line.is_billable_meta and not is_shop_job
+            is_billable = line.is_billable_meta == "true" and not is_shop_job
 
             if is_billable:
                 job_data[job_id]["billable_hours"] += hours

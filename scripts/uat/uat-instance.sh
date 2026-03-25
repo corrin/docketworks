@@ -198,8 +198,20 @@ do_create() {
     local DB_PASSWORD
     DB_PASSWORD="$(grep '^DB_PASSWORD=' "$INSTANCE_DIR/.env" | cut -d= -f2)"
     log "Ensuring database $DB_NAME and user $DB_USER exist..."
-    "$SCRIPT_DIR/../../scripts/setup_database.sh" \
-        --db "$DB_NAME" --user "$DB_USER" --password "$DB_PASSWORD" --host localhost
+    sudo -u postgres psql <<EOSQL
+DO \$\$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
+        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$DB_PASSWORD';
+    ELSE
+        ALTER ROLE "$DB_USER" WITH PASSWORD '$DB_PASSWORD';
+    END IF;
+END
+\$\$;
+SELECT 'CREATE DATABASE "$DB_NAME" OWNER "$DB_USER"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
+GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
+EOSQL
 
     # --- Clone code from local repo into instance dir ---
     if [[ -d "$CODE_DIR/.git" ]]; then
@@ -332,10 +344,9 @@ do_destroy() {
 
     # --- Drop database and user ---
     echo "=== Dropping database and user ==="
-    mysql -u root <<EOSQL || true
-DROP DATABASE IF EXISTS \`$DB_NAME\`;
-DROP USER IF EXISTS '$DB_USER'@'localhost';
-FLUSH PRIVILEGES;
+    sudo -u postgres psql <<EOSQL || true
+DROP DATABASE IF EXISTS "$DB_NAME";
+DROP ROLE IF EXISTS "$DB_USER";
 EOSQL
 
     # --- Remove files ---
