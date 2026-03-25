@@ -105,7 +105,7 @@ except Exception as exc:
 
 ## Environment Configuration
 
-See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, MariaDB.
+See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL.
 
 ## Migration Management
 

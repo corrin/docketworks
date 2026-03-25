@@ -1,5 +1,5 @@
 #!/bin/bash
-# Restore MySQL database after E2E tests
+# Restore PostgreSQL database after E2E tests
 
 set -e
 
@@ -18,11 +18,11 @@ if [ -z "$BACKEND_ENV_PATH" ] || [ ! -f "$BACKEND_ENV_PATH" ]; then
 fi
 
 # Source database credentials from backend .env
-export $(grep -E '^(MYSQL_DATABASE|MYSQL_DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)=' "$BACKEND_ENV_PATH" | xargs)
+export $(grep -E '^(DB_NAME|DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)=' "$BACKEND_ENV_PATH" | xargs)
 
 # Set defaults
 DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-3306}"
+DB_PORT="${DB_PORT:-5432}"
 
 # Get the latest backup file
 if [ ! -f "$BACKUP_DIR/.latest_backup" ]; then
@@ -37,14 +37,13 @@ if [ ! -f "$BACKUP_FILE" ]; then
     exit 1
 fi
 
-echo "Restoring database $MYSQL_DATABASE from $BACKUP_FILE..."
+echo "Restoring database $DB_NAME from $BACKUP_FILE..."
 
-mysql \
+PGPASSWORD="$DB_PASSWORD" psql \
     -h "$DB_HOST" \
-    -P "$DB_PORT" \
-    -u "$MYSQL_DB_USER" \
-    -p"$DB_PASSWORD" \
-    "$MYSQL_DATABASE" \
+    -p "$DB_PORT" \
+    -U "$DB_USER" \
+    "$DB_NAME" \
     < "$BACKUP_FILE"
 
 echo "Database restored successfully"

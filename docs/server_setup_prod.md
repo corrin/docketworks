@@ -7,7 +7,7 @@ Prod: Hyper-V VM running Ubuntu
 ## Automated Backups
 
 `scripts/backup_db.sh` runs daily via cron:
-- Daily compressed mysqldump to `/var/backups/mysql/`
+- Daily compressed pg_dump to `/var/backups/postgresql/`
 - Monthly backup copy on the 1st of each month
 - Sync to Google Drive via rclone
 

@@ -612,7 +612,7 @@ class PurchaseOrderAllocationsAPIView(APIView):
         """Get existing allocations for a purchase order."""
         try:
             # Import here to avoid circular imports
-            from django.db.models import CharField, F, Func, Value
+            from django.db.models.fields.json import KeyTextTransform
 
             from apps.job.models import CostLine
 
@@ -620,16 +620,10 @@ class PurchaseOrderAllocationsAPIView(APIView):
             po = get_object_or_404(PurchaseOrder, id=po_id)
             logger.info(f"Looking for allocations for PO {po_id} ({po.po_number})")
 
-            # Find all CostLines that reference this PO using JSON extraction
+            # Find all CostLines that reference this PO
             cost_lines = (
                 CostLine.objects.annotate(
-                    po_id_from_refs=Func(
-                        F("ext_refs"),
-                        Value("$.purchase_order_id"),
-                        function="JSON_UNQUOTE",
-                        template="JSON_UNQUOTE(JSON_EXTRACT(%(expressions)s))",
-                        output_field=CharField(),
-                    )
+                    po_id_from_refs=KeyTextTransform("purchase_order_id", "ext_refs"),
                 )
                 .filter(po_id_from_refs=str(po_id))
                 .select_related("cost_set__job")

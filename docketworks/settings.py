@@ -26,11 +26,9 @@ def validate_required_settings() -> None:
         "ALLOWED_HOSTS",
         "DJANGO_SITE_DOMAIN",
         # Database
-        "MYSQL_DATABASE",
-        "MYSQL_DB_USER",
+        "DB_NAME",
+        "DB_USER",
         "DB_PASSWORD",
-        "DB_HOST",
-        "DB_PORT",
         # File Storage
         "DROPBOX_WORKFLOW_FOLDER",
         # Xero Integration
@@ -400,14 +398,14 @@ DJANGO_MCP_AUTHENTICATION_CLASSES = [
 # Database
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": os.getenv("MYSQL_DATABASE"),
-        "USER": os.getenv("MYSQL_DB_USER"),
+        "ENGINE": "django.db.backends.postgresql",
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT"),
+        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("DB_PORT", ""),
         "TEST": {
-            "NAME": os.getenv("MYSQL_DATABASE"),
+            "NAME": os.getenv("DB_NAME"),
         },
     },
 }

@@ -46,12 +46,12 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - etckeeper (tracks /etc changes in git)
 - Python 3.12 + dev packages
 - Node.js 22 (NodeSource)
-- MariaDB server
+- PostgreSQL server
 - Nginx
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
 - pnpm (via corepack) and pm2 (for marketing website)
 - Claude Code CLI
-- Build dependencies (build-essential, libmariadb-dev, pkg-config)
+- Build dependencies (build-essential, libpq-dev, pkg-config)
 - Poetry (for the `docketworks` system user)
 - iptables rules for ports 80/443 (Oracle Cloud)
 
@@ -92,13 +92,12 @@ sudo systemctl restart gunicorn-<name>
    sudo -u dw-<name> git clone git@github.com:corrin/docketworks.git /opt/docketworks/instances/<name>/code
    ```
 
-2. **Create MariaDB database**
+2. **Create PostgreSQL database**
    ```bash
-   sudo mysql -u root <<SQL
-   CREATE DATABASE dw_<name> CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-   CREATE USER 'dw_<name>'@'localhost' IDENTIFIED BY '<password>';
-   GRANT ALL PRIVILEGES ON dw_<name>.* TO 'dw_<name>'@'localhost';
-   FLUSH PRIVILEGES;
+   sudo -u postgres psql <<SQL
+   CREATE ROLE "dw_<name>" WITH LOGIN PASSWORD '<password>';
+   CREATE DATABASE "dw_<name>" OWNER "dw_<name>";
+   GRANT ALL PRIVILEGES ON DATABASE "dw_<name>" TO "dw_<name>";
    SQL
    ```
 
@@ -425,5 +424,5 @@ curl -sI https://docketworks.site/
 - Each Gunicorn service runs 3 workers
 - Oracle Cloud ARM free tier: 4 OCPU / 24GB RAM
 - 5-10 concurrent demo instances should run comfortably
-- All packages (Python 3.12, Node 22, MariaDB, etc.) have aarch64/ARM builds
+- All packages (Python 3.12, Node 22, PostgreSQL, etc.) have aarch64/ARM builds
 - The wildcard cert auto-renews via certbot with Dreamhost DNS hooks

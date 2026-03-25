@@ -2,8 +2,8 @@ import logging
 from decimal import Decimal, InvalidOperation
 from typing import Iterable, Tuple
 
-from django.db import models, transaction
-from django.db.models.expressions import RawSQL
+from django.db import transaction
+from django.db.models.fields.json import KeyTextTransform
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -34,11 +34,7 @@ class WorkshopTimesheetService:
         """Fetch cost lines and summary for the staff member on a date."""
         queryset = (
             CostLine.objects.annotate(
-                staff_id_meta=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))",
-                    (),
-                    output_field=models.CharField(),
-                )
+                staff_id_meta=KeyTextTransform("staff_id", "meta"),
             )
             .filter(
                 cost_set__kind="actual",

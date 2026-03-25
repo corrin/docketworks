@@ -15,8 +15,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from typing import Any, Dict, List
 
-from django.db import models
-from django.db.models.expressions import RawSQL
+from django.db.models.fields.json import KeyTextTransform
 
 from apps.accounts.models import Staff
 from apps.accounts.utils import get_displayable_staff
@@ -97,21 +96,9 @@ class WeeklyTimesheetService:
         # ONE query for ALL time entries for ALL staff for the entire week
         all_cost_lines = list(
             CostLine.objects.annotate(
-                staff_id_meta=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))",
-                    (),
-                    output_field=models.CharField(),
-                ),
-                wage_rate_multiplier=RawSQL(
-                    "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.wage_rate_multiplier'))",
-                    (),
-                    output_field=models.DecimalField(),
-                ),
-                is_billable=RawSQL(
-                    "JSON_EXTRACT(meta, '$.is_billable') = true",
-                    (),
-                    output_field=models.BooleanField(),
-                ),
+                staff_id_meta=KeyTextTransform("staff_id", "meta"),
+                wage_rate_multiplier=KeyTextTransform("wage_rate_multiplier", "meta"),
+                is_billable=KeyTextTransform("is_billable", "meta"),
             )
             .filter(
                 cost_set__kind="actual",
@@ -224,7 +211,7 @@ class WeeklyTimesheetService:
 
         daily_hours = sum(Decimal(line.quantity) for line in cost_lines)
         billable_hours = sum(
-            Decimal(line.quantity) for line in cost_lines if line.is_billable
+            Decimal(line.quantity) for line in cost_lines if line.is_billable == "true"
         )
         has_leave = len(leave_lines) > 0
         leave_type = (
@@ -250,7 +237,7 @@ class WeeklyTimesheetService:
 
         for line in work_lines:
             multiplier = (
-                line.wage_rate_multiplier
+                Decimal(line.wage_rate_multiplier)
                 if line.wage_rate_multiplier is not None
                 else Decimal("1.0")
             )
@@ -258,7 +245,7 @@ class WeeklyTimesheetService:
             daily_weighted_hours += hours * multiplier
             if multiplier == Decimal("0.0"):
                 continue
-            if line.is_billable:
+            if line.is_billable == "true":
                 billed_hours += hours
             else:
                 unbilled_hours += hours

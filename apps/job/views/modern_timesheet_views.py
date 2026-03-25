@@ -2,7 +2,7 @@
 Modern Timesheet REST Views
 
 REST views for the modern timesheet system using CostLine architecture.
-Works directly with CostSet/CostLine models using MariaDB-compatible JSONField queries.
+Works directly with CostSet/CostLine models using JSONField queries.
 """
 
 import logging
@@ -10,7 +10,7 @@ import traceback
 from decimal import Decimal
 
 from django.db import models, transaction
-from django.db.models.expressions import RawSQL
+from django.db.models.fields.json import KeyTextTransform
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -141,11 +141,7 @@ class ModernTimesheetEntryView(APIView):
             # Query CostLines with kind='time' for the staff/date
             cost_lines = (
                 CostLine.objects.annotate(
-                    staff_id_meta=RawSQL(
-                        "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))",
-                        (),
-                        output_field=models.CharField(),
-                    ),
+                    staff_id_meta=KeyTextTransform("staff_id", "meta"),
                     calculated_total_cost=models.F("quantity") * models.F("unit_cost"),
                     calculated_total_rev=models.F("quantity") * models.F("unit_rev"),
                 )
@@ -479,11 +475,7 @@ class ModernTimesheetDayView(APIView):
             # Find all cost lines for this staff on this date
             cost_lines = (
                 CostLine.objects.annotate(
-                    staff_id_meta=RawSQL(
-                        "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.staff_id'))",
-                        (),
-                        output_field=models.CharField(),
-                    ),
+                    staff_id_meta=KeyTextTransform("staff_id", "meta"),
                     calculated_total_cost=models.F("quantity") * models.F("unit_cost"),
                     calculated_total_rev=models.F("quantity") * models.F("unit_rev"),
                 )
@@ -546,14 +538,9 @@ class ModernTimesheetJobView(APIView):
 
             logger.info(f"Starting timesheet retrieval for job {job_id}")
 
-            # Get timesheet cost lines for this job using MariaDB-compatible queries
+            # Get timesheet cost lines for this job
             timesheet_lines = (
                 CostLine.objects.annotate(
-                    created_from_timesheet=RawSQL(
-                        "JSON_UNQUOTE(JSON_EXTRACT(meta, '$.created_from_timesheet'))",
-                        (),
-                        output_field=models.BooleanField(),
-                    ),
                     calculated_total_cost=models.F("quantity") * models.F("unit_cost"),
                     calculated_total_rev=models.F("quantity") * models.F("unit_rev"),
                 )
@@ -561,7 +548,7 @@ class ModernTimesheetJobView(APIView):
                     cost_set__job=job,
                     cost_set__kind="actual",
                     kind="time",
-                    created_from_timesheet=True,
+                    meta__created_from_timesheet=True,
                 )
                 .order_by("id")
             )

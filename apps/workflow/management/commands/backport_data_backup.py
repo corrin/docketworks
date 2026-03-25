@@ -169,7 +169,7 @@ class Command(BaseCommand):
                 )
             )
 
-            # Step 4: Create schema-only backup using mysqldump
+            # Step 4: Create schema-only backup using pg_dump
             schema_path = self.create_schema_backup(backup_dir, timestamp, env_name)
 
             # Step 5: Create combined zip file in /tmp
@@ -309,35 +309,31 @@ class Command(BaseCommand):
             current[final_field] = value
 
     def create_schema_backup(self, backup_dir, timestamp, env_name):
-        """Create a schema-only backup using mysqldump"""
+        """Create a schema-only backup using pg_dump"""
         try:
             # Get database configuration from Django settings
             db_config = settings.DATABASES["default"]
 
-            # Build mysqldump command for schema only (no data)
             schema_filename = f"{env_name}_backup_{timestamp}.schema.sql"
             schema_path = os.path.join(backup_dir, schema_filename)
 
-            # Build the mysqldump command
+            # Build the pg_dump command for schema only
             cmd = [
-                "mysqldump",
-                "--no-data",  # Schema only, no data
-                "--routines",  # Include stored procedures and functions
-                "--triggers",  # Include triggers
-                "--events",  # Include events
+                "pg_dump",
+                "--schema-only",
                 f'--host={db_config["HOST"]}',
-                f'--port={db_config.get("PORT", "3306")}',
-                f'--user={db_config["USER"]}',
+                f'--port={db_config.get("PORT", "5432")}',
+                f'--username={db_config["USER"]}',
                 db_config["NAME"],
             ]
 
             # Set password via environment variable for security
             env = os.environ.copy()
-            env["MYSQL_PWD"] = db_config["PASSWORD"]
+            env["PGPASSWORD"] = db_config["PASSWORD"]
 
             self.stdout.write(f"Creating schema backup to: {schema_path}")
 
-            # Execute mysqldump and write to file
+            # Execute pg_dump and write to file
             with open(schema_path, "w") as f:
                 result = subprocess.run(
                     cmd,
@@ -351,7 +347,7 @@ class Command(BaseCommand):
             # Check for any warnings in stderr
             if result.stderr:
                 self.stdout.write(
-                    self.style.WARNING(f"mysqldump warnings: {result.stderr}")
+                    self.style.WARNING(f"pg_dump warnings: {result.stderr}")
                 )
 
             self.stdout.write(
@@ -362,7 +358,7 @@ class Command(BaseCommand):
             return schema_path
 
         except subprocess.CalledProcessError as e:
-            self.stdout.write(self.style.ERROR(f"mysqldump failed: {e.stderr}"))
+            self.stdout.write(self.style.ERROR(f"pg_dump failed: {e.stderr}"))
             raise
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Error during schema backup: {e}"))
