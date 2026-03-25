@@ -233,23 +233,10 @@ For running in a mode closer to production:
 
 To wipe the local database and start fresh:
 
-1.  **Create/Ensure Reset Script:** Have a script `scripts/reset_database.sql` containing:
-
-    ```sql
-    -- WARNING: This script DROPS the database!
-    DROP DATABASE IF EXISTS <db-name>;
-    CREATE DATABASE <db-name>;
-    -- Use the SAME password as in your .env file
-    GRANT ALL PRIVILEGES ON <db-name>.* TO '<db-name>'@'localhost' IDENTIFIED BY 'your-strong-password';
-    FLUSH PRIVILEGES;
-    ```
-
-    _(Replace `<db-name>` with your application name and `your-strong-password` with your actual DB password)_.
-
-2.  **Execute Reset Script:** (You might need MariaDB root password)
+1.  **Run the reset script** (reads DB name, user, and password from `.env`):
 
     ```bash
-    mariadb -u root -p -e "source scripts/reset_database.sql"
+    sudo ./scripts/setup_database.sh --drop
     ```
 
 3.  **Re-install Timezone Data:** (Required for timezone-aware database functions)

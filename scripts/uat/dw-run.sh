@@ -5,16 +5,16 @@ set -euo pipefail
 #
 # Usage: dw-run <instance> <command> [args...]
 # Examples:
-#   dw-run msm python manage.py migrate --no-input
-#   dw-run msm python manage.py loaddata demo_fixtures
-#   dw-run msm python scripts/setup_dev_logins.py
+#   dw-run msm-uat python manage.py migrate --no-input
+#   dw-run msm-uat python manage.py loaddata demo_fixtures
+#   dw-run msm-uat python scripts/setup_dev_logins.py
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/uat-common.sh"
 
 if [[ $# -lt 2 ]]; then
     echo "Usage: $0 <instance> <command> [args...]"
-    echo "Example: $0 msm python manage.py migrate --no-input"
+    echo "Example: $0 msm-uat python manage.py migrate --no-input"
     exit 1
 fi
 

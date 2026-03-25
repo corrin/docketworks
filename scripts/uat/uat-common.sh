@@ -8,6 +8,17 @@ SHARED_VENV="$BASE_DIR/.venv"
 LOCAL_REPO="$BASE_DIR/repo"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 
+VALID_ENVS="dev uat staging prod"
+
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /var/log/docketworks-setup.log
+}
+
+validate_env() {
+    local env="$1"
+    for valid in $VALID_ENVS; do
+        [[ "$env" == "$valid" ]] && return 0
+    done
+    echo "ERROR: Invalid environment '$env'. Must be one of: $VALID_ENVS"
+    exit 1
 }
