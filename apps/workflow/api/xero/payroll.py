@@ -1807,9 +1807,17 @@ def post_staff_week_to_xero(
             logger.info(f"Successfully posted timesheet {xero_timesheet_id}")
 
         # Post leave entries using Leave API (annual/sick only)
+        # Uses upsert pattern: deletes existing leave for the week first
         if leave_api_entries:
-            leave_ids = _post_leave_entries(xero_employee_id, leave_api_entries)
+            leave_ids = _post_leave_entries(
+                xero_employee_id, leave_api_entries, week_start_date, week_end_date
+            )
             logger.info(f"Successfully posted {len(leave_ids)} leave records")
+        else:
+            # No leave this week — clean up any previously posted leave
+            _delete_existing_leave_for_week(
+                xero_employee_id, week_start_date, week_end_date
+            )
 
         # Calculate hours by all four categories
         work_hours = sum(Decimal(str(entry.quantity)) for entry in work_entries)
@@ -1918,23 +1926,92 @@ def _map_work_entries(entries: List) -> List[Dict[str, Any]]:
     return timesheet_lines
 
 
+def _delete_existing_leave_for_week(
+    employee_id: UUID,
+    week_start_date: date,
+    week_end_date: date,
+) -> int:
+    """
+    Delete any existing leave records for an employee that fall entirely
+    within the given week. This prevents duplicates when re-posting payroll.
+
+    Only deletes leave where start_date >= week_start_date AND
+    end_date <= week_end_date (conservative: won't touch leave spanning
+    across week boundaries).
+
+    Args:
+        employee_id: Xero employee ID
+        week_start_date: Monday of the week
+        week_end_date: Sunday of the week
+
+    Returns:
+        Number of leave records deleted
+    """
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        raise Exception("No Xero tenant ID configured")
+
+    payroll_api = PayrollNzApi(api_client)
+
+    logger.info(
+        f"Checking for existing leave for employee {employee_id} "
+        f"in week {week_start_date} to {week_end_date}"
+    )
+
+    response = payroll_api.get_employee_leaves(
+        xero_tenant_id=tenant_id,
+        employee_id=str(employee_id),
+    )
+
+    if not response or not response.leave:
+        logger.info("No existing leave found for employee")
+        return 0
+
+    deleted_count = 0
+    for leave in response.leave:
+        # Only delete leave fully within the week
+        if leave.start_date >= week_start_date and leave.end_date <= week_end_date:
+            logger.info(
+                f"Deleting existing leave {leave.leave_id} "
+                f"({leave.start_date} to {leave.end_date})"
+            )
+            payroll_api.delete_employee_leave(
+                xero_tenant_id=tenant_id,
+                employee_id=str(employee_id),
+                leave_id=str(leave.leave_id),
+            )
+            deleted_count += 1
+            time.sleep(SLEEP_TIME)
+
+    logger.info(f"Deleted {deleted_count} existing leave records")
+    return deleted_count
+
+
 def _post_leave_entries(
     employee_id: UUID,
     entries: List,
+    week_start_date: date,
+    week_end_date: date,
 ) -> List[str]:
     """
     Post leave CostLine entries to Xero using the Leave API.
 
-    Groups consecutive days of the same leave type together.
+    Deletes any existing leave for the week first (upsert pattern),
+    then groups consecutive days of the same leave type together.
     Uses entry.xero_pay_item to get Xero leave type IDs.
 
     Args:
         employee_id: Xero employee ID
         entries: List of leave CostLine entries
+        week_start_date: Monday of the week
+        week_end_date: Sunday of the week
 
     Returns:
         List of leave IDs created in Xero
     """
+    # Delete existing leave for this week to prevent duplicates
+    _delete_existing_leave_for_week(employee_id, week_start_date, week_end_date)
+
     # Group entries by XeroPayItem and sort by date
     grouped = defaultdict(list)
     for entry in entries:

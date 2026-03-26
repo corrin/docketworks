@@ -2,12 +2,19 @@
 set -euo pipefail
 
 # Create or reset a PostgreSQL database and user for docketworks.
+# Must be run as the postgres user (all operations need superuser).
 #
 # Development (reads from .env):
-#   ./scripts/setup_database.sh [--drop]
+#   sudo -u postgres ./scripts/setup_database.sh [--drop]
 #
 # UAT/Production (explicit arguments):
-#   ./scripts/setup_database.sh --db <name> --user <user> --password <pass> [--drop]
+#   sudo -u postgres ./scripts/setup_database.sh --db <name> --user <user> --password <pass> [--drop]
+
+# Verify we can connect to PostgreSQL as superuser
+if ! psql -c "SELECT 1" &>/dev/null; then
+    echo "ERROR: Cannot connect to PostgreSQL. Run with: sudo -u postgres $0 $*"
+    exit 1
+fi
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -53,14 +60,14 @@ echo "Drop:     $DROP"
 # --- Drop if requested ---
 if [[ "$DROP" == "true" ]]; then
     echo "Dropping database $DB_NAME (if exists)..."
-    sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
+    psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";"
     echo "Dropping role $DB_USER (if exists)..."
-    sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";"
+    psql -c "DROP ROLE IF EXISTS \"$DB_USER\";"
 fi
 
 # --- Create role and database ---
 echo "Creating role $DB_USER..."
-sudo -u postgres psql <<EOSQL
+psql <<EOSQL
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
@@ -73,7 +80,7 @@ END
 EOSQL
 
 echo "Creating database $DB_NAME..."
-sudo -u postgres psql <<EOSQL
+psql <<EOSQL
 SELECT 'CREATE DATABASE "$DB_NAME" OWNER "$DB_USER"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
