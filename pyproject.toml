@@ -14,7 +14,7 @@ django-simple-history = "^3.11.0"  # 3.11.0+ required for Django 6 support
 pytz = "^2026.1"
 python-dotenv = "^1.1.1"
 xero-python = ">=9.1.0"
-requests = "^2.32.4"
+requests = "^2.33.0"
 django-filter = "^25.2"
 djangorestframework = "^3.16.0"
 mysqlclient = "^2.2.4"
