@@ -31,7 +31,7 @@ export default async function globalSetup() {
 
   const result = spawnSync(
     'pg_dump',
-    ['-h', dbConfig.host, '-p', dbConfig.port, '-U', dbConfig.user, dbConfig.database],
+    ['--clean', '-h', dbConfig.host, '-p', dbConfig.port, '-U', dbConfig.user, dbConfig.database],
     {
       stdio: ['ignore', outputFd, 'inherit'],
       env: { ...process.env, PGPASSWORD: dbConfig.password },
