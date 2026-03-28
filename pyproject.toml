@@ -49,7 +49,7 @@ channels-redis = "^4.3.0"
 mcp = "^1.9.4"
 anthropic = "^0.86.0"
 pandas = "^2.3.0"
-numpy = "^2.3.0"
+numpy = "^2.4.3"
 httpx = "^0.28.1"
 pre-commit = "^4.5.1"
 django-stubs = ">=5.2.1"  # Awaiting django-stubs 6 release for Django 6 support
