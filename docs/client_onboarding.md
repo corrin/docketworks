@@ -285,7 +285,7 @@ python manage.py import_dropbox_hs_documents
 
 ### 7h. Logo
 
-Currently the logo file needs to be placed at `static/logo_msm.png` in the codebase. This is hardcoded and will need to be made client-configurable in future.
+Upload the company logo and wide/letterhead logo via Admin > Settings > Company section. Both `logo` and `logo_wide` fields accept image uploads. The wide logo is used in PDF generation (purchase orders, workshop sheets, invoices).
 
 ---
 
@@ -303,4 +303,4 @@ Currently the logo file needs to be placed at `static/logo_msm.png` in the codeb
 | AI provider keys | AIProvider model (Admin > AI Providers) |
 | Staff members | Staff model (Admin > Staff) |
 | SOPs, procedures, forms | Imported via management command |
-| Logo | `static/logo_msm.png` (hardcoded — needs fix) |
+| Logo | CompanyDefaults (Admin > Settings > Company) |

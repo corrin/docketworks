@@ -55,6 +55,8 @@ class SettingsSection:
 # Note: Order matters! More specific types (subclasses) must come before their parent classes.
 # e.g., URLField and EmailField must come before CharField since they inherit from it.
 DJANGO_TO_UI_TYPE: dict[type["models.Field[Any, Any]"], str] = {
+    # ImageField before FileField (more specific first)
+    models.ImageField: "image",
     # Specific CharField subclasses first
     models.EmailField: "email",
     models.URLField: "url",
@@ -88,7 +90,10 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "post_code": "company",
     "country": "company",
     "company_email": "company",
+    "company_phone": "company",
     "company_url": "company",
+    "logo": "company",
+    "logo_wide": "company",
     # Working hours
     "mon_start": "working_hours",
     "mon_end": "working_hours",
@@ -132,6 +137,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     # Xero integration
     "xero_tenant_id": "xero",
     "xero_shortcode": "xero",
+    "enable_xero_sync": "xero",
     "xero_payroll_calendar_name": "xero",
     "xero_payroll_calendar_id": "xero",
     "xero_payroll_start_date": "xero",

@@ -26,31 +26,31 @@ def migrate_pricing_to_costing(apps, schema_editor):
     # ------------------------------------------------------------------
     # 1. Column rename (pricing_stage → pricing_methodology) – idempotent
     # ------------------------------------------------------------------
-    # Hacky change. I don't care abs we're about to delete the entire table.
-    with connection.cursor() as cur:
-        # Use SHOW COLUMNS instead of INFORMATION_SCHEMA for accurate results
-        cur.execute("SHOW COLUMNS FROM workflow_jobpricing")
-        columns = [row[0] for row in cur.fetchall()]
+    # MySQL-specific: on PostgreSQL the table won't exist (fresh schema), so skip.
+    if connection.vendor == "mysql":
+        with connection.cursor() as cur:
+            cur.execute("SHOW COLUMNS FROM workflow_jobpricing")
+            columns = [row[0] for row in cur.fetchall()]
 
-        has_stage = "pricing_stage" in columns
-        has_method = "pricing_methodology" in columns
+            has_stage = "pricing_stage" in columns
+            has_method = "pricing_methodology" in columns
 
-        if has_stage and not has_method:
-            print("Renaming pricing_stage → pricing_methodology …")
-            cur.execute(
-                "ALTER TABLE workflow_jobpricing CHANGE COLUMN pricing_stage pricing_methodology VARCHAR(50)"
-            )
-        elif has_stage and has_method:
-            # Both exist - consolidate to pricing_methodology
-            print("Both columns exist, consolidating to pricing_methodology...")
-            cur.execute(
-                "UPDATE workflow_jobpricing SET pricing_methodology = pricing_stage WHERE pricing_methodology IS NULL OR pricing_methodology = ''"
-            )
-            cur.execute("ALTER TABLE workflow_jobpricing DROP COLUMN pricing_stage")
-        else:
-            print(
-                f"Column status – pricing_stage:{has_stage} | pricing_methodology:{has_method}"
-            )
+            if has_stage and not has_method:
+                print("Renaming pricing_stage → pricing_methodology …")
+                cur.execute(
+                    "ALTER TABLE workflow_jobpricing CHANGE COLUMN pricing_stage pricing_methodology VARCHAR(50)"
+                )
+            elif has_stage and has_method:
+                # Both exist - consolidate to pricing_methodology
+                print("Both columns exist, consolidating to pricing_methodology...")
+                cur.execute(
+                    "UPDATE workflow_jobpricing SET pricing_methodology = pricing_stage WHERE pricing_methodology IS NULL OR pricing_methodology = ''"
+                )
+                cur.execute("ALTER TABLE workflow_jobpricing DROP COLUMN pricing_stage")
+            else:
+                print(
+                    f"Column status – pricing_stage:{has_stage} | pricing_methodology:{has_method}"
+                )
 
     # ------------------------------------------------------------------
     # 2. Historical model handles (state.apps)

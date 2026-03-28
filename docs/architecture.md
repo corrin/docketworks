@@ -2,7 +2,9 @@
 
 ## System Overview
 
-Morris Sheetmetal Works Job Management System is a Django-based web application that digitizes a 50+ year paper-based workflow from quote generation to job completion and invoicing for a custom metal fabrication business.
+DocketWorks is a Django-based web application that digitizes paper-based workflows from quote generation to job completion and invoicing for businesses that do lots of relatively small jobs for many clients. If you quote using hours rather than widgets, it's likely to work for you.
+
+Originally built for Morris Sheetmetal.
 
 ## High-Level Architecture
 
@@ -26,14 +28,14 @@ graph TB
     end
 
     subgraph Database
-        MariaDB[(MariaDB)]
+        PostgreSQL[(PostgreSQL)]
     end
 
     Vue -->|HTTP/AJAX| API
     Django -->|HTTP/AJAX| API
     API --> Core
     Tasks --> Core
-    Core --> MariaDB
+    Core --> PostgreSQL
 
     Core <-->|Bidirectional Sync| Xero
     Core --> Dropbox
@@ -292,7 +294,7 @@ Located in `frontend/`:
 
 ### Required Services
 
-- **Database**: MariaDB with appropriate sizing
+- **Database**: PostgreSQL 16+
 - **Cache**: Redis for session storage and caching
 - **Background Tasks**: Celery for production environments
 - **File Storage**: Local or cloud-based (Dropbox integration)

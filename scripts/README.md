@@ -23,6 +23,18 @@ Require `GCP_CREDENTIALS` env var pointing to a service account JSON file:
 - **`create_master_template.py`** — Create/manage Google Sheets quote templates
 - **`get_gapi_token.py`** — Print a Google API access token for debugging
 
+## Data operations
+
+Run manually for one-off or periodic data tasks:
+
+- **`dump_settings.py`** — Dumps sanitized Django settings as JSON for diagnostics. Usage: `python scripts/dump_settings.py`
+- **`move_time_between_jobs.py`** — Moves timesheet time entries from one job to another. Usage: `python scripts/move_time_between_jobs.py --from 96881 --to 96882 [--execute]`
+- **`production_data_fixer.py`** — Idempotent fixes for known production data issues. Usage: `python scripts/production_data_fixer.py --fix-empty-notes [--live]`
+
+## Dependency management
+
+- **`upgrade_script.py`** — Checks PyPI for outdated dependencies and prints a staleness report. Requires `pandas`, `requests`, `toml`. Usage: `python scripts/upgrade_script.py pyproject.toml`
+
 ## Production infrastructure
 
 - **`backup_db.sh`** — Daily automated database backup (runs via cron on prod). See `docs/server_setup_prod.md`

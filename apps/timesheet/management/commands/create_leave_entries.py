@@ -17,24 +17,84 @@ from django.core.management.base import BaseCommand, CommandError
 from apps.accounts.models import Staff
 from apps.job.models import CostLine, CostSet, Job
 
-# --- Entries to create ---
+# --- Entry batches ---
+# IMPORTANT: NEVER edit or remove existing batches. Only APPEND new ones.
+# Duplicates are safely skipped at runtime.
 # Format: (staff_first_name, date, leave_type, hours)
 # Valid leave types: annual, bereavement, sick, unpaid
-ENTRIES = [
-    # -- Already applied (kept as record) --
-    # ("Richard John", date(2026, 2, 16), "annual", Decimal("8.000")),  # applied 2026-03-24
-    # ("Richard John", date(2026, 2, 19), "annual", Decimal("8.000")),  # applied 2026-03-24
-    # ("Richard John", date(2026, 2, 20), "annual", Decimal("8.000")),  # applied 2026-03-24
-    # ("Michael (Peng)", date(2026, 3, 16), "annual", Decimal("8.000")),  # applied 2026-03-24
-    # ("Richard John", date(2026, 3, 16), "annual", Decimal("8.000")),  # applied 2026-03-24
-    # ("Akleshwar Sen", date(2026, 3, 17), "sick", Decimal("8.000")),  # applied 2026-03-24
-    # -- New entries --
-    # Cindy - Mon Mar 23: 7h sick leave (plus 1h office admin logged separately)
+
+# 2026-03-24: Backfill leave from Xero payroll — Richard and Michael missed days
+_batch_20260324 = [
+    ("Richard John", date(2026, 2, 16), "annual", Decimal("8.000")),
+    ("Richard John", date(2026, 2, 19), "annual", Decimal("8.000")),
+    ("Richard John", date(2026, 2, 20), "annual", Decimal("8.000")),
+    ("Michael (Peng)", date(2026, 3, 16), "annual", Decimal("8.000")),
+    ("Richard John", date(2026, 3, 16), "annual", Decimal("8.000")),
+    ("Akleshwar Sen", date(2026, 3, 17), "sick", Decimal("8.000")),
+]
+
+# 2026-03-26: Cindy sick leave w/c Mar 23 (Mon 7h + 1h office admin logged separately)
+_batch_20260326a = [
     ("Cindy", date(2026, 3, 23), "sick", Decimal("7.000")),
-    # Cindy - Tue Mar 24 and Wed Mar 25: full day sick leave
     ("Cindy", date(2026, 3, 24), "sick", Decimal("8.000")),
     ("Cindy", date(2026, 3, 25), "sick", Decimal("8.000")),
 ]
+
+# 2026-03-26: Richard, Aaron, Michael — annual leave full week Mar 23-27
+_batch_20260326b = [
+    ("Richard John", date(2026, 3, 23), "annual", Decimal("8.000")),
+    ("Richard John", date(2026, 3, 24), "annual", Decimal("8.000")),
+    ("Richard John", date(2026, 3, 25), "annual", Decimal("8.000")),
+    ("Richard John", date(2026, 3, 26), "annual", Decimal("8.000")),
+    ("Richard John", date(2026, 3, 27), "annual", Decimal("8.000")),
+    ("Aaron Christopher", date(2026, 3, 23), "annual", Decimal("8.000")),
+    ("Aaron Christopher", date(2026, 3, 24), "annual", Decimal("8.000")),
+    ("Aaron Christopher", date(2026, 3, 25), "annual", Decimal("8.000")),
+    ("Aaron Christopher", date(2026, 3, 26), "annual", Decimal("8.000")),
+    ("Aaron Christopher", date(2026, 3, 27), "annual", Decimal("8.000")),
+    ("Michael (Peng)", date(2026, 3, 23), "annual", Decimal("8.000")),
+    ("Michael (Peng)", date(2026, 3, 24), "annual", Decimal("8.000")),
+    ("Michael (Peng)", date(2026, 3, 25), "annual", Decimal("8.000")),
+    ("Michael (Peng)", date(2026, 3, 26), "annual", Decimal("8.000")),
+    ("Michael (Peng)", date(2026, 3, 27), "annual", Decimal("8.000")),
+]
+
+# 2026-03-26: Ben Kek unpaid leave backfill — Feb 16 to Mar 27
+# His entries stopped at Feb 13; he's still on unpaid leave.
+_batch_20260326c = [
+    ("Ben", date(2026, 2, 16), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 17), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 18), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 19), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 20), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 23), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 24), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 25), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 26), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 2, 27), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 2), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 3), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 4), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 5), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 6), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 9), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 10), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 11), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 12), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 13), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 16), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 17), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 18), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 19), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 20), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 23), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 24), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 25), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 26), "unpaid", Decimal("8.000")),
+    ("Ben", date(2026, 3, 27), "unpaid", Decimal("8.000")),
+]
+
+ENTRIES = _batch_20260324 + _batch_20260326a + _batch_20260326b + _batch_20260326c
 
 LEAVE_JOB_NAMES = {
     "annual": "Annual Leave",
@@ -111,12 +171,12 @@ class Command(BaseCommand):
                 )
             staff = matches.get()
 
-            if not staff.base_wage_rate:
+            if leave_type != "unpaid" and not staff.base_wage_rate:
                 raise CommandError(f"Staff '{staff_name}' has no base_wage_rate set")
 
             cost_set = leave_cost_sets[leave_type]
 
-            # Check for duplicate leave entry
+            # Check for duplicate leave entry — skip if already applied
             existing = CostLine.objects.filter(
                 cost_set=cost_set,
                 kind="time",
@@ -124,11 +184,11 @@ class Command(BaseCommand):
                 meta__staff_id=str(staff.id),
             ).exists()
             if existing:
-                raise CommandError(
-                    f"Entry already exists: {entry_date} | {staff_name} | "
-                    f"{leave_type}. Remove from ENTRIES or delete the "
-                    f"existing CostLine first."
+                self.stdout.write(
+                    f"  Skipping (already exists): {entry_date} | "
+                    f"{staff_name} | {leave_type}"
                 )
+                continue
 
             # Check total hours won't exceed 24
             other_entries = CostLine.objects.filter(
@@ -154,7 +214,8 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING("DRY RUN - no changes made:"))
             for staff, entry_date, leave_type, hours, _, _ in validated:
                 label = LEAVE_JOB_NAMES[leave_type]
-                cost = staff.base_wage_rate * hours
+                wage = Decimal("0") if leave_type == "unpaid" else staff.base_wage_rate
+                cost = wage * hours
                 self.stdout.write(
                     f"  {entry_date} ({entry_date.strftime('%a')}) | "
                     f"{staff.get_display_name()} | {label} | "
@@ -166,12 +227,14 @@ class Command(BaseCommand):
         for staff, entry_date, leave_type, hours, cost_set, job in validated:
             label = LEAVE_JOB_NAMES[leave_type]
 
+            wage = Decimal("0") if leave_type == "unpaid" else staff.base_wage_rate
+
             cl = CostLine.objects.create(
                 cost_set=cost_set,
                 kind="time",
                 desc=f"{label} - {staff.get_display_name()}",
                 quantity=hours,
-                unit_cost=staff.base_wage_rate,
+                unit_cost=wage,
                 unit_rev=Decimal("0"),
                 accounting_date=entry_date,
                 xero_pay_item=job.default_xero_pay_item,

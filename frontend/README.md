@@ -1,7 +1,7 @@
 # DocketWorks Frontend
 
 This repository contains the Vue 3 front‑end for the DocketWorks application.
-It communicates with the [DocketWorks backend](https://github.com/corrin/docketworks).
+It communicates with the Django backend in the repository root.
 
 ## Getting Started
 
@@ -19,7 +19,7 @@ The app expects the backend to run at `http://localhost:8000`.
 For remote access during development, use the single ngrok tunnel (Vite proxies `/api` to Django):
 
 ```bash
-ngrok http 5173 --domain=docketworks-msm-dev.ngrok-free.app
+ngrok http 5173 --domain=<your-ngrok-domain>
 ```
 
 Monitor requests at: http://localhost:4040

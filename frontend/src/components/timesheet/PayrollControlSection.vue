@@ -130,7 +130,7 @@
     <div class="flex items-center space-x-2 flex-wrap gap-2">
       <!-- Post to Xero & Create Pay Run Button -->
       <Button
-        v-if="!payRunExists && !postingBlocked"
+        v-if="!isPosted && !postingBlocked"
         @click="$emit('postAllToXero')"
         :disabled="posting || creating"
         variant="default"
@@ -163,7 +163,7 @@
       </Button>
 
       <!-- Help Text -->
-      <div v-if="!payRunExists && !postingBlocked" class="text-xs text-gray-500">
+      <div v-if="!isPosted && !postingBlocked" class="text-xs text-gray-500">
         Posts timesheets and creates a draft pay run in Xero
       </div>
       <div v-else-if="isPosted" class="text-xs text-gray-500 flex items-center">

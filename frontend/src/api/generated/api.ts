@@ -646,6 +646,8 @@ const ClientSearchResponse = z.object({
 })
 const CompanyDefaults = z.object({
   id: z.number().int(),
+  logo_url: z.string().nullable(),
+  logo_wide_url: z.string().nullable(),
   company_name: z.string(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -667,6 +669,7 @@ const CompanyDefaults = z.object({
   gdrive_reference_library_folder_id: z.string().max(100).nullish(),
   xero_tenant_id: z.string().max(100).nullish(),
   xero_shortcode: z.string().max(20).nullish(),
+  enable_xero_sync: z.boolean().optional(),
   xero_payroll_calendar_name: z.string().max(100).optional(),
   xero_payroll_calendar_id: z.string().uuid().nullish(),
   xero_payroll_start_date: z.string().nullish(),
@@ -691,6 +694,7 @@ const CompanyDefaults = z.object({
   post_code: z.string().max(20).nullish(),
   country: z.string().max(100).optional(),
   company_email: z.string().max(254).email().nullish(),
+  company_phone: z.string().max(30).nullish(),
   company_url: z.string().max(200).url().nullish(),
   shop_client_name: z.string().max(255).nullish(),
   test_client_name: z.string().max(255).nullish(),
@@ -704,6 +708,8 @@ const CompanyDefaults = z.object({
 })
 const CompanyDefaultsRequest = z
   .object({
+    logo: z.instanceof(File).nullable(),
+    logo_wide: z.instanceof(File).nullable(),
     company_acronym: z.string().max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
@@ -724,6 +730,7 @@ const CompanyDefaultsRequest = z
     gdrive_reference_library_folder_id: z.string().max(100).nullable(),
     xero_tenant_id: z.string().max(100).nullable(),
     xero_shortcode: z.string().max(20).nullable(),
+    enable_xero_sync: z.boolean(),
     xero_payroll_calendar_name: z.string().min(1).max(100),
     xero_payroll_calendar_id: z.string().uuid().nullable(),
     xero_payroll_start_date: z.string().nullable(),
@@ -746,6 +753,7 @@ const CompanyDefaultsRequest = z
     post_code: z.string().max(20).nullable(),
     country: z.string().min(1).max(100),
     company_email: z.string().max(254).email().nullable(),
+    company_phone: z.string().max(30).nullable(),
     company_url: z.string().max(200).url().nullable(),
     shop_client_name: z.string().max(255).nullable(),
     test_client_name: z.string().max(255).nullable(),
@@ -760,6 +768,8 @@ const CompanyDefaultsRequest = z
   .partial()
 const PatchedCompanyDefaultsRequest = z
   .object({
+    logo: z.instanceof(File).nullable(),
+    logo_wide: z.instanceof(File).nullable(),
     company_acronym: z.string().max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
@@ -780,6 +790,7 @@ const PatchedCompanyDefaultsRequest = z
     gdrive_reference_library_folder_id: z.string().max(100).nullable(),
     xero_tenant_id: z.string().max(100).nullable(),
     xero_shortcode: z.string().max(20).nullable(),
+    enable_xero_sync: z.boolean(),
     xero_payroll_calendar_name: z.string().min(1).max(100),
     xero_payroll_calendar_id: z.string().uuid().nullable(),
     xero_payroll_start_date: z.string().nullable(),
@@ -802,6 +813,7 @@ const PatchedCompanyDefaultsRequest = z
     post_code: z.string().max(20).nullable(),
     country: z.string().min(1).max(100),
     company_email: z.string().max(254).email().nullable(),
+    company_phone: z.string().max(30).nullable(),
     company_url: z.string().max(200).url().nullable(),
     shop_client_name: z.string().max(255).nullable(),
     test_client_name: z.string().max(255).nullable(),
@@ -2740,8 +2752,8 @@ const AppErrorRequest = z.object({
 })
 const XeroPayItem = z.object({
   id: z.string().uuid(),
-  xero_id: z.string().max(50),
-  xero_tenant_id: z.string().max(255),
+  xero_id: z.string().max(50).nullish(),
+  xero_tenant_id: z.string().max(255).nullish(),
   name: z.string().max(100),
   uses_leave_api: z.boolean(),
   multiplier: z.number().gt(-100).lt(100).nullish(),
@@ -4418,6 +4430,35 @@ Returns:
     description: `Return schema metadata for CompanyDefaults fields.`,
     requestFormat: 'json',
     response: CompanyDefaultsSchema,
+  },
+  {
+    method: 'post',
+    path: '/api/company-defaults/upload-logo/',
+    alias: 'company_defaults_upload_logo_create',
+    description: `API view for uploading and deleting company logo images.
+
+POST: Upload a logo image to a specified field.
+DELETE: Clear a logo field and remove the file from disk.`,
+    requestFormat: 'form-data',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: CompanyDefaultsRequest,
+      },
+    ],
+    response: CompanyDefaults,
+  },
+  {
+    method: 'delete',
+    path: '/api/company-defaults/upload-logo/',
+    alias: 'company_defaults_upload_logo_destroy',
+    description: `API view for uploading and deleting company logo images.
+
+POST: Upload a logo image to a specified field.
+DELETE: Clear a logo field and remove the file from disk.`,
+    requestFormat: 'json',
+    response: z.void(),
   },
   {
     method: 'get',

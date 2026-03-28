@@ -1269,26 +1269,31 @@ ENTITY_CONFIGS = {
         None,
         "single",  # All slips fetched at once
     ),
-    "journals": (
-        "journals",
-        "journals",
-        XeroJournal,
-        "get_journals",
-        lambda items: sync_entities(
-            items, XeroJournal, "journal_id", transform_journal
-        ),
-        None,
-        "offset",
-    ),
+    # Journal Sync is disabled.
+    # It takes ages, and we're barely using them
 }
 
 
-def sync_all_xero_data(use_latest_timestamps=True, days_back=30, entities=None):
+def sync_all_xero_data(
+    use_latest_timestamps=True, days_back=30, entities=None, force=False
+):
     """Sync Xero data - either using latest timestamps or looking back N days."""
     token = get_token()
     if not token:
         logger.warning("No valid Xero token found")
         return
+
+    # Safety net: don't sync until seeding is complete (prod IDs cleared, dev IDs set).
+    # Targeted syncs (e.g. --entity accounts) during setup can pass force=True.
+    if not force:
+        company = CompanyDefaults.get_solo()
+        if not company.enable_xero_sync:
+            logger.warning(
+                "Xero sync not ready: enable_xero_sync is False. "
+                "In DEV: Run 'python manage.py seed_xero_from_database' first. "
+                "In Prod: Set using the gui"
+            )
+            return
 
     if entities is None:
         entities = list(ENTITY_CONFIGS.keys())
@@ -1400,9 +1405,11 @@ def sync_local_stock_to_xero():
         }
 
 
-def one_way_sync_all_xero_data(entities=None):
+def one_way_sync_all_xero_data(entities=None, force=False):
     """Normal sync using latest timestamps"""
-    yield from sync_all_xero_data(use_latest_timestamps=True, entities=entities)
+    yield from sync_all_xero_data(
+        use_latest_timestamps=True, entities=entities, force=force
+    )
 
 
 def deep_sync_xero_data(days_back=30, entities=None):

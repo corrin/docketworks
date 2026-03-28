@@ -1,5 +1,5 @@
 #!/bin/bash
-# Backup MySQL database before E2E tests
+# Backup PostgreSQL database before E2E tests
 
 set -e
 
@@ -18,11 +18,12 @@ if [ -z "$BACKEND_ENV_PATH" ] || [ ! -f "$BACKEND_ENV_PATH" ]; then
 fi
 
 # Source database credentials from backend .env
-export $(grep -E '^(MYSQL_DATABASE|MYSQL_DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)=' "$BACKEND_ENV_PATH" | xargs)
+set -a; source "$BACKEND_ENV_PATH"; set +a
 
-# Set defaults
-DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-3306}"
+if [ -z "${DB_HOST:-}" ] || [ -z "${DB_PORT:-}" ]; then
+    echo "Error: DB_HOST and DB_PORT must be set in $BACKEND_ENV_PATH"
+    exit 1
+fi
 
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"
@@ -31,14 +32,14 @@ mkdir -p "$BACKUP_DIR"
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 BACKUP_FILE="$BACKUP_DIR/backup_${TIMESTAMP}.sql"
 
-echo "Backing up database $MYSQL_DATABASE to $BACKUP_FILE..."
+echo "Backing up database $DB_NAME to $BACKUP_FILE..."
 
-mysqldump \
+PGPASSWORD="$DB_PASSWORD" pg_dump \
+    --clean \
     -h "$DB_HOST" \
-    -P "$DB_PORT" \
-    -u "$MYSQL_DB_USER" \
-    -p"$DB_PASSWORD" \
-    "$MYSQL_DATABASE" \
+    -p "$DB_PORT" \
+    -U "$DB_USER" \
+    "$DB_NAME" \
     > "$BACKUP_FILE"
 
 echo "Backup complete: $BACKUP_FILE"

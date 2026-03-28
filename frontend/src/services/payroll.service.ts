@@ -108,45 +108,61 @@ export async function postStaffWeek(
   const sseUrl = `${getApiBaseUrl()}${stream_url}`
 
   return new Promise((resolve, reject) => {
-    const eventSource = new EventSource(sseUrl, { withCredentials: true })
+    const MAX_RETRIES = 2
+    let attempt = 0
     let doneEvent: PostStaffWeekDoneEvent | null = null
+    let receivedAnyEvent = false
 
-    eventSource.onmessage = (event: MessageEvent) => {
-      try {
-        const data = JSON.parse(event.data) as PostStaffWeekSSEEvent
+    function connectSSE() {
+      const eventSource = new EventSource(sseUrl, { withCredentials: true })
 
-        switch (data.event) {
-          case 'start':
-            callbacks?.onStart?.(data)
-            break
-          case 'progress':
-            callbacks?.onProgress?.(data)
-            break
-          case 'complete':
-            callbacks?.onComplete?.(data)
-            break
-          case 'done':
-            doneEvent = data
-            callbacks?.onDone?.(data)
-            eventSource.close()
-            resolve(data)
-            break
+      eventSource.onmessage = (event: MessageEvent) => {
+        receivedAnyEvent = true
+        try {
+          const data = JSON.parse(event.data) as PostStaffWeekSSEEvent
+
+          switch (data.event) {
+            case 'start':
+              callbacks?.onStart?.(data)
+              break
+            case 'progress':
+              callbacks?.onProgress?.(data)
+              break
+            case 'complete':
+              callbacks?.onComplete?.(data)
+              break
+            case 'done':
+              doneEvent = data
+              callbacks?.onDone?.(data)
+              eventSource.close()
+              resolve(data)
+              break
+          }
+        } catch (parseError) {
+          console.warn('Failed to parse SSE event:', event.data, parseError)
         }
-      } catch (parseError) {
-        console.warn('Failed to parse SSE event:', event.data, parseError)
+      }
+
+      eventSource.onerror = () => {
+        eventSource.close()
+        if (doneEvent) {
+          // Already received done event, this is just the stream closing
+          return
+        }
+        // Retry if we never received any events (connection failed immediately)
+        if (!receivedAnyEvent && attempt < MAX_RETRIES) {
+          attempt++
+          console.warn(`SSE connection failed, retrying (attempt ${attempt}/${MAX_RETRIES})...`)
+          setTimeout(connectSSE, 1000)
+          return
+        }
+        const error = new Error('Connection to payroll stream lost')
+        callbacks?.onError?.(error)
+        reject(error)
       }
     }
 
-    eventSource.onerror = () => {
-      eventSource.close()
-      if (doneEvent) {
-        // Already received done event, this is just the stream closing
-        return
-      }
-      const error = new Error('Connection to payroll stream lost')
-      callbacks?.onError?.(error)
-      reject(error)
-    }
+    connectSSE()
   })
 }
 

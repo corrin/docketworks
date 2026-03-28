@@ -9,17 +9,23 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.error_persistence import persist_app_error
+
 auth_logger = logging.getLogger("auth")
 
 
 def custom_exception_handler(exc: Exception, context: dict) -> Optional[Response]:
     """
-    Custom exception handler that logs permission denied errors.
+    Custom exception handler that persists unlogged errors and logs permission denied.
 
-    Logs to the auth logger when a user is denied access to an endpoint,
-    including user identity, endpoint, and HTTP method.
+    Catches all exceptions that reach DRF's exception handler. Persists any that
+    haven't already been persisted upstream (detected via AlreadyLoggedException).
     """
     response = exception_handler(exc, context)
+
+    if not isinstance(exc, AlreadyLoggedException):
+        persist_app_error(exc)
 
     if isinstance(exc, PermissionDenied):
         request = context.get("request")

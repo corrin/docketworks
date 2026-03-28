@@ -81,6 +81,36 @@
                   </div>
                 </transition>
               </div>
+              <div v-else-if="field.type === 'image'" class="flex-1 flex items-center gap-3">
+                <img
+                  v-if="localForm[field.key + '_url']"
+                  :src="localForm[field.key + '_url'] as string"
+                  :alt="field.label"
+                  class="h-12 w-auto rounded border border-gray-200 object-contain bg-white"
+                />
+                <span v-else class="text-xs text-gray-400 italic">No image</span>
+                <label
+                  class="cursor-pointer inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition"
+                >
+                  <Upload class="w-3.5 h-3.5" />
+                  Upload
+                  <input
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    @change="(e) => onLogoUpload(field.key, e)"
+                  />
+                </label>
+                <button
+                  v-if="localForm[field.key + '_url']"
+                  type="button"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-600 hover:bg-red-50 transition"
+                  @click="onLogoDelete(field.key)"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                  Remove
+                </button>
+              </div>
               <Input
                 v-else
                 v-model="localForm[field.key] as string | number | undefined"
@@ -142,12 +172,14 @@ import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Calendar from '@/components/ui/calendar/Calendar.vue'
-import { ArrowLeft, Clock, HelpCircle } from 'lucide-vue-next'
+import { ArrowLeft, Clock, HelpCircle, Upload, Trash2 } from 'lucide-vue-next'
 import { ref, computed, watch } from 'vue'
 import { CalendarDateTime, parseDateTime } from '@internationalized/date'
 import { debugLog } from '@/utils/debug'
 import { useSettingsSchema } from '@/composables/useSettingsSchema'
 import { getEmbeddedComponents, hasEmbeddedComponents } from '@/utils/embeddedComponentRegistry'
+import { uploadLogo, deleteLogo } from '@/services/admin-company-defaults-service'
+import { toast } from 'vue-sonner'
 
 const props = defineProps<{ section: string; form: Record<string, unknown> }>()
 
@@ -168,6 +200,34 @@ function logFallbackInput(field: { key: string; type: string; label: string }) {
     )
   }
   return {} // Return empty object for class binding
+}
+
+async function onLogoUpload(fieldKey: string, event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  if (!file) return
+  try {
+    const updated = await uploadLogo(fieldKey, file)
+    localForm.value[fieldKey + '_url'] = (updated as Record<string, unknown>)[fieldKey + '_url']
+    emit('update', localForm.value)
+    toast.success('Logo uploaded')
+  } catch (e) {
+    console.error('Logo upload failed:', e)
+    toast.error('Failed to upload logo')
+  }
+  input.value = ''
+}
+
+async function onLogoDelete(fieldKey: string) {
+  try {
+    await deleteLogo(fieldKey)
+    localForm.value[fieldKey + '_url'] = null
+    emit('update', localForm.value)
+    toast.success('Logo removed')
+  } catch (e) {
+    console.error('Logo delete failed:', e)
+    toast.error('Failed to remove logo')
+  }
 }
 
 watch(

@@ -2,11 +2,11 @@
 
 ## Quick Reference
 
-| Environment    | Xero Tests  | Database   | Cleanup        | Command                                                                   |
-| -------------- | ----------- | ---------- | -------------- | ------------------------------------------------------------------------- |
-| **Dev**        | ✅ Included | Dev MySQL  | Backup/Restore | `npm run test:e2e`                                                        |
-| **UAT**        | ✅ Included | UAT MySQL  | Backup/Restore | `E2E_BASE_URL=https://uat-office.morrissheetmetal.co.nz npm run test:e2e` |
-| **Production** | ❌ Skipped  | Prod MySQL | Backup/Restore | `npm run test:e2e:prod`                                                   |
+| Environment    | Xero Tests  | Database        | Cleanup        | Command                                                          |
+| -------------- | ----------- | --------------- | -------------- | ---------------------------------------------------------------- |
+| **Dev**        | ✅ Included | Dev PostgreSQL  | Backup/Restore | `npm run test:e2e`                                               |
+| **UAT**        | ✅ Included | UAT PostgreSQL  | Backup/Restore | `E2E_BASE_URL=https://msm-uat.docketworks.site npm run test:e2e` |
+| **Production** | ❌ Skipped  | Prod PostgreSQL | Backup/Restore | `npm run test:e2e:prod`                                          |
 
 ## Environment Details
 
@@ -29,7 +29,7 @@
 
 **Xero**: Demo company (safe to pollute)
 
-**Database**: Dev MySQL - backed up before tests, restored after
+**Database**: Dev PostgreSQL - backed up before tests, restored after
 
 **Command**:
 
@@ -53,16 +53,16 @@ npm run test:e2e
 
 **Target**:
 
-- Frontend/Backend: `https://uat-office.morrissheetmetal.co.nz`
+- Frontend/Backend: `https://msm-uat.docketworks.site`
 
 **Xero**: Demo/test company (safe to pollute)
 
-**Database**: UAT MySQL - backed up before tests, restored after
+**Database**: UAT PostgreSQL - backed up before tests, restored after
 
 **Command**:
 
 ```bash
-E2E_BASE_URL=https://uat-office.morrissheetmetal.co.nz npm run test:e2e
+E2E_BASE_URL=https://msm-uat.docketworks.site npm run test:e2e
 ```
 
 ---
@@ -85,7 +85,7 @@ E2E_BASE_URL=https://uat-office.morrissheetmetal.co.nz npm run test:e2e
 
 **Xero**: **Not touched** - all `@xero` tagged tests are skipped
 
-**Database**: Production MySQL - backed up before tests, **restored after** (critical!)
+**Database**: Production PostgreSQL - backed up before tests, **restored after** (critical!)
 
 **Command**:
 
@@ -179,7 +179,7 @@ test('view KPI report', { tag: '@readonly' }, async ({ page }) => {
 ```
 ┌─────────────────────────────────────────┐
 │  1. Backup Database (before tests)      │
-│     mysqldump > backup_20250124.sql     │
+│     pg_dump > backup_20250124.sql     │
 └─────────────────────────────────────────┘
                     ↓
 ┌─────────────────────────────────────────┐
@@ -191,7 +191,7 @@ test('view KPI report', { tag: '@readonly' }, async ({ page }) => {
                     ↓
 ┌─────────────────────────────────────────┐
 │  3. Restore Database (after tests)       │
-│     mysql < backup_20250124.sql         │
+│     psql< backup_20250124.sql         │
 │     (Runs even if tests fail!)          │
 └─────────────────────────────────────────┘
 ```
@@ -214,11 +214,11 @@ test('view KPI report', { tag: '@readonly' }, async ({ page }) => {
 ### Environment Variables Required
 
 ```bash
-MYSQL_HOST=localhost
-MYSQL_PORT=3306
-MYSQL_DATABASE=dw_msm_dev
-MYSQL_USER=your_user
-MYSQL_PASSWORD=your_password
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=dw_msm_dev
+DB_USER=your_user
+DB_PASSWORD=your_password
 ```
 
 ---
@@ -341,13 +341,13 @@ jobs:
       - uses: actions/setup-node@v3
       - run: npm install
       - run: npx playwright install chromium
-      - run: E2E_BASE_URL=https://uat-office.morrissheetmetal.co.nz npm run test:e2e
+      - run: E2E_BASE_URL=https://msm-uat.docketworks.site npm run test:e2e
         env:
           E2E_TEST_USERNAME: ${{ secrets.E2E_TEST_USERNAME }}
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
-          MYSQL_HOST: ${{ secrets.UAT_MYSQL_HOST }}
-          MYSQL_USER: ${{ secrets.UAT_MYSQL_USER }}
-          MYSQL_PASSWORD: ${{ secrets.UAT_MYSQL_PASSWORD }}
+          DB_HOST: ${{ secrets.UAT_DB_HOST }}
+          DB_USER: ${{ secrets.UAT_DB_USER }}
+          DB_PASSWORD: ${{ secrets.UAT_DB_PASSWORD }}
 
   deploy-prod:
     needs: e2e-uat
@@ -369,9 +369,9 @@ jobs:
           E2E_BASE_URL: https://office.morrissheetmetal.co.nz
           E2E_TEST_USERNAME: ${{ secrets.E2E_TEST_USERNAME }}
           E2E_TEST_PASSWORD: ${{ secrets.E2E_TEST_PASSWORD }}
-          MYSQL_HOST: ${{ secrets.PROD_MYSQL_HOST }}
-          MYSQL_USER: ${{ secrets.PROD_MYSQL_USER }}
-          MYSQL_PASSWORD: ${{ secrets.PROD_MYSQL_PASSWORD }}
+          DB_HOST: ${{ secrets.PROD_DB_HOST }}
+          DB_USER: ${{ secrets.PROD_DB_USER }}
+          DB_PASSWORD: ${{ secrets.PROD_DB_PASSWORD }}
 ```
 
 ---
@@ -380,9 +380,9 @@ jobs:
 
 ### "Database restore failed"
 
-- Check MySQL credentials in `.env.test`
+- Check PostgreSQL credentials in `.env.test`
 - Ensure backup file exists in `tests/backups/`
-- Verify MySQL user has restore permissions
+- Verify PostgreSQL user has restore permissions
 
 ### "Tests fail in production but pass in dev"
 

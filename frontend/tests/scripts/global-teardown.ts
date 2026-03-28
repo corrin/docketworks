@@ -160,18 +160,12 @@ function restoreDatabase() {
 
   const inputFd = fs.openSync(backupFile, 'r')
   const result = spawnSync(
-    'mysql',
-    [
-      '-h',
-      dbConfig.host,
-      '-P',
-      dbConfig.port,
-      '-u',
-      dbConfig.user,
-      `-p${dbConfig.password}`,
-      dbConfig.database,
-    ],
-    { stdio: [inputFd, 'inherit', 'inherit'] },
+    'psql',
+    ['-h', dbConfig.host, '-p', dbConfig.port, '-U', dbConfig.user, dbConfig.database],
+    {
+      stdio: [inputFd, 'inherit', 'inherit'],
+      env: { ...process.env, PGPASSWORD: dbConfig.password },
+    },
   )
   fs.closeSync(inputFd)
 

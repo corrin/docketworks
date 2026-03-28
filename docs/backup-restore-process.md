@@ -8,23 +8,21 @@ e.g.  logs/restore_log_prod_backup_20260109_211941_complete.log
 
 
 
-## MySQL Connection Pattern
+## PostgreSQL Connection Pattern
 
-ALL MySQL commands must include: `-h "$DB_HOST" -P "$DB_PORT"`
+ALL psql commands must include: `-h "$DB_HOST" -p "$DB_PORT"`
 
 **Linux/WSL (bash):**
 ```bash
-MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "SHOW TABLES;"
+PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME" -c "\dt"
 ```
 
 **Windows (PowerShell):**
 ```powershell
-$env:MYSQL_PWD = $env:DB_PASSWORD
-mysql.exe -h $env:DB_HOST -P $env:DB_PORT -u $env:MYSQL_DB_USER $env:MYSQL_DATABASE -e "SHOW TABLES;"
-Remove-Item Env:MYSQL_PWD
+$env:PGPASSWORD = $env:DB_PASSWORD
+psql.exe -h $env:DB_HOST -p $env:DB_PORT -U $env:DB_USER $env:DB_NAME -c "\dt"
+Remove-Item Env:PGPASSWORD
 ```
-
-Note: On Windows, always use `--execute "source path\to\file.sql"` for loading SQL files, and remove MYSQL_PWD after each command.
 
 ## CRITICAL: No Workarounds
 
@@ -58,12 +56,12 @@ You should end up with:
 
 These must be in place before running the process. They persist across restores.
 
-1. **`.env`** — Copy from `.env.example` and configure `MYSQL_DATABASE`, `MYSQL_DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and all other required variables.
+1. **`.env`** — Copy from `.env.example` and configure `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and all other required variables.
 2. **`apps/workflow/fixtures/ai_providers.json`** — Copy from `ai_providers.json.example` and add real API keys for Claude, Gemini, and Mistral.
 
 ## Technical Notes
 
-- Use `--execute="source file.sql"` not `< file.sql` for SQL scripts (large files fail with redirection)
+- For PostgreSQL restores, use `psql < file.sql` or `pg_restore` depending on dump format
 
 ### PRODUCTION STEPS
 
@@ -128,27 +126,27 @@ ls -la restore/
 **Check:**
 
 ```bash
-grep -E "^(MYSQL_DATABASE|MYSQL_DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)=" .env
+grep -E "^(DB_NAME|DB_USER|DB_PASSWORD)=" .env
 export DB_PASSWORD=$(grep DB_PASSWORD .env | cut -d= -f2)
-export MYSQL_DATABASE=$(grep MYSQL_DATABASE .env | cut -d= -f2)
-export MYSQL_DB_USER=$(grep MYSQL_DB_USER .env | cut -d= -f2)
+export DB_NAME=$(grep DB_NAME .env | cut -d= -f2)
+export DB_USER=$(grep DB_USER .env | cut -d= -f2)
 ```
 
 **Windows (PowerShell):**
 
 ```powershell
-Select-String -Path .env -Pattern '^(MYSQL_DATABASE|MYSQL_DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)='
+Select-String -Path .env -Pattern '^(DB_NAME|DB_USER|DB_PASSWORD)='
 ```
 
 **Must show:**
 
 ```
-MYSQL_DATABASE=dw_msm_dev
-MYSQL_DB_USER=django_user
+DB_NAME=dw_msm_dev
+DB_USER=dw_msm_dev
 DB_PASSWORD=your_dev_password
-DB_HOST=localhost
-DB_PORT=3306
 ```
+
+**Note:** `DB_HOST` and `DB_PORT` are not required in `.env` — Django defaults to `127.0.0.1:5432`.
 
 **If any missing:** Add to .env file
 
@@ -156,131 +154,24 @@ Note. If you're using Claude or similar, you need to specify these explicitly on
 
 #### Step 5: Reset Database
 
-**Run as:** System root (for MySQL admin operations)
 **Command:**
 
 ```bash
-sudo ./scripts/setup_database.sh --drop
+sudo -u postgres ./scripts/setup_database.sh --drop
 ```
 
-**Note:** The script reads DB name, user, and password from `.env`. On Windows, run the equivalent MySQL commands manually.
+This drops and recreates the database and user from your `.env` file.
+
+**Windows:** Run from WSL or use pgAdmin to drop/recreate the database.
 
 **Check:**
 
 ```bash
-export MYSQL_PWD="$DB_PASSWORD" && mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "SHOW TABLES;"
-# Should return: Empty set (0.00 sec)
-export MYSQL_PWD="$DB_PASSWORD" && mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" -e "SHOW DATABASES;" | grep "$MYSQL_DATABASE"
-# Should show: dw_msm_dev
+PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME" -c "\dt"
+# Should return: Did not find any relations.
 ```
 
-#### Step 6: Apply Production Schema
-
-**Command:**
-
-```bash
-export MYSQL_PWD="$DB_PASSWORD" && mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" --execute="source restore/prod_backup_YYYYMMDD_HHMMSS.schema.sql"
-```
-
-**Check:**
-
-```bash
-MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "SHOW TABLES;" | wc -l
-# Should show 50+ tables
-MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "DESCRIBE workflow_job;" | grep contact_person
-# Should show: contact_person	varchar(100)	YES		NULL
-MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "SELECT COUNT(*) FROM workflow_job;"
-# Should show: 0 (empty table)
-```
-
-#### Step 7: Extract and Convert JSON to SQL
-
-**Commands:**
-
-```bash
-# Extract the compressed backup
-gunzip restore/prod_backup_YYYYMMDD_HHMMSS.json.gz
-# Convert to SQL (automatically generates .sql from .json filename)
-python scripts/json_to_mysql.py restore/prod_backup_YYYYMMDD_HHMMSS.json
-```
-
-**Windows (PowerShell):**
-
-```powershell
-python - <<'PY'
-import gzip, shutil, pathlib
-src = pathlib.Path("restore/prod_backup_YYYYMMDD_HHMMSS.json.gz")
-dst = src.with_suffix("")
-with gzip.open(src, "rb") as f_in, open(dst, "wb") as f_out:
-    shutil.copyfileobj(f_in, f_out)
-PY
-python scripts/json_to_mysql.py restore\prod_backup_YYYYMMDD_HHMMSS.json
-```
-
-**Check:**
-
-```bash
-ls -la restore/prod_backup_YYYYMMDD_HHMMSS.sql
-# Should show large file (typically 50-200MB)
-head -10 restore/prod_backup_YYYYMMDD_HHMMSS.sql
-# Should show:
-# -- MySQL dump converted from Django JSON backup
-# USE dw_msm_dev;
-# SET FOREIGN_KEY_CHECKS=0;
-# INSERT INTO `workflow_job` (`id`, `name`, `client_id`...
-grep "INSERT INTO" restore/prod_backup_YYYYMMDD_HHMMSS.sql | wc -l
-# Should show thousands of INSERT statements
-```
-
-#### Step 8: Load Production Data
-
-**Command:**
-
-```bash
-MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" --execute="source restore/prod_backup_YYYYMMDD_HHMMSS.sql"
-```
-
-**Windows (PowerShell):**
-
-```powershell
-$env:MYSQL_PWD = $env:DB_PASSWORD
-mysql.exe -h $env:DB_HOST -P $env:DB_PORT -u $env:MYSQL_DB_USER $env:MYSQL_DATABASE --execute="source restore\\prod_backup_YYYYMMDD_HHMMSS.sql"
-Remove-Item Env:MYSQL_PWD
-```
-
-**Check:**
-
-```bash
-MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "
-SELECT 'workflow_job' as table_name, COUNT(*) as count FROM workflow_job
-UNION SELECT 'workflow_staff', COUNT(*) FROM workflow_staff
-UNION SELECT 'workflow_client', COUNT(*) FROM workflow_client
-UNION SELECT 'job_costset', COUNT(*) FROM job_costset
-UNION SELECT 'job_costline', COUNT(*) FROM job_costline
-UNION SELECT 'process_form', COUNT(*) FROM process_form
-UNION SELECT 'process_form_entry', COUNT(*) FROM process_form_entry
-UNION SELECT 'process_procedure', COUNT(*) FROM process_procedure;
-"
-```
-
-**Expected output (update with actual numbers):**
-
-```
-+---------------------+-------+
-| table_name          | count |
-+---------------------+-------+
-| workflow_job        |  1054 |
-| workflow_staff      |    20 |
-| workflow_client     |  3739 |
-| job_costset         |  3162 |
-| job_costline        | 10334 |
-| process_form        |     5 |
-| process_form_entry  |   100 |
-| process_procedure   |    20 |
-+---------------------+-------+
-```
-
-#### Step 9: Apply Django Migrations
+#### Step 6: Apply Django Migrations (creates schema)
 
 **Command:**
 
@@ -291,10 +182,69 @@ python manage.py migrate
 **Check:**
 
 ```bash
-python manage.py showmigrations
+PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME" -c "\dt" | wc -l
+# Should show 50+ tables
 ```
 
-**Expected:** All migrations should show [X] (applied)
+#### Step 7: Extract JSON Backup
+
+**Commands:**
+
+```bash
+# Extract the compressed backup
+gunzip restore/prod_backup_YYYYMMDD_HHMMSS.json.gz
+```
+
+**Check:**
+
+```bash
+ls -la restore/prod_backup_YYYYMMDD_HHMMSS.json
+# Should show large file (typically 50-200MB)
+```
+
+#### Step 8: Load Production Data
+
+**Command:**
+
+```bash
+python manage.py loaddata restore/prod_backup_YYYYMMDD_HHMMSS.json
+```
+
+**Check:**
+
+```bash
+PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME" -c "
+SELECT 'workflow_job' as table_name, COUNT(*) as count FROM workflow_job
+UNION ALL SELECT 'accounts_staff', COUNT(*) FROM accounts_staff
+UNION ALL SELECT 'client_client', COUNT(*) FROM client_client
+UNION ALL SELECT 'job_costset', COUNT(*) FROM job_costset
+UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
+"
+```
+
+**Expected output (approximate):**
+
+```
+  table_name   | count
+---------------+-------
+ workflow_job   |  1054
+ accounts_staff |    20
+ client_client  |  3739
+ job_costset    |  3162
+ job_costline   | 10334
+```
+
+#### Step 9: Verify Django Migrations
+
+Migrations were already applied in Step 6. Verify they're all applied:
+
+**Command:**
+
+```bash
+python manage.py showmigrations | grep '\[ \]'
+```
+
+**Expected:** No output (all migrations applied). If any show `[ ]`, run `python manage.py migrate`.
 
 #### Step 10: Load Company Defaults Fixture
 
@@ -333,7 +283,7 @@ python scripts/restore_checks/check_ai_providers.py
 **Command:**
 
 ```bash
-MYSQL_PWD="$DB_PASSWORD" mysql -h "$DB_HOST" -P "$DB_PORT" -u "$MYSQL_DB_USER" "$MYSQL_DATABASE" -e "
+PGPASSWORD="$DB_PASSWORD" psql -h "$DB_HOST" -p "$DB_PORT" -U "$DB_USER" "$DB_NAME" -c "
 SELECT id, name, job_number, status
 FROM workflow_job
 WHERE name LIKE '%test%' OR name LIKE '%sample%'
@@ -551,7 +501,7 @@ Brand new install or reset Xero Dev? The payroll calendar won't be found here.
 **Command:**
 
 ```bash
-python manage.py start_xero_sync --entity accounts
+python manage.py start_xero_sync --entity accounts --force
 ```
 
 **What this does:**
@@ -607,6 +557,7 @@ Get-Content logs\seed_xero_output.log -Tail 50 -Wait
 4. Creates projects in Xero for all jobs
 5. Syncs stock items to Xero inventory (using account codes from Step 23)
 6. Links/creates payroll employees for all active staff (uses Staff UUID in job_title for reliable re-linking)
+7. Sets `enable_xero_sync = True` in CompanyDefaults (Xero sync is blocked until this point)
 
 **Monitor progress:**
 
@@ -691,20 +642,18 @@ cd frontend && npx playwright test
 ### Reset Script Fails
 
 **Symptoms:** Permission denied errors
-**Solution:** run the reset script as root: `sudo ./scripts/setup_database.sh --drop`
+**Solution:** Ensure PostgreSQL is running and you have sudo access: `sudo -u postgres psql -c "\l"`
 
 ## File Locations
 
 - **Combined backup:** `/tmp/prod_backup_YYYYMMDD_HHMMSS_complete.zip` (created by backup command)
-- **Production schema:** `prod_backup_YYYYMMDD_HHMMSS.schema.sql` (inside zip)
+- **Production schema:** `prod_backup_YYYYMMDD_HHMMSS.schema.sql` (inside zip, for reference only)
 - **Production data:** `prod_backup_YYYYMMDD_HHMMSS.json.gz` (inside zip)
 - **Development restore:** `restore/` directory
-- **Reset script:** `scripts/setup_database.sh`
-- **Converter script:** `scripts/json_to_mysql.py`
-- **Generated SQL:** `restore/prod_backup_YYYYMMDD_HHMMSS.sql` (auto-generated from JSON)
+- **Setup script:** `scripts/setup_database.sh`
 
 ## Required Passwords
 
-- **Production MySQL:** Production database password
-- **Development MySQL:** Value from `DB_PASSWORD` in `.env`
-- **System sudo:** For running reset script as MySQL root
+- **Production PostgreSQL:** Production database password
+- **Development PostgreSQL:** Value from `DB_PASSWORD` in `.env`
+- **System sudo:** For running setup script (uses `sudo -u postgres`)

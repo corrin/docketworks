@@ -157,6 +157,7 @@ coverage/
 *.local
 *.tsbuildinfo
 pnpm-lock.yaml
+frontend/tests/backups/
 frontend/test-results/
 frontend/playwright-report/
 frontend/manual/.vitepress/cache/

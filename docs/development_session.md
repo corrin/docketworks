@@ -58,5 +58,5 @@ python manage.py run_scheduler
 | ngrok domain already in use | Check for other ngrok processes: `pkill ngrok` |
 | Port 8000 already in use | Find process: `lsof -i :8000` and kill it |
 | Port 5173 already in use | Find process: `lsof -i :5173` and kill it |
-| Database connection errors | Ensure MariaDB is running: `sudo systemctl start mariadb` |
+| Database connection errors | Ensure PostgreSQL is running: `sudo systemctl start postgresql` |
 | Virtual environment not active | Run `poetry shell` in the project directory |

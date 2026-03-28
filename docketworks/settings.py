@@ -26,11 +26,9 @@ def validate_required_settings() -> None:
         "ALLOWED_HOSTS",
         "DJANGO_SITE_DOMAIN",
         # Database
-        "MYSQL_DATABASE",
-        "MYSQL_DB_USER",
+        "DB_NAME",
+        "DB_USER",
         "DB_PASSWORD",
-        "DB_HOST",
-        "DB_PORT",
         # File Storage
         "DROPBOX_WORKFLOW_FOLDER",
         # Xero Integration
@@ -400,15 +398,12 @@ DJANGO_MCP_AUTHENTICATION_CLASSES = [
 # Database
 DATABASES = {
     "default": {
-        "ENGINE": "django.db.backends.mysql",
-        "NAME": os.getenv("MYSQL_DATABASE"),
-        "USER": os.getenv("MYSQL_DB_USER"),
+        "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
+        "NAME": os.getenv("DB_NAME"),
+        "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST"),
-        "PORT": os.getenv("DB_PORT"),
-        "TEST": {
-            "NAME": os.getenv("MYSQL_DATABASE"),
-        },
+        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("DB_PORT", ""),
     },
 }
 
@@ -804,11 +799,15 @@ if PRODUCTION_LIKE:
             logger = logging.getLogger(__name__)
             logger.error(f"Error configuring the site: {e}")
 
-    # Configure site on Django startup
+    # Configure site once on first request (DB may not be ready at import time)
     from django.core.signals import request_started
 
+    def _configure_site_once(**kwargs):
+        configure_site_for_environment()
+        request_started.disconnect(_configure_site_once, dispatch_uid="configure_site")
+
     request_started.connect(
-        lambda **kwargs: configure_site_for_environment(),
+        _configure_site_once,
         weak=False,
         dispatch_uid="configure_site",
     )

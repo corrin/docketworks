@@ -110,6 +110,10 @@ class CompanyDefaults(SingletonModel):
         blank=True,
         help_text="Xero organisation shortcode for deep linking (e.g., '!8-5Xl')",
     )
+    enable_xero_sync = models.BooleanField(
+        default=True,
+        help_text="Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.",
+    )
 
     # Xero Payroll configuration
     # Note: Leave type IDs and earnings rate names are synced to XeroPayItem model
@@ -192,10 +196,28 @@ class CompanyDefaults(SingletonModel):
         blank=True,
         help_text="Company contact email address",
     )
+    company_phone = models.CharField(
+        max_length=30,
+        null=True,
+        blank=True,
+        help_text="Company phone number",
+    )
     company_url = models.URLField(
         null=True,
         blank=True,
         help_text="Company website URL",
+    )
+    logo = models.ImageField(
+        upload_to="company_logos/",
+        null=True,
+        blank=True,
+        help_text="Company logo (square/standard)",
+    )
+    logo_wide = models.ImageField(
+        upload_to="company_logos/",
+        null=True,
+        blank=True,
+        help_text="Wide company logo for letterheads and PDFs",
     )
 
     # Shop client configuration

@@ -8,66 +8,68 @@ from django.db import migrations, models
 
 
 def create_seed_xero_pay_items(apps, schema_editor):
-    """Create seed XeroPayItem records needed by migration 0064."""
+    """Create seed XeroPayItem records with fixed UUIDs matching production.
+
+    These UUIDs are canonical — they match the PKs used by production
+    Job.default_xero_pay_item and CostLine.xero_pay_item FKs. This means
+    backups can exclude XeroPayItem and the FK references still resolve.
+    """
     XeroPayItem = apps.get_model("workflow", "XeroPayItem")
 
+    # UUIDs match production records referenced by Jobs/CostLines
     seed_items = [
-        # Earnings rates (uses_leave_api=False)
         {
+            "id": "3829750d-1528-440c-8260-0ce4a7b620f3",
             "name": "Ordinary Time",
             "uses_leave_api": False,
-            "multiplier": Decimal("1.0"),
-            "xero_id": "seed-ordinary-time",
-            "xero_tenant_id": "pending-sync",
+            "multiplier": Decimal("1.00"),
         },
         {
+            "id": "adc9d1ba-5ba7-4692-b71f-785e36ce35c8",
             "name": "Time and one half",
             "uses_leave_api": False,
-            "multiplier": Decimal("1.5"),
-            "xero_id": "seed-time-half",
-            "xero_tenant_id": "pending-sync",
+            "multiplier": Decimal("1.50"),
         },
         {
+            "id": "8ad696a0-f0cd-42b4-9700-39a942d9ccfd",
             "name": "Double Time",
             "uses_leave_api": False,
-            "multiplier": Decimal("2.0"),
-            "xero_id": "seed-double-time",
-            "xero_tenant_id": "pending-sync",
+            "multiplier": Decimal("2.00"),
         },
-        # Leave types (uses_leave_api=True)
         {
+            "id": "90909bb3-7c5f-473a-8b51-e4d5cfcb3a5a",
             "name": "Annual Leave",
             "uses_leave_api": True,
             "multiplier": None,
-            "xero_id": "seed-annual-leave",
-            "xero_tenant_id": "pending-sync",
         },
         {
+            "id": "e678e692-312d-4f38-b9f8-31c84d6d6ba8",
             "name": "Sick Leave",
             "uses_leave_api": True,
             "multiplier": None,
-            "xero_id": "seed-sick-leave",
-            "xero_tenant_id": "pending-sync",
         },
         {
+            "id": "b58930e0-2bb9-4dde-b7ec-5a16ea78b4cb",
             "name": "Unpaid Leave",
             "uses_leave_api": True,
             "multiplier": None,
-            "xero_id": "seed-unpaid-leave",
-            "xero_tenant_id": "pending-sync",
         },
         {
+            "id": "c4848bba-737e-45a8-adaa-61cd072a84ca",
             "name": "Bereavement Leave",
             "uses_leave_api": True,
             "multiplier": None,
-            "xero_id": "seed-bereavement-leave",
-            "xero_tenant_id": "pending-sync",
         },
     ]
 
+    created = 0
     for item in seed_items:
-        XeroPayItem.objects.create(**item)
-    print(f"  Created {len(seed_items)} seed XeroPayItem records")
+        if not XeroPayItem.objects.filter(id=item["id"]).exists():
+            XeroPayItem.objects.create(**item)
+            created += 1
+    print(
+        f"  Created {created} seed XeroPayItem records ({len(seed_items) - created} already existed)"
+    )
 
 
 class Migration(migrations.Migration):
@@ -92,15 +94,20 @@ class Migration(migrations.Migration):
                 (
                     "xero_id",
                     models.CharField(
+                        blank=True,
                         help_text="Xero's UUID for this pay item",
                         max_length=50,
+                        null=True,
                         unique=True,
                     ),
                 ),
                 (
                     "xero_tenant_id",
                     models.CharField(
-                        help_text="Xero tenant this pay item belongs to", max_length=255
+                        blank=True,
+                        help_text="Xero tenant this pay item belongs to",
+                        max_length=255,
+                        null=True,
                     ),
                 ),
                 (

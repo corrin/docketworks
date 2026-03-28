@@ -128,10 +128,10 @@ async function saveAll() {
     // Build payload dynamically from schema - only include writable fields
     const payload: Partial<PatchedCompanyDefaults> = {}
 
-    // Get all writable field keys from schema
+    // Get all writable field keys from schema (skip image fields — handled by upload endpoint)
     for (const section of sections.value) {
       for (const field of section.fields) {
-        if (!field.readOnly) {
+        if (!field.readOnly && field.type !== 'image') {
           const key = field.key as keyof CompanyDefaults
           if (key in form.value) {
             ;(payload as Record<string, unknown>)[key] = form.value[key]

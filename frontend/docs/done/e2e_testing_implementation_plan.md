@@ -12,7 +12,7 @@ Based on codebase analysis and requirements:
 - **Framework**: Playwright (fresh installation)
 - **Screenshots**: Generated to `docs_screens/` but not committed (added to .gitignore)
 - **Authentication**: Existing test user credentials via environment variables
-- **Database Safety**: MySQL backup before tests, restore after (even on failure)
+- **Database Safety**: PostgreSQL backup before tests, restore after (even on failure)
 
 ## Implementation Steps
 
@@ -51,7 +51,7 @@ Based on codebase analysis and requirements:
 **Actions:**
 
 - Create `tests/scripts/backup-db.sh`:
-  - MySQL dump with timestamp
+  - PostgreSQL dump with timestamp
   - Store in `tests/backups/`
   - Use credentials from environment variables
 - Create `tests/scripts/restore-db.sh`:
@@ -139,11 +139,11 @@ Based on codebase analysis and requirements:
   E2E_BASE_URL=https://docketworks-msm-dev.ngrok-free.app
   E2E_TEST_USERNAME=your-test-user@example.com
   E2E_TEST_PASSWORD=your-secure-password
-  MYSQL_HOST=localhost
-  MYSQL_PORT=3306
-  MYSQL_DATABASE=dw_msm_dev
-  MYSQL_USER=your-db-user
-  MYSQL_PASSWORD=your-db-password
+  DB_HOST=localhost
+  DB_PORT=3306
+  DB_NAME=dw_msm_dev
+  DB_USER=your-db-user
+  DB_PASSWORD=your-db-password
   ```
 - Create `docs/e2e-testing.md`:
   - Prerequisites

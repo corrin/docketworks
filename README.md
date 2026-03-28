@@ -1,6 +1,6 @@
 # DocketWorks
 
-A Django + Vue.js job/project management system for custom manufacturing businesses. Originally built for [Morris Sheetmetal](https://www.morrissheetmetal.co.nz/). Inspired by [django-timepiece](https://github.com/lincolnloop/django-timepiece), with features including:
+A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](https://www.morrissheetmetal.co.nz/). Inspired by [django-timepiece](https://github.com/lincolnloop/django-timepiece), with features including:
 
 - **CRM** with projects and businesses
 - **User dashboards** with budgeted hours based on project contracts
@@ -18,7 +18,7 @@ For detailed documentation including business context, technical details, and se
 - **Python 3.12+**
 - **[Poetry](https://python-poetry.org/)** (manages Python dependencies)
 - **Node.js 22+** (frontend)
-- **MariaDB 11.5.2** (locally)
+- **PostgreSQL 16+**
 
 ### Installation
 
