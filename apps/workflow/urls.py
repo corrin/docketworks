@@ -16,6 +16,7 @@ from apps.workflow.views.app_error_view import (
     AppErrorViewSet,
 )
 from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
+from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
 from apps.workflow.views.xero import xero_view
 from apps.workflow.views.xero_pay_item_viewset import XeroPayItemViewSet
@@ -130,6 +131,11 @@ urlpatterns = [
         "company-defaults/",
         CompanyDefaultsAPIView.as_view(),
         name="api_company_defaults",
+    ),
+    path(
+        "company-defaults/upload-logo/",
+        CompanyDefaultsLogoAPIView.as_view(),
+        name="api_company_defaults_upload_logo",
     ),
     path(
         "company-defaults/schema/",

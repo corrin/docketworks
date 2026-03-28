@@ -33,12 +33,18 @@ class Command(BaseCommand):
             choices=list(ENTITY_CONFIGS.keys()),
             help="Sync only the specified entity type (default: sync all)",
         )
+        parser.add_argument(
+            "--force",
+            action="store_true",
+            help="Override enable_xero_sync safety check (for setup before seeding)",
+        )
 
     def handle(self, *args, **options):
         # Parse options
         deep_sync = options["deep_sync"]
         days_back = options["days_back"]
         entity = options["entity"]
+        force = options["force"]
 
         # Convert single entity to list
         entities = [entity] if entity else None
@@ -63,7 +69,9 @@ class Command(BaseCommand):
                     )
                 else:
                     logger.info(f"Starting incremental sync for {entity}")
-                    sync_generator = one_way_sync_all_xero_data(entities=entities)
+                    sync_generator = one_way_sync_all_xero_data(
+                        entities=entities, force=force
+                    )
             else:
                 logger.info("Starting normal bidirectional sync")
                 sync_generator = synchronise_xero_data()

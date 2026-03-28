@@ -11,7 +11,7 @@ from django.db import transaction
 
 from apps.client.models import Client
 from apps.job.models import CostSet, Job
-from apps.workflow.models import XeroPayItem
+from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 
 class Command(BaseCommand):
@@ -44,11 +44,11 @@ class Command(BaseCommand):
         if Job.objects.filter(name=name).exists():
             raise CommandError(f"Job '{name}' already exists")
 
-        # Resolve client (MSM (Shop) — same as other special jobs)
-        try:
-            client = Client.objects.get(name="MSM (Shop)")
-        except Client.DoesNotExist:
-            raise CommandError("Client 'MSM (Shop)' not found")
+        # Resolve shop client from CompanyDefaults
+        defaults = CompanyDefaults.get_solo()
+        if not defaults.shop_client_name:
+            raise CommandError("CompanyDefaults.shop_client_name is not configured.")
+        client = Client.objects.get(name=defaults.shop_client_name)
 
         # Resolve pay item
         pay_item = XeroPayItem.objects.filter(

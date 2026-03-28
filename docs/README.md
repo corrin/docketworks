@@ -1,8 +1,8 @@
-# Project Documentation: Morris Sheetmetal Works Workflow Management System
+# DocketWorks — Project Documentation
 
 ## **Project Overview**
 
-Morris Sheetmetal Works is a small jobbing shop specializing in custom metal fabrication for a variety of customer needs, ranging from fencepost covers to manhole covers. The goal of this project is to transition the company from a paper-based workflow to a fully digital system, improving efficiency and enabling better oversight while maintaining or increasing operational speed.
+DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trades businesses, etc. Originally built for Morris Sheetmetal — a small jobbing shop specializing in custom metal fabrication — it now serves multiple clients. The system transitions paper-based workflows to a fully digital system, improving efficiency and enabling better oversight while maintaining or increasing operational speed.
 
 Think of this app a little like Xero Projects or WorkflowMax, but far more powerful.  We still use Xero for accounting stuff (docs/xero_setup.md) and this app focuses on everything Xero doesn't do.
 

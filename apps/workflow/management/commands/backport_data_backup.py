@@ -9,7 +9,6 @@ from collections import defaultdict
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import connection
 from faker import Faker
 
 from apps.accounts.staff_anonymization import create_staff_profile
@@ -94,13 +93,14 @@ class Command(BaseCommand):
             "purchasing.PurchaseOrder",  # Include production POs for restore to UAT
             "purchasing.PurchaseOrderLine",  # Include PO lines with material details
             "purchasing.Stock",  # Include stock items - will be synced to Xero after restore
+            # XeroPayItem excluded — seeded by migration 0187 with fixed UUIDs
+            # matching production. FKs from Job/CostLine resolve against seeds.
             "quoting.SupplierPriceList",
             "quoting.SupplierProduct",
             "quoting.ScrapeJob",
             "process.Form",
             "process.FormEntry",
             "process.Procedure",
-            "contenttypes",  # Django internal - needed for migrations
         ]
 
         # Define the output directory and filename
@@ -120,41 +120,15 @@ class Command(BaseCommand):
             cmd = ["python", "manage.py", "dumpdata"] + INCLUDE_MODELS
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-            # Step 2: Add migrations data manually
-            with connection.cursor() as cursor:
-                cursor.execute(
-                    "SELECT id, app, name, applied FROM django_migrations ORDER BY id"
-                )
-                migrations_rows = cursor.fetchall()
-
-            # Convert migrations to Django fixture format
-            migrations_data = []
-            for row in migrations_rows:
-                migrations_data.append(
-                    {
-                        "model": "migrations.migration",
-                        "pk": row[0],
-                        "fields": {
-                            "app": row[1],
-                            "name": row[2],
-                            "applied": row[3].isoformat() if row[3] else None,
-                        },
-                    }
-                )
-
-            # Step 3: Parse and combine data
+            # Step 2: Parse data
             data = json.loads(result.stdout)
-            data.extend(migrations_data)
             fake = Faker()
 
             # Get preserved client names from CompanyDefaults
             preserved_client_names = self._get_preserved_client_names()
             self.stdout.write(f"Preserving client names: {preserved_client_names}")
 
-            self.stdout.write(
-                f"Anonymizing {len(data)} records "
-                f"(including {len(migrations_data)} migrations)..."
-            )
+            self.stdout.write(f"Anonymizing {len(data)} records...")
 
             for item in data:
                 self.anonymize_item(item, fake, preserved_client_names)
@@ -229,7 +203,20 @@ class Command(BaseCommand):
 
     def _anonymize_staff(self, fields):
         """Anonymize staff with coherent profile (preferred_name/email match first_name)."""
-        profile = create_staff_profile()
+        if not hasattr(self, "_used_emails"):
+            self._used_emails = set()
+
+        for _ in range(100):
+            profile = create_staff_profile()
+            if profile["email"] not in self._used_emails:
+                break
+        else:
+            raise RuntimeError(
+                f"Could not generate unique email after 100 attempts. "
+                f"{len(self._used_emails)} emails already used."
+            )
+
+        self._used_emails.add(profile["email"])
         fields["first_name"] = profile["first_name"]
         fields["last_name"] = profile["last_name"]
         fields["preferred_name"] = profile["preferred_name"]

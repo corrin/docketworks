@@ -95,8 +95,8 @@ log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
 
 # --- Build dependencies ---
 
-log "Installing build dependencies (build-essential, libpq-dev, pkg-config)..."
-apt install -y build-essential libpq-dev pkg-config
+log "Installing build dependencies (build-essential, libpq-dev, pkg-config, pandoc)..."
+apt install -y build-essential libpq-dev pkg-config pandoc
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
 
@@ -129,6 +129,22 @@ fi
 log_version "postgresql" "$(psql --version)"
 log "Starting and enabling PostgreSQL..."
 systemctl enable --now postgresql
+
+# --- Shared test runner user (used by all tenants for pytest) ---
+
+log "Ensuring shared test DB user 'dw_test'..."
+sudo -u postgres psql <<'EOSQL'
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'dw_test') THEN
+        CREATE ROLE dw_test WITH LOGIN PASSWORD 'dw_test' CREATEDB;
+    ELSE
+        ALTER ROLE dw_test WITH PASSWORD 'dw_test' CREATEDB;
+    END IF;
+END
+$$;
+EOSQL
+log "  Test DB user ready."
 
 # --- Nginx ---
 

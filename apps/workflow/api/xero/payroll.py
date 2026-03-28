@@ -2180,4 +2180,31 @@ def sync_xero_pay_items() -> Dict[str, Any]:
         f"{results['earnings_rates']['updated']} updated."
     )
 
+    # Verify no Jobs/CostLines reference XeroPayItem records with null xero_ids.
+    # This catches backup pay items that weren't matched by name during sync.
+    from apps.job.models import CostLine, Job
+
+    null_pay_item_ids = set(
+        XeroPayItem.objects.filter(xero_id__isnull=True).values_list("id", flat=True)
+    )
+    if null_pay_item_ids:
+        jobs_affected = Job.objects.filter(
+            default_xero_pay_item_id__in=null_pay_item_ids
+        ).count()
+        costlines_affected = CostLine.objects.filter(
+            xero_pay_item_id__in=null_pay_item_ids
+        ).count()
+        if jobs_affected or costlines_affected:
+            orphaned_names = sorted(
+                XeroPayItem.objects.filter(id__in=null_pay_item_ids).values_list(
+                    "name", flat=True
+                )
+            )
+            raise ValueError(
+                f"XeroPayItem sync incomplete: {jobs_affected} jobs and "
+                f"{costlines_affected} costlines reference pay items with no "
+                f"xero_id. These exist in the backup but were not matched in "
+                f"Xero: {orphaned_names}"
+            )
+
     return results

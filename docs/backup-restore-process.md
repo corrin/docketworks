@@ -126,7 +126,7 @@ ls -la restore/
 **Check:**
 
 ```bash
-grep -E "^(DB_NAME|DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)=" .env
+grep -E "^(DB_NAME|DB_USER|DB_PASSWORD)=" .env
 export DB_PASSWORD=$(grep DB_PASSWORD .env | cut -d= -f2)
 export DB_NAME=$(grep DB_NAME .env | cut -d= -f2)
 export DB_USER=$(grep DB_USER .env | cut -d= -f2)
@@ -135,7 +135,7 @@ export DB_USER=$(grep DB_USER .env | cut -d= -f2)
 **Windows (PowerShell):**
 
 ```powershell
-Select-String -Path .env -Pattern '^(DB_NAME|DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)='
+Select-String -Path .env -Pattern '^(DB_NAME|DB_USER|DB_PASSWORD)='
 ```
 
 **Must show:**
@@ -144,9 +144,9 @@ Select-String -Path .env -Pattern '^(DB_NAME|DB_USER|DB_PASSWORD|DB_HOST|DB_PORT
 DB_NAME=dw_msm_dev
 DB_USER=dw_msm_dev
 DB_PASSWORD=your_dev_password
-DB_HOST=127.0.0.1
-DB_PORT=5432
 ```
+
+**Note:** `DB_HOST` and `DB_PORT` are not required in `.env` — Django defaults to `127.0.0.1:5432`.
 
 **If any missing:** Add to .env file
 
@@ -501,7 +501,7 @@ Brand new install or reset Xero Dev? The payroll calendar won't be found here.
 **Command:**
 
 ```bash
-python manage.py start_xero_sync --entity accounts
+python manage.py start_xero_sync --entity accounts --force
 ```
 
 **What this does:**
@@ -557,6 +557,7 @@ Get-Content logs\seed_xero_output.log -Tail 50 -Wait
 4. Creates projects in Xero for all jobs
 5. Syncs stock items to Xero inventory (using account codes from Step 23)
 6. Links/creates payroll employees for all active staff (uses Staff UUID in job_title for reliable re-linking)
+7. Sets `enable_xero_sync = True` in CompanyDefaults (Xero sync is blocked until this point)
 
 **Monitor progress:**
 

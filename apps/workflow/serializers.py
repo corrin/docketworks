@@ -1,3 +1,5 @@
+from typing import Any
+
 from rest_framework import serializers
 
 # Existing models used in this serializer module
@@ -11,6 +13,19 @@ from .models import (
     XeroToken,
 )
 from .models.settings_metadata import COMPANY_DEFAULTS_READ_ONLY_FIELDS
+
+
+def _build_logo_url(
+    instance: CompanyDefaults, field_name: str, context: dict[str, Any] | None
+) -> str | None:
+    """Build an absolute logo URL when possible, fall back to relative URL without request."""
+    field_file = getattr(instance, field_name, None)
+    if not field_file:
+        return None
+    request = (context or {}).get("request")
+    if not request:
+        return field_file.url
+    return request.build_absolute_uri(field_file.url)
 
 
 class XeroTokenSerializer(serializers.ModelSerializer):
@@ -37,6 +52,17 @@ class AIProviderSerializer(serializers.ModelSerializer):
 
 
 class CompanyDefaultsSerializer(serializers.ModelSerializer):
+    logo = serializers.ImageField(required=False, allow_null=True, write_only=True)
+    logo_wide = serializers.ImageField(required=False, allow_null=True, write_only=True)
+    logo_url = serializers.SerializerMethodField(read_only=True)
+    logo_wide_url = serializers.SerializerMethodField(read_only=True)
+
+    def get_logo_url(self, obj: CompanyDefaults) -> str | None:
+        return _build_logo_url(obj, "logo", self.context)
+
+    def get_logo_wide_url(self, obj: CompanyDefaults) -> str | None:
+        return _build_logo_url(obj, "logo_wide", self.context)
+
     class Meta:
         model = CompanyDefaults
         fields = "__all__"

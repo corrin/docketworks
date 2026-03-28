@@ -18,7 +18,7 @@ Manage material cost lines on a job. This skill is interactive — the user may 
 ## Identifying the job
 
 The user may provide:
-- A full URL like `https://office.morrissheetmetal.co.nz/jobs/<uuid>?tab=actual` — extract the UUID
+- A full URL like `https://<instance>.docketworks.site/jobs/<uuid>?tab=actual` — extract the UUID
 - Just a UUID
 - A job number like 96562
 - A job name (search `apps.job.models.Job` by name)

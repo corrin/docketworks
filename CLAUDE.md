@@ -16,7 +16,7 @@ The frontend is a Vue 3 + TypeScript app in `frontend/`. It lives in the same re
 
 ### Core Application Purpose
 
-Django-based job/project management system for custom metal fabrication business (Morris Sheetmetal). Digitizes a 50+ year paper-based workflow from quote generation to job completion and invoicing.
+Django-based job/project management system for jobbing shops and custom work businesses. Originally built for Morris Sheetmetal, now sold to multiple clients — one installation per client. Each instance has its own CompanyDefaults, branding, and integrations. Digitizes paper-based workflows from quote generation to job completion and invoicing.
 
 ### Django Apps Architecture
 

@@ -1866,6 +1866,47 @@ paths:
                             section: general
                   summary: Example Response
           description: ''
+  /api/company-defaults/upload-logo/:
+    post:
+      operationId: company_defaults_upload_logo_create
+      description: |-
+        API view for uploading and deleting company logo images.
+
+        POST: Upload a logo image to a specified field.
+        DELETE: Clear a logo field and remove the file from disk.
+      tags:
+        - company-defaults
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyDefaultsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyDefaultsRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaults'
+          description: ''
+    delete:
+      operationId: company_defaults_upload_logo_destroy
+      description: |-
+        API view for uploading and deleting company logo images.
+
+        POST: Upload a logo image to a specified field.
+        DELETE: Clear a logo field and remove the file from disk.
+      tags:
+        - company-defaults
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/job/company_defaults/:
     get:
       operationId: job_company_defaults_retrieve
@@ -8522,6 +8563,14 @@ components:
         id:
           type: integer
           readOnly: true
+        logo_url:
+          type: string
+          nullable: true
+          readOnly: true
+        logo_wide_url:
+          type: string
+          nullable: true
+          readOnly: true
         company_name:
           type: string
           readOnly: true
@@ -8641,6 +8690,10 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        enable_xero_sync:
+          type: boolean
+          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
+            False; seed_xero_from_database sets True after prod IDs are cleared.
         xero_payroll_calendar_name:
           type: string
           description: Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
@@ -8740,6 +8793,11 @@ components:
           nullable: true
           description: Company contact email address
           maxLength: 254
+        company_phone:
+          type: string
+          nullable: true
+          description: Company phone number
+          maxLength: 30
         company_url:
           type: string
           format: uri
@@ -8828,6 +8886,8 @@ components:
         - company_name
         - created_at
         - id
+        - logo_url
+        - logo_wide_url
         - updated_at
     CompanyDefaultsJobDetail:
       type: object
@@ -8857,6 +8917,16 @@ components:
     CompanyDefaultsRequest:
       type: object
       properties:
+        logo:
+          type: string
+          format: binary
+          writeOnly: true
+          nullable: true
+        logo_wide:
+          type: string
+          format: binary
+          writeOnly: true
+          nullable: true
         company_acronym:
           type: string
           nullable: true
@@ -8974,6 +9044,10 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        enable_xero_sync:
+          type: boolean
+          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
+            False; seed_xero_from_database sets True after prod IDs are cleared.
         xero_payroll_calendar_name:
           type: string
           minLength: 1
@@ -9067,6 +9141,11 @@ components:
           nullable: true
           description: Company contact email address
           maxLength: 254
+        company_phone:
+          type: string
+          nullable: true
+          description: Company phone number
+          maxLength: 30
         company_url:
           type: string
           format: uri
@@ -13488,6 +13567,16 @@ components:
     PatchedCompanyDefaultsRequest:
       type: object
       properties:
+        logo:
+          type: string
+          format: binary
+          writeOnly: true
+          nullable: true
+        logo_wide:
+          type: string
+          format: binary
+          writeOnly: true
+          nullable: true
         company_acronym:
           type: string
           nullable: true
@@ -13605,6 +13694,10 @@ components:
           nullable: true
           description: Xero organisation shortcode for deep linking (e.g., '!8-5Xl')
           maxLength: 20
+        enable_xero_sync:
+          type: boolean
+          description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
+            False; seed_xero_from_database sets True after prod IDs are cleared.
         xero_payroll_calendar_name:
           type: string
           minLength: 1
@@ -13698,6 +13791,11 @@ components:
           nullable: true
           description: Company contact email address
           maxLength: 254
+        company_phone:
+          type: string
+          nullable: true
+          description: Company phone number
+          maxLength: 30
         company_url:
           type: string
           format: uri
@@ -18515,10 +18613,12 @@ components:
           readOnly: true
         xero_id:
           type: string
+          nullable: true
           description: Xero's UUID for this pay item
           maxLength: 50
         xero_tenant_id:
           type: string
+          nullable: true
           description: Xero tenant this pay item belongs to
           maxLength: 255
         name:
@@ -18562,8 +18662,6 @@ components:
         - name
         - updated_at
         - uses_leave_api
-        - xero_id
-        - xero_tenant_id
     XeroPingResponse:
       type: object
       description: Serializer for Xero ping response.

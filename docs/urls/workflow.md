@@ -12,6 +12,7 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/company-defaults/schema/` | `company_defaults_schema_api.CompanyDefaultsSchemaAPIView` | `api_company_defaults_schema` | API endpoint that returns field metadata for CompanyDefaults. |
+| `/company-defaults/upload-logo/` | `company_defaults_logo_api.CompanyDefaultsLogoAPIView` | `api_company_defaults_upload_logo` | API view for uploading and deleting company logo images. |
 
 ### Reports
 | URL Pattern | View | Name | Description |

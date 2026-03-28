@@ -58,6 +58,7 @@ try:
         from .workshop_pdf_service import (
             add_delivery_docket_details_table,
             add_handover_section,
+            add_letterhead_banner,
             add_logo,
             add_materials_used_table,
             add_time_used_table,
@@ -111,6 +112,7 @@ __all__ = [
     "WorkshopTimesheetService",
     "add_delivery_docket_details_table",
     "add_handover_section",
+    "add_letterhead_banner",
     "add_logo",
     "add_materials_used_table",
     "add_time_used_table",

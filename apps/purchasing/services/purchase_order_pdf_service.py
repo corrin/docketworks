@@ -1,8 +1,6 @@
 import logging
-import os
 from io import BytesIO
 
-from django.conf import settings
 from PIL import ImageFile
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
@@ -73,45 +71,20 @@ class PurchaseOrderPDFGenerator:
 
     def add_logo(self, y_position):
         """Add company logo to the PDF."""
-        logo_path = os.path.join(settings.BASE_DIR, "static", "logo_msm.png")
-
-        if not os.path.exists(logo_path):
-            logger.warning(f"Logo file not found at: {logo_path}")
-            # Add company name as text instead of logo
-            company_name = CompanyDefaults.get_solo().company_name
-            self.pdf.setFont("Helvetica-Bold", 16)
-            self.pdf.setFillColor(PRIMARY_COLOR)
-            self.pdf.drawString(
-                PAGE_WIDTH - MARGIN - 150, y_position - 20, company_name
-            )
-            self.pdf.setFillColor(colors.black)
-            return y_position - 30
-
-        try:
-            logger.info(f"Using logo at: {logo_path}")
-            logo = ImageReader(logo_path)
-            # Position logo in top right corner
-            self.pdf.drawImage(
-                logo,
-                PAGE_WIDTH - MARGIN - 120,  # X position (right aligned)
-                y_position - 80,  # Y position
-                width=120,
-                height=80,
-                preserveAspectRatio=True,
-                mask="auto",
-            )
-            return y_position - 90
-        except Exception as e:
-            logger.warning(f"Failed to load logo from {logo_path}: {str(e)}")
-            # Fallback to company name
-            company_name = CompanyDefaults.get_solo().company_name
-            self.pdf.setFont("Helvetica-Bold", 16)
-            self.pdf.setFillColor(PRIMARY_COLOR)
-            self.pdf.drawString(
-                PAGE_WIDTH - MARGIN - 150, y_position - 20, company_name
-            )
-            self.pdf.setFillColor(colors.black)
-            return y_position - 30
+        company = CompanyDefaults.get_solo()
+        if not company.logo_wide:
+            raise ValueError("No wide logo uploaded in Company Defaults")
+        logo = ImageReader(company.logo_wide.path)
+        self.pdf.drawImage(
+            logo,
+            PAGE_WIDTH - MARGIN - 120,
+            y_position - 80,
+            width=120,
+            height=80,
+            preserveAspectRatio=True,
+            mask="auto",
+        )
+        return y_position - 90
 
     def add_header_info(self, y_position):
         """Add purchase order header and details to the PDF."""

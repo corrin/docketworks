@@ -29,14 +29,20 @@ class XeroPayItem(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
 
-    # Xero identifiers
+    # Xero identifiers — nullable because records are loaded from backup
+    # without Xero IDs. They get populated when the target environment
+    # connects to its own Xero via `xero --configure-payroll`.
     xero_id = models.CharField(
         max_length=50,
         unique=True,
+        null=True,
+        blank=True,
         help_text="Xero's UUID for this pay item",
     )
     xero_tenant_id = models.CharField(
         max_length=255,
+        null=True,
+        blank=True,
         help_text="Xero tenant this pay item belongs to",
     )
 
@@ -80,6 +86,12 @@ class XeroPayItem(models.Model):
         ordering = ["uses_leave_api", "name"]
         verbose_name = "Xero Pay Item"
         verbose_name_plural = "Xero Pay Items"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["name", "uses_leave_api"],
+                name="unique_pay_item_name_per_api",
+            ),
+        ]
 
     def __str__(self) -> str:
         if self.multiplier:

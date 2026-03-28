@@ -169,7 +169,7 @@ Pick a few known records and verify UUIDs match between MySQL and PostgreSQL:
 
 ```bash
 PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U "$DB_USER" "$DB_NAME" -c "
-SELECT id, job_number, name FROM job_job ORDER BY job_number DESC LIMIT 5;
+SELECT id, job_number, name FROM workflow_job ORDER BY job_number DESC LIMIT 5;
 "
 ```
 

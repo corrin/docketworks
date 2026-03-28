@@ -5,12 +5,26 @@ Test cases are based on real job notes from the database to ensure the
 conversion handles actual Quill editor output correctly.
 """
 
-from django.test import SimpleTestCase
+import os
+from decimal import Decimal
+from io import BytesIO
 
+from django.core.files.uploadedfile import SimpleUploadedFile
+from django.test import SimpleTestCase
+from django.utils import timezone
+from PIL import Image
+from PyPDF2 import PdfReader
+
+from apps.client.models import Client
+from apps.job.models import Job
+from apps.job.models.costing import CostLine
 from apps.job.services.workshop_pdf_service import (
     convert_html_to_reportlab,
+    create_delivery_docket_pdf,
     format_hours_display,
 )
+from apps.testing import BaseTestCase
+from apps.workflow.models import CompanyDefaults
 
 
 class FormatHoursDisplayTests(SimpleTestCase):
@@ -302,3 +316,67 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
         self.assertNotIn("UI element", result)
         self.assertNotIn("ql-ui", result)
         self.assertIn("TextMore text", result)
+
+
+def _create_test_image(width=500, height=100):
+    """Create a minimal PNG image for testing."""
+    img = Image.new("RGB", (width, height), color="navy")
+    buf = BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf
+
+
+class DeliveryDocketPDFTests(BaseTestCase):
+    """Tests for delivery docket PDF generation."""
+
+    def setUp(self):
+        # Upload a test logo_wide to CompanyDefaults
+        company = CompanyDefaults.get_solo()
+        img_buf = _create_test_image()
+        company.logo_wide.save(
+            "test_logo_wide.png",
+            SimpleUploadedFile(
+                "test_logo_wide.png", img_buf.read(), content_type="image/png"
+            ),
+            save=True,
+        )
+        self._logo_path = company.logo_wide.path
+
+        self.client_obj = Client.objects.create(
+            name="Test Client",
+            xero_last_modified=timezone.now(),
+        )
+        self.job = Job.objects.create(
+            client=self.client_obj,
+            name="Test Delivery Job",
+            description="Deliver some steel",
+        )
+        # create_delivery_docket_pdf doesn't need workshop hours,
+        # but add a minimal estimate so the job is well-formed
+        estimate = self.job.cost_sets.filter(kind="estimate").first()
+        if estimate:
+            CostLine.objects.create(
+                cost_set=estimate,
+                kind="time",
+                desc="Fabrication",
+                quantity=Decimal("2.000"),
+                unit_cost=Decimal("32.00"),
+                unit_rev=Decimal("105.00"),
+                accounting_date=timezone.now().date(),
+            )
+
+    def tearDown(self):
+        # Clean up the uploaded test image
+        if os.path.exists(self._logo_path):
+            os.remove(self._logo_path)
+
+    def test_delivery_docket_is_exactly_two_pages(self):
+        """Delivery docket should be exactly 2 pages: company copy + customer copy."""
+        pdf_buffer = create_delivery_docket_pdf(self.job)
+        reader = PdfReader(pdf_buffer)
+        self.assertEqual(
+            len(reader.pages),
+            2,
+            f"Expected 2 pages (company + customer copy), got {len(reader.pages)}",
+        )

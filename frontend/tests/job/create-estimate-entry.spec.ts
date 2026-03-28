@@ -48,7 +48,9 @@ async function findRowIndexByDescription(page: Page, description: string): Promi
 async function navigateToEstimateTab(page: Page, jobUrl: string): Promise<void> {
   await page.goto(jobUrl)
   await page.waitForLoadState('networkidle')
-  await autoId(page, 'JobViewTabs-estimate').click()
+  const tab = autoId(page, 'JobViewTabs-estimate')
+  await tab.waitFor({ state: 'visible' })
+  await tab.click()
   await page.waitForLoadState('networkidle')
   await page.waitForTimeout(2000)
 }

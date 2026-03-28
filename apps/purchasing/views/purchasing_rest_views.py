@@ -203,8 +203,12 @@ class AllJobsAPIView(APIView):
             # Get the stock holding job using the existing method
             stock_holding_job = Stock.get_stock_holding_job()
 
-            # Get all jobs (both active and archived to be comprehensive)
-            jobs = Job.objects.select_related("client").order_by("job_number")
+            # Get active jobs for purchasing (archived jobs don't need POs)
+            jobs = (
+                Job.objects.exclude(status="archived")
+                .select_related("client")
+                .order_by("job_number")
+            )
 
             # Add stock holding flag to each job
             for job in jobs:

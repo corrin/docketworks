@@ -6,7 +6,7 @@ import re
 import tempfile
 from typing import Any, Dict, List, Optional, Tuple
 
-from mistralai import Mistral
+from mistralai.client.sdk import Mistral
 
 logger = logging.getLogger(__name__)
 

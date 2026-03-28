@@ -23,12 +23,10 @@ const loadEnv = (env) => {
 const captureMetrics = async (env, jobId) => {
   loadEnv(env)
 
-  const urls = {
-    production: 'https://office.morrissheetmetal.co.nz',
-    uat: 'https://uat-office.morrissheetmetal.co.nz',
+  const baseUrl = process.env.APP_URL
+  if (!baseUrl) {
+    throw new Error(`APP_URL not set in .env.${env}`)
   }
-
-  const baseUrl = urls[env]
   const jobUrl = `${baseUrl}/jobs/${jobId}`
 
   const results = {

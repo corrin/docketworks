@@ -6,7 +6,7 @@
 
 **Architecture:** Expand the existing SafetyDocument model into a general-purpose ProcessDocument with four types (procedure, form, register, reference), free-text tags, template/record workflow, and a generic ProcessDocumentEntry model for structured form data. All existing JSA/SWP/SOP functionality preserved via tag filtering.
 
-**Tech Stack:** Django 5.2, DRF, Google Docs/Drive API, MariaDB, Vue 3 frontend (separate repo)
+**Tech Stack:** Django 6, DRF, Google Docs/Drive API, PostgreSQL, Vue 3 frontend (in `frontend/`)
 
 ---
 

@@ -4,8 +4,8 @@ Authoritative guidance for AI coding agents working in the DocketWorks backend. 
 
 ## Mission Context
 
-- Morris Sheetmetal relies on this Django 5.x + DRF system to digitize quote -> production -> invoicing workflows. Business expectations live in `docs/README.md`.
-- Backend agents own persistence, business logic, integrations, and REST APIs. Frontend/UI responsibilities live in the separate Vue + Django-templates project.
+- DocketWorks is a Django 6 + DRF system that digitizes quote -> job -> invoicing workflows for jobbing shops and custom work businesses. One installation per client. Morris Sheetmetal is the showcase client. Business expectations live in `docs/README.md`.
+- Backend agents own persistence, business logic, integrations, and REST APIs. The Vue frontend lives in `frontend/` within this monorepo.
 
 ## Development Commands
 
