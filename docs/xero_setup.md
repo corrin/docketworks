@@ -59,7 +59,7 @@ python manage.py start_xero_sync
 
 This pulls clients, accounts, pay items, stock, and employees from Xero into the app.
 
-NB: If you have a backup from production, do NOT run start_xero_sync. Instead follow backup-restore-process.md to seed Xero with your backup.
+NB: If you have a backup from production, do NOT run start_xero_sync. Instead follow [restore-to-dev.md](restore-to-dev.md) (local dev) or [instance-setup-uat.md](instance-setup-uat.md) (server) to seed Xero with your backup.
 
 ## Step 3: Create Shop Jobs
 

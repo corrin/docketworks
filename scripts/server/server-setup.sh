@@ -95,8 +95,8 @@ log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
 
 # --- Build dependencies ---
 
-log "Installing build dependencies (build-essential, libpq-dev, pkg-config, pandoc)..."
-apt install -y build-essential libpq-dev pkg-config pandoc
+log "Installing build dependencies (build-essential, libpq-dev, pkg-config, pandoc, unzip)..."
+apt install -y build-essential libpq-dev pkg-config pandoc unzip
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
 

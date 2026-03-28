@@ -159,14 +159,7 @@ Choose the path that matches your scenario:
 
 ### Path A: Backup Restore (e.g. MSM demo)
 
-For instances that need production data:
-
-1. **Instance created** — `instance.sh create <client> <env>` completed
-2. **Follow backup-restore-process.md** steps 1-17, running Django commands via the helper:
-   ```bash
-   scripts/server/dw-run.sh <name> python manage.py <command>
-   ```
-3. **Xero setup** — follow backup-restore-process.md steps 21-27
+For instances that need production data, follow [instance-setup-uat.md](instance-setup-uat.md).
 
 ### Path B: Fresh Prospect (new Xero org)
 

@@ -1,4 +1,6 @@
-# Production Data Backup and Restore Process
+# Restore Production Data to Local Dev
+
+This guide covers restoring a production backup to your **local development** machine. For restoring to a **server instance** (UAT/test), see [instance-setup-uat.md](instance-setup-uat.md).
 
 CRITICAL: audit
 
