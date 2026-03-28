@@ -1,10 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Manage UAT/demo instances of docketworks.
-# Usage: uat-instance.sh create <client> <env> [--seed]
-#        uat-instance.sh destroy <client> <env>
-#        uat-instance.sh list
+# Manage docketworks instances.
+# Usage: instance.sh prepare-config <client> <env>
+#        instance.sh create <client> <env> [--seed]
+#        instance.sh destroy <client> <env>
+#        instance.sh list
 #
 # Naming convention: dw_<client>_<env>
 #   Instance name: <client>-<env>  (e.g., msm-uat)
@@ -14,25 +15,21 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
-source "$SCRIPT_DIR/uat-common.sh"
+source "$SCRIPT_DIR/common.sh"
 
 # Escape special chars for sed replacement strings (handles / & \ in values)
 sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\\"]/\\&/g'; }
 
-# ============================================================
-# create
-# ============================================================
-do_create() {
-    local CLIENT="" ENV="" SEED=false
-
+# Parse and validate <client> <env> args (shared by all commands except list)
+parse_client_env() {
     if [[ $# -lt 2 ]]; then
-        echo "Usage: $0 create <client> <env> [--seed]"
+        echo "Usage: $0 $COMMAND <client> <env>"
         echo "  env must be one of: $VALID_ENVS"
         exit 1
     fi
 
-    CLIENT="$1"; shift
-    ENV="$1"; shift
+    CLIENT="$1"
+    ENV="$2"
 
     if [[ ! "$CLIENT" =~ ^[a-z0-9]+$ ]]; then
         echo "ERROR: Client name must be lowercase alphanumeric (no hyphens)."
@@ -40,8 +37,49 @@ do_create() {
     fi
     validate_env "$ENV"
 
-    local INSTANCE="${CLIENT}-${ENV}"
+    INSTANCE="${CLIENT}-${ENV}"
+}
 
+# ============================================================
+# prepare-config
+# ============================================================
+do_prepare_config() {
+    parse_client_env "$@"
+
+    local CREDS_FILE="$INSTANCES_DIR/$INSTANCE/credentials.env"
+    if [[ -f "$CREDS_FILE" ]]; then
+        echo "Credentials file already exists at:"
+        echo "  $CREDS_FILE"
+        echo ""
+        echo "Edit it directly, or delete it and re-run to start fresh."
+        exit 0
+    fi
+
+    mkdir -p "$INSTANCES_DIR/$INSTANCE"
+    sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
+        > "$CREDS_FILE"
+    chmod 600 "$CREDS_FILE"
+
+    echo ""
+    echo "============================================================"
+    echo "  Credentials file created at:"
+    echo "    $CREDS_FILE"
+    echo ""
+    echo "  Fill it out, then run:"
+    echo "    sudo $0 create $CLIENT $ENV"
+    echo ""
+    echo "  See instructions in the file for Xero app setup."
+    echo "============================================================"
+}
+
+# ============================================================
+# create
+# ============================================================
+do_create() {
+    parse_client_env "$@"
+    shift 2
+
+    local SEED=false
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --seed) SEED=true; shift ;;
@@ -52,19 +90,10 @@ do_create() {
     # --- Read instance credentials file ---
     local CREDS_FILE="$INSTANCES_DIR/$INSTANCE/credentials.env"
     if [[ ! -f "$CREDS_FILE" ]]; then
-        mkdir -p "$INSTANCES_DIR/$INSTANCE"
-        sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
-            > "$CREDS_FILE"
+        echo "ERROR: No credentials file found at $CREDS_FILE"
         echo ""
-        echo "============================================================"
-        echo "  Credentials file created at:"
-        echo "    $CREDS_FILE"
-        echo ""
-        echo "  Fill it out, then re-run:"
-        echo "    sudo $0 create $INSTANCE"
-        echo ""
-        echo "  See instructions in the file for Xero app setup."
-        echo "============================================================"
+        echo "Run prepare-config first:"
+        echo "  sudo $0 prepare-config $CLIENT $ENV"
         exit 1
     fi
 
@@ -184,7 +213,7 @@ do_create() {
         # Append shared config: Google credentials (base-setup must have run first)
         local SHARED_ENV="$BASE_DIR/shared.env"
         if [[ ! -f "$SHARED_ENV" ]]; then
-            echo "ERROR: $SHARED_ENV not found. Run uat-base-setup.sh first."
+            echo "ERROR: $SHARED_ENV not found. Run server-setup.sh first."
             exit 1
         fi
         echo "" >> "$INSTANCE_DIR/.env"
@@ -288,22 +317,8 @@ EOSQL
 # destroy
 # ============================================================
 do_destroy() {
-    if [[ $# -ne 2 ]]; then
-        echo "Usage: $0 destroy <client> <env>"
-        echo "  env must be one of: $VALID_ENVS"
-        exit 1
-    fi
+    parse_client_env "$@"
 
-    local CLIENT="$1"
-    local ENV="$2"
-
-    if [[ ! "$CLIENT" =~ ^[a-z0-9]+$ ]]; then
-        echo "ERROR: Client name must be lowercase alphanumeric (no hyphens)."
-        exit 1
-    fi
-    validate_env "$ENV"
-
-    local INSTANCE="${CLIENT}-${ENV}"
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER="dw-$INSTANCE"
     local DB_NAME="dw_${CLIENT}_${ENV}"
@@ -346,10 +361,8 @@ do_destroy() {
 
     # --- Drop database and user ---
     echo "=== Dropping database and user ==="
-    sudo -u postgres psql <<EOSQL || true
-DROP DATABASE IF EXISTS "$DB_NAME";
-DROP ROLE IF EXISTS "$DB_USER";
-EOSQL
+    sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";" || true
+    sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";" || true
 
     # --- Remove files ---
     if [[ -d "$INSTANCE_DIR" ]]; then
@@ -415,9 +428,10 @@ do_list() {
 # main
 # ============================================================
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {create|destroy|list} [args...]"
-    echo "  create  <client> <env> [--seed]"
-    echo "  destroy <client> <env>"
+    echo "Usage: $0 {prepare-config|create|destroy|list} [args...]"
+    echo "  prepare-config <client> <env>    — scaffold credentials file"
+    echo "  create         <client> <env> [--seed]"
+    echo "  destroy        <client> <env>"
     echo "  list"
     exit 1
 fi
@@ -430,8 +444,9 @@ if [[ "$COMMAND" != "list" && $EUID -ne 0 ]]; then
 fi
 
 case "$COMMAND" in
-    create)  do_create "$@" ;;
-    destroy) do_destroy "$@" ;;
-    list)    do_list ;;
-    *)       echo "Unknown command: $COMMAND"; echo "Usage: $0 {create|destroy|list} <client> <env>"; exit 1 ;;
+    prepare-config) do_prepare_config "$@" ;;
+    create)         do_create "$@" ;;
+    destroy)        do_destroy "$@" ;;
+    list)           do_list ;;
+    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|destroy|list}"; exit 1 ;;
 esac

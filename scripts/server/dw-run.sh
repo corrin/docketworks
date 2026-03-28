@@ -10,7 +10,7 @@ set -euo pipefail
 #   dw-run msm-uat python scripts/setup_dev_logins.py
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/uat-common.sh"
+source "$SCRIPT_DIR/common.sh"
 
 if [[ $# -lt 2 ]]; then
     echo "Usage: $0 <instance> <command> [args...]"

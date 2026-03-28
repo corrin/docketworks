@@ -33,7 +33,7 @@
 ## 11. `docs/initial_install.md:236` — Missing `sudo -u postgres`
 **Genuine bug in docs.** Script requires superuser (says so in its own header). Docs should say `sudo -u postgres ./scripts/setup_database.sh --drop`.
 
-## 12. `scripts/uat/uat-base-setup.sh:143` — Hardcoded dw_test password
+## 12. `scripts/server/server-setup.sh:143` — Hardcoded dw_test password
 **Copilot overengineering.** Test-only role for pytest, local connections only. Fine as-is.
 
 ## 13. `frontend/tests/scripts/backup-db.sh:41` — Missing `--clean` in pg_dump
@@ -69,7 +69,7 @@
 ## 23. `apps/workflow/api/xero/sync.py:1295` — Missing space in warning
 **Genuine bug (cosmetic).** String literal concatenation produces `"first.In Prod:"` — missing space.
 
-## 24. `scripts/uat/uat-instance.sh:208` — SQL injection in heredoc
+## 24. `scripts/server/instance.sh:208` — SQL injection in heredoc
 **Low priority.** Same as #20 — admin-controlled passwords. Single quote would break it.
 
 ---

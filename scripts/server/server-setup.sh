@@ -1,12 +1,12 @@
 #!/bin/bash
 set -euo pipefail
 
-# Base server setup for UAT/demo environment.
+# Base server setup for docketworks.
 # Runs once on a fresh Ubuntu 24.04 ARM server as the 'ubuntu' user.
 # Idempotent — safe to re-run.
 #
-# First run:  sudo ./uat-base-setup.sh <dreamhost-api-key> <google-maps-api-key>
-# Re-run:     sudo ./uat-base-setup.sh   (reads keys from files saved on first run)
+# First run:  sudo ./server-setup.sh <dreamhost-api-key> <google-maps-api-key>
+# Re-run:     sudo ./server-setup.sh   (reads keys from files saved on first run)
 
 SETUP_LOG="/var/log/docketworks-setup.log"
 MANIFEST="/opt/docketworks/server-manifest.txt"
@@ -164,8 +164,11 @@ server {
     return 444;
 }
 EOF
-systemctl enable --now nginx
-# SSL config is written later after certbot obtains certs
+# Don't start nginx yet — instance configs in sites-enabled/ may reference
+# SSL certs that don't exist until after certbot runs below.
+# Just enable the service so it starts on boot; the restart after SSL
+# setup (below) will be the first start.
+systemctl enable nginx
 
 # --- Certbot ---
 
@@ -450,7 +453,7 @@ log "Base server setup complete"
 log "=========================================="
 log ""
 log "Next step — create an instance:"
-log "  sudo scripts/uat/uat-instance.sh create msm uat"
+log "  sudo scripts/server/instance.sh create msm uat"
 log ""
 log "Install log:      $SETUP_LOG"
 log "Server manifest:  $MANIFEST"

@@ -1,7 +1,7 @@
-# UAT/Demo Environment Setup
+# Server Setup
 
-Multi-instance demo server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
-Each prospect gets their own subdomain, database, and Xero credentials.
+Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
+Each client gets their own subdomain, database, and Xero credentials.
 
 ```
 Architecture:
@@ -33,7 +33,7 @@ system dependencies, creates the `docketworks` user, configures the firewall,
 and sets up the base Nginx config.
 
 ```bash
-sudo ./scripts/uat/uat-base-setup.sh
+sudo ./scripts/server/server-setup.sh
 ```
 
 The script logs every action to `/var/log/docketworks-setup.log` with timestamps,
@@ -70,19 +70,22 @@ Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 
 ---
 
-## Part C: Creating a Demo Instance
+## Part C: Creating an Instance
 
 ### Automated (recommended)
 
 ```bash
-sudo scripts/uat/uat-create-instance.sh <name>         # Empty database
-sudo scripts/uat/uat-create-instance.sh <name> --seed   # With demo fixtures
-```
+# Step 1: scaffold credentials file
+sudo scripts/server/instance.sh prepare-config <client> <env>
 
-Then update Xero credentials in `/opt/docketworks/instances/<name>/.env` and restart:
+# Step 2: fill in the credentials
+sudo nano /opt/docketworks/instances/<client>-<env>/credentials.env
 
-```bash
-sudo systemctl restart gunicorn-<name>
+# Step 3: create the instance
+sudo scripts/server/instance.sh create <client> <env>
+
+# Or with demo fixtures:
+sudo scripts/server/instance.sh create <client> <env> --seed
 ```
 
 ### Manual steps (reference)
@@ -101,24 +104,24 @@ sudo systemctl restart gunicorn-<name>
    SQL
    ```
 
-3. **Generate `.env`** from `scripts/uat/templates/env-instance.template`
+3. **Generate `.env`** from `scripts/server/templates/env-instance.template`
    - Replace all `__PLACEHOLDER__` values
    - `chmod 600 /opt/docketworks/instances/<name>/.env`
 
 4. **Install dependencies** (uses shared venv)
    ```bash
-   scripts/uat/dw-run.sh <name> poetry install --no-interaction
+   scripts/server/dw-run.sh <name> poetry install --no-interaction
    ```
 
 5. **Migrate + collectstatic**
    ```bash
-   scripts/uat/dw-run.sh <name> python manage.py migrate --no-input
-   scripts/uat/dw-run.sh <name> python manage.py collectstatic --no-input
+   scripts/server/dw-run.sh <name> python manage.py migrate --no-input
+   scripts/server/dw-run.sh <name> python manage.py collectstatic --no-input
    ```
 
 6. **Load fixtures** (optional)
    ```bash
-   scripts/uat/dw-run.sh <name> python manage.py loaddata demo_fixtures
+   scripts/server/dw-run.sh <name> python manage.py loaddata demo_fixtures
    ```
 
 7. **Build frontend**
@@ -132,7 +135,7 @@ sudo systemctl restart gunicorn-<name>
 
 8. **Install systemd service**
    ```bash
-   sudo sed 's/__INSTANCE__/<name>/g' scripts/uat/templates/gunicorn-instance.service.template \
+   sudo sed 's/__INSTANCE__/<name>/g' scripts/server/templates/gunicorn-instance.service.template \
        > /etc/systemd/system/gunicorn-<name>.service
    sudo systemctl daemon-reload
    sudo systemctl enable --now gunicorn-<name>
@@ -141,7 +144,7 @@ sudo systemctl restart gunicorn-<name>
 9. **Install Nginx server block**
    ```bash
    sudo sed -e 's/__INSTANCE__/<name>/g' -e 's/__DOMAIN__/docketworks.site/g' \
-       scripts/uat/templates/nginx-instance.conf.template \
+       scripts/server/templates/nginx-instance.conf.template \
        > /etc/nginx/sites-available/docketworks-<name>
    sudo ln -sf /etc/nginx/sites-available/docketworks-<name> /etc/nginx/sites-enabled/
    sudo nginx -t && sudo systemctl reload nginx
@@ -151,17 +154,17 @@ sudo systemctl restart gunicorn-<name>
 
 ## Part C.1: Post-Create Setup
 
-After `uat-instance.sh create` completes, the instance has infrastructure but no data.
+After `instance.sh create` completes, the instance has infrastructure but no data.
 Choose the path that matches your scenario:
 
 ### Path A: Backup Restore (e.g. MSM demo)
 
 For instances that need production data:
 
-1. **Instance created** — `uat-instance.sh create <name>` completed
+1. **Instance created** — `instance.sh create <client> <env>` completed
 2. **Follow backup-restore-process.md** steps 1-17, running Django commands via the helper:
    ```bash
-   scripts/uat/dw-run.sh <name> python manage.py <command>
+   scripts/server/dw-run.sh <name> python manage.py <command>
    ```
 3. **Xero setup** — follow backup-restore-process.md steps 21-27
 
@@ -182,25 +185,25 @@ For a prospect trying DocketWorks with their own Xero:
    #             xero_payroll_calendar_name (must match their Xero calendar)
 
    # Load it
-   scripts/uat/dw-run.sh <name> python manage.py loaddata /opt/docketworks/instances/<name>/company_defaults.json
+   scripts/server/dw-run.sh <name> python manage.py loaddata /opt/docketworks/instances/<name>/company_defaults.json
    ```
 
 3. **Xero OAuth** — log into `https://<name>.docketworks.site` as admin, go to Admin > Xero Settings, click "Login with Xero" and authorize
 
 4. **Xero configuration**
    ```bash
-   scripts/uat/dw-run.sh <name> python manage.py xero --setup
-   scripts/uat/dw-run.sh <name> python manage.py xero --configure-payroll
-   scripts/uat/dw-run.sh <name> python manage.py start_xero_sync --entity accounts
+   scripts/server/dw-run.sh <name> python manage.py xero --setup
+   scripts/server/dw-run.sh <name> python manage.py xero --configure-payroll
+   scripts/server/dw-run.sh <name> python manage.py start_xero_sync --entity accounts
    ```
 
 5. **Import staff from Xero**
    ```bash
    # Preview first
-   scripts/uat/dw-run.sh <name> python manage.py xero --import-staff-dry-run
+   scripts/server/dw-run.sh <name> python manage.py xero --import-staff-dry-run
 
    # Then import
-   scripts/uat/dw-run.sh <name> python manage.py xero --import-staff
+   scripts/server/dw-run.sh <name> python manage.py xero --import-staff
    ```
    This pulls employees from Xero Payroll and creates Staff records with their
    wage rates and working hours. All imported staff get `password_needs_reset=True`.
@@ -214,7 +217,7 @@ For a prospect trying DocketWorks with their own Xero:
 ### Deploy (update to latest code)
 
 ```bash
-sudo scripts/uat/uat-deploy-instance.sh <name>
+sudo scripts/server/deploy.sh <name>
 ```
 
 This pulls latest code, installs dependencies, runs migrations, rebuilds frontend, and restarts Gunicorn.
@@ -222,7 +225,7 @@ This pulls latest code, installs dependencies, runs migrations, rebuilds fronten
 ### Destroy (complete removal)
 
 ```bash
-sudo scripts/uat/uat-destroy-instance.sh <name>
+sudo scripts/server/instance.sh destroy <client> <env>
 ```
 
 Prompts for confirmation, then drops DB, removes files, systemd service, and Nginx config.
@@ -230,7 +233,7 @@ Prompts for confirmation, then drops DB, removes files, systemd service, and Ngi
 ### List all instances
 
 ```bash
-scripts/uat/uat-list-instances.sh
+scripts/server/instance.sh list
 ```
 
 Shows instance name, Gunicorn status, and URL.
@@ -256,21 +259,25 @@ curl -s https://<name>.docketworks.site/api/health
 
 ```bash
 # Create test instance
-sudo scripts/uat/uat-create-instance.sh test1
+sudo scripts/server/instance.sh prepare-config test uat
+# Fill in credentials...
+sudo scripts/server/instance.sh create test uat
 
 # Verify
-systemctl status gunicorn-test1
-curl https://test1.docketworks.site/api/health
+systemctl status gunicorn-test-uat
+curl https://test-uat.docketworks.site/api/health
 
 # Create second instance with seed data
-sudo scripts/uat/uat-create-instance.sh test2 --seed
+sudo scripts/server/instance.sh prepare-config test2 uat
+# Fill in credentials...
+sudo scripts/server/instance.sh create test2 uat --seed
 
 # Verify both work independently
-curl https://test2.docketworks.site/api/health
+curl https://test2-uat.docketworks.site/api/health
 
 # Clean up
-sudo scripts/uat/uat-destroy-instance.sh test1
-sudo scripts/uat/uat-destroy-instance.sh test2
+sudo scripts/server/instance.sh destroy test uat
+sudo scripts/server/instance.sh destroy test2 uat
 ```
 
 ---
@@ -280,7 +287,7 @@ sudo scripts/uat/uat-destroy-instance.sh test2
 Merging a PR to `main` triggers a two-step deployment process:
 
 1. **Automatic** — GitHub Actions pulls the repo on the server (`.github/workflows/deploy-uat.yml`)
-2. **Manual** — Admin SSHes in and runs `uat-deploy.sh` when ready to deploy to instances
+2. **Manual** — Admin SSHes in and runs `deploy.sh` when ready to deploy to instances
 
 ### Setup (one-time)
 
@@ -308,10 +315,10 @@ ssh-keygen -t ed25519 -C "github-actions-uat" -f uat_deploy_key -N ""
 
 ```bash
 # Deploy all instances
-sudo ./scripts/uat/uat-deploy.sh --all
+sudo ./scripts/server/deploy.sh --all
 
 # Or a single instance
-sudo ./scripts/uat/uat-deploy.sh <name>
+sudo ./scripts/server/deploy.sh <name>
 ```
 
 This updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts Gunicorn.

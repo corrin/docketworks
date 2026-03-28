@@ -1,4 +1,4 @@
-# UAT Multi-Tenant Scripts
+# Server Management Scripts
 
 These scripts provision and manage multiple isolated DocketWorks instances on a single Ubuntu server. Each instance gets its own subdomain (`<name>.docketworks.site`), database, Unix user, systemd service, and Nginx config — all behind a shared wildcard SSL certificate.
 
@@ -25,7 +25,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 ## Server Setup (One-Time)
 
 ```bash
-sudo ./scripts/uat/uat-base-setup.sh
+sudo ./scripts/server/server-setup.sh
 ```
 
 Installs everything: Python 3.12, Node 22, MariaDB, Nginx, Certbot, Poetry, Claude Code CLI. Creates the `docketworks` system user, clones the repo, builds the shared venv and node_modules, obtains the wildcard SSL cert.
@@ -40,26 +40,26 @@ Idempotent — safe to re-run (skips already-completed steps).
 
 ## Creating an Instance
 
-Two-pass process:
+Two-step process:
 
 ```bash
-# Pass 1: creates the credentials file from template, then exits
-sudo ./scripts/uat/uat-instance.sh create mycompany
+# Step 1: creates the credentials file from template
+sudo ./scripts/server/instance.sh prepare-config mycompany uat
 
 # Fill out the credentials file (see "Xero Setup" below)
-sudo nano /opt/docketworks/instances/mycompany/credentials.env
+sudo nano /opt/docketworks/instances/mycompany-uat/credentials.env
 
-# Pass 2: reads credentials, creates everything
-sudo ./scripts/uat/uat-instance.sh create mycompany
+# Step 2: reads credentials, creates everything
+sudo ./scripts/server/instance.sh create mycompany uat
 ```
 
 Add `--seed` to load demo fixture data:
 
 ```bash
-sudo ./scripts/uat/uat-instance.sh create mycompany --seed
+sudo ./scripts/server/instance.sh create mycompany uat --seed
 ```
 
-After creation, the instance is live at `https://mycompany.docketworks.site`.
+After creation, the instance is live at `https://mycompany-uat.docketworks.site`.
 
 ## Per-Instance Xero Setup
 
@@ -89,10 +89,10 @@ How to get them:
 
 ```bash
 # Single instance
-sudo ./scripts/uat/uat-deploy.sh mycompany
+sudo ./scripts/server/deploy.sh mycompany-uat
 
 # All instances
-sudo ./scripts/uat/uat-deploy.sh --all
+sudo ./scripts/server/deploy.sh --all
 ```
 
 Pulls latest code from GitHub (via the local repo), updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts gunicorn.
@@ -100,7 +100,7 @@ Pulls latest code from GitHub (via the local repo), updates shared Python/Node d
 ## Destroying an Instance
 
 ```bash
-sudo ./scripts/uat/uat-instance.sh destroy mycompany
+sudo ./scripts/server/instance.sh destroy mycompany uat
 ```
 
 Prompts for confirmation, then removes: systemd service, Nginx config, database + DB user, instance directory, OS user.
@@ -108,7 +108,7 @@ Prompts for confirmation, then removes: systemd service, Nginx config, database 
 ## Listing Instances
 
 ```bash
-./scripts/uat/uat-instance.sh list
+./scripts/server/instance.sh list
 ```
 
 Shows each instance's name, status (running/stopped/no service), git branch, and URL. No sudo required.
@@ -143,7 +143,7 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ```
 credentials.env (user fills Xero + GCP + email values)
         ↓
-uat-instance.sh reads + validates
+instance.sh reads + validates
         ↓
 GCP key file copied to instance dir (gcp-credentials.json)
         ↓
@@ -160,16 +160,17 @@ gunicorn systemd service loads .env via EnvironmentFile=
 - **Per-instance user** `dw-<name>` runs gunicorn, owns the instance directory
 - Instance dirs are `dw-<name>:www-data` mode 750 — Nginx (www-data) can read static files, other instance users cannot access
 - `.env` files are mode 600, owner-only — even www-data can't read secrets
-- Each instance has its own MariaDB database and user
+- Each instance has its own PostgreSQL database and user
 
 ## File Inventory
 
 | File | Description |
 |------|-------------|
-| `uat-common.sh` | Shared constants: domain, paths, directories |
-| `uat-base-setup.sh` | One-time server provisioning (packages, venv, SSL, shared config) |
-| `uat-instance.sh` | Create, destroy, or list instances |
-| `uat-deploy.sh` | Pull updates and redeploy one or all instances |
+| `common.sh` | Shared constants: domain, paths, directories |
+| `server-setup.sh` | One-time server provisioning (packages, venv, SSL, shared config) |
+| `instance.sh` | Prepare config, create, destroy, or list instances |
+| `deploy.sh` | Pull updates and redeploy one or all instances |
+| `dw-run.sh` | Run a command in an instance's environment |
 | `certbot-dreamhost-auth.sh` | Certbot DNS-01 auth hook (adds TXT record via Dreamhost API) |
 | `certbot-dreamhost-cleanup.sh` | Certbot DNS-01 cleanup hook (removes TXT record) |
 | `templates/credentials-instance.template` | Template for per-instance credentials (Xero, GCP, email) |

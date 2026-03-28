@@ -1,9 +1,9 @@
 #!/bin/bash
 set -euo pipefail
 
-# Deploy one or all UAT/demo instances.
-# Usage: uat-deploy.sh <name>       — deploy a single instance
-#        uat-deploy.sh --all        — deploy all instances
+# Deploy one or all instances.
+# Usage: deploy.sh <name>       — deploy a single instance
+#        deploy.sh --all        — deploy all instances
 #
 # Steps:
 #   1. Git pull per-instance code
@@ -11,7 +11,7 @@ set -euo pipefail
 #   3. Per-instance: npm run build, collectstatic, migrate, restart
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-source "$SCRIPT_DIR/uat-common.sh"
+source "$SCRIPT_DIR/common.sh"
 
 if [[ $EUID -ne 0 ]]; then
     echo "ERROR: This script must be run as root (use sudo)."
