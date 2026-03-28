@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import * as fs from 'fs'
 import os from 'os'
 import AdmZip from 'adm-zip'
-import { getBackupsDir, getDbConfig } from './db-backup-utils'
+import { getBackupsDir, getDbConfig, runPsql, syncSequences } from './db-backup-utils'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -158,20 +158,60 @@ function restoreDatabase() {
     return
   }
 
+  // Save the current Xero token before restore — the backup contains a stale
+  // token from when the backup was taken, which will likely have expired.
+  console.log('[db] Saving current Xero token...')
+  let xeroTokenRow: string | null = null
+  try {
+    xeroTokenRow = runPsql(dbConfig, `SELECT row_to_json(t) FROM workflow_xerotoken t LIMIT 1`)
+  } catch {
+    console.warn('[db] Could not read Xero token (table may not exist yet). Skipping.')
+  }
+
+  // Restore the database
   const inputFd = fs.openSync(backupFile, 'r')
   const result = spawnSync(
     'psql',
     ['-h', dbConfig.host, '-p', dbConfig.port, '-U', dbConfig.user, dbConfig.database],
     {
-      stdio: [inputFd, 'inherit', 'inherit'],
+      stdio: [inputFd, 'pipe', 'pipe'],
       env: { ...process.env, PGPASSWORD: dbConfig.password },
     },
   )
   fs.closeSync(inputFd)
 
   if (result.status !== 0) {
-    throw new Error(`Database restore failed (exit code ${result.status}).`)
+    const stderr = result.stderr?.toString() || ''
+    throw new Error(`Database restore failed (exit code ${result.status}): ${stderr}`)
   }
+
+  // Re-inject the saved Xero token so the connection stays live
+  if (xeroTokenRow) {
+    try {
+      const token = JSON.parse(xeroTokenRow)
+      runPsql(
+        dbConfig,
+        `DELETE FROM workflow_xerotoken;
+         INSERT INTO workflow_xerotoken (id, tenant_id, token_type, access_token, refresh_token, expires_at, scope)
+         VALUES (
+           ${token.id},
+           '${token.tenant_id}',
+           '${token.token_type}',
+           '${token.access_token}',
+           '${token.refresh_token}',
+           '${token.expires_at}',
+           '${token.scope}'
+         )`,
+      )
+      console.log('[db] Xero token restored.')
+    } catch (e) {
+      console.warn('[db] Failed to restore Xero token:', e)
+    }
+  }
+
+  // Sync sequences after restore
+  console.log('[db] Syncing sequences...')
+  syncSequences(dbConfig)
 
   console.log('[db] Database restored successfully.')
 }

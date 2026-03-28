@@ -20,7 +20,7 @@ const jobTestCases = [
     ballparkMaterials: '500',
     ballparkHours: '4',
     createContact: true,
-    contactToCreate: { name: 'Test Contact Person', email: 'test@example.com' },
+    contactToCreate: { name: '[TEST] Contact Person', email: 'test@example.com' },
     expectedTab: 'estimate',
   },
   {
@@ -29,7 +29,7 @@ const jobTestCases = [
     ballparkMaterials: '1000',
     ballparkHours: '8',
     createContact: true,
-    contactToCreate: { name: 'Another Contact', email: 'another@example.com' },
+    contactToCreate: { name: '[TEST] Another Contact', email: 'another@example.com' },
     expectedTab: 'quote',
   },
   {
@@ -38,7 +38,7 @@ const jobTestCases = [
     ballparkMaterials: '750',
     ballparkHours: '6',
     createContact: false,
-    contactToSelect: 'Another Contact', // Select the non-primary contact
+    contactToSelect: '[TEST] Another Contact', // Select the non-primary contact
     expectedTab: 'quote',
   },
 ]
@@ -49,7 +49,7 @@ test.describe.serial('create job', () => {
     test(`create ${tc.name} job with client and contact`, async ({ authenticatedPage: page }) => {
       // Generate unique job name to avoid conflicts
       const timestamp = Date.now()
-      const jobName = `Test Job ${tc.name} ${timestamp}`
+      const jobName = `[TEST] Job ${tc.name} ${timestamp}`
 
       await test.step('navigate to create job page', async () => {
         await autoId(page, 'AppNavbar-create-job').click()
@@ -184,7 +184,7 @@ test.describe('new job default pay item', () => {
     authenticatedPage: page,
   }) => {
     const timestamp = Date.now()
-    const jobName = `Default Pay Item Test ${timestamp}`
+    const jobName = `[TEST] Pay Item Job ${timestamp}`
 
     await test.step('create a new job', async () => {
       await autoId(page, 'AppNavbar-create-job').click()
@@ -214,7 +214,7 @@ test.describe('new job default pay item', () => {
         // Create a new contact
         const submitButton = autoId(page, 'ContactSelectionModal-submit')
         await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
-        await autoId(page, 'ContactSelectionModal-name-input').fill(`Test Contact ${timestamp}`)
+        await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${timestamp}`)
         await autoId(page, 'ContactSelectionModal-email-input').fill(`test${timestamp}@example.com`)
         await submitButton.click()
       }

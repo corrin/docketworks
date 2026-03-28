@@ -69,7 +69,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
 
       // Create the job using the helper (but with fixed_price for edit tests)
       const timestamp = Date.now()
-      const jobName = `Edit Test Job ${timestamp}`
+      const jobName = `[TEST] Edit Job ${timestamp}`
 
       await autoId(page, 'AppNavbar-create-job').click()
       await page.waitForURL('**/jobs/create')
@@ -96,7 +96,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
         await selectButtons.first().click()
       } else {
         const submitButton = autoId(page, 'ContactSelectionModal-submit')
-        await autoId(page, 'ContactSelectionModal-name-input').fill(`Test Contact ${timestamp}`)
+        await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${timestamp}`)
         await autoId(page, 'ContactSelectionModal-email-input').fill(`test${timestamp}@example.com`)
         await submitButton.click()
       }
