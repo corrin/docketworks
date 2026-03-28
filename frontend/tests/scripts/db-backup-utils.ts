@@ -81,21 +81,17 @@ export function getDbConfig(): DbConfig {
   const backendEnvPath = resolveBackendEnvPath(frontendDir)
   const backendEnv = parseEnvFile(backendEnvPath)
 
-  const database = backendEnv.MYSQL_DATABASE
-  const user = backendEnv.MYSQL_DB_USER
-  const password = backendEnv.DB_PASSWORD
-
-  if (!database || !user || !password) {
-    throw new Error(
-      'Backend .env missing required MYSQL_DATABASE, MYSQL_DB_USER, or DB_PASSWORD entries.',
-    )
+  const required = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'] as const
+  const missing = required.filter((key) => !backendEnv[key])
+  if (missing.length > 0) {
+    throw new Error(`Backend .env missing required entries: ${missing.join(', ')}`)
   }
 
   return {
-    host: backendEnv.DB_HOST || 'localhost',
-    port: backendEnv.DB_PORT || '3306',
-    database,
-    user,
-    password,
+    host: backendEnv.DB_HOST,
+    port: backendEnv.DB_PORT,
+    database: backendEnv.DB_NAME,
+    user: backendEnv.DB_USER,
+    password: backendEnv.DB_PASSWORD,
   }
 }
