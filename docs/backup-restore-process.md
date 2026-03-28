@@ -56,12 +56,12 @@ You should end up with:
 
 These must be in place before running the process. They persist across restores.
 
-1. **`.env`** — Copy from `.env.example` and configure `MYSQL_DATABASE`, `MYSQL_DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and all other required variables.
+1. **`.env`** — Copy from `.env.example` and configure `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `DB_HOST`, `DB_PORT`, and all other required variables.
 2. **`apps/workflow/fixtures/ai_providers.json`** — Copy from `ai_providers.json.example` and add real API keys for Claude, Gemini, and Mistral.
 
 ## Technical Notes
 
-- Use `--execute="source file.sql"` not `< file.sql` for SQL scripts (large files fail with redirection)
+- For PostgreSQL restores, use `psql < file.sql` or `pg_restore` depending on dump format
 
 ### PRODUCTION STEPS
 

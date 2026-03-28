@@ -111,7 +111,7 @@ def get_employees() -> List[Employee]:
         Exception: If API call fails
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(api_client)
@@ -151,7 +151,7 @@ def create_payroll_employee(employee_data: Dict[str, Any]) -> Employee:
         Newly created Employee object.
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     required_fields = (
         "first_name",
@@ -313,7 +313,7 @@ def update_employee_name(employee_id: str, first_name: str, last_name: str) -> N
     """
     tenant_id = get_tenant_id()
     if not tenant_id:
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     payroll_api = PayrollNzApi(api_client)
 
@@ -584,7 +584,7 @@ def get_employee_salary_and_wages(employee_id: str) -> List[SalaryAndWage]:
     """
     tenant_id = get_tenant_id()
     if not tenant_id:
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     payroll_api = PayrollNzApi(api_client)
 
@@ -625,7 +625,7 @@ def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
     """
     tenant_id = get_tenant_id()
     if not tenant_id:
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     payroll_api = PayrollNzApi(api_client)
 
@@ -683,7 +683,7 @@ def get_payroll_calendars() -> List[Dict[str, Any]]:
         Exception: If API call fails
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(api_client)
@@ -724,7 +724,7 @@ def get_pay_runs() -> List[Dict[str, Any]]:
         Exception: If API call fails
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(api_client)
@@ -773,7 +773,7 @@ def get_pay_run(pay_run_id: str):
         Exception: If API call fails.
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(api_client)
@@ -847,7 +847,7 @@ def get_leave_types() -> List[Dict[str, Any]]:
         Exception: If API call fails
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(api_client)
@@ -884,7 +884,7 @@ def get_earnings_rates() -> List[Dict[str, Any]]:
         Exception: If API call fails
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
     payroll_api = PayrollNzApi(api_client)
@@ -1257,7 +1257,7 @@ def post_timesheet(
     """
     # Validation
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     if not employee_id:
         raise Exception("employee_id is required")
@@ -1435,7 +1435,7 @@ def create_employee_leave(
         Exception: If API call fails or validation fails
     """
     if not get_tenant_id():
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     if not employee_id:
         raise Exception("employee_id is required")
@@ -1949,7 +1949,7 @@ def _delete_existing_leave_for_week(
     """
     tenant_id = get_tenant_id()
     if not tenant_id:
-        raise Exception("No Xero tenant ID configured")
+        raise ValueError("No Xero tenant ID configured")
 
     payroll_api = PayrollNzApi(api_client)
 

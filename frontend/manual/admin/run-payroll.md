@@ -34,7 +34,7 @@ The dates snap to week boundaries automatically -- you don't need to worry about
 At the top you'll see three cards:
 
 - **Xero Total** -- What Xero says was paid in gross payroll
-- **JM Total** -- What DocketWorks calculated from timesheets and wage rates
+- **DW Total** -- What DocketWorks calculated from timesheets and wage rates
 - **Difference** -- The gap between the two, shown in dollars and as a percentage
 
 If the difference is small (a few dollars), everything's fine. If it's significant, something needs investigating.
@@ -45,21 +45,21 @@ If the difference is small (a few dollars), everything's fine. If it's significa
 
 The heatmap grid shows every week (rows) by every staff member (columns). Each cell is colour-coded:
 
-- **Green** -- Difference is less than $1. Xero and JM agree.
-- **Blue shades** -- Xero paid more than JM calculated (overpayment or a Xero adjustment).
-- **Red shades** -- Xero paid less than JM calculated (underpayment or missing hours in Xero). Darker red means a bigger gap.
+- **Green** -- Difference is less than $1. Xero and DWagree.
+- **Blue shades** -- Xero paid more than DWcalculated (overpayment or a Xero adjustment).
+- **Red shades** -- Xero paid less than DWcalculated (underpayment or missing hours in Xero). Darker red means a bigger gap.
 
 ### 5. Drill into the details
 
 Hover over any cell to see the full breakdown:
 
 - **Xero**: Hours worked and gross amount paid
-- **JM**: Hours entered and calculated cost
+- **DW**: Hours entered and calculated cost
 - **Gap**: The dollar difference
 - **Hours impact**: How much of the gap comes from different hours
 - **Rate impact**: How much comes from different wage rates
 
-This tells you whether the problem is missing hours (someone didn't enter all their time) or a rate mismatch (the wage rate in JM doesn't match Xero).
+This tells you whether the problem is missing hours (someone didn't enter all their time) or a rate mismatch (the wage rate in DWdoesn't match Xero).
 
 ### 6. Export if needed
 
@@ -71,7 +71,7 @@ Click **Export CSV** to download the data for further analysis in Excel, or to s
 - If there are discrepancies, investigate the red/blue cells:
   - **Missing hours**: Check timesheets for that staff member in that week
   - **Rate mismatch**: Compare the wage rate in [Staff Management](/admin/manage-staff) with Xero
-  - **Xero adjustments**: Check if Xero has manual adjustments (leave, bonuses, etc.) that JM wouldn't know about
+  - **Xero adjustments**: Check if Xero has manual adjustments (leave, bonuses, etc.) that DWwouldn't know about
 
 ## Tips
 

@@ -18,11 +18,12 @@ if [ -z "$BACKEND_ENV_PATH" ] || [ ! -f "$BACKEND_ENV_PATH" ]; then
 fi
 
 # Source database credentials from backend .env
-export $(grep -E '^(DB_NAME|DB_USER|DB_PASSWORD|DB_HOST|DB_PORT)=' "$BACKEND_ENV_PATH" | xargs)
+set -a; source "$BACKEND_ENV_PATH"; set +a
 
-# Set defaults
-DB_HOST="${DB_HOST:-localhost}"
-DB_PORT="${DB_PORT:-5432}"
+if [ -z "${DB_HOST:-}" ] || [ -z "${DB_PORT:-}" ]; then
+    echo "Error: DB_HOST and DB_PORT must be set in $BACKEND_ENV_PATH"
+    exit 1
+fi
 
 # Create backup directory if it doesn't exist
 mkdir -p "$BACKUP_DIR"

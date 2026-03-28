@@ -28,8 +28,8 @@ tests/
 │   ├── auth.ts              # Authentication fixture
 │   └── test-data.ts         # Helper for creating test data
 ├── scripts/
-│   ├── backup-db.sh         # MySQL backup script
-│   └── restore-db.sh        # MySQL restore script
+│   ├── backup-db.sh         # PostgreSQL backup script
+│   └── restore-db.sh        # PostgreSQL restore script
 ├── helpers/
 │   └── data-generators.ts   # Generate unique test data
 ├── features/                # Feature-based tests
@@ -630,7 +630,7 @@ mkdir -p tests/backups
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Backup database
-mysqldump -h $MYSQL_HOST -P $MYSQL_PORT -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE > tests/backups/backup_$TIMESTAMP.sql
+pg_dump -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_NAME > tests/backups/backup_$TIMESTAMP.sql
 
 # Keep only last 5 backups
 ls -t tests/backups/backup_*.sql | tail -n +6 | xargs rm -f
@@ -656,7 +656,7 @@ if [ -z "$LATEST_BACKUP" ]; then
 fi
 
 # Restore database
-mysql -h $MYSQL_HOST -P $MYSQL_PORT -u $MYSQL_USER -p$MYSQL_PASSWORD $MYSQL_DATABASE < $LATEST_BACKUP
+PGPASSWORD=$DB_PASSWORD psql -h $DB_HOST -p $DB_PORT -U $DB_USER $DB_NAME < $LATEST_BACKUP
 
 echo "Database restored from $LATEST_BACKUP"
 ```
@@ -684,7 +684,7 @@ npm run test:e2e:headed
 
 ```bash
 # Run all tests against UAT
-E2E_BASE_URL=https://uat-office.morrissheetmetal.co.nz npm run test:e2e
+E2E_BASE_URL=https://msm-uat.docketworks.site npm run test:e2e
 ```
 
 #### Production Environment (Full Suite WITHOUT Xero)
@@ -915,7 +915,7 @@ npx playwright test --workers=4
 #### **Dev Environment** - Full Suite with Xero
 
 - **Target**: Dev ngrok URL (https://docketworks-msm-dev.ngrok-free.app) or localhost:5173
-- **Database**: Dev MySQL database
+- **Database**: Dev PostgreSQL database
 - **Xero**: Demo company (all operations allowed)
 - **Test Suite**: All tests including `@xero` tagged tests
 - **Data Cleanup**: Database backup/restore after run
@@ -923,17 +923,17 @@ npx playwright test --workers=4
 
 #### **UAT Environment** - Full Suite with Xero (Pre-release validation)
 
-- **Target**: `https://uat-office.morrissheetmetal.co.nz`
-- **Database**: UAT MySQL database
+- **Target**: `https://msm-uat.docketworks.site`
+- **Database**: UAT PostgreSQL database
 - **Xero**: Demo/test company (all operations allowed)
 - **Test Suite**: All tests including `@xero` tagged tests
 - **Data Cleanup**: Database backup/restore after run
-- **Command**: `E2E_BASE_URL=https://uat-office.morrissheetmetal.co.nz npm run test:e2e`
+- **Command**: `E2E_BASE_URL=https://msm-uat.docketworks.site npm run test:e2e`
 
 #### **Production (PVT)** - Full Suite WITHOUT Xero
 
 - **Target**: `https://office.morrissheetmetal.co.nz`
-- **Database**: Production MySQL database
+- **Database**: Production PostgreSQL database
 - **Xero**: **SKIPPED** - No Xero operations to avoid impacting real accounting data
 - **Test Suite**: All tests EXCEPT `@xero` tagged tests
 - **Data Cleanup**: Database backup/restore after run (critical!)

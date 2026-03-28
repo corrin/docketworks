@@ -196,15 +196,17 @@ do_create() {
 
     # --- Ensure database and DB user exist (always, even if .env was preserved) ---
     local DB_PASSWORD
-    DB_PASSWORD="$(grep '^DB_PASSWORD=' "$INSTANCE_DIR/.env" | cut -d= -f2)"
+    DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$DB_PASSWORD")"
+    # Escape single quotes for safe SQL interpolation
+    local SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
     log "Ensuring database $DB_NAME and user $DB_USER exist..."
     sudo -u postgres psql <<EOSQL
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
-        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$DB_PASSWORD';
+        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$SQL_PASSWORD';
     ELSE
-        ALTER ROLE "$DB_USER" WITH PASSWORD '$DB_PASSWORD';
+        ALTER ROLE "$DB_USER" WITH PASSWORD '$SQL_PASSWORD';
     END IF;
 END
 \$\$;

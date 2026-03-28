@@ -1908,8 +1908,12 @@ paths:
       security:
         - cookieAuth: []
       responses:
-        '204':
-          description: No response body
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyDefaults'
+          description: ''
   /api/job/company_defaults/:
     get:
       operationId: job_company_defaults_retrieve

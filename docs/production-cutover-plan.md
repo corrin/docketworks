@@ -141,6 +141,27 @@ print('Phone set:', cd.company_phone)
 
 Upload via Django admin at `https://office.morrissheetmetal.co.nz/admin/` → Company Defaults → set Logo and Logo Wide fields.
 
+**Google Drive folder rename** (code now looks for "DocketWorks", not "Jobs Manager"):
+
+Rename the existing "Jobs Manager" folder in Google Drive to "DocketWorks". This preserves all existing quote spreadsheets. Can be done via the Drive web UI or:
+```bash
+sudo scripts/uat/dw-run.sh msm-prod python manage.py shell -c "
+from apps.job.importers.google_sheets import _svc
+drive = _svc('drive', 'v3')
+results = drive.files().list(
+    q=\"name='Jobs Manager' and mimeType='application/vnd.google-apps.folder' and trashed=false\",
+    fields='files(id, name)', supportsAllDrives=True, includeItemsFromAllDrives=True,
+).execute()
+folders = results.get('files', [])
+if not folders:
+    print('No Jobs Manager folder found - may already be renamed')
+else:
+    fid = folders[0]['id']
+    drive.files().update(fileId=fid, body={'name': 'DocketWorks'}, supportsAllDrives=True).execute()
+    print(f'Renamed folder {fid} to DocketWorks')
+"
+```
+
 ## Phase 6: DNS Cutover
 
 Point `office.morrissheetmetal.co.nz` to the new server's IP address.

@@ -799,11 +799,15 @@ if PRODUCTION_LIKE:
             logger = logging.getLogger(__name__)
             logger.error(f"Error configuring the site: {e}")
 
-    # Configure site on Django startup
+    # Configure site once on first request (DB may not be ready at import time)
     from django.core.signals import request_started
 
+    def _configure_site_once(**kwargs):
+        configure_site_for_environment()
+        request_started.disconnect(_configure_site_once, dispatch_uid="configure_site")
+
     request_started.connect(
-        lambda **kwargs: configure_site_for_environment(),
+        _configure_site_once,
         weak=False,
         dispatch_uid="configure_site",
     )

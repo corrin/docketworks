@@ -65,12 +65,10 @@ if [[ "$MODE" == "production" ]]; then
     fi
 
     # Read database config from .env (PostgreSQL target)
-    DB_NAME=$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2)
-    DB_USER=$(grep -E '^DB_USER=' "$ENV_FILE" | cut -d= -f2)
-    DB_PASSWORD=$(grep -E '^DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2)
+    set -a; source "$ENV_FILE"; set +a
 
-    if [[ -z "$DB_NAME" || -z "$DB_USER" ]]; then
-        echo "ERROR: DB_NAME and DB_USER must be set in $ENV_FILE"
+    if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
+        echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
         exit 1
     fi
 
@@ -106,10 +104,23 @@ else
     cd "$PROJECT_DIR"
 
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    ENV_FILE="$PROJECT_DIR/.env"
+
+    if [[ ! -f "$ENV_FILE" ]]; then
+        echo "ERROR: .env not found at $ENV_FILE"
+        exit 1
+    fi
+
+    # Read database config from .env
+    set -a; source "$ENV_FILE"; set +a
+
+    if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
+        echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
+        exit 1
+    fi
+
     MARIA_DB=jobs_manager_prod
-    PG_DB=dw_msm_dev
-    DB_USER=dw_msm_dev
-    DB_PASSWORD=cur-fiasco-pectin
+    PG_DB="$DB_NAME"
     DUMP_FILE=/tmp/dw_mysql_to_pg.json
     MYSQL_COUNTS=/tmp/dw_mysql_counts.txt
     PG_COUNTS=/tmp/dw_pg_counts.txt

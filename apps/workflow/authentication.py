@@ -38,18 +38,6 @@ class JWTAuthentication(BaseJWTAuthentication):
             return (request._force_auth_user, None)
 
         try:
-            # Debug logging for client create endpoint
-            if request.path_info == "/clients/create/":
-                logger.info(f"DEBUG: Authenticating request to {request.path_info}")
-                logger.info(f"DEBUG: Request method: {request.method}")
-                logger.info(
-                    f"DEBUG: User-Agent: {request.headers.get('User-Agent', 'None')}"
-                )
-                logger.info(f"DEBUG: Accept: {request.headers.get('Accept', 'None')}")
-                logger.info(
-                    f"DEBUG: Content-Type: {request.headers.get('Content-Type', 'None')}"
-                )
-
             # Only look at cookies, not Authorization header
             raw_token = self.get_raw_token_from_cookie(request)
             result = None
@@ -62,17 +50,10 @@ class JWTAuthentication(BaseJWTAuthentication):
                     "AUTH_COOKIE", "access_token"
                 )
                 has_cookie = cookie_name in request.COOKIES
-                if request.path_info == "/clients/create/":
-                    logger.info(
-                        f"DEBUG: JWT authentication failed for {request.path_info}"
-                    )
-                    logger.info(f"DEBUG: Cookie '{cookie_name}' present: {has_cookie}")
-                    if has_cookie:
-                        logger.info(
-                            f"DEBUG: Cookie value length: {len(request.COOKIES[cookie_name])}"
-                        )
                 logger.info(
-                    f"JWT authentication failed: no valid token found (cookie '{cookie_name}' present: {has_cookie})"
+                    "JWT authentication failed: no valid token found (cookie '%s' present: %s)",
+                    cookie_name,
+                    has_cookie,
                 )
                 return None
             user, token = result
@@ -82,19 +63,12 @@ class JWTAuthentication(BaseJWTAuthentication):
                 )
             if hasattr(user, "password_needs_reset") and user.password_needs_reset:
                 logger.warning(
-                    f"User {getattr(user, 'email', user)} authenticated via JWT but needs to reset password."
-                )
-            if request.path_info == "/clients/create/":
-                logger.info(
-                    f"DEBUG: JWT authentication SUCCESS for {request.path_info} - User: {user.email}"
+                    "User %s authenticated via JWT but needs to reset password.",
+                    getattr(user, "email", user),
                 )
             return result
         except (InvalidToken, TokenError) as e:
-            if request.path_info == "/clients/create/":
-                logger.info(
-                    f"DEBUG: JWT authentication EXCEPTION for {request.path_info}: {str(e)}"
-                )
-            logger.info(f"JWT authentication failed: {str(e)}")
+            logger.info("JWT authentication failed: %s", e)
             if settings.DEBUG:
                 return None
             raise exceptions.AuthenticationFailed(str(e))

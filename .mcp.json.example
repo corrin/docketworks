@@ -15,12 +15,9 @@
       "command": "npx",
       "args": ["-y", "@upstash/context7-mcp@latest"]
     },
-    "mariadb": {
-      "command": "uv",
-      "args": ["run", "--directory", "<path-to-mariadb-mcp>", "python", "src/server.py"],
-      "env": {
-        "DB_NAME": "dw_msm_dev"
-      }
+    "postgres": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-postgres", "postgresql://dw_msm_dev@localhost/dw_msm_dev"]
     }
   }
 }

@@ -43,9 +43,15 @@ if [[ -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASSWORD" ]]; then
         echo "Usage: $0 --db <name> --user <user> --password <pass> [--drop]"
         exit 1
     fi
-    DB_NAME="${DB_NAME:-$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2)}"
-    DB_USER="${DB_USER:-$(grep -E '^DB_USER=' "$ENV_FILE" | cut -d= -f2)}"
-    DB_PASSWORD="${DB_PASSWORD:-$(grep -E '^DB_PASSWORD=' "$ENV_FILE" | cut -d= -f2)}"
+    # Save CLI-provided values before sourcing .env
+    local_DB_NAME="$DB_NAME"
+    local_DB_USER="$DB_USER"
+    local_DB_PASSWORD="$DB_PASSWORD"
+    set -a; source "$ENV_FILE"; set +a
+    # Restore any CLI-provided values (they take precedence)
+    [[ -n "$local_DB_NAME" ]] && DB_NAME="$local_DB_NAME"
+    [[ -n "$local_DB_USER" ]] && DB_USER="$local_DB_USER"
+    [[ -n "$local_DB_PASSWORD" ]] && DB_PASSWORD="$local_DB_PASSWORD"
 fi
 
 if [[ -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASSWORD" ]]; then
@@ -66,14 +72,17 @@ if [[ "$DROP" == "true" ]]; then
 fi
 
 # --- Create role and database ---
+# Escape single quotes for safe SQL interpolation
+SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
+
 echo "Creating role $DB_USER..."
 psql <<EOSQL
 DO \$\$
 BEGIN
     IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$DB_USER') THEN
-        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$DB_PASSWORD';
+        CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$SQL_PASSWORD';
     ELSE
-        ALTER ROLE "$DB_USER" WITH PASSWORD '$DB_PASSWORD';
+        ALTER ROLE "$DB_USER" WITH PASSWORD '$SQL_PASSWORD';
     END IF;
 END
 \$\$;

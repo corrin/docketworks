@@ -6,8 +6,8 @@ Provides various fixes for known data issues that can occur in production.
 Each fix is idempotent and safe to run multiple times.
 
 Usage:
-    python scripts/production_data_fixer.py --fix-empty-notes --dry-run
-    python scripts/production_data_fixer.py --fix-empty-notes --live
+    python scripts/production_data_fixer.py --fix-empty-notes          # dry run (default)
+    python scripts/production_data_fixer.py --fix-empty-notes --live   # apply changes
 """
 
 import argparse

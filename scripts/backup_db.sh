@@ -21,8 +21,8 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 # Read DB_NAME from instance .env
-DB_NAME=$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2)
-if [[ -z "$DB_NAME" ]]; then
+set -a; source "$ENV_FILE"; set +a
+if [[ -z "${DB_NAME:-}" ]]; then
     echo "Error: DB_NAME not set in $ENV_FILE" >&2
     exit 1
 fi
@@ -40,4 +40,4 @@ if [ "$(date +%d)" = "01" ]; then
 fi
 
 # Sync to Google Drive
-rclone copy "$BACKUP_DIR" gdrive:dw_backups/
+rclone copy "$BACKUP_DIR" "gdrive:dw_backups/$INSTANCE/"

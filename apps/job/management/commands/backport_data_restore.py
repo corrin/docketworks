@@ -84,8 +84,8 @@ class Command(BaseCommand):
         # doesn't include all referenced models (e.g. XeroPayItem).
         # Production migration uses full dumpdata so doesn't need this.
         # Django's loaddata calls connection.check_constraints() after loading,
-        # which does a Python-level FK check independent of MySQL's
-        # FOREIGN_KEY_CHECKS setting. We temporarily replace it with a no-op.
+        # which does a Python-level FK check independent of the DB-level
+        # constraint setting. We temporarily replace it with a no-op.
         self.stdout.write(f"Loading data from {backup_file}...")
         original_check = connection.check_constraints
         connection.check_constraints = lambda **kwargs: None
@@ -93,6 +93,21 @@ class Command(BaseCommand):
         with connection.cursor() as cursor:
             if connection.vendor == "mysql":
                 cursor.execute("SET FOREIGN_KEY_CHECKS=0")
+            else:
+                # PostgreSQL: disable all FK constraint triggers for this session.
+                # SET CONSTRAINTS ALL DEFERRED only works on DEFERRABLE constraints,
+                # and Django's FK constraints are not deferrable by default.
+                # Requires SUPERUSER or REPLICATION role on the DB user:
+                #   sudo -u postgres psql -c 'ALTER ROLE <user> SUPERUSER;'
+                try:
+                    cursor.execute("SET session_replication_role = 'replica'")
+                except Exception as e:
+                    raise CommandError(
+                        f"Cannot disable FK constraints: {e}\n"
+                        "The DB user needs SUPERUSER to load subset backups.\n"
+                        "Grant it with: sudo -u postgres psql -c "
+                        f"\"ALTER ROLE {connection.settings_dict['USER']} SUPERUSER;\""
+                    )
 
         try:
             call_command("loaddata", temp_file_path)
@@ -101,6 +116,8 @@ class Command(BaseCommand):
             with connection.cursor() as cursor:
                 if connection.vendor == "mysql":
                     cursor.execute("SET FOREIGN_KEY_CHECKS=1")
+                else:
+                    cursor.execute("SET session_replication_role = 'origin'")
             os.unlink(temp_file_path)
 
         self.stdout.write("Running post-restore fixes...")

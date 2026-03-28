@@ -1,5 +1,6 @@
 import os
 
+from drf_spectacular.utils import extend_schema
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -70,6 +71,7 @@ class CompanyDefaultsLogoAPIView(APIView):
         serializer = CompanyDefaultsSerializer(instance, context={"request": request})
         return Response(serializer.data)
 
+    @extend_schema(responses={200: CompanyDefaultsSerializer})
     def delete(self, request):
         field_name = request.data.get("field_name")
         if field_name not in ALLOWED_LOGO_FIELDS:
