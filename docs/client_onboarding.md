@@ -210,9 +210,9 @@ Follow `uat_setup.md` (Part C) or the production deployment process.
 
 ```bash
 # UAT
-sudo scripts/uat/uat-instance.sh create <name>
+sudo scripts/server/instance.sh prepare-config <client> <env>
 # Fill credentials.env with Xero values
-sudo scripts/uat/uat-instance.sh create <name>  # re-run to build
+sudo scripts/server/instance.sh create <client> <env>
 ```
 
 ---

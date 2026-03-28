@@ -17,12 +17,12 @@ Move production from the current server (`/home/django_user`, MariaDB) to a fres
 
 Run on the new server as root.
 
-**Reference:** `scripts/uat/uat-base-setup.sh` (installs all system packages, PostgreSQL, nginx, certbot, shared venv, repo clone)
+**Reference:** `scripts/server/server-setup.sh` (installs all system packages, PostgreSQL, nginx, certbot, shared venv, repo clone)
 
 ```bash
 # Bootstrap: get the setup script onto the server
 git clone https://github.com/corrin/docketworks.git /tmp/docketworks-bootstrap
-sudo /tmp/docketworks-bootstrap/scripts/uat/uat-base-setup.sh <dreamhost-api-key> <google-maps-api-key>
+sudo /tmp/docketworks-bootstrap/scripts/server/server-setup.sh <dreamhost-api-key> <google-maps-api-key>
 rm -rf /tmp/docketworks-bootstrap
 ```
 
@@ -37,17 +37,17 @@ The script creates `/opt/docketworks/repo` itself (proper clone as `docketworks`
 
 ## Phase 2: Create Production Instance
 
-**Reference:** `scripts/uat/uat-instance.sh` (in the codebase)
+**Reference:** `scripts/server/instance.sh` (in the codebase)
 
 ```bash
 # First run creates the credentials template — fill it out
-sudo /opt/docketworks/repo/scripts/uat/uat-instance.sh create msm prod
+sudo /opt/docketworks/repo/scripts/server/instance.sh create msm prod
 
 # Edit the credentials file with production values
 vim /opt/docketworks/instances/msm-prod/credentials.env
 
 # Re-run to complete creation
-sudo /opt/docketworks/repo/scripts/uat/uat-instance.sh create msm prod
+sudo /opt/docketworks/repo/scripts/server/instance.sh create msm prod
 ```
 
 This creates:
@@ -128,7 +128,7 @@ cd /opt/docketworks/instances/msm-prod/code
 
 **Company phone number** (added in migration 0205):
 ```bash
-sudo scripts/uat/dw-run.sh msm-prod python manage.py shell -c "
+sudo scripts/server/dw-run.sh msm-prod python manage.py shell -c "
 from apps.workflow.models import CompanyDefaults
 cd = CompanyDefaults.objects.get()
 cd.company_phone = '+64 9 XXX XXXX'  # replace with actual number
@@ -145,7 +145,7 @@ Upload via Django admin at `https://office.morrissheetmetal.co.nz/admin/` → Co
 
 Rename the existing "Jobs Manager" folder in Google Drive to "DocketWorks". This preserves all existing quote spreadsheets. Can be done via the Drive web UI or:
 ```bash
-sudo scripts/uat/dw-run.sh msm-prod python manage.py shell -c "
+sudo scripts/server/dw-run.sh msm-prod python manage.py shell -c "
 from apps.job.importers.google_sheets import _svc
 drive = _svc('drive', 'v3')
 results = drive.files().list(

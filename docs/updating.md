@@ -26,9 +26,9 @@ If you're running the application locally for development:
 
 4. Restart the development server if running
 
-## UAT Environment (Multi-Tenant)
+## Server Environment (Multi-Tenant)
 
-See [uat_setup.md](uat_setup.md) for full architecture details.
+See [server_setup.md](server_setup.md) for full architecture details.
 
 Deployment is a two-step process:
 
@@ -38,10 +38,10 @@ Deployment is a two-step process:
 
    ```bash
    # All instances
-   sudo ./scripts/uat/uat-deploy.sh --all
+   sudo ./scripts/server/deploy.sh --all
 
    # Single instance
-   sudo ./scripts/uat/uat-deploy.sh <name>
+   sudo ./scripts/server/deploy.sh <name>
    ```
 
    This updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts Gunicorn.
