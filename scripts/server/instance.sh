@@ -148,7 +148,7 @@ do_create() {
         log "User '$INSTANCE_USER' already exists, skipping."
     else
         log "Creating system user '$INSTANCE_USER'..."
-        useradd --system --shell /bin/bash --no-create-home "$INSTANCE_USER"
+        useradd --system --shell /bin/bash --no-create-home --home-dir "$INSTANCE_DIR" "$INSTANCE_USER"
         log "  Created user '$INSTANCE_USER' (no supplementary groups)."
     fi
 
@@ -171,6 +171,17 @@ do_create() {
     cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
+    # Symlink shared venv into instance dir so the user can `source ~/.venv/bin/activate`
+    ln -sfn "$SHARED_VENV" "$INSTANCE_DIR/.venv"
+    # Create .bash_profile that activates venv, loads .env, and cd's to code dir.
+    # .bash_profile (not .bashrc) because SSH login shells read .bash_profile.
+    cat > "$INSTANCE_DIR/.bash_profile" <<'BASH_PROFILE'
+source ~/.venv/bin/activate
+set -a; source ~/.env; set +a
+cd ~/code
+BASH_PROFILE
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.bash_profile"
+    chmod 644 "$INSTANCE_DIR/.bash_profile"
 
     # --- Generate .env (skip if it already exists) ---
     if [[ -f "$INSTANCE_DIR/.env" ]]; then
