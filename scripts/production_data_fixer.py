@@ -16,7 +16,7 @@ import os
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.environ.setdefault("DJANGO_SETTINGS_MODULE", "jobs_manager.settings")
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 
 import django
 
@@ -74,12 +74,6 @@ def main():
         "--fix-empty-notes",
         action="store_true",
         help="Convert empty string notes to NULL for jobs (fixes 412 errors)",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        default=True,
-        help="Show what would be fixed without making changes (default)",
     )
     parser.add_argument(
         "--live",

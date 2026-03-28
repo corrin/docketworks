@@ -34,6 +34,7 @@ BACKUP_FILE="$BACKUP_DIR/backup_${TIMESTAMP}.sql"
 echo "Backing up database $DB_NAME to $BACKUP_FILE..."
 
 PGPASSWORD="$DB_PASSWORD" pg_dump \
+    --clean \
     -h "$DB_HOST" \
     -p "$DB_PORT" \
     -U "$DB_USER" \

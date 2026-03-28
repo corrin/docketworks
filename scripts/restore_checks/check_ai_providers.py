@@ -9,7 +9,7 @@ import django
 
 django.setup()
 
-from mistralai.client import Mistral
+from mistralai.client.sdk import Mistral
 
 from apps.workflow.enums import AIProviderTypes
 from apps.workflow.models import AIProvider

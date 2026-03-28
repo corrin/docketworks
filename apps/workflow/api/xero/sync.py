@@ -1290,7 +1290,7 @@ def sync_all_xero_data(
         if not company.enable_xero_sync:
             logger.warning(
                 "Xero sync not ready: enable_xero_sync is False. "
-                "In DEV: Run 'python manage.py seed_xero_from_database' first."
+                "In DEV: Run 'python manage.py seed_xero_from_database' first. "
                 "In Prod: Set using the gui"
             )
             return

@@ -1,6 +1,6 @@
 import os
 
-from rest_framework.parsers import FormParser, MultiPartParser
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,7 +10,7 @@ from apps.workflow.serializers import CompanyDefaultsSerializer
 from apps.workflow.services.error_persistence import persist_app_error
 
 ALLOWED_LOGO_FIELDS = {"logo", "logo_wide"}
-ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp", ".svg"}
+ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
 
 
@@ -23,7 +23,7 @@ class CompanyDefaultsLogoAPIView(APIView):
     """
 
     serializer_class = CompanyDefaultsSerializer
-    parser_classes = [MultiPartParser, FormParser]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
     permission_classes = [IsAuthenticated]
 
     def post(self, request):

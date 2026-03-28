@@ -157,7 +157,7 @@ Note. If you're using Claude or similar, you need to specify these explicitly on
 **Command:**
 
 ```bash
-./scripts/setup_database.sh --drop
+sudo -u postgres ./scripts/setup_database.sh --drop
 ```
 
 This drops and recreates the database and user from your `.env` file.

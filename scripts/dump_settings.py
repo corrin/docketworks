@@ -121,8 +121,8 @@ def main():
         "DJANGO_SETTINGS_MODULE",
         "DB_HOST",
         "DB_PORT",
-        "MYSQL_DB_USER",
-        "MYSQL_DATABASE",
+        "DB_USER",
+        "DB_NAME",
         "REDIS_HOST",
         "REDIS_PORT",
     ]

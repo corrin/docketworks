@@ -231,7 +231,7 @@ To wipe the local database and start fresh:
 1.  **Run the setup script with --drop:**
 
     ```bash
-    ./scripts/setup_database.sh --drop
+    sudo -u postgres ./scripts/setup_database.sh --drop
     ```
 
     This drops the existing database and recreates it with the correct user and permissions (reads from your `.env` file).

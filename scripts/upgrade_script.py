@@ -31,7 +31,8 @@ def normalize_version(spec: str) -> str:
 
 def fetch_release_dates(name: str, requested_version: str):
     url = f"https://pypi.org/pypi/{name}/json"
-    resp = requests.get(url)
+    resp = requests.get(url, timeout=10)
+    resp.raise_for_status()
     data = resp.json()
 
     latest_ver = data["info"]["version"]

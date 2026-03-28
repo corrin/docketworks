@@ -40,25 +40,25 @@ def create_seed_xero_pay_items(apps, schema_editor):
             "id": "90909bb3-7c5f-473a-8b51-e4d5cfcb3a5a",
             "name": "Annual Leave",
             "uses_leave_api": True,
-            "multiplier": Decimal("0.00"),
+            "multiplier": None,
         },
         {
             "id": "e678e692-312d-4f38-b9f8-31c84d6d6ba8",
             "name": "Sick Leave",
             "uses_leave_api": True,
-            "multiplier": Decimal("1.00"),
+            "multiplier": None,
         },
         {
             "id": "b58930e0-2bb9-4dde-b7ec-5a16ea78b4cb",
             "name": "Unpaid Leave",
             "uses_leave_api": True,
-            "multiplier": Decimal("0.00"),
+            "multiplier": None,
         },
         {
             "id": "c4848bba-737e-45a8-adaa-61cd072a84ca",
             "name": "Bereavement Leave",
             "uses_leave_api": True,
-            "multiplier": Decimal("1.00"),
+            "multiplier": None,
         },
     ]
 

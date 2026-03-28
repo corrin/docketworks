@@ -50,7 +50,6 @@ try:
 
         if not source_lines.exists():
             logger.info("No matching lines found in source. Nothing to do.")
-            raise RuntimeError("DRY RUN rollback")
 
         # Check for duplicates already in target
         existing_descs = set(
