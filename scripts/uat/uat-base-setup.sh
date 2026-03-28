@@ -164,8 +164,11 @@ server {
     return 444;
 }
 EOF
-systemctl enable --now nginx
-# SSL config is written later after certbot obtains certs
+# Don't start nginx yet — instance configs in sites-enabled/ may reference
+# SSL certs that don't exist until after certbot runs below.
+# Just enable the service so it starts on boot; the restart after SSL
+# setup (below) will be the first start.
+systemctl enable nginx
 
 # --- Certbot ---
 
