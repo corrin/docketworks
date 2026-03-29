@@ -1,0 +1,35 @@
+[
+  {
+    "model": "workflow.aiprovider",
+    "pk": 1,
+    "fields": {
+      "name": "Claude",
+      "provider_type": "Claude",
+      "api_key": "__ANTHROPIC_API_KEY__",
+      "model_name": "claude-sonnet-4-20250514",
+      "default": true
+    }
+  },
+  {
+    "model": "workflow.aiprovider",
+    "pk": 2,
+    "fields": {
+      "name": "Gemini",
+      "provider_type": "Gemini",
+      "api_key": "__GEMINI_API_KEY__",
+      "model_name": "gemini-2.5-flash",
+      "default": false
+    }
+  },
+  {
+    "model": "workflow.aiprovider",
+    "pk": 3,
+    "fields": {
+      "name": "Mistral",
+      "provider_type": "Mistral",
+      "api_key": "__MISTRAL_API_KEY__",
+      "model_name": "mistral-ocr-latest",
+      "default": false
+    }
+  }
+]

@@ -23,7 +23,6 @@ This process runs unattended on server instances with no user interaction. Any w
 ## Prerequisites
 
 - `.env` configured with `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and all other required variables
-- `apps/workflow/fixtures/ai_providers.json` — copy from `.json.example` and add real API keys
 - A production backup zip in `restore/`, extracted:
   ```bash
   # On production: python manage.py backport_data_backup
@@ -153,7 +152,9 @@ python scripts/restore_checks/check_company_defaults.py
 
 **Expected output:** `Company defaults loaded: Demo Company`
 
-#### Step 8: Load AI Providers Fixture
+#### Step 8: Reload AI Providers
+
+The DB reset wiped the AI provider rows. Reload from the fixture generated during instance creation:
 
 ```bash
 python manage.py loaddata apps/workflow/fixtures/ai_providers.json

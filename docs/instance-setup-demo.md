@@ -90,13 +90,13 @@ Creates: Annual Leave, Sick Leave, Bereavement Leave, Travel, Training, Business
 
 Edit the leave jobs in Admin to set their Xero Pay Item.
 
-## Step 8: Configure AI Providers
+## Step 8: Verify AI Providers
+
+AI providers are configured during instance creation (`instance.sh create`). Verify:
 
 ```bash
-scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fixtures/ai_providers.json
+scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_ai_providers.py
 ```
-
-**Check:** Verify keys are valid in Admin > AI Providers.
 
 ## Step 9: Final Sync
 

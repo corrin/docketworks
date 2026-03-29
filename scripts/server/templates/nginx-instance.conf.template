@@ -32,6 +32,12 @@ server {
         alias /opt/docketworks/instances/__INSTANCE__/mediafiles/;
     }
 
+    # VitePress training manual (per-instance build)
+    location /manual/ {
+        alias /opt/docketworks/instances/__INSTANCE__/frontend/dist-manual/;
+        try_files $uri $uri/ /manual/index.html;
+    }
+
     # Vue.js frontend — everything else (per-instance build)
     location / {
         root /opt/docketworks/instances/__INSTANCE__/frontend/dist;
