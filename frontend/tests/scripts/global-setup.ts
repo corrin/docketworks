@@ -2,8 +2,7 @@ import { spawnSync } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { ensureXeroConnected } from './xero-login'
-import { getBackupsDir, getDbConfig } from './db-backup-utils'
+import { getBackupsDir, getDbConfig, checkSafeToTest, syncSequences } from './db-backup-utils'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
@@ -14,6 +13,26 @@ function formatTimestamp(date: Date): string {
   )}${pad(date.getMinutes())}${pad(date.getSeconds())}`
 }
 
+/**
+ * Read-only check: verify Xero is connected by hitting the ping endpoint.
+ * Does NOT attempt to connect or refresh tokens.
+ */
+async function checkXeroConnected(): Promise<boolean> {
+  const frontendUrl = process.env.VITE_FRONTEND_BASE_URL
+  if (!frontendUrl) {
+    throw new Error('VITE_FRONTEND_BASE_URL must be set in .env')
+  }
+
+  try {
+    const response = await fetch(`${frontendUrl}/api/xero/ping/`)
+    if (!response.ok) return false
+    const data = (await response.json()) as { connected: boolean }
+    return data.connected === true
+  } catch {
+    return false
+  }
+}
+
 export default async function globalSetup() {
   if (fs.existsSync(LOCK_FILE)) {
     const pid = fs.readFileSync(LOCK_FILE, 'utf8').trim()
@@ -21,8 +40,42 @@ export default async function globalSetup() {
   }
   fs.writeFileSync(LOCK_FILE, process.pid.toString())
 
-  console.log('[db] Backing up database before tests...')
+  // All checks are read-only — they abort if something is wrong, never fix it.
+  const issues: string[] = []
+
+  // Check Xero connection
+  console.log('[xero] Checking Xero connection...')
+  const xeroConnected = await checkXeroConnected()
+  if (!xeroConnected) {
+    issues.push('Xero is not connected. Navigate to /xero in the app to connect.')
+  } else {
+    console.log('[xero] Xero is connected.')
+  }
+
+  // Check database is clean
+  console.log('[db] Checking database is safe for E2E tests...')
   const dbConfig = getDbConfig()
+  const dbCheck = checkSafeToTest(dbConfig)
+  issues.push(...dbCheck.issues)
+
+  if (issues.length > 0) {
+    // Clean up lock file before aborting
+    if (fs.existsSync(LOCK_FILE)) fs.unlinkSync(LOCK_FILE)
+    const issueList = issues.map((i) => `  - ${i}`).join('\n')
+    throw new Error(
+      `E2E pre-flight checks failed:\n${issueList}\n\n` +
+        `Run 'npm run test:e2e:reset' to clean test data and fix sequences.`,
+    )
+  }
+  console.log('[db] Database is clean.')
+
+  // Sync sequences as a safety net (idempotent, fast)
+  console.log('[db] Syncing sequences...')
+  syncSequences(dbConfig)
+  console.log('[db] Sequences synced.')
+
+  // Take backup
+  console.log('[db] Backing up database before tests...')
   const backupDir = getBackupsDir()
   fs.mkdirSync(backupDir, { recursive: true })
 
@@ -60,7 +113,4 @@ export default async function globalSetup() {
   })
 
   console.log(`[db] Backup complete: ${backupFile}`)
-
-  console.log('[xero] Ensuring Xero connection...')
-  await ensureXeroConnected()
 }

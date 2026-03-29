@@ -95,7 +95,7 @@ sudo ./scripts/server/deploy.sh mycompany-uat
 sudo ./scripts/server/deploy.sh --all
 ```
 
-Pulls latest code from GitHub (via the local repo), updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts gunicorn.
+Pulls latest code from GitHub (via the local repo), updates shared Python/Node deps, then for each instance: builds frontend, runs migrate, restarts gunicorn.
 
 ## Destroying an Instance
 
@@ -125,13 +125,13 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ├── package.json              # Shared node_modules
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 └── instances/
-    └── <name>/
+    └── <name>/               # = git checkout (always on main)
         ├── credentials.env       # Xero + GCP + email secrets (user-filled)
         ├── gcp-credentials.json  # Copied from path in credentials.env (mode 600)
         ├── .env                  # Full env (generated from template + credentials + shared.env)
-        ├── code/                 # Git clone (always on main)
-        │   └── frontend/dist/
-        ├── staticfiles/
+        ├── manage.py
+        ├── apps/
+        ├── frontend/dist/
         ├── mediafiles/
         ├── dropbox/
         ├── logs/

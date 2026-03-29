@@ -4458,7 +4458,7 @@ DELETE: Clear a logo field and remove the file from disk.`,
 POST: Upload a logo image to a specified field.
 DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
-    response: z.void(),
+    response: CompanyDefaults,
   },
   {
     method: 'get',

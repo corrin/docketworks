@@ -44,7 +44,7 @@ Deployment is a two-step process:
    sudo ./scripts/server/deploy.sh <name>
    ```
 
-   This updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts Gunicorn.
+   This updates shared Python/Node deps, then for each instance: builds frontend, runs migrate, restarts Gunicorn.
 
 ## Troubleshooting
 

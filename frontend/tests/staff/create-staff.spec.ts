@@ -20,7 +20,7 @@ test.describe('create staff', () => {
     })
 
     await test.step('fill in staff details', async () => {
-      await autoId(page, 'StaffFormModal-first-name').fill('E2E Test')
+      await autoId(page, 'StaffFormModal-first-name').fill('[TEST] Staff')
       await autoId(page, 'StaffFormModal-last-name').fill(`User ${timestamp}`)
       await autoId(page, 'StaffFormModal-email').fill(testEmail)
       await autoId(page, 'StaffFormModal-password').fill(testPassword)
@@ -53,7 +53,7 @@ test.describe('create staff', () => {
         timeout: 5000,
       })
 
-      console.log(`Successfully created staff member: E2E Test User ${timestamp}`)
+      console.log(`Successfully created staff member: [TEST] Staff User ${timestamp}`)
     })
   })
 })

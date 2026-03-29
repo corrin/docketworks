@@ -16,8 +16,8 @@ test.describe('create job with new xero client', () => {
   }) => {
     // Generate a unique client name with random number
     const randomSuffix = Math.floor(Math.random() * 100000)
-    const newClientName = `E2E Test Client ${randomSuffix}`
-    const jobName = `Test Job for ${newClientName}`
+    const newClientName = `[TEST] Client ${randomSuffix}`
+    const jobName = `[TEST] Job for ${newClientName}`
 
     console.log(`Testing with new client: ${newClientName}`)
 
@@ -60,7 +60,7 @@ test.describe('create job with new xero client', () => {
 
     // For a new client, there won't be existing contacts - fill in the create form
     // The form fields are always visible for new clients
-    await autoId(page, 'ContactSelectionModal-name-input').fill(`Contact for ${randomSuffix}`)
+    await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${randomSuffix}`)
     await page.waitForTimeout(200)
     await autoId(page, 'ContactSelectionModal-email-input').fill(`test${randomSuffix}@example.com`)
     await page.waitForTimeout(200)
@@ -107,8 +107,8 @@ test.describe('create job with new xero client', () => {
   }) => {
     // Generate a unique client name with random number
     const randomSuffix = Math.floor(Math.random() * 100000)
-    const newClientName = `E2E Modal Client ${randomSuffix}`
-    const jobName = `Modal Test Job ${randomSuffix}`
+    const newClientName = `[TEST] Modal Client ${randomSuffix}`
+    const jobName = `[TEST] Modal Job ${randomSuffix}`
 
     console.log(`Testing with new client (modal method): ${newClientName}`)
 
@@ -155,7 +155,9 @@ test.describe('create job with new xero client', () => {
     await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
 
     // Fill in contact details
-    await autoId(page, 'ContactSelectionModal-name-input').fill(`Modal Contact ${randomSuffix}`)
+    await autoId(page, 'ContactSelectionModal-name-input').fill(
+      `[TEST] Modal Contact ${randomSuffix}`,
+    )
     await page.waitForTimeout(200)
     await autoId(page, 'ContactSelectionModal-email-input').fill(`modal${randomSuffix}@example.com`)
     await page.waitForTimeout(200)

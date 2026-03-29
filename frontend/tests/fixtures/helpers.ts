@@ -235,7 +235,7 @@ export async function waitForAutosave(page: Page) {
  */
 export async function createTestPurchaseOrder(page: Page): Promise<string> {
   const randomSuffix = Math.floor(Math.random() * 100000)
-  const supplierName = `E2E Test Supplier ${randomSuffix}`
+  const supplierName = `[TEST] Supplier ${randomSuffix}`
 
   // Navigate to create PO page
   await page.goto('/purchasing/po/create')
@@ -258,7 +258,7 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
 
   // Add reference
-  await autoId(page, 'PoSummaryCard-reference').fill(`E2E Test Ref ${randomSuffix}`)
+  await autoId(page, 'PoSummaryCard-reference').fill(`[TEST] PO Ref ${randomSuffix}`)
 
   // Save the PO - wait for the API response
   const savePromise = page.waitForResponse(
@@ -286,7 +286,7 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
  */
 export async function createTestJob(page: Page, jobNameSuffix: string): Promise<string> {
   const timestamp = Date.now()
-  const jobName = `Test Job ${jobNameSuffix} ${timestamp}`
+  const jobName = `[TEST] Job ${jobNameSuffix} ${timestamp}`
 
   await autoId(page, 'AppNavbar-create-job').click()
   await page.waitForURL('**/jobs/create')
@@ -319,7 +319,7 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
   } else {
     const submitButton = autoId(page, 'ContactSelectionModal-submit')
     await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
-    await autoId(page, 'ContactSelectionModal-name-input').fill(`Test Contact ${timestamp}`)
+    await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${timestamp}`)
     await autoId(page, 'ContactSelectionModal-email-input').fill(`test${timestamp}@example.com`)
     await submitButton.click()
   }

@@ -96,7 +96,7 @@ test.describe.serial('purchase order operations', () => {
     await descriptionInput.waitFor({ timeout: 10000 })
 
     // Fill in line details
-    await descriptionInput.fill('Test Material Item')
+    await descriptionInput.fill('[TEST] Material Item')
     await page.waitForTimeout(300)
 
     // Fill quantity
@@ -115,7 +115,7 @@ test.describe.serial('purchase order operations', () => {
     await waitForPoAutosave(page)
     await page.waitForTimeout(500)
 
-    console.log('Added line item: Test Material Item, qty 5 @ $25.50')
+    console.log('Added line item: [TEST] Material Item, qty 5 @ $25.50')
   })
 
   test('assign job to purchase order line using JobSelect', async ({ authenticatedPage: page }) => {

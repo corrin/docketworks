@@ -32,14 +32,9 @@ server {
         alias /opt/docketworks/instances/__INSTANCE__/mediafiles/;
     }
 
-    # Django static files (per-instance collectstatic output)
-    location /static/ {
-        alias /opt/docketworks/instances/__INSTANCE__/staticfiles/;
-    }
-
     # Vue.js frontend — everything else (per-instance build)
     location / {
-        root /opt/docketworks/instances/__INSTANCE__/code/frontend/dist;
+        root /opt/docketworks/instances/__INSTANCE__/frontend/dist;
         try_files $uri $uri/ /index.html;
     }
 

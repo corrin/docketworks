@@ -46,7 +46,7 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - etckeeper (tracks /etc changes in git)
 - Python 3.12 + dev packages
 - Node.js 22 (NodeSource)
-- PostgreSQL server
+- PostgreSQL server (configured for password auth over sockets)
 - Nginx
 - Certbot + Dreamhost DNS hook scripts (for wildcard cert auto-renewal)
 - pnpm (via corepack) and pm2 (for marketing website)
@@ -92,7 +92,7 @@ sudo scripts/server/instance.sh create <client> <env> --seed
 
 1. **Clone repo**
    ```bash
-   sudo -u dw-<name> git clone git@github.com:corrin/docketworks.git /opt/docketworks/instances/<name>/code
+   sudo -u dw-<name> git clone git@github.com:corrin/docketworks.git /opt/docketworks/instances/<name>
    ```
 
 2. **Create PostgreSQL database**
@@ -113,10 +113,9 @@ sudo scripts/server/instance.sh create <client> <env> --seed
    scripts/server/dw-run.sh <name> poetry install --no-interaction
    ```
 
-5. **Migrate + collectstatic**
+5. **Migrate**
    ```bash
    scripts/server/dw-run.sh <name> python manage.py migrate --no-input
-   scripts/server/dw-run.sh <name> python manage.py collectstatic --no-input
    ```
 
 6. **Load fixtures** (optional)
@@ -127,7 +126,7 @@ sudo scripts/server/instance.sh create <client> <env> --seed
 7. **Build frontend**
    ```bash
    sudo -u dw-<name> bash -c "
-       cd /opt/docketworks/instances/<name>/code/frontend
+       cd /opt/docketworks/instances/<name>/frontend
        npm install
        npm run build
    "
@@ -159,7 +158,7 @@ Choose the path that matches your scenario:
 
 ### Path A: Backup Restore (e.g. MSM demo)
 
-For instances that need production data, follow [instance-setup-uat.md](instance-setup-uat.md).
+For instances that need production data, follow [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md).
 
 ### Path B: Fresh Prospect (new Xero org)
 
@@ -314,7 +313,7 @@ sudo ./scripts/server/deploy.sh --all
 sudo ./scripts/server/deploy.sh <name>
 ```
 
-This updates shared Python/Node deps, then for each instance: builds frontend, runs collectstatic + migrate, restarts Gunicorn.
+This updates shared Python/Node deps, then for each instance: builds frontend, runs migrate, restarts Gunicorn.
 
 ### Install log
 
