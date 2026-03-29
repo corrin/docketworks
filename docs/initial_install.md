@@ -40,7 +40,7 @@ sudo -u postgres ./scripts/setup_database.sh
    python scripts/configure_tunnels.py --backend https://<name>-dev.ngrok-free.app --frontend https://<name>-front.ngrok-free.app
    ```
    This updates backend `.env`, frontend `.env`, and `vite.config.ts` with the correct URLs.
-3. **`apps/workflow/fixtures/ai_providers.json`** — Copy from `ai_providers.json.example` and add real API keys for Claude, Gemini, and Mistral.
+3. **`apps/workflow/fixtures/ai_providers.json`** — Copy from `ai_providers.json.example` and add your API keys for Claude, Gemini, and Mistral. Then `python manage.py loaddata apps/workflow/fixtures/ai_providers.json`.
 
 ## Troubleshooting
 

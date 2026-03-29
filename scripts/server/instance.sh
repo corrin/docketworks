@@ -110,6 +110,9 @@ do_create() {
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
     [[ -z "${EMAIL_HOST_USER:-}" ]] && MISSING+=("EMAIL_HOST_USER")
     [[ -z "${EMAIL_HOST_PASSWORD:-}" ]] && MISSING+=("EMAIL_HOST_PASSWORD")
+    [[ -z "${ANTHROPIC_API_KEY:-}" ]] && MISSING+=("ANTHROPIC_API_KEY")
+    [[ -z "${GEMINI_API_KEY:-}" ]] && MISSING+=("GEMINI_API_KEY")
+    [[ -z "${MISTRAL_API_KEY:-}" ]] && MISSING+=("MISTRAL_API_KEY")
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $CREDS_FILE:"
@@ -273,11 +276,31 @@ EOSQL
     sudo -u "$INSTANCE_USER" bash -c "
         cd '$INSTANCE_DIR/frontend'
         npm run build
+        npm run manual:build
     "
+
+    # --- Generate AI providers fixture from template ---
+    log "Generating AI providers fixture..."
+    local ESC_ANTHROPIC_API_KEY ESC_GEMINI_API_KEY ESC_MISTRAL_API_KEY
+    ESC_ANTHROPIC_API_KEY="$(sed_escape "$ANTHROPIC_API_KEY")"
+    ESC_GEMINI_API_KEY="$(sed_escape "$GEMINI_API_KEY")"
+    ESC_MISTRAL_API_KEY="$(sed_escape "$MISTRAL_API_KEY")"
+    sed \
+        -e "s|__ANTHROPIC_API_KEY__|$ESC_ANTHROPIC_API_KEY|g" \
+        -e "s|__GEMINI_API_KEY__|$ESC_GEMINI_API_KEY|g" \
+        -e "s|__MISTRAL_API_KEY__|$ESC_MISTRAL_API_KEY|g" \
+        "$TEMPLATE_DIR/ai-providers.json.template" \
+        > "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
+    chmod 600 "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
 
     # --- Run Django commands as instance user ---
     log "Running Django migrate..."
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py migrate --no-input
+
+    # --- Load AI providers ---
+    log "Loading AI providers..."
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/workflow/fixtures/ai_providers.json
 
     # --- Create initial admin user ---
     log "Creating initial admin user..."

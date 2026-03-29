@@ -124,13 +124,11 @@ logs/restore_log_*.txt
 **/*.jpg
 django-integrations-*.json
 *.pdf
-restore/*.json
-
-
 .DS_Store
 *.csv
 steel_and_tube*
 restore/*
+!restore/.gitkeep
 steel_and_tube_products.csv
 steel_and_tube_products.json
 cookies.txt
