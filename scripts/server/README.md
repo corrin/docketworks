@@ -15,7 +15,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 | Dreamhost API key | panel.dreamhost.com → API → generate key with `dns-*` permissions | Wildcard SSL cert (DNS-01 challenge) |
 | Google Maps API key | console.cloud.google.com/apis/credentials (enable Address Validation API) | Address validation |
 
-**Per instance (configured in `credentials.env`):**
+**Per instance (configured in `config/<name>.credentials.env`):**
 
 | What | Where to get it | Used for |
 |------|----------------|----------|
@@ -47,7 +47,7 @@ Two-step process:
 sudo ./scripts/server/instance.sh prepare-config mycompany uat
 
 # Fill out the credentials file (see "Xero Setup" below)
-sudo nano /opt/docketworks/instances/mycompany-uat/credentials.env
+sudo vi /opt/docketworks/config/mycompany-uat.credentials.env
 
 # Step 2: reads credentials, creates everything
 sudo ./scripts/server/instance.sh create mycompany uat
@@ -124,9 +124,10 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ├── shared.env                # Maps API key (appended to each .env)
 ├── package.json              # Shared node_modules
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
+├── config/
+│   └── <name>.credentials.env    # Xero + GCP + email secrets (survives destroy)
 └── instances/
     └── <name>/               # = git checkout (always on main)
-        ├── credentials.env       # Xero + GCP + email secrets (user-filled)
         ├── gcp-credentials.json  # Copied from path in credentials.env (mode 600)
         ├── .env                  # Full env (generated from template + credentials + shared.env)
         ├── manage.py
@@ -141,7 +142,7 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ### How Env Vars Flow
 
 ```
-credentials.env (user fills Xero + GCP + email values)
+config/<name>.credentials.env (user fills Xero + GCP + email values)
         ↓
 instance.sh reads + validates
         ↓
