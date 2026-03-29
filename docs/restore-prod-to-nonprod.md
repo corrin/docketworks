@@ -108,8 +108,8 @@ python manage.py loaddata restore/prod_backup_YYYYMMDD_HHMMSS.json
 ```bash
 PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "
 SELECT 'workflow_job' as table_name, COUNT(*) as count FROM workflow_job
-UNION ALL SELECT 'accounts_staff', COUNT(*) FROM accounts_staff
-UNION ALL SELECT 'client_client', COUNT(*) FROM client_client
+UNION ALL SELECT 'workflow_staff', COUNT(*) FROM workflow_staff
+UNION ALL SELECT 'workflow_client', COUNT(*) FROM workflow_client
 UNION ALL SELECT 'job_costset', COUNT(*) FROM job_costset
 UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
 "
@@ -121,8 +121,8 @@ UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
   table_name   | count
 ---------------+-------
  workflow_job   |  1054
- accounts_staff |    20
- client_client  |  3739
+ workflow_staff  |    20
+ workflow_client |  3739
  job_costset    |  3162
  job_costline   | 10334
 ```
