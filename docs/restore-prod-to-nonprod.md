@@ -267,6 +267,8 @@ python scripts/restore_checks/check_test_client.py
 
 #### Step 15: Connect to Xero OAuth
 
+**Dev only:** Before this step, start ngrok, the backend, and the frontend — see [development_session.md](development_session.md).
+
 ```bash
 cd frontend && npx tsx tests/scripts/xero-login.ts && cd ..
 ```
