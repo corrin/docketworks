@@ -45,7 +45,6 @@ share/python-wheels/
 local_settings.py
 db.sqlite3
 mediafiles/
-staticfiles/
 
 # Flask
 instance/
@@ -141,6 +140,9 @@ adhoc/
 schema.yml
 
 dropbox/
+credentials.env
+gcp-credentials.json
+gunicorn.sock
 *.zip
 
 # AI provider keys (copy from .example and add real keys)

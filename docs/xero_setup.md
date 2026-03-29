@@ -4,6 +4,17 @@ DocketWorks requires you to have a Xero subscripton.  The app focuses on jobs ma
 
 This file documents how to set up Xero to work with DocketWorks.
 
+## Step 0: Create Xero Developer App
+
+**Prerequisite:** You need your ngrok domain first — set up in [initial_install.md](initial_install.md).
+
+1. Go to the [Xero Developer Portal](https://developer.xero.com/) and log in.
+2. Click "New App".
+   - Name: e.g., `docketworks-msm Development`
+   - Type: "Web app"
+   - **OAuth 2.0 Redirect URI:** Your ngrok domain + `/xero/callback` (e.g., `https://docketworks-msm-dev.ngrok-free.app/xero/callback`).
+3. Copy the **Client ID** and **Client Secret** into your `.env` file (`XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`).
+
 ## Step 1: Configure Xero
 
 Log into Xero and configure all of the following before connecting the app.
@@ -59,7 +70,7 @@ python manage.py start_xero_sync
 
 This pulls clients, accounts, pay items, stock, and employees from Xero into the app.
 
-NB: If you have a backup from production, do NOT run start_xero_sync. Instead follow [restore-to-dev.md](restore-to-dev.md) (local dev) or [instance-setup-uat.md](instance-setup-uat.md) (server) to seed Xero with your backup.
+NB: If you have a backup from production, do NOT run start_xero_sync. Instead follow [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md) to seed Xero with your backup.
 
 ## Step 3: Create Shop Jobs
 

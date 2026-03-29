@@ -8,7 +8,7 @@ set -euo pipefail
 # Steps:
 #   1. Git pull per-instance code
 #   2. Update shared deps (poetry install, npm install)
-#   3. Per-instance: npm run build, collectstatic, migrate, restart
+#   3. Per-instance: npm run build, migrate, restart
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/common.sh"
@@ -28,7 +28,7 @@ TARGETS=()
 if [[ "$1" == "--all" ]]; then
     for instance_dir in "$INSTANCES_DIR"/*/; do
         [[ -d "$instance_dir" ]] || continue
-        if [[ -f "$instance_dir/.env" && -d "$instance_dir/code/.git" ]]; then
+        if [[ -f "$instance_dir/.env" && -d "$instance_dir/.git" ]]; then
             TARGETS+=("$(basename "$instance_dir")")
         fi
     done
@@ -47,8 +47,8 @@ else
         echo "ERROR: No .env file found at $local_dir/.env"
         exit 1
     fi
-    if [[ ! -d "$local_dir/code/.git" ]]; then
-        echo "ERROR: No git repo found at $local_dir/code"
+    if [[ ! -d "$local_dir/.git" ]]; then
+        echo "ERROR: No git repo found at $local_dir"
         exit 1
     fi
 fi
@@ -63,11 +63,11 @@ sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 
 # --- Pull latest code for all target instances (from local repo) ---
 for instance in "${TARGETS[@]}"; do
-    code_dir="$INSTANCES_DIR/$instance/code"
+    inst_dir="$INSTANCES_DIR/$instance"
     instance_user="dw-$instance"
     log "Pulling latest code for $instance..."
-    sudo -u "$instance_user" git -C "$code_dir" fetch origin
-    sudo -u "$instance_user" git -C "$code_dir" pull --ff-only
+    sudo -u "$instance_user" git -C "$inst_dir" fetch origin
+    sudo -u "$instance_user" git -C "$inst_dir" pull --ff-only
 done
 
 # --- Update shared Python dependencies (from local repo) ---
@@ -90,11 +90,10 @@ sudo -u docketworks bash -c "
     npm install
 "
 
-# --- Per-instance: build, collectstatic, migrate, restart ---
+# --- Per-instance: build, migrate, restart ---
 FAILED_INSTANCES=()
 for instance in "${TARGETS[@]}"; do
     instance_dir="$INSTANCES_DIR/$instance"
-    code_dir="$instance_dir/code"
     instance_user="dw-$instance"
 
     log "--- Processing instance: $instance ---"
@@ -102,14 +101,13 @@ for instance in "${TARGETS[@]}"; do
     # Build frontend
     log "  Building frontend..."
     sudo -u "$instance_user" bash -c "
-        cd '$code_dir/frontend'
+        cd '$instance_dir/frontend'
         npm run build
     "
 
     # Collect static files + run migrations
-    log "  Running collectstatic + migrate..."
-    if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py collectstatic --no-input && \
-       "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
+    log "  Running migrate..."
+    if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
         log "  Django commands complete for $instance"
     else
         log "  ERROR: Django commands failed for $instance"

@@ -22,7 +22,6 @@ INSTANCE="$1"
 shift
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 INSTANCE_USER="dw-$INSTANCE"
-CODE_DIR="$INSTANCE_DIR/code"
 
 if [[ ! -d "$INSTANCE_DIR" ]]; then
     echo "ERROR: Instance directory $INSTANCE_DIR does not exist." >&2
@@ -35,11 +34,12 @@ if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
 fi
 
 # Build the command string with proper escaping
+# Instance dir IS the git checkout, so cd there directly.
 CMD="source '$SHARED_VENV/bin/activate'
 set -a
 source '$INSTANCE_DIR/.env'
 set +a
-cd '$CODE_DIR'
+cd '$INSTANCE_DIR'
 $(printf '%q ' "$@")"
 
 exec sudo -u "$INSTANCE_USER" bash -c "$CMD"

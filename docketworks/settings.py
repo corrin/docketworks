@@ -444,9 +444,6 @@ USE_TZ = True
 MEDIA_URL = "/media/"
 MEDIA_ROOT = BASE_DIR / "mediafiles"
 
-# Frontend assets are served by the Vue app, not Django
-STATICFILES_DIRS = []
-
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 

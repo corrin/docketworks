@@ -130,15 +130,13 @@ do_create() {
     local INSTANCE_USER="dw-$INSTANCE"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
-    local CODE_DIR="$INSTANCE_DIR/code"
 
     log "=========================================="
     log "Creating docketworks instance: $INSTANCE"
     log "  Client:    $CLIENT"
     log "  Env:       $ENV"
-    log "  Directory: $INSTANCE_DIR"
+    log "  Directory: $INSTANCE_DIR (= git checkout)"
     log "  User:      $INSTANCE_USER"
-    log "  Code:      $CODE_DIR (branch: main)"
     log "  Database:  $DB_NAME"
     log "  URL:       https://$INSTANCE.$DOMAIN"
     log "=========================================="
@@ -154,12 +152,12 @@ do_create() {
 
     # --- Create instance directory structure ---
     # Instance dir is 750 with group www-data so nginx can traverse to
-    # staticfiles, mediafiles, frontend/dist, and gunicorn.sock.
+    # mediafiles, frontend/dist, and gunicorn.sock.
     # .env and logs stay owner-only (dw-<name>:dw-<name>, 600/700).
     # Instance users have NO supplementary groups, so dw-acme cannot
     # traverse dw-msm's dir (not owner, not in www-data).
     log "Creating instance directory structure..."
-    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,staticfiles,dropbox}
+    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox}
     chown -R "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
     chmod 750 "$INSTANCE_DIR"
     chmod 700 "$INSTANCE_DIR/logs"
@@ -173,12 +171,12 @@ do_create() {
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
     # Symlink shared venv into instance dir so the user can `source ~/.venv/bin/activate`
     ln -sfn "$SHARED_VENV" "$INSTANCE_DIR/.venv"
-    # Create .bash_profile that activates venv, loads .env, and cd's to code dir.
+    # Create .bash_profile that activates venv and loads .env.
     # .bash_profile (not .bashrc) because SSH login shells read .bash_profile.
+    # The home dir IS the git checkout, so no cd needed.
     cat > "$INSTANCE_DIR/.bash_profile" <<'BASH_PROFILE'
 source ~/.venv/bin/activate
 set -a; source ~/.env; set +a
-cd ~/code
 BASH_PROFILE
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.bash_profile"
     chmod 644 "$INSTANCE_DIR/.bash_profile"
@@ -255,22 +253,22 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
 EOSQL
 
-    # --- Clone code from local repo into instance dir ---
-    if [[ -d "$CODE_DIR/.git" ]]; then
+    # --- Clone repo directly into instance dir (instance dir = git checkout) ---
+    if [[ -d "$INSTANCE_DIR/.git" ]]; then
         log "Code already cloned — pulling latest on main..."
-        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" remote set-url origin "$LOCAL_REPO"
-        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" fetch origin
-        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" checkout main
-        sudo -u "$INSTANCE_USER" git -C "$CODE_DIR" pull --ff-only
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" remote set-url origin "$LOCAL_REPO"
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" fetch origin
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" checkout main
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" pull --ff-only
     else
-        log "Cloning codebase to $CODE_DIR from local repo (branch: main)..."
-        sudo -u "$INSTANCE_USER" git clone --branch main "$LOCAL_REPO" "$CODE_DIR"
+        log "Cloning codebase into $INSTANCE_DIR from local repo (branch: main)..."
+        sudo -u "$INSTANCE_USER" git clone --branch main "$LOCAL_REPO" "$INSTANCE_DIR"
     fi
 
     # --- Build frontend ---
     log "Building frontend for instance $INSTANCE..."
     sudo -u "$INSTANCE_USER" bash -c "
-        cd '$CODE_DIR/frontend'
+        cd '$INSTANCE_DIR/frontend'
         npm run build
     "
 
@@ -313,9 +311,8 @@ EOSQL
     log "=========================================="
     log "Instance '$INSTANCE' created successfully"
     log "  URL:        https://$INSTANCE.$DOMAIN"
-    log "  Directory:  $INSTANCE_DIR"
+    log "  Directory:  $INSTANCE_DIR (= git checkout)"
     log "  User:       $INSTANCE_USER"
-    log "  Code:       $CODE_DIR (branch: main)"
     log "  Database:   $DB_NAME"
     log "  Service:    gunicorn-$INSTANCE"
     log "=========================================="
@@ -424,9 +421,9 @@ do_list() {
             status="no service"
         fi
 
-        local code_dir="$INSTANCES_DIR/$name/code"
-        if [[ -d "$code_dir/.git" ]]; then
-            branch="$(git -C "$code_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
+        local inst_dir="$INSTANCES_DIR/$name"
+        if [[ -d "$inst_dir/.git" ]]; then
+            branch="$(git -C "$inst_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
         else
             branch="no code"
         fi
