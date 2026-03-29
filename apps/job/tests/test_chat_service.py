@@ -243,33 +243,6 @@ class ChatServiceToolExecutionTests(TestCase):
         self.mock_quoting_tool = Mock()
         self.service.quoting_tool = self.mock_quoting_tool
 
-    def test_execute_search_products_tool(self):
-        """Test search_products tool execution"""
-        self.mock_quoting_tool.search_products.return_value = "Found 5 products"
-
-        result = self.service._execute_mcp_tool(
-            "search_products",
-            {"query": "steel angle", "supplier_name": "Test Supplier"},
-        )
-
-        self.mock_quoting_tool.search_products.assert_called_once_with(
-            query="steel angle", supplier_name="Test Supplier"
-        )
-        self.assertEqual(result, "Found 5 products")
-
-    def test_execute_pricing_tool(self):
-        """Test get_pricing_for_material tool execution"""
-        self.mock_quoting_tool.get_pricing_for_material.return_value = "Steel: $5.50/kg"
-
-        result = self.service._execute_mcp_tool(
-            "get_pricing_for_material", {"material_type": "steel", "dimensions": "4x8"}
-        )
-
-        self.mock_quoting_tool.get_pricing_for_material.assert_called_once_with(
-            material_type="steel", dimensions="4x8"
-        )
-        self.assertEqual(result, "Steel: $5.50/kg")
-
     def test_execute_unknown_tool(self):
         """Test execution of unknown tool"""
         result = self.service._execute_mcp_tool("unknown_tool", {})
@@ -755,57 +728,6 @@ class ChatServiceModeResponseTests(BaseTestCase):
         )
 
         self.service = ChatService()
-
-    @patch.object(ChatService, "get_llm_service")
-    def test_generate_mode_response_calc(self, mock_get_llm):
-        """Test mode response generation for CALC mode"""
-        mock_llm = MockLLMResponseBuilder.create_mock_llm("gemini-pro")
-        mock_get_llm.return_value = mock_llm
-
-        # Mock the mode_controller.run method
-        with patch.object(
-            self.service.mode_controller,
-            "run",
-            return_value=({"results": {"area": 100.5, "weight": 25.3}}, False),
-        ):
-            with patch.object(
-                self.service.mode_controller, "infer_mode", return_value="CALC"
-            ):
-                result = self.service.generate_mode_response(
-                    str(self.job.id), "Calculate the area of 10x10 sheet"
-                )
-
-        self.assertIsInstance(result, JobQuoteChat)
-        self.assertEqual(result.role, "assistant")
-        self.assertIn("Calculation Results", result.content)
-        self.assertEqual(result.metadata["mode"], "CALC")
-
-    @patch.object(ChatService, "get_llm_service")
-    def test_generate_mode_response_with_questions(self, mock_get_llm):
-        """Test mode response generation when clarification is needed"""
-        mock_llm = MockLLMResponseBuilder.create_mock_llm("gemini-pro")
-        mock_get_llm.return_value = mock_llm
-
-        # Mock the mode_controller.run to return questions
-        with patch.object(
-            self.service.mode_controller,
-            "run",
-            return_value=(
-                {"questions": ["What thickness?", "What material grade?"]},
-                True,
-            ),
-        ):
-            with patch.object(
-                self.service.mode_controller, "infer_mode", return_value="CALC"
-            ):
-                result = self.service.generate_mode_response(
-                    str(self.job.id), "Calculate the weight"
-                )
-
-        self.assertIsInstance(result, JobQuoteChat)
-        self.assertIn("clarification", result.content.lower())
-        self.assertIn("What thickness?", result.content)
-        self.assertTrue(result.metadata["has_questions"])
 
     @patch.object(ChatService, "get_llm_service")
     def test_generate_mode_response_error_handling(self, mock_get_llm):

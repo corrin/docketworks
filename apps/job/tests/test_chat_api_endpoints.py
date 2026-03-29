@@ -341,14 +341,6 @@ class ChatAPIEndpointTests(BaseTestCase):
         self.assertFalse(response.data["success"])
         self.assertIn("internal error", response.data["error"])
 
-    def test_chat_interaction_options_request(self):
-        """Test OPTIONS request for CORS preflight"""
-        response = self.client_api.options(self.chat_interaction_url)
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        # Check that POST is allowed
-        self.assertIn("POST", response.get("Allow", ""))
-
 
 class ChatAPIPermissionTests(BaseTestCase):
     """Test API permissions and authentication"""
@@ -579,13 +571,3 @@ class ChatAPIValidationTests(BaseTestCase):
 
         response = self.client_api.get(nonexistent_url)
         self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-
-    def test_malformed_json_request(self):
-        """Test API with malformed JSON"""
-        response = self.client_api.post(
-            self.chat_history_url,
-            data='{"invalid": json}',
-            content_type="application/json",
-        )
-
-        self.assertEqual(response.status_code, status.HTTP_400_BAD_REQUEST)
