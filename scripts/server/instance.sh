@@ -46,7 +46,7 @@ parse_client_env() {
 do_prepare_config() {
     parse_client_env "$@"
 
-    local CREDS_FILE="$INSTANCES_DIR/$INSTANCE/credentials.env"
+    local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
     if [[ -f "$CREDS_FILE" ]]; then
         echo "Credentials file already exists at:"
         echo "  $CREDS_FILE"
@@ -55,7 +55,7 @@ do_prepare_config() {
         exit 0
     fi
 
-    mkdir -p "$INSTANCES_DIR/$INSTANCE"
+    mkdir -p "$CONFIG_DIR"
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
     chmod 600 "$CREDS_FILE"
@@ -88,7 +88,7 @@ do_create() {
     done
 
     # --- Read instance credentials file ---
-    local CREDS_FILE="$INSTANCES_DIR/$INSTANCE/credentials.env"
+    local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
     if [[ ! -f "$CREDS_FILE" ]]; then
         echo "ERROR: No credentials file found at $CREDS_FILE"
         echo ""
@@ -261,8 +261,11 @@ EOSQL
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" checkout main
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" pull --ff-only
     else
-        log "Cloning codebase into $INSTANCE_DIR from local repo (branch: main)..."
-        sudo -u "$INSTANCE_USER" git clone --branch main "$LOCAL_REPO" "$INSTANCE_DIR"
+        log "Initialising codebase in $INSTANCE_DIR from local repo (branch: main)..."
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" init -b main
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" remote add origin "$LOCAL_REPO"
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" fetch origin
+        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" checkout -f main
     fi
 
     # --- Build frontend ---
