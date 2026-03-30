@@ -6,7 +6,9 @@ import sys
 
 # Setup Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
-os.environ.setdefault("HTTP_HOST", "localhost:8000")
+if "APP_DOMAIN" not in os.environ:
+    raise RuntimeError("APP_DOMAIN must be set in .env")
+os.environ.setdefault("HTTP_HOST", os.environ["APP_DOMAIN"])
 
 import django
 
@@ -34,7 +36,9 @@ def test_kanban_api() -> bool:
     client.force_login(admin_user)
 
     # Make authenticated request to Kanban API
-    response = client.get("/api/job/jobs/fetch-all/", HTTP_HOST="localhost:8000")
+    response = client.get(
+        "/api/job/jobs/fetch-all/", HTTP_HOST=os.environ["APP_DOMAIN"]
+    )
 
     if response.status_code != 200:
         print(f"✗ ERROR: API returned status {response.status_code}")
