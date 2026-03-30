@@ -11,6 +11,10 @@ REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 
 VALID_ENVS="dev uat staging prod"
 
+# Per-instance disk quotas (requires filesystem quotas enabled on /opt or /)
+QUOTA_SOFT="2G"
+QUOTA_HARD="5G"
+
 log() {
     echo "[$(date '+%Y-%m-%d %H:%M:%S')] $*" | tee -a /var/log/docketworks-setup.log
 }

@@ -1,0 +1,20 @@
+# Path to backend .env file (for E2E test database backup/restore)
+BACKEND_ENV_PATH=/opt/docketworks/instances/__INSTANCE__/.env
+
+# E2E test credentials (admin user on this instance)
+E2E_TEST_USERNAME=__E2E_TEST_USERNAME__
+E2E_TEST_PASSWORD=__E2E_TEST_PASSWORD__
+
+VITE_FRONTEND_BASE_URL=https://__INSTANCE__.__DOMAIN__
+VITE_ALLOWED_HOSTS=__INSTANCE__.__DOMAIN__
+VITE_UAT_URL=https://__CLIENT__-uat.__DOMAIN__
+
+# Authentication method
+VITE_AUTH_METHOD=cookie
+
+# Weekend timesheets feature flag
+VITE_WEEKEND_TIMESHEETS_ENABLED=false
+
+# Xero login credentials (for automated OAuth flow during restore)
+XERO_USERNAME=__XERO_USERNAME__
+XERO_PASSWORD="__XERO_PASSWORD__"

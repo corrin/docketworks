@@ -110,9 +110,15 @@ do_create() {
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
     [[ -z "${EMAIL_HOST_USER:-}" ]] && MISSING+=("EMAIL_HOST_USER")
     [[ -z "${EMAIL_HOST_PASSWORD:-}" ]] && MISSING+=("EMAIL_HOST_PASSWORD")
+    [[ -z "${DJANGO_ADMINS:-}" ]] && MISSING+=("DJANGO_ADMINS")
+    [[ -z "${EMAIL_BCC:-}" ]] && MISSING+=("EMAIL_BCC")
     [[ -z "${ANTHROPIC_API_KEY:-}" ]] && MISSING+=("ANTHROPIC_API_KEY")
     [[ -z "${GEMINI_API_KEY:-}" ]] && MISSING+=("GEMINI_API_KEY")
     [[ -z "${MISTRAL_API_KEY:-}" ]] && MISSING+=("MISTRAL_API_KEY")
+    [[ -z "${E2E_TEST_USERNAME:-}" ]] && MISSING+=("E2E_TEST_USERNAME")
+    [[ -z "${E2E_TEST_PASSWORD:-}" ]] && MISSING+=("E2E_TEST_PASSWORD")
+    [[ -z "${XERO_USERNAME:-}" ]] && MISSING+=("XERO_USERNAME")
+    [[ -z "${XERO_PASSWORD:-}" ]] && MISSING+=("XERO_PASSWORD")
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $CREDS_FILE:"
@@ -200,9 +206,11 @@ BASH_PROFILE
         ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
         ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
         ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
-        local ESC_EMAIL_HOST_USER ESC_EMAIL_HOST_PASSWORD
+        local ESC_EMAIL_HOST_USER ESC_EMAIL_HOST_PASSWORD ESC_DJANGO_ADMINS ESC_EMAIL_BCC
         ESC_EMAIL_HOST_USER="$(sed_escape "$EMAIL_HOST_USER")"
         ESC_EMAIL_HOST_PASSWORD="$(sed_escape "$EMAIL_HOST_PASSWORD")"
+        ESC_DJANGO_ADMINS="$(sed_escape "$DJANGO_ADMINS")"
+        ESC_EMAIL_BCC="$(sed_escape "$EMAIL_BCC")"
 
         local GCP_DEST="$INSTANCE_DIR/gcp-credentials.json"
         sed \
@@ -220,6 +228,8 @@ BASH_PROFILE
             -e "s|__GCP_CREDENTIALS_PATH__|$GCP_DEST|g" \
             -e "s|__EMAIL_HOST_USER__|$ESC_EMAIL_HOST_USER|g" \
             -e "s|__EMAIL_HOST_PASSWORD__|$ESC_EMAIL_HOST_PASSWORD|g" \
+            -e "s|__DJANGO_ADMINS__|$ESC_DJANGO_ADMINS|g" \
+            -e "s|__EMAIL_BCC__|$ESC_EMAIL_BCC|g" \
             "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
 
         # Append shared config: Google credentials (base-setup must have run first)
@@ -269,6 +279,30 @@ EOSQL
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" remote add origin "$LOCAL_REPO"
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" fetch origin
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" checkout -f main
+    fi
+
+    # --- Generate frontend/.env (skip if it already exists) ---
+    local FRONTEND_ENV="$INSTANCE_DIR/frontend/.env"
+    if [[ -f "$FRONTEND_ENV" ]]; then
+        log "frontend/.env already exists — skipping (credentials preserved)."
+    else
+        log "Generating frontend/.env from template..."
+        local ESC_E2E_TEST_USERNAME ESC_E2E_TEST_PASSWORD ESC_XERO_USERNAME ESC_XERO_PASSWORD
+        ESC_E2E_TEST_USERNAME="$(sed_escape "$E2E_TEST_USERNAME")"
+        ESC_E2E_TEST_PASSWORD="$(sed_escape "$E2E_TEST_PASSWORD")"
+        ESC_XERO_USERNAME="$(sed_escape "$XERO_USERNAME")"
+        ESC_XERO_PASSWORD="$(sed_escape "$XERO_PASSWORD")"
+        sed \
+            -e "s|__INSTANCE__|$INSTANCE|g" \
+            -e "s|__CLIENT__|$CLIENT|g" \
+            -e "s|__DOMAIN__|$DOMAIN|g" \
+            -e "s|__E2E_TEST_USERNAME__|$ESC_E2E_TEST_USERNAME|g" \
+            -e "s|__E2E_TEST_PASSWORD__|$ESC_E2E_TEST_PASSWORD|g" \
+            -e "s|__XERO_USERNAME__|$ESC_XERO_USERNAME|g" \
+            -e "s|__XERO_PASSWORD__|$ESC_XERO_PASSWORD|g" \
+            "$TEMPLATE_DIR/frontend-env-instance.template" > "$FRONTEND_ENV"
+        chown "$INSTANCE_USER:$INSTANCE_USER" "$FRONTEND_ENV"
+        chmod 600 "$FRONTEND_ENV"
     fi
 
     # --- Build frontend ---
@@ -322,6 +356,15 @@ EOSQL
     systemctl enable "gunicorn-$INSTANCE"
     systemctl restart "gunicorn-$INSTANCE"
 
+    log "Installing systemd service scheduler-$INSTANCE..."
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        "$TEMPLATE_DIR/scheduler-instance.service.template" \
+        > "/etc/systemd/system/scheduler-$INSTANCE.service"
+    systemctl daemon-reload
+    systemctl enable "scheduler-$INSTANCE"
+    systemctl restart "scheduler-$INSTANCE"
+
     # --- Install Nginx server block ---
     log "Installing Nginx config for $INSTANCE.$DOMAIN..."
     sed \
@@ -341,6 +384,7 @@ EOSQL
     log "  User:       $INSTANCE_USER"
     log "  Database:   $DB_NAME"
     log "  Service:    gunicorn-$INSTANCE"
+    log "  Scheduler:  scheduler-$INSTANCE"
     log "=========================================="
 
     echo ""
@@ -365,6 +409,7 @@ do_destroy() {
     echo "    - Database:  $DB_NAME"
     echo "    - User:      $INSTANCE_USER"
     echo "    - Service:   gunicorn-$INSTANCE"
+    echo "    - Service:   scheduler-$INSTANCE"
     echo "    - Nginx:     docketworks-$INSTANCE"
     echo ""
     read -p "Are you sure? (yes/no): " CONFIRM
@@ -373,15 +418,26 @@ do_destroy() {
         exit 0
     fi
 
-    # --- Stop and remove systemd service ---
+    # --- Stop and remove systemd services ---
     if systemctl is-active --quiet "gunicorn-$INSTANCE" 2>/dev/null; then
         echo "=== Stopping Gunicorn service ==="
         systemctl stop "gunicorn-$INSTANCE"
     fi
     if [[ -f "/etc/systemd/system/gunicorn-$INSTANCE.service" ]]; then
-        echo "=== Removing systemd service ==="
+        echo "=== Removing Gunicorn service ==="
         systemctl disable "gunicorn-$INSTANCE" 2>/dev/null || true
         rm -f "/etc/systemd/system/gunicorn-$INSTANCE.service"
+        systemctl daemon-reload
+    fi
+
+    if systemctl is-active --quiet "scheduler-$INSTANCE" 2>/dev/null; then
+        echo "=== Stopping Scheduler service ==="
+        systemctl stop "scheduler-$INSTANCE"
+    fi
+    if [[ -f "/etc/systemd/system/scheduler-$INSTANCE.service" ]]; then
+        echo "=== Removing Scheduler service ==="
+        systemctl disable "scheduler-$INSTANCE" 2>/dev/null || true
+        rm -f "/etc/systemd/system/scheduler-$INSTANCE.service"
         systemctl daemon-reload
     fi
 
@@ -434,17 +490,25 @@ do_list() {
         exit 0
     fi
 
-    printf "%-15s %-12s %-20s %-40s\n" "INSTANCE" "STATUS" "BRANCH" "URL"
-    printf "%-15s %-12s %-20s %-40s\n" "--------" "------" "------" "---"
+    printf "%-15s %-12s %-12s %-20s %-40s\n" "INSTANCE" "GUNICORN" "SCHEDULER" "BRANCH" "URL"
+    printf "%-15s %-12s %-12s %-20s %-40s\n" "--------" "--------" "---------" "------" "---"
 
     for name in "${INSTANCES[@]}"; do
-        local status branch
+        local status sched_status branch
         if systemctl is-active --quiet "gunicorn-$name" 2>/dev/null; then
             status="running"
         elif systemctl is-enabled --quiet "gunicorn-$name" 2>/dev/null; then
             status="stopped"
         else
             status="no service"
+        fi
+
+        if systemctl is-active --quiet "scheduler-$name" 2>/dev/null; then
+            sched_status="running"
+        elif systemctl is-enabled --quiet "scheduler-$name" 2>/dev/null; then
+            sched_status="stopped"
+        else
+            sched_status="no service"
         fi
 
         local inst_dir="$INSTANCES_DIR/$name"
@@ -454,7 +518,7 @@ do_list() {
             branch="no code"
         fi
 
-        printf "%-15s %-12s %-20s %-40s\n" "$name" "$status" "$branch" "https://$name.$DOMAIN"
+        printf "%-15s %-12s %-12s %-20s %-40s\n" "$name" "$status" "$sched_status" "$branch" "https://$name.$DOMAIN"
     done
 }
 
