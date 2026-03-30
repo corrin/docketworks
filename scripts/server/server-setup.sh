@@ -298,6 +298,21 @@ else
 fi
 log_version "pm2" "$(pm2 --version)"
 
+# --- GitHub CLI ---
+
+if command -v gh &>/dev/null; then
+    log "GitHub CLI already installed, skipping."
+else
+    log "Installing GitHub CLI..."
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list
+    apt update
+    apt install -y gh
+fi
+log_version "gh" "$(gh --version | head -1)"
+
 # --- Claude Code CLI ---
 
 if command -v claude &>/dev/null; then
@@ -380,6 +395,7 @@ Git:        $(git --version)
 Poetry:     $POETRY_VERSION
 pnpm:       $(pnpm --version)
 pm2:        $(pm2 --version)
+gh:         $(gh --version | head -1)
 Claude:     $CLAUDE_VERSION
 
 ## System User
