@@ -159,6 +159,21 @@ do_create() {
         log "  Created user '$INSTANCE_USER' (no supplementary groups)."
     fi
 
+    # --- Set disk quota for instance user ---
+    if command -v setquota &>/dev/null; then
+        local QUOTA_MOUNT
+        QUOTA_MOUNT="$(df --output=target "$INSTANCES_DIR" | tail -1)"
+        if quotaon -p "$QUOTA_MOUNT" &>/dev/null; then
+            log "Setting disk quota for $INSTANCE_USER: soft=$QUOTA_SOFT hard=$QUOTA_HARD"
+            setquota -u "$INSTANCE_USER" "$QUOTA_SOFT" "$QUOTA_HARD" 0 0 "$QUOTA_MOUNT"
+        else
+            log "WARNING: Filesystem quotas not enabled on $QUOTA_MOUNT"
+            log "  Enable with: sudo quotacheck -cum $QUOTA_MOUNT && sudo quotaon $QUOTA_MOUNT"
+        fi
+    else
+        log "WARNING: setquota not found — install quota package: sudo apt install quota"
+    fi
+
     # --- Create instance directory structure ---
     # Instance dir is 750 with group www-data so nginx can traverse to
     # mediafiles, frontend/dist, and gunicorn.sock.
