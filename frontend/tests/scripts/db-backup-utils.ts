@@ -13,7 +13,7 @@ type DbConfig = {
   password: string
 }
 
-function parseEnvFile(filePath: string): Record<string, string> {
+export function parseEnvFile(filePath: string): Record<string, string> {
   const content = fs.readFileSync(filePath, 'utf8')
   const entries = content.split(/\r?\n/)
   const result: Record<string, string> = {}
@@ -38,34 +38,13 @@ function parseEnvFile(filePath: string): Record<string, string> {
 }
 
 function resolveBackendEnvPath(frontendDir: string): string {
-  const frontendEnvPath = path.join(frontendDir, '.env')
-  if (!fs.existsSync(frontendEnvPath)) {
-    throw new Error('Frontend .env not found. Expected at project root.')
-  }
-
-  const frontendEnv = parseEnvFile(frontendEnvPath)
-  const backendEnvPathRaw = frontendEnv.BACKEND_ENV_PATH
-  if (!backendEnvPathRaw) {
-    throw new Error('BACKEND_ENV_PATH not set in frontend .env')
-  }
-
-  let backendEnvPath = path.isAbsolute(backendEnvPathRaw)
-    ? backendEnvPathRaw
-    : path.resolve(frontendDir, backendEnvPathRaw)
-
+  const backendEnvPath = path.join(frontendDir, '..', '.env')
   if (!fs.existsSync(backendEnvPath)) {
-    throw new Error(`Backend .env not found at ${backendEnvPath}`)
+    throw new Error(
+      `Backend .env not found at ${backendEnvPath}. ` +
+        'Expected at repo root (one level up from frontend/).',
+    )
   }
-
-  const stats = fs.statSync(backendEnvPath)
-  if (stats.isDirectory()) {
-    backendEnvPath = path.join(backendEnvPath, '.env')
-  }
-
-  if (!fs.existsSync(backendEnvPath)) {
-    throw new Error(`Backend .env not found at ${backendEnvPath}`)
-  }
-
   return backendEnvPath
 }
 
@@ -75,6 +54,16 @@ export function getFrontendDir(): string {
 
 export function getBackupsDir(): string {
   return path.join(__dirname, '..', 'backups')
+}
+
+/**
+ * Parse the backend .env and return all key-value pairs.
+ * Used by Playwright config and test scripts to read APP_DOMAIN, DB creds, etc.
+ */
+export function getBackendEnv(): Record<string, string> {
+  const frontendDir = getFrontendDir()
+  const backendEnvPath = resolveBackendEnvPath(frontendDir)
+  return parseEnvFile(backendEnvPath)
 }
 
 export const TEST_CLIENT_NAME = 'ABC Carpet Cleaning TEST IGNORE'
