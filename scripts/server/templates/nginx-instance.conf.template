@@ -4,7 +4,7 @@ server {
 
     location = /favicon.ico { access_log off; log_not_found off; }
 
-    # Django backend — API and admin
+    # Django backend — API only (no Django admin is registered)
     location /api/ {
         proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
         proxy_set_header Host $host;
@@ -16,15 +16,6 @@ server {
         proxy_read_timeout 1h;
         proxy_send_timeout 1h;
         proxy_buffering off;
-    }
-
-    # Django admin (served by Gunicorn)
-    location /admin/ {
-        proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
     }
 
     # Django media files (per-instance uploads)
