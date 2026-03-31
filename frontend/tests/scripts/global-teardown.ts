@@ -169,6 +169,7 @@ function restoreDatabase() {
   }
 
   // Restore the database
+  console.log('[db] Restoring from backup...')
   const inputFd = fs.openSync(backupFile, 'r')
   const result = spawnSync(
     'psql',
