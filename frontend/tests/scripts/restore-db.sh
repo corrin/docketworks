@@ -7,13 +7,11 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$SCRIPT_DIR/../.."
 BACKUP_DIR="$SCRIPT_DIR/../backups"
 
-# Load BACKEND_ENV_PATH from frontend .env
-if [ -f "$FRONTEND_DIR/.env" ]; then
-    BACKEND_ENV_PATH=$(grep -E '^BACKEND_ENV_PATH=' "$FRONTEND_DIR/.env" | cut -d'=' -f2)
-fi
+# Backend .env is always one level up from frontend/
+BACKEND_ENV_PATH="$FRONTEND_DIR/../.env"
 
-if [ -z "$BACKEND_ENV_PATH" ] || [ ! -f "$BACKEND_ENV_PATH" ]; then
-    echo "Error: Backend .env not found. Set BACKEND_ENV_PATH in frontend .env"
+if [ ! -f "$BACKEND_ENV_PATH" ]; then
+    echo "Error: Backend .env not found at $BACKEND_ENV_PATH"
     exit 1
 fi
 
