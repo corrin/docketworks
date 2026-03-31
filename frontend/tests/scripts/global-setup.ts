@@ -2,7 +2,13 @@ import { spawnSync } from 'child_process'
 import fs from 'fs'
 import os from 'os'
 import path from 'path'
-import { getBackupsDir, getDbConfig, checkSafeToTest, syncSequences } from './db-backup-utils'
+import {
+  getBackendEnv,
+  getBackupsDir,
+  getDbConfig,
+  checkSafeToTest,
+  syncSequences,
+} from './db-backup-utils'
 
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
 
@@ -18,10 +24,12 @@ function formatTimestamp(date: Date): string {
  * Does NOT attempt to connect or refresh tokens.
  */
 async function checkXeroConnected(): Promise<boolean> {
-  const frontendUrl = process.env.VITE_FRONTEND_BASE_URL
-  if (!frontendUrl) {
-    throw new Error('VITE_FRONTEND_BASE_URL must be set in .env')
+  const backendEnv = getBackendEnv()
+  const appDomain = backendEnv.APP_DOMAIN
+  if (!appDomain) {
+    throw new Error('APP_DOMAIN must be set in backend .env')
   }
+  const frontendUrl = `https://${appDomain}`
 
   try {
     const response = await fetch(`${frontendUrl}/api/xero/ping/`)
