@@ -207,6 +207,32 @@ log_version "git" "$(git --version)"
 apt install -y iptables-persistent netfilter-persistent
 log_version "iptables" "$(iptables --version)"
 
+# --- Filesystem quotas (per-instance disk limits) ---
+
+log "Installing quota tools and enabling filesystem quotas..."
+apt install -y quota
+QUOTA_MOUNT="$(df --output=target /opt | tail -1)"
+if ! quotaon -p "$QUOTA_MOUNT" &>/dev/null; then
+    log "  Enabling quotas on $QUOTA_MOUNT..."
+    quotacheck -cum "$QUOTA_MOUNT"
+    quotaon "$QUOTA_MOUNT"
+    log "  Filesystem quotas enabled on $QUOTA_MOUNT"
+else
+    log "  Filesystem quotas already enabled on $QUOTA_MOUNT"
+fi
+log_version "quota" "$(dpkg -s quota | grep Version | awk '{print $2}')"
+
+# --- Logrotate config for instance logs ---
+
+SCRIPT_DIR_SETUP="$(cd "$(dirname "$0")" && pwd)"
+if [[ ! -f /etc/logrotate.d/docketworks ]]; then
+    log "Installing logrotate config for instance logs..."
+    cp "$SCRIPT_DIR_SETUP/templates/logrotate-docketworks.conf" /etc/logrotate.d/docketworks
+    log "  Logrotate config installed."
+else
+    log "Logrotate config already installed, skipping."
+fi
+
 # --- Firewall (Oracle Cloud iptables) ---
 
 log "Configuring firewall — opening ports 80 and 443..."

@@ -1,15 +1,27 @@
+import fs from 'node:fs'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import { defineConfig, loadEnv } from 'vite'
 
+function readBackendAppDomain(): string {
+  const backendEnvPath = path.resolve(__dirname, '..', '.env')
+  if (!fs.existsSync(backendEnvPath)) {
+    throw new Error(`Backend .env not found at ${backendEnvPath}`)
+  }
+  const content = fs.readFileSync(backendEnvPath, 'utf8')
+  const match = content.match(/^APP_DOMAIN=(.+)$/m)
+  if (!match) {
+    throw new Error('APP_DOMAIN not set in backend .env')
+  }
+  return match[1].trim().replace(/^["']|["']$/g, '')
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
+  const appDomain = readBackendAppDomain()
 
-  const allowedHosts = [
-    'localhost',
-    ...(env.VITE_ALLOWED_HOSTS ? env.VITE_ALLOWED_HOSTS.split(',').map((host) => host.trim()) : []),
-  ]
+  const allowedHosts = ['localhost', appDomain]
 
   // Check if we're running through localtunnel
   const tunnelHost = env.DEV_TUNNEL_HOST || ''

@@ -9,6 +9,7 @@
 
 import { chromium, type Browser } from '@playwright/test'
 import dotenv from 'dotenv'
+import { getBackendEnv } from './db-backup-utils'
 
 dotenv.config()
 
@@ -46,7 +47,12 @@ export async function ensureXeroConnected(): Promise<void> {
   const xeroPassword = process.env.XERO_PASSWORD
   const appUsername = process.env.E2E_TEST_USERNAME
   const appPassword = process.env.E2E_TEST_PASSWORD
-  const frontendUrl = process.env.VITE_FRONTEND_BASE_URL
+  const backendEnv = getBackendEnv()
+  const appDomain = backendEnv.APP_DOMAIN
+  if (!appDomain) {
+    throw new Error('APP_DOMAIN must be set in backend .env')
+  }
+  const frontendUrl = `https://${appDomain}`
 
   if (!xeroUsername || !xeroPassword) {
     throw new Error('XERO_USERNAME and XERO_PASSWORD must be set in .env')
@@ -54,10 +60,6 @@ export async function ensureXeroConnected(): Promise<void> {
 
   if (!appUsername || !appPassword) {
     throw new Error('E2E_TEST_USERNAME and E2E_TEST_PASSWORD must be set in .env')
-  }
-
-  if (!frontendUrl) {
-    throw new Error('VITE_FRONTEND_BASE_URL must be set in .env')
   }
 
   const browser = await launchBrowserWithFallback()
