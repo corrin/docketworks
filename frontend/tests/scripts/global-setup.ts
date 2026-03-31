@@ -22,6 +22,7 @@ function formatTimestamp(date: Date): string {
 /**
  * Read-only check: verify Xero is connected by hitting the ping endpoint.
  * Does NOT attempt to connect or refresh tokens.
+ * Authenticates via JWT because the endpoint requires auth.
  */
 async function checkXeroConnected(): Promise<boolean> {
   const backendEnv = getBackendEnv()
@@ -31,14 +32,36 @@ async function checkXeroConnected(): Promise<boolean> {
   }
   const frontendUrl = `https://${appDomain}`
 
-  try {
-    const response = await fetch(`${frontendUrl}/api/xero/ping/`)
-    if (!response.ok) return false
-    const data = (await response.json()) as { connected: boolean }
-    return data.connected === true
-  } catch {
-    return false
+  const username = process.env.E2E_TEST_USERNAME
+  const password = process.env.E2E_TEST_PASSWORD
+  if (!username || !password) {
+    throw new Error('E2E_TEST_USERNAME and E2E_TEST_PASSWORD must be set in .env')
   }
+
+  // Authenticate to get JWT cookie
+  const loginResponse = await fetch(`${frontendUrl}/api/accounts/token/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!loginResponse.ok) {
+    throw new Error(`Login failed with status ${loginResponse.status}`)
+  }
+
+  // Extract access_token cookie from Set-Cookie header
+  const setCookies = loginResponse.headers.getSetCookie()
+  const accessCookie = setCookies.find((c) => c.startsWith('access_token='))
+  if (!accessCookie) {
+    throw new Error('No access_token cookie in login response')
+  }
+  const cookieValue = accessCookie.split(';')[0] // "access_token=<jwt>"
+
+  const response = await fetch(`${frontendUrl}/api/xero/ping/`, {
+    headers: { Cookie: cookieValue },
+  })
+  if (!response.ok) return false
+  const data = (await response.json()) as { connected: boolean }
+  return data.connected === true
 }
 
 export default async function globalSetup() {

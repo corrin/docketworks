@@ -76,10 +76,15 @@ export function getDbConfig(): DbConfig {
   const backendEnvPath = resolveBackendEnvPath(frontendDir)
   const backendEnv = parseEnvFile(backendEnvPath)
 
-  const required = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST', 'DB_PORT'] as const
+  const required = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST'] as const
   const missing = required.filter((key) => !backendEnv[key])
   if (missing.length > 0) {
     throw new Error(`Backend .env missing required entries: ${missing.join(', ')}`)
+  }
+
+  const isSocket = backendEnv.DB_HOST?.startsWith('/')
+  if (!isSocket && !backendEnv.DB_PORT) {
+    throw new Error('Backend .env missing required entry: DB_PORT (required for TCP connections)')
   }
 
   return {
@@ -96,14 +101,15 @@ export function getDbConfig(): DbConfig {
  * Throws on non-zero exit code.
  */
 export function runPsql(dbConfig: DbConfig, sql: string): string {
-  const result = spawnSync(
-    'psql',
-    ['-h', dbConfig.host, '-p', dbConfig.port, '-U', dbConfig.user, dbConfig.database, '-tAc', sql],
-    {
-      stdio: ['ignore', 'pipe', 'pipe'],
-      env: { ...process.env, PGPASSWORD: dbConfig.password },
-    },
-  )
+  const args = ['-h', dbConfig.host]
+  if (dbConfig.port) {
+    args.push('-p', dbConfig.port)
+  }
+  args.push('-U', dbConfig.user, dbConfig.database, '-tAc', sql)
+  const result = spawnSync('psql', args, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    env: { ...process.env, PGPASSWORD: dbConfig.password },
+  })
   if (result.status !== 0) {
     const stderr = result.stderr?.toString() || ''
     throw new Error(`psql failed (exit code ${result.status}): ${stderr}`)

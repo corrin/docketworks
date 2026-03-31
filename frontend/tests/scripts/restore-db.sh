@@ -18,8 +18,14 @@ fi
 # Source database credentials from backend .env
 set -a; source "$BACKEND_ENV_PATH"; set +a
 
-if [ -z "${DB_HOST:-}" ] || [ -z "${DB_PORT:-}" ]; then
-    echo "Error: DB_HOST and DB_PORT must be set in $BACKEND_ENV_PATH"
+if [ -z "${DB_HOST:-}" ]; then
+    echo "Error: DB_HOST must be set in $BACKEND_ENV_PATH"
+    exit 1
+fi
+
+# DB_PORT is required for TCP connections, optional for Unix sockets
+if [[ ! "$DB_HOST" == /* ]] && [ -z "${DB_PORT:-}" ]; then
+    echo "Error: DB_PORT must be set in $BACKEND_ENV_PATH for TCP connections"
     exit 1
 fi
 
@@ -38,11 +44,12 @@ fi
 
 echo "Restoring database $DB_NAME from $BACKUP_FILE..."
 
-PGPASSWORD="$DB_PASSWORD" psql \
-    -h "$DB_HOST" \
-    -p "$DB_PORT" \
-    -U "$DB_USER" \
-    "$DB_NAME" \
-    < "$BACKUP_FILE"
+PSQL_ARGS=(-h "$DB_HOST")
+if [ -n "${DB_PORT:-}" ]; then
+    PSQL_ARGS+=(-p "$DB_PORT")
+fi
+PSQL_ARGS+=(-U "$DB_USER" "$DB_NAME")
+
+PGPASSWORD="$DB_PASSWORD" psql "${PSQL_ARGS[@]}" < "$BACKUP_FILE"
 
 echo "Database restored successfully"
