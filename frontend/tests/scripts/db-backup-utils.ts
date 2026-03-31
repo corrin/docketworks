@@ -119,34 +119,45 @@ export function runPsql(dbConfig: DbConfig, sql: string): string {
 
 /**
  * Sync all PostgreSQL sequences to match actual table data.
+ * Uses Django's sqlsequencereset which handles both serial and identity columns.
  */
 export function syncSequences(dbConfig: DbConfig): void {
-  runPsql(
-    dbConfig,
-    `DO $$
-DECLARE
-    r RECORD;
-BEGIN
-    FOR r IN
-        SELECT
-            quote_ident(n.nspname) || '.' || quote_ident(c.relname) AS seq_name,
-            quote_ident(tn.nspname) || '.' || quote_ident(t.relname) AS table_name,
-            quote_ident(a.attname) AS column_name
-        FROM pg_class c
-        JOIN pg_namespace n ON n.oid = c.relnamespace
-        JOIN pg_depend d ON d.objid = c.oid AND d.deptype = 'a'
-        JOIN pg_class t ON t.oid = d.refobjid
-        JOIN pg_namespace tn ON tn.oid = t.relnamespace
-        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = d.refobjsubid
-        WHERE c.relkind = 'S'
-    LOOP
-        EXECUTE format(
-            'SELECT setval(%L, COALESCE((SELECT MAX(%s) FROM %s), 1))',
-            r.seq_name, r.column_name, r.table_name
-        );
-    END LOOP;
-END $$;`,
+  const frontendDir = getFrontendDir()
+  const backendDir = path.resolve(frontendDir, '..')
+  const managePy = path.join(backendDir, 'manage.py')
+
+  const result = spawnSync(
+    'python',
+    [
+      managePy,
+      'sqlsequencereset',
+      '--no-color',
+      'workflow',
+      'accounting',
+      'accounts',
+      'timesheet',
+      'job',
+      'quoting',
+      'client',
+      'purchasing',
+      'process',
+      'django_apscheduler',
+      'auth',
+      'contenttypes',
+      'sessions',
+      'sites',
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
   )
+  if (result.status !== 0) {
+    const stderr = result.stderr?.toString() || ''
+    throw new Error(`sqlsequencereset failed (exit code ${result.status}): ${stderr}`)
+  }
+
+  const sql = result.stdout?.toString().trim()
+  if (sql) {
+    runPsql(dbConfig, sql)
+  }
 }
 
 export type SafetyCheckResult = {
