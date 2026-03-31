@@ -3,6 +3,7 @@ import * as fs from 'fs/promises'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 import 'dotenv/config'
+import { getBackendEnv } from '../tests/scripts/db-backup-utils'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -232,7 +233,12 @@ async function captureScreenshots(): Promise<void> {
   // Ensure output directory exists
   await fs.mkdir(OUTPUT_DIR, { recursive: true })
 
-  const baseUrl = process.env.VITE_FRONTEND_BASE_URL || 'http://localhost:5173'
+  const backendEnv = getBackendEnv()
+  const appDomain = backendEnv.APP_DOMAIN
+  if (!appDomain) {
+    throw new Error('APP_DOMAIN must be set in backend .env')
+  }
+  const baseUrl = `https://${appDomain}`
   console.log(`Using base URL: ${baseUrl}`)
 
   const browser = await chromium.launch()
