@@ -6,6 +6,7 @@ BASE_DIR="/opt/docketworks"
 INSTANCES_DIR="$BASE_DIR/instances"
 CONFIG_DIR="$BASE_DIR/config"
 SHARED_VENV="$BASE_DIR/.venv"
+SHARED_PLAYWRIGHT_BROWSERS="$BASE_DIR/.playwright-browsers"
 LOCAL_REPO="$BASE_DIR/repo"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 

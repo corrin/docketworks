@@ -298,6 +298,21 @@ else
 fi
 log_version "pm2" "$(pm2 --version)"
 
+# --- GitHub CLI ---
+
+if command -v gh &>/dev/null; then
+    log "GitHub CLI already installed, skipping."
+else
+    log "Installing GitHub CLI..."
+    curl -fsSL https://cli.github.com/packages/githubcli-archive-keyring.gpg \
+        | dd of=/usr/share/keyrings/githubcli-archive-keyring.gpg
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/githubcli-archive-keyring.gpg] https://cli.github.com/packages stable main" \
+        > /etc/apt/sources.list.d/github-cli.list
+    apt update
+    apt install -y gh
+fi
+log_version "gh" "$(gh --version | head -1)"
+
 # --- Claude Code CLI ---
 
 if command -v claude &>/dev/null; then
@@ -380,6 +395,7 @@ Git:        $(git --version)
 Poetry:     $POETRY_VERSION
 pnpm:       $(pnpm --version)
 pm2:        $(pm2 --version)
+gh:         $(gh --version | head -1)
 Claude:     $CLAUDE_VERSION
 
 ## System User
@@ -455,6 +471,17 @@ sudo -u docketworks bash -c "
     npm install
 "
 log "  Shared node_modules installed."
+
+# --- Install shared Playwright browsers ---
+
+SHARED_PLAYWRIGHT_BROWSERS="/opt/docketworks/.playwright-browsers"
+log "Installing shared Playwright browsers to $SHARED_PLAYWRIGHT_BROWSERS..."
+sudo -u docketworks bash -c "
+    export PLAYWRIGHT_BROWSERS_PATH='$SHARED_PLAYWRIGHT_BROWSERS'
+    cd '$LOCAL_REPO/frontend'
+    npx playwright install --with-deps chromium
+"
+log "  Shared Playwright browsers installed."
 
 # --- Summary ---
 

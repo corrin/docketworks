@@ -22,7 +22,9 @@ from typing import Any, Dict
 
 # Setup Django environment
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
-os.environ.setdefault("HTTP_HOST", "localhost:8000")
+if "APP_DOMAIN" not in os.environ:
+    raise RuntimeError("APP_DOMAIN must be set in .env")
+os.environ.setdefault("HTTP_HOST", os.environ["APP_DOMAIN"])
 
 import django
 
@@ -48,7 +50,7 @@ class SerializerTester:
     def _create_mock_request(self):
         """Create a proper mock request for serializer context"""
         request = self.factory.get("/")
-        request.META["HTTP_HOST"] = "localhost:8000"
+        request.META["HTTP_HOST"] = os.environ["APP_DOMAIN"]
         return request
 
     def _print_verbose(self, message: str):

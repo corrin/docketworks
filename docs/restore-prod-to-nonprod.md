@@ -390,13 +390,23 @@ python manage.py start_xero_sync
 
 **Expected output:** Error and warning free sync between local and Xero data.
 
-#### Step 21: Start Background Scheduler
+#### Step 21a (Dev): Start Background Scheduler
+
+The scheduler is a separate process that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. In a separate terminal (it blocks forever):
 
 ```bash
 python manage.py run_scheduler
 ```
 
-This keeps the Xero token refreshed automatically.
+#### Step 21b (Server): Verify Background Scheduler
+
+On server instances the scheduler is already running as a systemd service (`scheduler-<instance>`), installed by `instance.sh create`. Verify:
+
+```bash
+sudo systemctl status scheduler-<instance>
+```
+
+Must show `active (running)`. The "registered jobs" lines in Django startup logs are just declarations -- they do not mean jobs are executing.
 
 #### Step 22: Test Serializers
 
