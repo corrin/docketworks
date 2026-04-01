@@ -46,7 +46,10 @@ from apps.workflow.models import (
     XeroPaySlip,
     XeroSyncCursor,
 )
-from apps.workflow.services.error_persistence import persist_xero_error
+from apps.workflow.services.error_persistence import (
+    persist_app_error,
+    persist_xero_error,
+)
 from apps.workflow.services.validation import validate_required_fields
 from apps.workflow.utils import get_machine_id
 
@@ -194,8 +197,12 @@ def sync_entities(
 
         try:
             result = transform_func(item, xero_id)
-        except Exception as exc:
+        except XeroValidationError as exc:
             persist_xero_error(exc)
+            logger.error(f"Failed to sync {model_class.__name__} {xero_id}: {exc}")
+            continue
+        except Exception as exc:
+            persist_app_error(exc)
             logger.error(f"Failed to sync {model_class.__name__} {xero_id}: {exc}")
             continue
         if not result:

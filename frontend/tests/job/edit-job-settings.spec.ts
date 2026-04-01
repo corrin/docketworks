@@ -4,6 +4,7 @@ import {
   autoId,
   waitForSettingsInitialized,
   waitForAutosave,
+  createTestJob,
   TEST_CLIENT_NAME,
 } from '../fixtures/helpers'
 
@@ -45,7 +46,7 @@ test.describe.serial('edit job', () => {
       const jobNameInput = autoId(page, 'JobSettingsTab-job-name')
       const jobName = await jobNameInput.inputValue()
       console.log('Job name value:', jobName)
-      expect(jobName).toContain('Edit Test Job')
+      expect(jobName).toContain('[TEST] Edit Job')
     })
 
     await test.step('verify client is ABC Carpet Cleaning', async () => {
@@ -444,8 +445,11 @@ test.describe.serial('edit job', () => {
     })
   })
 
-  test('change client', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
-    await page.goto(sharedEditJobUrl)
+  test('change client', async ({ authenticatedPage: page }) => {
+    // Create a dedicated job for this test — changing client mutates state
+    // that would break other tests sharing sharedEditJobUrl
+    const jobUrl = await createTestJob(page, 'Change Client')
+    await page.goto(jobUrl)
     await page.waitForLoadState('networkidle')
 
     // Get the shop client name from company defaults
