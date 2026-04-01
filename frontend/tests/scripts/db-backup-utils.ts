@@ -177,7 +177,7 @@ export function checkSafeToTest(dbConfig: DbConfig): SafetyCheckResult {
   // Check for [TEST]-prefixed jobs
   const testJobCount = runPsql(
     dbConfig,
-    `SELECT COUNT(*) FROM workflow_job WHERE name LIKE '${prefix}%'`,
+    `SELECT COUNT(*) FROM job_job WHERE name LIKE '${prefix}%'`,
   )
   if (parseInt(testJobCount) > 0) {
     issues.push(`${testJobCount} test jobs found (names starting with '${TEST_DATA_PREFIX}')`)
@@ -186,7 +186,7 @@ export function checkSafeToTest(dbConfig: DbConfig): SafetyCheckResult {
   // Check for [TEST]-prefixed contacts
   const testContactCount = runPsql(
     dbConfig,
-    `SELECT COUNT(*) FROM client_contact WHERE name LIKE '${prefix}%'`,
+    `SELECT COUNT(*) FROM client_clientcontact WHERE name LIKE '${prefix}%'`,
   )
   if (parseInt(testContactCount) > 0) {
     issues.push(
@@ -197,7 +197,7 @@ export function checkSafeToTest(dbConfig: DbConfig): SafetyCheckResult {
   // Check for [TEST]-prefixed clients
   const testClientCount = runPsql(
     dbConfig,
-    `SELECT COUNT(*) FROM workflow_client WHERE name LIKE '${prefix}%'`,
+    `SELECT COUNT(*) FROM client_client WHERE name LIKE '${prefix}%'`,
   )
   if (parseInt(testClientCount) > 0) {
     issues.push(`${testClientCount} test clients found (names starting with '${TEST_DATA_PREFIX}')`)

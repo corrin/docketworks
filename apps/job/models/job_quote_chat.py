@@ -66,7 +66,6 @@ class JobQuoteChat(models.Model):
             models.Index(fields=["job", "timestamp"]),
             models.Index(fields=["message_id"]),
         ]
-        db_table = "job_quote_chat"
 
     def __str__(self):
         return f"{self.job.name} - {self.role}: {self.content}"

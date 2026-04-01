@@ -64,10 +64,9 @@ class Form(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    history: HistoricalRecords = HistoricalRecords(table_name="process_historicalform")
+    history: HistoricalRecords = HistoricalRecords()
 
     class Meta:
-        db_table = "process_form"
         ordering = ["-created_at"]
         verbose_name = "Form"
         verbose_name_plural = "Forms"

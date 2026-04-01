@@ -137,9 +137,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         help_text="Standard hours for Sunday, 0 for non-working day",
     )
 
-    history: HistoricalRecords = HistoricalRecords(
-        table_name="workflow_historicalstaff"
-    )
+    history: HistoricalRecords = HistoricalRecords()
 
     objects = StaffManager()
 
@@ -151,7 +149,6 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     class Meta:
         ordering = ["last_name", "first_name"]
-        db_table = "workflow_staff"
         verbose_name = "Staff Member"
         verbose_name_plural = "Staff Members"
 

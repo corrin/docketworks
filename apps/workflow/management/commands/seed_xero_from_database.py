@@ -406,32 +406,30 @@ class Command(BaseCommand):
         with connection.cursor() as cursor:
             # Clear client contact IDs - allows re-linking by name
             self.stdout.write("Clearing client xero_contact_id values...")
-            if self._table_exists(cursor, "workflow_client"):
+            if self._table_exists(cursor, "client_client"):
                 cursor.execute(
-                    "UPDATE workflow_client SET xero_contact_id = NULL WHERE xero_contact_id IS NOT NULL"
+                    "UPDATE client_client SET xero_contact_id = NULL WHERE xero_contact_id IS NOT NULL"
                 )
                 client_count = cursor.rowcount
                 if client_count > 0:
-                    tables_cleared.append(f"workflow_client: {client_count} records")
+                    tables_cleared.append(f"client_client: {client_count} records")
             else:
-                self.stdout.write(
-                    "  WARNING: workflow_client table not found - skipping"
-                )
+                self.stdout.write("  WARNING: client_client table not found - skipping")
 
             # Clear job project IDs - allows fresh project sync
             self.stdout.write("Clearing job xero_project_id values...")
-            if self._table_exists(cursor, "workflow_job") and self._column_exists(
-                cursor, "workflow_job", "xero_project_id"
+            if self._table_exists(cursor, "job_job") and self._column_exists(
+                cursor, "job_job", "xero_project_id"
             ):
                 cursor.execute(
-                    "UPDATE workflow_job SET xero_project_id = NULL WHERE xero_project_id IS NOT NULL"
+                    "UPDATE job_job SET xero_project_id = NULL WHERE xero_project_id IS NOT NULL"
                 )
                 job_count = cursor.rowcount
                 if job_count > 0:
-                    tables_cleared.append(f"workflow_job: {job_count} records")
+                    tables_cleared.append(f"job_job: {job_count} records")
             else:
                 self.stdout.write(
-                    "  WARNING: workflow_job.xero_project_id column not found - skipping"
+                    "  WARNING: job_job.xero_project_id column not found - skipping"
                 )
 
             # Clear invoice/bill/quote IDs - prevents duplicates
@@ -467,15 +465,15 @@ class Command(BaseCommand):
 
             # Clear stock item IDs - allows re-creation in UAT Xero tenant
             self.stdout.write("Clearing stock xero_id values...")
-            if self._table_exists(cursor, "workflow_stock") and self._column_exists(
-                cursor, "workflow_stock", "xero_id"
+            if self._table_exists(cursor, "purchasing_stock") and self._column_exists(
+                cursor, "purchasing_stock", "xero_id"
             ):
                 cursor.execute(
-                    "UPDATE workflow_stock SET xero_id = NULL WHERE xero_id IS NOT NULL"
+                    "UPDATE purchasing_stock SET xero_id = NULL WHERE xero_id IS NOT NULL"
                 )
                 stock_count = cursor.rowcount
                 if stock_count > 0:
-                    tables_cleared.append(f"workflow_stock: {stock_count} records")
+                    tables_cleared.append(f"purchasing_stock: {stock_count} records")
 
             # Clear XeroPayItem xero_id and xero_tenant_id — these are
             # environment-specific and get set when connecting to the target Xero

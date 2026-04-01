@@ -72,12 +72,9 @@ class FormEntry(models.Model):
 
     created_at = models.DateTimeField(auto_now_add=True)
 
-    history: HistoricalRecords = HistoricalRecords(
-        table_name="process_historicalformentry"
-    )
+    history: HistoricalRecords = HistoricalRecords()
 
     class Meta:
-        db_table = "process_form_entry"
         ordering = ["-entry_date", "-created_at"]
         verbose_name = "Form Entry"
         verbose_name_plural = "Form Entries"

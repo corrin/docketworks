@@ -140,11 +140,9 @@ class Command(BaseCommand):
             """)
         # Verify the fix took effect
         with connection.cursor() as cursor:
-            cursor.execute(
-                "SELECT last_value FROM workflow_historicaljob_history_id_seq"
-            )
+            cursor.execute("SELECT last_value FROM job_historicaljob_history_id_seq")
             seq_val = cursor.fetchone()[0]
-            cursor.execute("SELECT MAX(history_id) FROM workflow_historicaljob")
+            cursor.execute("SELECT MAX(history_id) FROM job_historicaljob")
             max_val = cursor.fetchone()[0] or 0
             self.stdout.write(
                 f"  historicaljob sequence: {seq_val} (max in table: {max_val})"
@@ -152,7 +150,7 @@ class Command(BaseCommand):
             if seq_val < max_val:
                 # Direct setval as a fallback
                 cursor.execute(
-                    "SELECT setval('workflow_historicaljob_history_id_seq', %s)",
+                    "SELECT setval('job_historicaljob_history_id_seq', %s)",
                     [max_val],
                 )
                 self.stdout.write(f"  Fixed: set to {max_val}")

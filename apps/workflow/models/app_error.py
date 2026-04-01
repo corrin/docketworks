@@ -45,7 +45,6 @@ class AppError(models.Model):
         self.save()
 
     class Meta:
-        db_table = "workflow_app_error"
         ordering = ["-timestamp"]
         verbose_name = "Application Error"
         verbose_name_plural = "Application Errors"
@@ -68,6 +67,5 @@ class XeroError(AppError):
     kind = models.CharField(max_length=50)
 
     class Meta:
-        db_table = "workflow_xero_error"
         verbose_name = "Xero Error"
         verbose_name_plural = "Xero Errors"
