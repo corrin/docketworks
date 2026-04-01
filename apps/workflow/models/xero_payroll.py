@@ -44,7 +44,6 @@ class XeroPayRun(models.Model):
     django_updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "workflow_xeropayrun"
         ordering = ["-payment_date"]
         verbose_name = "Xero Pay Run"
         verbose_name_plural = "Xero Pay Runs"
@@ -116,7 +115,6 @@ class XeroPaySlip(models.Model):
     django_updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "workflow_xeropayslip"
         ordering = ["-pay_run__payment_date", "employee_name"]
         verbose_name = "Xero Pay Slip"
         verbose_name_plural = "Xero Pay Slips"

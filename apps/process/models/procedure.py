@@ -85,12 +85,9 @@ class Procedure(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    history: HistoricalRecords = HistoricalRecords(
-        table_name="process_historicalprocedure"
-    )
+    history: HistoricalRecords = HistoricalRecords()
 
     class Meta:
-        db_table = "process_procedure"
         ordering = ["-created_at"]
         verbose_name = "Procedure"
         verbose_name_plural = "Procedures"

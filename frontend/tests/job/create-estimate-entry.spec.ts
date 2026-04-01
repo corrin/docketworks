@@ -52,7 +52,7 @@ async function navigateToEstimateTab(page: Page, jobUrl: string): Promise<void> 
   await tab.waitFor({ state: 'visible' })
   await tab.click()
   await page.waitForLoadState('networkidle')
-  await page.waitForTimeout(2000)
+  await autoId(page, 'SmartCostLinesTable-add-row').waitFor({ state: 'visible', timeout: 3000 })
 }
 
 async function clickAddRow(page: Page): Promise<void> {
@@ -219,14 +219,14 @@ test.describe.serial('estimate operations', () => {
 
     // Change quantity to 3
     const qtyInput = autoId(page, `SmartCostLinesTable-quantity-${rowIndex}`)
-    await qtyInput.dblclick()
-    await page.keyboard.type('3')
+    await qtyInput.click()
+    await qtyInput.fill('3')
     await page.keyboard.press('Tab')
 
     // Change unit cost to 25
     const unitCostInput = autoId(page, `SmartCostLinesTable-unit-cost-${rowIndex}`)
-    await unitCostInput.dblclick()
-    await page.keyboard.type('25')
+    await unitCostInput.click()
+    await unitCostInput.fill('25')
     await page.keyboard.press('Tab')
 
     await waitForAutosave(page)

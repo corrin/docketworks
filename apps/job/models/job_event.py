@@ -79,7 +79,6 @@ class JobEvent(models.Model):
         return f"{self.timestamp}: {self.event_type} for {self.job.name if self.job else 'Unknown Job'}"
 
     class Meta:
-        db_table = "workflow_jobevent"
         ordering = ["-timestamp"]
 
         # Database constraints for preventing duplicates

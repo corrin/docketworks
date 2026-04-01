@@ -183,9 +183,6 @@ class PurchaseOrder(models.Model):
         self.save()
         return "Reconciled"
 
-    class Meta:
-        db_table = "workflow_purchaseorder"
-
 
 class PurchaseOrderLine(models.Model):
     """A line item on a PO."""
@@ -320,9 +317,6 @@ class PurchaseOrderLine(models.Model):
             return f"{prefix}{self.description}"
         return self.description
 
-    class Meta:
-        db_table = "workflow_purchaseorderline"
-
 
 class PurchaseOrderSupplierQuote(models.Model):
     """A quote file attached to a purchase order."""
@@ -362,9 +356,6 @@ class PurchaseOrderSupplierQuote(models.Model):
 
         file_path = self.full_path
         return os.path.getsize(file_path) if os.path.exists(file_path) else None
-
-    class Meta:
-        db_table = "workflow_purchaseordersupplierquote"
 
 
 class Stock(models.Model):
@@ -672,7 +663,6 @@ class Stock(models.Model):
         return cls._stock_holding_job
 
     class Meta:
-        db_table = "workflow_stock"
         constraints = [
             models.UniqueConstraint(fields=["xero_id"], name="unique_xero_id_stock"),
             models.UniqueConstraint(
@@ -716,7 +706,6 @@ class PurchaseOrderEvent(models.Model):
         return f"{self.timestamp}: Event for PO {self.purchase_order.po_number}"
 
     class Meta:
-        db_table = "workflow_purchaseorderevent"
         ordering = ["-timestamp"]
         indexes = [
             models.Index(

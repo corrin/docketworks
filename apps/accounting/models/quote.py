@@ -31,6 +31,3 @@ class Quote(models.Model):
     def __str__(self) -> str:
         job_info = f"{self.job.job_number}" if self.job else "No Job"
         return f"Quote ({self.status}) for Job {job_info}"
-
-    class Meta:
-        db_table = "workflow_quote"

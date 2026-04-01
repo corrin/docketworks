@@ -82,7 +82,6 @@ class XeroPayItem(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        db_table = "workflow_xeropayitem"
         ordering = ["uses_leave_api", "name"]
         verbose_name = "Xero Pay Item"
         verbose_name_plural = "Xero Pay Items"

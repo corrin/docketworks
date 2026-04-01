@@ -24,7 +24,6 @@ class ServiceAPIKey(models.Model):
     class Meta:
         verbose_name = "Service API Key"
         verbose_name_plural = "Service API Keys"
-        db_table = "workflow_service_api_key"
 
     def save(self, *args, **kwargs):
         if not self.key:

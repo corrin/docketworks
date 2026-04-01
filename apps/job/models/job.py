@@ -200,7 +200,7 @@ class Job(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    history: HistoricalRecords = HistoricalRecords(table_name="workflow_historicaljob")
+    history: HistoricalRecords = HistoricalRecords()
 
     complex_job = models.BooleanField(default=False)
 
@@ -276,7 +276,6 @@ class Job(models.Model):
         verbose_name = "Job"
         verbose_name_plural = "Jobs"
         ordering = ["-priority", "-created_at"]
-        db_table = "workflow_job"
         indexes = [
             Index(fields=["status", "priority"], name="job_priority_status_idx"),
         ]

@@ -116,7 +116,6 @@ class Invoice(BaseXeroInvoiceDocument):
         verbose_name = "Invoice"
         verbose_name_plural = "Invoices"
         ordering = ["-date", "number"]
-        db_table = "workflow_invoice"
 
     def get_line_items(self) -> QuerySet["InvoiceLineItem"]:
         return self.line_items.all()
@@ -132,7 +131,6 @@ class Bill(BaseXeroInvoiceDocument):
         verbose_name = "Bill"
         verbose_name_plural = "Bills"
         ordering = ["-date", "number"]
-        db_table = "workflow_bill"
 
     @property
     def supplier(self) -> "Client":
@@ -157,7 +155,6 @@ class CreditNote(BaseXeroInvoiceDocument):
         verbose_name = "Credit Note"
         verbose_name_plural = "Credit Notes"
         ordering = ["-date"]
-        db_table = "workflow_creditnote"
 
     def __str__(self) -> str:
         return f"Credit Note {self.number} ({self.status})"
@@ -177,7 +174,6 @@ class InvoiceLineItem(BaseLineItem):
     class Meta:
         verbose_name = "Invoice Line Item"
         verbose_name_plural = "Invoice Line Items"
-        db_table = "workflow_invoicelineitem"
 
 
 class BillLineItem(BaseLineItem):
@@ -186,7 +182,6 @@ class BillLineItem(BaseLineItem):
     class Meta:
         verbose_name = "Bill Line Item"
         verbose_name_plural = "Bill Line Items"
-        db_table = "workflow_billlineitem"
 
 
 class CreditNoteLineItem(BaseLineItem):
@@ -197,4 +192,3 @@ class CreditNoteLineItem(BaseLineItem):
     class Meta:
         verbose_name = "Credit Note Line Item"
         verbose_name_plural = "Credit Note Line Items"
-        db_table = "workflow_creditnotelineitem"

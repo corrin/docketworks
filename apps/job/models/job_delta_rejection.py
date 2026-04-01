@@ -32,7 +32,6 @@ class JobDeltaRejection(models.Model):
     created_at = models.DateTimeField(default=timezone.now, editable=False)
 
     class Meta:
-        db_table = "job_jobdeltarejection"
         ordering = ("-created_at",)
         indexes = [
             models.Index(

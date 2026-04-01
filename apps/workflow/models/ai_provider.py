@@ -31,6 +31,3 @@ class AIProvider(models.Model):
     class Meta:
         verbose_name = "AI Provider"
         verbose_name_plural = "AI Providers"
-        # Explicitly map this model to the existing database table
-        # to avoid Django's default table-name generation.
-        db_table = "workflow_aiprovider"

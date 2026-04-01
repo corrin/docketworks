@@ -103,7 +103,6 @@ class Client(models.Model):
 
     class Meta:
         ordering = ["name"]
-        db_table = "workflow_client"
 
     def __str__(self):
         return self.name
@@ -326,7 +325,6 @@ class ClientContact(models.Model):
 
     class Meta:
         ordering = ["-is_primary", "name"]
-        db_table = "client_contact"
         verbose_name = "Client Contact"
         verbose_name_plural = "Client Contacts"
         constraints = [
@@ -356,6 +354,7 @@ class Supplier(Client):
 
     class Meta:
         proxy = True
+        db_table = "client_client"
 
 
 class SupplierPickupAddress(models.Model):
@@ -485,7 +484,6 @@ class SupplierPickupAddress(models.Model):
 
     class Meta:
         ordering = ["-is_primary", "name"]
-        db_table = "client_supplier_pickup_address"
         verbose_name = "Supplier Pickup Address"
         verbose_name_plural = "Supplier Pickup Addresses"
         constraints = [
