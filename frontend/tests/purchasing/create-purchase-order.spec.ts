@@ -23,7 +23,7 @@ async function waitForPoAutosave(page: Page): Promise<void> {
 
       // PO header/lines save (PATCH, status 200)
       if (
-        url.includes('/purchasing/rest/purchase-orders/') &&
+        url.includes('/api/purchasing/purchase-orders/') &&
         method === 'PATCH' &&
         status === 200
       ) {
@@ -95,24 +95,20 @@ test.describe.serial('purchase order operations', () => {
     const descriptionInput = autoId(page, 'PoLinesTable-description-0')
     await descriptionInput.waitFor({ timeout: 10000 })
 
-    // Fill in line details
+    // Fill in line details — fill all fields rapidly so the 500ms
+    // autosave debounce only fires once, after all values are set
     await descriptionInput.fill('[TEST] Material Item')
-    await page.waitForTimeout(300)
 
-    // Fill quantity
     const qtyInput = autoId(page, 'PoLinesTable-quantity-0')
-    await qtyInput.clear()
     await qtyInput.fill('5')
-    await page.waitForTimeout(300)
 
-    // Fill unit cost
+    const autosavePromise = waitForPoAutosave(page)
     const costInput = autoId(page, 'PoLinesTable-unit-cost-0')
-    await costInput.clear()
+    await costInput.click()
     await costInput.fill('25.50')
-    await page.waitForTimeout(300)
+    await page.keyboard.press('Tab')
 
-    // Wait for autosave
-    await waitForPoAutosave(page)
+    await autosavePromise
     await page.waitForTimeout(500)
 
     console.log('Added line item: [TEST] Material Item, qty 5 @ $25.50')

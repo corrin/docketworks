@@ -47,7 +47,7 @@ def _load_po_and_lines(
     # Lock the PO row to avoid concurrent requests creating duplicate stock entries
     # before the first transaction commits.
     po = (
-        PurchaseOrder.objects.select_for_update()
+        PurchaseOrder.objects.select_for_update(of=("self",))
         .select_related("supplier")
         .get(id=purchase_order_id)
     )
