@@ -119,44 +119,20 @@ export function runPsql(dbConfig: DbConfig, sql: string): string {
 
 /**
  * Sync all PostgreSQL sequences to match actual table data.
- * Uses Django's sqlsequencereset which handles both serial and identity columns.
+ * Uses Django's sync_sequences management command which discovers all apps
+ * automatically and handles both serial and identity columns.
  */
-export function syncSequences(dbConfig: DbConfig): void {
+export function syncSequences(_dbConfig: DbConfig): void {
   const frontendDir = getFrontendDir()
   const backendDir = path.resolve(frontendDir, '..')
   const managePy = path.join(backendDir, 'manage.py')
 
-  const result = spawnSync(
-    'python',
-    [
-      managePy,
-      'sqlsequencereset',
-      '--no-color',
-      'workflow',
-      'accounting',
-      'accounts',
-      'timesheet',
-      'job',
-      'quoting',
-      'client',
-      'purchasing',
-      'process',
-      'django_apscheduler',
-      'auth',
-      'contenttypes',
-      'sessions',
-      'sites',
-    ],
-    { stdio: ['ignore', 'pipe', 'pipe'] },
-  )
+  const result = spawnSync('python', [managePy, 'sync_sequences'], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
   if (result.status !== 0) {
     const stderr = result.stderr?.toString() || ''
-    throw new Error(`sqlsequencereset failed (exit code ${result.status}): ${stderr}`)
-  }
-
-  const sql = result.stdout?.toString().trim()
-  if (sql) {
-    runPsql(dbConfig, sql)
+    throw new Error(`sync_sequences failed (exit code ${result.status}): ${stderr}`)
   }
 }
 

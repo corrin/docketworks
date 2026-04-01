@@ -6,6 +6,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 from xero_python.accounting.models import Contact as XeroContact
+from xero_python.accounting.models import Contacts as XeroContacts
 from xero_python.accounting.models import Invoice as XeroInvoice
 from xero_python.accounting.models import LineItem
 from xero_python.exceptions import (  # If specific exceptions handled
@@ -560,23 +561,12 @@ class XeroInvoiceManager(XeroDocumentManager):
         logger.debug(f"Raw contact_data before XeroContact creation: {contact_data}")
 
         new_contact = XeroContact(**contact_data)
-
-        # Log the XeroContact object after creation
         logger.debug(f"XeroContact object created: {new_contact}")
-        logger.debug(f"XeroContact to_dict(): {new_contact.to_dict()}")
 
         try:
-            # The Xero API expects the contacts parameter to be a list of Contact objects
-            # But we need to ensure they're properly serialized
-            logger.debug(
-                f"Calling create_contacts with tenant_id: {self.xero_tenant_id}"
-            )
-            logger.debug(f"Contact list being sent: {[new_contact]}")
-
-            # The Xero API expects contacts in the format: {"contacts": [contact_data]}
-            # Not as a list of XeroContact objects directly
             create_response = self.xero_api.create_contacts(
-                self.xero_tenant_id, contacts={"contacts": [new_contact.to_dict()]}
+                self.xero_tenant_id,
+                contacts=XeroContacts(contacts=[new_contact]),
             )
             created_contacts = getattr(create_response, "contacts", [])
             if created_contacts:

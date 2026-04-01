@@ -102,58 +102,10 @@ class Command(BaseCommand):
             return
 
         # Sync sequences first — SimpleHistory post_delete signals need working sequences.
-        # setval is non-transactional in PostgreSQL, but we need to commit any
-        # pending transaction state before proceeding.
         self.stdout.write("\nSyncing sequences...")
-        from django.db import connection
+        from django.core.management import call_command
 
-        # Ensure we're not inside a transaction that could interfere
-        connection.ensure_connection()
-        with connection.cursor() as cursor:
-            if connection.in_atomic_block:
-                # Force commit so setval takes effect
-                pass  # setval is already non-transactional in PG
-            cursor.execute("""
-                DO $$
-                DECLARE
-                    r RECORD;
-                BEGIN
-                    FOR r IN
-                        SELECT
-                            quote_ident(n.nspname) || '.' || quote_ident(c.relname) AS seq_name,
-                            quote_ident(tn.nspname) || '.' || quote_ident(t.relname) AS table_name,
-                            quote_ident(a.attname) AS column_name
-                        FROM pg_class c
-                        JOIN pg_namespace n ON n.oid = c.relnamespace
-                        JOIN pg_depend d ON d.objid = c.oid AND d.deptype = 'a'
-                        JOIN pg_class t ON t.oid = d.refobjid
-                        JOIN pg_namespace tn ON tn.oid = t.relnamespace
-                        JOIN pg_attribute a ON a.attrelid = t.oid AND a.attnum = d.refobjsubid
-                        WHERE c.relkind = 'S'
-                    LOOP
-                        EXECUTE format(
-                            'SELECT setval(%L, COALESCE((SELECT MAX(%s) FROM %s), 1))',
-                            r.seq_name, r.column_name, r.table_name
-                        );
-                    END LOOP;
-                END $$;
-            """)
-        # Verify the fix took effect
-        with connection.cursor() as cursor:
-            cursor.execute("SELECT last_value FROM job_historicaljob_history_id_seq")
-            seq_val = cursor.fetchone()[0]
-            cursor.execute("SELECT MAX(history_id) FROM job_historicaljob")
-            max_val = cursor.fetchone()[0] or 0
-            self.stdout.write(
-                f"  historicaljob sequence: {seq_val} (max in table: {max_val})"
-            )
-            if seq_val < max_val:
-                # Direct setval as a fallback
-                cursor.execute(
-                    "SELECT setval('job_historicaljob_history_id_seq', %s)",
-                    [max_val],
-                )
-                self.stdout.write(f"  Fixed: set to {max_val}")
+        call_command("sync_sequences")
         self.stdout.write("Sequences synced.")
 
         # Collect all jobs that will be deleted (union of all sources)
