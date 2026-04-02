@@ -26,6 +26,7 @@ export default defineConfig({
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
   workers: 1, // Single worker to avoid parallel database conflicts
+  maxFailures: 1, // Stop early — full suite is slow, don't wait if something's broken
   reporter: [
     ['html', { open: 'never' }], // Don't auto-open report (blocks process)
     ['list', { printSteps: true }], // Show steps and console output
