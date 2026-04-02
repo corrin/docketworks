@@ -7,7 +7,6 @@ try:
     if apps.ready:
         from .api import (
             CreatePayRunAPIView,
-            DailyTimesheetAPIView,
             JobsAPIView,
             PayRunListAPIView,
             PostWeekToXeroPayrollAPIView,
@@ -25,7 +24,6 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "CreatePayRunAPIView",
-    "DailyTimesheetAPIView",
     "JobsAPIView",
     "PayRunListAPIView",
     "PostWeekToXeroPayrollAPIView",

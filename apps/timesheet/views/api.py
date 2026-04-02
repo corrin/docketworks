@@ -25,7 +25,6 @@ from apps.client.serializers import ClientErrorResponseSerializer
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.serializers import (
-    DailyTimesheetSummarySerializer,
     JobsListResponseSerializer,
     ModernTimesheetJobSerializer,
     StaffListResponseSerializer,
@@ -38,7 +37,6 @@ from apps.timesheet.serializers.payroll_serializers import (
     PayRunSyncResponseSerializer,
     PostWeekToXeroSerializer,
 )
-from apps.timesheet.services.daily_timesheet_service import DailyTimesheetService
 from apps.timesheet.services.weekly_timesheet_service import WeeklyTimesheetService
 from apps.timesheet.views.base import TimesheetBaseView
 from apps.workflow.api.xero.payroll import (
@@ -229,159 +227,6 @@ class JobsAPIView(TimesheetBaseView):
                 request=request,
                 message="Failed to fetch jobs",
                 exc=exc,
-            )
-
-
-class DailyTimesheetAPIView(TimesheetBaseView):
-    """
-    API endpoint for daily timesheet overview.
-    Provides comprehensive daily summary using modern CostLine system.
-    Supports weekend functionality when feature flag is enabled.
-
-    Supports multiple URL patterns:
-    - GET /timesheets/api/daily/ (today's data)
-    - GET /timesheets/api/daily/{date}/ (specific date)
-    - GET /timesheets/api/staff/{staff_id}/daily/ (staff detail today)
-    - GET /timesheets/api/staff/{staff_id}/daily/?date={date} (specific)
-    """
-
-    serializer_class = DailyTimesheetSummarySerializer
-
-    def get(self, request, date=None, staff_id=None):
-        """
-        Get daily timesheet overview.
-
-        Args:
-            date: Optional date from URL path
-            staff_id: Optional staff ID from URL path
-
-        Query Parameters:
-            date (optional): Date in YYYY-MM-DD format. Defaults to today.
-
-        Returns:
-            JSON response with daily timesheet data
-        """
-        try:
-            # Determine target date - from URL path, query param, or today
-            date_param = date or request.query_params.get("date")
-
-            if date_param:
-                try:
-                    target_date = datetime.strptime(date_param, "%Y-%m-%d").date()
-                except ValueError:
-                    return Response(
-                        {"error": "Invalid date format. Use YYYY-MM-DD"},
-                        status=status.HTTP_400_BAD_REQUEST,
-                    )
-            else:
-                target_date = date.today()
-
-            # If staff_id is provided, return staff-specific data
-            if staff_id:
-                return self._get_staff_daily_detail(staff_id, target_date, request)
-
-            # Otherwise return full daily summary
-            logger.info(f"Getting daily timesheet overview for {target_date}")
-
-            # Delegate to service layer for business logic
-            summary_data = DailyTimesheetService.get_daily_summary(target_date)
-
-            # Add weekend information to response
-            weekend_enabled = self._is_weekend_enabled()
-            is_weekend = target_date.weekday() >= 5
-            summary_data["weekend_enabled"] = weekend_enabled
-            summary_data["is_weekend"] = is_weekend
-            summary_data["day_type"] = "weekend" if is_weekend else "weekday"
-
-            # Serialize and return response
-            serializer = DailyTimesheetSummarySerializer(summary_data)
-
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        except Exception as exc:
-            return build_internal_error_response(
-                request=request,
-                message="Failed to get daily timesheet overview",
-                exc=exc,
-                staff_only_details=True,
-            )
-
-    def _get_staff_daily_detail(self, staff_id, target_date, request):
-        """Get detailed daily data for a specific staff member."""
-        try:
-            # Validate staff exists
-            try:
-                staff = Staff.objects.get(id=staff_id)
-            except Staff.DoesNotExist:
-                return Response(
-                    {"error": "Staff member not found"},
-                    status=status.HTTP_404_NOT_FOUND,
-                )
-
-            logger.info(f"Getting daily detail for staff {staff_id} on {target_date}")
-
-            # Get summary data and extract specific staff
-            summary_data = DailyTimesheetService.get_daily_summary(target_date)
-
-            # Find the staff member in the summary data
-            staff_data = None
-            for staff_info in summary_data.get("staff_data", []):
-                if staff_info.get("staff_id") == str(staff_id):
-                    staff_data = staff_info
-                    break
-
-            if not staff_data:
-                # Staff exists but has no timesheet data for this date
-                weekend_enabled = self._is_weekend_enabled()
-                is_weekend = target_date.weekday() >= 5
-
-                # Adjust scheduled hours based on weekend feature flag
-                if is_weekend and not weekend_enabled:
-                    scheduled_hours = 0.0
-                else:
-                    scheduled_hours = float(staff.get_scheduled_hours(target_date))
-
-                initials = f"{staff.first_name[0]}{staff.last_name[0]}".upper()
-                staff_data = {
-                    "staff_id": str(staff_id),
-                    "staff_name": f"{staff.first_name} {staff.last_name}",
-                    "staff_initials": initials,
-                    "icon": None,
-                    "scheduled_hours": scheduled_hours,
-                    "actual_hours": 0.0,
-                    "billable_hours": 0.0,
-                    "non_billable_hours": 0.0,
-                    "total_revenue": 0.0,
-                    "total_cost": 0.0,
-                    "status": (
-                        "Weekend" if is_weekend and not weekend_enabled else "No Entry"
-                    ),
-                    "status_class": (
-                        "secondary" if is_weekend and not weekend_enabled else "danger"
-                    ),
-                    "billable_percentage": 0.0,
-                    "completion_percentage": 0.0,
-                    "job_breakdown": [],
-                    "entry_count": 0,
-                    "alerts": ["No timesheet entries for this date"],
-                    "is_weekend": is_weekend,
-                    "weekend_enabled": weekend_enabled,
-                }
-            else:
-                # Add weekend information to existing staff data
-                weekend_enabled = self._is_weekend_enabled()
-                is_weekend = target_date.weekday() >= 5
-                staff_data["is_weekend"] = is_weekend
-                staff_data["weekend_enabled"] = weekend_enabled
-
-            return Response(staff_data, status=status.HTTP_200_OK)
-
-        except Exception as exc:
-            return build_internal_error_response(
-                request=request,
-                message="Failed to get staff daily detail",
-                exc=exc,
-                staff_only_details=True,
             )
 
 
