@@ -52,7 +52,7 @@ export class JobAgingReportService {
       }
 
       const queryString = searchParams.toString()
-      const url = `/accounting/api/reports/job-aging/${queryString ? `?${queryString}` : ''}`
+      const url = `/api/accounting/reports/job-aging/${queryString ? `?${queryString}` : ''}`
 
       const response = await api.get<JobAgingReportResponse>(url)
       return response.data

@@ -9,27 +9,25 @@ from datetime import datetime
 
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from apps.timesheet.serializers.daily_timesheet_serializers import (
     DailyTimesheetSummarySerializer,
     TimesheetErrorResponseSerializer,
 )
 from apps.timesheet.services import DailyTimesheetService
+from apps.timesheet.views.base import TimesheetBaseView
 
 logger = logging.getLogger(__name__)
 
 
-class DailyTimesheetSummaryAPIView(APIView):
+class DailyTimesheetSummaryAPIView(TimesheetBaseView):
     """
     Get daily timesheet summary for all staff
 
     GET /timesheet/api/daily/<target_date>/
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = DailyTimesheetSummarySerializer
 
     @extend_schema(operation_id="getDailyTimesheetSummaryByDate")
@@ -76,14 +74,13 @@ class DailyTimesheetSummaryAPIView(APIView):
             )
 
 
-class StaffDailyDetailAPIView(APIView):
+class StaffDailyDetailAPIView(TimesheetBaseView):
     """
     Get detailed timesheet data for a specific staff member
 
     GET /timesheet/api/staff/<staff_id>/daily/<target_date>/
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = DailyTimesheetSummarySerializer  # Reusing the same serializer
 
     @extend_schema(operation_id="getStaffDailyTimesheetDetailByDate")

@@ -7,7 +7,6 @@ try:
     if apps.ready:
         from .api import (
             CreatePayRunAPIView,
-            DailyTimesheetAPIView,
             JobsAPIView,
             PayRunListAPIView,
             PostWeekToXeroPayrollAPIView,
@@ -18,18 +17,19 @@ try:
             build_internal_error_response,
             stream_payroll_post,
         )
+        from .base import TimesheetBaseView
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
 
 __all__ = [
     "CreatePayRunAPIView",
-    "DailyTimesheetAPIView",
     "JobsAPIView",
     "PayRunListAPIView",
     "PostWeekToXeroPayrollAPIView",
     "RefreshPayRunsAPIView",
     "StaffListAPIView",
+    "TimesheetBaseView",
     "TimesheetResponseMixin",
     "WeeklyTimesheetAPIView",
     "build_internal_error_response",

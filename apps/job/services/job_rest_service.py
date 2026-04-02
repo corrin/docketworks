@@ -977,7 +977,7 @@ class JobRestService:
                     and job.status != original_values["status"]
                 ):
                     job.priority = Job._calculate_next_priority_for_status(job.status)
-                    job.save(update_fields=["priority"])
+                    job.save(update_fields=["priority", "updated_at"])
 
                 # When client changes, auto-set contact to new client's primary contact.
                 # This eliminates the need for frontend to make a separate API call.

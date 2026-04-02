@@ -411,7 +411,7 @@ class PurchasingRestService:
         with transaction.atomic():
             try:
                 po = (
-                    PurchaseOrder.objects.select_for_update()
+                    PurchaseOrder.objects.select_for_update(of=("self",))
                     .select_related("supplier")
                     .prefetch_related("po_lines")
                     .get(id=po_id)

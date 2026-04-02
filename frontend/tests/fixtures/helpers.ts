@@ -46,8 +46,6 @@ export function enableNetworkLogging(
     }
   }
 
-  let compressionLogged = false
-
   page.on('response', async (response: Response) => {
     const url = response.url()
     // Strip base URL for readability
@@ -77,16 +75,6 @@ export function enableNetworkLogging(
       const body = await response.body()
       const contentSizeBytes = body.length
       const contentSizeKB = contentSizeBytes / 1024
-
-      // Log compression headers once per test for diagnostics
-      if (!compressionLogged) {
-        const acceptEncoding = request.headers()['accept-encoding'] ?? '(none)'
-        const contentEncoding = response.headers()['content-encoding'] ?? '(none)'
-        console.log(
-          `[NETWORK] Compression: Accept-Encoding: ${acceptEncoding}, Content-Encoding: ${contentEncoding}`,
-        )
-        compressionLogged = true
-      }
 
       // Append to CSV
       const row = [

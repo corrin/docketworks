@@ -9,7 +9,7 @@ try:
     if apps.ready:
         from .managers import StaffManager
         from .models import Staff
-        from .permissions import IsStaff
+        from .permissions import CanManageTimesheets, IsStaff
         from .serializers import (
             BaseStaffSerializer,
             CustomTokenObtainPairSerializer,
@@ -31,6 +31,7 @@ except (ImportError, RuntimeError):
 __all__ = [
     "AccountsConfig",
     "BaseStaffSerializer",
+    "CanManageTimesheets",
     "CustomTokenObtainPairSerializer",
     "EmptySerializer",
     "GenericStaffMethodsMixin",

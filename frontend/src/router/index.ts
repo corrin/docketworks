@@ -81,6 +81,7 @@ const router = createRouter({
       component: () => import('@/views/TimesheetEntryView.vue'),
       meta: {
         requiresAuth: true,
+        requiresSuperUser: true,
         title: 'Timesheet Entry - DocketWorks',
       },
     },
@@ -101,6 +102,7 @@ const router = createRouter({
       component: () => import('@/views/DailyTimesheetView.vue'),
       meta: {
         requiresAuth: true,
+        requiresSuperUser: true,
         title: 'Daily Timesheet Overview - DocketWorks',
         allowScroll: true,
       },
@@ -119,6 +121,7 @@ const router = createRouter({
       component: () => import('@/views/WeeklyTimesheetView.vue'),
       meta: {
         requiresAuth: true,
+        requiresSuperUser: true,
         title: 'Weekly Timesheet',
         allowScroll: true,
       },
