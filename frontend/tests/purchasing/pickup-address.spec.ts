@@ -28,7 +28,7 @@ async function createPOWithExistingSupplier(page: Page): Promise<string> {
 
   const savePromise = page.waitForResponse(
     (response) =>
-      response.url().includes('/purchasing/rest/purchase-orders') &&
+      response.url().includes('/api/purchasing/purchase-orders') &&
       response.request().method() === 'POST' &&
       response.status() === 201,
     { timeout: 30000 },
