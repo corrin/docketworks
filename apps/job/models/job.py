@@ -388,7 +388,7 @@ class Job(models.Model):
             )
 
         setattr(self, field_mapping[kind], cost_set)
-        self.save(update_fields=[field_mapping[kind]])
+        self.save(update_fields=[field_mapping[kind], "updated_at"])
 
     @property
     def job_display_name(self) -> str:

@@ -411,7 +411,7 @@ class ModernTimesheetEntryView(APIView):
                 # Update job's latest_actual pointer if this is the most recent
                 if not job.latest_actual or cost_set.rev >= job.latest_actual.rev:
                     job.latest_actual = cost_set
-                    job.save(update_fields=["latest_actual"])
+                    job.save(update_fields=["latest_actual", "updated_at"])
 
             # Return success response
             response_data = {

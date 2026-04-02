@@ -35,7 +35,7 @@ def archive_complete_jobs(job_ids):
             try:
                 job = Job.objects.get(id=jid)
                 job.status = "archived"
-                job.save(update_fields=["status"])
+                job.save(update_fields=["status", "updated_at"])
                 archived_count += 1
                 logger.info(f"Job {jid} successfully archived")
             except Job.DoesNotExist:
