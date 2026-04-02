@@ -18,6 +18,7 @@ try:
             build_internal_error_response,
             stream_payroll_post,
         )
+        from .base import TimesheetBaseView
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -30,6 +31,7 @@ __all__ = [
     "PostWeekToXeroPayrollAPIView",
     "RefreshPayRunsAPIView",
     "StaffListAPIView",
+    "TimesheetBaseView",
     "TimesheetResponseMixin",
     "WeeklyTimesheetAPIView",
     "build_internal_error_response",

@@ -17,9 +17,7 @@ from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET
 from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
 from apps.accounts.utils import get_displayable_staff
@@ -42,6 +40,7 @@ from apps.timesheet.serializers.payroll_serializers import (
 )
 from apps.timesheet.services.daily_timesheet_service import DailyTimesheetService
 from apps.timesheet.services.weekly_timesheet_service import WeeklyTimesheetService
+from apps.timesheet.views.base import TimesheetBaseView
 from apps.workflow.api.xero.payroll import (
     get_all_timesheets_for_week,
     get_payroll_calendar_id,
@@ -107,14 +106,13 @@ def build_internal_error_response(
     return Response(payload, status=status_code)
 
 
-class StaffListAPIView(APIView):
+class StaffListAPIView(TimesheetBaseView):
     """API endpoint to get filtered list of staff members for timesheet operations.
 
     Returns staff members excluding those with invalid Xero payroll IDs
     (admin/system users), formatted for timesheet entry forms and interfaces.
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = StaffListResponseSerializer
 
     @extend_schema(
@@ -183,10 +181,9 @@ class StaffListAPIView(APIView):
             )
 
 
-class JobsAPIView(APIView):
+class JobsAPIView(TimesheetBaseView):
     """API endpoint to get available jobs for timesheet entries."""
 
-    permission_classes = [IsAuthenticated]
     serializer_class = JobsListResponseSerializer
 
     def get(self, request):
@@ -235,7 +232,7 @@ class JobsAPIView(APIView):
             )
 
 
-class DailyTimesheetAPIView(APIView):
+class DailyTimesheetAPIView(TimesheetBaseView):
     """
     API endpoint for daily timesheet overview.
     Provides comprehensive daily summary using modern CostLine system.
@@ -248,7 +245,6 @@ class DailyTimesheetAPIView(APIView):
     - GET /timesheets/api/staff/{staff_id}/daily/?date={date} (specific)
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = DailyTimesheetSummarySerializer
 
     def get(self, request, date=None, staff_id=None):
@@ -442,14 +438,13 @@ class TimesheetResponseMixin:
         return os.getenv("WEEKEND_TIMESHEETS_ENABLED", "false").lower() == "true"
 
 
-class WeeklyTimesheetAPIView(TimesheetResponseMixin, APIView):
+class WeeklyTimesheetAPIView(TimesheetResponseMixin, TimesheetBaseView):
     """
     Comprehensive weekly timesheet API endpoint using WeeklyTimesheetService.
     Provides weekly overview with payroll fields for Vue.js frontend.
     Supports both 5-day (Mon-Fri) and 7-day (Mon-Sun) modes via flag.
     """
 
-    permission_classes = [IsAuthenticated]
     serializer_class = WeeklyTimesheetDataSerializer
 
     @extend_schema(
@@ -474,10 +469,9 @@ class WeeklyTimesheetAPIView(TimesheetResponseMixin, APIView):
         return self.build_timesheet_response(request)
 
 
-class CreatePayRunAPIView(APIView):
+class CreatePayRunAPIView(TimesheetBaseView):
     """API endpoint to create a pay run in Xero Payroll."""
 
-    permission_classes = [IsAuthenticated]
     serializer_class = CreatePayRunSerializer
 
     @extend_schema(
@@ -581,10 +575,8 @@ class CreatePayRunAPIView(APIView):
             )
 
 
-class PayRunListAPIView(APIView):
+class PayRunListAPIView(TimesheetBaseView):
     """API endpoint to list all pay runs for the configured payroll calendar."""
-
-    permission_classes = [IsAuthenticated]
 
     @extend_schema(
         summary="List pay runs",
@@ -620,10 +612,9 @@ class PayRunListAPIView(APIView):
         )
 
 
-class RefreshPayRunsAPIView(APIView):
+class RefreshPayRunsAPIView(TimesheetBaseView):
     """API endpoint to refresh cached pay runs from Xero."""
 
-    permission_classes = [IsAuthenticated]
     serializer_class = PayRunSyncResponseSerializer
 
     @extend_schema(
@@ -659,10 +650,9 @@ class RefreshPayRunsAPIView(APIView):
 PAYROLL_TASK_TIMEOUT = 600
 
 
-class PostWeekToXeroPayrollAPIView(APIView):
+class PostWeekToXeroPayrollAPIView(TimesheetBaseView):
     """API endpoint to start posting weekly timesheets to Xero Payroll."""
 
-    permission_classes = [IsAuthenticated]
     serializer_class = PostWeekToXeroSerializer
 
     @extend_schema(
@@ -737,6 +727,13 @@ def stream_payroll_post(request, task_id):
     guard = _require_authenticated_api(request)
     if guard:
         return guard
+
+    # Superuser check - timesheet data is sensitive
+    if not request.user.is_superuser:
+        return JsonResponse(
+            {"detail": "You do not have permission to perform this action."},
+            status=403,
+        )
 
     # Retrieve task data from cache
     task_data = cache.get(f"payroll_task_{task_id}")
