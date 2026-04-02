@@ -26,9 +26,6 @@ export type KPICalendarResponse = z.infer<typeof schemas.KPICalendarData>
 export type KPICalendarData = KPICalendarResponse
 
 class KPIService {
-  private baseUrl = '/timesheet/api'
-  private accountingBaseUrl = '/accounting/api'
-
   async getKPICalendarData(params: KPICalendarParams): Promise<KPICalendarData> {
     try {
       // Use the generated API

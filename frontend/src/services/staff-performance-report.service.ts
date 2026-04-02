@@ -32,7 +32,7 @@ export class StaffPerformanceReportService {
       searchParams.append('start_date', params.start_date)
       searchParams.append('end_date', params.end_date)
 
-      const url = `/accounting/api/reports/staff-performance-summary/?${searchParams.toString()}`
+      const url = `/api/accounting/reports/staff-performance-summary/?${searchParams.toString()}`
       const response = await api.get<StaffPerformanceReportResponse>(url)
       return response.data
     } catch (error) {
@@ -50,7 +50,7 @@ export class StaffPerformanceReportService {
       searchParams.append('start_date', params.start_date)
       searchParams.append('end_date', params.end_date)
 
-      const url = `/accounting/api/reports/staff-performance/${staffId}/?${searchParams.toString()}`
+      const url = `/api/accounting/reports/staff-performance/${staffId}/?${searchParams.toString()}`
       const response = await api.get<StaffPerformanceReportResponse>(url)
       return response.data
     } catch (error) {
