@@ -4,6 +4,7 @@ from decimal import Decimal
 from django.db import transaction
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from apps.accounting.enums import InvoiceStatus
 from apps.accounting.models.invoice import Invoice
@@ -102,7 +103,9 @@ def recalculate_job_invoicing_state(job_id: str) -> None:
         ).exists()
 
         if not has_invoices:
-            updated = Job.objects.filter(pk=job_id).update(fully_invoiced=False)
+            updated = Job.objects.filter(pk=job_id).update(
+                fully_invoiced=False, updated_at=timezone.now()
+            )
             if not updated:
                 raise Job.DoesNotExist
             return
@@ -122,7 +125,7 @@ def recalculate_job_invoicing_state(job_id: str) -> None:
             target_amount = Decimal(str(job.latest_actual.total_revenue))
 
         job.fully_invoiced = total_invoiced >= target_amount
-        job.save(update_fields=["fully_invoiced"])
+        job.save(update_fields=["fully_invoiced", "updated_at"])
     except Job.DoesNotExist:
         logger.error("Provided job id doesn't exist")
         raise
