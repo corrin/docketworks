@@ -80,8 +80,9 @@ class TimesheetPermissionTests(BaseTestCase):
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
 
     def test_stream_payroll_blocked_for_normal_user(self):
-        self.client_api.force_authenticate(user=self.normal_user)
-        response = self.client_api.get(
+        # stream_payroll_post is a plain Django view, not DRF — use session auth
+        self.client.force_login(self.normal_user)
+        response = self.client.get(
             "/api/timesheets/payroll/post-staff-week/stream/fake-task-id/"
         )
         self.assertEqual(response.status_code, status.HTTP_403_FORBIDDEN)
