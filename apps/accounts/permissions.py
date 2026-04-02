@@ -14,3 +14,10 @@ class IsStaff(BasePermission):
             and request.user.is_authenticated
             and request.user.is_office_staff
         )
+
+
+class CanManageTimesheets(BasePermission):
+    """Gate for timesheet management — viewing/editing other staff pay data."""
+
+    def has_permission(self, request: HttpRequest, view: "APIView") -> bool:
+        return bool(request.user and request.user.is_superuser)
