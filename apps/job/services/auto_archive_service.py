@@ -79,7 +79,7 @@ class AutoArchiveService:
             with transaction.atomic():
                 for job in archived_jobs:
                     job.status = "archived"
-                    job.save(update_fields=["status"])
+                    job.save(update_fields=["status", "updated_at"])
 
                     if job.rejected_flag:
                         reason = "rejected"

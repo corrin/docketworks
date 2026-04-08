@@ -4,7 +4,7 @@ import type { JobMovementParams, JobMovementReportResponse } from '@/types/job-m
 export const jobMovementReportService = {
   async getJobMovementReport(params: JobMovementParams): Promise<JobMovementReportResponse> {
     const response = await api.get<JobMovementReportResponse>(
-      '/accounting/api/reports/job-movement/',
+      '/api/accounting/reports/job-movement/',
       { params },
     )
     return response.data

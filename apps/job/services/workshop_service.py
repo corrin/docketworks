@@ -272,7 +272,7 @@ class WorkshopTimesheetService:
     def _update_latest_actual(job: Job, cost_set: CostSet):
         if not job.latest_actual or cost_set.rev >= job.latest_actual.rev:
             job.latest_actual = cost_set
-            job.save(update_fields=["latest_actual"])
+            job.save(update_fields=["latest_actual", "updated_at"])
 
     @staticmethod
     def _to_decimal(value, default: str):

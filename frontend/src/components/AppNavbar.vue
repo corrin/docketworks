@@ -29,7 +29,7 @@
           </router-link>
 
           <div class="relative group">
-            <div v-if="userInfo.is_office_staff">
+            <div v-if="userInfo.is_superuser">
               <button
                 @click="toggleDropdown('timesheets')"
                 class="flex items-center space-x-1 px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-gray-50 transition-colors duration-200 z-60"
@@ -447,7 +447,7 @@
               >
                 <FilePlus class="w-4 h-4 mr-2" /> Create Job
               </router-link>
-              <div class="bg-gray-50 rounded-md" v-if="isOfficeStaff">
+              <div class="bg-gray-50 rounded-md" v-if="userInfo.is_superuser">
                 <button
                   @click="toggleMobileSection('timesheets')"
                   class="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:text-blue-600 transition-colors font-medium"

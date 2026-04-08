@@ -183,7 +183,7 @@ class KanbanService:
             job = Job.objects.get(pk=job_id)
             job.status = new_status
             job.priority = Job._calculate_next_priority_for_status(new_status)
-            job.save(update_fields=["status", "priority"])
+            job.save(update_fields=["status", "priority", "updated_at"])
             return True
         except Job.DoesNotExist:
             logger.error(f"Job {job_id} not found for status update")
@@ -232,7 +232,7 @@ class KanbanService:
                 old_priority = job.priority
                 # highest card gets total*increment, next gets (total-1)*increment, …
                 job.priority = (total - index + 1) * increment
-                job.save(update_fields=["priority"])
+                job.save(update_fields=["priority", "updated_at"])
                 logger.info(
                     f"Job #{job.job_number} priority updated: {old_priority} -> {job.priority}"
                 )
@@ -351,6 +351,7 @@ class KanbanService:
                 f"Job {job.job_number} status changed from {old_status} to {new_status}"
             )
 
+        update_fields.append("updated_at")
         job.save(update_fields=update_fields)
         logger.info(f"Job {job.job_number} reordering completed successfully")
         return True
