@@ -8039,8 +8039,9 @@ components:
           type: boolean
         message:
           type: string
+        error:
+          type: string
       required:
-        - message
         - success
     BlankEnum:
       enum:

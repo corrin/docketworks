@@ -557,7 +557,8 @@ class AssignJobResponseSerializer(serializers.Serializer):
     """Serialiser for job assignment response"""
 
     success = serializers.BooleanField()
-    message = serializers.CharField()
+    message = serializers.CharField(required=False)
+    error = serializers.CharField(required=False)
 
 
 class ArchiveJobsSerializer(serializers.Serializer):
