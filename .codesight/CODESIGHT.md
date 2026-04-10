@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 88 routes | 40 models | 181 components | 345 lib files | 71 env vars | 8 middleware | 34% test coverage
-> **Token savings:** this file is ~28,200 tokens. Without it, AI exploration would cost ~230,300 tokens. **Saves ~202,100 tokens per conversation.**
+> 82 routes | 40 models | 181 components | 345 lib files | 71 env vars | 7 middleware | 35% test coverage
+> **Token savings:** this file is ~28,100 tokens. Without it, AI exploration would cost ~226,900 tokens. **Saves ~198,800 tokens per conversation.**
 
 ---
 
@@ -91,12 +91,6 @@
 - `ALL` `/api/process/` params()
 - `ALL` `/api/schema/` params()
 - `ALL` `/api/docs` params()
-- `ALL` `contacts`
-- `ALL` `stock` ✓
-- `ALL` `ai-providers` [auth, payment, upload]
-- `ALL` `app-errors` [auth, payment, upload]
-- `ALL` `xero-pay-items` [auth, payment, upload]
-- `ALL` `rest/process-documents` [auth, db, upload, ai]
 
 ---
 
@@ -1860,7 +1854,6 @@
 - auth — `frontend/tests/fixtures/auth.ts`
 
 ## custom
-- middleware — `dev/null/middleware.md`
 - url_autogenerate_plan — `docs/plans/completed/url_autogenerate_plan.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
 
@@ -1911,7 +1904,7 @@
 
 # Test Coverage
 
-> **34%** of routes and models are covered by tests
+> **35%** of routes and models are covered by tests
 > 103 test files found
 
 ## Covered Routes
@@ -1919,7 +1912,6 @@
 - ALL:/
 - ALL:/jobs/
 - ALL:/api/
-- ALL:stock
 
 ## Covered Models
 
