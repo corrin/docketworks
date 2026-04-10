@@ -9,15 +9,16 @@ class Command(BaseCommand):
     help = "Starts Django server with localtunnel"
 
     def handle(self, *args: Any, **kwargs: Any) -> None:
-        app_domain = os.environ.get("APP_DOMAIN")
-        if not app_domain:
+        site_domain = os.environ.get("DJANGO_SITE_DOMAIN")
+        if not site_domain:
             self.stdout.write(
                 self.style.ERROR(
-                    "Error: APP_DOMAIN environment variable is not set. "
+                    "Error: DJANGO_SITE_DOMAIN environment variable is not set. "
                     "Please set it in your .env file."
                 )
             )
             return
+        app_domain = site_domain.split("//")[-1]
         django_port = os.environ.get("DJANGO_PORT", "8000")
 
         # Extract subdomain from full domain
