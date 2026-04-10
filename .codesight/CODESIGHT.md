@@ -1,877 +1,643 @@
 # docketworks — AI Context Map
 
-> **Stack:** raw-http | none | vue | mixed
+> **Stack:** django | django | vue | mixed
 
-> 0 routes | 61 models | 181 components | 722 lib files | 71 env vars | 19 middleware | 7 events | 100% test coverage
-> **Token savings:** this file is ~41,300 tokens. Without it, AI exploration would cost ~295,000 tokens. **Saves ~253,600 tokens per conversation.**
+> 88 routes | 40 models | 181 components | 345 lib files | 71 env vars | 8 middleware | 34% test coverage
+> **Token savings:** this file is ~28,200 tokens. Without it, AI exploration would cost ~230,300 tokens. **Saves ~202,100 tokens per conversation.**
+
+---
+
+# Routes
+
+- `ALL` `/reports/calendar/` params()
+- `ALL` `/reports/job-aging/` params()
+- `ALL` `/reports/job-movement/` params()
+- `ALL` `/reports/payroll-date-range/` params()
+- `ALL` `/reports/payroll-reconciliation/` params()
+- `ALL` `/reports/profit-and-loss/` params()
+- `ALL` `/reports/sales-forecast/` params()
+- `ALL` `/reports/sales-forecast/<str:month>/` params(month)
+- `ALL` `/reports/staff-performance-summary/` params()
+- `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
+- `ALL` `/reports/rdti-spend/` params()
+- `ALL` `/reports/wip/` params()
+- `ALL` `/staff/all/` params() [auth]
+- `ALL` `/staff/rates/<uuid:staff_id>/` params(staff_id) [auth]
+- `ALL` `/token/` params() [auth]
+- `ALL` `/token/refresh/` params() [auth]
+- `ALL` `/token/verify/` params() [auth]
+- `ALL` `/me/` params() [auth]
+- `ALL` `/logout/` params() [auth]
+- `ALL` `/password_change/` params() [auth]
+- `ALL` `/staff/` params() [auth]
+- `ALL` `/staff/<uuid:pk>/` params(pk) [auth]
+- `ALL` `/job/completed/` params()
+- `ALL` `/job/completed/archive` params()
+- `ALL` `/job/<uuid:job_id>/assignment` params(job_id)
+- `ALL` `/job/<uuid:job_id>/assignment/<uuid:staff_id>` params(job_id, staff_id)
+- `ALL` `/company_defaults/` params()
+- `ALL` `/jobs/fetch-all/` params()
+- `ALL` `/jobs/workshop` params()
+- `ALL` `/workshop/timesheets/` params()
+- `ALL` `/jobs/<str:job_id>/update-status/` params(job_id)
+- `ALL` `/jobs/<uuid:job_id>/reorder/` params(job_id)
+- `ALL` `/jobs/fetch/<str:status>/` params(status)
+- `ALL` `/jobs/fetch-by-column/<str:column_id>/` params(column_id)
+- `ALL` `/jobs/status-values/` params()
+- `ALL` `/jobs/advanced-search/` params()
+- `ALL` `/` ✓
+- `ALL` `/extract-supplier-price-list/` params()
+- `ALL` `/daily/<str:target_date>/` params(target_date)
+- `ALL` `/staff/<str:staff_id>/daily/<str:target_date>/` params(staff_id, target_date)
+- `ALL` `/weekly/` params()
+- `ALL` `/jobs/` params() ✓
+- `ALL` `/payroll/pay-runs/refresh` params()
+- `ALL` `/payroll/pay-runs/create` params()
+- `ALL` `/payroll/pay-runs/` params()
+- `ALL` `/payroll/post-staff-week/` params()
+- `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
+- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
+- `ALL` `/xero/authenticate/` params() [auth, payment, upload]
+- `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
+- `ALL` `/xero/disconnect/` params() [auth, payment, upload]
+- `ALL` `/xero/sync-stream/` params() [auth, payment, upload]
+- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/sync-info/` params() [auth, payment, upload]
+- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/sync/` params() [auth, payment, upload]
+- `ALL` `/xero/webhook/` params() [auth, payment, upload]
+- `ALL` `/xero/ping/` params() [auth, payment, upload]
+- `ALL` `/app-errors/` params() [auth, payment, upload]
+- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/rest/app-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/company-defaults/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/upload-logo/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/schema/` params() [auth, payment, upload]
+- `ALL` `/workflow/` params() [auth, payment, upload]
+- `ALL` `/api/` params() ✓
+- `ALL` `/api/job/` params()
+- `ALL` `/api/accounts/` params()
+- `ALL` `/api/timesheets/` params()
+- `ALL` `/api/quoting/` params()
+- `ALL` `/api/clients/` params()
+- `ALL` `/api/purchasing/` params()
+- `ALL` `/api/accounting/` params()
+- `ALL` `/api/process/` params()
+- `ALL` `/api/schema/` params()
+- `ALL` `/api/docs` params()
+- `ALL` `contacts`
+- `ALL` `stock` ✓
+- `ALL` `ai-providers` [auth, payment, upload]
+- `ALL` `app-errors` [auth, payment, upload]
+- `ALL` `xero-pay-items` [auth, payment, upload]
+- `ALL` `rest/process-documents` [auth, db, upload, ai]
 
 ---
 
 # Schema
 
-### accounting_bill
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- number: varchar (required)
-- date: date (required)
-- due_date: date
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- amount_due: numeric(10
-- xero_last_modified: timestamp with time zone (required)
-- raw_json: jsonb (required)
-- client_id: uuid (required, fk)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- tax: numeric(10
-- total_incl_tax: numeric(10
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
+### Invoice
+- job_id: integer (fk)
+- online_url: string (nullable)
+- _relations_: job: one(Job)
 
-### accounting_billlineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text (required)
-- quantity: numeric(10
-- unit_price: numeric(10
-- line_amount_excl_tax: numeric(10
-- line_amount_incl_tax: numeric(10
-- tax_amount: numeric(10
-- account_id: uuid (fk)
-- bill_id: uuid (required, fk)
+### InvoiceLineItem
+- invoice_id: integer (fk)
+- _relations_: invoice: one(Invoice)
 
-### accounting_creditnote
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (fk)
-- number: varchar (required)
-- date: date (required)
-- due_date: date
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- tax: numeric(10
-- total_incl_tax: numeric(10
-- amount_due: numeric(10
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- client_id: uuid (required, fk)
+### BillLineItem
+- bill_id: integer (fk)
+- _relations_: bill: one(Bill)
 
-### accounting_creditnotelineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text (required)
-- quantity: numeric(10
-- unit_price: numeric(10
-- line_amount_excl_tax: numeric(10
-- line_amount_incl_tax: numeric(10
-- tax_amount: numeric(10
-- account_id: uuid (fk)
-- credit_note_id: uuid (required, fk)
+### CreditNoteLineItem
+- credit_note_id: integer (fk)
+- _relations_: credit_note: one(CreditNote)
 
-### accounting_invoice
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- number: varchar (required)
-- date: date (required)
-- due_date: date
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- amount_due: numeric(10
-- xero_last_modified: timestamp with time zone (required)
-- raw_json: jsonb (required)
-- client_id: uuid (required, fk)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- job_id: uuid (fk)
-- online_url: varchar
-- tax: numeric(10
-- total_incl_tax: numeric(10
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
+### Quote
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- job_id: integer (fk)
+- client_id: integer (fk)
+- date: date
+- status: string (default)
+- total_excl_tax: decimal
+- total_incl_tax: decimal
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (default)
+- number: string (nullable)
+- online_url: string (nullable)
+- raw_json: json (nullable)
+- _relations_: job: one(Job), client: one(Client)
 
-### accounting_invoicelineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text (required)
-- quantity: numeric(10
-- unit_price: numeric(10
-- line_amount_excl_tax: numeric(10
-- line_amount_incl_tax: numeric(10
-- tax_amount: numeric(10
-- account_id: uuid (fk)
-- invoice_id: uuid (required, fk)
+### Client
+- id: uuid (pk, default)
+- xero_contact_id: string (unique, nullable)
+- xero_tenant_id: string (nullable)
+- name: string
+- email: string (nullable)
+- phone: string (nullable)
+- address: string (nullable)
+- is_account_customer: boolean (default)
+- is_supplier: boolean (default)
+- xero_last_modified: timestamp
+- raw_json: json (nullable)
+- primary_contact_name: string (nullable)
+- primary_contact_email: string (nullable)
+- additional_contact_persons: json (nullable, default)
+- all_phones: json (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- xero_archived: boolean (default)
+- xero_merged_into_id: string (nullable)
+- merged_into_id: integer (fk)
+- _relations_: merged_into: one(self)
 
-### accounting_quote
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (fk)
-- date: date (required)
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- total_incl_tax: numeric(10
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone (required)
-- online_url: varchar
-- raw_json: jsonb
-- client_id: uuid (required, fk)
-- job_id: uuid (fk)
-- number: character varying(255
+### ClientContact
+- id: uuid (pk, default)
+- client_id: integer (fk)
+- name: string
+- email: string (nullable)
+- phone: string (nullable)
+- position: string (nullable)
+- is_primary: boolean (default)
+- notes: string (nullable)
+- is_active: boolean (default)
+- _relations_: client: one(Client)
 
-### accounts_historicalstaff
-- password: varchar (required)
-- last_login: timestamp with time zone
-- is_superuser: boolean (required)
-- id: uuid (required)
-- icon: text
-- password_needs_reset: boolean (required)
-- email: varchar (required)
-- first_name: varchar (required)
-- last_name: varchar (required)
-- preferred_name: varchar
-- wage_rate: numeric(10
-- is_office_staff: boolean (required)
-- date_joined: timestamp with time zone (required)
-- hours_mon: numeric(4
-- hours_tue: numeric(4
-- hours_wed: numeric(4
-- hours_thu: numeric(4
-- hours_fri: numeric(4
-- hours_sat: numeric(4
-- hours_sun: numeric(4
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- history_user_id: uuid (fk)
-- date_left: date
-- xero_user_id: varchar (fk)
-- base_wage_rate: numeric(10
+### SupplierPickupAddress
+- id: uuid (pk, default)
+- client_id: integer (fk)
+- name: string
+- street: string
+- suburb: string (nullable)
+- city: string
+- state: string (nullable)
+- postal_code: string (nullable)
+- country: string (default)
+- google_place_id: string (nullable)
+- latitude: decimal (nullable)
+- longitude: decimal (nullable)
+- is_primary: boolean (default)
+- notes: string (nullable)
+- is_active: boolean (default)
+- _relations_: client: one(Client)
 
-### accounts_staff
-- password: varchar (required)
-- last_login: timestamp with time zone
-- is_superuser: boolean (required)
-- id: uuid (required)
-- icon: varchar
-- password_needs_reset: boolean (required)
-- email: varchar (required)
-- first_name: varchar (required)
-- last_name: varchar (required)
-- preferred_name: varchar
-- wage_rate: numeric(10
-- is_office_staff: boolean (required)
-- date_joined: timestamp with time zone (required)
-- hours_mon: numeric(4
-- hours_tue: numeric(4
-- hours_wed: numeric(4
-- hours_thu: numeric(4
-- hours_fri: numeric(4
-- hours_sat: numeric(4
-- hours_sun: numeric(4
-- date_left: date
-- xero_user_id: varchar (fk)
-- base_wage_rate: numeric(10
+### CostSet
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- kind: string
+- rev: integer
+- summary: json (default)
+- created: timestamp
+- _relations_: job: one(Job)
 
-### accounts_staff_groups
-- id: bigint (required)
-- staff_id: uuid (required, fk)
-- group_id: integer (required, fk)
+### CostLine
+- id: uuid (pk, default)
+- cost_set_id: integer (fk)
+- kind: string
+- desc: string
+- quantity: decimal (default)
+- unit_cost: decimal (default)
+- unit_rev: decimal (default)
+- ext_refs: json (default)
+- meta: json (default)
+- accounting_date: date
+- xero_time_id: string (nullable)
+- xero_expense_id: string (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- approved: boolean (default)
+- xero_pay_item_id: integer (fk)
+- _relations_: cost_set: one(CostSet), xero_pay_item: one(XeroPayItem)
 
-### accounts_staff_user_permissions
-- id: bigint (required)
-- staff_id: uuid (required, fk)
-- permission_id: integer (required, fk)
+### Job
+- id: uuid (pk, default)
+- name: string
+- client_id: integer (fk)
+- order_number: string (nullable)
+- contact_id: integer (fk)
+- job_number: integer (unique)
+- description: string (nullable)
+- delivery_date: date (nullable)
+- completed_at: timestamp (nullable)
+- rdti_type: string (nullable)
+- pricing_methodology: string (default)
+- price_cap: decimal (nullable)
+- speed_quality_tradeoff: string (default)
+- job_is_valid: boolean (default)
+- charge_out_rate: decimal
+- complex_job: boolean (default)
+- notes: string (nullable)
+- created_by_id: integer (fk)
+- latest_estimate_id: integer (fk)
+- latest_quote_id: integer (fk)
+- latest_actual_id: integer (fk)
+- priority: float (default)
+- xero_project_id: string (unique, nullable)
+- xero_default_task_id: string (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- default_xero_pay_item_id: integer (fk)
+- _relations_: client: one(Client), contact: one(ClientContact), created_by: one(Staff), people: many(Staff), latest_estimate: one(CostSet), latest_quote: one(CostSet), latest_actual: one(CostSet), default_xero_pay_item: one(XeroPayItem)
 
-### auth_group
-- id: integer (required)
-- name: varchar (required)
+### JobDeltaRejection
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- staff_id: integer (fk)
+- change_id: uuid (nullable)
+- reason: string
+- detail: string
+- envelope: json
+- checksum: string
+- request_etag: string
+- request_ip: string (nullable)
+- _relations_: job: one(Job), staff: one(Staff)
 
-### auth_group_permissions
-- id: bigint (required)
-- group_id: integer (required, fk)
-- permission_id: integer (required, fk)
+### JobEvent
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- timestamp: timestamp (default)
+- staff_id: integer (fk)
+- event_type: string (default)
+- description: string
+- schema_version: integer (default)
+- change_id: uuid (nullable)
+- delta_before: json (nullable)
+- delta_after: json (nullable)
+- delta_meta: json (nullable)
+- delta_checksum: string (default)
+- dedup_hash: string (nullable)
+- _relations_: job: one(Job), staff: one(Staff)
 
-### auth_permission
-- id: integer (required)
-- name: varchar (required)
-- content_type_id: integer (required, fk)
-- codename: varchar (required)
+### JobFile
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- filename: string
+- file_path: string
+- mime_type: string
+- uploaded_at: timestamp
+- status: string (default)
+- print_on_jobsheet: boolean (default)
+- _relations_: job: one(Job)
 
-### client_client
-- id: uuid (required)
-- xero_contact_id: varchar (fk)
-- name: varchar (required)
-- email: varchar
-- phone: varchar
-- address: text
-- is_account_customer: boolean (required)
-- raw_json: jsonb
-- django_updated_at: timestamp with time zone (required)
-- django_created_at: timestamp with time zone (required)
-- xero_last_modified: timestamp with time zone (required)
-- primary_contact_email: varchar
-- primary_contact_name: varchar
-- additional_contact_persons: jsonb
-- all_phones: jsonb
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: varchar (fk)
-- merged_into_id: uuid (fk)
-- xero_archived: boolean (required)
-- xero_merged_into_id: varchar (fk)
-- is_supplier: boolean (required)
+### JobQuoteChat
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- message_id: string (unique)
+- role: string
+- content: string
+- timestamp: timestamp
+- metadata: json (default)
+- _relations_: job: one(Job)
 
-### client_clientcontact
-- id: uuid (required)
-- name: varchar (required)
-- email: varchar
-- phone: varchar
-- position: varchar
-- is_primary: boolean (required)
-- notes: text
-- client_id: uuid (required, fk)
-- is_active: boolean (required)
+### QuoteSpreadsheet
+- id: uuid (pk, default)
+- sheet_id: string
+- sheet_url: string (nullable)
+- tab: string (nullable, default)
+- job_id: integer (fk)
+- _relations_: job: one(Job)
 
-### client_supplierpickupaddress
-- id: uuid (required)
-- name: varchar (required)
-- street: varchar (required)
-- city: varchar (required)
-- state: varchar
-- postal_code: varchar
-- country: varchar (required)
-- is_primary: boolean (required)
-- notes: text
-- is_active: boolean (required)
-- client_id: uuid (required, fk)
-- google_place_id: varchar (fk)
-- latitude: numeric(10
-- longitude: numeric(10
-- suburb: character varying(100
+### Form
+- id: uuid (pk, default)
+- document_type: string
+- title: string
+- document_number: string (nullable)
+- tags: json (default)
+- status: string (default)
+- form_schema: json (default)
 
-### django_apscheduler_djangojob
-- id: varchar (required)
-- next_run_time: timestamp with time zone
-- job_state: bytes (required)
+### FormEntry
+- id: uuid (pk, default)
+- form_id: integer (fk)
+- job_id: integer (fk)
+- entry_date: date
+- staff_id: integer (fk)
+- entered_by_id: integer (fk)
+- data: json (default)
+- is_active: boolean (default)
+- _relations_: form: one(Form), job: one(Job), staff: one(Staff), entered_by: one(Staff)
 
-### django_apscheduler_djangojobexecution
-- id: bigint (required)
-- status: varchar (required)
-- run_time: timestamp with time zone (required)
-- duration: numeric(15
-- finished: numeric(15
-- exception: varchar
-- traceback: text
-- job_id: varchar (required, fk)
+### Procedure
+- id: uuid (pk, default)
+- document_type: string
+- title: string
+- document_number: string (nullable)
+- site_location: string
+- tags: json (default)
+- status: string (default)
+- job_id: integer (fk)
+- google_doc_id: string
+- google_doc_url: string
+- _relations_: job: one(Job)
 
-### django_content_type
-- id: integer (required)
-- app_label: varchar (required)
-- model: varchar (required)
+### PurchaseOrder
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- pickup_address_id: integer (fk)
+- job_id: integer (fk)
+- created_by_id: integer (fk)
+- po_number: string (unique)
+- reference: string (nullable)
+- order_date: date (default)
+- expected_delivery: date (nullable)
+- xero_id: uuid (unique, nullable)
+- xero_tenant_id: string (nullable)
+- status: string (default)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- online_url: string (nullable)
+- raw_json: json (nullable)
+- _relations_: supplier: one(Client), pickup_address: one(SupplierPickupAddress), job: one(Job), created_by: one(Staff)
 
-### django_migrations
-- id: bigint (required)
-- app: varchar (required)
-- name: varchar (required)
-- applied: timestamp with time zone (required)
+### PurchaseOrderLine
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- job_id: integer (fk)
+- description: string
+- quantity: decimal
+- dimensions: string (nullable)
+- unit_cost: decimal (nullable)
+- price_tbc: boolean (default)
+- supplier_item_code: string (nullable)
+- item_code: string (nullable)
+- received_quantity: decimal (default)
+- metal_type: string (default, nullable)
+- alloy: string (nullable)
+- specifics: string (nullable)
+- location: string (nullable)
+- raw_line_data: json (nullable)
+- xero_line_item_id: uuid (nullable)
+- _relations_: purchase_order: one(PurchaseOrder), job: one(Job)
 
-### django_session
-- session_key: varchar (required)
-- session_data: text (required)
-- expire_date: timestamp with time zone (required)
+### PurchaseOrderSupplierQuote
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- filename: string
+- file_path: string
+- mime_type: string
+- uploaded_at: timestamp
+- extracted_data: json (nullable)
+- status: string (default)
+- _relations_: purchase_order: one(PurchaseOrder)
 
-### django_site
-- id: integer (required)
-- domain: varchar (required)
-- name: varchar (required)
+### Stock
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- item_code: string (nullable, unique)
+- description: string
+- quantity: decimal
+- unit_cost: decimal
+- unit_revenue: decimal (nullable)
+- date: timestamp (default)
+- source: string
+- source_purchase_order_line_id: integer (fk)
+- active_source_purchase_order_line_id: uuid (nullable)
+- source_parent_stock_id: integer (fk)
+- location: string
+- metal_type: string (default)
+- alloy: string (nullable)
+- specifics: string (nullable)
+- is_active: boolean (default)
+- xero_id: string (unique, nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable)
+- raw_json: json (nullable)
+- xero_inventory_tracked: boolean (default)
+- parsed_at: timestamp (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- _relations_: job: one(Job), source_purchase_order_line: one(PurchaseOrderLine), source_parent_stock: one(self)
 
-### job_costline
-- id: uuid (required)
-- kind: varchar (required)
-- desc: varchar (required)
-- quantity: numeric(10
-- unit_cost: numeric(10
-- unit_rev: numeric(10
-- ext_refs: jsonb (required)
-- meta: jsonb (required)
-- cost_set_id: uuid (required, fk)
-- xero_expense_id: varchar (fk)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- xero_time_id: varchar (fk)
-- accounting_date: date (required)
-- approved: boolean (required)
-- xero_pay_item_id: uuid (fk)
+### PurchaseOrderEvent
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- timestamp: timestamp (default)
+- staff_id: integer (fk)
+- description: string
+- _relations_: purchase_order: one(PurchaseOrder), staff: one(Staff)
 
-### job_costset
-- id: uuid (required)
-- kind: varchar (required)
-- rev: integer (required)
-- summary: jsonb (required)
-- created: timestamp with time zone (required)
-- job_id: uuid (required, fk)
+### SupplierProduct
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- price_list_id: integer (fk)
+- product_name: string
+- item_no: string
+- description: string (nullable)
+- specifications: string (nullable)
+- variant_id: string
+- variant_width: string (nullable)
+- variant_length: string (nullable)
+- variant_price: decimal (nullable)
+- price_unit: string (nullable)
+- variant_available_stock: integer (nullable)
+- url: string
+- is_discontinued: boolean (default)
+- last_scraped: timestamp
+- parsed_item_code: string (nullable)
+- parsed_description: string (nullable)
+- parsed_metal_type: string (nullable)
+- parsed_alloy: string (nullable)
+- parsed_specifics: string (nullable)
+- parsed_dimensions: string (nullable)
+- parsed_unit_cost: decimal (nullable)
+- parsed_price_unit: string (nullable)
+- parsed_at: timestamp (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- mapping_hash: string (nullable)
+- _relations_: supplier: one(Client), price_list: one(SupplierPriceList)
 
-### job_historicaljob
-- name: varchar (required)
-- id: uuid (required)
-- order_number: varchar
-- job_number: integer (required)
-- description: text
-- quote_acceptance_date: timestamp with time zone
-- delivery_date: date
-- status: varchar (required)
-- job_is_valid: boolean (required)
-- collected: boolean (required)
-- paid: boolean (required)
-- charge_out_rate: numeric(10
-- pricing_methodology: varchar (required)
-- complex_job: boolean (required)
-- notes: text
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- client_id: uuid (fk)
-- created_by_id: uuid (fk)
-- history_user_id: uuid (fk)
-- priority: float8 (required)
-- contact_id: uuid (fk)
-- latest_actual_id: uuid (fk)
-- latest_estimate_id: uuid (fk)
-- latest_quote_id: uuid (fk)
-- rejected_flag: boolean (required)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- xero_project_id: varchar (fk)
-- fully_invoiced: boolean (required)
-- xero_default_task_id: varchar (fk)
-- speed_quality_tradeoff: varchar (required)
-- price_cap: numeric(10
-- default_xero_pay_item_id: character (fk)
-- completed_at: timestamp with time zone
-- rdti_type: character varying(20
+### SupplierPriceList
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- file_name: string
+- uploaded_at: timestamp
+- _relations_: supplier: one(Client)
 
-### job_job
-- name: varchar (required)
-- id: uuid (required)
-- order_number: varchar
-- job_number: integer (required)
-- description: text
-- quote_acceptance_date: timestamp with time zone
-- delivery_date: date
-- status: varchar (required)
-- job_is_valid: boolean (required)
-- collected: boolean (required)
-- paid: boolean (required)
-- charge_out_rate: numeric(10
-- pricing_methodology: varchar (required)
-- complex_job: boolean (required)
-- notes: text
-- client_id: uuid (fk)
-- created_by_id: uuid (fk)
-- priority: float8 (required)
-- contact_id: uuid (fk)
-- latest_actual_id: uuid (fk)
-- latest_estimate_id: uuid (fk)
-- latest_quote_id: uuid (fk)
-- rejected_flag: boolean (required)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- xero_project_id: varchar (fk)
-- fully_invoiced: boolean (required)
-- xero_default_task_id: varchar (fk)
-- speed_quality_tradeoff: varchar (required)
-- price_cap: numeric(10
-- default_xero_pay_item_id: uuid (required, fk)
-- completed_at: timestamp with time zone
-- rdti_type: character varying(20
+### ScrapeJob
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- status: string (default)
+- started_at: timestamp (default)
+- completed_at: timestamp (nullable)
+- products_scraped: integer (default)
+- products_failed: integer (default)
+- error_message: string (nullable)
+- _relations_: supplier: one(Client)
 
-### job_job_people
-- id: bigint (required)
-- job_id: uuid (required, fk)
-- staff_id: uuid (required, fk)
+### ProductParsingMapping
+- id: uuid (pk, default)
+- input_hash: string (unique)
+- input_data: json
+- derived_key: string (nullable)
+- mapped_item_code: string (nullable)
+- mapped_description: string (nullable)
+- mapped_metal_type: string (nullable)
+- mapped_alloy: string (nullable)
+- mapped_specifics: string (nullable)
+- mapped_dimensions: string (nullable)
+- mapped_unit_cost: decimal (nullable)
+- mapped_price_unit: string (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- llm_response: json (nullable)
+- is_validated: boolean (default)
+- validated_by_id: integer (fk)
+- validated_at: timestamp (nullable)
+- validation_notes: string (nullable)
+- item_code_is_in_xero: boolean (default)
+- _relations_: validated_by: one(Staff)
 
-### job_jobdeltarejection
-- id: uuid (required)
-- change_id: uuid (fk)
-- reason: varchar (required)
-- detail: text (required)
-- envelope: jsonb (required)
-- request_etag: varchar (required)
-- request_ip: inet
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
+### AIProvider
+- name: string
+- api_key: string (nullable)
+- default: boolean (default)
+- model_name: string
+- provider_type: string
 
-### job_jobevent
-- timestamp: timestamp with time zone (required)
-- event_type: varchar (required)
-- description: text (required)
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
-- id: uuid (required)
-- dedup_hash: varchar
-- schema_version: smallint (required)
-- change_id: uuid (fk)
-- delta_before: jsonb
-- delta_after: jsonb
-- delta_meta: jsonb
-- delta_checksum: varchar (required)
+### AppError
+- id: uuid (pk, default)
+- timestamp: timestamp
+- message: string
+- data: json (nullable)
+- app: string (nullable)
+- file: string (nullable)
+- function: string (nullable)
+- severity: integer (default)
+- job_id: uuid (nullable)
+- user_id: uuid (nullable)
+- resolved: boolean (default)
+- resolved_by_id: integer (fk)
+- resolved_timestamp: timestamp (nullable)
+- _relations_: resolved_by: one(Staff)
 
-### job_jobfile
-- id: uuid (required)
-- filename: varchar (required)
-- file_path: varchar (required)
-- mime_type: varchar (required)
-- uploaded_at: timestamp with time zone (required)
-- status: varchar (required)
-- print_on_jobsheet: boolean (required)
-- job_id: uuid (required, fk)
+### XeroError
+- entity: string
+- reference_id: string
+- kind: string
 
-### job_jobquotechat
-- id: uuid (required)
-- message_id: varchar (required, fk)
-- role: varchar (required)
-- content: text (required)
-- timestamp: timestamp with time zone (required)
-- metadata: jsonb (required)
-- job_id: uuid (required, fk)
+### ServiceAPIKey
+- id: uuid (pk, default)
+- name: string
+- key: string (unique)
+- is_active: boolean (default)
+- last_used: timestamp (nullable)
 
-### job_quotespreadsheet
-- id: uuid (required)
-- sheet_id: varchar (required, fk)
-- sheet_url: varchar
-- tab: varchar
-- job_id: uuid (fk)
+### XeroAccount
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- account_code: string (nullable)
+- account_name: string (unique)
+- description: string (nullable)
+- account_type: string (nullable)
+- tax_type: string (nullable)
+- enable_payments: boolean (default)
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- raw_json: json
+- django_created_at: timestamp
+- django_updated_at: timestamp
 
-### process_form
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- tags: jsonb (required)
-- status: varchar (required)
-- form_schema: jsonb (required)
+### XeroJournal
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- journal_date: date
+- created_date_utc: timestamp
+- journal_number: integer (unique)
+- reference: string (nullable)
+- source_id: uuid (nullable)
+- source_type: string (nullable)
+- raw_json: json
+- xero_last_modified: timestamp
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- xero_last_synced: timestamp (nullable, default)
 
-### process_formentry
-- id: uuid (required)
-- entry_date: date (required)
-- data: jsonb (required)
-- is_active: boolean (required)
-- entered_by_id: uuid (fk)
-- form_id: uuid (required, fk)
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
+### XeroJournalLineItem
+- id: uuid (pk, default)
+- journal_id: integer (fk)
+- xero_line_id: uuid (unique)
+- account_id: integer (fk)
+- description: string (nullable)
+- net_amount: decimal
+- gross_amount: decimal
+- tax_amount: decimal
+- tax_type: string (nullable)
+- tax_name: string (nullable)
+- raw_json: json
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- _relations_: journal: one(XeroJournal), account: one(XeroAccount)
 
-### process_historicalform
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- tags: jsonb (required)
-- status: varchar (required)
-- form_schema: jsonb (required)
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- history_user_id: uuid (fk)
+### XeroPayItem
+- id: uuid (pk, default)
+- xero_id: string (unique, nullable)
+- xero_tenant_id: string (nullable)
+- name: string
+- uses_leave_api: boolean
+- multiplier: decimal (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
 
-### process_historicalformentry
-- id: uuid (required)
-- entry_date: date (required)
-- data: jsonb (required)
-- is_active: boolean (required)
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- entered_by_id: uuid (fk)
-- form_id: uuid (fk)
-- history_user_id: uuid (fk)
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
+### XeroPayRun
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string
+- payroll_calendar_id: uuid (nullable)
+- period_start_date: date
+- period_end_date: date
+- payment_date: date
+- pay_run_status: string (nullable)
+- pay_run_type: string (nullable)
+- total_cost: decimal (nullable)
+- total_pay: decimal (nullable)
+- raw_json: json
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
 
-### process_historicalprocedure
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- site_location: varchar (required)
-- tags: jsonb (required)
-- status: varchar (required)
-- google_doc_id: varchar (required, fk)
-- google_doc_url: varchar (required)
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- history_user_id: uuid (fk)
-- job_id: uuid (fk)
+### XeroPaySlip
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string
+- pay_run_id: integer (fk)
+- xero_employee_id: uuid
+- employee_name: string (nullable)
+- gross_earnings: decimal (default)
+- tax_amount: decimal (default)
+- net_pay: decimal (default)
+- timesheet_hours: decimal (default)
+- leave_hours: decimal (default)
+- raw_json: json
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- _relations_: pay_run: one(XeroPayRun)
 
-### process_procedure
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- site_location: varchar (required)
-- tags: jsonb (required)
-- status: varchar (required)
-- google_doc_id: varchar (required, fk)
-- google_doc_url: varchar (required)
-- job_id: uuid (fk)
+### XeroSyncCursor
+- entity_key: string (unique)
+- last_modified: timestamp
 
-### purchasing_purchaseorder
-- id: uuid (required)
-- po_number: varchar (required)
-- order_date: date (required)
-- expected_delivery: date
-- xero_id: uuid (fk)
-- status: varchar (required)
-- supplier_id: uuid (fk)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- online_url: varchar
-- reference: varchar
-- job_id: uuid (fk)
-- xero_tenant_id: varchar (fk)
-- raw_json: jsonb
-- pickup_address_id: uuid (fk)
-- created_by_id: uuid (fk)
-
-### purchasing_purchaseorderevent
-- id: uuid (required)
-- timestamp: timestamp with time zone (required)
-- description: text (required)
-- purchase_order_id: uuid (required, fk)
-- staff_id: uuid (required, fk)
-
-### purchasing_purchaseorderline
-- id: uuid (required)
-- description: varchar (required)
-- quantity: numeric(10
-- unit_cost: numeric(10
-- received_quantity: numeric(10
-- purchase_order_id: uuid (required, fk)
-- price_tbc: boolean (required)
-- dimensions: varchar
-- supplier_item_code: varchar
-- raw_line_data: jsonb
-- alloy: varchar
-- job_id: uuid (fk)
-- location: varchar
-- metal_type: varchar
-- specifics: varchar
-- item_code: varchar
-- xero_line_item_id: uuid (fk)
-
-### purchasing_purchaseordersupplierquote
-- id: uuid (required)
-- filename: varchar (required)
-- file_path: varchar (required)
-- mime_type: varchar (required)
-- uploaded_at: timestamp with time zone (required)
-- extracted_data: jsonb
-- status: varchar (required)
-- purchase_order_id: uuid (required, fk)
-
-### purchasing_stock
-- id: uuid (required)
-- description: varchar (required)
-- quantity: numeric(10
-- unit_cost: numeric(10
-- date: timestamp with time zone (required)
-- source: varchar (required)
-- location: text (required)
-- metal_type: varchar (required)
-- alloy: varchar
-- specifics: varchar
-- is_active: boolean (required)
-- job_id: uuid (fk)
-- source_purchase_order_line_id: uuid (fk)
-- source_parent_stock_id: uuid (fk)
-- item_code: varchar
-- xero_id: varchar (fk)
-- xero_last_modified: timestamp with time zone
-- raw_json: jsonb
-- parsed_at: timestamp with time zone
-- parser_confidence: numeric(3
-- parser_version: varchar
-- xero_inventory_tracked: boolean (required)
-- unit_revenue: numeric(10
-- active_source_purchase_order_line_id: uuid (fk)
-- xero_last_synced: timestamp with time zone
-
-### quoting_productparsingmapping
-- id: uuid (required)
-- input_hash: varchar (required)
-- input_data: jsonb (required)
-- mapped_item_code: varchar
-- mapped_description: varchar
-- mapped_metal_type: varchar
-- mapped_alloy: varchar
-- mapped_specifics: varchar
-- mapped_dimensions: varchar
-- mapped_unit_cost: numeric(10
-- mapped_price_unit: varchar
-- parser_version: varchar
-- parser_confidence: numeric(3
-- llm_response: jsonb
-- is_validated: boolean (required)
-- validated_at: timestamp with time zone
-- validation_notes: text
-- validated_by_id: uuid (fk)
-- item_code_is_in_xero: boolean (required)
-- derived_key: character varying(100
-
-### quoting_scrapejob
-- id: uuid (required)
-- status: varchar (required)
-- started_at: timestamp with time zone (required)
-- completed_at: timestamp with time zone
-- products_scraped: integer (required)
-- products_failed: integer (required)
-- error_message: text
-- supplier_id: uuid (required, fk)
-
-### quoting_supplierpricelist
-- id: uuid (required)
-- file_name: varchar (required)
-- uploaded_at: timestamp with time zone (required)
-- supplier_id: uuid (required, fk)
-
-### quoting_supplierproduct
-- id: uuid (required)
-- product_name: varchar (required)
-- item_no: varchar (required)
-- description: text
-- specifications: text
-- variant_id: varchar (required, fk)
-- variant_width: varchar
-- variant_length: varchar
-- variant_price: numeric(10
-- price_unit: varchar
-- variant_available_stock: integer
-- url: varchar (required)
-- supplier_id: uuid (required, fk)
-- price_list_id: uuid (required, fk)
-- parsed_alloy: varchar
-- parsed_at: timestamp with time zone
-- parsed_description: varchar
-- parsed_dimensions: varchar
-- parsed_item_code: varchar
-- parsed_metal_type: varchar
-- parsed_price_unit: varchar
-- parsed_specifics: varchar
-- parsed_unit_cost: numeric(10
-- parser_confidence: numeric(3
-- parser_version: varchar
-- mapping_hash: varchar
-- last_scraped: timestamp with time zone (required)
-- is_discontinued: boolean (required)
-
-### workflow_aiprovider
-- id: bigint (required)
-- name: varchar (required)
-- api_key: varchar
-- provider_type: varchar (required)
-- default: boolean (required)
-- model_name: varchar (required)
-
-### workflow_apperror
-- id: uuid (required)
-- timestamp: timestamp with time zone (required)
-- message: text (required)
-- data: jsonb
-- app: varchar
-- file: varchar
-- function: varchar
-- job_id: uuid (fk)
-- resolved: boolean (required)
-- resolved_by_id: uuid (fk)
-- resolved_timestamp: timestamp with time zone
-- severity: integer (required)
-- user_id: uuid (fk)
-
-### workflow_companydefaults
-- time_markup: numeric(5
-- materials_markup: numeric(5
-- charge_out_rate: numeric(6
-- wage_rate: numeric(6
-- mon_start: time without time zone (required)
-- mon_end: time without time zone (required)
-- tue_start: time without time zone (required)
-- tue_end: time without time zone (required)
-- wed_start: time without time zone (required)
-- wed_end: time without time zone (required)
-- thu_start: time without time zone (required)
-- thu_end: time without time zone (required)
-- fri_start: time without time zone (required)
-- fri_end: time without time zone (required)
-- company_name: varchar (required)
-- last_xero_sync: timestamp with time zone
-- last_xero_deep_sync: timestamp with time zone
-- xero_tenant_id: varchar (fk)
-- starting_po_number: integer (required)
-- kpi_daily_billable_hours_amber: numeric(5
-- kpi_daily_billable_hours_green: numeric(5
-- kpi_daily_gp_target: numeric(10
-- kpi_daily_shop_hours_percentage: numeric(5
-- po_prefix: varchar (required)
-- master_quote_template_url: varchar
-- starting_job_number: integer (required)
-- shop_client_name: varchar
-- gdrive_quotes_folder_id: varchar (fk)
-- gdrive_quotes_folder_url: varchar
-- master_quote_template_id: varchar (fk)
-- test_client_name: varchar
-- address_line1: varchar
-- address_line2: varchar
-- city: varchar
-- country: varchar (required)
-- post_code: varchar
-- suburb: varchar
-- company_email: varchar
-- company_url: varchar
-- company_acronym: varchar
-- xero_payroll_calendar_name: varchar (required)
-- xero_shortcode: varchar
-- xero_payroll_calendar_id: uuid (fk)
-- annual_leave_loading: numeric(5
-- financial_year_start_month: integer (required)
-- kpi_job_gp_target_percentage: numeric(5
-- kpi_daily_gp_amber: numeric(10
-- kpi_daily_gp_green: numeric(10
-- gdrive_how_we_work_folder_id: varchar (fk)
-- gdrive_reference_library_folder_id: varchar (fk)
-- gdrive_sops_folder_id: varchar (fk)
-- google_shared_drive_id: varchar (fk)
-- xero_payroll_start_date: date
-- id: bigint (required)
-- company_phone: varchar
-- logo: varchar
-- logo_wide: varchar
-- enable_xero_sync: boolean (required)
-
-### workflow_serviceapikey
-- id: uuid (required)
-- name: varchar (required)
-- is_active: boolean (required)
-- last_used: timestamp with time zone
-
-### workflow_xeroaccount
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- account_code: varchar
-- account_name: varchar (required)
-- description: text
-- account_type: varchar
-- tax_type: varchar
-- enable_payments: boolean (required)
-- xero_last_modified: timestamp with time zone (required)
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
-
-### workflow_xeroerror
-- apperror_ptr_id: uuid (required, fk)
-- entity: varchar (required)
-- reference_id: varchar (required, fk)
-- kind: varchar (required)
-
-### workflow_xerojournal
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- journal_date: date (required)
-- created_date_utc: timestamp with time zone (required)
-- journal_number: integer (required)
-- reference: varchar
-- source_id: uuid (fk)
-- source_type: varchar
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
-
-### workflow_xerojournallineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text
-- net_amount: numeric(10
-- gross_amount: numeric(10
-- tax_amount: numeric(10
-- tax_type: varchar
-- tax_name: varchar
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- account_id: uuid (fk)
-- journal_id: uuid (required, fk)
-
-### workflow_xeropayitem
-- id: uuid (required)
-- xero_id: varchar (fk)
-- xero_tenant_id: varchar (fk)
-- name: varchar (required)
-- uses_leave_api: boolean (required)
-- multiplier: numeric(4
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-
-### workflow_xeropayrun
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (required, fk)
-- payroll_calendar_id: uuid (fk)
-- period_start_date: date (required)
-- period_end_date: date (required)
-- payment_date: date (required)
-- pay_run_status: varchar
-- pay_run_type: varchar
-- total_cost: numeric(12
-- total_pay: numeric(12
-- raw_json: jsonb (required)
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-
-### workflow_xeropayslip
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (required, fk)
-- xero_employee_id: uuid (required, fk)
-- employee_name: varchar
-- gross_earnings: numeric(10
-- tax_amount: numeric(10
-- net_pay: numeric(10
-- timesheet_hours: numeric(8
-- leave_hours: numeric(8
-- raw_json: jsonb (required)
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- pay_run_id: uuid (required, fk)
-
-### workflow_xerosynccursor
-- id: bigint (required)
-- entity_key: varchar (required)
-- last_modified: timestamp with time zone (required)
-
-### workflow_xerotoken
-- id: bigint (required)
-- tenant_id: varchar (required, fk)
-- token_type: varchar (required)
-- access_token: text (required)
-- refresh_token: text (required)
-- expires_at: timestamp with time zone (required)
-- scope: text (required)
+### XeroToken
+- tenant_id: string (unique)
+- token_type: string
+- access_token: string
+- refresh_token: string
+- expires_at: timestamp
+- scope: string (default)
 
 ---
 
@@ -1079,12 +845,6 @@
   - function main: (pyproject_path)
 - `apps/accounting/apps.py` — class AccountingConfig
 - `apps/accounting/enums.py` — class QuoteStatus, class InvoiceStatus
-- `apps/accounting/migrations/0001_initial.py` — class Migration
-- `apps/accounting/migrations/0002_initial.py` — class Migration
-- `apps/accounting/migrations/0003_alter_invoice_job.py` — class Migration
-- `apps/accounting/migrations/0004_protect_critical_fks.py` — class Migration
-- `apps/accounting/migrations/0005_quote_number.py` — function backfill_quote_number: (apps, schema_editor), class Migration
-- `apps/accounting/migrations/0006_alter_bill_table_alter_billlineitem_table_and_more.py` — class Migration
 - `apps/accounting/models/invoice.py`
   - class BaseXeroInvoiceDocument
   - class BaseLineItem
@@ -1133,27 +893,6 @@
 - `apps/accounts/management/commands/adapt_migrations_accounts.py` — class Command
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
 - `apps/accounts/managers.py` — class StaffManager
-- `apps/accounts/migrations/0001_initial.py` — class Migration
-- `apps/accounts/migrations/0002_initial.py` — class Migration
-- `apps/accounts/migrations/0003_alter_historicalstaff_updated_at_and_more.py` — class Migration
-- `apps/accounts/migrations/0004_add_staff_permissions_tables.py` — class Migration
-- `apps/accounts/migrations/0005_alter_staff_groups_alter_staff_user_permissions.py` — class Migration
-- `apps/accounts/migrations/0006_historicalstaff_date_left_staff_date_left.py` — class Migration
-- `apps/accounts/migrations/0007_auto_20250730_2359.py`
-  - function migrate_inactive_staff: (apps, schema_editor)
-  - function reverse_migration: (apps, schema_editor)
-  - class Migration
-- `apps/accounts/migrations/0008_remove_historicalstaff_is_active_and_more.py` — class Migration
-- `apps/accounts/migrations/0009_historicalstaff_xero_user_id_staff_xero_user_id.py` — class Migration
-- `apps/accounts/migrations/0010_rename_is_staff_historicalstaff_is_office_staff_and_more.py` — class Migration
-- `apps/accounts/migrations/0011_remove_ims_payroll_fields.py` — class Migration
-- `apps/accounts/migrations/0012_add_base_wage_rate.py`
-  - function populate_base_wage_rate: (apps, schema_editor)
-  - function reverse_populate: (apps, schema_editor)
-  - function recompute_loaded_wage_rates: (apps, schema_editor)
-  - function reverse_recompute: (apps, schema_editor)
-  - class Migration
-- `apps/accounts/migrations/0013_alter_historicalstaff_table_alter_staff_table.py` — class Migration
 - `apps/accounts/models.py` — class Staff
 - `apps/accounts/permissions.py` — class IsStaff, class CanManageTimesheets
 - `apps/accounts/serializers.py`
@@ -1170,34 +909,6 @@
 - `apps/client/management/commands/analyze_client_contacts.py` — class Command
 - `apps/client/management/commands/geocode_addresses.py` — class Command
 - `apps/client/management/commands/merge_clients.py` — class Command
-- `apps/client/migrations/0001_initial.py` — class Migration
-- `apps/client/migrations/0002_clientcontact.py` — class Migration
-- `apps/client/migrations/0003_add_xero_merge_tracking.py` — class Migration
-- `apps/client/migrations/0004_populate_merge_fields.py`
-  - function populate_merge_fields: (apps, schema_editor)
-  - function reverse_populate_merge_fields: (apps, schema_editor)
-  - class Migration
-- `apps/client/migrations/0005_client_is_supplier.py` — class Migration
-- `apps/client/migrations/0006_alter_client_name.py` — class Migration
-- `apps/client/migrations/0007_delete_empty_name_contacts.py`
-  - function delete_empty_name_contacts: (apps, schema_editor)
-  - function reverse_migration: (apps, schema_editor)
-  - class Migration
-- `apps/client/migrations/0008_merge_duplicate_contacts.py`
-  - function merge_duplicate_contacts: (apps, schema_editor)
-  - function reverse_migration: (apps, schema_editor)
-  - class Migration
-- `apps/client/migrations/0009_clientcontact_unique_client_contact_name.py` — class Migration
-- `apps/client/migrations/0010_add_is_active_to_clientcontact.py` — class Migration
-- `apps/client/migrations/0011_convert_empty_strings_to_null.py`
-  - function convert_empty_strings_to_null: (apps, schema_editor)
-  - function reverse_null_to_empty_strings: (apps, schema_editor)
-  - class Migration
-- `apps/client/migrations/0012_supplierpickupaddress.py` — class Migration
-- `apps/client/migrations/0013_add_google_fields_to_pickup_address.py` — class Migration
-- `apps/client/migrations/0014_add_suburb_to_pickup_address.py` — class Migration
-- `apps/client/migrations/0015_populate_xero_addresses.py` — function create_xero_addresses: (apps, schema_editor), class Migration
-- `apps/client/migrations/0016_alter_client_table_alter_clientcontact_table_and_more.py` — class Migration
 - `apps/client/models.py`
   - class Client
   - class ClientContact
@@ -1246,6 +957,7 @@
   - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
   - function parse_xlsx_old: (path) -> list[DraftLine]
   - _...7 more_
+- `apps/job/management/commands/backport_data_restore.py` — class Command
 - `apps/job/management/commands/create_shop_jobs.py` — class Command
 - `apps/job/management/commands/create_test_quote_data.py` — class Command
 - `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
@@ -1254,132 +966,6 @@
 - `apps/job/management/commands/test_event_deduplication.py` — class Command
 - `apps/job/management/commands/test_gemini_chat.py` — class Command
 - `apps/job/management/commands/test_quote_import.py` — class Command
-- `apps/job/migrations/0001_initial.py` — class Migration
-- `apps/job/migrations/0002_alter_historicaljob_pricing_type_and_more.py` — class Migration
-- `apps/job/migrations/0003_historicaljob_contact_email_job_contact_email.py` — class Migration
-- `apps/job/migrations/0004_alter_historicaljob_contact_phone_and_more.py` — class Migration
-- `apps/job/migrations/0005_remove_materialentry_source_stock_and_more.py` — class Migration
-- `apps/job/migrations/0006_add_material_adjustment_jobpart_models.py` — class Migration
-- `apps/job/migrations/0007_add_materialentry_add_adjustmententry.py` — class Migration
-- `apps/job/migrations/0007_fix_jobpart_state.py` — class Migration
-- `apps/job/migrations/0008_alter_jobpart_options_and_more.py` — class Migration
-- `apps/job/migrations/0009_historicaljob_priority_job_priority_and_more.py` — class Migration
-- `apps/job/migrations/0010_populate_priority_for_existing_jobs.py` — function populate_priority_for_existing_jobs: (apps, schema_editor), class Migration
-- `apps/job/migrations/0011_rename_revenue_adjustment_adjustmententry_price_adjustment_and_more.py` — class Migration
-- `apps/job/migrations/0011_update_purchase_order_line_reference.py` — class Migration
-- `apps/job/migrations/0012_alter_jobevent_job.py` — class Migration
-- `apps/job/migrations/0012_merge_20250604_2123.py` — class Migration
-- `apps/job/migrations/0013_merge_20250605_0811.py` — class Migration
-- `apps/job/migrations/0014_alter_jobpart_table.py` — class Migration
-- `apps/job/migrations/0015_alter_historicaljob_client_alter_job_client_and_more.py` — class Migration
-- `apps/job/migrations/0016_add_contact_foreignkey.py` — class Migration
-- `apps/job/migrations/0017_migrate_contact_data.py`
-  - function migrate_contact_data: (apps, schema_editor)
-  - function reverse_migration: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0018_add_accounting_date_fields.py` — class Migration
-- `apps/job/migrations/0018_costing_initial.py` — class Migration
-- `apps/job/migrations/0019_job_latest_sets.py` — class Migration
-- `apps/job/migrations/0019_populate_accounting_dates.py`
-  - function populate_accounting_dates: (apps, schema_editor)
-  - function reverse_populate_accounting_dates: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0020_change_priority_to_float.py` — class Migration
-- `apps/job/migrations/0021_add_is_quote_adjustment_field.py` — class Migration
-- `apps/job/migrations/0022_merge_20250615_1511.py` — class Migration
-- `apps/job/migrations/0023_add_new_job_statuses.py` — class Migration
-- `apps/job/migrations/0024_rename_pricing_jobpricing.py`
-  - function rename_field_if_needed: (apps, schema_editor)
-  - function reverse_rename_field_if_needed: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0025_update_job_statuses_for_kanban.py`
-  - function update_job_statuses: (apps, schema_editor)
-  - function reverse_job_statuses: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0026_alter_historicaljob_status_alter_job_status.py` — class Migration
-- `apps/job/migrations/0027_quotespreadsheet.py` — class Migration
-- `apps/job/migrations/0028_add_job_quote_chat_model.py` — class Migration
-- `apps/job/migrations/0029_remove_historicaljob_contact_email_and_more.py` — class Migration
-- `apps/job/migrations/0030_migrate_pricing_to_costing_and_cleanup.py`
-  - function migrate_pricing_to_costing: (apps, schema_editor)
-  - function reverse_migration: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0031_remove_jobpart_job_pricing_and_more.py` — class Migration
-- `apps/job/migrations/0032_fix_blank_job_names.py`
-  - function fix_blank_job_names: (apps, schema_editor)
-  - function reverse_fix_blank_job_names: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0033_update_job_statuses_for_simplified_kanban.py`
-  - function update_job_statuses_for_simplified_kanban: (apps, schema_editor)
-  - function reverse_job_statuses_for_simplified_kanban: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0034_remove_legacy_status_choices.py` — class Migration
-- `apps/job/migrations/0035_alter_jobevent_id.py` — function populate_temp_uuid_ids: (apps, schema_editor), class Migration
-- `apps/job/migrations/0036_complete_uuid_transition.py` — class Migration
-- `apps/job/migrations/0037_finalize_uuid_transition.py` — class Migration
-- `apps/job/migrations/0038_add_event_deduplication.py` — class Migration
-- `apps/job/migrations/0039_alter_job_options_costline_xero_expense_id_and_more.py` — class Migration
-- `apps/job/migrations/0040_historicaljob_fully_invoiced_job_fully_invoiced.py` — class Migration
-- `apps/job/migrations/0041_populate_fully_invoiced.py`
-  - function populate_fully_invoiced_forward: (apps, schema_editor)
-  - function populate_fully_invoiced_reverse: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0042_add_xero_default_task_id.py` — class Migration
-- `apps/job/migrations/0043_alter_costline_xero_last_modified_and_more.py` — class Migration
-- `apps/job/migrations/0044_alter_costline_options_costline_created_at_and_more.py` — class Migration
-- `apps/job/migrations/0045_create_job_delta_rejection.py` — class Migration
-- `apps/job/migrations/0046_add_delta_fields_to_job_event.py` — class Migration
-- `apps/job/migrations/0047_add_accounting_date_nullable.py` — class Migration
-- `apps/job/migrations/0048_populate_accounting_date.py`
-  - function populate_accounting_date: (apps, schema_editor)
-  - function reverse_populate_accounting_date: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0049_make_accounting_date_not_null.py` — class Migration
-- `apps/job/migrations/0050_backfill_costset_summaries.py`
-  - function backfill_empty_summaries: (apps, schema_editor)
-  - function reverse_backfill: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0051_fix_costset_summary_default.py` — class Migration
-- `apps/job/migrations/0052_alter_costline_desc.py` — class Migration
-- `apps/job/migrations/0053_add_speed_quality_tradeoff.py` — class Migration
-- `apps/job/migrations/0054_protect_critical_fks.py` — class Migration
-- `apps/job/migrations/0055_add_price_cap.py` — class Migration
-- `apps/job/migrations/0056_add_safety_document.py` — class Migration
-- `apps/job/migrations/0057_safetydocument_google_docs.py`
-  - function delete_all_safety_documents: (apps, schema_editor)
-  - function noop: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0058_safetydocument_document_number_and_more.py` — class Migration
-- `apps/job/migrations/0059_costline_approved.py` — class Migration
-- `apps/job/migrations/0060_alter_historicaljob_rejected_flag_and_more.py` — class Migration
-- `apps/job/migrations/0061_fix_labour_cost_lines.py`
-  - function cast_labour_adjustments_to_time: (apps, schema_editor)
-  - function noop_reverse: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0062_alter_costline_meta_ext_refs.py` — class Migration
-- `apps/job/migrations/0063_job_payroll_category.py` — class Migration
-- `apps/job/migrations/0064_job_default_xero_pay_item.py`
-  - function backfill_default_xero_pay_item: (apps, _schema_editor)
-  - function backfill_costline_xero_pay_item: (apps, _schema_editor)
-  - function noop: (_apps, _schema_editor)
-  - class Migration
-- `apps/job/migrations/0065_make_default_xero_pay_item_required.py` — class Migration
-- `apps/job/migrations/0066_zero_shop_job_revenue.py`
-  - function zero_shop_job_revenue: (apps, _schema_editor)
-  - function noop: (_apps, _schema_editor)
-  - class Migration
-- `apps/job/migrations/0067_normalize_wage_rate_multiplier.py`
-  - function normalize_wage_rate_multiplier: (apps, schema_editor)
-  - function noop_reverse: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0068_add_completed_at.py`
-  - function backfill_completed_at: (apps, schema_editor)
-  - function reverse_backfill: (apps, schema_editor)
-  - class Migration
-- `apps/job/migrations/0069_fix_fully_invoiced.py` — function fix_fully_invoiced: (apps, schema_editor), class Migration
-- `apps/job/migrations/0070_delete_safetydocument.py` — class Migration
-- `apps/job/migrations/0071_add_rdti_type.py` — class Migration
-- `apps/job/migrations/0072_rename_job_quote_c_job_id_24cfd1_idx_job_jobquot_job_id_c83a63_idx_and_more.py` — class Migration
 - `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
 - `apps/job/models/costing.py`
   - function get_default_cost_set_summary: ()
@@ -1514,9 +1100,6 @@
 - `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
 - `apps/process/apps.py` — class ProcessConfig
 - `apps/process/management/commands/import_dropbox_hs_documents.py` — class Command
-- `apps/process/migrations/0001_initial.py` — class Migration
-- `apps/process/migrations/0002_formentry_staff_historicalformentry_staff_and_more.py` — class Migration
-- `apps/process/migrations/0003_alter_form_table_alter_formentry_table_and_more.py` — class Migration
 - `apps/process/models/form.py` — class Form
 - `apps/process/models/form_entry.py` — class FormEntry
 - `apps/process/models/procedure.py` — class Procedure
@@ -1544,53 +1127,6 @@
 - `apps/purchasing/apps.py` — class PurchasingConfig
 - `apps/purchasing/etag.py` — function normalize_etag: (etag) -> Optional[str], function generate_po_etag: (po) -> str
 - `apps/purchasing/exceptions.py` — class PreconditionFailedError
-- `apps/purchasing/migrations/0001_move_purchase_models_state.py` — class Migration
-- `apps/purchasing/migrations/0002_move_purchase_models_database.py` — class Migration
-- `apps/purchasing/migrations/0003_alter_purchaseorder_xero_tenant_id_and_more.py` — class Migration
-- `apps/purchasing/migrations/0004_stock.py` — class Migration
-- `apps/purchasing/migrations/0005_add_stock_in_database.py` — class Migration
-- `apps/purchasing/migrations/0006_add_stock_item_code_xero_id.py` — class Migration
-- `apps/purchasing/migrations/0007_stock_unique_xero_id.py` — class Migration
-- `apps/purchasing/migrations/0008_stock_parsed_at_stock_parser_confidence_and_more.py` — class Migration
-- `apps/purchasing/migrations/0009_purchaseorderline_item_code.py` — class Migration
-- `apps/purchasing/migrations/0010_add_raw_json_to_purchaseorder.py` — class Migration
-- `apps/purchasing/migrations/0011_stock_xero_inventory_tracked.py` — class Migration
-- `apps/purchasing/migrations/0012_add_unit_revenue_to_stock.py` — class Migration
-- `apps/purchasing/migrations/0013_populate_unit_revenue_from_existing_data.py`
-  - function populate_unit_revenue: (apps, schema_editor)
-  - function reverse_populate_unit_revenue: (apps, schema_editor)
-  - class Migration
-- `apps/purchasing/migrations/0014_remove_retail_rate_field.py` — class Migration
-- `apps/purchasing/migrations/0015_stock_active_source_purchase_order_line_id_and_more.py`
-  - function populate_active_source_purchase_order_line: (apps, schema_editor)
-  - function reset_active_source_purchase_order_line: (apps, schema_editor)
-  - class Migration
-- `apps/purchasing/migrations/0016_add_product_catalog_source.py`
-  - function fix_empty_source: (apps, schema_editor)
-  - function reverse_fix_empty_source: (apps, schema_editor)
-  - class Migration
-- `apps/purchasing/migrations/0017_remove_stock_notes.py` — class Migration
-- `apps/purchasing/migrations/0018_add_xero_line_item_id.py` — class Migration
-- `apps/purchasing/migrations/0019_populate_xero_line_item_id.py`
-  - function populate_xero_line_item_ids: (apps, schema_editor)
-  - function reverse_migration: (apps, schema_editor)
-  - class Migration
-- `apps/purchasing/migrations/0020_add_purchaseorderevent.py` — class Migration
-- `apps/purchasing/migrations/0021_clean_po_line_descriptions.py`
-  - function clean_descriptions: (apps, schema_editor)
-  - function reverse_migration: (apps, schema_editor)
-  - class Migration
-- `apps/purchasing/migrations/0022_add_pickup_address_to_po.py` — class Migration
-- `apps/purchasing/migrations/0023_dedupe_stock_item_codes.py` — function dedupe_stock_item_codes: (apps, schema_editor), class Migration
-- `apps/purchasing/migrations/0024_stock_item_code_unique.py` — class Migration
-- `apps/purchasing/migrations/0025_add_xero_last_synced_to_stock.py` — class Migration
-- `apps/purchasing/migrations/0026_remove_xero_last_synced_default.py` — class Migration
-- `apps/purchasing/migrations/0027_add_created_by_to_purchase_order.py` — class Migration
-- `apps/purchasing/migrations/0028_update_created_by_from_events.py`
-  - function update_created_by_from_first_event: (apps, schema_editor)
-  - function reverse_noop: (apps, schema_editor)
-  - class Migration
-- `apps/purchasing/migrations/0029_alter_purchaseorder_table_and_more.py` — class Migration
 - `apps/purchasing/models.py`
   - class PurchaseOrder
   - class PurchaseOrderLine
@@ -1626,29 +1162,6 @@
 - `apps/quoting/management/commands/populate_product_mappings.py` — class Command
 - `apps/quoting/management/commands/run_scrapers.py` — class Command
 - `apps/quoting/mcp.py` — class SupplierProductQueryTool, class QuotingTool
-- `apps/quoting/migrations/0001_initial.py` — class Migration
-- `apps/quoting/migrations/0002_supplierpricelist_supplierproduct_price_list.py` — class Migration
-- `apps/quoting/migrations/0003_alter_supplierpricelist_supplier_and_more.py` — class Migration
-- `apps/quoting/migrations/0004_scrapejob.py` — class Migration
-- `apps/quoting/migrations/0005_alter_supplierproduct_unique_together_and_more.py` — class Migration
-- `apps/quoting/migrations/0006_alter_supplierproduct_unique_together_and_more.py` — class Migration
-- `apps/quoting/migrations/0007_supplierproduct_parsed_alloy_and_more.py` — class Migration
-- `apps/quoting/migrations/0008_parse_existing_products.py`
-  - function parse_existing_products: (apps, schema_editor)
-  - function reverse_parse_existing_products: (apps, schema_editor)
-  - class Migration
-- `apps/quoting/migrations/0010_productparsingmapping_item_code_is_in_xero.py` — class Migration
-- `apps/quoting/migrations/0011_add_mapping_hash_to_supplierproduct.py` — class Migration
-- `apps/quoting/migrations/0012_supplierproduct_last_scraped.py` — class Migration
-- `apps/quoting/migrations/0013_productparsingmapping_derived_key.py` — class Migration
-- `apps/quoting/migrations/0014_make_parser_fields_nullable.py` — class Migration
-- `apps/quoting/migrations/0015_protect_critical_fks.py` — class Migration
-- `apps/quoting/migrations/0016_protect_supplier_relationships.py` — class Migration
-- `apps/quoting/migrations/0017_add_is_discontinued_to_supplierproduct.py` — class Migration
-- `apps/quoting/migrations/0018_mark_404_products_as_discontinued.py`
-  - function mark_404_products_discontinued: (apps, schema_editor)
-  - function reverse_mark: (apps, schema_editor)
-  - class Migration
 - `apps/quoting/models.py`
   - class SupplierProduct
   - class SupplierPriceList
@@ -1705,11 +1218,6 @@
 - `apps/timesheet/management/commands/create_special_job.py` — class Command
 - `apps/timesheet/management/commands/reassign_time_entries.py` — class Command
 - `apps/timesheet/management/commands/reclassify_overtime_entries.py` — class Command
-- `apps/timesheet/migrations/0001_initial.py` — class Migration
-- `apps/timesheet/migrations/0002_alter_timeentry_job_pricing_fk.py` — class Migration
-- `apps/timesheet/migrations/0003_delete_timeentry.py` — class Migration
-- `apps/timesheet/migrations/0005_xero_payrun.py` — class Migration
-- `apps/timesheet/migrations/0006_delete_xeropayrun_model.py` — class Migration
 - `apps/timesheet/serializers/daily_timesheet_serializers.py`
   - class JobBreakdownSerializer
   - class StaffDailyDataSerializer
@@ -1819,240 +1327,6 @@
   - class FrontendRedirectMiddleware
   - class LoginRequiredMiddleware
   - class PasswordStrengthMiddleware
-- `apps/workflow/migrations/0001_initial.py` — class Migration
-- `apps/workflow/migrations/0003_companydefaults_alter_client_xero_contact_id.py` — class Migration
-- `apps/workflow/migrations/0004_companydefaults_company_name.py` — class Migration
-- `apps/workflow/migrations/0005_remove_companydefaults_id_and_more.py` — class Migration
-- `apps/workflow/migrations/0006_quotepricing.py` — class Migration
-- `apps/workflow/migrations/0007_remove_historicaljob_client_name_and_more.py` — class Migration
-- `apps/workflow/migrations/0008_remove_jobpricing_job_pricing_number.py` — class Migration
-- `apps/workflow/migrations/0009_historicaljob_job_is_valid_job_job_is_valid.py` — class Migration
-- `apps/workflow/migrations/0010_remove_historicaljob_job_name_remove_job_job_name.py` — class Migration
-- `apps/workflow/migrations/0011_remove_timeentry_minutes_timeentry_description_and_more.py` — class Migration
-- `apps/workflow/migrations/0012_alter_timeentry_staff.py` — class Migration
-- `apps/workflow/migrations/0013_alter_timeentry_date.py` — class Migration
-- `apps/workflow/migrations/0014_historicaljob_quote_acceptance_date_and_more.py` — class Migration
-- `apps/workflow/migrations/0015_historicaljob_delivery_date_job_delivery_date.py` — class Migration
-- `apps/workflow/migrations/0016_materialentry_item_code.py` — class Migration
-- `apps/workflow/migrations/0017_materialentry_comments.py` — class Migration
-- `apps/workflow/migrations/0018_rename_cost_adjustmententry_cost_adjustment_and_more.py` — class Migration
-- `apps/workflow/migrations/0019_alter_historicaljob_delivery_date_and_more.py` — class Migration
-- `apps/workflow/migrations/0020_historicaljob_material_gauge_quantity_and_more.py` — class Migration
-- `apps/workflow/migrations/0021_alter_historicaljob_description_and_more.py` — class Migration
-- `apps/workflow/migrations/0022_alter_historicaljob_description_and_more.py` — class Migration
-- `apps/workflow/migrations/0023_alter_historicaljob_contact_phone_and_more.py` — class Migration
-- `apps/workflow/migrations/0024_alter_jobpricing_options_jobpricing_revision_number.py` — class Migration
-- `apps/workflow/migrations/0025_historicaljob_latest_estimate_pricing_and_more.py` — class Migration
-- `apps/workflow/migrations/0026_alter_job_latest_estimate_pricing_and_more.py` — class Migration
-- `apps/workflow/migrations/0027_remove_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0028_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0029_alter_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0030_alter_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0031_alter_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0032_alter_job_latest_estimate_pricing_and_more.py` — class Migration
-- `apps/workflow/migrations/0033_remove_jobpricing_job_and_more.py` — class Migration
-- `apps/workflow/migrations/0034_alter_materialentry_quantity_and_more.py` — class Migration
-- `apps/workflow/migrations/0035_alter_adjustmententry_comments_and_more.py` — class Migration
-- `apps/workflow/migrations/0036_historicalstaff_hours_fri_historicalstaff_hours_mon_and_more.py` — class Migration
-- `apps/workflow/migrations/0037_remove_historicalstaff_charge_out_rate_and_more.py` — class Migration
-- `apps/workflow/migrations/0038_historicaljob_shop_job_job_shop_job.py` — class Migration
-- `apps/workflow/migrations/0039_historicaljob_charge_out_rate_job_charge_out_rate.py` — class Migration
-- `apps/workflow/migrations/0040_alter_historicaljob_charge_out_rate_and_more.py` — class Migration
-- `apps/workflow/migrations/0041_timeentry_wage_rate_multiplier.py` — class Migration
-- `apps/workflow/migrations/0042_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0043_alter_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0044_remove_timeentry_mins_per_item_timeentry_hours_and_more.py` — class Migration
-- `apps/workflow/migrations/0045_remove_timeentry_minutes.py` — class Migration
-- `apps/workflow/migrations/0046_alter_adjustmententry_options_alter_bill_options_and_more.py` — class Migration
-- `apps/workflow/migrations/0047_rename_last_modified_bill_xero_last_modified_and_more.py` — class Migration
-- `apps/workflow/migrations/0048_billlineitem_xero_id_invoicelineitem_xero_id.py` — class Migration
-- `apps/workflow/migrations/0049_companydefaults_created_at_and_more.py` — class Migration
-- `apps/workflow/migrations/0050_alter_historicalstaff_created_at_and_more.py` — class Migration
-- `apps/workflow/migrations/0051_alter_historicalstaff_updated_at_and_more.py` — class Migration
-- `apps/workflow/migrations/0052_alter_jobpricing_job.py` — class Migration
-- `apps/workflow/migrations/0053_alter_job_latest_estimate_pricing_and_more.py` — class Migration
-- `apps/workflow/migrations/0054_remove_historicaljob_shop_job_remove_job_shop_job_and_more.py` — class Migration
-- `apps/workflow/migrations/0055_alter_historicaljob_description_and_more.py` — class Migration
-- `apps/workflow/migrations/0056_rename_total_bill_total_excl_tax_and_more.py` — class Migration
-- `apps/workflow/migrations/0057_rename_line_amount_billlineitem_line_amount_excl_tax_and_more.py` — class Migration
-- `apps/workflow/migrations/0058_alter_billlineitem_options_and_more.py` — class Migration
-- `apps/workflow/migrations/0059_rename_creditlineitem_creditnotelineitem_and_more.py` — class Migration
-- `apps/workflow/migrations/0060_xerojournal_xerojournallineitem.py` — class Migration
-- `apps/workflow/migrations/0061_xerojournallineitem_xero_last_modified.py` — class Migration
-- `apps/workflow/migrations/0062_xerojournal_xero_last_modified.py` — class Migration
-- `apps/workflow/migrations/0063_rename_date_xerojournal_journal_date.py` — class Migration
-- `apps/workflow/migrations/0064_remove_xerojournallineitem_xero_last_modified.py` — class Migration
-- `apps/workflow/migrations/0065_alter_xerojournal_journal_number.py` — class Migration
-- `apps/workflow/migrations/0066_jobfile.py` — class Migration
-- `apps/workflow/migrations/0067_jobfile_status.py` — class Migration
-- `apps/workflow/migrations/0067_supplier_purchase_purchaseline_and_more.py` — class Migration
-- `apps/workflow/migrations/0068_jobevent.py` — class Migration
-- `apps/workflow/migrations/0068_purchase_created_at_purchase_updated_at_and_more.py` — class Migration
-- `apps/workflow/migrations/0069_rename_user_jobevent_staff.py` — class Migration
-- `apps/workflow/migrations/0070_jobevent_event_type.py` — class Migration
-- `apps/workflow/migrations/0071_alter_jobevent_timestamp.py` — class Migration
-- `apps/workflow/migrations/0072_merge_20250113_1626.py` — class Migration
-- `apps/workflow/migrations/0073_jobpricing_is_historical.py` — class Migration
-- `apps/workflow/migrations/0074_bill_xero_last_synced_client_xero_last_synced_and_more.py` — class Migration
-- `apps/workflow/migrations/0075_invoice_online_url_quote.py` — class Migration
-- `apps/workflow/migrations/0075_jobfile_print_on_jobsheet.py` — class Migration
-- `apps/workflow/migrations/0076_invoice_job.py` — class Migration
-- `apps/workflow/migrations/0076_remove_jobpricing_pricing_type_and_more.py` — class Migration
-- `apps/workflow/migrations/0077_alter_quote_job.py` — class Migration
-- `apps/workflow/migrations/0078_alter_quote_job.py` — class Migration
-- `apps/workflow/migrations/0079_merge_20250207_1950.py` — class Migration
-- `apps/workflow/migrations/0080_alter_historicaljob_material_gauge_quantity_and_more.py` — class Migration
-- `apps/workflow/migrations/0080_historicaljob_complex_job_job_complex_job_and_more.py` — class Migration
-- `apps/workflow/migrations/0081_add_last_xero_sync_to_company_defaults.py` — class Migration
-- `apps/workflow/migrations/0082_add_last_xero_deep_sync.py` — class Migration
-- `apps/workflow/migrations/0083_setup_xero_sync_service.py`
-  - function create_systemd_service: (apps, schema_editor)
-  - function remove_systemd_service: (apps, schema_editor)
-  - class Migration
-- `apps/workflow/migrations/0084_cleanup_company_defaults.py` — function cleanup_company_defaults: (apps, schema_editor), class Migration
-- `apps/workflow/migrations/0085_auto_20250302_2205.py` — class Migration
-- `apps/workflow/migrations/0086_alter_historicaljob_contact_person_and_more.py` — class Migration
-- `apps/workflow/migrations/0087_companydefaults_is_primary.py` — class Migration
-- `apps/workflow/migrations/0088_merge_20250305_0549.py` — class Migration
-- `apps/workflow/migrations/0089_companydefaults_starting_job_number_and_more.py` — class Migration
-- `apps/workflow/migrations/0090_alter_staff_options.py` — class Migration
-- `apps/workflow/migrations/0091_rename_coolected_historicaljob_collected_and_more.py` — class Migration
-- `apps/workflow/migrations/0093_historicaljob_notes_job_notes.py` — class Migration
-- `apps/workflow/migrations/0094_migrate_material_gauge_to_notes.py` — class Migration
-- `apps/workflow/migrations/0095_alter_staff_options_and_more.py` — class Migration
-- `apps/workflow/migrations/0096_merge_20250310_2039.py` — class Migration
-- `apps/workflow/migrations/0097_alter_historicalstaff_ims_payroll_id_and_more.py` — class Migration
-- `apps/workflow/migrations/0098_alter_historicalstaff_ims_payroll_id_and_more.py` — class Migration
-- `apps/workflow/migrations/0099_historicaljob_created_by_job_created_by.py` — class Migration
-- `apps/workflow/migrations/0100_companydefaults_xero_tenant_id.py` — function set_tenant_id: (apps, schema_editor), class Migration
-- `apps/workflow/migrations/0101_merge_20250317_1527.py` — class Migration
-- `apps/workflow/migrations/0102_add_job_to_purchase_line.py` — class Migration
-- `apps/workflow/migrations/0103_companydefaults_starting_po_number.py` — class Migration
-- `apps/workflow/migrations/0104_alter_purchaseorder_expected_delivery.py` — class Migration
-- `apps/workflow/migrations/0105_add_xero_fields_to_purchase_order.py` — class Migration
-- `apps/workflow/migrations/0106_add_price_tbc_to_purchase_order_line.py` — class Migration
-- `apps/workflow/migrations/0107_purchaseorder_online_url_purchaseorder_raw_json.py` — class Migration
-- `apps/workflow/migrations/0108_xeroaccount_xero_last_synced.py` — class Migration
-- `apps/workflow/migrations/0109_stock.py` — class Migration
-- `apps/workflow/migrations/0110_purchaseorder_reference.py` — class Migration
-- `apps/workflow/migrations/0111_alter_timeentry_minutes_per_item.py` — class Migration
-- `apps/workflow/migrations/0112_remove_purchaseline_purchase_and_more.py` — class Migration
-- `apps/workflow/migrations/0113_remove_stock_source_id_materialentry_source_stock_and_more.py` — class Migration
-- `apps/workflow/migrations/0114_stock_is_active.py` — class Migration
-- `apps/workflow/migrations/0115_alter_stock_id.py` — class Migration
-- `apps/workflow/migrations/0116_stock_alloy_stock_location_stock_metal_type_and_more.py` — class Migration
-- `apps/workflow/migrations/0117_alter_stock_metal_type.py` — class Migration
-- `apps/workflow/migrations/0118_alter_materialentry_source_stock.py` — class Migration
-- `apps/workflow/migrations/0119_alter_materialentry_source_stock.py` — class Migration
-- `apps/workflow/migrations/0120_add_purchase_order_deleted_status.py` — class Migration
-- `apps/workflow/migrations/0121_purchaseorderline_alloy_purchaseorderline_location_and_more.py` — class Migration
-- `apps/workflow/migrations/0122_companydefaults_anthropic_api_key_and_more.py` — class Migration
-- `apps/workflow/migrations/0123_alter_purchaseorder_order_date_and_more.py` — class Migration
-- `apps/workflow/migrations/0124_companydefaults_billable_threshold_amber_and_more.py` — class Migration
-- `apps/workflow/migrations/0125_normalize_po_numbers.py` — function normalize_po_numbers: (apps, schema_editor), class Migration
-- `apps/workflow/migrations/0126_alter_purchaseorder_order_date.py` — class Migration
-- `apps/workflow/migrations/0127_remove_purchaseorder_raw_json_and_more.py` — class Migration
-- `apps/workflow/migrations/0128_stock_retail_rate.py` — class Migration
-- `apps/workflow/migrations/0129_companydefaults_gemini_api_key_stock_job_and_more.py` — class Migration
-- `apps/workflow/migrations/0130_purchaseorderline_raw_line_data_stock_job_and_more.py` — class Migration
-- `apps/workflow/migrations/0131_aiprovider_companydefaults_anthropic_api_key_and_more.py` — class Migration
-- `apps/workflow/migrations/0132_stock_job_stock_source_purchase_order_line.py` — class Migration
-- `apps/workflow/migrations/0133_bill_xero_tenant_id_client_xero_tenant_id_and_more.py` — class Migration
-- `apps/workflow/migrations/0134_alter_purchaseorder_order_date.py` — class Migration
-- `apps/workflow/migrations/0135_job_people_staff_icon_and_more.py` — class Migration
-- `apps/workflow/migrations/0136_rename_job_status.py` — class Migration
-- `apps/workflow/migrations/0137_auto_20250508_2012.py` — class Migration
-- `apps/workflow/migrations/0138_stock_job_stock_source_purchase_order_line.py` — class Migration
-- `apps/workflow/migrations/0139_bill_xero_tenant_id_client_xero_tenant_id_and_more.py` — class Migration
-- `apps/workflow/migrations/0140_remove_staff_groups_remove_staff_user_permissions_and_more.py` — class Migration
-- `apps/workflow/migrations/0141_remove_timeentry_job_pricing_remove_timeentry_staff_and_more.py` — class Migration
-- `apps/workflow/migrations/0142_remove_historicaljob_client_and_more.py` — class Migration
-- `apps/workflow/migrations/0143_alter_stock_job.py` — class Migration
-- `apps/workflow/migrations/0144_remove_adjustmententry_job_pricing_and_more.py` — class Migration
-- `apps/workflow/migrations/0145_fix_jobpricing_chain.py` — class Migration
-- `apps/workflow/migrations/0146_delete_adjustmententry_delete_materialentry.py` — class Migration
-- `apps/workflow/migrations/0147_companydefaults_po_prefix.py` — class Migration
-- `apps/workflow/migrations/0148_client_primary_contact_email_and_more.py` — class Migration
-- `apps/workflow/migrations/0149_remove_client_secondary_contact_email_and_more.py` — class Migration
-- `apps/workflow/migrations/0150_client_all_phones.py` — class Migration
-- `apps/workflow/migrations/0151_remove_purchaseline_purchase_and_more.py` — class Migration
-- `apps/workflow/migrations/0152_remove_companydefaults_anthropic_api_key_and_more.py` — class Migration
-- `apps/workflow/migrations/0153_delete_client_client.py` — class Migration
-- `apps/workflow/migrations/0154_auto_20250604_1054.py` — class Migration
-- `apps/workflow/migrations/0155_remove_stock_job_remove_stock_source_parent_stock_and_more.py` — class Migration
-- `apps/workflow/migrations/0156_remove_stock_job_remove_stock_source_parent_stock_and_more.py` — class Migration
-- `apps/workflow/migrations/0157_remove_bill_client_remove_billlineitem_bill_and_more.py` — class Migration
-- `apps/workflow/migrations/0158_delete_bill_delete_billlineitem_delete_creditnote_and_more.py` — class Migration
-- `apps/workflow/migrations/0159_add_shop_client_name_field.py` — class Migration
-- `apps/workflow/migrations/0160_alter_aiprovider_provider_type.py` — class Migration
-- `apps/workflow/migrations/0161_companydefaults_gdrive_quotes_folder_id_and_more.py` — class Migration
-- `apps/workflow/migrations/0162_alter_companydefaults_gdrive_quotes_folder_id_and_more.py` — class Migration
-- `apps/workflow/migrations/0163_rename_active_to_default_add_model_name.py` — class Migration
-- `apps/workflow/migrations/0164_serviceapikey.py` — class Migration
-- `apps/workflow/migrations/0165_app_error_models.py` — class Migration
-- `apps/workflow/migrations/0166_alter_apperror_options_alter_xeroerror_options_and_more.py` — class Migration
-- `apps/workflow/migrations/0167_alter_aiprovider_table.py` — class Migration
-- `apps/workflow/migrations/0168_enhance_app_error_model.py` — class Migration
-- `apps/workflow/migrations/0169_remove_aiprovider_company_field.py` — class Migration
-- `apps/workflow/migrations/0170_companydefaults_xero_annual_leave_earnings_rate_id_and_more.py` — function update_existing_token_scopes: (apps, schema_editor), class Migration
-- `apps/workflow/migrations/0171_protect_critical_fks.py` — class Migration
-- `apps/workflow/migrations/0172_alter_xerotoken_scope.py` — class Migration
-- `apps/workflow/migrations/0173_add_test_client_name_field.py` — class Migration
-- `apps/workflow/migrations/0174_add_xero_payroll_models.py` — class Migration
-- `apps/workflow/migrations/0175_make_payroll_fields_required.py` — class Migration
-- `apps/workflow/migrations/0176_add_company_address_fields.py` — class Migration
-- `apps/workflow/migrations/0177_add_company_email_url.py` — class Migration
-- `apps/workflow/migrations/0178_add_company_acronym.py` — class Migration
-- `apps/workflow/migrations/0179_add_xero_payroll_calendar_id.py` — class Migration
-- `apps/workflow/migrations/0180_alter_xerotoken_scope.py` — class Migration
-- `apps/workflow/migrations/0181_payrollcategory.py` — class Migration
-- `apps/workflow/migrations/0182_populate_payroll_categories.py`
-  - function populate_payroll_categories: (apps, schema_editor)
-  - function reverse_populate: (apps, schema_editor)
-  - class Migration
-- `apps/workflow/migrations/0183_remove_payroll_fields_from_companydefaults.py` — class Migration
-- `apps/workflow/migrations/0184_add_xero_shortcode.py` — class Migration
-- `apps/workflow/migrations/0185_fix_unpaid_leave_and_remove_posts_to_xero.py`
-  - function fix_payroll_categories: (apps, schema_editor)
-  - function reverse_fix: (apps, schema_editor)
-  - class Migration
-- `apps/workflow/migrations/0186_simplify_payroll_category.py`
-  - function migrate_xero_names_forward: (apps, schema_editor)
-  - function set_job_payroll_categories_forward: (apps, schema_editor)
-  - function noop: (apps, schema_editor)
-  - class Migration
-- `apps/workflow/migrations/0187_create_xero_pay_item.py` — function create_seed_xero_pay_items: (apps, schema_editor), class Migration
-- `apps/workflow/migrations/0188_delete_payrollcategory.py` — class Migration
-- `apps/workflow/migrations/0189_add_xero_payroll_calendar_id.py` — class Migration
-- `apps/workflow/migrations/0190_add_openai_provider_type.py` — class Migration
-- `apps/workflow/migrations/0191_add_annual_leave_loading.py`
-  - function zero_annual_leave_pay_items: (apps, schema_editor)
-  - function reverse_zero_annual_leave: (apps, schema_editor)
-  - class Migration
-- `apps/workflow/migrations/0192_add_financial_year_start_month.py` — class Migration
-- `apps/workflow/migrations/0193_add_job_gp_target_percentage.py` — class Migration
-- `apps/workflow/migrations/0194_add_profit_thresholds.py` — class Migration
-- `apps/workflow/migrations/0195_rename_kpi_threshold_fields.py` — class Migration
-- `apps/workflow/migrations/0196_alter_companydefaults_kpi_daily_billable_hours_amber_and_more.py` — class Migration
-- `apps/workflow/migrations/0197_alter_xerotoken_scope.py` — class Migration
-- `apps/workflow/migrations/0198_add_shared_drive_fields.py` — class Migration
-- `apps/workflow/migrations/0199_populate_shared_drive_ids.py`
-  - function populate_shared_drive_ids: (apps, schema_editor)
-  - function reverse_populate: (apps, schema_editor)
-  - class Migration
-- `apps/workflow/migrations/0200_xerosynccursor.py` — class Migration
-- `apps/workflow/migrations/0201_add_xero_payroll_start_date.py` — class Migration
-- `apps/workflow/migrations/0202_populate_xero_payroll_start_date.py` — function set_payroll_start_date: (apps, schema_editor), class Migration
-- `apps/workflow/migrations/0203_companydefaults_solo.py`
-  - function forwards: (apps, schema_editor)
-  - function backwards: (apps, schema_editor)
-  - class Migration
-- `apps/workflow/migrations/0204_alter_xerotoken_scope.py` — class Migration
-- `apps/workflow/migrations/0205_companydefaults_company_phone.py` — class Migration
-- `apps/workflow/migrations/0206_companydefaults_logo_companydefaults_logo_wide.py` — class Migration
-- `apps/workflow/migrations/0207_unique_pay_item_name.py` — function deduplicate_pay_items: (apps, _schema_editor), class Migration
-- `apps/workflow/migrations/0208_enable_xero_sync.py` — class Migration
-- `apps/workflow/migrations/0209_rename_workflow_ap_timesta_ae5a69_idx_workflow_ap_timesta_a3d224_idx_and_more.py` — class Migration
 - `apps/workflow/models/ai_provider.py` — class AIProvider
 - `apps/workflow/models/app_error.py` — class AppError, class XeroError
 - `apps/workflow/models/company_defaults.py` — class CompanyDefaults
@@ -2579,30 +1853,19 @@
 
 # Middleware
 
-## logging
-- 0012_add_base_wage_rate — `apps/accounts/migrations/0012_add_base_wage_rate.py`
-- 0017_migrate_contact_data — `apps/job/migrations/0017_migrate_contact_data.py`
-- generate_url_docs — `scripts/generate_url_docs.py`
-
-## custom
-- 0030_migrate_pricing_to_costing_and_cleanup — `apps/job/migrations/0030_migrate_pricing_to_costing_and_cleanup.py`
-- 0067_normalize_wage_rate_multiplier — `apps/job/migrations/0067_normalize_wage_rate_multiplier.py`
-- 0014_remove_retail_rate_field — `apps/purchasing/migrations/0014_remove_retail_rate_field.py`
-- 0037_remove_historicalstaff_charge_out_rate_and_more — `apps/workflow/migrations/0037_remove_historicalstaff_charge_out_rate_and_more.py`
-- 0039_historicaljob_charge_out_rate_job_charge_out_rate — `apps/workflow/migrations/0039_historicaljob_charge_out_rate_job_charge_out_rate.py`
-- 0040_alter_historicaljob_charge_out_rate_and_more — `apps/workflow/migrations/0040_alter_historicaljob_charge_out_rate_and_more.py`
-- 0041_timeentry_wage_rate_multiplier — `apps/workflow/migrations/0041_timeentry_wage_rate_multiplier.py`
-- 0094_migrate_material_gauge_to_notes — `apps/workflow/migrations/0094_migrate_material_gauge_to_notes.py`
-- 0128_stock_retail_rate — `apps/workflow/migrations/0128_stock_retail_rate.py`
-- 0170_companydefaults_xero_annual_leave_earnings_rate_id_and_more — `apps/workflow/migrations/0170_companydefaults_xero_annual_leave_earnings_rate_id_and_more.py`
-- url_autogenerate_plan — `docs/plans/completed/url_autogenerate_plan.md`
-- e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
-
 ## auth
 - authentication — `apps/workflow/authentication.py`
 - middleware — `apps/workflow/middleware.py`
 - auth — `frontend/src/stores/auth.ts`
 - auth — `frontend/tests/fixtures/auth.ts`
+
+## custom
+- middleware — `dev/null/middleware.md`
+- url_autogenerate_plan — `docs/plans/completed/url_autogenerate_plan.md`
+- e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
+
+## logging
+- generate_url_docs — `scripts/generate_url_docs.py`
 
 ---
 
@@ -2646,86 +1909,60 @@
 
 ---
 
-# Events & Queues
-
-- `uncaughtException` [event] — `frontend/playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `mode` [event] — `frontend/playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `readOnly` [event] — `frontend/playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `lineNumbers` [event] — `frontend/playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `lineWrapping` [event] — `frontend/playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `placeholder` [event] — `frontend/playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `change` [event] — `frontend/playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-
----
-
 # Test Coverage
 
-> **100%** of routes and models are covered by tests
-> 109 test files found
+> **34%** of routes and models are covered by tests
+> 103 test files found
+
+## Covered Routes
+
+- ALL:/
+- ALL:/jobs/
+- ALL:/api/
+- ALL:stock
 
 ## Covered Models
 
-- accounting_bill
-- accounting_billlineitem
-- accounting_creditnote
-- accounting_creditnotelineitem
-- accounting_invoice
-- accounting_invoicelineitem
-- accounting_quote
-- accounts_historicalstaff
-- accounts_staff
-- accounts_staff_groups
-- accounts_staff_user_permissions
-- auth_group
-- auth_group_permissions
-- auth_permission
-- client_client
-- client_clientcontact
-- client_supplierpickupaddress
-- django_apscheduler_djangojob
-- django_apscheduler_djangojobexecution
-- django_content_type
-- django_migrations
-- django_session
-- django_site
-- job_costline
-- job_costset
-- job_historicaljob
-- job_job
-- job_job_people
-- job_jobdeltarejection
-- job_jobevent
-- job_jobfile
-- job_jobquotechat
-- job_quotespreadsheet
-- process_form
-- process_formentry
-- process_historicalform
-- process_historicalformentry
-- process_historicalprocedure
-- process_procedure
-- purchasing_purchaseorder
-- purchasing_purchaseorderevent
-- purchasing_purchaseorderline
-- purchasing_purchaseordersupplierquote
-- purchasing_stock
-- quoting_productparsingmapping
-- quoting_scrapejob
-- quoting_supplierpricelist
-- quoting_supplierproduct
-- workflow_aiprovider
-- workflow_apperror
-- workflow_companydefaults
-- workflow_serviceapikey
-- workflow_xeroaccount
-- workflow_xeroerror
-- workflow_xerojournal
-- workflow_xerojournallineitem
-- workflow_xeropayitem
-- workflow_xeropayrun
-- workflow_xeropayslip
-- workflow_xerosynccursor
-- workflow_xerotoken
+- Invoice
+- InvoiceLineItem
+- BillLineItem
+- CreditNoteLineItem
+- Quote
+- Client
+- ClientContact
+- SupplierPickupAddress
+- CostSet
+- CostLine
+- Job
+- JobDeltaRejection
+- JobEvent
+- JobFile
+- JobQuoteChat
+- QuoteSpreadsheet
+- Form
+- FormEntry
+- Procedure
+- PurchaseOrder
+- PurchaseOrderLine
+- PurchaseOrderSupplierQuote
+- Stock
+- PurchaseOrderEvent
+- SupplierProduct
+- SupplierPriceList
+- ScrapeJob
+- ProductParsingMapping
+- AIProvider
+- AppError
+- XeroError
+- ServiceAPIKey
+- XeroAccount
+- XeroJournal
+- XeroJournalLineItem
+- XeroPayItem
+- XeroPayRun
+- XeroPaySlip
+- XeroSyncCursor
+- XeroToken
 
 ---
 

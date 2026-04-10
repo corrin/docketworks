@@ -1,865 +1,538 @@
 # Schema
 
-### accounting_bill
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- number: varchar (required)
-- date: date (required)
-- due_date: date
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- amount_due: numeric(10
-- xero_last_modified: timestamp with time zone (required)
-- raw_json: jsonb (required)
-- client_id: uuid (required, fk)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- tax: numeric(10
-- total_incl_tax: numeric(10
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
+### Invoice
+- job_id: integer (fk)
+- online_url: string (nullable)
+- _relations_: job: one(Job)
 
-### accounting_billlineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text (required)
-- quantity: numeric(10
-- unit_price: numeric(10
-- line_amount_excl_tax: numeric(10
-- line_amount_incl_tax: numeric(10
-- tax_amount: numeric(10
-- account_id: uuid (fk)
-- bill_id: uuid (required, fk)
+### InvoiceLineItem
+- invoice_id: integer (fk)
+- _relations_: invoice: one(Invoice)
 
-### accounting_creditnote
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (fk)
-- number: varchar (required)
-- date: date (required)
-- due_date: date
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- tax: numeric(10
-- total_incl_tax: numeric(10
-- amount_due: numeric(10
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- client_id: uuid (required, fk)
+### BillLineItem
+- bill_id: integer (fk)
+- _relations_: bill: one(Bill)
 
-### accounting_creditnotelineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text (required)
-- quantity: numeric(10
-- unit_price: numeric(10
-- line_amount_excl_tax: numeric(10
-- line_amount_incl_tax: numeric(10
-- tax_amount: numeric(10
-- account_id: uuid (fk)
-- credit_note_id: uuid (required, fk)
+### CreditNoteLineItem
+- credit_note_id: integer (fk)
+- _relations_: credit_note: one(CreditNote)
 
-### accounting_invoice
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- number: varchar (required)
-- date: date (required)
-- due_date: date
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- amount_due: numeric(10
-- xero_last_modified: timestamp with time zone (required)
-- raw_json: jsonb (required)
-- client_id: uuid (required, fk)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- job_id: uuid (fk)
-- online_url: varchar
-- tax: numeric(10
-- total_incl_tax: numeric(10
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
+### Quote
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- job_id: integer (fk)
+- client_id: integer (fk)
+- date: date
+- status: string (default)
+- total_excl_tax: decimal
+- total_incl_tax: decimal
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (default)
+- number: string (nullable)
+- online_url: string (nullable)
+- raw_json: json (nullable)
+- _relations_: job: one(Job), client: one(Client)
 
-### accounting_invoicelineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text (required)
-- quantity: numeric(10
-- unit_price: numeric(10
-- line_amount_excl_tax: numeric(10
-- line_amount_incl_tax: numeric(10
-- tax_amount: numeric(10
-- account_id: uuid (fk)
-- invoice_id: uuid (required, fk)
+### Client
+- id: uuid (pk, default)
+- xero_contact_id: string (unique, nullable)
+- xero_tenant_id: string (nullable)
+- name: string
+- email: string (nullable)
+- phone: string (nullable)
+- address: string (nullable)
+- is_account_customer: boolean (default)
+- is_supplier: boolean (default)
+- xero_last_modified: timestamp
+- raw_json: json (nullable)
+- primary_contact_name: string (nullable)
+- primary_contact_email: string (nullable)
+- additional_contact_persons: json (nullable, default)
+- all_phones: json (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- xero_archived: boolean (default)
+- xero_merged_into_id: string (nullable)
+- merged_into_id: integer (fk)
+- _relations_: merged_into: one(self)
 
-### accounting_quote
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (fk)
-- date: date (required)
-- status: varchar (required)
-- total_excl_tax: numeric(10
-- total_incl_tax: numeric(10
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone (required)
-- online_url: varchar
-- raw_json: jsonb
-- client_id: uuid (required, fk)
-- job_id: uuid (fk)
-- number: character varying(255
+### ClientContact
+- id: uuid (pk, default)
+- client_id: integer (fk)
+- name: string
+- email: string (nullable)
+- phone: string (nullable)
+- position: string (nullable)
+- is_primary: boolean (default)
+- notes: string (nullable)
+- is_active: boolean (default)
+- _relations_: client: one(Client)
 
-### accounts_historicalstaff
-- password: varchar (required)
-- last_login: timestamp with time zone
-- is_superuser: boolean (required)
-- id: uuid (required)
-- icon: text
-- password_needs_reset: boolean (required)
-- email: varchar (required)
-- first_name: varchar (required)
-- last_name: varchar (required)
-- preferred_name: varchar
-- wage_rate: numeric(10
-- is_office_staff: boolean (required)
-- date_joined: timestamp with time zone (required)
-- hours_mon: numeric(4
-- hours_tue: numeric(4
-- hours_wed: numeric(4
-- hours_thu: numeric(4
-- hours_fri: numeric(4
-- hours_sat: numeric(4
-- hours_sun: numeric(4
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- history_user_id: uuid (fk)
-- date_left: date
-- xero_user_id: varchar (fk)
-- base_wage_rate: numeric(10
+### SupplierPickupAddress
+- id: uuid (pk, default)
+- client_id: integer (fk)
+- name: string
+- street: string
+- suburb: string (nullable)
+- city: string
+- state: string (nullable)
+- postal_code: string (nullable)
+- country: string (default)
+- google_place_id: string (nullable)
+- latitude: decimal (nullable)
+- longitude: decimal (nullable)
+- is_primary: boolean (default)
+- notes: string (nullable)
+- is_active: boolean (default)
+- _relations_: client: one(Client)
 
-### accounts_staff
-- password: varchar (required)
-- last_login: timestamp with time zone
-- is_superuser: boolean (required)
-- id: uuid (required)
-- icon: varchar
-- password_needs_reset: boolean (required)
-- email: varchar (required)
-- first_name: varchar (required)
-- last_name: varchar (required)
-- preferred_name: varchar
-- wage_rate: numeric(10
-- is_office_staff: boolean (required)
-- date_joined: timestamp with time zone (required)
-- hours_mon: numeric(4
-- hours_tue: numeric(4
-- hours_wed: numeric(4
-- hours_thu: numeric(4
-- hours_fri: numeric(4
-- hours_sat: numeric(4
-- hours_sun: numeric(4
-- date_left: date
-- xero_user_id: varchar (fk)
-- base_wage_rate: numeric(10
+### CostSet
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- kind: string
+- rev: integer
+- summary: json (default)
+- created: timestamp
+- _relations_: job: one(Job)
 
-### accounts_staff_groups
-- id: bigint (required)
-- staff_id: uuid (required, fk)
-- group_id: integer (required, fk)
+### CostLine
+- id: uuid (pk, default)
+- cost_set_id: integer (fk)
+- kind: string
+- desc: string
+- quantity: decimal (default)
+- unit_cost: decimal (default)
+- unit_rev: decimal (default)
+- ext_refs: json (default)
+- meta: json (default)
+- accounting_date: date
+- xero_time_id: string (nullable)
+- xero_expense_id: string (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- approved: boolean (default)
+- xero_pay_item_id: integer (fk)
+- _relations_: cost_set: one(CostSet), xero_pay_item: one(XeroPayItem)
 
-### accounts_staff_user_permissions
-- id: bigint (required)
-- staff_id: uuid (required, fk)
-- permission_id: integer (required, fk)
+### Job
+- id: uuid (pk, default)
+- name: string
+- client_id: integer (fk)
+- order_number: string (nullable)
+- contact_id: integer (fk)
+- job_number: integer (unique)
+- description: string (nullable)
+- delivery_date: date (nullable)
+- completed_at: timestamp (nullable)
+- rdti_type: string (nullable)
+- pricing_methodology: string (default)
+- price_cap: decimal (nullable)
+- speed_quality_tradeoff: string (default)
+- job_is_valid: boolean (default)
+- charge_out_rate: decimal
+- complex_job: boolean (default)
+- notes: string (nullable)
+- created_by_id: integer (fk)
+- latest_estimate_id: integer (fk)
+- latest_quote_id: integer (fk)
+- latest_actual_id: integer (fk)
+- priority: float (default)
+- xero_project_id: string (unique, nullable)
+- xero_default_task_id: string (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- default_xero_pay_item_id: integer (fk)
+- _relations_: client: one(Client), contact: one(ClientContact), created_by: one(Staff), people: many(Staff), latest_estimate: one(CostSet), latest_quote: one(CostSet), latest_actual: one(CostSet), default_xero_pay_item: one(XeroPayItem)
 
-### auth_group
-- id: integer (required)
-- name: varchar (required)
+### JobDeltaRejection
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- staff_id: integer (fk)
+- change_id: uuid (nullable)
+- reason: string
+- detail: string
+- envelope: json
+- checksum: string
+- request_etag: string
+- request_ip: string (nullable)
+- _relations_: job: one(Job), staff: one(Staff)
 
-### auth_group_permissions
-- id: bigint (required)
-- group_id: integer (required, fk)
-- permission_id: integer (required, fk)
+### JobEvent
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- timestamp: timestamp (default)
+- staff_id: integer (fk)
+- event_type: string (default)
+- description: string
+- schema_version: integer (default)
+- change_id: uuid (nullable)
+- delta_before: json (nullable)
+- delta_after: json (nullable)
+- delta_meta: json (nullable)
+- delta_checksum: string (default)
+- dedup_hash: string (nullable)
+- _relations_: job: one(Job), staff: one(Staff)
 
-### auth_permission
-- id: integer (required)
-- name: varchar (required)
-- content_type_id: integer (required, fk)
-- codename: varchar (required)
+### JobFile
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- filename: string
+- file_path: string
+- mime_type: string
+- uploaded_at: timestamp
+- status: string (default)
+- print_on_jobsheet: boolean (default)
+- _relations_: job: one(Job)
 
-### client_client
-- id: uuid (required)
-- xero_contact_id: varchar (fk)
-- name: varchar (required)
-- email: varchar
-- phone: varchar
-- address: text
-- is_account_customer: boolean (required)
-- raw_json: jsonb
-- django_updated_at: timestamp with time zone (required)
-- django_created_at: timestamp with time zone (required)
-- xero_last_modified: timestamp with time zone (required)
-- primary_contact_email: varchar
-- primary_contact_name: varchar
-- additional_contact_persons: jsonb
-- all_phones: jsonb
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: varchar (fk)
-- merged_into_id: uuid (fk)
-- xero_archived: boolean (required)
-- xero_merged_into_id: varchar (fk)
-- is_supplier: boolean (required)
+### JobQuoteChat
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- message_id: string (unique)
+- role: string
+- content: string
+- timestamp: timestamp
+- metadata: json (default)
+- _relations_: job: one(Job)
 
-### client_clientcontact
-- id: uuid (required)
-- name: varchar (required)
-- email: varchar
-- phone: varchar
-- position: varchar
-- is_primary: boolean (required)
-- notes: text
-- client_id: uuid (required, fk)
-- is_active: boolean (required)
+### QuoteSpreadsheet
+- id: uuid (pk, default)
+- sheet_id: string
+- sheet_url: string (nullable)
+- tab: string (nullable, default)
+- job_id: integer (fk)
+- _relations_: job: one(Job)
 
-### client_supplierpickupaddress
-- id: uuid (required)
-- name: varchar (required)
-- street: varchar (required)
-- city: varchar (required)
-- state: varchar
-- postal_code: varchar
-- country: varchar (required)
-- is_primary: boolean (required)
-- notes: text
-- is_active: boolean (required)
-- client_id: uuid (required, fk)
-- google_place_id: varchar (fk)
-- latitude: numeric(10
-- longitude: numeric(10
-- suburb: character varying(100
+### Form
+- id: uuid (pk, default)
+- document_type: string
+- title: string
+- document_number: string (nullable)
+- tags: json (default)
+- status: string (default)
+- form_schema: json (default)
 
-### django_apscheduler_djangojob
-- id: varchar (required)
-- next_run_time: timestamp with time zone
-- job_state: bytes (required)
+### FormEntry
+- id: uuid (pk, default)
+- form_id: integer (fk)
+- job_id: integer (fk)
+- entry_date: date
+- staff_id: integer (fk)
+- entered_by_id: integer (fk)
+- data: json (default)
+- is_active: boolean (default)
+- _relations_: form: one(Form), job: one(Job), staff: one(Staff), entered_by: one(Staff)
 
-### django_apscheduler_djangojobexecution
-- id: bigint (required)
-- status: varchar (required)
-- run_time: timestamp with time zone (required)
-- duration: numeric(15
-- finished: numeric(15
-- exception: varchar
-- traceback: text
-- job_id: varchar (required, fk)
+### Procedure
+- id: uuid (pk, default)
+- document_type: string
+- title: string
+- document_number: string (nullable)
+- site_location: string
+- tags: json (default)
+- status: string (default)
+- job_id: integer (fk)
+- google_doc_id: string
+- google_doc_url: string
+- _relations_: job: one(Job)
 
-### django_content_type
-- id: integer (required)
-- app_label: varchar (required)
-- model: varchar (required)
+### PurchaseOrder
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- pickup_address_id: integer (fk)
+- job_id: integer (fk)
+- created_by_id: integer (fk)
+- po_number: string (unique)
+- reference: string (nullable)
+- order_date: date (default)
+- expected_delivery: date (nullable)
+- xero_id: uuid (unique, nullable)
+- xero_tenant_id: string (nullable)
+- status: string (default)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- online_url: string (nullable)
+- raw_json: json (nullable)
+- _relations_: supplier: one(Client), pickup_address: one(SupplierPickupAddress), job: one(Job), created_by: one(Staff)
 
-### django_migrations
-- id: bigint (required)
-- app: varchar (required)
-- name: varchar (required)
-- applied: timestamp with time zone (required)
+### PurchaseOrderLine
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- job_id: integer (fk)
+- description: string
+- quantity: decimal
+- dimensions: string (nullable)
+- unit_cost: decimal (nullable)
+- price_tbc: boolean (default)
+- supplier_item_code: string (nullable)
+- item_code: string (nullable)
+- received_quantity: decimal (default)
+- metal_type: string (default, nullable)
+- alloy: string (nullable)
+- specifics: string (nullable)
+- location: string (nullable)
+- raw_line_data: json (nullable)
+- xero_line_item_id: uuid (nullable)
+- _relations_: purchase_order: one(PurchaseOrder), job: one(Job)
 
-### django_session
-- session_key: varchar (required)
-- session_data: text (required)
-- expire_date: timestamp with time zone (required)
+### PurchaseOrderSupplierQuote
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- filename: string
+- file_path: string
+- mime_type: string
+- uploaded_at: timestamp
+- extracted_data: json (nullable)
+- status: string (default)
+- _relations_: purchase_order: one(PurchaseOrder)
 
-### django_site
-- id: integer (required)
-- domain: varchar (required)
-- name: varchar (required)
+### Stock
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- item_code: string (nullable, unique)
+- description: string
+- quantity: decimal
+- unit_cost: decimal
+- unit_revenue: decimal (nullable)
+- date: timestamp (default)
+- source: string
+- source_purchase_order_line_id: integer (fk)
+- active_source_purchase_order_line_id: uuid (nullable)
+- source_parent_stock_id: integer (fk)
+- location: string
+- metal_type: string (default)
+- alloy: string (nullable)
+- specifics: string (nullable)
+- is_active: boolean (default)
+- xero_id: string (unique, nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable)
+- raw_json: json (nullable)
+- xero_inventory_tracked: boolean (default)
+- parsed_at: timestamp (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- _relations_: job: one(Job), source_purchase_order_line: one(PurchaseOrderLine), source_parent_stock: one(self)
 
-### job_costline
-- id: uuid (required)
-- kind: varchar (required)
-- desc: varchar (required)
-- quantity: numeric(10
-- unit_cost: numeric(10
-- unit_rev: numeric(10
-- ext_refs: jsonb (required)
-- meta: jsonb (required)
-- cost_set_id: uuid (required, fk)
-- xero_expense_id: varchar (fk)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- xero_time_id: varchar (fk)
-- accounting_date: date (required)
-- approved: boolean (required)
-- xero_pay_item_id: uuid (fk)
+### PurchaseOrderEvent
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- timestamp: timestamp (default)
+- staff_id: integer (fk)
+- description: string
+- _relations_: purchase_order: one(PurchaseOrder), staff: one(Staff)
 
-### job_costset
-- id: uuid (required)
-- kind: varchar (required)
-- rev: integer (required)
-- summary: jsonb (required)
-- created: timestamp with time zone (required)
-- job_id: uuid (required, fk)
+### SupplierProduct
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- price_list_id: integer (fk)
+- product_name: string
+- item_no: string
+- description: string (nullable)
+- specifications: string (nullable)
+- variant_id: string
+- variant_width: string (nullable)
+- variant_length: string (nullable)
+- variant_price: decimal (nullable)
+- price_unit: string (nullable)
+- variant_available_stock: integer (nullable)
+- url: string
+- is_discontinued: boolean (default)
+- last_scraped: timestamp
+- parsed_item_code: string (nullable)
+- parsed_description: string (nullable)
+- parsed_metal_type: string (nullable)
+- parsed_alloy: string (nullable)
+- parsed_specifics: string (nullable)
+- parsed_dimensions: string (nullable)
+- parsed_unit_cost: decimal (nullable)
+- parsed_price_unit: string (nullable)
+- parsed_at: timestamp (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- mapping_hash: string (nullable)
+- _relations_: supplier: one(Client), price_list: one(SupplierPriceList)
 
-### job_historicaljob
-- name: varchar (required)
-- id: uuid (required)
-- order_number: varchar
-- job_number: integer (required)
-- description: text
-- quote_acceptance_date: timestamp with time zone
-- delivery_date: date
-- status: varchar (required)
-- job_is_valid: boolean (required)
-- collected: boolean (required)
-- paid: boolean (required)
-- charge_out_rate: numeric(10
-- pricing_methodology: varchar (required)
-- complex_job: boolean (required)
-- notes: text
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- client_id: uuid (fk)
-- created_by_id: uuid (fk)
-- history_user_id: uuid (fk)
-- priority: float8 (required)
-- contact_id: uuid (fk)
-- latest_actual_id: uuid (fk)
-- latest_estimate_id: uuid (fk)
-- latest_quote_id: uuid (fk)
-- rejected_flag: boolean (required)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- xero_project_id: varchar (fk)
-- fully_invoiced: boolean (required)
-- xero_default_task_id: varchar (fk)
-- speed_quality_tradeoff: varchar (required)
-- price_cap: numeric(10
-- default_xero_pay_item_id: character (fk)
-- completed_at: timestamp with time zone
-- rdti_type: character varying(20
+### SupplierPriceList
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- file_name: string
+- uploaded_at: timestamp
+- _relations_: supplier: one(Client)
 
-### job_job
-- name: varchar (required)
-- id: uuid (required)
-- order_number: varchar
-- job_number: integer (required)
-- description: text
-- quote_acceptance_date: timestamp with time zone
-- delivery_date: date
-- status: varchar (required)
-- job_is_valid: boolean (required)
-- collected: boolean (required)
-- paid: boolean (required)
-- charge_out_rate: numeric(10
-- pricing_methodology: varchar (required)
-- complex_job: boolean (required)
-- notes: text
-- client_id: uuid (fk)
-- created_by_id: uuid (fk)
-- priority: float8 (required)
-- contact_id: uuid (fk)
-- latest_actual_id: uuid (fk)
-- latest_estimate_id: uuid (fk)
-- latest_quote_id: uuid (fk)
-- rejected_flag: boolean (required)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- xero_project_id: varchar (fk)
-- fully_invoiced: boolean (required)
-- xero_default_task_id: varchar (fk)
-- speed_quality_tradeoff: varchar (required)
-- price_cap: numeric(10
-- default_xero_pay_item_id: uuid (required, fk)
-- completed_at: timestamp with time zone
-- rdti_type: character varying(20
+### ScrapeJob
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- status: string (default)
+- started_at: timestamp (default)
+- completed_at: timestamp (nullable)
+- products_scraped: integer (default)
+- products_failed: integer (default)
+- error_message: string (nullable)
+- _relations_: supplier: one(Client)
 
-### job_job_people
-- id: bigint (required)
-- job_id: uuid (required, fk)
-- staff_id: uuid (required, fk)
+### ProductParsingMapping
+- id: uuid (pk, default)
+- input_hash: string (unique)
+- input_data: json
+- derived_key: string (nullable)
+- mapped_item_code: string (nullable)
+- mapped_description: string (nullable)
+- mapped_metal_type: string (nullable)
+- mapped_alloy: string (nullable)
+- mapped_specifics: string (nullable)
+- mapped_dimensions: string (nullable)
+- mapped_unit_cost: decimal (nullable)
+- mapped_price_unit: string (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- llm_response: json (nullable)
+- is_validated: boolean (default)
+- validated_by_id: integer (fk)
+- validated_at: timestamp (nullable)
+- validation_notes: string (nullable)
+- item_code_is_in_xero: boolean (default)
+- _relations_: validated_by: one(Staff)
 
-### job_jobdeltarejection
-- id: uuid (required)
-- change_id: uuid (fk)
-- reason: varchar (required)
-- detail: text (required)
-- envelope: jsonb (required)
-- request_etag: varchar (required)
-- request_ip: inet
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
+### AIProvider
+- name: string
+- api_key: string (nullable)
+- default: boolean (default)
+- model_name: string
+- provider_type: string
 
-### job_jobevent
-- timestamp: timestamp with time zone (required)
-- event_type: varchar (required)
-- description: text (required)
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
-- id: uuid (required)
-- dedup_hash: varchar
-- schema_version: smallint (required)
-- change_id: uuid (fk)
-- delta_before: jsonb
-- delta_after: jsonb
-- delta_meta: jsonb
-- delta_checksum: varchar (required)
+### AppError
+- id: uuid (pk, default)
+- timestamp: timestamp
+- message: string
+- data: json (nullable)
+- app: string (nullable)
+- file: string (nullable)
+- function: string (nullable)
+- severity: integer (default)
+- job_id: uuid (nullable)
+- user_id: uuid (nullable)
+- resolved: boolean (default)
+- resolved_by_id: integer (fk)
+- resolved_timestamp: timestamp (nullable)
+- _relations_: resolved_by: one(Staff)
 
-### job_jobfile
-- id: uuid (required)
-- filename: varchar (required)
-- file_path: varchar (required)
-- mime_type: varchar (required)
-- uploaded_at: timestamp with time zone (required)
-- status: varchar (required)
-- print_on_jobsheet: boolean (required)
-- job_id: uuid (required, fk)
+### XeroError
+- entity: string
+- reference_id: string
+- kind: string
 
-### job_jobquotechat
-- id: uuid (required)
-- message_id: varchar (required, fk)
-- role: varchar (required)
-- content: text (required)
-- timestamp: timestamp with time zone (required)
-- metadata: jsonb (required)
-- job_id: uuid (required, fk)
+### ServiceAPIKey
+- id: uuid (pk, default)
+- name: string
+- key: string (unique)
+- is_active: boolean (default)
+- last_used: timestamp (nullable)
 
-### job_quotespreadsheet
-- id: uuid (required)
-- sheet_id: varchar (required, fk)
-- sheet_url: varchar
-- tab: varchar
-- job_id: uuid (fk)
+### XeroAccount
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- account_code: string (nullable)
+- account_name: string (unique)
+- description: string (nullable)
+- account_type: string (nullable)
+- tax_type: string (nullable)
+- enable_payments: boolean (default)
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- raw_json: json
+- django_created_at: timestamp
+- django_updated_at: timestamp
 
-### process_form
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- tags: jsonb (required)
-- status: varchar (required)
-- form_schema: jsonb (required)
+### XeroJournal
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- journal_date: date
+- created_date_utc: timestamp
+- journal_number: integer (unique)
+- reference: string (nullable)
+- source_id: uuid (nullable)
+- source_type: string (nullable)
+- raw_json: json
+- xero_last_modified: timestamp
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- xero_last_synced: timestamp (nullable, default)
 
-### process_formentry
-- id: uuid (required)
-- entry_date: date (required)
-- data: jsonb (required)
-- is_active: boolean (required)
-- entered_by_id: uuid (fk)
-- form_id: uuid (required, fk)
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
+### XeroJournalLineItem
+- id: uuid (pk, default)
+- journal_id: integer (fk)
+- xero_line_id: uuid (unique)
+- account_id: integer (fk)
+- description: string (nullable)
+- net_amount: decimal
+- gross_amount: decimal
+- tax_amount: decimal
+- tax_type: string (nullable)
+- tax_name: string (nullable)
+- raw_json: json
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- _relations_: journal: one(XeroJournal), account: one(XeroAccount)
 
-### process_historicalform
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- tags: jsonb (required)
-- status: varchar (required)
-- form_schema: jsonb (required)
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- history_user_id: uuid (fk)
+### XeroPayItem
+- id: uuid (pk, default)
+- xero_id: string (unique, nullable)
+- xero_tenant_id: string (nullable)
+- name: string
+- uses_leave_api: boolean
+- multiplier: decimal (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
 
-### process_historicalformentry
-- id: uuid (required)
-- entry_date: date (required)
-- data: jsonb (required)
-- is_active: boolean (required)
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- entered_by_id: uuid (fk)
-- form_id: uuid (fk)
-- history_user_id: uuid (fk)
-- job_id: uuid (fk)
-- staff_id: uuid (fk)
+### XeroPayRun
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string
+- payroll_calendar_id: uuid (nullable)
+- period_start_date: date
+- period_end_date: date
+- payment_date: date
+- pay_run_status: string (nullable)
+- pay_run_type: string (nullable)
+- total_cost: decimal (nullable)
+- total_pay: decimal (nullable)
+- raw_json: json
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
 
-### process_historicalprocedure
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- site_location: varchar (required)
-- tags: jsonb (required)
-- status: varchar (required)
-- google_doc_id: varchar (required, fk)
-- google_doc_url: varchar (required)
-- history_id: integer (required, fk)
-- history_date: timestamp with time zone (required)
-- history_change_reason: varchar
-- history_type: varchar (required)
-- history_user_id: uuid (fk)
-- job_id: uuid (fk)
+### XeroPaySlip
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string
+- pay_run_id: integer (fk)
+- xero_employee_id: uuid
+- employee_name: string (nullable)
+- gross_earnings: decimal (default)
+- tax_amount: decimal (default)
+- net_pay: decimal (default)
+- timesheet_hours: decimal (default)
+- leave_hours: decimal (default)
+- raw_json: json
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- _relations_: pay_run: one(XeroPayRun)
 
-### process_procedure
-- id: uuid (required)
-- document_type: varchar (required)
-- title: varchar (required)
-- document_number: varchar
-- site_location: varchar (required)
-- tags: jsonb (required)
-- status: varchar (required)
-- google_doc_id: varchar (required, fk)
-- google_doc_url: varchar (required)
-- job_id: uuid (fk)
+### XeroSyncCursor
+- entity_key: string (unique)
+- last_modified: timestamp
 
-### purchasing_purchaseorder
-- id: uuid (required)
-- po_number: varchar (required)
-- order_date: date (required)
-- expected_delivery: date
-- xero_id: uuid (fk)
-- status: varchar (required)
-- supplier_id: uuid (fk)
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-- online_url: varchar
-- reference: varchar
-- job_id: uuid (fk)
-- xero_tenant_id: varchar (fk)
-- raw_json: jsonb
-- pickup_address_id: uuid (fk)
-- created_by_id: uuid (fk)
-
-### purchasing_purchaseorderevent
-- id: uuid (required)
-- timestamp: timestamp with time zone (required)
-- description: text (required)
-- purchase_order_id: uuid (required, fk)
-- staff_id: uuid (required, fk)
-
-### purchasing_purchaseorderline
-- id: uuid (required)
-- description: varchar (required)
-- quantity: numeric(10
-- unit_cost: numeric(10
-- received_quantity: numeric(10
-- purchase_order_id: uuid (required, fk)
-- price_tbc: boolean (required)
-- dimensions: varchar
-- supplier_item_code: varchar
-- raw_line_data: jsonb
-- alloy: varchar
-- job_id: uuid (fk)
-- location: varchar
-- metal_type: varchar
-- specifics: varchar
-- item_code: varchar
-- xero_line_item_id: uuid (fk)
-
-### purchasing_purchaseordersupplierquote
-- id: uuid (required)
-- filename: varchar (required)
-- file_path: varchar (required)
-- mime_type: varchar (required)
-- uploaded_at: timestamp with time zone (required)
-- extracted_data: jsonb
-- status: varchar (required)
-- purchase_order_id: uuid (required, fk)
-
-### purchasing_stock
-- id: uuid (required)
-- description: varchar (required)
-- quantity: numeric(10
-- unit_cost: numeric(10
-- date: timestamp with time zone (required)
-- source: varchar (required)
-- location: text (required)
-- metal_type: varchar (required)
-- alloy: varchar
-- specifics: varchar
-- is_active: boolean (required)
-- job_id: uuid (fk)
-- source_purchase_order_line_id: uuid (fk)
-- source_parent_stock_id: uuid (fk)
-- item_code: varchar
-- xero_id: varchar (fk)
-- xero_last_modified: timestamp with time zone
-- raw_json: jsonb
-- parsed_at: timestamp with time zone
-- parser_confidence: numeric(3
-- parser_version: varchar
-- xero_inventory_tracked: boolean (required)
-- unit_revenue: numeric(10
-- active_source_purchase_order_line_id: uuid (fk)
-- xero_last_synced: timestamp with time zone
-
-### quoting_productparsingmapping
-- id: uuid (required)
-- input_hash: varchar (required)
-- input_data: jsonb (required)
-- mapped_item_code: varchar
-- mapped_description: varchar
-- mapped_metal_type: varchar
-- mapped_alloy: varchar
-- mapped_specifics: varchar
-- mapped_dimensions: varchar
-- mapped_unit_cost: numeric(10
-- mapped_price_unit: varchar
-- parser_version: varchar
-- parser_confidence: numeric(3
-- llm_response: jsonb
-- is_validated: boolean (required)
-- validated_at: timestamp with time zone
-- validation_notes: text
-- validated_by_id: uuid (fk)
-- item_code_is_in_xero: boolean (required)
-- derived_key: character varying(100
-
-### quoting_scrapejob
-- id: uuid (required)
-- status: varchar (required)
-- started_at: timestamp with time zone (required)
-- completed_at: timestamp with time zone
-- products_scraped: integer (required)
-- products_failed: integer (required)
-- error_message: text
-- supplier_id: uuid (required, fk)
-
-### quoting_supplierpricelist
-- id: uuid (required)
-- file_name: varchar (required)
-- uploaded_at: timestamp with time zone (required)
-- supplier_id: uuid (required, fk)
-
-### quoting_supplierproduct
-- id: uuid (required)
-- product_name: varchar (required)
-- item_no: varchar (required)
-- description: text
-- specifications: text
-- variant_id: varchar (required, fk)
-- variant_width: varchar
-- variant_length: varchar
-- variant_price: numeric(10
-- price_unit: varchar
-- variant_available_stock: integer
-- url: varchar (required)
-- supplier_id: uuid (required, fk)
-- price_list_id: uuid (required, fk)
-- parsed_alloy: varchar
-- parsed_at: timestamp with time zone
-- parsed_description: varchar
-- parsed_dimensions: varchar
-- parsed_item_code: varchar
-- parsed_metal_type: varchar
-- parsed_price_unit: varchar
-- parsed_specifics: varchar
-- parsed_unit_cost: numeric(10
-- parser_confidence: numeric(3
-- parser_version: varchar
-- mapping_hash: varchar
-- last_scraped: timestamp with time zone (required)
-- is_discontinued: boolean (required)
-
-### workflow_aiprovider
-- id: bigint (required)
-- name: varchar (required)
-- api_key: varchar
-- provider_type: varchar (required)
-- default: boolean (required)
-- model_name: varchar (required)
-
-### workflow_apperror
-- id: uuid (required)
-- timestamp: timestamp with time zone (required)
-- message: text (required)
-- data: jsonb
-- app: varchar
-- file: varchar
-- function: varchar
-- job_id: uuid (fk)
-- resolved: boolean (required)
-- resolved_by_id: uuid (fk)
-- resolved_timestamp: timestamp with time zone
-- severity: integer (required)
-- user_id: uuid (fk)
-
-### workflow_companydefaults
-- time_markup: numeric(5
-- materials_markup: numeric(5
-- charge_out_rate: numeric(6
-- wage_rate: numeric(6
-- mon_start: time without time zone (required)
-- mon_end: time without time zone (required)
-- tue_start: time without time zone (required)
-- tue_end: time without time zone (required)
-- wed_start: time without time zone (required)
-- wed_end: time without time zone (required)
-- thu_start: time without time zone (required)
-- thu_end: time without time zone (required)
-- fri_start: time without time zone (required)
-- fri_end: time without time zone (required)
-- company_name: varchar (required)
-- last_xero_sync: timestamp with time zone
-- last_xero_deep_sync: timestamp with time zone
-- xero_tenant_id: varchar (fk)
-- starting_po_number: integer (required)
-- kpi_daily_billable_hours_amber: numeric(5
-- kpi_daily_billable_hours_green: numeric(5
-- kpi_daily_gp_target: numeric(10
-- kpi_daily_shop_hours_percentage: numeric(5
-- po_prefix: varchar (required)
-- master_quote_template_url: varchar
-- starting_job_number: integer (required)
-- shop_client_name: varchar
-- gdrive_quotes_folder_id: varchar (fk)
-- gdrive_quotes_folder_url: varchar
-- master_quote_template_id: varchar (fk)
-- test_client_name: varchar
-- address_line1: varchar
-- address_line2: varchar
-- city: varchar
-- country: varchar (required)
-- post_code: varchar
-- suburb: varchar
-- company_email: varchar
-- company_url: varchar
-- company_acronym: varchar
-- xero_payroll_calendar_name: varchar (required)
-- xero_shortcode: varchar
-- xero_payroll_calendar_id: uuid (fk)
-- annual_leave_loading: numeric(5
-- financial_year_start_month: integer (required)
-- kpi_job_gp_target_percentage: numeric(5
-- kpi_daily_gp_amber: numeric(10
-- kpi_daily_gp_green: numeric(10
-- gdrive_how_we_work_folder_id: varchar (fk)
-- gdrive_reference_library_folder_id: varchar (fk)
-- gdrive_sops_folder_id: varchar (fk)
-- google_shared_drive_id: varchar (fk)
-- xero_payroll_start_date: date
-- id: bigint (required)
-- company_phone: varchar
-- logo: varchar
-- logo_wide: varchar
-- enable_xero_sync: boolean (required)
-
-### workflow_serviceapikey
-- id: uuid (required)
-- name: varchar (required)
-- is_active: boolean (required)
-- last_used: timestamp with time zone
-
-### workflow_xeroaccount
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- account_code: varchar
-- account_name: varchar (required)
-- description: text
-- account_type: varchar
-- tax_type: varchar
-- enable_payments: boolean (required)
-- xero_last_modified: timestamp with time zone (required)
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
-
-### workflow_xeroerror
-- apperror_ptr_id: uuid (required, fk)
-- entity: varchar (required)
-- reference_id: varchar (required, fk)
-- kind: varchar (required)
-
-### workflow_xerojournal
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- journal_date: date (required)
-- created_date_utc: timestamp with time zone (required)
-- journal_number: integer (required)
-- reference: varchar
-- source_id: uuid (fk)
-- source_type: varchar
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- xero_tenant_id: character varying(255 (fk)
-
-### workflow_xerojournallineitem
-- id: uuid (required)
-- xero_line_id: uuid (required, fk)
-- description: text
-- net_amount: numeric(10
-- gross_amount: numeric(10
-- tax_amount: numeric(10
-- tax_type: varchar
-- tax_name: varchar
-- raw_json: jsonb (required)
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- account_id: uuid (fk)
-- journal_id: uuid (required, fk)
-
-### workflow_xeropayitem
-- id: uuid (required)
-- xero_id: varchar (fk)
-- xero_tenant_id: varchar (fk)
-- name: varchar (required)
-- uses_leave_api: boolean (required)
-- multiplier: numeric(4
-- xero_last_modified: timestamp with time zone
-- xero_last_synced: timestamp with time zone
-
-### workflow_xeropayrun
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (required, fk)
-- payroll_calendar_id: uuid (fk)
-- period_start_date: date (required)
-- period_end_date: date (required)
-- payment_date: date (required)
-- pay_run_status: varchar
-- pay_run_type: varchar
-- total_cost: numeric(12
-- total_pay: numeric(12
-- raw_json: jsonb (required)
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-
-### workflow_xeropayslip
-- id: uuid (required)
-- xero_id: uuid (required, fk)
-- xero_tenant_id: varchar (required, fk)
-- xero_employee_id: uuid (required, fk)
-- employee_name: varchar
-- gross_earnings: numeric(10
-- tax_amount: numeric(10
-- net_pay: numeric(10
-- timesheet_hours: numeric(8
-- leave_hours: numeric(8
-- raw_json: jsonb (required)
-- xero_last_modified: timestamp with time zone (required)
-- xero_last_synced: timestamp with time zone
-- django_created_at: timestamp with time zone (required)
-- django_updated_at: timestamp with time zone (required)
-- pay_run_id: uuid (required, fk)
-
-### workflow_xerosynccursor
-- id: bigint (required)
-- entity_key: varchar (required)
-- last_modified: timestamp with time zone (required)
-
-### workflow_xerotoken
-- id: bigint (required)
-- tenant_id: varchar (required, fk)
-- token_type: varchar (required)
-- access_token: text (required)
-- refresh_token: text (required)
-- expires_at: timestamp with time zone (required)
-- scope: text (required)
+### XeroToken
+- tenant_id: string (unique)
+- token_type: string
+- access_token: string
+- refresh_token: string
+- expires_at: timestamp
+- scope: string (default)

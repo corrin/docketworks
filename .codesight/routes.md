@@ -1,0 +1,90 @@
+# Routes
+
+- `ALL` `/reports/calendar/` params()
+- `ALL` `/reports/job-aging/` params()
+- `ALL` `/reports/job-movement/` params()
+- `ALL` `/reports/payroll-date-range/` params()
+- `ALL` `/reports/payroll-reconciliation/` params()
+- `ALL` `/reports/profit-and-loss/` params()
+- `ALL` `/reports/sales-forecast/` params()
+- `ALL` `/reports/sales-forecast/<str:month>/` params(month)
+- `ALL` `/reports/staff-performance-summary/` params()
+- `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
+- `ALL` `/reports/rdti-spend/` params()
+- `ALL` `/reports/wip/` params()
+- `ALL` `/staff/all/` params() [auth]
+- `ALL` `/staff/rates/<uuid:staff_id>/` params(staff_id) [auth]
+- `ALL` `/token/` params() [auth]
+- `ALL` `/token/refresh/` params() [auth]
+- `ALL` `/token/verify/` params() [auth]
+- `ALL` `/me/` params() [auth]
+- `ALL` `/logout/` params() [auth]
+- `ALL` `/password_change/` params() [auth]
+- `ALL` `/staff/` params() [auth]
+- `ALL` `/staff/<uuid:pk>/` params(pk) [auth]
+- `ALL` `/job/completed/` params()
+- `ALL` `/job/completed/archive` params()
+- `ALL` `/job/<uuid:job_id>/assignment` params(job_id)
+- `ALL` `/job/<uuid:job_id>/assignment/<uuid:staff_id>` params(job_id, staff_id)
+- `ALL` `/company_defaults/` params()
+- `ALL` `/jobs/fetch-all/` params()
+- `ALL` `/jobs/workshop` params()
+- `ALL` `/workshop/timesheets/` params()
+- `ALL` `/jobs/<str:job_id>/update-status/` params(job_id)
+- `ALL` `/jobs/<uuid:job_id>/reorder/` params(job_id)
+- `ALL` `/jobs/fetch/<str:status>/` params(status)
+- `ALL` `/jobs/fetch-by-column/<str:column_id>/` params(column_id)
+- `ALL` `/jobs/status-values/` params()
+- `ALL` `/jobs/advanced-search/` params()
+- `ALL` `/` ✓
+- `ALL` `/extract-supplier-price-list/` params()
+- `ALL` `/daily/<str:target_date>/` params(target_date)
+- `ALL` `/staff/<str:staff_id>/daily/<str:target_date>/` params(staff_id, target_date)
+- `ALL` `/weekly/` params()
+- `ALL` `/jobs/` params() ✓
+- `ALL` `/payroll/pay-runs/refresh` params()
+- `ALL` `/payroll/pay-runs/create` params()
+- `ALL` `/payroll/pay-runs/` params()
+- `ALL` `/payroll/post-staff-week/` params()
+- `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
+- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
+- `ALL` `/xero/authenticate/` params() [auth, payment, upload]
+- `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
+- `ALL` `/xero/disconnect/` params() [auth, payment, upload]
+- `ALL` `/xero/sync-stream/` params() [auth, payment, upload]
+- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/sync-info/` params() [auth, payment, upload]
+- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/sync/` params() [auth, payment, upload]
+- `ALL` `/xero/webhook/` params() [auth, payment, upload]
+- `ALL` `/xero/ping/` params() [auth, payment, upload]
+- `ALL` `/app-errors/` params() [auth, payment, upload]
+- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/rest/app-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/company-defaults/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/upload-logo/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/schema/` params() [auth, payment, upload]
+- `ALL` `/workflow/` params() [auth, payment, upload]
+- `ALL` `/api/` params() ✓
+- `ALL` `/api/job/` params()
+- `ALL` `/api/accounts/` params()
+- `ALL` `/api/timesheets/` params()
+- `ALL` `/api/quoting/` params()
+- `ALL` `/api/clients/` params()
+- `ALL` `/api/purchasing/` params()
+- `ALL` `/api/accounting/` params()
+- `ALL` `/api/process/` params()
+- `ALL` `/api/schema/` params()
+- `ALL` `/api/docs` params()
+- `ALL` `contacts`
+- `ALL` `stock` ✓
+- `ALL` `ai-providers` [auth, payment, upload]
+- `ALL` `app-errors` [auth, payment, upload]
+- `ALL` `xero-pay-items` [auth, payment, upload]
+- `ALL` `rest/process-documents` [auth, db, upload, ai]
