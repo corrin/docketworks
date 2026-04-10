@@ -146,6 +146,13 @@ repos:
         pass_filenames: false
         always_run: true
 
+      - id: codesight-frontend
+        name: Regenerate frontend codesight context map
+        entry: bash -c 'cd frontend && npx codesight --wiki && git add .codesight/'
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: codesight-knowledge
         name: Regenerate codesight knowledge map
         entry: bash -c 'cd frontend && npx codesight --mode knowledge -o ../docs/.codesight .. && cd .. && git add docs/.codesight/'
