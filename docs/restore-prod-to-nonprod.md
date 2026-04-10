@@ -99,7 +99,7 @@ ls -la restore/prod_backup_YYYYMMDD_HHMMSS.json
 #### Step 5: Load Production Data
 
 ```bash
-python manage.py loaddata restore/prod_backup_YYYYMMDD_HHMMSS.json
+python manage.py loaddata --no-transactions restore/prod_backup_YYYYMMDD_HHMMSS.json
 ```
 
 **Check:**
