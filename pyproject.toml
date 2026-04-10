@@ -67,7 +67,7 @@ post-install = "scripts.post_install:install_system_deps"  # Script to install s
 flake8 = "^7.3.0"
 mypy = "^1.16.1"
 pylint = "^4.0.5"
-tox = "^4.18.1"
+tox = "^4.52.1"
 django-stubs = ">=6.0.1"
 djangorestframework-stubs = ">=3.16"  # May also need update for Django 6
 mypy-extensions = "^1.1.0"
