@@ -99,7 +99,6 @@ class Command(BaseCommand):
             "auth.permission",
             "auth.group",
             "sessions.session",
-            "admin.logentry",
             "sites.site",
             # Secrets — must not leave prod
             "workflow.xerotoken",
