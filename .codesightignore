@@ -10,5 +10,12 @@ node_modules/
 .venv/
 .tox/
 
+# Playwright trace artifacts (pollute events detection)
+playwright-report
+test-results
+
+# Django migrations (misdetected as middleware)
+migrations
+
 # Docs codesight (separate knowledge scan)
 docs/.codesight/
