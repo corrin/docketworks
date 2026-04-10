@@ -383,6 +383,29 @@ paths:
               schema:
                 $ref: '#/components/schemas/StaffPerformanceResponse'
           description: ''
+  /api/accounting/reports/wip/:
+    get:
+      operationId: accounting_reports_wip_retrieve
+      description: |-
+        Get WIP data as at a given date.
+
+        Query Parameters:
+            date (str): Report date in YYYY-MM-DD format. Defaults to today.
+            method (str): Valuation method — 'revenue' (default) or 'cost'.
+
+        Returns:
+            JSON response with WIP data, archived jobs, and summary.
+      tags:
+        - accounting
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WIPResponse'
+          description: ''
   /api/accounts/logout/:
     post:
       operationId: accounts_logout_create
@@ -17870,6 +17893,131 @@ components:
           items:
             type: string
             minLength: 1
+    WIPJob:
+      type: object
+      description: A single job row in the WIP report.
+      properties:
+        job_number:
+          type: integer
+        name:
+          type: string
+        client:
+          type: string
+        status:
+          type: string
+        time_cost:
+          type: number
+          format: double
+        time_rev:
+          type: number
+          format: double
+        material_cost:
+          type: number
+          format: double
+        material_rev:
+          type: number
+          format: double
+        adjust_cost:
+          type: number
+          format: double
+        adjust_rev:
+          type: number
+          format: double
+        total_cost:
+          type: number
+          format: double
+        total_rev:
+          type: number
+          format: double
+        invoiced:
+          type: number
+          format: double
+        gross_wip:
+          type: number
+          format: double
+        net_wip:
+          type: number
+          format: double
+      required:
+        - adjust_cost
+        - adjust_rev
+        - client
+        - gross_wip
+        - invoiced
+        - job_number
+        - material_cost
+        - material_rev
+        - name
+        - net_wip
+        - status
+        - time_cost
+        - time_rev
+        - total_cost
+        - total_rev
+    WIPResponse:
+      type: object
+      description: Top-level response for the WIP report.
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/WIPJob'
+        archived_jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/WIPJob'
+        summary:
+          $ref: '#/components/schemas/WIPSummary'
+        report_date:
+          type: string
+        method:
+          type: string
+      required:
+        - archived_jobs
+        - jobs
+        - method
+        - report_date
+        - summary
+    WIPStatusBreakdown:
+      type: object
+      description: Breakdown of WIP by job status.
+      properties:
+        status:
+          type: string
+        count:
+          type: integer
+        net_wip:
+          type: number
+          format: double
+      required:
+        - count
+        - net_wip
+        - status
+    WIPSummary:
+      type: object
+      description: Summary totals for the WIP report.
+      properties:
+        job_count:
+          type: integer
+        total_gross:
+          type: number
+          format: double
+        total_invoiced:
+          type: number
+          format: double
+        total_net:
+          type: number
+          format: double
+        by_status:
+          type: array
+          items:
+            $ref: '#/components/schemas/WIPStatusBreakdown'
+      required:
+        - by_status
+        - job_count
+        - total_gross
+        - total_invoiced
+        - total_net
     WeeklyMetrics:
       type: object
       description: Serializer for weekly metrics data

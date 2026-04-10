@@ -13,6 +13,7 @@ from .staff_performance_views import (
     StaffPerformanceSummaryAPIView,
     StaffPerformanceTemplateView,
 )
+from .wip_view import WIPReportAPIView
 
 __all__ = [
     "JobAgingAPIView",
@@ -25,4 +26,5 @@ __all__ = [
     "StaffPerformanceDetailAPIView",
     "StaffPerformanceSummaryAPIView",
     "StaffPerformanceTemplateView",
+    "WIPReportAPIView",
 ]

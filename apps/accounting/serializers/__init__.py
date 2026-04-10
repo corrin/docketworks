@@ -45,6 +45,13 @@ try:
             RDTISpendResponseSerializer,
             RDTISpendTotalsSerializer,
         )
+        from .wip_serializers import (
+            WIPJobSerializer,
+            WIPQuerySerializer,
+            WIPResponseSerializer,
+            WIPStatusBreakdownSerializer,
+            WIPSummarySerializer,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -84,4 +91,9 @@ __all__ = [
     "StaffPerformanceStaffDataSerializer",
     "StaffPerformanceTeamAveragesSerializer",
     "StandardErrorSerializer",
+    "WIPJobSerializer",
+    "WIPQuerySerializer",
+    "WIPResponseSerializer",
+    "WIPStatusBreakdownSerializer",
+    "WIPSummarySerializer",
 ]

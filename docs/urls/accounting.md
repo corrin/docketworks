@@ -12,3 +12,4 @@
 | `/reports/sales-forecast/<str:month>/` | `sales_forecast_view.SalesForecastMonthDetailAPIView` | `accounting:api_sales_forecast_month_detail` | API Endpoint to drill down into a specific month's sales data. |
 | `/reports/staff-performance-summary/` | `staff_performance_views.StaffPerformanceSummaryAPIView` | `accounting:api_staff_performance_summary` | API endpoint for staff performance summary (all staff) |
 | `/reports/staff-performance/<uuid:staff_id>/` | `staff_performance_views.StaffPerformanceDetailAPIView` | `accounting:api_staff_performance_detail` | API endpoint for individual staff performance detail |
+| `/reports/wip/` | `wip_view.WIPReportAPIView` | `accounting:api_wip_report` | API endpoint for Work In Progress report. |

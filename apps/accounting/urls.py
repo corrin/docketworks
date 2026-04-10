@@ -11,6 +11,7 @@ from apps.accounting.views.staff_performance_views import (
     StaffPerformanceDetailAPIView,
     StaffPerformanceSummaryAPIView,
 )
+from apps.accounting.views.wip_view import WIPReportAPIView
 from apps.workflow.api.reports import CompanyProfitAndLossReport, JobMovementMetricsView
 from apps.workflow.api.reports.payroll_reconciliation import (
     PayrollDateRangeView,
@@ -75,5 +76,10 @@ urlpatterns = [
         "reports/rdti-spend/",
         RDTISpendAPIView.as_view(),
         name="api_rdti_spend",
+    ),
+    path(
+        "reports/wip/",
+        WIPReportAPIView.as_view(),
+        name="api_wip_report",
     ),
 ]
