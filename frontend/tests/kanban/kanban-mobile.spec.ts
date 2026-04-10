@@ -97,7 +97,8 @@ test.describe.serial('kanban mobile', () => {
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
     await jobCard.getByRole('button', { name: 'Change job status' }).click()
-    await expect(page.getByText('Update Job Status')).toBeVisible({ timeout: 10000 })
+    const dialog = page.getByRole('dialog', { name: 'Update Job Status' })
+    await expect(dialog.locator('button').filter({ hasText: 'Draft' })).toBeVisible()
 
     const statusBlock = page.getByText('Current status').locator('..')
     const currentLabel = ((await statusBlock.locator('p').nth(1).textContent()) || '').trim()
