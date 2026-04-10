@@ -3,10 +3,12 @@ frontend/tests/fixtures/
 frontend/schema.yml
 frontend/src/api/generated/
 
-# Build artifacts
+# Build artifacts and virtual environments
 frontend/dist/
 frontend/node_modules/
 node_modules/
+.venv/
+.tox/
 
 # Docs codesight (separate knowledge scan)
 docs/.codesight/
