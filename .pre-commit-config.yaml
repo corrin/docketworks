@@ -138,3 +138,17 @@ repos:
         language: system
         files: '^frontend/.*\.(js|ts|vue|json|md|yml|css)$'
         pass_filenames: false
+
+      - id: codesight-code
+        name: Regenerate codesight context map
+        entry: bash -c 'cd frontend && npx codesight --wiki -o ../.codesight .. && cd .. && git add .codesight/'
+        language: system
+        pass_filenames: false
+        always_run: true
+
+      - id: codesight-knowledge
+        name: Regenerate codesight knowledge map
+        entry: bash -c 'cd frontend && npx codesight --mode knowledge -o ../docs/.codesight .. && cd .. && git add docs/.codesight/'
+        language: system
+        pass_filenames: false
+        always_run: true
