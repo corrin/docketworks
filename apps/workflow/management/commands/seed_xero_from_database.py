@@ -432,22 +432,9 @@ class Command(BaseCommand):
                     "  WARNING: job_job.xero_project_id column not found - skipping"
                 )
 
-            # Clear invoice/bill/quote IDs - prevents duplicates
-            self.stdout.write("Clearing accounting xero_id values...")
-            for table_name in [
-                "accounting_invoice",
-                "accounting_bill",
-                "accounting_quote",
-            ]:
-                if self._table_exists(cursor, table_name) and self._column_exists(
-                    cursor, table_name, "xero_id"
-                ):
-                    cursor.execute(
-                        f"UPDATE {table_name} SET xero_id = NULL WHERE xero_id IS NOT NULL"
-                    )
-                    count = cursor.rowcount
-                    if count > 0:
-                        tables_cleared.append(f"{table_name}: {count} records")
+            # TODO: Seed invoices/bills/quotes/credit notes to dev Xero
+            # and overwrite xero_id. For now, leave stale production xero_ids
+            # in place — they're harmless (xero_id is NOT NULL so can't clear).
 
             # Clear purchase order IDs
             self.stdout.write("Clearing purchase order xero_id values...")
@@ -510,7 +497,7 @@ class Command(BaseCommand):
             FROM information_schema.tables
             WHERE table_schema = %s AND table_name = %s
         """,
-            [settings.DATABASES["default"]["NAME"], table_name],
+            ["public", table_name],
         )
         return cursor.fetchone()[0] > 0
 
@@ -522,6 +509,6 @@ class Command(BaseCommand):
             FROM information_schema.columns
             WHERE table_schema = %s AND table_name = %s AND column_name = %s
         """,
-            [settings.DATABASES["default"]["NAME"], table_name, column_name],
+            ["public", table_name, column_name],
         )
         return cursor.fetchone()[0] > 0
