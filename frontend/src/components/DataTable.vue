@@ -74,6 +74,7 @@ const isReadOnlyColumn = (column: Column<TData, unknown>) => {
             :key="row.id"
             class="hover:bg-slate-50 cursor-pointer"
             :data-automation-id="`DataTable-row-${rowIndex}`"
+            :data-row-id="row.id"
             @click="emit('rowClick', row.original)"
           >
             <TableCell v-for="cell in row.getVisibleCells()" :key="cell.id" class="p-1">

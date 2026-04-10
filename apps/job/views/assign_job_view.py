@@ -39,6 +39,14 @@ class JobAssignmentCreateView(APIView):
 
             success, error = JobStaffService.assign_staff_to_job(job_id, staff_id)
 
+            if not success:
+                logger.warning(
+                    "Staff assignment failed: job=%s staff=%s error=%s",
+                    job_id,
+                    staff_id,
+                    error,
+                )
+
             if success:
                 response_serializer = AssignJobResponseSerializer(
                     data={

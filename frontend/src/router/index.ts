@@ -273,6 +273,12 @@ const router = createRouter({
       meta: { requiresAuth: true, title: 'RDTI Spend Report - DocketWorks', allowScroll: true },
     },
     {
+      path: '/reports/wip',
+      name: 'wip-report',
+      component: () => import('@/views/WIPReportView.vue'),
+      meta: { requiresAuth: true, title: 'WIP Report - DocketWorks' },
+    },
+    {
       path: '/reports/payroll-reconciliation',
       name: 'payroll-reconciliation-report',
       component: () => import('@/views/PayrollReconciliationReportView.vue'),
@@ -303,7 +309,7 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to, from, next) => {
+router.beforeEach(async (to, _from, next) => {
   const authStore = useAuthStore()
 
   if (to.meta.title) {

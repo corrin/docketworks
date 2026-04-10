@@ -55,9 +55,26 @@ async function navigateToEstimateTab(page: Page, jobUrl: string): Promise<void> 
   await autoId(page, 'SmartCostLinesTable-add-row').waitFor({ state: 'visible', timeout: 3000 })
 }
 
-async function clickAddRow(page: Page): Promise<void> {
+async function clickAddRow(page: Page): Promise<string> {
+  const existingIds = new Set(
+    await page
+      .locator('[data-row-id]')
+      .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-row-id'))),
+  )
   await autoId(page, 'SmartCostLinesTable-add-row').waitFor({ timeout: 10000 })
   await autoId(page, 'SmartCostLinesTable-add-row').click()
+  // Wait for the new row to appear
+  await expect(page.locator('[data-row-id]')).toHaveCount(existingIds.size + 1, { timeout: 5000 })
+  const allIds = await page
+    .locator('[data-row-id]')
+    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-row-id')))
+  const newId = allIds.find((id) => id && !existingIds.has(id))
+  if (!newId) throw new Error('Could not find newly added row')
+  return newId
+}
+
+function getRowById(page: Page, rowId: string): Locator {
+  return page.locator(`[data-row-id="${rowId}"]`)
 }
 
 async function addAdjustmentEntry(
@@ -67,12 +84,11 @@ async function addAdjustmentEntry(
   unitCost: string,
   unitRev: string,
 ): Promise<void> {
-  await clickAddRow(page)
+  const rowId = await clickAddRow(page)
   await page.keyboard.press('Escape')
   await page.waitForTimeout(500)
 
-  const rows = page.locator('[data-automation-id^="DataTable-row-"]')
-  const newRow = rows.last()
+  const newRow = getRowById(page, rowId)
 
   const descInput = newRow.locator('textarea').first()
   await descInput.click()

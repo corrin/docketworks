@@ -181,9 +181,12 @@ function restoreDatabase() {
   )
   fs.closeSync(inputFd)
 
+  const stderr = result.stderr?.toString() || ''
+  if (stderr) {
+    console.log('[db] psql restore output:', stderr)
+  }
   if (result.status !== 0) {
-    const stderr = result.stderr?.toString() || ''
-    throw new Error(`Database restore failed (exit code ${result.status}): ${stderr}`)
+    throw new Error(`Database restore failed (exit code ${result.status})`)
   }
 
   // Re-inject the saved Xero token so the connection stays live

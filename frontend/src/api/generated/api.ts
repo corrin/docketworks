@@ -275,6 +275,42 @@ const StaffPerformanceResponse = z.object({
   staff: z.array(StaffPerformanceStaffData),
   period_summary: StaffPerformancePeriodSummary,
 })
+const WIPJob = z.object({
+  job_number: z.number().int(),
+  name: z.string(),
+  client: z.string(),
+  status: z.string(),
+  time_cost: z.number(),
+  time_rev: z.number(),
+  material_cost: z.number(),
+  material_rev: z.number(),
+  adjust_cost: z.number(),
+  adjust_rev: z.number(),
+  total_cost: z.number(),
+  total_rev: z.number(),
+  invoiced: z.number(),
+  gross_wip: z.number(),
+  net_wip: z.number(),
+})
+const WIPStatusBreakdown = z.object({
+  status: z.string(),
+  count: z.number().int(),
+  net_wip: z.number(),
+})
+const WIPSummary = z.object({
+  job_count: z.number().int(),
+  total_gross: z.number(),
+  total_invoiced: z.number(),
+  total_net: z.number(),
+  by_status: z.array(WIPStatusBreakdown),
+})
+const WIPResponse = z.object({
+  jobs: z.array(WIPJob),
+  archived_jobs: z.array(WIPJob),
+  summary: WIPSummary,
+  report_date: z.string(),
+  method: z.string(),
+})
 const UserProfile = z.object({
   id: z.string().uuid(),
   username: z.string(),
@@ -961,7 +997,8 @@ const ArchivedJobsComplianceResponse = z.object({
 const AssignJobRequest = z.object({ staff_id: z.string().uuid() })
 const AssignJobResponse = z.object({
   success: z.boolean(),
-  message: z.string(),
+  message: z.string().optional(),
+  error: z.string().optional(),
 })
 const CompleteJob = z.object({
   id: z.string().uuid(),
@@ -2850,6 +2887,10 @@ export const schemas = {
   StaffPerformanceStaffData,
   StaffPerformancePeriodSummary,
   StaffPerformanceResponse,
+  WIPJob,
+  WIPStatusBreakdown,
+  WIPSummary,
+  WIPResponse,
   UserProfile,
   Staff,
   StaffCreateRequest,
@@ -3421,6 +3462,21 @@ Returns:
       },
     ],
     response: StaffPerformanceResponse,
+  },
+  {
+    method: 'get',
+    path: '/api/accounting/reports/wip/',
+    alias: 'accounting_reports_wip_retrieve',
+    description: `Get WIP data as at a given date.
+
+Query Parameters:
+    date (str): Report date in YYYY-MM-DD format. Defaults to today.
+    method (str): Valuation method — &#x27;revenue&#x27; (default) or &#x27;cost&#x27;.
+
+Returns:
+    JSON response with WIP data, archived jobs, and summary.`,
+    requestFormat: 'json',
+    response: WIPResponse,
   },
   {
     method: 'post',
