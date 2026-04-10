@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 82 routes | 40 models | 181 components | 344 lib files | 70 env vars | 7 middleware | 35% test coverage
-> **Token savings:** this file is ~28,100 tokens. Without it, AI exploration would cost ~226,500 tokens. **Saves ~198,400 tokens per conversation.**
+> 82 routes | 40 models | 181 components | 336 lib files | 70 env vars | 7 middleware | 35% test coverage
+> **Token savings:** this file is ~28,000 tokens. Without it, AI exploration would cost ~224,400 tokens. **Saves ~196,400 tokens per conversation.**
 
 ---
 
@@ -884,7 +884,6 @@
 - `apps/accounting/services/rdti_spend_service.py` — class RDTISpendService
 - `apps/accounting/services/wip_service.py` — class WIPService
 - `apps/accounts/apps.py` — class AccountsConfig
-- `apps/accounts/management/commands/adapt_migrations_accounts.py` — class Command
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
 - `apps/accounts/managers.py` — class StaffManager
 - `apps/accounts/models.py` — class Staff
@@ -900,8 +899,6 @@
 - `apps/accounts/staff_anonymization.py` — function generate_email: (profile, last_name) -> str, function create_staff_profile: () -> dict
 - `apps/accounts/utils.py` — function get_excluded_staff: (apps_registry, *, target_date) -> List[str], function is_valid_uuid: (val) -> bool
 - `apps/client/apps.py` — class ClientConfig
-- `apps/client/management/commands/analyze_client_contacts.py` — class Command
-- `apps/client/management/commands/geocode_addresses.py` — class Command
 - `apps/client/management/commands/merge_clients.py` — class Command
 - `apps/client/models.py`
   - class Client
@@ -951,15 +948,9 @@
   - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
   - function parse_xlsx_old: (path) -> list[DraftLine]
   - _...7 more_
-- `apps/job/management/commands/backport_data_restore.py` — class Command
 - `apps/job/management/commands/create_shop_jobs.py` — class Command
-- `apps/job/management/commands/create_test_quote_data.py` — class Command
 - `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
-- `apps/job/management/commands/test_claude_chat.py` — class Command
-- `apps/job/management/commands/test_diff_engine.py` — class Command
-- `apps/job/management/commands/test_event_deduplication.py` — class Command
 - `apps/job/management/commands/test_gemini_chat.py` — class Command
-- `apps/job/management/commands/test_quote_import.py` — class Command
 - `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
 - `apps/job/models/costing.py`
   - function get_default_cost_set_summary: ()
@@ -1153,7 +1144,6 @@
   - _...8 more_
 - `apps/purchasing/services/stock_service.py` — function merge_stock_into: (source_stock_id, target_stock_id) -> None, function consume_stock: (item, job, qty, user, unit_cost, unit_rev, line) -> CostLine
 - `apps/quoting/apps.py` — class QuotingConfig
-- `apps/quoting/management/commands/populate_product_mappings.py` — class Command
 - `apps/quoting/management/commands/run_scrapers.py` — class Command
 - `apps/quoting/mcp.py` — class SupplierProductQueryTool, class QuotingTool
 - `apps/quoting/models.py`
@@ -1307,8 +1297,6 @@
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command
 - `apps/workflow/management/commands/e2e_cleanup.py` — class Command
-- `apps/workflow/management/commands/invoice_line.py` — function sync_line_items_for_existing_invoices: (batch_size)
-- `apps/workflow/management/commands/recreate_all_init_files.py` — class Command
 - `apps/workflow/management/commands/run_scheduler.py` — class Command
 - `apps/workflow/management/commands/seed_xero_from_database.py` — class Command
 - `apps/workflow/management/commands/start_xero_sync.py` — class Command
@@ -1659,6 +1647,10 @@
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
 - `manage.py` — function main: () -> None
+- `scripts/analyze_client_contacts.py`
+  - function analyze_empty_names: (verbose) -> None
+  - function analyze_duplicates: (verbose) -> None
+  - function main: () -> None
 - `scripts/cleanup_backups.py`
   - function parse_arguments: ()
   - function list_backup_dirs: (root)
@@ -1701,6 +1693,7 @@
   - function setup_django: ()
   - function main: ()
   - class URLDocumentationGenerator
+- `scripts/geocode_addresses.py` — function build_freetext_address: (address) -> str, function main: () -> None
 - `scripts/move_time_between_jobs.py` — function main: ()
 - `scripts/payroll_reconciliation.py`
   - function get_monday: (d) -> date
@@ -1715,6 +1708,10 @@
   - function format_report: (usages) -> str
   - function main: () -> None
   - class PersistUsage
+- `scripts/populate_product_mappings.py`
+  - function get_processed_hashes: () -> Set[str]
+  - function get_unprocessed_products: (processed_hashes) -> list
+  - function main: () -> None
 - `scripts/production_data_fixer.py` — function fix_empty_string_notes: (dry_run, verbose), function main: ()
 - `scripts/push_clients_to_xero.py`
   - function get_database_name: ()
@@ -1738,6 +1735,11 @@
   - function test_direct_api: ()
   - function test_selenium_frontend: ()
   - function test_login_logging: ()
+- `scripts/test_quote_import.py`
+  - function get_or_create_test_job: () -> Job
+  - function test_preview: (job, file_path) -> None
+  - function test_import: (job, file_path, skip_validation) -> None
+  - function main: () -> None
 - `scripts/test_xero_payroll.py` — function main: ()
 - `scripts/update_init.py`
   - function get_import_type: (module_path, module_name) -> str
@@ -1903,7 +1905,7 @@
 # Test Coverage
 
 > **35%** of routes and models are covered by tests
-> 103 test files found
+> 99 test files found
 
 ## Covered Routes
 
