@@ -10,12 +10,18 @@ Structural map compiled from source code via AST. No LLM — deterministic, 200m
 
 - [Overview](./overview.md)
 - [Database](./database.md)
+- [Auth](./auth.md)
+- [Payments](./payments.md)
+- [2026-03-03-process-documents-plan.md](./2026-03-03-process-documents-plan.md.md)
+- [Urls](./urls.md)
+- [Urls_rest](./urls_rest.md)
+- [Infra](./infra.md)
 - [Ui](./ui.md)
 
 ## Quick Stats
 
-- Routes: **0**
-- Models: **61**
+- Routes: **88**
+- Models: **40**
 - Components: **181**
 - Env vars: **18** required, **53** with defaults
 
@@ -43,4 +49,4 @@ These exist in your codebase but are **not** reflected in wiki articles:
 When in doubt, search the source. The wiki is a starting point, not a complete inventory.
 
 ---
-_Last compiled: 2026-04-10 · 4 articles · [codesight](https://github.com/Houseofmvps/codesight)_
+_Last compiled: 2026-04-10 · 10 articles · [codesight](https://github.com/Houseofmvps/codesight)_
