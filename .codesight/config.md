@@ -1,0 +1,82 @@
+# Config
+
+## Environment Variables
+
+- `ALLOWED_HOSTS` (has default) — .env.example
+- `APP_DOMAIN` (has default) — .env.example
+- `APP_URL` **required** — frontend/scripts/capture_metrics.cjs
+- `BASE_URL` **required** — frontend/src/router/index.ts
+- `CI` **required** — frontend/playwright.config.ts
+- `CORS_ALLOWED_ORIGINS` (has default) — .env.example
+- `DB_ENGINE` (has default) — .env
+- `DB_HOST` (has default) — .env.example
+- `DB_NAME` (has default) — .env.example
+- `DB_PASSWORD` (has default) — .env.example
+- `DB_PORT` (has default) — .env.example
+- `DB_USER` (has default) — .env.example
+- `DEBUG` (has default) — .env.example
+- `DEBUG_PAYLOAD` (has default) — .env.example
+- `DEFAULT_FROM_EMAIL` (has default) — .env.example
+- `DJANGO_ADMINS` (has default) — .env.example
+- `DJANGO_ENV` (has default) — .env.example
+- `DJANGO_PASSWORD` **required** — frontend/scripts/capture_metrics.cjs
+- `DJANGO_PORT` **required** — apps/workflow/management/commands/runserver_with_localtunnel.py
+- `DJANGO_RUN_SCHEDULER` **required** — docketworks/settings.py
+- `DJANGO_SITE_DOMAIN` (has default) — .env.example
+- `DJANGO_USER` **required** — frontend/scripts/capture_metrics.cjs
+- `DROPBOX_WORKFLOW_FOLDER` (has default) — .env.example
+- `DRY_RUN` **required** — scripts/copy_material_lines.py
+- `E2E_TEST_PASSWORD` (has default) — frontend/.env.example
+- `E2E_TEST_USERNAME` (has default) — frontend/.env.example
+- `EMAIL_BACKEND` (has default) — .env
+- `EMAIL_BCC` (has default) — .env.example
+- `EMAIL_HOST` (has default) — .env.example
+- `EMAIL_HOST_PASSWORD` (has default) — .env.example
+- `EMAIL_HOST_USER` (has default) — .env.example
+- `EMAIL_PORT` (has default) — .env.example
+- `EMAIL_USE_TLS` (has default) — .env.example
+- `ENABLE_JWT_AUTH` (has default) — .env.example
+- `FRONT_END_URL` (has default) — .env.example
+- `GCP_CREDENTIALS` (has default) — .env.example
+- `GOOGLE_MAPS_API_KEY` (has default) — .env.example
+- `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
+- `LOG_DIR` **required** — docketworks/settings.py
+- `MEDIA_ROOT` **required** — docketworks/settings.py
+- `MODE` **required** — frontend/src/utils/debug.ts
+- `NGROK_AUTH_TOKEN` (has default) — .env.example
+- `NGROK_DOMAIN` **required** — docketworks/settings.py
+- `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
+- `REDIS_HOST` **required** — docketworks/settings.py
+- `REDIS_PORT` **required** — docketworks/settings.py
+- `SECRET_KEY` (has default) — .env.example
+- `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py
+- `STEEL_TUBE_ENABLED` (has default) — .env
+- `STEEL_TUBE_PASSWORD` (has default) — .env.example
+- `STEEL_TUBE_USERNAME` (has default) — .env.example
+- `TARGET_JOB_ID` **required** — scripts/copy_material_lines.py
+- `TEST_DB_PASSWORD` (has default) — .env.example
+- `TEST_DB_USER` (has default) — .env.example
+- `TUNNEL_URL` (has default) — .env.example
+- `UAT_AWS_KEY` (has default) — .env
+- `UAT_AWS_REGION` (has default) — .env
+- `UAT_AWS_SECRET` (has default) — .env
+- `UAT_INSTANCE_ID` (has default) — .env
+- `VITE_UAT_URL` (has default) — frontend/.env.example
+- `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
+- `WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
+- `XERO_CLIENT_ID` (has default) — .env.example
+- `XERO_CLIENT_SECRET` (has default) — .env.example
+- `XERO_DEFAULT_USER_ID` (has default) — .env.example
+- `XERO_PASSWORD` (has default) — frontend/.env.example
+- `XERO_REDIRECT_URI` (has default) — .env.example
+- `XERO_SCOPES` **required** — docketworks/settings.py
+- `XERO_SYNC_PROJECTS` (has default) — .env.example
+- `XERO_USERNAME` (has default) — frontend/.env.example
+- `XERO_WEBHOOK_KEY` (has default) — .env.example
+
+## Config Files
+
+- `.env.example`
+- `frontend/.env.example`
+- `frontend/vite.config.ts`
+- `pyproject.toml`
