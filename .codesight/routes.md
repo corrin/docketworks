@@ -82,9 +82,3 @@
 - `ALL` `/api/process/` params()
 - `ALL` `/api/schema/` params()
 - `ALL` `/api/docs` params()
-- `ALL` `contacts`
-- `ALL` `stock` ✓
-- `ALL` `ai-providers` [auth, payment, upload]
-- `ALL` `app-errors` [auth, payment, upload]
-- `ALL` `xero-pay-items` [auth, payment, upload]
-- `ALL` `rest/process-documents` [auth, db, upload, ai]

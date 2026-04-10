@@ -1,6 +1,6 @@
 # Test Coverage
 
-> **34%** of routes and models are covered by tests
+> **35%** of routes and models are covered by tests
 > 103 test files found
 
 ## Covered Routes
@@ -8,7 +8,6 @@
 - ALL:/
 - ALL:/jobs/
 - ALL:/api/
-- ALL:stock
 
 ## Covered Models
 
