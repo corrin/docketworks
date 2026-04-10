@@ -1,9 +1,10 @@
 import logging
-from datetime import date
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
 from django.db.models import F, Q, Sum
+from django.utils import timezone
 
 from apps.accounting.models import Invoice
 from apps.job.models import CostLine, Job
@@ -55,10 +56,35 @@ class WIPService:
         """
         logger.info("Generating WIP report: date=%s, method=%s", report_date, method)
 
+        # Use end-of-day for history lookup so the full report_date is included
+        report_datetime = timezone.make_aware(datetime.combine(report_date, time.max))
+
         try:
+            # Bulk-fetch the historical state of every job as of report_date.
+            # DISTINCT ON (id) + ORDER BY -history_date gives us the latest
+            # history row per job in a single query.
+            HistoricalJob = Job.history.model  # noqa: N806
+            historical_qs = (
+                HistoricalJob.objects.filter(history_date__lte=report_datetime)
+                .order_by("id", "-history_date")
+                .distinct("id")
+            )
+            # Build lookup: job_id -> historical status
+            job_historical_status: dict[Any, str] = {}
+            for rec in historical_qs:
+                if rec.status in NO_WORK_STATUSES:
+                    continue
+                if rec.fully_invoiced:
+                    continue
+                if rec.rejected_flag:
+                    continue
+                job_historical_status[rec.id] = rec.status
+
+            # Now fetch the actual Job objects only for qualifying jobs
             base_qs = (
-                Job.objects.filter(fully_invoiced=False, rejected_flag=False)
-                .exclude(status__in=NO_WORK_STATUSES)
+                Job.objects.filter(
+                    id__in=job_historical_status.keys(),
+                )
                 .exclude(latest_actual__isnull=True)
                 .select_related("latest_actual", "client")
                 .order_by("job_number")
@@ -80,11 +106,15 @@ class WIPService:
 
         for job in base_qs:
             try:
-                row = WIPService._aggregate_job(job, report_date, method)
+                historical_status = job_historical_status[job.id]
+
+                row = WIPService._aggregate_job(
+                    job, report_date, method, historical_status
+                )
                 if row is None:
                     continue
 
-                if job.status == ARCHIVED_STATUS:
+                if historical_status == ARCHIVED_STATUS:
                     archived_jobs.append(row)
                 else:
                     wip_jobs.append(row)
@@ -117,7 +147,7 @@ class WIPService:
 
     @staticmethod
     def _aggregate_job(
-        job: Job, report_date: date, method: str
+        job: Job, report_date: date, method: str, historical_status: str
     ) -> dict[str, Any] | None:
         """Build a WIP row for a single job, or None if zero revenue activity."""
         cost_lines = CostLine.objects.filter(
@@ -147,6 +177,7 @@ class WIPService:
         invoiced = Invoice.objects.filter(
             job=job,
             status__in=VALID_INVOICE_STATUSES,
+            date__lte=report_date,
         ).aggregate(total=Sum("total_excl_tax"))["total"] or Decimal("0")
 
         gross_wip = total_rev if method == "revenue" else total_cost
@@ -156,7 +187,7 @@ class WIPService:
             "job_number": job.job_number,
             "name": job.name,
             "client": str(job.client) if job.client else "N/A",
-            "status": job.status,
+            "status": historical_status,
             "time_cost": float(totals["time_cost"] or Decimal("0")),
             "time_rev": float(totals["time_rev"] or Decimal("0")),
             "material_cost": float(totals["material_cost"] or Decimal("0")),
