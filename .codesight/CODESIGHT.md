@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 82 routes | 40 models | 181 components | 345 lib files | 71 env vars | 7 middleware | 35% test coverage
-> **Token savings:** this file is ~28,100 tokens. Without it, AI exploration would cost ~226,900 tokens. **Saves ~198,800 tokens per conversation.**
+> 82 routes | 40 models | 181 components | 344 lib files | 70 env vars | 7 middleware | 35% test coverage
+> **Token savings:** this file is ~28,100 tokens. Without it, AI exploration would cost ~226,500 tokens. **Saves ~198,400 tokens per conversation.**
 
 ---
 
@@ -1310,7 +1310,6 @@
 - `apps/workflow/management/commands/invoice_line.py` — function sync_line_items_for_existing_invoices: (batch_size)
 - `apps/workflow/management/commands/recreate_all_init_files.py` — class Command
 - `apps/workflow/management/commands/run_scheduler.py` — class Command
-- `apps/workflow/management/commands/runserver_with_localtunnel.py` — class Command
 - `apps/workflow/management/commands/seed_xero_from_database.py` — class Command
 - `apps/workflow/management/commands/start_xero_sync.py` — class Command
 - `apps/workflow/management/commands/sync_sequences.py` — class Command
@@ -1782,7 +1781,6 @@
 - `DJANGO_ADMINS` (has default) — .env.example
 - `DJANGO_ENV` (has default) — .env.example
 - `DJANGO_PASSWORD` **required** — frontend/scripts/capture_metrics.cjs
-- `DJANGO_PORT` **required** — apps/workflow/management/commands/runserver_with_localtunnel.py
 - `DJANGO_RUN_SCHEDULER` **required** — docketworks/settings.py
 - `DJANGO_SITE_DOMAIN` (has default) — .env.example
 - `DJANGO_USER` **required** — frontend/scripts/capture_metrics.cjs

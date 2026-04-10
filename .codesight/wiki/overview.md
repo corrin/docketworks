@@ -6,7 +6,7 @@
 
 ## Scale
 
-82 API routes · 40 database models · 181 UI components · 7 middleware layers · 71 environment variables
+82 API routes · 40 database models · 181 UI components · 7 middleware layers · 70 environment variables
 
 ## Subsystems
 
@@ -36,7 +36,6 @@ Changes to these files have the widest blast radius across the codebase:
 - `BASE_URL` — `frontend/src/router/index.ts`
 - `CI` — `frontend/playwright.config.ts`
 - `DJANGO_PASSWORD` — `frontend/scripts/capture_metrics.cjs`
-- `DJANGO_PORT` — `apps/workflow/management/commands/runserver_with_localtunnel.py`
 - `DJANGO_RUN_SCHEDULER` — `docketworks/settings.py`
 - `DJANGO_USER` — `frontend/scripts/capture_metrics.cjs`
 - `DRY_RUN` — `scripts/copy_material_lines.py`
@@ -44,7 +43,8 @@ Changes to these files have the widest blast radius across the codebase:
 - `MEDIA_ROOT` — `docketworks/settings.py`
 - `MODE` — `frontend/src/utils/debug.ts`
 - `NGROK_DOMAIN` — `docketworks/settings.py`
-- _...6 more_
+- `PLAYWRIGHT_BROWSER_CHANNEL` — `frontend/tests/scripts/xero-login.ts`
+- _...5 more_
 
 ---
 _Back to [index.md](./index.md) · Generated 2026-04-10_

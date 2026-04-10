@@ -20,7 +20,6 @@
 - `DJANGO_ADMINS` (has default) — .env.example
 - `DJANGO_ENV` (has default) — .env.example
 - `DJANGO_PASSWORD` **required** — frontend/scripts/capture_metrics.cjs
-- `DJANGO_PORT` **required** — apps/workflow/management/commands/runserver_with_localtunnel.py
 - `DJANGO_RUN_SCHEDULER` **required** — docketworks/settings.py
 - `DJANGO_SITE_DOMAIN` (has default) — .env.example
 - `DJANGO_USER` **required** — frontend/scripts/capture_metrics.cjs
