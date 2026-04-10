@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 169 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-10
+> 170 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-10
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-10 (169 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-10 (170 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
 
 ## Open Questions (10)
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
@@ -16,7 +16,7 @@
 - *Aggregate mode:** Do the totals match?
 
 ## Recurring Themes
-verification · tips · steps · what youll need · what happens next · files to modify · implementation steps · troubleshooting · problem statement · benefits · implementation notes · error handling
+verification · tips · steps · what youll need · what happens next · files to modify · implementation steps · troubleshooting · problem statement · benefits · implementation notes · fix
 
 ## People
 @docketworks · @transaction · @pytest · @patch · @morrissheetmetal · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @vulcansteel · @coregas · @xtra · @vodafone · @fluidandgeneral · @ppsindustries · @eclgroup · @medifab · @akenz
@@ -28,7 +28,7 @@ verification · tips · steps · what youll need · what happens next · files t
 - `docs/restore-prod-to-nonprod.md` — **2** incoming references — Restore Production to Non-Production
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 
-## Note Index (169)
+## Note Index (170)
 
 ### Specs & PRDs (29)
 - `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
@@ -67,8 +67,13 @@ verification · tips · steps · what youll need · what happens next · files t
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (134)
-- `docs/plans/2026-04-10-codesight-setup.md` — 2026-04-10 — Codesight is already installed (`npx codesight` works, v1.10.0) and has been run manually — there are three untracked `.codesight/` directories (root, `frontend…
+### General Notes (135)
+- `docs/plans/2026-04-10-seed-invoices-to-xero.md` — 2026-04-10 — When restoring a production database to dev, Invoice records come with `xero_id` values pointing at prod's Xero tenant. The `xero_id` field is NOT NULL, so we c…
+- `docs/plans/2026-04-10-xero-account-backup-cleanup.md` — 2026-04-10 — Restoring a production backup fails at Step 5 (`loaddata`) because the backup excludes `workflow.XeroAccount` but includes line items that FK to it. A separate …
+- `docs/plans/completed/2026-04-10-backup-include-all-models.md` — 2026-04-10 — The `backport_data_backup.py` command uses an `INCLUDE_MODELS` allowlist. Any model not explicitly listed is silently excluded from backups. The `accounting` ap…
+- `docs/plans/completed/2026-04-10-codesight-setup.md` — 2026-04-10 — Codesight is already installed (`npx codesight` works, v1.10.0) and has been run manually — there are three untracked `.codesight/` directories (root, `frontend…
+- `docs/plans/completed/2026-04-10-wip-historical-state-draft.md` — 2026-04-10 — The WIP report (`apps/accounting/services/wip_service.py`) accepts a `report_date` parameter but uses **current** job `status`, `fully_invoiced`, and `rejected_…
+- `docs/plans/completed/2026-04-10-wip-historical-state.md` — 2026-04-10 — The WIP report is supposed to show work-in-progress as at a given date. When you pick a past date, it should show what jobs **were** in progress on that date an…
 - `docs/plans/2026-04-09-wip-report-script.md` — 2026-04-09 — A WIP (Work In Progress) report was prototyped directly in production as a CLI script. The business logic works — it calculates uninvoiced value on active jobs …
 - `docs/plans/completed/2026-04-02-fix-po-e2e-autosave.md` — 2026-04-02 — E2E test `add a line item to the purchase order` times out waiting for a PATCH. Two issues:
 - `docs/plans/completed/2026-04-02-rename-tables-to-defaults.md` — 2026-04-02 — Moving from MySQL to PostgreSQL. Since no production Postgres data exists yet, this is the clean window to rename 30 tables from their legacy `workflow_*` names…
@@ -83,12 +88,7 @@ verification · tips · steps · what youll need · what happens next · files t
 - `docs/plans/2026-03-28-debranding-and-stale-docs.md` — 2026-03-28 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `frontend/docs/plans/2026-03-05-backend-requirements-process-documents.md` — 2026-03-05 — **Context:** The frontend needs these API changes to build the Process Documents UI. The ProcessDocument and ProcessDocumentEntry models already exist. Some end…
 - `frontend/docs/plans/2026-03-05-process-documents-implementation.md` — 2026-03-05 — **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-- `docs/plans/2026-03-03-process-documents-plan.md` — 2026-03-03 — **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-- `frontend/docs/plans/2026-02-24-payroll-reconciliation-design.md` — 2026-02-24 — **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-- `AGENTS.md` — Authoritative guidance for AI coding agents working in the DocketWorks backend. Rules are distilled from `CLAUDE.md`, `.kilocode/rules/*.md`, and project readme…
-- `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-- `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
-- _…and 114 more_
+- _…and 115 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
