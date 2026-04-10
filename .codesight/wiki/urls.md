@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Urls subsystem handles **77 routes** and touches: auth, payment.
+The Urls subsystem handles **74 routes** and touches: auth, payment.
 
 ## Routes
 
@@ -154,12 +154,6 @@ The Urls subsystem handles **77 routes** and touches: auth, payment.
   `docketworks/urls.py`
 - `ALL` `/api/docs`
   `docketworks/urls.py`
-- `ALL` `ai-providers` [auth, payment, upload] `[inferred]`
-  `apps/workflow/urls.py`
-- `ALL` `app-errors` [auth, payment, upload] `[inferred]`
-  `apps/workflow/urls.py`
-- `ALL` `xero-pay-items` [auth, payment, upload] `[inferred]`
-  `apps/workflow/urls.py`
 
 ## Source Files
 

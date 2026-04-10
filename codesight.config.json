@@ -1,9 +1,3 @@
 {
-  "wiki": true,
-  "customRoutePatterns": [
-    {
-      "pattern": "router\\.register\\([r]?['\"]([^'\"]+)['\"]",
-      "method": "ALL"
-    }
-  ]
+  "wiki": true
 }
