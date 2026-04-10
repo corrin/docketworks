@@ -1,0 +1,1428 @@
+# Libraries
+
+- `adhoc/debug_xero_serialization.py` — class MockContact, class MockBill
+- `adhoc/drive_storage_check.py` — function check_drive_storage: ()
+- `adhoc/fix_missing_default_tasks.py` — function main: ()
+- `adhoc/import_supplier_products_one_off.py` — function validate_and_parse_csv: (csv_file_path), function import_products: (csv_file_path)
+- `adhoc/test_actual_job_sync.py` — function main: ()
+- `adhoc/test_costline_sync.py` — function main: ()
+- `adhoc/test_google_drive.py` — function test_google_drive_access: () -> bool
+- `adhoc/test_pdf_parsing.py` — function test_pdf_parsing: ()
+- `adhoc/test_quote_chat_api.py` — function test_with_different_headers: (), function test_options_request: ()
+- `adhoc/test_template_access.py` — function test_template_access: ()
+- `adhoc/upgrade_script.py`
+  - function normalize_version: (spec) -> str
+  - function fetch_release_dates: (name, requested_version)
+  - function main: (pyproject_path)
+- `apps/accounting/apps.py` — class AccountingConfig
+- `apps/accounting/enums.py` — class QuoteStatus, class InvoiceStatus
+- `apps/accounting/migrations/0001_initial.py` — class Migration
+- `apps/accounting/migrations/0002_initial.py` — class Migration
+- `apps/accounting/migrations/0003_alter_invoice_job.py` — class Migration
+- `apps/accounting/migrations/0004_protect_critical_fks.py` — class Migration
+- `apps/accounting/migrations/0005_quote_number.py` — function backfill_quote_number: (apps, schema_editor), class Migration
+- `apps/accounting/migrations/0006_alter_bill_table_alter_billlineitem_table_and_more.py` — class Migration
+- `apps/accounting/models/invoice.py`
+  - class BaseXeroInvoiceDocument
+  - class BaseLineItem
+  - class Invoice
+  - class Bill
+  - class CreditNote
+  - class InvoiceLineItem
+  - _...2 more_
+- `apps/accounting/models/quote.py` — class Quote
+- `apps/accounting/serializers/core.py`
+  - class KPICalendarErrorResponseSerializer
+  - class KPIJobBreakdownSerializer
+  - class KPIProfitBreakdownSerializer
+  - class KPIDetailsSerializer
+  - class KPIDayDataSerializer
+  - class KPIMonthlyTotalsSerializer
+  - _...14 more_
+- `apps/accounting/serializers/payroll_reconciliation_serializers.py`
+  - class PayrollStaffWeekSerializer
+  - class PayrollWeekTotalsSerializer
+  - class PayrollWeekSerializer
+  - class PayrollStaffSummarySerializer
+  - class PayrollHeatmapRowSerializer
+  - class PayrollHeatmapSerializer
+  - _...3 more_
+- `apps/accounting/serializers/rdti_spend_serializers.py`
+  - class RDTISpendQuerySerializer
+  - class RDTISpendCategorySummarySerializer
+  - class RDTISpendJobDetailSerializer
+  - class RDTISpendTotalsSerializer
+  - class RDTISpendResponseSerializer
+- `apps/accounting/serializers/wip_serializers.py`
+  - class WIPQuerySerializer
+  - class WIPJobSerializer
+  - class WIPStatusBreakdownSerializer
+  - class WIPSummarySerializer
+  - class WIPResponseSerializer
+- `apps/accounting/services/core.py`
+  - class KPIService
+  - class JobAgingService
+  - class StaffPerformanceService
+- `apps/accounting/services/payroll_reconciliation_service.py` — class PayrollReconciliationService
+- `apps/accounting/services/rdti_spend_service.py` — class RDTISpendService
+- `apps/accounting/services/wip_service.py` — class WIPService
+- `apps/accounts/apps.py` — class AccountsConfig
+- `apps/accounts/management/commands/adapt_migrations_accounts.py` — class Command
+- `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
+- `apps/accounts/managers.py` — class StaffManager
+- `apps/accounts/migrations/0001_initial.py` — class Migration
+- `apps/accounts/migrations/0002_initial.py` — class Migration
+- `apps/accounts/migrations/0003_alter_historicalstaff_updated_at_and_more.py` — class Migration
+- `apps/accounts/migrations/0004_add_staff_permissions_tables.py` — class Migration
+- `apps/accounts/migrations/0005_alter_staff_groups_alter_staff_user_permissions.py` — class Migration
+- `apps/accounts/migrations/0006_historicalstaff_date_left_staff_date_left.py` — class Migration
+- `apps/accounts/migrations/0007_auto_20250730_2359.py`
+  - function migrate_inactive_staff: (apps, schema_editor)
+  - function reverse_migration: (apps, schema_editor)
+  - class Migration
+- `apps/accounts/migrations/0008_remove_historicalstaff_is_active_and_more.py` — class Migration
+- `apps/accounts/migrations/0009_historicalstaff_xero_user_id_staff_xero_user_id.py` — class Migration
+- `apps/accounts/migrations/0010_rename_is_staff_historicalstaff_is_office_staff_and_more.py` — class Migration
+- `apps/accounts/migrations/0011_remove_ims_payroll_fields.py` — class Migration
+- `apps/accounts/migrations/0012_add_base_wage_rate.py`
+  - function populate_base_wage_rate: (apps, schema_editor)
+  - function reverse_populate: (apps, schema_editor)
+  - function recompute_loaded_wage_rates: (apps, schema_editor)
+  - function reverse_recompute: (apps, schema_editor)
+  - class Migration
+- `apps/accounts/migrations/0013_alter_historicalstaff_table_alter_staff_table.py` — class Migration
+- `apps/accounts/models.py` — class Staff
+- `apps/accounts/permissions.py` — class IsStaff, class CanManageTimesheets
+- `apps/accounts/serializers.py`
+  - class EmptySerializer
+  - class CustomTokenObtainPairSerializer
+  - class GenericStaffMethodsMixin
+  - class BaseStaffSerializer
+  - class StaffSerializer
+  - class StaffCreateSerializer
+  - _...4 more_
+- `apps/accounts/staff_anonymization.py` — function generate_email: (profile, last_name) -> str, function create_staff_profile: () -> dict
+- `apps/accounts/utils.py` — function get_excluded_staff: (apps_registry, *, target_date) -> List[str], function is_valid_uuid: (val) -> bool
+- `apps/client/apps.py` — class ClientConfig
+- `apps/client/management/commands/analyze_client_contacts.py` — class Command
+- `apps/client/management/commands/geocode_addresses.py` — class Command
+- `apps/client/management/commands/merge_clients.py` — class Command
+- `apps/client/migrations/0001_initial.py` — class Migration
+- `apps/client/migrations/0002_clientcontact.py` — class Migration
+- `apps/client/migrations/0003_add_xero_merge_tracking.py` — class Migration
+- `apps/client/migrations/0004_populate_merge_fields.py`
+  - function populate_merge_fields: (apps, schema_editor)
+  - function reverse_populate_merge_fields: (apps, schema_editor)
+  - class Migration
+- `apps/client/migrations/0005_client_is_supplier.py` — class Migration
+- `apps/client/migrations/0006_alter_client_name.py` — class Migration
+- `apps/client/migrations/0007_delete_empty_name_contacts.py`
+  - function delete_empty_name_contacts: (apps, schema_editor)
+  - function reverse_migration: (apps, schema_editor)
+  - class Migration
+- `apps/client/migrations/0008_merge_duplicate_contacts.py`
+  - function merge_duplicate_contacts: (apps, schema_editor)
+  - function reverse_migration: (apps, schema_editor)
+  - class Migration
+- `apps/client/migrations/0009_clientcontact_unique_client_contact_name.py` — class Migration
+- `apps/client/migrations/0010_add_is_active_to_clientcontact.py` — class Migration
+- `apps/client/migrations/0011_convert_empty_strings_to_null.py`
+  - function convert_empty_strings_to_null: (apps, schema_editor)
+  - function reverse_null_to_empty_strings: (apps, schema_editor)
+  - class Migration
+- `apps/client/migrations/0012_supplierpickupaddress.py` — class Migration
+- `apps/client/migrations/0013_add_google_fields_to_pickup_address.py` — class Migration
+- `apps/client/migrations/0014_add_suburb_to_pickup_address.py` — class Migration
+- `apps/client/migrations/0015_populate_xero_addresses.py` — function create_xero_addresses: (apps, schema_editor), class Migration
+- `apps/client/migrations/0016_alter_client_table_alter_clientcontact_table_and_more.py` — class Migration
+- `apps/client/models.py`
+  - class Client
+  - class ClientContact
+  - class Supplier
+  - class SupplierPickupAddress
+- `apps/client/serializers.py`
+  - class ClientContactSerializer
+  - class SupplierPickupAddressSerializer
+  - class ClientSerializer
+  - class ClientNameOnlySerializer
+  - class StandardErrorSerializer
+  - class ClientListResponseSerializer
+  - _...13 more_
+- `apps/client/services/client_rest_service.py` — class ClientRestService
+- `apps/client/services/geocoding_service.py`
+  - function get_api_key: () -> str
+  - function geocode_address: (address, api_key) -> GeocodingResult | None
+  - class GeocodingResult
+  - class GeocodingError
+  - class GeocodingNotConfiguredError
+- `apps/client/utils.py` — function date_to_datetime: (date_obj)
+- `apps/job/apps.py` — class JobConfig
+- `apps/job/diff.py`
+  - function diff_costset: (old, drafts) -> DiffResult
+  - function apply_diff: (cost_set, diff_result) -> CostSet
+  - class DiffResult
+- `apps/job/enums.py`
+  - class SpeedQualityTradeoff
+  - class RDTIType
+  - class MetalType
+- `apps/job/helpers.py` — function get_job_folder_path: (job_number) -> str
+- `apps/job/importers/draft.py` — class DraftLine
+- `apps/job/importers/google_sheets.py`
+  - function extract_file_id: (url_or_id) -> str
+  - function create_folder: (name, parent_id) -> str
+  - function copy_file: (template_id, name, parent_id, make_public_editable) -> str
+  - function fetch_sheet_df: (sheet_id, sheet_range) -> pd.DataFrame
+  - function copy_template_for_job: (job) -> tuple[str, str]
+  - function populate_sheet_from_costset: (sheet_id, costset) -> None
+  - _...1 more_
+- `apps/job/importers/quote_spreadsheet.py`
+  - function detect_labour_column: (df)
+  - function detect_material_columns: (df)
+  - function parse_xlsx: (path, company, skip_validation) -> tuple[list[DraftLine], list[str]]
+  - function find_validation_cells: (df, labour_col)
+  - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
+  - function parse_xlsx_old: (path) -> list[DraftLine]
+  - _...7 more_
+- `apps/job/management/commands/create_shop_jobs.py` — class Command
+- `apps/job/management/commands/create_test_quote_data.py` — class Command
+- `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
+- `apps/job/management/commands/test_claude_chat.py` — class Command
+- `apps/job/management/commands/test_diff_engine.py` — class Command
+- `apps/job/management/commands/test_event_deduplication.py` — class Command
+- `apps/job/management/commands/test_gemini_chat.py` — class Command
+- `apps/job/management/commands/test_quote_import.py` — class Command
+- `apps/job/migrations/0001_initial.py` — class Migration
+- `apps/job/migrations/0002_alter_historicaljob_pricing_type_and_more.py` — class Migration
+- `apps/job/migrations/0003_historicaljob_contact_email_job_contact_email.py` — class Migration
+- `apps/job/migrations/0004_alter_historicaljob_contact_phone_and_more.py` — class Migration
+- `apps/job/migrations/0005_remove_materialentry_source_stock_and_more.py` — class Migration
+- `apps/job/migrations/0006_add_material_adjustment_jobpart_models.py` — class Migration
+- `apps/job/migrations/0007_add_materialentry_add_adjustmententry.py` — class Migration
+- `apps/job/migrations/0007_fix_jobpart_state.py` — class Migration
+- `apps/job/migrations/0008_alter_jobpart_options_and_more.py` — class Migration
+- `apps/job/migrations/0009_historicaljob_priority_job_priority_and_more.py` — class Migration
+- `apps/job/migrations/0010_populate_priority_for_existing_jobs.py` — function populate_priority_for_existing_jobs: (apps, schema_editor), class Migration
+- `apps/job/migrations/0011_rename_revenue_adjustment_adjustmententry_price_adjustment_and_more.py` — class Migration
+- `apps/job/migrations/0011_update_purchase_order_line_reference.py` — class Migration
+- `apps/job/migrations/0012_alter_jobevent_job.py` — class Migration
+- `apps/job/migrations/0012_merge_20250604_2123.py` — class Migration
+- `apps/job/migrations/0013_merge_20250605_0811.py` — class Migration
+- `apps/job/migrations/0014_alter_jobpart_table.py` — class Migration
+- `apps/job/migrations/0015_alter_historicaljob_client_alter_job_client_and_more.py` — class Migration
+- `apps/job/migrations/0016_add_contact_foreignkey.py` — class Migration
+- `apps/job/migrations/0017_migrate_contact_data.py`
+  - function migrate_contact_data: (apps, schema_editor)
+  - function reverse_migration: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0018_add_accounting_date_fields.py` — class Migration
+- `apps/job/migrations/0018_costing_initial.py` — class Migration
+- `apps/job/migrations/0019_job_latest_sets.py` — class Migration
+- `apps/job/migrations/0019_populate_accounting_dates.py`
+  - function populate_accounting_dates: (apps, schema_editor)
+  - function reverse_populate_accounting_dates: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0020_change_priority_to_float.py` — class Migration
+- `apps/job/migrations/0021_add_is_quote_adjustment_field.py` — class Migration
+- `apps/job/migrations/0022_merge_20250615_1511.py` — class Migration
+- `apps/job/migrations/0023_add_new_job_statuses.py` — class Migration
+- `apps/job/migrations/0024_rename_pricing_jobpricing.py`
+  - function rename_field_if_needed: (apps, schema_editor)
+  - function reverse_rename_field_if_needed: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0025_update_job_statuses_for_kanban.py`
+  - function update_job_statuses: (apps, schema_editor)
+  - function reverse_job_statuses: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0026_alter_historicaljob_status_alter_job_status.py` — class Migration
+- `apps/job/migrations/0027_quotespreadsheet.py` — class Migration
+- `apps/job/migrations/0028_add_job_quote_chat_model.py` — class Migration
+- `apps/job/migrations/0029_remove_historicaljob_contact_email_and_more.py` — class Migration
+- `apps/job/migrations/0030_migrate_pricing_to_costing_and_cleanup.py`
+  - function migrate_pricing_to_costing: (apps, schema_editor)
+  - function reverse_migration: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0031_remove_jobpart_job_pricing_and_more.py` — class Migration
+- `apps/job/migrations/0032_fix_blank_job_names.py`
+  - function fix_blank_job_names: (apps, schema_editor)
+  - function reverse_fix_blank_job_names: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0033_update_job_statuses_for_simplified_kanban.py`
+  - function update_job_statuses_for_simplified_kanban: (apps, schema_editor)
+  - function reverse_job_statuses_for_simplified_kanban: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0034_remove_legacy_status_choices.py` — class Migration
+- `apps/job/migrations/0035_alter_jobevent_id.py` — function populate_temp_uuid_ids: (apps, schema_editor), class Migration
+- `apps/job/migrations/0036_complete_uuid_transition.py` — class Migration
+- `apps/job/migrations/0037_finalize_uuid_transition.py` — class Migration
+- `apps/job/migrations/0038_add_event_deduplication.py` — class Migration
+- `apps/job/migrations/0039_alter_job_options_costline_xero_expense_id_and_more.py` — class Migration
+- `apps/job/migrations/0040_historicaljob_fully_invoiced_job_fully_invoiced.py` — class Migration
+- `apps/job/migrations/0041_populate_fully_invoiced.py`
+  - function populate_fully_invoiced_forward: (apps, schema_editor)
+  - function populate_fully_invoiced_reverse: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0042_add_xero_default_task_id.py` — class Migration
+- `apps/job/migrations/0043_alter_costline_xero_last_modified_and_more.py` — class Migration
+- `apps/job/migrations/0044_alter_costline_options_costline_created_at_and_more.py` — class Migration
+- `apps/job/migrations/0045_create_job_delta_rejection.py` — class Migration
+- `apps/job/migrations/0046_add_delta_fields_to_job_event.py` — class Migration
+- `apps/job/migrations/0047_add_accounting_date_nullable.py` — class Migration
+- `apps/job/migrations/0048_populate_accounting_date.py`
+  - function populate_accounting_date: (apps, schema_editor)
+  - function reverse_populate_accounting_date: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0049_make_accounting_date_not_null.py` — class Migration
+- `apps/job/migrations/0050_backfill_costset_summaries.py`
+  - function backfill_empty_summaries: (apps, schema_editor)
+  - function reverse_backfill: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0051_fix_costset_summary_default.py` — class Migration
+- `apps/job/migrations/0052_alter_costline_desc.py` — class Migration
+- `apps/job/migrations/0053_add_speed_quality_tradeoff.py` — class Migration
+- `apps/job/migrations/0054_protect_critical_fks.py` — class Migration
+- `apps/job/migrations/0055_add_price_cap.py` — class Migration
+- `apps/job/migrations/0056_add_safety_document.py` — class Migration
+- `apps/job/migrations/0057_safetydocument_google_docs.py`
+  - function delete_all_safety_documents: (apps, schema_editor)
+  - function noop: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0058_safetydocument_document_number_and_more.py` — class Migration
+- `apps/job/migrations/0059_costline_approved.py` — class Migration
+- `apps/job/migrations/0060_alter_historicaljob_rejected_flag_and_more.py` — class Migration
+- `apps/job/migrations/0061_fix_labour_cost_lines.py`
+  - function cast_labour_adjustments_to_time: (apps, schema_editor)
+  - function noop_reverse: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0062_alter_costline_meta_ext_refs.py` — class Migration
+- `apps/job/migrations/0063_job_payroll_category.py` — class Migration
+- `apps/job/migrations/0064_job_default_xero_pay_item.py`
+  - function backfill_default_xero_pay_item: (apps, _schema_editor)
+  - function backfill_costline_xero_pay_item: (apps, _schema_editor)
+  - function noop: (_apps, _schema_editor)
+  - class Migration
+- `apps/job/migrations/0065_make_default_xero_pay_item_required.py` — class Migration
+- `apps/job/migrations/0066_zero_shop_job_revenue.py`
+  - function zero_shop_job_revenue: (apps, _schema_editor)
+  - function noop: (_apps, _schema_editor)
+  - class Migration
+- `apps/job/migrations/0067_normalize_wage_rate_multiplier.py`
+  - function normalize_wage_rate_multiplier: (apps, schema_editor)
+  - function noop_reverse: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0068_add_completed_at.py`
+  - function backfill_completed_at: (apps, schema_editor)
+  - function reverse_backfill: (apps, schema_editor)
+  - class Migration
+- `apps/job/migrations/0069_fix_fully_invoiced.py` — function fix_fully_invoiced: (apps, schema_editor), class Migration
+- `apps/job/migrations/0070_delete_safetydocument.py` — class Migration
+- `apps/job/migrations/0071_add_rdti_type.py` — class Migration
+- `apps/job/migrations/0072_rename_job_quote_c_job_id_24cfd1_idx_job_jobquot_job_id_c83a63_idx_and_more.py` — class Migration
+- `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
+- `apps/job/models/costing.py`
+  - function get_default_cost_set_summary: ()
+  - class CostSet
+  - class CostLine
+- `apps/job/models/costline_validators.py` — function validate_costline_meta: (meta, Any] | None, kind) -> None, function validate_costline_ext_refs: (ext_refs, Any] | None) -> None
+- `apps/job/models/job.py` — class Job
+- `apps/job/models/job_delta_rejection.py` — class JobDeltaRejection
+- `apps/job/models/job_event.py` — class JobEvent
+- `apps/job/models/job_file.py` — class JobFile
+- `apps/job/models/job_quote_chat.py` — class JobQuoteChat
+- `apps/job/models/spreadsheet.py` — class QuoteSpreadsheet
+- `apps/job/permissions.py` — class IsOfficeStaff, class IsStaffUser
+- `apps/job/scheduler_jobs.py` — function set_paid_flag_jobs: (), function auto_archive_completed_jobs: ()
+- `apps/job/schemas/quote_mode_schemas.py` — function get_schema: (mode) -> Dict[str, Any], function get_allowed_tools: (mode) -> List[str]
+- `apps/job/serializers/costing_serializer.py`
+  - class CostLineSerializer
+  - class TimesheetCostLineSerializer
+  - class CostLineCreateUpdateSerializer
+  - class CostSetSummarySerializer
+  - class CostSetSerializer
+  - class CostSetSummaryOnlySerializer
+  - _...6 more_
+- `apps/job/serializers/data_integrity_serializers.py`
+  - class BrokenFKReferenceSerializer
+  - class BrokenJSONReferenceSerializer
+  - class BusinessRuleViolationSerializer
+  - class DataIntegritySummarySerializer
+  - class DataIntegrityResponseSerializer
+- `apps/job/serializers/data_quality_report_serializers.py`
+  - class ComplianceSummarySerializer
+  - class ArchivedJobIssueSerializer
+  - class ArchivedJobsComplianceResponseSerializer
+- `apps/job/serializers/job_file_serializer.py`
+  - class JobFileSerializer
+  - class UploadedFileSerializer
+  - class JobFileUploadSerializer
+  - class JobFileUploadSuccessResponseSerializer
+  - class JobFileUploadPartialResponseSerializer
+  - class JobFileErrorResponseSerializer
+  - _...3 more_
+- `apps/job/serializers/job_profitability_report_serializers.py`
+  - class JobProfitabilityQuerySerializer
+  - class CostSetMetricsSerializer
+  - class JobProfitabilityItemSerializer
+  - class JobProfitabilitySummarySerializer
+  - class FiltersAppliedSerializer
+  - class JobProfitabilityReportResponseSerializer
+- `apps/job/serializers/job_quote_chat_serializer.py`
+  - class JobQuoteChatCreateSerializer
+  - class JobQuoteChatSerializer
+  - class JobQuoteChatUpdateSerializer
+  - class JobQuoteChatMessageResponseSerializer
+  - class JobQuoteChatHistoryResponseSerializer
+  - class JobQuoteChatCreateResponseSerializer
+  - _...5 more_
+- `apps/job/serializers/job_serializer.py`
+  - class InvoiceSerializer
+  - class QuoteSerializer
+  - class XeroQuoteSerializer
+  - class XeroInvoiceSerializer
+  - class CompanyDefaultsJobDetailSerializer
+  - class JobSerializer
+  - _...50 more_
+- `apps/job/serializers/kanban_serializer.py`
+  - class JobReorderSerializer
+  - class JobStatusUpdateSerializer
+  - class KanbanSuccessResponseSerializer
+  - class KanbanErrorResponseSerializer
+  - class JobSearchFiltersSerializer
+  - class KanbanJobPersonSerializer
+  - _...8 more_
+- `apps/job/serializers/quote_spreadsheet_serializer.py` — class QuoteSpreadsheetSerializer
+- `apps/job/serializers/quote_sync_serializer.py`
+  - class ValidationReportSerializer
+  - class DiffPreviewSerializer
+  - class QuoteSyncErrorResponseSerializer
+  - class LinkQuoteSheetSerializer
+  - class LinkQuoteSheetResponseSerializer
+  - class DraftLineSerializer
+  - _...4 more_
+- `apps/job/services/auto_archive_service.py` — class AutoArchiveResult, class AutoArchiveService
+- `apps/job/services/chat_file_service.py` — class ChatFileService
+- `apps/job/services/chat_service.py` — class ChatService
+- `apps/job/services/data_integrity_service.py` — class DataIntegrityService
+- `apps/job/services/data_quality_report.py` — class ArchivedJobsComplianceService
+- `apps/job/services/delivery_docket_service.py` — function generate_delivery_docket: (job) -> tuple[BytesIO, JobFile]
+- `apps/job/services/delta_checksum.py`
+  - function compute_job_delta_checksum: (job_id, field_values, object], fields) -> str
+  - function normalise_value: (value) -> str
+  - class ChecksumInput
+- `apps/job/services/file_service.py` — function get_thumbnail_folder: (job_number), function sync_job_folder: (job)
+- `apps/job/services/import_quote_service.py`
+  - function serialize_validation_report: (validation_report) -> Optional[Dict[str, Any]]
+  - function serialize_draft_lines: (draft_lines) -> List[Dict[str, Any]]
+  - function preview_quote_import_from_drafts: (job, draft_lines) -> Dict[str, Any]
+  - function import_quote_from_drafts: (job, draft_lines) -> QuoteImportResult
+  - function import_quote_from_file: (job, file_path, skip_validation) -> QuoteImportResult
+  - function preview_quote_import: (job, file_path) -> Dict[str, Any]
+  - _...2 more_
+- `apps/job/services/job_profitability_report.py` — class JobProfitabilityReportService
+- `apps/job/services/job_rest_service.py`
+  - class PreconditionFailed
+  - class DeltaValidationError
+  - class JobDeltaPayload
+  - class JobRestService
+- `apps/job/services/job_service.py`
+  - function get_paid_complete_jobs: ()
+  - function archive_complete_jobs: (job_ids)
+  - function get_job_total_value: (job) -> Decimal
+  - function recalculate_job_invoicing_state: (job_id) -> None
+  - class JobStaffService
+- `apps/job/services/kanban_categorization_service.py` — class KanbanColumn, class KanbanCategorizationService
+- `apps/job/services/kanban_service.py` — class KanbanService
+- `apps/job/services/mcp_chat_service.py` — class MCPChatService
+- `apps/job/services/month_end_service.py` — class MonthEndService
+- `apps/job/services/paid_flag_service.py` — class PaidFlagResult, class PaidFlagService
+- `apps/job/services/quote_mode_controller.py` — class QuoteModeController
+- `apps/job/services/quote_sync_service.py`
+  - function link_quote_sheet: (job, template_url) -> QuoteSpreadsheet
+  - function preview_quote: (job)
+  - function apply_quote: (job)
+- `apps/job/services/workshop_pdf_service.py`
+  - function format_hours_display: (hours) -> str
+  - function get_workshop_hours: (job) -> float
+  - function get_time_breakdown: (job) -> dict
+  - function draw_table_with_page_breaks: (pdf, table, y_position, *, x_position, margin, available_width, on_new_page, float]]) -> float
+  - function wait_until_file_ready: (file_path, max_wait)
+  - function get_image_dimensions: (image_path)
+  - _...17 more_
+- `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
+- `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
+- `apps/process/apps.py` — class ProcessConfig
+- `apps/process/management/commands/import_dropbox_hs_documents.py` — class Command
+- `apps/process/migrations/0001_initial.py` — class Migration
+- `apps/process/migrations/0002_formentry_staff_historicalformentry_staff_and_more.py` — class Migration
+- `apps/process/migrations/0003_alter_form_table_alter_formentry_table_and_more.py` — class Migration
+- `apps/process/models/form.py` — class Form
+- `apps/process/models/form_entry.py` — class FormEntry
+- `apps/process/models/procedure.py` — class Procedure
+- `apps/process/serializers/form_serializer.py`
+  - class FormEntrySerializer
+  - class FormListSerializer
+  - class FormDetailSerializer
+  - class FormCreateSerializer
+  - class FormUpdateSerializer
+- `apps/process/serializers/procedure_serializer.py`
+  - class SWPGenerateRequestSerializer
+  - class ProcedureListSerializer
+  - class ProcedureDetailSerializer
+  - class ProcedureCreateSerializer
+  - class ProcedureUpdateSerializer
+  - class ProcessDocumentErrorResponseSerializer
+- `apps/process/services/form_service.py` — class FormService
+- `apps/process/services/google_docs_service.py`
+  - class GoogleDocResult
+  - class ProcessDocumentContent
+  - class GoogleDocsService
+- `apps/process/services/procedure_service.py` — class ProcedureService
+- `apps/process/services/safety_ai_service.py` — class SafetyAIService
+- `apps/process/urls_rest.py` — class CategoriesView
+- `apps/purchasing/apps.py` — class PurchasingConfig
+- `apps/purchasing/etag.py` — function normalize_etag: (etag) -> Optional[str], function generate_po_etag: (po) -> str
+- `apps/purchasing/exceptions.py` — class PreconditionFailedError
+- `apps/purchasing/migrations/0001_move_purchase_models_state.py` — class Migration
+- `apps/purchasing/migrations/0002_move_purchase_models_database.py` — class Migration
+- `apps/purchasing/migrations/0003_alter_purchaseorder_xero_tenant_id_and_more.py` — class Migration
+- `apps/purchasing/migrations/0004_stock.py` — class Migration
+- `apps/purchasing/migrations/0005_add_stock_in_database.py` — class Migration
+- `apps/purchasing/migrations/0006_add_stock_item_code_xero_id.py` — class Migration
+- `apps/purchasing/migrations/0007_stock_unique_xero_id.py` — class Migration
+- `apps/purchasing/migrations/0008_stock_parsed_at_stock_parser_confidence_and_more.py` — class Migration
+- `apps/purchasing/migrations/0009_purchaseorderline_item_code.py` — class Migration
+- `apps/purchasing/migrations/0010_add_raw_json_to_purchaseorder.py` — class Migration
+- `apps/purchasing/migrations/0011_stock_xero_inventory_tracked.py` — class Migration
+- `apps/purchasing/migrations/0012_add_unit_revenue_to_stock.py` — class Migration
+- `apps/purchasing/migrations/0013_populate_unit_revenue_from_existing_data.py`
+  - function populate_unit_revenue: (apps, schema_editor)
+  - function reverse_populate_unit_revenue: (apps, schema_editor)
+  - class Migration
+- `apps/purchasing/migrations/0014_remove_retail_rate_field.py` — class Migration
+- `apps/purchasing/migrations/0015_stock_active_source_purchase_order_line_id_and_more.py`
+  - function populate_active_source_purchase_order_line: (apps, schema_editor)
+  - function reset_active_source_purchase_order_line: (apps, schema_editor)
+  - class Migration
+- `apps/purchasing/migrations/0016_add_product_catalog_source.py`
+  - function fix_empty_source: (apps, schema_editor)
+  - function reverse_fix_empty_source: (apps, schema_editor)
+  - class Migration
+- `apps/purchasing/migrations/0017_remove_stock_notes.py` — class Migration
+- `apps/purchasing/migrations/0018_add_xero_line_item_id.py` — class Migration
+- `apps/purchasing/migrations/0019_populate_xero_line_item_id.py`
+  - function populate_xero_line_item_ids: (apps, schema_editor)
+  - function reverse_migration: (apps, schema_editor)
+  - class Migration
+- `apps/purchasing/migrations/0020_add_purchaseorderevent.py` — class Migration
+- `apps/purchasing/migrations/0021_clean_po_line_descriptions.py`
+  - function clean_descriptions: (apps, schema_editor)
+  - function reverse_migration: (apps, schema_editor)
+  - class Migration
+- `apps/purchasing/migrations/0022_add_pickup_address_to_po.py` — class Migration
+- `apps/purchasing/migrations/0023_dedupe_stock_item_codes.py` — function dedupe_stock_item_codes: (apps, schema_editor), class Migration
+- `apps/purchasing/migrations/0024_stock_item_code_unique.py` — class Migration
+- `apps/purchasing/migrations/0025_add_xero_last_synced_to_stock.py` — class Migration
+- `apps/purchasing/migrations/0026_remove_xero_last_synced_default.py` — class Migration
+- `apps/purchasing/migrations/0027_add_created_by_to_purchase_order.py` — class Migration
+- `apps/purchasing/migrations/0028_update_created_by_from_events.py`
+  - function update_created_by_from_first_event: (apps, schema_editor)
+  - function reverse_noop: (apps, schema_editor)
+  - class Migration
+- `apps/purchasing/migrations/0029_alter_purchaseorder_table_and_more.py` — class Migration
+- `apps/purchasing/models.py`
+  - class PurchaseOrder
+  - class PurchaseOrderLine
+  - class PurchaseOrderSupplierQuote
+  - class Stock
+  - class PurchaseOrderEvent
+- `apps/purchasing/serializers.py`
+  - class SupplierPriceStatusItemSerializer
+  - class SupplierPriceStatusResponseSerializer
+  - class JobForPurchasingSerializer
+  - class PurchaseOrderLineSerializer
+  - class PurchaseOrderDetailSerializer
+  - class AllJobsResponseSerializer
+  - _...40 more_
+- `apps/purchasing/services/allocation_service.py`
+  - class AllocationDeletionError
+  - class DeletionResult
+  - class AllocationService
+- `apps/purchasing/services/delivery_receipt_service.py` — function process_delivery_receipt: (purchase_order_id, line_allocations, *, expected_etag) -> PurchaseOrder, class DeliveryReceiptValidationError
+- `apps/purchasing/services/purchase_order_email_service.py` — function create_purchase_order_email: (purchase_order) -> dict
+- `apps/purchasing/services/purchase_order_pdf_service.py` — function create_purchase_order_pdf: (purchase_order), class PurchaseOrderPDFGenerator
+- `apps/purchasing/services/purchasing_rest_service.py` — class PurchasingRestService
+- `apps/purchasing/services/quote_to_po_service.py`
+  - function normalize: (s)
+  - function fuzzy_find_supplier: (supplier_name)
+  - function save_quote_file: (purchase_order, file_obj)
+  - function extract_data_from_supplier_quote: (quote_path, content_type, use_pdf_parser)
+  - function read_file_content: (file_path) -> Optional[bytes]
+  - function create_concise_prompt: (metal_types) -> str
+  - _...8 more_
+- `apps/purchasing/services/stock_service.py` — function merge_stock_into: (source_stock_id, target_stock_id) -> None, function consume_stock: (item, job, qty, user, unit_cost, unit_rev, line) -> CostLine
+- `apps/quoting/apps.py` — class QuotingConfig
+- `apps/quoting/management/commands/populate_product_mappings.py` — class Command
+- `apps/quoting/management/commands/run_scrapers.py` — class Command
+- `apps/quoting/mcp.py` — class SupplierProductQueryTool, class QuotingTool
+- `apps/quoting/migrations/0001_initial.py` — class Migration
+- `apps/quoting/migrations/0002_supplierpricelist_supplierproduct_price_list.py` — class Migration
+- `apps/quoting/migrations/0003_alter_supplierpricelist_supplier_and_more.py` — class Migration
+- `apps/quoting/migrations/0004_scrapejob.py` — class Migration
+- `apps/quoting/migrations/0005_alter_supplierproduct_unique_together_and_more.py` — class Migration
+- `apps/quoting/migrations/0006_alter_supplierproduct_unique_together_and_more.py` — class Migration
+- `apps/quoting/migrations/0007_supplierproduct_parsed_alloy_and_more.py` — class Migration
+- `apps/quoting/migrations/0008_parse_existing_products.py`
+  - function parse_existing_products: (apps, schema_editor)
+  - function reverse_parse_existing_products: (apps, schema_editor)
+  - class Migration
+- `apps/quoting/migrations/0010_productparsingmapping_item_code_is_in_xero.py` — class Migration
+- `apps/quoting/migrations/0011_add_mapping_hash_to_supplierproduct.py` — class Migration
+- `apps/quoting/migrations/0012_supplierproduct_last_scraped.py` — class Migration
+- `apps/quoting/migrations/0013_productparsingmapping_derived_key.py` — class Migration
+- `apps/quoting/migrations/0014_make_parser_fields_nullable.py` — class Migration
+- `apps/quoting/migrations/0015_protect_critical_fks.py` — class Migration
+- `apps/quoting/migrations/0016_protect_supplier_relationships.py` — class Migration
+- `apps/quoting/migrations/0017_add_is_discontinued_to_supplierproduct.py` — class Migration
+- `apps/quoting/migrations/0018_mark_404_products_as_discontinued.py`
+  - function mark_404_products_discontinued: (apps, schema_editor)
+  - function reverse_mark: (apps, schema_editor)
+  - class Migration
+- `apps/quoting/models.py`
+  - class SupplierProduct
+  - class SupplierPriceList
+  - class ScrapeJob
+  - class ProductParsingMapping
+- `apps/quoting/scheduler_jobs.py` — function run_all_scrapers_job: (), function delete_old_job_executions: (max_age_days)
+- `apps/quoting/scrapers/base.py` — class BaseScraper
+- `apps/quoting/scrapers/steel_and_tube.py` — class SteelAndTubeScraper
+- `apps/quoting/serializers.py`
+  - class SupplierPriceListUploadSerializer
+  - class SupplierInfoSerializer
+  - class PriceListInfoSerializer
+  - class ImportStatisticsSerializer
+  - class ValidationInfoSerializer
+  - class ExtractSupplierPriceListResponseSerializer
+  - _...1 more_
+- `apps/quoting/serializers_django_jobs.py` — class DjangoJobSerializer, class DjangoJobExecutionSerializer
+- `apps/quoting/services/ai_price_extraction.py`
+  - function get_prioritized_active_providers: ()
+  - function extract_price_data: (file_path, content_type) -> Tuple[Optional[Dict[str, Any]], Optional[str]]
+  - class PriceExtractionProvider
+  - class PriceExtractionFactory
+- `apps/quoting/services/pdf_data_validation.py` — class PDFDataValidationService
+- `apps/quoting/services/pdf_import_service.py` — class PDFImportService
+- `apps/quoting/services/product_parser.py`
+  - function parse_supplier_product: (product_data, Any]) -> Tuple[Dict[str, Any], bool]
+  - function create_mapping_record: (instance)
+  - function populate_all_mappings_with_llm: ()
+  - class ProductParser
+- `apps/quoting/services/providers/common.py`
+  - function create_extraction_prompt: () -> str
+  - function clean_json_response: (text) -> str
+  - function log_token_usage: (usage, api_name)
+- `apps/quoting/services/providers/gemini_provider.py` — class GeminiPriceExtractionProvider
+- `apps/quoting/services/providers/mistral_provider.py` — function encode_pdf: (pdf_path), class MistralPriceExtractionProvider
+- `apps/quoting/services/stock_parser.py` — function auto_parse_stock_item: (stock_instance)
+- `apps/quoting/tests_mcp.py` — class QuotingToolTests, class SupplierProductQueryToolTests
+- `apps/quoting/tests_utils.py` — class TestCalculateSheetTenths
+- `apps/quoting/utils.py`
+  - function calculate_product_mapping_hash: (product_data, Any]) -> str
+  - function calculate_supplier_product_hash: (supplier_product) -> str
+  - function calculate_sheet_tenths: (part_width_mm, part_height_mm, sheet_width_mm, sheet_height_mm) -> int
+- `apps/quoting/views.py` — function extract_supplier_price_list_data_view: (request)
+- `apps/quoting/views_django_jobs.py` — class DjangoJobViewSet, class DjangoJobExecutionViewSet
+- `apps/testing.py`
+  - class BaseTestCase
+  - class BaseTransactionTestCase
+  - class BaseAPITestCase
+- `apps/timesheet/api/daily_timesheet_views.py` — class DailyTimesheetSummaryAPIView, class StaffDailyDetailAPIView
+- `apps/timesheet/apps.py` — class TimesheetConfig
+- `apps/timesheet/enums.py` — class RateType
+- `apps/timesheet/management/commands/create_leave_entries.py` — class Command
+- `apps/timesheet/management/commands/create_overtime_entries.py` — class Command
+- `apps/timesheet/management/commands/create_special_job.py` — class Command
+- `apps/timesheet/management/commands/reassign_time_entries.py` — class Command
+- `apps/timesheet/management/commands/reclassify_overtime_entries.py` — class Command
+- `apps/timesheet/migrations/0001_initial.py` — class Migration
+- `apps/timesheet/migrations/0002_alter_timeentry_job_pricing_fk.py` — class Migration
+- `apps/timesheet/migrations/0003_delete_timeentry.py` — class Migration
+- `apps/timesheet/migrations/0005_xero_payrun.py` — class Migration
+- `apps/timesheet/migrations/0006_delete_xeropayrun_model.py` — class Migration
+- `apps/timesheet/serializers/daily_timesheet_serializers.py`
+  - class JobBreakdownSerializer
+  - class StaffDailyDataSerializer
+  - class DailyTotalsSerializer
+  - class SummaryStatsSerializer
+  - class DailyTimesheetSummarySerializer
+  - class TimesheetErrorResponseSerializer
+- `apps/timesheet/serializers/modern_timesheet_serializers.py`
+  - class ModernTimesheetJobSerializer
+  - class ModernStaffSerializer
+  - class WeeklySummarySerializer
+  - class JobMetricsSerializer
+  - class WeeklyStaffDataWeeklyHoursSerializer
+  - class WeeklyStaffDataSerializer
+  - _...10 more_
+- `apps/timesheet/serializers/payroll_serializers.py`
+  - class CreatePayRunSerializer
+  - class CreatePayRunResponseSerializer
+  - class PostWeekToXeroSerializer
+  - class PostWeekToXeroResponseSerializer
+  - class PayRunListItemSerializer
+  - class PayRunListResponseSerializer
+  - _...1 more_
+- `apps/timesheet/services/daily_timesheet_service.py` — function ensure_json_serializable: (obj), class DailyTimesheetService
+- `apps/timesheet/services/demo_payroll_data.py`
+  - function generate_ird_number: (employee_num) -> str
+  - function get_bank_account: (index) -> str
+  - function setup_employee_tax: (employee_id, ird_number) -> None
+  - function setup_employee_leave: (employee_id) -> None
+  - function setup_employee_bank: (employee_id, bank_account_number) -> None
+- `apps/timesheet/services/payroll_employee_sync.py` — class PayrollEmployeeSyncService
+- `apps/timesheet/services/weekly_timesheet_service.py` — class WeeklyTimesheetService
+- `apps/timesheet/services/xero_hours.py`
+  - function get_xero_hours_by_staff_week: () -> list[dict]
+  - function get_jm_hours_for_staff_week: (staff_id, week_start) -> dict
+  - function build_staff_lookup: () -> dict[str, Staff]
+- `apps/workflow/api/enums.py` — function get_enum_choices: (request, enum_name) -> JsonResponse
+- `apps/workflow/api/pagination.py` — class FiftyPerPagePagination
+- `apps/workflow/api/reports/job_movement.py` — class JobMovementMetricsView
+- `apps/workflow/api/reports/payroll_reconciliation.py` — class PayrollReconciliationReport, class PayrollDateRangeView
+- `apps/workflow/api/reports/pnl.py` — class CompanyProfitAndLossReport
+- `apps/workflow/api/reports/utils.py` — function format_period_label: (period_start, period_end)
+- `apps/workflow/api/xero/payroll.py`
+  - function get_employees: () -> List[Employee]
+  - function create_payroll_employee: (employee_data, Any]) -> Employee
+  - function update_employee_name: (employee_id, first_name, last_name) -> None
+  - function get_employee_salary_and_wages: (employee_id) -> List[SalaryAndWage]
+  - function get_employee_working_patterns: (employee_id) -> List[Dict[str, float]]
+  - function get_payroll_calendars: () -> List[Dict[str, Any]]
+  - _...20 more_
+- `apps/workflow/api/xero/reprocess_xero.py`
+  - function set_invoice_or_bill_fields: (document, document_type, new_from_xero)
+  - function set_client_fields: (client, new_from_xero)
+  - function set_journal_fields: (journal)
+  - function reprocess_invoices: ()
+  - function reprocess_bills: ()
+  - function reprocess_credit_notes: ()
+  - _...3 more_
+- `apps/workflow/api/xero/stock_sync.py`
+  - function fetch_all_xero_items: (api, tenant_id) -> Dict[str, Any]
+  - function get_xero_item_by_code_from_lookup: (code, xero_items_lookup, Any]) -> Optional[Any]
+  - function generate_item_code: (stock_item) -> str
+  - function validate_stock_for_xero: (stock_item) -> bool
+  - function sync_stock_to_xero: (stock_item, xero_items_lookup, Any]]) -> bool
+  - function sync_all_local_stock_to_xero: (limit) -> Dict[str, Any]
+  - _...2 more_
+- `apps/workflow/api/xero/sync.py`
+  - function serialize_xero_object: (obj)
+  - function clean_json: (data)
+  - function process_xero_data: (xero_obj)
+  - function get_or_fetch_client: (contact_id, reference)
+  - function sync_entities: (items, model_class, xero_id_attr, transform_func, delete_orphans)
+  - function transform_invoice: (xero_invoice, xero_id)
+  - _...35 more_
+- `apps/workflow/api/xero/xero.py`
+  - function get_token: () -> Optional[Dict[str, Any]]
+  - function store_token: (token, Any]) -> None
+  - function refresh_token: () -> Optional[Dict[str, Any]]
+  - function get_valid_token: () -> Optional[Dict[str, Any]]
+  - function get_authentication_url: (state) -> str
+  - function get_tenant_id_from_connections: () -> str
+  - _...11 more_
+- `apps/workflow/apps.py` — function check_company_defaults_field_sections: (app_configs, **kwargs), class WorkflowConfig
+- `apps/workflow/authentication.py`
+  - function service_api_key_required: (view_func)
+  - class JWTAuthentication
+  - class ServiceAPIKeyAuthentication
+- `apps/workflow/context_processors.py` — function debug_mode: (request) -> Dict[str, Any]
+- `apps/workflow/enums.py` — class AIProviderTypes
+- `apps/workflow/exception_handlers.py` — function custom_exception_handler: (exc, context) -> Optional[Response]
+- `apps/workflow/exceptions.py` — class XeroValidationError, class AlreadyLoggedException
+- `apps/workflow/extensions.py` — class CookieJWTScheme
+- `apps/workflow/management/commands/backport_data_backup.py` — class Command
+- `apps/workflow/management/commands/create_service_api_key.py` — class Command
+- `apps/workflow/management/commands/e2e_cleanup.py` — class Command
+- `apps/workflow/management/commands/invoice_line.py` — function sync_line_items_for_existing_invoices: (batch_size)
+- `apps/workflow/management/commands/recreate_all_init_files.py` — class Command
+- `apps/workflow/management/commands/run_scheduler.py` — class Command
+- `apps/workflow/management/commands/runserver_with_localtunnel.py` — class Command
+- `apps/workflow/management/commands/seed_xero_from_database.py` — class Command
+- `apps/workflow/management/commands/start_xero_sync.py` — class Command
+- `apps/workflow/management/commands/sync_sequences.py` — class Command
+- `apps/workflow/management/commands/xero.py` — function get_employees_simple_dev: (), class Command
+- `apps/workflow/middleware.py`
+  - class DisallowedHostMiddleware
+  - class AccessLoggingMiddleware
+  - class FrontendRedirectMiddleware
+  - class LoginRequiredMiddleware
+  - class PasswordStrengthMiddleware
+- `apps/workflow/migrations/0001_initial.py` — class Migration
+- `apps/workflow/migrations/0003_companydefaults_alter_client_xero_contact_id.py` — class Migration
+- `apps/workflow/migrations/0004_companydefaults_company_name.py` — class Migration
+- `apps/workflow/migrations/0005_remove_companydefaults_id_and_more.py` — class Migration
+- `apps/workflow/migrations/0006_quotepricing.py` — class Migration
+- `apps/workflow/migrations/0007_remove_historicaljob_client_name_and_more.py` — class Migration
+- `apps/workflow/migrations/0008_remove_jobpricing_job_pricing_number.py` — class Migration
+- `apps/workflow/migrations/0009_historicaljob_job_is_valid_job_job_is_valid.py` — class Migration
+- `apps/workflow/migrations/0010_remove_historicaljob_job_name_remove_job_job_name.py` — class Migration
+- `apps/workflow/migrations/0011_remove_timeentry_minutes_timeentry_description_and_more.py` — class Migration
+- `apps/workflow/migrations/0012_alter_timeentry_staff.py` — class Migration
+- `apps/workflow/migrations/0013_alter_timeentry_date.py` — class Migration
+- `apps/workflow/migrations/0014_historicaljob_quote_acceptance_date_and_more.py` — class Migration
+- `apps/workflow/migrations/0015_historicaljob_delivery_date_job_delivery_date.py` — class Migration
+- `apps/workflow/migrations/0016_materialentry_item_code.py` — class Migration
+- `apps/workflow/migrations/0017_materialentry_comments.py` — class Migration
+- `apps/workflow/migrations/0018_rename_cost_adjustmententry_cost_adjustment_and_more.py` — class Migration
+- `apps/workflow/migrations/0019_alter_historicaljob_delivery_date_and_more.py` — class Migration
+- `apps/workflow/migrations/0020_historicaljob_material_gauge_quantity_and_more.py` — class Migration
+- `apps/workflow/migrations/0021_alter_historicaljob_description_and_more.py` — class Migration
+- `apps/workflow/migrations/0022_alter_historicaljob_description_and_more.py` — class Migration
+- `apps/workflow/migrations/0023_alter_historicaljob_contact_phone_and_more.py` — class Migration
+- `apps/workflow/migrations/0024_alter_jobpricing_options_jobpricing_revision_number.py` — class Migration
+- `apps/workflow/migrations/0025_historicaljob_latest_estimate_pricing_and_more.py` — class Migration
+- `apps/workflow/migrations/0026_alter_job_latest_estimate_pricing_and_more.py` — class Migration
+- `apps/workflow/migrations/0027_remove_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0028_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0029_alter_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0030_alter_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0031_alter_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0032_alter_job_latest_estimate_pricing_and_more.py` — class Migration
+- `apps/workflow/migrations/0033_remove_jobpricing_job_and_more.py` — class Migration
+- `apps/workflow/migrations/0034_alter_materialentry_quantity_and_more.py` — class Migration
+- `apps/workflow/migrations/0035_alter_adjustmententry_comments_and_more.py` — class Migration
+- `apps/workflow/migrations/0036_historicalstaff_hours_fri_historicalstaff_hours_mon_and_more.py` — class Migration
+- `apps/workflow/migrations/0037_remove_historicalstaff_charge_out_rate_and_more.py` — class Migration
+- `apps/workflow/migrations/0038_historicaljob_shop_job_job_shop_job.py` — class Migration
+- `apps/workflow/migrations/0039_historicaljob_charge_out_rate_job_charge_out_rate.py` — class Migration
+- `apps/workflow/migrations/0040_alter_historicaljob_charge_out_rate_and_more.py` — class Migration
+- `apps/workflow/migrations/0041_timeentry_wage_rate_multiplier.py` — class Migration
+- `apps/workflow/migrations/0042_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0043_alter_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0044_remove_timeentry_mins_per_item_timeentry_hours_and_more.py` — class Migration
+- `apps/workflow/migrations/0045_remove_timeentry_minutes.py` — class Migration
+- `apps/workflow/migrations/0046_alter_adjustmententry_options_alter_bill_options_and_more.py` — class Migration
+- `apps/workflow/migrations/0047_rename_last_modified_bill_xero_last_modified_and_more.py` — class Migration
+- `apps/workflow/migrations/0048_billlineitem_xero_id_invoicelineitem_xero_id.py` — class Migration
+- `apps/workflow/migrations/0049_companydefaults_created_at_and_more.py` — class Migration
+- `apps/workflow/migrations/0050_alter_historicalstaff_created_at_and_more.py` — class Migration
+- `apps/workflow/migrations/0051_alter_historicalstaff_updated_at_and_more.py` — class Migration
+- `apps/workflow/migrations/0052_alter_jobpricing_job.py` — class Migration
+- `apps/workflow/migrations/0053_alter_job_latest_estimate_pricing_and_more.py` — class Migration
+- `apps/workflow/migrations/0054_remove_historicaljob_shop_job_remove_job_shop_job_and_more.py` — class Migration
+- `apps/workflow/migrations/0055_alter_historicaljob_description_and_more.py` — class Migration
+- `apps/workflow/migrations/0056_rename_total_bill_total_excl_tax_and_more.py` — class Migration
+- `apps/workflow/migrations/0057_rename_line_amount_billlineitem_line_amount_excl_tax_and_more.py` — class Migration
+- `apps/workflow/migrations/0058_alter_billlineitem_options_and_more.py` — class Migration
+- `apps/workflow/migrations/0059_rename_creditlineitem_creditnotelineitem_and_more.py` — class Migration
+- `apps/workflow/migrations/0060_xerojournal_xerojournallineitem.py` — class Migration
+- `apps/workflow/migrations/0061_xerojournallineitem_xero_last_modified.py` — class Migration
+- `apps/workflow/migrations/0062_xerojournal_xero_last_modified.py` — class Migration
+- `apps/workflow/migrations/0063_rename_date_xerojournal_journal_date.py` — class Migration
+- `apps/workflow/migrations/0064_remove_xerojournallineitem_xero_last_modified.py` — class Migration
+- `apps/workflow/migrations/0065_alter_xerojournal_journal_number.py` — class Migration
+- `apps/workflow/migrations/0066_jobfile.py` — class Migration
+- `apps/workflow/migrations/0067_jobfile_status.py` — class Migration
+- `apps/workflow/migrations/0067_supplier_purchase_purchaseline_and_more.py` — class Migration
+- `apps/workflow/migrations/0068_jobevent.py` — class Migration
+- `apps/workflow/migrations/0068_purchase_created_at_purchase_updated_at_and_more.py` — class Migration
+- `apps/workflow/migrations/0069_rename_user_jobevent_staff.py` — class Migration
+- `apps/workflow/migrations/0070_jobevent_event_type.py` — class Migration
+- `apps/workflow/migrations/0071_alter_jobevent_timestamp.py` — class Migration
+- `apps/workflow/migrations/0072_merge_20250113_1626.py` — class Migration
+- `apps/workflow/migrations/0073_jobpricing_is_historical.py` — class Migration
+- `apps/workflow/migrations/0074_bill_xero_last_synced_client_xero_last_synced_and_more.py` — class Migration
+- `apps/workflow/migrations/0075_invoice_online_url_quote.py` — class Migration
+- `apps/workflow/migrations/0075_jobfile_print_on_jobsheet.py` — class Migration
+- `apps/workflow/migrations/0076_invoice_job.py` — class Migration
+- `apps/workflow/migrations/0076_remove_jobpricing_pricing_type_and_more.py` — class Migration
+- `apps/workflow/migrations/0077_alter_quote_job.py` — class Migration
+- `apps/workflow/migrations/0078_alter_quote_job.py` — class Migration
+- `apps/workflow/migrations/0079_merge_20250207_1950.py` — class Migration
+- `apps/workflow/migrations/0080_alter_historicaljob_material_gauge_quantity_and_more.py` — class Migration
+- `apps/workflow/migrations/0080_historicaljob_complex_job_job_complex_job_and_more.py` — class Migration
+- `apps/workflow/migrations/0081_add_last_xero_sync_to_company_defaults.py` — class Migration
+- `apps/workflow/migrations/0082_add_last_xero_deep_sync.py` — class Migration
+- `apps/workflow/migrations/0083_setup_xero_sync_service.py`
+  - function create_systemd_service: (apps, schema_editor)
+  - function remove_systemd_service: (apps, schema_editor)
+  - class Migration
+- `apps/workflow/migrations/0084_cleanup_company_defaults.py` — function cleanup_company_defaults: (apps, schema_editor), class Migration
+- `apps/workflow/migrations/0085_auto_20250302_2205.py` — class Migration
+- `apps/workflow/migrations/0086_alter_historicaljob_contact_person_and_more.py` — class Migration
+- `apps/workflow/migrations/0087_companydefaults_is_primary.py` — class Migration
+- `apps/workflow/migrations/0088_merge_20250305_0549.py` — class Migration
+- `apps/workflow/migrations/0089_companydefaults_starting_job_number_and_more.py` — class Migration
+- `apps/workflow/migrations/0090_alter_staff_options.py` — class Migration
+- `apps/workflow/migrations/0091_rename_coolected_historicaljob_collected_and_more.py` — class Migration
+- `apps/workflow/migrations/0093_historicaljob_notes_job_notes.py` — class Migration
+- `apps/workflow/migrations/0094_migrate_material_gauge_to_notes.py` — class Migration
+- `apps/workflow/migrations/0095_alter_staff_options_and_more.py` — class Migration
+- `apps/workflow/migrations/0096_merge_20250310_2039.py` — class Migration
+- `apps/workflow/migrations/0097_alter_historicalstaff_ims_payroll_id_and_more.py` — class Migration
+- `apps/workflow/migrations/0098_alter_historicalstaff_ims_payroll_id_and_more.py` — class Migration
+- `apps/workflow/migrations/0099_historicaljob_created_by_job_created_by.py` — class Migration
+- `apps/workflow/migrations/0100_companydefaults_xero_tenant_id.py` — function set_tenant_id: (apps, schema_editor), class Migration
+- `apps/workflow/migrations/0101_merge_20250317_1527.py` — class Migration
+- `apps/workflow/migrations/0102_add_job_to_purchase_line.py` — class Migration
+- `apps/workflow/migrations/0103_companydefaults_starting_po_number.py` — class Migration
+- `apps/workflow/migrations/0104_alter_purchaseorder_expected_delivery.py` — class Migration
+- `apps/workflow/migrations/0105_add_xero_fields_to_purchase_order.py` — class Migration
+- `apps/workflow/migrations/0106_add_price_tbc_to_purchase_order_line.py` — class Migration
+- `apps/workflow/migrations/0107_purchaseorder_online_url_purchaseorder_raw_json.py` — class Migration
+- `apps/workflow/migrations/0108_xeroaccount_xero_last_synced.py` — class Migration
+- `apps/workflow/migrations/0109_stock.py` — class Migration
+- `apps/workflow/migrations/0110_purchaseorder_reference.py` — class Migration
+- `apps/workflow/migrations/0111_alter_timeentry_minutes_per_item.py` — class Migration
+- `apps/workflow/migrations/0112_remove_purchaseline_purchase_and_more.py` — class Migration
+- `apps/workflow/migrations/0113_remove_stock_source_id_materialentry_source_stock_and_more.py` — class Migration
+- `apps/workflow/migrations/0114_stock_is_active.py` — class Migration
+- `apps/workflow/migrations/0115_alter_stock_id.py` — class Migration
+- `apps/workflow/migrations/0116_stock_alloy_stock_location_stock_metal_type_and_more.py` — class Migration
+- `apps/workflow/migrations/0117_alter_stock_metal_type.py` — class Migration
+- `apps/workflow/migrations/0118_alter_materialentry_source_stock.py` — class Migration
+- `apps/workflow/migrations/0119_alter_materialentry_source_stock.py` — class Migration
+- `apps/workflow/migrations/0120_add_purchase_order_deleted_status.py` — class Migration
+- `apps/workflow/migrations/0121_purchaseorderline_alloy_purchaseorderline_location_and_more.py` — class Migration
+- `apps/workflow/migrations/0122_companydefaults_anthropic_api_key_and_more.py` — class Migration
+- `apps/workflow/migrations/0123_alter_purchaseorder_order_date_and_more.py` — class Migration
+- `apps/workflow/migrations/0124_companydefaults_billable_threshold_amber_and_more.py` — class Migration
+- `apps/workflow/migrations/0125_normalize_po_numbers.py` — function normalize_po_numbers: (apps, schema_editor), class Migration
+- `apps/workflow/migrations/0126_alter_purchaseorder_order_date.py` — class Migration
+- `apps/workflow/migrations/0127_remove_purchaseorder_raw_json_and_more.py` — class Migration
+- `apps/workflow/migrations/0128_stock_retail_rate.py` — class Migration
+- `apps/workflow/migrations/0129_companydefaults_gemini_api_key_stock_job_and_more.py` — class Migration
+- `apps/workflow/migrations/0130_purchaseorderline_raw_line_data_stock_job_and_more.py` — class Migration
+- `apps/workflow/migrations/0131_aiprovider_companydefaults_anthropic_api_key_and_more.py` — class Migration
+- `apps/workflow/migrations/0132_stock_job_stock_source_purchase_order_line.py` — class Migration
+- `apps/workflow/migrations/0133_bill_xero_tenant_id_client_xero_tenant_id_and_more.py` — class Migration
+- `apps/workflow/migrations/0134_alter_purchaseorder_order_date.py` — class Migration
+- `apps/workflow/migrations/0135_job_people_staff_icon_and_more.py` — class Migration
+- `apps/workflow/migrations/0136_rename_job_status.py` — class Migration
+- `apps/workflow/migrations/0137_auto_20250508_2012.py` — class Migration
+- `apps/workflow/migrations/0138_stock_job_stock_source_purchase_order_line.py` — class Migration
+- `apps/workflow/migrations/0139_bill_xero_tenant_id_client_xero_tenant_id_and_more.py` — class Migration
+- `apps/workflow/migrations/0140_remove_staff_groups_remove_staff_user_permissions_and_more.py` — class Migration
+- `apps/workflow/migrations/0141_remove_timeentry_job_pricing_remove_timeentry_staff_and_more.py` — class Migration
+- `apps/workflow/migrations/0142_remove_historicaljob_client_and_more.py` — class Migration
+- `apps/workflow/migrations/0143_alter_stock_job.py` — class Migration
+- `apps/workflow/migrations/0144_remove_adjustmententry_job_pricing_and_more.py` — class Migration
+- `apps/workflow/migrations/0145_fix_jobpricing_chain.py` — class Migration
+- `apps/workflow/migrations/0146_delete_adjustmententry_delete_materialentry.py` — class Migration
+- `apps/workflow/migrations/0147_companydefaults_po_prefix.py` — class Migration
+- `apps/workflow/migrations/0148_client_primary_contact_email_and_more.py` — class Migration
+- `apps/workflow/migrations/0149_remove_client_secondary_contact_email_and_more.py` — class Migration
+- `apps/workflow/migrations/0150_client_all_phones.py` — class Migration
+- `apps/workflow/migrations/0151_remove_purchaseline_purchase_and_more.py` — class Migration
+- `apps/workflow/migrations/0152_remove_companydefaults_anthropic_api_key_and_more.py` — class Migration
+- `apps/workflow/migrations/0153_delete_client_client.py` — class Migration
+- `apps/workflow/migrations/0154_auto_20250604_1054.py` — class Migration
+- `apps/workflow/migrations/0155_remove_stock_job_remove_stock_source_parent_stock_and_more.py` — class Migration
+- `apps/workflow/migrations/0156_remove_stock_job_remove_stock_source_parent_stock_and_more.py` — class Migration
+- `apps/workflow/migrations/0157_remove_bill_client_remove_billlineitem_bill_and_more.py` — class Migration
+- `apps/workflow/migrations/0158_delete_bill_delete_billlineitem_delete_creditnote_and_more.py` — class Migration
+- `apps/workflow/migrations/0159_add_shop_client_name_field.py` — class Migration
+- `apps/workflow/migrations/0160_alter_aiprovider_provider_type.py` — class Migration
+- `apps/workflow/migrations/0161_companydefaults_gdrive_quotes_folder_id_and_more.py` — class Migration
+- `apps/workflow/migrations/0162_alter_companydefaults_gdrive_quotes_folder_id_and_more.py` — class Migration
+- `apps/workflow/migrations/0163_rename_active_to_default_add_model_name.py` — class Migration
+- `apps/workflow/migrations/0164_serviceapikey.py` — class Migration
+- `apps/workflow/migrations/0165_app_error_models.py` — class Migration
+- `apps/workflow/migrations/0166_alter_apperror_options_alter_xeroerror_options_and_more.py` — class Migration
+- `apps/workflow/migrations/0167_alter_aiprovider_table.py` — class Migration
+- `apps/workflow/migrations/0168_enhance_app_error_model.py` — class Migration
+- `apps/workflow/migrations/0169_remove_aiprovider_company_field.py` — class Migration
+- `apps/workflow/migrations/0170_companydefaults_xero_annual_leave_earnings_rate_id_and_more.py` — function update_existing_token_scopes: (apps, schema_editor), class Migration
+- `apps/workflow/migrations/0171_protect_critical_fks.py` — class Migration
+- `apps/workflow/migrations/0172_alter_xerotoken_scope.py` — class Migration
+- `apps/workflow/migrations/0173_add_test_client_name_field.py` — class Migration
+- `apps/workflow/migrations/0174_add_xero_payroll_models.py` — class Migration
+- `apps/workflow/migrations/0175_make_payroll_fields_required.py` — class Migration
+- `apps/workflow/migrations/0176_add_company_address_fields.py` — class Migration
+- `apps/workflow/migrations/0177_add_company_email_url.py` — class Migration
+- `apps/workflow/migrations/0178_add_company_acronym.py` — class Migration
+- `apps/workflow/migrations/0179_add_xero_payroll_calendar_id.py` — class Migration
+- `apps/workflow/migrations/0180_alter_xerotoken_scope.py` — class Migration
+- `apps/workflow/migrations/0181_payrollcategory.py` — class Migration
+- `apps/workflow/migrations/0182_populate_payroll_categories.py`
+  - function populate_payroll_categories: (apps, schema_editor)
+  - function reverse_populate: (apps, schema_editor)
+  - class Migration
+- `apps/workflow/migrations/0183_remove_payroll_fields_from_companydefaults.py` — class Migration
+- `apps/workflow/migrations/0184_add_xero_shortcode.py` — class Migration
+- `apps/workflow/migrations/0185_fix_unpaid_leave_and_remove_posts_to_xero.py`
+  - function fix_payroll_categories: (apps, schema_editor)
+  - function reverse_fix: (apps, schema_editor)
+  - class Migration
+- `apps/workflow/migrations/0186_simplify_payroll_category.py`
+  - function migrate_xero_names_forward: (apps, schema_editor)
+  - function set_job_payroll_categories_forward: (apps, schema_editor)
+  - function noop: (apps, schema_editor)
+  - class Migration
+- `apps/workflow/migrations/0187_create_xero_pay_item.py` — function create_seed_xero_pay_items: (apps, schema_editor), class Migration
+- `apps/workflow/migrations/0188_delete_payrollcategory.py` — class Migration
+- `apps/workflow/migrations/0189_add_xero_payroll_calendar_id.py` — class Migration
+- `apps/workflow/migrations/0190_add_openai_provider_type.py` — class Migration
+- `apps/workflow/migrations/0191_add_annual_leave_loading.py`
+  - function zero_annual_leave_pay_items: (apps, schema_editor)
+  - function reverse_zero_annual_leave: (apps, schema_editor)
+  - class Migration
+- `apps/workflow/migrations/0192_add_financial_year_start_month.py` — class Migration
+- `apps/workflow/migrations/0193_add_job_gp_target_percentage.py` — class Migration
+- `apps/workflow/migrations/0194_add_profit_thresholds.py` — class Migration
+- `apps/workflow/migrations/0195_rename_kpi_threshold_fields.py` — class Migration
+- `apps/workflow/migrations/0196_alter_companydefaults_kpi_daily_billable_hours_amber_and_more.py` — class Migration
+- `apps/workflow/migrations/0197_alter_xerotoken_scope.py` — class Migration
+- `apps/workflow/migrations/0198_add_shared_drive_fields.py` — class Migration
+- `apps/workflow/migrations/0199_populate_shared_drive_ids.py`
+  - function populate_shared_drive_ids: (apps, schema_editor)
+  - function reverse_populate: (apps, schema_editor)
+  - class Migration
+- `apps/workflow/migrations/0200_xerosynccursor.py` — class Migration
+- `apps/workflow/migrations/0201_add_xero_payroll_start_date.py` — class Migration
+- `apps/workflow/migrations/0202_populate_xero_payroll_start_date.py` — function set_payroll_start_date: (apps, schema_editor), class Migration
+- `apps/workflow/migrations/0203_companydefaults_solo.py`
+  - function forwards: (apps, schema_editor)
+  - function backwards: (apps, schema_editor)
+  - class Migration
+- `apps/workflow/migrations/0204_alter_xerotoken_scope.py` — class Migration
+- `apps/workflow/migrations/0205_companydefaults_company_phone.py` — class Migration
+- `apps/workflow/migrations/0206_companydefaults_logo_companydefaults_logo_wide.py` — class Migration
+- `apps/workflow/migrations/0207_unique_pay_item_name.py` — function deduplicate_pay_items: (apps, _schema_editor), class Migration
+- `apps/workflow/migrations/0208_enable_xero_sync.py` — class Migration
+- `apps/workflow/migrations/0209_rename_workflow_ap_timesta_ae5a69_idx_workflow_ap_timesta_a3d224_idx_and_more.py` — class Migration
+- `apps/workflow/models/ai_provider.py` — class AIProvider
+- `apps/workflow/models/app_error.py` — class AppError, class XeroError
+- `apps/workflow/models/company_defaults.py` — class CompanyDefaults
+- `apps/workflow/models/service_api_key.py` — class ServiceAPIKey
+- `apps/workflow/models/settings_metadata.py`
+  - function get_ui_type_for_field: (field, Any]") -> str
+  - function get_field_metadata: (field, Any]", field_name, read_only_fields) -> dict[str, Any]
+  - class SettingsSection
+- `apps/workflow/models/xero_account.py` — class XeroAccount
+- `apps/workflow/models/xero_journal.py` — class XeroJournal, class XeroJournalLineItem
+- `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
+- `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
+- `apps/workflow/models/xero_sync_cursor.py` — class XeroSyncCursor
+- `apps/workflow/models/xero_token.py` — class XeroToken
+- `apps/workflow/permissions.py` — class F
+- `apps/workflow/scheduler.py` — function get_scheduler: () -> BackgroundScheduler, function stop_scheduler: () -> bool
+- `apps/workflow/scheduler_jobs.py`
+  - function xero_heartbeat_job: () -> None
+  - function xero_regular_sync_job: () -> None
+  - function xero_30_day_sync_job: () -> None
+- `apps/workflow/serializers.py`
+  - class XeroTokenSerializer
+  - class AIProviderSerializer
+  - class CompanyDefaultsSerializer
+  - class XeroAccountSerializer
+  - class XeroPayItemSerializer
+  - class AIProviderCreateUpdateSerializer
+  - _...19 more_
+- `apps/workflow/services/error_persistence.py`
+  - function extract_request_context: (request) -> Dict[str, Any]
+  - function extract_job_context: (job)
+  - function persist_xero_error: (exc)
+  - function persist_app_error: (exception, app, file, function, severity, job_id, user_id, additional_context) -> AppError
+  - function list_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
+  - function persist_and_raise: (exception, **context) -> None
+- `apps/workflow/services/llm_service.py`
+  - function quick_completion: (prompt, system_prompt, provider_type, **kwargs) -> str
+  - function quick_json_completion: (prompt, system_prompt, provider_type, **kwargs) -> dict
+  - class LLMService
+- `apps/workflow/services/validation.py` — function validate_required_fields: (fields, entity, xero_id)
+- `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
+- `apps/workflow/utils.py`
+  - function extract_messages: (request) -> List[Dict[str, Any]]
+  - function is_valid_uuid: (value) -> bool
+  - function is_valid_invoice_number: (value) -> bool
+  - function get_machine_id: (path) -> Optional[str]
+  - function parse_pagination_params: (request) -> tuple[int, int]
+  - function build_xero_payroll_url: (pay_run_xero_id) -> Optional[str]
+- `apps/workflow/xero_webhooks.py`
+  - function validate_webhook_signature: (request) -> bool
+  - function process_webhook_event: (event, Any]) -> None
+  - function process_webhook_queue: () -> None
+  - class XeroWebhookView
+- `docketworks/settings.py` — function validate_required_settings: () -> None, function use_secure_cookies: ()
+- `frontend/src/api/client.ts`
+  - function setupETagManager: (manager) => void
+  - function setupJobReloadManager: (manager) => void
+  - function setupPoETagManager: (manager) => void
+  - function setupPoReloadManager: (manager) => void
+  - function getApi: () => InstanceType<typeof Zodios<typeof endpoints>>
+  - const api
+- `frontend/src/api/generated/api.ts`
+  - function createApiClient: (baseUrl, options?) => void
+  - const schemas
+  - const api
+- `frontend/src/composables/useActiveJob.ts` — function useActiveJob: () => void
+- `frontend/src/composables/useAddEmptyCostLine.ts` — function useAddEmptyCostLine: (options) => void, interface UseAddEmptyCostLineOptions
+- `frontend/src/composables/useAddMaterialCostLine.ts` — function useAddMaterialCostLine: (options) => void, interface UseAddMaterialCostLineOptions
+- `frontend/src/composables/useAppLayout.ts` — function useAppLayout: () => void
+- `frontend/src/composables/useBoardMode.ts` — function useBoardMode: () => void, type BoardMode
+- `frontend/src/composables/useCamera.ts` — function useCamera: (options) => void
+- `frontend/src/composables/useClientLookup.ts`
+  - function useClientLookup: () => void
+  - type Client
+  - type ClientContact
+- `frontend/src/composables/useConcurrencyEvents.ts` — function emitConcurrencyRetry: (jobId) => void, function onConcurrencyRetry: (jobId, handler) => void
+- `frontend/src/composables/useContactManagement.ts` — function useContactManagement: () => void, type ContactFormData
+- `frontend/src/composables/useCostLineAutosave.ts` — function useCostLineAutosave: (opts) => void, type SaveStatus
+- `frontend/src/composables/useCostLineCalculations.ts`
+  - function useCostLineCalculations: (options?) => void
+  - interface LineDerivedValues
+  - interface ValidationIssue
+  - interface ValidationResult
+  - interface ApplyResult
+- `frontend/src/composables/useCostLinesActions.ts` — function useCostLinesActions: (options) => void, interface UseCostLinesActionsOptions
+- `frontend/src/composables/useCostSummary.ts`
+  - function useCostSummary: (options) => void
+  - interface UseCostSummaryOptions
+  - type CostSummary
+- `frontend/src/composables/useCreateCostLineFromEmpty.ts` — function useCreateCostLineFromEmpty: (options) => void, interface UseCreateCostLineFromEmptyOptions
+- `frontend/src/composables/useDashboard.ts` — function useDashboard: () => void
+- `frontend/src/composables/useDeviceDetection.ts` — function useDeviceDetection: () => void
+- `frontend/src/composables/useDragAndDrop.ts`
+  - function useDragAndDrop: (onDragEvent?) => void
+  - interface DragEventPayload
+  - type DragEventHandler
+- `frontend/src/composables/useErrorApi.ts` — function useErrorApi: () => void
+- `frontend/src/composables/useFinancialYear.ts` — function useFinancialYear: () => void
+- `frontend/src/composables/useGridKeyboardNav.ts` — function useGridKeyboardNav: (opts) => void, type EditIntent
+- `frontend/src/composables/useJobAttachments.ts` — function useJobAttachments: (jobId) => void
+- `frontend/src/composables/useJobAutoSync.ts` — function useJobAutoSync: (jobId, reloadFunction) => void
+- `frontend/src/composables/useJobAutosave.ts`
+  - function createJobAutosave: (opts) => JobAutosaveApi
+  - type SaveResult
+  - type RetryPolicy
+  - type NormalizeFn
+  - type IsEqualFn
+  - type CanSaveFn
+  - _...2 more_
+- `frontend/src/composables/useJobCache.ts` — function useJobCache: () => void
+- `frontend/src/composables/useJobCard.ts` — function useJobCard: (job, emit, job) => void
+- `frontend/src/composables/useJobDelta.ts` — function useJobDeltaQueue: (jobId) => void, function buildJobDeltaEnvelope: (input) => Promise<JobDeltaEnvelope>
+- `frontend/src/composables/useJobETags.ts` — function useJobETags: () => void
+- `frontend/src/composables/useJobEvents.ts` — function useJobEvents: (jobId) => void
+- `frontend/src/composables/useJobFiles.ts` — function useJobFiles: (jobId) => void
+- `frontend/src/composables/useJobFinancials.ts` — function useJobFinancials: (jobId) => void
+- `frontend/src/composables/useJobHeaderAutosave.ts` — function useJobHeaderAutosave: (headerRef) => void
+- `frontend/src/composables/useJobNotifications.ts` — function useJobNotifications: () => void
+- `frontend/src/composables/useJobTabs.ts` — function useJobTabs: (defaultTab) => void
+- `frontend/src/composables/useLogin.ts` — function useLogin: () => void
+- `frontend/src/composables/useMonthEnd.ts` — function fetchMonthEnd: () => Promise<, function runMonthEnd: (jobIds) => Promise<
+- `frontend/src/composables/useOptimizedDragAndDrop.ts`
+  - function useOptimizedDragAndDrop: (onDragEvent?) => void
+  - interface OptimizedDragEventPayload
+  - type OptimizedDragEventHandler
+- `frontend/src/composables/useOptimizedKanban.ts` — function useOptimizedKanban: (onJobsLoaded?) => void
+- `frontend/src/composables/usePickupAddressManagement.ts`
+  - function usePickupAddressManagement: () => void
+  - type AddressFormData
+  - type AddressCandidate
+- `frontend/src/composables/usePoConcurrencyEvents.ts` — function emitPoConcurrencyRetry: (poId) => void, function onPoConcurrencyRetry: (poId, handler) => void
+- `frontend/src/composables/usePoETags.ts` — function usePoETags: () => void
+- `frontend/src/composables/usePurchaseOrderGrid.ts` — function usePurchaseOrderGrid: (lines) => void
+- `frontend/src/composables/useQuoteImport.ts` — function useQuoteImport: () => void
+- `frontend/src/composables/useSettingsSchema.ts` — function useSettingsSchema: () => void
+- `frontend/src/composables/useSmartCostLineDelete.ts` — function useSmartCostLineDelete: (options) => void, interface UseSmartCostLineDeleteOptions
+- `frontend/src/composables/useStaffApi.ts` — function useStaffApi: () => void
+- `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
+- `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
+- `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
+- `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
+- `frontend/src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
+- `frontend/src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
+- `frontend/src/composables/useWorkshopTimesheetDay.ts`
+  - function formatDateKey: (date) => string
+  - function parseDateKey: (key) => Date
+  - function formatFullDate: (date) => string
+  - function useWorkshopTimesheetDay: (selectedDate) => void
+  - type WorkingDayStartKey
+- `frontend/src/composables/useWorkshopTimesheetForm.ts` — function useWorkshopTimesheetForm: (options, silent?) => void
+- `frontend/src/composables/useWorkshopTimesheetJobs.ts` — function useWorkshopTimesheetJobs: () => void
+- `frontend/src/composables/useWorkshopTimesheetTimeUtils.ts`
+  - function ensureTimeWithSeconds: (time) => string
+  - function formatTimeInputValue: (time?) => string
+  - function minutesFromTime: (time) => number
+  - function minutesToTime: (minutes) => string
+  - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
+  - function combineDateTime: (dateKey, time) => Date
+  - _...2 more_
+- `frontend/src/composables/useXeroAuth.ts` — function useXeroAuth: () => void
+- `frontend/src/constants/job-status.ts`
+  - function getStatusChoice: (key) => StatusChoice | undefined
+  - function getStatusLabel: (key) => string
+  - type JobStatusKey
+  - type StatusChoice
+  - const JOB_STATUS_CHOICES
+- `frontend/src/lib/utils.ts` — function cn: (...inputs) => void
+- `frontend/src/plugins/axios.ts` — function getApiBaseUrl
+- `frontend/src/schemas/mcp-tool-metadata.schema.ts`
+  - function parseMetadata: (metadata) => ValidationResult<McpMetadata>
+  - function hasToolCalls: (metadata) => boolean
+  - function getToolCallCount: (metadata) => number
+  - interface ValidationResult
+  - type ToolCall
+  - type ToolDefinition
+  - _...4 more_
+- `frontend/src/services/admin-company-defaults-service.ts`
+  - function getCompanyDefaults: () => Promise<CompanyDefaults>
+  - function updateCompanyDefaults: (payload) => Promise<CompanyDefaults>
+  - function uploadLogo: (fieldName, file) => Promise<CompanyDefaults>
+  - function deleteLogo: (fieldName) => Promise<CompanyDefaults>
+  - type CompanyDefaults
+  - type PatchedCompanyDefaults
+  - _...1 more_
+- `frontend/src/services/aiProviderService.ts`
+  - class AIProviderService
+  - type AIProvider
+  - type AIProviderCreateUpdate
+  - const aiProviderService
+- `frontend/src/services/clientService.ts`
+  - class ClientService
+  - type Client
+  - type CreateClientData
+  - const clientService
+- `frontend/src/services/costing.service.ts` — function fetchCostSet
+- `frontend/src/services/costline.service.ts`
+  - function getTimesheetEntries
+  - function createCostLine
+  - function updateCostLine
+  - function approveCostLine
+  - function deleteCostLine
+  - type TimesheetEntriesResponse
+  - _...1 more_
+- `frontend/src/services/daily-timesheet.service.ts`
+  - function getDailyTimesheetSummary
+  - function getStaffDailyDetail
+  - function formatHours
+  - function formatCurrency
+  - function getStatusVariant
+  - type DailyTimesheetSummary
+  - _...1 more_
+- `frontend/src/services/date.service.ts`
+  - function today
+  - function getCurrentWeekStart
+  - function getWeekRange
+  - function getCurrentWeekRange
+  - function navigateWeek
+  - function navigateDay
+  - _...12 more_
+- `frontend/src/services/delta.service.ts` — function submitJobDelta: (jobId, envelope) => Promise<
+- `frontend/src/services/django-jobs-service.ts`
+  - function getDjangoJobs: () => Promise<DjangoJob[]>
+  - function createDjangoJob: (data) => Promise<DjangoJob>
+  - function updateDjangoJob: (id, data) => Promise<DjangoJob>
+  - function deleteDjangoJob: (id) => Promise<void>
+  - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
+  - type DjangoJob
+  - _...1 more_
+- `frontend/src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
+- `frontend/src/services/job-aging-report.service.ts`
+  - class JobAgingReportService
+  - interface JobAgingData
+  - interface JobAgingReportResponse
+  - interface JobAgingReportParams
+  - const jobAgingReportService
+- `frontend/src/services/kanban-categorization.service.ts` — class KanbanCategorizationService
+- `frontend/src/services/payroll-reconciliation-report.service.ts`
+  - function fetchAlignedDateRange: (startDate, endDate) => void
+  - function fetchPayrollReconciliation: (startDate, endDate) => Promise<PayrollReconciliationResponse>
+  - function exportPayrollReconciliationCsv: (data) => void
+  - type PayrollReconciliationResponse
+- `frontend/src/services/payroll.service.ts`
+  - function createPayRun: (weekStartDate) => Promise<CreatePayRunResponse>
+  - function postStaffWeek: (staffIds, weekStartDate, callbacks?) => Promise<PostStaffWeekDoneEvent>
+  - function fetchAllPayRuns: () => Promise<PayRunListResponse>
+  - function refreshPayRuns: () => Promise<PayRunSyncResult>
+  - interface PostStaffWeekStartEvent
+  - interface PostStaffWeekProgressEvent
+  - _...8 more_
+- `frontend/src/services/quote-chat.service.ts` — class QuoteChatService, const quoteChatService
+- `frontend/src/services/staff-performance-report.service.ts` — class StaffPerformanceReportService, const staffPerformanceReportService
+- `frontend/src/services/timesheet.service.ts` — class TimesheetService
+- `frontend/src/services/weekly-timesheet.service.ts`
+  - function fetchWeeklyOverview: (startDate?) => Promise<WeeklyTimesheetData>
+  - function getCurrentWeekRange: () => void
+  - function getWeekRange: (date) => void
+  - function formatDateRange: (startDate, endDate) => string
+  - function formatHours: (hours) => string
+  - function formatPercentage: (percentage) => string
+- `frontend/src/services/wip-report.service.ts`
+  - class WIPReportService
+  - interface WIPJobData
+  - interface WIPSummaryByStatus
+  - interface WIPSummary
+  - interface WIPReportResponse
+  - interface WIPReportParams
+  - _...1 more_
+- `frontend/src/types/concurrency.ts`
+  - function isConcurrencyError: (error) => error is ConcurrencyError
+  - function extractJobId: (url) => string | null
+  - function isJobEndpoint: (url) => boolean
+  - function isJobMutationEndpoint: (url) => boolean
+  - function extractPoId: (url) => string | null
+  - function isPoEndpoint: (url) => boolean
+  - _...4 more_
+- `frontend/src/utils/contractValidation.ts` — function validateFields: (data, requiredFields) => void
+- `frontend/src/utils/costLineMeta.ts`
+  - function getJobEstimatedHours: (job) => number
+  - function getJobActualHours: (job) => number
+  - function getCostSetHoursSafe: (costSet?) => number
+- `frontend/src/utils/csrf.ts` — function getCookie: (name) => string | null, function getCsrfToken: () => string | null
+- `frontend/src/utils/dateUtils.ts`
+  - function toLocalDateString: (date) => void
+  - function toDateValue: (date) => DateValue | undefined
+  - function fromDateValue: (dateValue) => Date | null
+- `frontend/src/utils/debug.ts` — function debugLog: (...args) => void, const isDebugEnabled
+- `frontend/src/utils/delivery-receipt.ts`
+  - function transformDeliveryReceiptForAPI: (purchaseOrderId, uiAllocations, DeliveryAllocation[]>) => DeliveryReceiptRequest
+  - function initializeEmptyAllocations: (lineIds) => Record<string, DeliveryAllocation[]>
+  - type DeliveryAllocation
+- `frontend/src/utils/deltaChecksum.ts`
+  - function canonicaliseValue: (value) => string
+  - function serialiseForChecksum: (jobId, before, unknown>, fields?) => string
+  - function sha256Hex: (input) => Promise<string>
+  - function computeJobDeltaChecksum: (jobId, before, unknown>, fields?) => Promise<string>
+  - const deltaChecksumUtils
+- `frontend/src/utils/deviceType.ts`
+  - function setDevicePreference: (preference) => void
+  - const isComputer
+  - const isTouchscreen
+  - const detectedDeviceType
+- `frontend/src/utils/email.ts` — function openGmailCompose: ({...}, subject, body }) => void, interface EmailComposeOptions
+- `frontend/src/utils/embeddedComponentRegistry.ts`
+  - function getEmbeddedComponents: (sectionKey) => Component[]
+  - function hasEmbeddedComponents: (sectionKey) => boolean
+  - const SECTION_EMBEDDED_COMPONENTS: Record<string, Component[]>
+- `frontend/src/utils/error-handler.ts`
+  - function extractErrorMessage: (error) => string
+  - function extractQuoteErrorMessage: (error) => string
+  - function logError: (context, error, additionalData?, unknown>) => void
+- `frontend/src/utils/errorHandler.ts`
+  - function extractErrorMessage: (error, fallbackMessage) => string
+  - function createErrorToast: () => void
+  - function isAuthenticationError: (error) => boolean
+- `frontend/src/utils/iconRegistry.ts`
+  - function resolveIcon: (iconName) => Component
+  - function getSectionIcon: (sectionKey) => Component
+  - function getFieldIcon: (fieldKey) => Component
+  - function hasIcon: (iconName) => boolean
+- `frontend/src/utils/metalType.ts`
+  - function formatMetalType: (metalType) => string
+  - function getMetalTypeValue: (label) => string
+  - const metalTypeOptions: Array<{ value: MetalType; label: string }>
+- `frontend/src/utils/number.ts` — function roundToDecimalPlaces: (value, decimalPlaces) => number, function normalizeOptionalDecimal: (value, options?) => number | null | undefined
+- `frontend/src/utils/safetyUtils.ts`
+  - function createSafeDate: (dateValue) => Date
+  - function getSafeNumber: (value, defaultValue) => number
+  - function getSafeString: (value, defaultValue) => string
+- `frontend/src/utils/sanitize.ts` — function trimStringsDeep: (input) => T, function normalizeOptionalString: (value) => string | undefined
+- `frontend/src/utils/statusUtils.ts` — function getStatusVariant: (status) => string, function getJobColor: (jobId) => string
+- `frontend/src/utils/string-formatting.ts`
+  - function formatEventType: (snakeCaseString) => string
+  - function formatFileSize: (bytes) => string
+  - function formatDate: (dateString) => string
+  - function truncateText: (text, maxLength) => string
+  - function capitalize: (str) => string
+  - function formatCurrency: (value, {...}) => string
+  - _...5 more_
+- `manage.py` — function main: () -> None
+- `scripts/cleanup_backups.py`
+  - function parse_arguments: ()
+  - function list_backup_dirs: (root)
+  - function validate_entries: (root, entries)
+  - function parse_timestamps: (entries)
+  - function compute_keep_set: (pairs, now)
+  - function delete_and_purge: (root, pairs, keep, dry_run)
+  - _...2 more_
+- `scripts/create_master_template.py`
+  - function get_drive_service: ()
+  - function find_or_create_templates_folder: (service)
+  - function search_existing_template: (service, template_name)
+  - function create_template: (service, folder_id, template_name, source_file_path)
+  - function save_template_info: (template_data, templates_folder, existing_templates)
+  - function main: ()
+- `scripts/detect_fstrings_without_placeholder.py` — function scan_dirs: (dirs), function find_empty_fstrings: (path)
+- `scripts/dump_settings.py` — function level: (name), function main: ()
+- `scripts/explore_google_drive.py`
+  - function get_drive_service: ()
+  - function get_root_folder: (service)
+  - function list_folders: (service, parent_id, max_results)
+  - function list_files: (service, parent_id, max_results)
+  - function search_by_name: (service, name, file_type)
+  - function get_drive_info: (service)
+  - _...1 more_
+- `scripts/find_duplicates.py`
+  - function scan_file: (filepath)
+  - function main: ()
+  - class DuplicateFinder
+- `scripts/find_late_imports.py`
+  - function has_late_import_excuse: (content) -> bool
+  - function find_late_imports: (root_dirs, easy_only, skip_tests, skip_migrations, skip_excused) -> list[tuple[str, int, str]]
+  - function main: ()
+  - class ImportVisitor
+- `scripts/find_wrapper_candidates.py`
+  - function count_function_lines: (node) -> int
+  - function extract_functions_and_calls: (filepath) -> tuple[dict, set]
+  - function main: ()
+- `scripts/generate_url_docs.py`
+  - function setup_django: ()
+  - function main: ()
+  - class URLDocumentationGenerator
+- `scripts/move_time_between_jobs.py` — function main: ()
+- `scripts/payroll_reconciliation.py`
+  - function get_monday: (d) -> date
+  - function build_staff_xero_map: () -> dict[str, "Staff"]
+  - function get_xero_week_data: (pay_run, staff_map, "Staff"]) -> dict[str, dict]
+  - function get_jm_week_data: (week_start, week_end) -> dict[str, dict]
+  - function reconcile_week: (pay_run, staff_map, "Staff"]) -> dict
+  - function get_all_weeks: (num_weeks) -> list[dict]
+- `scripts/persist_error_audit.py`
+  - function gather_usage: (project_root) -> list[PersistUsage]
+  - function summarize_by_app: (usages) -> dict[str, dict[str, int]]
+  - function format_report: (usages) -> str
+  - function main: () -> None
+  - class PersistUsage
+- `scripts/production_data_fixer.py` — function fix_empty_string_notes: (dry_run, verbose), function main: ()
+- `scripts/push_clients_to_xero.py`
+  - function get_database_name: ()
+  - function confirm_operation: (force, dry_run)
+  - function find_clients_to_push: ()
+  - function push_clients_to_xero: (clients, dry_run)
+  - function main: ()
+- `scripts/recreate_jobfiles.py` — function create_dummy_file: (filepath, job_name, job_number, filename), function main: ()
+- `scripts/restore_checks/test_kanban_api.py` — function test_kanban_api: () -> bool
+- `scripts/restore_checks/test_serializers.py` — function main: (), class SerializerTester
+- `scripts/setup_demo_payroll.py` — function main: ()
+- `scripts/test_chat_conversation.py` — function test_simple_scenario: (), function test_conversation: (file_path)
+- `scripts/test_full_quote_conversation.py`
+  - function print_separator: (char, length)
+  - function print_test_step: (step_num, description, mode)
+  - function print_message: (role, content, truncate)
+  - function send_message: (service, job, content, step_num, description, expected_mode)
+  - function main: ()
+- `scripts/test_kpi_service.py` — function test_kpi_calendar: (year, month)
+- `scripts/test_login_logging.py`
+  - function test_direct_api: ()
+  - function test_selenium_frontend: ()
+  - function test_login_logging: ()
+- `scripts/test_xero_payroll.py` — function main: ()
+- `scripts/update_init.py`
+  - function get_import_type: (module_path, module_name) -> str
+  - function generate_django_safe_imports: (import_data)
+  - function update_empty_init_py: (target_dir, verbose) -> int
+  - function update_init_py: (target_dir, verbose) -> int
+  - function find_all_init_directories: () -> list[str]
+  - function update_all_init_files: (verbose) -> int
+  - _...1 more_
+- `scripts/upgrade_script.py`
+  - function normalize_version: (spec) -> str
+  - function fetch_release_dates: (name, requested_version)
+  - function main: (pyproject_path)
+- `scripts/validate_restore_progress.py`
+  - function check_basic_restore: ()
+  - function check_xero_oauth: ()
+  - function check_xero_config: ()
+  - function validate_restore_state: (allow_testing)

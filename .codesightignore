@@ -1,0 +1,12 @@
+# Test fixtures and generated files
+frontend/tests/fixtures/
+frontend/schema.yml
+frontend/src/api/generated/
+
+# Build artifacts
+frontend/dist/
+frontend/node_modules/
+node_modules/
+
+# Docs codesight (separate knowledge scan)
+docs/.codesight/
