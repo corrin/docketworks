@@ -7,33 +7,36 @@ import uuid
 from django.core.cache import cache
 from django.utils import timezone
 
-from apps.workflow.api.xero.auth import (
-    api_client,
-    get_tenant_id_from_connections,
-    get_valid_token,
-)
+from apps.workflow.accounting.registry import get_provider
 
 logger = logging.getLogger("xero")
 
 
 class XeroSyncService:
-    """Background service that manages Xero synchronisation threads."""
+    """Accounting sync service that manages synchronisation threads.
+
+    Works with any configured accounting provider via the provider registry.
+    """
 
     def __init__(self, tenant_id: str | None = None):
         """Only used by webhooks. For full sync routine, we keep the static methods."""
-        self.tenant_id = (
-            tenant_id or cache.get("xero_tenant_id") or get_tenant_id_from_connections()
-        )
-        if not self.tenant_id:
-            raise ValueError("No Xero tenant ID found in cache or connections")
-        cache.set("xero_tenant_id", self.tenant_id, timeout=1800)
-
-        token = get_valid_token()
+        provider = get_provider()
+        token = provider.get_valid_token()
         if not token:
-            raise ValueError("No valid Xero token found for tenant")
-
-        api_client.configuration.oauth2_token.update_token(**token)
+            raise ValueError("No valid accounting token found")
         self.token = token
+
+        if tenant_id:
+            self.tenant_id = tenant_id
+        else:
+            self.tenant_id = cache.get("xero_tenant_id")
+            if not self.tenant_id:
+                from apps.workflow.api.xero.auth import get_tenant_id_from_connections
+
+                self.tenant_id = get_tenant_id_from_connections()
+        if not self.tenant_id:
+            raise ValueError("No tenant ID found in cache or connections")
+        cache.set("xero_tenant_id", self.tenant_id, timeout=1800)
 
     LOCK_TIMEOUT = 60 * 60 * 4  # 4 hours
     SYNC_STATUS_KEY = "xero_sync_status"
@@ -60,7 +63,8 @@ class XeroSyncService:
             return active_task_id, False
 
         # Validate token
-        token = get_valid_token()
+        provider = get_provider()
+        token = provider.get_valid_token()
         if not token:
             logger.error("No valid Xero token found")
             cache.delete(
@@ -85,8 +89,9 @@ class XeroSyncService:
     @staticmethod
     def run_sync(task_id):
         """Execute the sync and record messages under ``task_id``."""
-        # Import here to avoid circular import
-        from apps.workflow.api.xero.sync import ENTITY_CONFIGS, synchronise_xero_data
+        from apps.workflow.accounting.registry import get_provider
+
+        provider = get_provider()
 
         messages_key = f"xero_sync_messages_{task_id}"
         current_key = f"xero_sync_current_entity_{task_id}"
@@ -96,9 +101,9 @@ class XeroSyncService:
         try:
             msgs = cache.get(messages_key, [])
             processed = 0
-            total_entities = len(ENTITY_CONFIGS)
+            total_entities = provider.get_sync_entity_count()
 
-            for message in synchronise_xero_data():
+            for message in provider.run_full_sync():
                 message["task_id"] = task_id
 
                 # Always propagate 'entity_progress' if there is 'progress'
@@ -143,6 +148,9 @@ class XeroSyncService:
             logger.info(f"Completed Xero sync task {task_id}")
 
         except Exception as e:
+            from apps.workflow.services.error_persistence import persist_app_error
+
+            persist_app_error(e)
             logger.error(f"Error during Xero sync task {task_id}: {e}", exc_info=True)
             msgs = cache.get(messages_key, [])
             msgs.append(

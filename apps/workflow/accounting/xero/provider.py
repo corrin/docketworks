@@ -777,7 +777,21 @@ class XeroAccountingProvider:
             )
             return False
 
-    # --- Sync (stubs for Phase 1 — wired in Phase 4) ---
+    # --- Sync ---
+
+    def run_full_sync(self):
+        """Run a full Xero synchronisation. Yields progress event dicts."""
+        from apps.workflow.api.xero.sync import synchronise_xero_data
+
+        yield from synchronise_xero_data()
+
+    def get_sync_entity_count(self) -> int:
+        """Return the number of entity types that will be synced."""
+        from apps.workflow.api.xero.sync import ENTITY_CONFIGS
+
+        return len(ENTITY_CONFIGS)
+
+    # --- Sync (Pull — stubs until individual fetch is wired) ---
 
     def fetch_contacts(self, since: datetime | None = None) -> list[dict]:
         raise NotImplementedError("Contact fetch via provider wired in Phase 4")

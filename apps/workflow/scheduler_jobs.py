@@ -22,9 +22,10 @@ def xero_heartbeat_job() -> None:
     try:
         close_old_connections()
         # Import models/services here to avoid AppRegistryNotReady errors during Django startup
-        from apps.workflow.api.xero.auth import refresh_token
+        from apps.workflow.accounting.registry import get_provider
 
-        result = refresh_token()
+        provider = get_provider()
+        result = provider.refresh_token()
         if result:
             scheduler_logger.info("Xero API token refreshed successfully.")
         else:
