@@ -26,7 +26,7 @@ from xero_python.payrollnz.models import (
     WorkingWeek,
 )
 
-from apps.workflow.api.xero.xero import api_client, get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 from apps.workflow.services.error_persistence import (

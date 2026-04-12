@@ -7,7 +7,7 @@ from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.purchasing.models import Stock
-from apps.workflow.api.xero.xero import api_client, get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.models import XeroAccount
 
 logger = logging.getLogger("xero")

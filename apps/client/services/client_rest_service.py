@@ -21,7 +21,7 @@ from apps.client.models import Client, ClientContact
 from apps.client.serializers import ClientCreateSerializer, ClientUpdateSerializer
 from apps.client.utils import date_to_datetime
 from apps.workflow.api.xero.sync import sync_clients
-from apps.workflow.api.xero.xero import api_client, get_tenant_id, get_valid_token
+from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
     persist_and_raise,

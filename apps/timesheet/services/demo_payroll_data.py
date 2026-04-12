@@ -18,7 +18,7 @@ from xero_python.payrollnz.models import (
     TaxCode,
 )
 
-from apps.workflow.api.xero.xero import api_client, get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 
 logger = logging.getLogger(__name__)
 

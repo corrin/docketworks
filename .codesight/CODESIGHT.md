@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 82 routes | 40 models | 181 components | 336 lib files | 69 env vars | 7 middleware | 35% test coverage
-> **Token savings:** this file is ~28,000 tokens. Without it, AI exploration would cost ~224,300 tokens. **Saves ~196,300 tokens per conversation.**
+> 82 routes | 40 models | 181 components | 341 lib files | 69 env vars | 8 middleware | 35% test coverage
+> **Token savings:** this file is ~28,400 tokens. Without it, AI exploration would cost ~225,900 tokens. **Saves ~197,400 tokens per conversation.**
 
 ---
 
@@ -1244,6 +1244,15 @@
 - `apps/workflow/api/reports/payroll_reconciliation.py` — class PayrollReconciliationReport, class PayrollDateRangeView
 - `apps/workflow/api/reports/pnl.py` — class CompanyProfitAndLossReport
 - `apps/workflow/api/reports/utils.py` — function format_period_label: (period_start, period_end)
+- `apps/workflow/api/xero/auth.py`
+  - function get_token: () -> Optional[Dict[str, Any]]
+  - function store_token: (token, Any]) -> None
+  - function refresh_token: () -> Optional[Dict[str, Any]]
+  - function get_valid_token: () -> Optional[Dict[str, Any]]
+  - function get_authentication_url: (state) -> str
+  - function get_tenant_id_from_connections: () -> str
+  - _...2 more_
+- `apps/workflow/api/xero/client.py` — class RateLimitedRESTClient
 - `apps/workflow/api/xero/payroll.py`
   - function get_employees: () -> List[Employee]
   - function create_payroll_employee: (employee_data, Any]) -> Employee
@@ -1252,6 +1261,14 @@
   - function get_employee_working_patterns: (employee_id) -> List[Dict[str, float]]
   - function get_payroll_calendars: () -> List[Dict[str, Any]]
   - _...20 more_
+- `apps/workflow/api/xero/push.py`
+  - function sync_client_to_xero: (client)
+  - function sync_job_to_xero: (job)
+  - function sync_costlines_to_xero: (job) -> bool
+  - function map_costline_to_time_entry: (costline, task_id) -> TimeEntryCreateOrUpdate
+  - function map_costline_to_expense_entry: (costline) -> Dict[str, Any]
+  - function sync_time_entries_bulk: (project_id, time_entries_list)
+  - _...4 more_
 - `apps/workflow/api/xero/reprocess_xero.py`
   - function set_invoice_or_bill_fields: (document, document_type, new_from_xero)
   - function set_client_fields: (client, new_from_xero)
@@ -1260,6 +1277,13 @@
   - function reprocess_bills: ()
   - function reprocess_credit_notes: ()
   - _...3 more_
+- `apps/workflow/api/xero/seed.py`
+  - function seed_clients_to_xero: (clients)
+  - function seed_jobs_to_xero: (jobs)
+  - function sync_single_contact: (sync_service, contact_id)
+  - function sync_single_invoice: (sync_service, invoice_id)
+  - function sync_single_pay_run: (pay_run_id)
+  - function fetch_xero_entity_lookup: (entity_name, key_func, value_func)
 - `apps/workflow/api/xero/stock_sync.py`
   - function fetch_all_xero_items: (api, tenant_id) -> Dict[str, Any]
   - function get_xero_item_by_code_from_lookup: (code, xero_items_lookup, Any]) -> Optional[Any]
@@ -1276,6 +1300,14 @@
   - function sync_entities: (items, model_class, xero_id_attr, transform_func, delete_orphans)
   - function transform_invoice: (xero_invoice, xero_id)
   - _...35 more_
+- `apps/workflow/api/xero/transforms.py`
+  - function serialize_xero_object: (obj)
+  - function clean_json: (data)
+  - function process_xero_data: (xero_obj)
+  - function get_or_fetch_client: (contact_id, reference)
+  - function sync_entities: (items, model_class, xero_id_attr, transform_func, delete_orphans)
+  - function transform_invoice: (xero_invoice, xero_id)
+  - _...10 more_
 - `apps/workflow/api/xero/xero.py`
   - function get_token: () -> Optional[Dict[str, Any]]
   - function store_token: (token, Any]) -> None
@@ -1847,6 +1879,7 @@
 # Middleware
 
 ## auth
+- auth — `apps/workflow/api/xero/auth.py`
 - authentication — `apps/workflow/authentication.py`
 - middleware — `apps/workflow/middleware.py`
 - auth — `frontend/src/stores/auth.ts`

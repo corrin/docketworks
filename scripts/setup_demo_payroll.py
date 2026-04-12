@@ -34,7 +34,7 @@ from apps.timesheet.services.demo_payroll_data import (
     setup_employee_leave,
     setup_employee_tax,
 )
-from apps.workflow.api.xero.xero import get_tenant_id
+from apps.workflow.api.xero.auth import get_tenant_id
 
 
 def main():

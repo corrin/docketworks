@@ -21,6 +21,7 @@ The Auth subsystem handles **6 routes** and touches: auth, payment.
 
 ## Middleware
 
+- **auth** (auth) — `apps/workflow/api/xero/auth.py`
 - **authentication** (auth) — `apps/workflow/authentication.py`
 - **middleware** (auth) — `apps/workflow/middleware.py`
 - **auth** (auth) — `frontend/src/stores/auth.ts`

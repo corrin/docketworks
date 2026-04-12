@@ -12,7 +12,7 @@ from apps.client.models import Client
 
 # Import models used in type hints or logic
 from apps.job.models import Job
-from apps.workflow.api.xero.xero import api_client, get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.services.error_persistence import persist_app_error
 
 from .xero_helpers import clean_payload, convert_to_pascal_case  # Import helpers
