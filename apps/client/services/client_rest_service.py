@@ -15,13 +15,11 @@ from django.db.models import DecimalField, Max, Sum, Value
 from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from xero_python.accounting import AccountingApi
 
 from apps.client.models import Client, ClientContact
 from apps.client.serializers import ClientCreateSerializer, ClientUpdateSerializer
 from apps.client.utils import date_to_datetime
-from apps.workflow.api.xero.sync import sync_clients
-from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
+from apps.workflow.accounting.registry import get_provider
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
     persist_and_raise,
@@ -208,7 +206,7 @@ class ClientRestService:
     @staticmethod
     def create_client(data: Dict[str, Any]) -> Client:
         """
-        Creates a new client in Xero first, then syncs locally.
+        Creates a new client locally and in the accounting provider.
 
         Args:
             data: Client creation data
@@ -217,7 +215,7 @@ class ClientRestService:
             Created Client instance
 
         Raises:
-            ValueError: If validation fails or Xero sync fails
+            ValueError: If validation fails or accounting provider sync fails
         """
         try:
             # Validate using DRF serializer
@@ -228,10 +226,11 @@ class ClientRestService:
                     error_messages.extend([f"{field}: {e}" for e in errors])
                 raise ValueError("; ".join(error_messages))
 
-            # Check Xero authentication
-            token = get_valid_token()
+            # Check accounting provider authentication
+            provider = get_provider()
+            token = provider.get_valid_token()
             if not token:
-                raise ValueError("Xero authentication required")
+                raise ValueError("Accounting provider authentication required")
 
             # Create in Xero first
             client = ClientRestService._create_client_in_xero(serializer.validated_data)
@@ -615,145 +614,93 @@ class ClientRestService:
     @staticmethod
     def _create_client_in_xero(client_data: Dict[str, Any]) -> Client:
         """
-        Creates client in Xero and syncs locally.
+        Creates client in the accounting provider and locally.
         """
-        accounting_api = AccountingApi(api_client)
-        xero_tenant_id = get_tenant_id()
+        provider = get_provider()
         name = client_data["name"]
 
-        # Check for duplicates in Xero
-        existing_contacts = accounting_api.get_contacts(
-            xero_tenant_id, where=f'Name="{name}"'
-        )
-        if existing_contacts and existing_contacts.contacts:
-            xero_client = existing_contacts.contacts[0]
-            xero_contact_id = getattr(xero_client, "contact_id", "")
+        # Check for duplicates in accounting provider
+        existing = provider.search_contact_by_name(name)
+        if existing is not None:
             raise ValueError(
-                f"Client '{name}' already exists in Xero with ID: {xero_contact_id}"
+                f"Client '{name}' already exists in {provider.provider_name}"
+                f" with ID: {existing.external_id}"
             )
 
-        # Create new contact in Xero - sanitize None values
-        contact_data = {
-            "name": name,
-            "emailAddress": client_data.get("email") or "",
-            "phones": [
-                {
-                    "phoneType": "DEFAULT",
-                    "phoneNumber": client_data.get("phone") or "",
-                }
-            ],
-            "addresses": [
-                {
-                    "addressType": "STREET",
-                    "addressLine1": client_data.get("address") or "",
-                }
-            ],
-            "isCustomer": client_data.get("is_account_customer", True),
-        }
-
-        response = accounting_api.create_contacts(
-            xero_tenant_id, contacts={"contacts": [contact_data]}
-        )
-
-        if not response or not hasattr(response, "contacts") or not response.contacts:
-            raise ValueError("No contact data in Xero response")
-
-        if len(response.contacts) != 1:
-            raise ValueError(
-                f"Expected 1 contact in response, got {len(response.contacts)}"
+        # Create local client first
+        with transaction.atomic():
+            client = Client.objects.create(
+                name=name,
+                email=client_data.get("email") or "",
+                phone=client_data.get("phone") or "",
+                address=client_data.get("address") or "",
+                is_account_customer=client_data.get("is_account_customer", True),
             )
 
-        # Sync locally
-        client_instances = sync_clients(response.contacts)
-        if not client_instances:
-            raise ValueError("Failed to sync client from Xero")
+        # Push to accounting provider
+        result = provider.create_contact(client)
+        if not result.success:
+            raise ValueError(
+                f"Failed to create client in {provider.provider_name}: {result.error}"
+            )
 
-        created_client = client_instances[0]
+        # Save external ID from the accounting provider
+        client.xero_contact_id = result.external_id
+        client.save(update_fields=["xero_contact_id"])
+
         logger.info(
-            f"Client {created_client.id} created and synced from Xero",
+            f"Client {client.id} created locally and in {provider.provider_name}",
             extra={
-                "client_id": str(created_client.id),
-                "client_name": created_client.name,
-                "xero_contact_id": created_client.xero_contact_id,
+                "client_id": str(client.id),
+                "client_name": client.name,
+                "xero_contact_id": client.xero_contact_id,
                 "operation": "create_client_in_xero",
             },
         )
-        return created_client
+        return client
 
     @staticmethod
     def _update_client_in_xero(client: Client, data: Dict[str, Any]) -> Client:
         """
-        Updates client in Xero and syncs locally.
+        Updates client locally and in the accounting provider.
         """
-        # Check Xero authentication
-        token = get_valid_token()
+        provider = get_provider()
+
+        # Check accounting provider authentication
+        token = provider.get_valid_token()
         if not token:
-            raise ValueError("Xero authentication required")
+            raise ValueError("Accounting provider authentication required")
 
-        accounting_api = AccountingApi(api_client)
-        xero_tenant_id = get_tenant_id()
+        # Update local fields first
+        with transaction.atomic():
+            client.name = data.get("name", client.name)
+            client.email = data.get("email", client.email)
+            client.phone = data.get("phone", client.phone)
+            client.address = data.get("address", client.address)
+            client.is_account_customer = data.get(
+                "is_account_customer", client.is_account_customer
+            )
+            client.xero_last_modified = timezone.now()
+            client.save()
 
-        # Prepare update data for Xero - sanitize None values
-        name = data.get("name", client.name)
-        email = data.get("email", client.email)
-        phone = data.get("phone", client.phone)
-        address = data.get("address", client.address)
-        is_account_customer = data.get(
-            "is_account_customer", client.is_account_customer
-        )
-
-        contact_data = {
-            "contactID": client.xero_contact_id,  # Required for update
-            "name": name,
-            "emailAddress": email or "",
-            "phones": [
-                {
-                    "phoneType": "DEFAULT",
-                    "phoneNumber": phone or "",
-                }
-            ],
-            "addresses": [
-                {
-                    "addressType": "STREET",
-                    "addressLine1": address or "",
-                }
-            ],
-            "isCustomer": is_account_customer,
-        }
-
-        # Update contact in Xero - fail fast if Xero update fails (no local fallback)
-        response = accounting_api.update_contact(
-            xero_tenant_id,
-            contact_id=client.xero_contact_id,
-            contacts={"contacts": [contact_data]},
-        )
-
-        if not response or not hasattr(response, "contacts") or not response.contacts:
-            raise ValueError("No contact data in Xero update response")
-
-        if len(response.contacts) != 1:
+        # Push updated client to accounting provider
+        result = provider.update_contact(client)
+        if not result.success:
             raise ValueError(
-                f"Expected 1 contact in update response, got {len(response.contacts)}"
+                f"Failed to update client in {provider.provider_name}: {result.error}"
             )
 
-        # Sync updated data locally
-        client_instances = sync_clients(response.contacts)
-        if not client_instances:
-            raise ValueError("Failed to sync updated client from Xero")
-
-        updated_client = client_instances[0]
-
         logger.info(
-            f"Client {updated_client.id} updated in Xero and synced locally",
+            f"Client {client.id} updated locally and in {provider.provider_name}",
             extra={
-                "client_id": str(updated_client.id),
-                "client_name": updated_client.name,
-                "xero_contact_id": updated_client.xero_contact_id,
+                "client_id": str(client.id),
+                "client_name": client.name,
+                "xero_contact_id": client.xero_contact_id,
                 "operation": "_update_client_in_xero",
             },
         )
 
-        return updated_client
+        return client
 
     @staticmethod
     def get_client_jobs(client_id: UUID) -> List[Dict[str, Any]]:
