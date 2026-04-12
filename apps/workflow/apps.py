@@ -52,13 +52,15 @@ class WorkflowConfig(AppConfig):
     verbose_name = "Workflow"
 
     def ready(self) -> None:
-        # This app (workflow) is responsible for scheduling Xero-related jobs.
-        # The 'quoting' app handles its own scheduled jobs (e.g., scrapers).
-        # Both apps use the same shared scheduler instance for job management.
+        self._register_accounting_providers()
 
-        # Register Xero jobs with the shared scheduler
         if settings.RUN_SCHEDULER:
             self._register_xero_jobs()
+
+    @staticmethod
+    def _register_accounting_providers() -> None:
+        """Import accounting provider modules so they auto-register."""
+        import apps.workflow.accounting.xero.provider  # noqa: F401
 
     def _register_xero_jobs(self) -> None:
         """Register Xero-related jobs with the shared scheduler."""

@@ -135,6 +135,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "shop_client_name": "setup",
     "test_client_name": "setup",
     # Xero integration
+    "accounting_provider": "xero",
     "xero_tenant_id": "xero",
     "xero_shortcode": "xero",
     "enable_xero_sync": "xero",
