@@ -45,10 +45,4 @@ def is_accounting_enabled() -> bool:
     """Check whether accounting sync is enabled for this installation."""
     from apps.workflow.models import CompanyDefaults
 
-    try:
-        defaults = CompanyDefaults.objects.first()
-        if not defaults:
-            return False
-        return defaults.enable_xero_sync
-    except Exception:
-        return False
+    return CompanyDefaults.get_solo().enable_xero_sync
