@@ -6,7 +6,7 @@
 
 ## Scale
 
-61 database models · 181 UI components · 3 middleware layers · 14 environment variables
+61 database models · 181 UI components · 3 middleware layers · 15 environment variables
 
 **Database:** unknown, 61 models — see [database.md](./database.md)
 
