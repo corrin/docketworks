@@ -34,7 +34,7 @@ from apps.job.permissions import IsOfficeStaff
 from apps.purchasing.models import PurchaseOrder
 from apps.workflow.api.pagination import FiftyPerPagePagination
 from apps.workflow.api.xero.sync import ENTITY_CONFIGS
-from apps.workflow.api.xero.xero import (
+from apps.workflow.api.xero.auth import (
     api_client,
     exchange_code_for_token,
     get_authentication_url,

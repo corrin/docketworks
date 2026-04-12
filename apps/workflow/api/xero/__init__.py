@@ -5,6 +5,17 @@ try:
     from django.apps import apps
 
     if apps.ready:
+        from .auth import (
+            exchange_code_for_token,
+            get_authentication_url,
+            get_tenant_id,
+            get_tenant_id_from_connections,
+            get_token,
+            get_valid_token,
+            refresh_token,
+            store_token,
+        )
+        from .client import RateLimitedRESTClient
         from .payroll import (
             create_employee_leave,
             create_pay_run,
@@ -33,6 +44,18 @@ try:
             update_employee_name,
             validate_pay_items_for_week,
         )
+        from .push import (
+            bulk_create_contacts_in_xero,
+            create_client_contact_in_xero,
+            get_all_xero_contacts,
+            map_costline_to_expense_entry,
+            map_costline_to_time_entry,
+            sync_client_to_xero,
+            sync_costlines_to_xero,
+            sync_expense_entries_bulk,
+            sync_job_to_xero,
+            sync_time_entries_bulk,
+        )
         from .reprocess_xero import (
             reprocess_all,
             reprocess_bills,
@@ -43,6 +66,14 @@ try:
             set_client_fields,
             set_invoice_or_bill_fields,
             set_journal_fields,
+        )
+        from .seed import (
+            fetch_xero_entity_lookup,
+            seed_clients_to_xero,
+            seed_jobs_to_xero,
+            sync_single_contact,
+            sync_single_invoice,
+            sync_single_pay_run,
         )
         from .stock_sync import (
             fetch_all_xero_items,
@@ -97,6 +128,24 @@ try:
             transform_stock,
             update_sync_cursor,
         )
+        from .transforms import (
+            clean_json,
+            get_or_fetch_client,
+            process_xero_data,
+            serialize_xero_object,
+            sync_accounts,
+            sync_clients,
+            sync_entities,
+            transform_bill,
+            transform_credit_note,
+            transform_invoice,
+            transform_journal,
+            transform_pay_run,
+            transform_pay_slip,
+            transform_purchase_order,
+            transform_quote,
+            transform_stock,
+        )
         from .xero import (
             create_default_task,
             create_expense_entries,
@@ -121,6 +170,7 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "RateLimitedRESTClient",
     "bulk_create_contacts_in_xero",
     "clean_json",
     "create_client_contact_in_xero",
@@ -136,6 +186,7 @@ __all__ = [
     "ensure_leave_type_cache",
     "exchange_code_for_token",
     "fetch_all_xero_items",
+    "fetch_xero_entity_lookup",
     "fix_long_item_codes",
     "generate_item_code",
     "get_all_pay_slips_for_sync",

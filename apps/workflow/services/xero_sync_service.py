@@ -7,7 +7,7 @@ import uuid
 from django.core.cache import cache
 from django.utils import timezone
 
-from apps.workflow.api.xero.xero import (
+from apps.workflow.api.xero.auth import (
     api_client,
     get_tenant_id_from_connections,
     get_valid_token,

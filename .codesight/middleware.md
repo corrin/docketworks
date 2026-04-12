@@ -1,6 +1,7 @@
 # Middleware
 
 ## auth
+- auth — `apps/workflow/api/xero/auth.py`
 - authentication — `apps/workflow/authentication.py`
 - middleware — `apps/workflow/middleware.py`
 - auth — `frontend/src/stores/auth.ts`
