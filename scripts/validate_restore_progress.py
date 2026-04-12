@@ -78,7 +78,7 @@ def check_basic_restore():
 
 
 def check_xero_oauth():
-    """Check if Xero OAuth is completed (Step 17)."""
+    """Check if Xero OAuth is completed (Step 15)."""
     # XeroToken exists and has required fields means OAuth is complete
     active_token = XeroToken.objects.filter(
         access_token__isnull=False, refresh_token__isnull=False
@@ -87,7 +87,7 @@ def check_xero_oauth():
 
 
 def check_xero_config():
-    """Check if Xero configuration is complete (Steps 18-21)."""
+    """Check if Xero configuration is complete (Steps 16-20)."""
     checks = []
 
     # Check tenant ID
@@ -148,7 +148,7 @@ def validate_restore_state(allow_testing=False):
         return False, "Basic restore incomplete"
 
     # Check Xero OAuth
-    print("\n🔐 XERO OAUTH (Step 17):")
+    print("\n🔐 XERO OAUTH (Step 15):")
     xero_connected = check_xero_oauth()
 
     if xero_connected:
@@ -158,7 +158,7 @@ def validate_restore_state(allow_testing=False):
         print("\n" + "=" * 60)
         print("🚨 CRITICAL: XERO OAUTH NOT COMPLETED!")
         print("=" * 60)
-        print("\nYou MUST complete Step 17 before proceeding:")
+        print("\nYou MUST complete Step 15 before proceeding:")
         print("1. Navigate to http://localhost:8000")
         print("2. Login with: defaultadmin@example.com / Default-admin-password")
         print("3. Go to Xero menu > Connect to Xero")
@@ -170,7 +170,7 @@ def validate_restore_state(allow_testing=False):
         return False, "Xero OAuth not completed"
 
     # Check Xero configuration
-    print("\n⚙️  XERO CONFIGURATION (Steps 18-21):")
+    print("\n⚙️  XERO CONFIGURATION (Steps 16-20):")
     xero_checks = check_xero_config()
     xero_configured = all(check[1] for check in xero_checks)
 
@@ -180,21 +180,21 @@ def validate_restore_state(allow_testing=False):
 
     if not xero_configured and allow_testing:
         print("\n⚠️  Warning: Xero configuration incomplete")
-        print("   Complete steps 18-21 for full Xero integration")
+        print("   Complete steps 16-20 for full Xero integration")
 
     # Summary
     print("\n" + "=" * 60)
     if allow_testing:
         if xero_connected:
             print("✅ TESTING ALLOWED - Xero OAuth completed")
-            print("   You may proceed with steps 22-24")
+            print("   You may proceed with steps 21-23")
             return True, "Testing allowed"
         else:
             print("❌ TESTING FORBIDDEN - Complete Xero OAuth first!")
             return False, "Xero OAuth required"
     else:
         if xero_connected:
-            print("✅ Ready to proceed with Xero configuration (Steps 18-21)")
+            print("✅ Ready to proceed with Xero configuration (Steps 16-20)")
             return True, "Ready for Xero config"
         else:
             print("❌ Must complete Xero OAuth before continuing")
@@ -208,7 +208,7 @@ if __name__ == "__main__":
     parser.add_argument(
         "--allow-testing",
         action="store_true",
-        help="Check if testing steps (22-24) are allowed",
+        help="Check if testing steps (21-23) are allowed",
     )
     args = parser.parse_args()
 

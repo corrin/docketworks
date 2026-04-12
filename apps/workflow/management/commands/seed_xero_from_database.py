@@ -10,18 +10,22 @@ from xero_python.accounting import AccountingApi
 from xero_python.accounting.models import Contact as XeroContact
 from xero_python.accounting.models import Invoice as XeroInvoice
 from xero_python.accounting.models import LineItem
+from xero_python.accounting.models import Quote as XeroQuote
 
-from apps.accounting.models import Invoice
+from apps.accounting.models import Invoice, Quote
 from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.timesheet.services.payroll_employee_sync import PayrollEmployeeSyncService
 from apps.workflow.api.xero.stock_sync import sync_all_local_stock_to_xero
-from apps.workflow.api.xero.sync import seed_clients_to_xero, seed_jobs_to_xero
+from apps.workflow.api.xero.sync import (
+    process_xero_data,
+    seed_clients_to_xero,
+    seed_jobs_to_xero,
+)
 from apps.workflow.api.xero.xero import api_client, get_tenant_id
-from apps.workflow.models import CompanyDefaults
-from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.models import CompanyDefaults, XeroAccount
 from apps.workflow.views.xero.xero_helpers import (
     clean_payload,
     convert_to_pascal_case,
@@ -46,7 +50,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--only",
             type=str,
-            help="Sync specific entities only. Comma-separated: pay_items,contacts,projects,invoices,stock,employees",
+            help="Sync specific entities only. Comma-separated: accounts,contacts,projects,invoices,stock,employees",
         )
         parser.add_argument(
             "--skip-clear",
@@ -54,7 +58,15 @@ class Command(BaseCommand):
             help="Skip clearing production Xero IDs (useful for re-running after partial failure)",
         )
 
-    VALID_ENTITIES = {"contacts", "projects", "invoices", "stock", "employees"}
+    VALID_ENTITIES = {
+        "accounts",
+        "contacts",
+        "projects",
+        "invoices",
+        "quotes",
+        "stock",
+        "employees",
+    }
 
     def handle(self, *args, **options):
         dry_run = options["dry_run"]
@@ -77,9 +89,11 @@ class Command(BaseCommand):
         self.stdout.write(f"{mode_text}Seeding Xero from Database{only_text}")
         self.stdout.write("=" * 50)
 
+        accounts_processed = 0
         contacts_processed = 0
         projects_processed = 0
-        invoices_result = {"created": 0, "failed": 0, "orphans_deleted": 0}
+        invoices_result = {"created": 0, "orphans_deleted": 0}
+        quotes_result = {"created": 0, "orphans_deleted": 0}
         stock_processed = 0
         employees_result = {"linked": 0, "created": 0, "already_linked": 0}
 
@@ -87,6 +101,11 @@ class Command(BaseCommand):
         if not skip_clear:
             self.stdout.write("Clearing Production Xero IDs...")
             self.clear_production_xero_ids(dry_run)
+
+        # Sync accounts (updates prod xero_ids to dev values)
+        if "accounts" in entities_to_sync:
+            self.stdout.write("Syncing Accounts...")
+            accounts_processed = self.process_accounts(dry_run)
 
         # Sync contacts
         if "contacts" in entities_to_sync:
@@ -106,6 +125,11 @@ class Command(BaseCommand):
             self.stdout.write("Syncing Invoices...")
             invoices_result = self.process_invoices(dry_run)
 
+        # Sync quotes (requires contacts to be seeded first)
+        if "quotes" in entities_to_sync:
+            self.stdout.write("Syncing Quotes...")
+            quotes_result = self.process_quotes(dry_run)
+
         # Sync stock items
         if "stock" in entities_to_sync:
             self.stdout.write("Syncing Stock Items...")
@@ -118,12 +142,18 @@ class Command(BaseCommand):
 
         # Summary
         self.stdout.write("COMPLETED")
+        self.stdout.write(f"Accounts processed: {accounts_processed}")
         self.stdout.write(f"Contacts processed: {contacts_processed}")
         self.stdout.write(f"Projects processed: {projects_processed}")
         self.stdout.write(
             f"Invoices: {invoices_result['created']} created, "
             f"{invoices_result['failed']} failed, "
             f"{invoices_result['orphans_deleted']} orphans deleted"
+        )
+        self.stdout.write(
+            f"Quotes: {quotes_result['created']} created, "
+            f"{quotes_result['failed']} failed, "
+            f"{quotes_result['orphans_deleted']} orphans deleted"
         )
         self.stdout.write(f"Stock items processed: {stock_processed}")
         self.stdout.write(
@@ -140,6 +170,58 @@ class Command(BaseCommand):
             company.enable_xero_sync = True
             company.save()
             self.stdout.write("Xero seeding complete! enable_xero_sync is now True.")
+
+    def process_accounts(self, dry_run):
+        """Phase 0: Update XeroAccount xero_ids from prod to dev Xero tenant.
+
+        The backup includes XeroAccount records with prod xero_id values.
+        Dev Xero has the same accounts (same names/codes) but different xero_ids.
+        Fetch accounts from dev Xero and upsert by account_name to update xero_ids.
+        """
+        local_count = XeroAccount.objects.count()
+        self.stdout.write(f"Found {local_count} XeroAccount records from backup")
+
+        if local_count == 0:
+            self.stdout.write("No XeroAccount records to update")
+            return 0
+
+        if dry_run:
+            self.stdout.write("Would fetch accounts from dev Xero and update xero_ids")
+            return local_count
+
+        xero_api = AccountingApi(api_client)
+        xero_tenant_id = get_tenant_id()
+
+        response = xero_api.get_accounts(xero_tenant_id)
+        xero_accounts = response.accounts or []
+        self.stdout.write(f"Fetched {len(xero_accounts)} accounts from dev Xero")
+
+        updated = 0
+        created = 0
+        for account in xero_accounts:
+            _, was_created = XeroAccount.objects.update_or_create(
+                account_name=account.name,
+                defaults={
+                    "xero_id": account.account_id,
+                    "account_code": account.code,
+                    "description": getattr(account, "description", None),
+                    "account_type": account.type,
+                    "tax_type": account.tax_type,
+                    "enable_payments": getattr(
+                        account, "enable_payments_to_account", False
+                    ),
+                    "xero_last_modified": account._updated_date_utc,
+                    "xero_last_synced": None,
+                    "raw_json": process_xero_data(account),
+                },
+            )
+            if was_created:
+                created += 1
+            else:
+                updated += 1
+
+        self.stdout.write(f"Accounts Summary: {updated} updated, {created} created")
+        return updated + created
 
     def process_contacts(self, dry_run):
         """Phase 1: Link/Create contacts for all clients with jobs + test client"""
@@ -251,7 +333,7 @@ class Command(BaseCommand):
 
     def process_invoices(self, dry_run):
         """Phase 3: Delete orphaned invoices, re-create job-linked invoices in dev Xero."""
-        result = {"created": 0, "failed": 0, "orphans_deleted": 0}
+        result = {"created": 0, "orphans_deleted": 0}
 
         # Delete invoices not linked to any job
         orphaned = Invoice.objects.filter(job__isnull=True)
@@ -309,38 +391,23 @@ class Command(BaseCommand):
 
         xero_api = AccountingApi(api_client)
         xero_tenant_id = get_tenant_id()
-        failed_invoices = []
 
         for inv in invoices_to_seed:
-            try:
-                self._seed_single_invoice(inv, xero_api, xero_tenant_id)
-                result["created"] += 1
-                self.stdout.write(f"  • Seeded: {inv.number} ({inv.client.name})")
-            except Exception as exc:
-                persist_app_error(exc)
-                result["failed"] += 1
-                failed_invoices.append(inv.number)
-                logger.error(
-                    f"Failed to seed invoice {inv.number}: {exc}", exc_info=True
-                )
+            self._seed_single_invoice(inv, xero_api, xero_tenant_id)
+            result["created"] += 1
+            self.stdout.write(f"  • Seeded: {inv.number} ({inv.client.name})")
             time.sleep(1)  # Rate limiting
-
-        if failed_invoices:
-            self.stdout.write(f"Failed to seed {len(failed_invoices)} invoices:")
-            for number in failed_invoices[:5]:
-                self.stdout.write(f"  • {number}")
-            if len(failed_invoices) > 5:
-                self.stdout.write(f"  ... and {len(failed_invoices) - 5} more")
 
         self.stdout.write(
             f"Invoices Summary: {result['created']} created, "
-            f"{result['failed']} failed, "
             f"{result['orphans_deleted']} orphans deleted"
         )
         return result
 
     def _seed_single_invoice(self, invoice, xero_api, xero_tenant_id):
         """Create a single invoice in dev Xero from stored local data."""
+        account_code = XeroAccount.objects.get(account_name="Sales").account_code
+
         contact = XeroContact(
             contact_id=invoice.client.xero_contact_id,
             name=invoice.client.name,
@@ -364,6 +431,7 @@ class Command(BaseCommand):
                         else None
                     ),
                     tax_amount=float(li.tax_amount) if li.tax_amount else None,
+                    account_code=account_code,
                 )
             )
 
@@ -377,6 +445,7 @@ class Command(BaseCommand):
                     description=description,
                     quantity=1,
                     unit_amount=float(invoice.total_excl_tax),
+                    account_code=account_code,
                 )
             )
 
@@ -415,6 +484,133 @@ class Command(BaseCommand):
         invoice.xero_tenant_id = xero_tenant_id
         invoice.xero_last_synced = None  # Will be set on next sync
         invoice.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
+
+    def process_quotes(self, dry_run):
+        """Phase 3b: Delete orphaned quotes, re-create job-linked quotes in dev Xero."""
+        result = {"created": 0, "orphans_deleted": 0}
+
+        # Delete quotes not linked to any job (defensive — backup excludes these)
+        orphaned = Quote.objects.filter(job__isnull=True)
+        orphan_count = orphaned.count()
+        self.stdout.write(f"Found {orphan_count} orphaned quotes (no job link)")
+
+        if orphan_count > 0:
+            if dry_run:
+                for q in orphaned[:5]:
+                    self.stdout.write(f"  - Would delete: {q.number} ({q.client.name})")
+                if orphan_count > 5:
+                    self.stdout.write(f"  ... and {orphan_count - 5} more")
+            else:
+                orphaned.delete()
+                self.stdout.write(f"Deleted {orphan_count} orphaned quotes")
+            result["orphans_deleted"] = orphan_count
+
+        # Find job-linked quotes that need re-creating in dev Xero
+        job_quotes = Quote.objects.filter(job__isnull=False).select_related(
+            "job", "client"
+        )
+        self.stdout.write(
+            f"Found {job_quotes.count()} job-linked quotes to seed to dev Xero"
+        )
+
+        if not job_quotes.exists():
+            return result
+
+        if dry_run:
+            for q in job_quotes[:10]:
+                self.stdout.write(
+                    f"  - Would seed: {q.number} - {q.client.name} "
+                    f"(${q.total_excl_tax})"
+                )
+            if job_quotes.count() > 10:
+                self.stdout.write(f"  ... and {job_quotes.count() - 10} more")
+            return result
+
+        # Skip quotes whose client has no xero_contact_id (contacts not seeded)
+        skipped_no_contact = 0
+        quotes_to_seed = []
+        for q in job_quotes:
+            if not q.client.xero_contact_id:
+                skipped_no_contact += 1
+                continue
+            quotes_to_seed.append(q)
+
+        if skipped_no_contact > 0:
+            self.stdout.write(
+                f"Skipping {skipped_no_contact} quotes "
+                f"(client missing xero_contact_id — run contacts first)"
+            )
+
+        xero_api = AccountingApi(api_client)
+        xero_tenant_id = get_tenant_id()
+
+        for q in quotes_to_seed:
+            self._seed_single_quote(q, xero_api, xero_tenant_id)
+            result["created"] += 1
+            self.stdout.write(f"  - Seeded: {q.number} ({q.client.name})")
+            time.sleep(1)  # Rate limiting
+
+        self.stdout.write(
+            f"Quotes Summary: {result['created']} created, "
+            f"{result['orphans_deleted']} orphans deleted"
+        )
+        return result
+
+    def _seed_single_quote(self, quote, xero_api, xero_tenant_id):
+        """Create a single quote in dev Xero from stored local data."""
+        account_code = XeroAccount.objects.get(account_name="Sales").account_code
+
+        contact = XeroContact(
+            contact_id=quote.client.xero_contact_id,
+            name=quote.client.name,
+        )
+
+        # Quotes have no stored line items — create single line from totals
+        description = f"Job: {quote.job.job_number}"
+        if quote.job.description:
+            description += f" - {sanitize_for_xero(quote.job.description)}"
+
+        line_items = [
+            LineItem(
+                description=description,
+                quantity=1,
+                unit_amount=float(quote.total_excl_tax),
+                account_code=account_code,
+            )
+        ]
+
+        xero_quote = XeroQuote(
+            contact=contact,
+            line_items=line_items,
+            date=format_date(quote.date),
+            line_amount_types="Exclusive",
+            currency_code="NZD",
+            status="DRAFT",
+            quote_number=quote.number,
+        )
+
+        if hasattr(quote.job, "order_number") and quote.job.order_number:
+            xero_quote.reference = quote.job.order_number
+
+        payload = convert_to_pascal_case(clean_payload(xero_quote.to_dict()))
+        api_payload = {"Quotes": [payload]}
+
+        response, http_status, _ = xero_api.create_quotes(
+            xero_tenant_id, quotes=api_payload, _return_http_data_only=False
+        )
+
+        if not response or not response.quotes:
+            raise ValueError(f"Empty response from Xero for quote {quote.number}")
+
+        new_xero_id = response.quotes[0].quote_id
+        if not new_xero_id:
+            raise ValueError(f"Xero response missing quote_id for {quote.number}")
+
+        # Update local record with dev Xero ID
+        quote.xero_id = new_xero_id
+        quote.xero_tenant_id = xero_tenant_id
+        quote.xero_last_synced = None
+        quote.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
 
     def process_stock_items(self, dry_run):
         """Phase 4: Sync stock items to Xero inventory."""
@@ -624,11 +820,15 @@ class Command(BaseCommand):
                     "  WARNING: job_job.xero_project_id column not found - skipping"
                 )
 
-            # Invoice xero_ids are NOT NULL so can't be cleared here.
-            # process_invoices() handles them: orphans are deleted,
-            # job-linked invoices are re-created in dev Xero with new xero_ids.
+            # Invoice/Quote xero_ids are NOT NULL so can't be cleared here.
+            # process_invoices()/process_quotes() handle them: orphans are
+            # deleted, job-linked records are re-created in dev Xero with new xero_ids.
             self.stdout.write(
                 "Invoices: handled by process_invoices (orphans deleted, "
+                "job-linked re-created with dev xero_id)"
+            )
+            self.stdout.write(
+                "Quotes: handled by process_quotes (orphans deleted, "
                 "job-linked re-created with dev xero_id)"
             )
 
