@@ -633,6 +633,7 @@ LOGGING = {
 }
 
 # Custom settings
+ACCOUNTING_BACKEND = os.getenv("ACCOUNTING_BACKEND", "xero")
 XERO_CLIENT_ID = os.getenv("XERO_CLIENT_ID", "")
 XERO_CLIENT_SECRET = os.getenv("XERO_CLIENT_SECRET", "")
 XERO_REDIRECT_URI = os.getenv("XERO_REDIRECT_URI", "")
