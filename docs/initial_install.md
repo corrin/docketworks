@@ -47,7 +47,7 @@ sudo -u postgres ./scripts/setup_database.sh
 If you encounter issues:
 
 1.  **Dependencies:** Rerun `poetry install`. Check for errors.
-2.  **.env File:** Verify `DB_NAME`, `DB_USER`, `DB_PASSWORD`, Xero keys, `NGROK_DOMAIN`.
+2.  **.env File:** Verify `DB_NAME`, `DB_USER`, `DB_PASSWORD`, Xero keys, `APP_DOMAIN`.
 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?

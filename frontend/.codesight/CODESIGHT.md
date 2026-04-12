@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 61 models | 181 components | 101 lib files | 14 env vars | 3 middleware | 7 events | 100% test coverage
-> **Token savings:** this file is ~18,600 tokens. Without it, AI exploration would cost ~121,900 tokens. **Saves ~103,300 tokens per conversation.**
+> 0 routes | 61 models | 181 components | 101 lib files | 15 env vars | 3 middleware | 7 events | 100% test coverage
+> **Token savings:** this file is ~18,600 tokens. Without it, AI exploration would cost ~122,100 tokens. **Saves ~103,500 tokens per conversation.**
 
 ---
 
@@ -1364,6 +1364,7 @@
 - `E2E_TEST_USERNAME` (has default) — .env.example
 - `MODE` **required** — src/utils/debug.ts
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — tests/scripts/xero-login.ts
+- `VITE_APP_NAME` (has default) — .env
 - `VITE_UAT_URL` (has default) — .env.example
 - `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
 - `XERO_PASSWORD` (has default) — .env.example

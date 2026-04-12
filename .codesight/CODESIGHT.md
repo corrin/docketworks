@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 82 routes | 40 models | 181 components | 340 lib files | 70 env vars | 7 middleware | 35% test coverage
-> **Token savings:** this file is ~28,200 tokens. Without it, AI exploration would cost ~225,500 tokens. **Saves ~197,300 tokens per conversation.**
+> 82 routes | 40 models | 181 components | 336 lib files | 69 env vars | 7 middleware | 35% test coverage
+> **Token savings:** this file is ~28,000 tokens. Without it, AI exploration would cost ~224,300 tokens. **Saves ~196,300 tokens per conversation.**
 
 ---
 
@@ -948,18 +948,7 @@
   - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
   - function parse_xlsx_old: (path) -> list[DraftLine]
   - _...7 more_
-- `apps/job/management/commands/_history_enrichment_utils.py`
-  - function get_client_names: () -> dict
-  - function get_contact_names: () -> dict
-  - function safe_value: (value)
-  - function display_value: (field_name, raw_value) -> str
-  - function walk_history_pairs: (job_id, HistoricalJob)
-  - function get_first_history_record: (job_id, HistoricalJob)
-  - _...4 more_
 - `apps/job/management/commands/create_shop_jobs.py` — class Command
-- `apps/job/management/commands/jobevent_diagnostic.py` — class Command
-- `apps/job/management/commands/jobevent_enrich_from_history.py` — class Command
-- `apps/job/management/commands/jobevent_match_history.py` — class Command
 - `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
 - `apps/job/management/commands/test_gemini_chat.py` — class Command
 - `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
@@ -1372,7 +1361,7 @@
   - function process_webhook_event: (event, Any]) -> None
   - function process_webhook_queue: () -> None
   - class XeroWebhookView
-- `docketworks/settings.py` — function validate_required_settings: () -> None, function use_secure_cookies: ()
+- `docketworks/settings.py` — function validate_required_settings: () -> None
 - `frontend/src/api/client.ts`
   - function setupETagManager: (manager) => void
   - function setupJobReloadManager: (manager) => void
@@ -1817,7 +1806,6 @@
 - `MEDIA_ROOT` **required** — docketworks/settings.py
 - `MODE` **required** — frontend/src/utils/debug.ts
 - `NGROK_AUTH_TOKEN` (has default) — .env.example
-- `NGROK_DOMAIN` **required** — docketworks/settings.py
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
@@ -1829,11 +1817,11 @@
 - `TARGET_JOB_ID` **required** — scripts/copy_material_lines.py
 - `TEST_DB_PASSWORD` (has default) — .env.example
 - `TEST_DB_USER` (has default) — .env.example
-- `TUNNEL_URL` (has default) — .env.example
 - `UAT_AWS_KEY` (has default) — .env
 - `UAT_AWS_REGION` (has default) — .env
 - `UAT_AWS_SECRET` (has default) — .env
 - `UAT_INSTANCE_ID` (has default) — .env
+- `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
 - `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
 - `WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
@@ -1916,7 +1904,7 @@
 # Test Coverage
 
 > **35%** of routes and models are covered by tests
-> 100 test files found
+> 99 test files found
 
 ## Covered Routes
 

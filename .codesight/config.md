@@ -43,7 +43,6 @@
 - `MEDIA_ROOT` **required** — docketworks/settings.py
 - `MODE` **required** — frontend/src/utils/debug.ts
 - `NGROK_AUTH_TOKEN` (has default) — .env.example
-- `NGROK_DOMAIN` **required** — docketworks/settings.py
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
@@ -55,11 +54,11 @@
 - `TARGET_JOB_ID` **required** — scripts/copy_material_lines.py
 - `TEST_DB_PASSWORD` (has default) — .env.example
 - `TEST_DB_USER` (has default) — .env.example
-- `TUNNEL_URL` (has default) — .env.example
 - `UAT_AWS_KEY` (has default) — .env
 - `UAT_AWS_REGION` (has default) — .env
 - `UAT_AWS_SECRET` (has default) — .env
 - `UAT_INSTANCE_ID` (has default) — .env
+- `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
 - `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
 - `WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
