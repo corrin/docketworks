@@ -298,7 +298,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                     JobEvent.objects.create(
                         job=self.job,
                         event_type="invoice_created",
-                        description=f"Invoice {invoice.number} created in Xero",
+                        detail={"xero_invoice_number": invoice.number},
                     )
                 except Exception as e:
                     logger.warning(
@@ -425,11 +425,12 @@ class XeroInvoiceManager(XeroDocumentManager):
                     # Create a job event for invoice deletion
                     from apps.job.models import JobEvent
 
+                    invoice_number = getattr(xero_invoice_data, "invoice_number", None)
                     try:
                         JobEvent.objects.create(
                             job=self.job,
                             event_type="invoice_deleted",
-                            description="Invoice deleted from Xero",
+                            detail={"xero_invoice_number": invoice_number},
                         )
                     except Exception as e:
                         logger.warning(

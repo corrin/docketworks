@@ -78,11 +78,9 @@ def generate_delivery_docket(job: Job) -> tuple[BytesIO, JobFile]:
         JobEvent.objects.create(
             job=job,
             event_type="delivery_docket_generated",
-            description=f"Delivery docket generated: {filename}",
-            delta_meta={
+            detail={
                 "filename": filename,
                 "file_id": str(job_file.id),
-                "generated_at": timezone.now().isoformat(),
             },
         )
 

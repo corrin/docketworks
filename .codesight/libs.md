@@ -145,7 +145,7 @@
   - class CostSet
   - class CostLine
 - `apps/job/models/costline_validators.py` — function validate_costline_meta: (meta, Any] | None, kind) -> None, function validate_costline_ext_refs: (ext_refs, Any] | None) -> None
-- `apps/job/models/job.py` — class Job
+- `apps/job/models/job.py` — class JobQuerySet, class Job
 - `apps/job/models/job_delta_rejection.py` — class JobDeltaRejection
 - `apps/job/models/job_event.py` — class JobEvent
 - `apps/job/models/job_file.py` — class JobFile
@@ -247,7 +247,7 @@
   - class JobRestService
 - `apps/job/services/job_service.py`
   - function get_paid_complete_jobs: ()
-  - function archive_complete_jobs: (job_ids)
+  - function archive_complete_jobs: (job_ids, staff)
   - function get_job_total_value: (job) -> Decimal
   - function recalculate_job_invoicing_state: (job_id) -> None
   - class JobStaffService

@@ -312,14 +312,19 @@ class JobRestService:
 
             # Create job creation event (moved from Job.save() to prevent duplicates)
             client_name = job.client.name if job.client else "Shop Job"
-            contact_info = f" (Contact: {job.contact.name})" if job.contact else ""
+            contact_name = job.contact.name if job.contact else None
             JobEvent.objects.create(
                 job=job,
                 event_type="job_created",
-                description=f"New job '{job.name}' created for client {client_name}{contact_info}. "
-                f"Initial status: {job.get_status_display()}. "
-                f"Pricing methodology: {job.get_pricing_methodology_display()}.",
+                detail={
+                    "job_name": job.name,
+                    "client_name": client_name,
+                    "contact_name": contact_name,
+                    "initial_status": job.get_status_display(),
+                    "pricing_methodology": job.get_pricing_methodology_display(),
+                },
                 staff=user,
+                delta_after={"status": job.status},
             )
 
             # Create initial estimate CostLines if provided
@@ -908,33 +913,9 @@ class JobRestService:
                     f"JobRestService.update_job - Current job contact_id: {job.contact.id if job.contact else None}"
                 )
 
-                # Store original values for comparison
-                original_values = {
-                    "name": job.name,
-                    "description": job.description,
-                    "status": job.status,
-                    "priority": job.priority,
-                    "client_id": job.client_id,
-                    "charge_out_rate": job.charge_out_rate,
-                    "order_number": job.order_number,
-                    "notes": job.notes,
-                    "contact_id": job.contact.id if job.contact else None,
-                    "contact_name": job.contact.name if job.contact else None,
-                    "contact_email": job.contact.email if job.contact else None,
-                    "contact_phone": job.contact.phone if job.contact else None,
-                    "speed_quality_tradeoff": job.speed_quality_tradeoff,
-                    "pricing_methodology": job.pricing_methodology,
-                    "price_cap": job.price_cap,
-                    "fully_invoiced": job.fully_invoiced,
-                    "quote_acceptance_date": job.quote_acceptance_date,
-                    "paid": job.paid,
-                    "rejected_flag": job.rejected_flag,
-                    "rdti_type": job.rdti_type,
-                }
-
-                logger.debug(
-                    f"JobRestService.update_job - Original values: {original_values}"
-                )
+                # Snapshot values needed for post-save logic (priority bump, client change)
+                original_status = job.status
+                original_client_id = job.client_id
 
                 if delta_payload.job_id and str(job.id) != delta_payload.job_id:
                     detail = {
@@ -969,20 +950,35 @@ class JobRestService:
                     f"JobRestService.update_job - Validated data: {serializer.validated_data}"
                 )
 
-                job = serializer.save(staff=user)
+                # Build enrichment context so Job.save() creates a single
+                # rich event instead of service + model creating duplicates
+                meta_payload = {
+                    "fields": list(delta_payload.fields),
+                    "actor_id": delta_payload.actor_id,
+                    "made_at": delta_payload.made_at,
+                    "etag": delta_payload.etag,
+                }
+                if delta_payload.undo_of_change_id:
+                    meta_payload["undo_of_change_id"] = delta_payload.undo_of_change_id
+
+                job = serializer.save(
+                    staff=user,
+                    schema_version=1,
+                    change_id=JobRestService._safe_uuid(delta_payload.change_id),
+                    delta_meta=_to_json_safe(meta_payload),
+                    delta_checksum=delta_payload.before_checksum or "",
+                )
 
                 # When status changes via edit, place job at top of new column
                 if (
                     "job_status" in delta_payload.fields
-                    and job.status != original_values["status"]
+                    and job.status != original_status
                 ):
                     job.priority = Job._calculate_next_priority_for_status(job.status)
                     job.save(update_fields=["priority", "updated_at"])
 
                 # When client changes, auto-set contact to new client's primary contact.
-                # This eliminates the need for frontend to make a separate API call.
                 # Only do this if contact_id was NOT explicitly provided in the update.
-                original_client_id = original_values.get("client_id")
                 contact_explicitly_updated = "contact_id" in delta_payload.fields
                 try:
                     if (
@@ -990,7 +986,6 @@ class JobRestService:
                         and original_client_id != job.client_id
                         and not contact_explicitly_updated
                     ):
-                        # Client changed - set contact to new client's primary contact
                         primary_contact = ClientContact.objects.filter(
                             client_id=job.client_id,
                             is_primary=True,
@@ -1008,7 +1003,6 @@ class JobRestService:
                         and job.client
                         and job.contact.client_id != job.client_id
                     ):
-                        # Fallback guard: if contact doesn't belong to client, clear it
                         logger.warning(
                             "Clearing mismatched contact after client change: "
                             f"contact.client_id={job.contact.client_id} != job.client_id={job.client_id}"
@@ -1021,33 +1015,6 @@ class JobRestService:
                         persist_and_raise(_e)
                     except AlreadyLoggedException:
                         pass
-
-                # Generate descriptive update message
-                description = JobRestService._generate_update_description(
-                    original_values, delta_payload.after
-                )
-
-                # Log the update with descriptive message
-                meta_payload = {
-                    "fields": list(delta_payload.fields),
-                    "actor_id": delta_payload.actor_id,
-                    "made_at": delta_payload.made_at,
-                    "etag": delta_payload.etag,
-                }
-                if delta_payload.undo_of_change_id:
-                    meta_payload["undo_of_change_id"] = delta_payload.undo_of_change_id
-                JobEvent.objects.create(
-                    job=job,
-                    staff=user,
-                    event_type="job_updated",
-                    description=description,
-                    schema_version=1,
-                    change_id=JobRestService._safe_uuid(delta_payload.change_id),
-                    delta_before=_to_json_safe(delta_payload.before),
-                    delta_after=_to_json_safe(delta_payload.after),
-                    delta_meta=_to_json_safe(meta_payload),
-                    delta_checksum=delta_payload.before_checksum or "",
-                )
 
                 result_job = job
         except PreconditionFailed:
@@ -1194,15 +1161,7 @@ class JobRestService:
 
         with transaction.atomic():
             job.complex_job = complex_job
-            job.save()
-            # Log the change
-            mode_action = "enabled" if complex_job else "disabled"
-            JobEvent.objects.create(
-                job=job,
-                staff=user,
-                event_type="setting_changed",
-                description=f"Itemised billing {mode_action}",
-            )
+            job.save(staff=user)
 
         return {
             "success": True,
@@ -1241,7 +1200,7 @@ class JobRestService:
             existing_event = JobEvent.objects.filter(
                 job=job,
                 staff=user,
-                description=description_clean,
+                detail__note_text=description_clean,
                 event_type="manual_note",
                 timestamp__gte=recent_threshold,
             ).first()
@@ -1262,7 +1221,7 @@ class JobRestService:
             event, created = JobEvent.create_safe(
                 job=job,
                 staff=user,
-                description=description_clean,
+                detail={"note_text": description_clean},
                 event_type="manual_note",
             )
 
@@ -1385,15 +1344,7 @@ class JobRestService:
 
             job.quote_acceptance_date = timezone.now()
             job.status = "approved"
-            job.save()
-
-            # Log the acceptance
-            JobEvent.objects.create(
-                job=job,
-                staff=user,
-                event_type="quote_accepted",
-                description="Quote accepted - status changed to approved",
-            )
+            job.save(staff=user, event_type_override="quote_accepted")
 
         logger.info(
             f"Quote accepted for job {job.job_number} by {user.email} - status changed to approved"
@@ -1758,142 +1709,3 @@ class JobRestService:
             "charge_out_rate": float(defaults.charge_out_rate),
             "wage_rate": float(defaults.wage_rate),
         }
-
-    @staticmethod
-    def _generate_update_description(
-        original_values: Dict[str, Any], updated_data: Dict[str, Any]
-    ) -> str:
-        """
-        Generates user-friendly description of job updates.
-        Based on actual Job model fields.
-
-        Args:
-            original_values: Original field values before update
-            updated_data: New data provided for update
-
-        Returns:
-            str: Human-readable description of changes
-        """
-        # Early return if no data to compare
-        if not updated_data:
-            return "Job details updated"
-
-        changes = []
-
-        # Field mappings based on actual Job model
-        field_labels = {
-            "name": "Job name",
-            "description": "Description",
-            "status": "Status",
-            "priority": "Priority",
-            "client_id": "Client",
-            "charge_out_rate": "Charge out rate",
-            "order_number": "Order number",
-            "notes": "Notes",
-            "contact_id": "Contact person",
-            "contact_name": "Contact name",
-            "contact_email": "Contact email",
-            "contact_phone": "Contact phone",
-            "complex_job": "Itemised billing",
-            "rdti_type": "RDTI classification",
-            "delivery_date": "Delivery date",
-            "quote_acceptance_date": "Quote acceptance date",
-            "job_is_valid": "Job validity",
-            "collected": "Collection status",
-            "paid": "Payment status",
-        }
-
-        # Process each updated field
-        for field, new_value in updated_data.items():
-            # Guard clause - skip fields not in original values
-            if field not in original_values:
-                continue
-
-            original_value = original_values[field]
-
-            # Guard clause - skip unchanged values
-            if original_value == new_value:
-                continue
-
-            label = field_labels.get(field, field.replace("_", " ").title())
-
-            # Handle specific field types with switch-case pattern
-            if field == "status":
-                changes.append(
-                    JobRestService._format_status_change(
-                        label, original_value, new_value
-                    )
-                )
-            elif field in ["charge_out_rate"]:
-                changes.append(
-                    JobRestService._format_currency_change(
-                        label, original_value, new_value
-                    )
-                )
-            elif field in ["complex_job", "job_is_valid", "collected", "paid"]:
-                changes.append(
-                    JobRestService._format_boolean_change(
-                        label, original_value, new_value
-                    )
-                )
-            else:
-                changes.append(
-                    JobRestService._format_generic_change(
-                        label, original_value, new_value
-                    )
-                )
-
-        # Return formatted result
-        if changes:
-            return ", ".join(changes)
-        else:
-            return "Job details updated"
-
-    @staticmethod
-    def _format_status_change(label: str, old_value: str, new_value: str) -> str:
-        """Formats status change with proper labels."""
-        # Status labels from Job model
-        status_labels = {
-            "quoting": "Quoting",
-            "accepted_quote": "Accepted Quote",
-            "awaiting_materials": "Awaiting Materials",
-            "in_progress": "In Progress",
-            "on_hold": "On Hold",
-            "special": "Special",
-            "completed": "Completed",
-            "rejected": "Rejected",
-            "archived": "Archived",
-        }
-
-        old_label = status_labels.get(old_value, old_value.replace("_", " ").title())
-        new_label = status_labels.get(new_value, new_value.replace("_", " ").title())
-
-        return f"{label} changed from {old_label} to {new_label}"
-
-    @staticmethod
-    def _format_currency_change(label: str, old_value: Any, new_value: Any) -> str:
-        """Formats currency field changes."""
-        if old_value and new_value:
-            return f"{label} updated from ${old_value} to ${new_value}"
-        elif new_value:
-            return f"{label} set to ${new_value}"
-        else:
-            return f"{label} cleared"
-
-    @staticmethod
-    def _format_boolean_change(label: str, old_value: bool, new_value: bool) -> str:
-        """Formats boolean field changes."""
-        if new_value:
-            return f"{label} enabled"
-        else:
-            return f"{label} disabled"
-
-    @staticmethod
-    def _format_generic_change(label: str, old_value: Any, new_value: Any) -> str:
-        """Formats generic field changes."""
-        if old_value and new_value:
-            return f"{label} updated"
-        elif new_value:
-            return f"{label} added"
-        else:
-            return f"{label} removed"

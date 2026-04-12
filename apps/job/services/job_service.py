@@ -25,7 +25,7 @@ def get_paid_complete_jobs():
     )
 
 
-def archive_complete_jobs(job_ids):
+def archive_complete_jobs(job_ids, staff=None):
     """Archives the jobs on the provided list by changing their statuses"""
     archived_count = 0
     errors = []
@@ -35,7 +35,7 @@ def archive_complete_jobs(job_ids):
             try:
                 job = Job.objects.get(id=jid)
                 job.status = "archived"
-                job.save(update_fields=["status", "updated_at"])
+                job.save(staff=staff)
                 archived_count += 1
                 logger.info(f"Job {jid} successfully archived")
             except Job.DoesNotExist:
@@ -103,7 +103,7 @@ def recalculate_job_invoicing_state(job_id: str) -> None:
         ).exists()
 
         if not has_invoices:
-            updated = Job.objects.filter(pk=job_id).update(
+            updated = Job.objects.filter(pk=job_id).untracked_update(
                 fully_invoiced=False, updated_at=timezone.now()
             )
             if not updated:

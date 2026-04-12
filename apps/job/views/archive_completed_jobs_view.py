@@ -81,7 +81,9 @@ class ArchiveCompleteJobsViews:
 
                 job_ids = request_serializer.validated_data["ids"]
 
-                errors, archived_count = archive_complete_jobs(job_ids)
+                errors, archived_count = archive_complete_jobs(
+                    job_ids, staff=request.user
+                )
 
                 if errors:
                     response_serializer = ArchiveJobsResponseSerializer(

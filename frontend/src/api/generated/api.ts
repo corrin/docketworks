@@ -1162,6 +1162,7 @@ const JobEvent = z.object({
   delta_after: z.unknown().nullable(),
   delta_meta: z.unknown().nullable(),
   delta_checksum: z.string(),
+  detail: z.unknown(),
   can_undo: z.boolean(),
   undo_description: z.string().nullable(),
 })

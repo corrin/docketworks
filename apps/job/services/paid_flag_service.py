@@ -90,7 +90,7 @@ class PaidFlagService:
             with transaction.atomic():
                 for job in jobs_to_update:
                     job.paid = True
-                    job.save(update_fields=["paid", "updated_at"])
+                    job.save()
                     logger.info(f"Job {job.job_number} ({job.name}) marked as paid")
 
         end_time = timezone.now()

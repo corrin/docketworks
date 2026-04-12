@@ -11384,6 +11384,8 @@ components:
         description:
           type: string
           readOnly: true
+          description: Human-readable description generated from structured detail
+            data
         timestamp:
           type: string
           format: date-time
@@ -11415,6 +11417,9 @@ components:
         delta_checksum:
           type: string
           readOnly: true
+        detail:
+          readOnly: true
+          description: Structured audit data for this event. Keys vary by event_type.
         can_undo:
           type: boolean
           description: Whether this event can be undone
@@ -11433,6 +11438,7 @@ components:
         - delta_checksum
         - delta_meta
         - description
+        - detail
         - event_type
         - id
         - schema_version

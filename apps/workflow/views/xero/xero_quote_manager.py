@@ -254,7 +254,7 @@ class XeroQuoteManager(XeroDocumentManager):
                     JobEvent.objects.create(
                         job=self.job,
                         event_type="quote_created",
-                        description="Quote created in Xero",
+                        detail={"xero_quote_number": quote.number},
                     )
                 except Exception as e:
                     logger.error(f"Failed to create job event for quote creation: {e}")
@@ -379,6 +379,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 }
 
             local_quote_id = self.job.quote.id
+            quote_number = self.job.quote.number
             self.job.quote.delete()
             logger.info(
                 f"Quote {local_quote_id} deleted successfully for job {self.job.id}"
@@ -394,7 +395,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="quote_deleted",
-                    description="Quote deleted from Xero",
+                    detail={"xero_quote_number": quote_number},
                 )
             except Exception as e:
                 logger.warning(f"Failed to create job event for quote deletion: {e}")
