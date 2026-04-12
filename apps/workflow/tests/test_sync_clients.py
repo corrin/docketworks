@@ -163,8 +163,8 @@ class SyncClientsArchivedContactTests(TestCase):
             merged_to=getattr(contact, "merged_to_contact_id", None),
         )
 
-    @patch("apps.workflow.api.xero.sync.set_client_fields")
-    @patch("apps.workflow.api.xero.sync.process_xero_data")
+    @patch("apps.workflow.api.xero.transforms.set_client_fields")
+    @patch("apps.workflow.api.xero.transforms.process_xero_data")
     def test_archived_contact_creates_separate_record(
         self, mock_process, mock_set_fields
     ):
@@ -197,8 +197,8 @@ class SyncClientsArchivedContactTests(TestCase):
         self.assertEqual(self.existing_client.xero_contact_id, self.active_xero_id)
         self.assertFalse(self.existing_client.xero_archived)
 
-    @patch("apps.workflow.api.xero.sync.set_client_fields")
-    @patch("apps.workflow.api.xero.sync.process_xero_data")
+    @patch("apps.workflow.api.xero.transforms.set_client_fields")
+    @patch("apps.workflow.api.xero.transforms.process_xero_data")
     def test_active_contact_name_collision_still_raises(
         self, mock_process, mock_set_fields
     ):
@@ -219,8 +219,8 @@ class SyncClientsArchivedContactTests(TestCase):
 
         self.assertIn(self.active_xero_id, str(ctx.exception))
 
-    @patch("apps.workflow.api.xero.sync.set_client_fields")
-    @patch("apps.workflow.api.xero.sync.process_xero_data")
+    @patch("apps.workflow.api.xero.transforms.set_client_fields")
+    @patch("apps.workflow.api.xero.transforms.process_xero_data")
     def test_archived_contact_with_existing_xero_id_updates_in_place(
         self, mock_process, mock_set_fields
     ):

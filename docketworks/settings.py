@@ -81,22 +81,6 @@ DEBUG_PAYLOAD = os.getenv("DEBUG_PAYLOAD").lower() == "true"
 JOB_DELTA_SOFT_FAIL = os.getenv("JOB_DELTA_SOFT_FAIL", "True").strip() == "True"
 
 
-def use_secure_cookies():
-    """
-    Determine if cookies should be secure (HTTPS only).
-    Returns True for:
-    - Production (DEBUG=False)
-    - UAT/tunnels (any TUNNEL_URL set)
-    Returns False for:
-    - Local development (DEBUG=True and no TUNNEL_URL)
-    """
-    if not DEBUG:  # Production
-        return True
-    if os.getenv("TUNNEL_URL"):  # Development with tunnel (ngrok/localtunnel)
-        return True
-    return False  # Local development (localhost)
-
-
 # =======================
 # Cookie Configuration
 # =======================
@@ -193,14 +177,6 @@ if csrf_origins_env:
                 csrf_trusted_origins.append(https_variant)
 
 # Add ngrok domain if available
-ngrok_domain = os.getenv("NGROK_DOMAIN")
-if ngrok_domain:
-    csrf_trusted_origins.append(ngrok_domain)
-    # Also add http variant for local development
-    if ngrok_domain.startswith("https://"):
-        http_variant = ngrok_domain.replace("https://", "http://")
-        csrf_trusted_origins.append(http_variant)
-
 CSRF_TRUSTED_ORIGINS = (
     csrf_trusted_origins
     if csrf_trusted_origins
@@ -238,12 +214,12 @@ SIMPLE_JWT = {
     "AUTH_TOKEN_CLASSES": ("rest_framework_simplejwt.tokens.AccessToken",),
     "TOKEN_TYPE_CLAIMS": "token_type",
     "AUTH_COOKIE": "access_token",
-    "AUTH_COOKIE_SECURE": use_secure_cookies(),  # Secure cookies for production, UAT, and tunnels
+    "AUTH_COOKIE_SECURE": not DEBUG,
     "AUTH_COOKIE_HTTP_ONLY": True,
     "AUTH_COOKIE_SAMESITE": "Lax",
     "AUTH_COOKIE_DOMAIN": None,
     "REFRESH_COOKIE": "refresh_token",
-    "REFRESH_COOKIE_SECURE": use_secure_cookies(),  # Secure cookies for production, UAT, and tunnels
+    "REFRESH_COOKIE_SECURE": not DEBUG,
     "REFRESH_COOKIE_HTTP_ONLY": True,
     "REFRESH_COOKIE_SAMESITE": "Lax",
 }
@@ -657,6 +633,7 @@ LOGGING = {
 }
 
 # Custom settings
+ACCOUNTING_BACKEND = os.getenv("ACCOUNTING_BACKEND", "xero")
 XERO_CLIENT_ID = os.getenv("XERO_CLIENT_ID", "")
 XERO_CLIENT_SECRET = os.getenv("XERO_CLIENT_SECRET", "")
 XERO_REDIRECT_URI = os.getenv("XERO_REDIRECT_URI", "")

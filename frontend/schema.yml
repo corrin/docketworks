@@ -8711,6 +8711,10 @@ components:
           description: Folder ID for '03 - Reference Library' (reference documents,
             forms, registers)
           maxLength: 100
+        accounting_provider:
+          type: string
+          description: "Active accounting integration: 'xero' or 'myob'"
+          maxLength: 20
         xero_tenant_id:
           type: string
           nullable: true
@@ -9065,6 +9069,11 @@ components:
           description: Folder ID for '03 - Reference Library' (reference documents,
             forms, registers)
           maxLength: 100
+        accounting_provider:
+          type: string
+          minLength: 1
+          description: "Active accounting integration: 'xero' or 'myob'"
+          maxLength: 20
         xero_tenant_id:
           type: string
           nullable: true
@@ -13715,6 +13724,11 @@ components:
           description: Folder ID for '03 - Reference Library' (reference documents,
             forms, registers)
           maxLength: 100
+        accounting_provider:
+          type: string
+          minLength: 1
+          description: "Active accounting integration: 'xero' or 'myob'"
+          maxLength: 20
         xero_tenant_id:
           type: string
           nullable: true
