@@ -139,8 +139,9 @@ class Command(BaseCommand):
                 cmd += ["--exclude", model]
             result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-            # Step 2: Parse data
+            # Step 2: Parse and filter data
             data = json.loads(result.stdout)
+            data = self._filter_unlinked_accounting_records(data)
             fake = Faker()
 
             # Get preserved client names from CompanyDefaults
@@ -193,6 +194,69 @@ class Command(BaseCommand):
                 preserved_names.add(supplier_name)
 
         return preserved_names
+
+    # Models that have no job FK — all records are excluded from nonprod backups.
+    # If a job FK is added to any of these models in future, move them to the
+    # partial-exclusion logic below (like invoices and quotes).
+    _MODELS_WITHOUT_JOB_LINK = {
+        "accounting.bill",
+        "accounting.billlineitem",
+        "accounting.creditnote",
+        "accounting.creditnotelineitem",
+    }
+
+    def _filter_unlinked_accounting_records(self, data):
+        """Remove accounting records not linked to jobs.
+
+        Invoices/quotes: keep only those with a job FK set.
+        Bills/credit notes: excluded entirely (no job FK on model).
+        Invoice line items: excluded if parent invoice was excluded.
+        """
+        # Pass 1: collect PKs of invoices that have a job
+        kept_invoice_pks = set()
+        for item in data:
+            if item["model"] == "accounting.invoice" and item["fields"].get("job"):
+                kept_invoice_pks.add(item["pk"])
+
+        # Pass 2: filter
+        original_count = len(data)
+        filtered = []
+        removed = defaultdict(int)
+
+        for item in data:
+            model = item["model"]
+
+            if model in self._MODELS_WITHOUT_JOB_LINK:
+                removed[model] += 1
+                continue
+
+            if model == "accounting.invoice" and item["pk"] not in kept_invoice_pks:
+                removed[model] += 1
+                continue
+
+            if (
+                model == "accounting.invoicelineitem"
+                and item["fields"].get("invoice") not in kept_invoice_pks
+            ):
+                removed[model] += 1
+                continue
+
+            if model == "accounting.quote" and not item["fields"].get("job"):
+                removed[model] += 1
+                continue
+
+            filtered.append(item)
+
+        total_removed = original_count - len(filtered)
+        if total_removed > 0:
+            breakdown = ", ".join(
+                f"{count} {model}" for model, count in sorted(removed.items())
+            )
+            self.stdout.write(
+                f"Filtered {total_removed} unlinked accounting records: {breakdown}"
+            )
+
+        return filtered
 
     def anonymize_item(self, item, fake, preserved_client_names=None):
         """Anonymize PII fields in the serialized item using configuration"""

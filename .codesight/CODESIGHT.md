@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 82 routes | 40 models | 181 components | 336 lib files | 70 env vars | 7 middleware | 35% test coverage
-> **Token savings:** this file is ~28,000 tokens. Without it, AI exploration would cost ~224,400 tokens. **Saves ~196,400 tokens per conversation.**
+> 82 routes | 40 models | 181 components | 340 lib files | 70 env vars | 7 middleware | 35% test coverage
+> **Token savings:** this file is ~28,200 tokens. Without it, AI exploration would cost ~225,500 tokens. **Saves ~197,300 tokens per conversation.**
 
 ---
 
@@ -948,7 +948,18 @@
   - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
   - function parse_xlsx_old: (path) -> list[DraftLine]
   - _...7 more_
+- `apps/job/management/commands/_history_enrichment_utils.py`
+  - function get_client_names: () -> dict
+  - function get_contact_names: () -> dict
+  - function safe_value: (value)
+  - function display_value: (field_name, raw_value) -> str
+  - function walk_history_pairs: (job_id, HistoricalJob)
+  - function get_first_history_record: (job_id, HistoricalJob)
+  - _...4 more_
 - `apps/job/management/commands/create_shop_jobs.py` — class Command
+- `apps/job/management/commands/jobevent_diagnostic.py` — class Command
+- `apps/job/management/commands/jobevent_enrich_from_history.py` — class Command
+- `apps/job/management/commands/jobevent_match_history.py` — class Command
 - `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
 - `apps/job/management/commands/test_gemini_chat.py` — class Command
 - `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
@@ -1905,7 +1916,7 @@
 # Test Coverage
 
 > **35%** of routes and models are covered by tests
-> 99 test files found
+> 100 test files found
 
 ## Covered Routes
 
