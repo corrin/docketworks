@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterator
 from datetime import datetime
 from typing import TYPE_CHECKING, Protocol
 
@@ -111,6 +112,16 @@ class AccountingProvider(Protocol):
 
     def add_history_note_to_quote(self, quote_external_id: str, note: str) -> bool:
         """Add a history/note entry to a quote. Returns True on success."""
+        ...
+
+    # --- Sync ---
+
+    def run_full_sync(self) -> Iterator[dict]:
+        """Run a full synchronisation. Yields progress event dicts."""
+        ...
+
+    def get_sync_entity_count(self) -> int:
+        """Return the number of entity types that will be synced."""
         ...
 
     # --- Sync (Pull) ---
