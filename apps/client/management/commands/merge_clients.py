@@ -108,10 +108,11 @@ class Command(BaseCommand):
                 )
 
                 # Update all jobs to point to the primary client
-                jobs_updated = Job.objects.filter(client=client).update(
-                    client=primary_client
-                )
-                self.stdout.write(f"  Updated {jobs_updated} jobs")
+                jobs = list(Job.objects.filter(client=client))
+                for job in jobs:
+                    job.client = primary_client
+                    job.save()
+                self.stdout.write(f"  Updated {len(jobs)} jobs")
 
                 # Delete the duplicate client
                 client.delete()
