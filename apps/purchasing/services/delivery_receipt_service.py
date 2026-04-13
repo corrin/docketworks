@@ -1,6 +1,6 @@
 import logging
 import uuid
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Dict
 
 from django.db import transaction
@@ -13,6 +13,8 @@ from apps.purchasing.etag import generate_po_etag, normalize_etag
 from apps.purchasing.exceptions import PreconditionFailedError
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.workflow.models.company_defaults import CompanyDefaults
+from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.validation import to_decimal
 
 logger = logging.getLogger(__name__)
 
@@ -21,18 +23,17 @@ class DeliveryReceiptValidationError(ValueError):
     """Raised when receipt allocation validation fails."""
 
 
-def _to_decimal(value, *, field_label: str) -> Decimal:
+def _to_receipt_decimal(value, *, field_label: str) -> Decimal:
+    """Validate and convert to Decimal, wrapping errors as delivery receipt errors."""
     try:
-        d = Decimal(str(value))
-    except (InvalidOperation, TypeError):
-        raise DeliveryReceiptValidationError(
-            f"Invalid decimal format for {field_label}."
-        )
-    if d < 0:
-        raise DeliveryReceiptValidationError(
-            f"Negative value not allowed for {field_label}."
-        )
-    return d
+        return to_decimal(value, field_label=field_label)
+    except ValueError as exc:
+        raise DeliveryReceiptValidationError(str(exc)) from exc
+
+
+def _retail_pct_to_rate(pct: Decimal) -> Decimal:
+    """Convert a retail markup percentage (e.g. 20) to a decimal rate (e.g. 0.2000)."""
+    return (pct / Decimal("100")).quantize(Decimal("0.0001"))
 
 
 def _load_po_and_lines(
@@ -93,15 +94,24 @@ def _validate_and_prepare_allocations(
     Returns (total_received, prepared_allocations).
     Each prepared allocation = {"job": Job, "quantity": Decimal, "metadata": dict, "retail_rate_pct": Decimal}
     """
-    total_received = _to_decimal(
+    if line.unit_cost is None:
+        raise DeliveryReceiptValidationError(
+            f"Price not confirmed for line {line.id} ({line.description}); "
+            f"cannot process delivery receipt."
+        )
+
+    total_received = _to_receipt_decimal(
         line_data.get("total_received", 0), field_label=f"line {line.id} total_received"
     )
+
+    defaults = CompanyDefaults.get_solo()
+    default_retail_rate_pct = defaults.materials_markup * 100
 
     prepared: list[dict] = []
     alloc_sum = Decimal("0")
 
     for alloc in line_data.get("allocations", []):
-        qty = _to_decimal(
+        qty = _to_receipt_decimal(
             alloc.get("quantity", 0), field_label=f"line {line.id} allocation quantity"
         )
         if qty == 0:
@@ -111,14 +121,6 @@ def _validate_and_prepare_allocations(
         if not job_id or job_id == "None" or job_id not in jobs_by_id:
             raise DeliveryReceiptValidationError(
                 f"Invalid or missing job_id for non-zero allocation on line {line.id}."
-            )
-
-        try:
-            defaults = CompanyDefaults.get_solo()
-            default_retail_rate_pct = defaults.materials_markup * 100
-        except Exception as e:
-            raise DeliveryReceiptValidationError(
-                f"Company defaults not configured: {str(e)}"
             )
 
         retail_rate_pct = Decimal(str(alloc.get("retailRate", default_retail_rate_pct)))
@@ -183,15 +185,13 @@ def _create_stock_from_allocation(
     metadata: dict,
     retail_rate_pct: Decimal,
 ) -> Stock:
-    retail_rate = (Decimal(str(retail_rate_pct)) / Decimal("100")).quantize(
-        Decimal("0.0001")
-    )
+    retail_rate = _retail_pct_to_rate(retail_rate_pct)
 
     stock = Stock.objects.create(
         job=job,
         description=line.description,
         quantity=qty,
-        unit_cost=line.unit_cost or Decimal("0.00"),
+        unit_cost=line.unit_cost,
         retail_rate=retail_rate,
         metal_type=metadata.get("metal_type", line.metal_type or "unspecified"),
         alloy=metadata.get("alloy", line.alloy or ""),
@@ -220,15 +220,8 @@ def _create_costline_from_allocation(
     qty: Decimal,
     retail_rate_pct: Decimal,
 ) -> CostLine:
-    # Convert percent to decimal for computation
-    r = (Decimal(str(retail_rate_pct)) / Decimal("100")).quantize(Decimal("0.0001"))
-    try:
-        unit_revenue = (line.unit_cost or Decimal("0.00")) * (Decimal("1") + r)
-        unit_revenue = unit_revenue.quantize(Decimal("0.01"))
-    except TypeError:
-        raise DeliveryReceiptValidationError(
-            f"Price not confirmed for line {line.id}; cannot create material cost."
-        )
+    r = _retail_pct_to_rate(retail_rate_pct)
+    unit_revenue = (line.unit_cost * (Decimal("1") + r)).quantize(Decimal("0.01"))
 
     # Shop jobs don't bill customers, so revenue must be zero.
     # Stock consumed on customer jobs calculates revenue via consume_stock().
@@ -336,12 +329,10 @@ def process_delivery_receipt(
                 )
             jobs_by_id = _load_jobs(line_allocations)
 
-            # Warn but continue on unexpected status (upstream should prevent)
             if po.status not in ("submitted", "partially_received", "fully_received"):
-                logger.warning(
-                    "Processing PO %s with unexpected status: %s",
-                    po.po_number,
-                    po.status,
+                raise DeliveryReceiptValidationError(
+                    f"Cannot process delivery receipt for PO {po.po_number} "
+                    f"with status '{po.status}'."
                 )
 
             # Per-line processing
@@ -423,6 +414,7 @@ def process_delivery_receipt(
         )
         raise
     except Exception as e:
+        persist_app_error(e)
         logger.exception(
             "Unexpected error processing delivery receipt for PO %s: %s",
             purchase_order_id,

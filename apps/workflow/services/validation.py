@@ -1,9 +1,24 @@
 import json
 import logging
+from decimal import Decimal, InvalidOperation
 
 from apps.workflow.exceptions import XeroValidationError
 
 logger = logging.getLogger("xero")
+
+
+def to_decimal(value, *, field_label: str) -> Decimal:
+    """Convert *value* to a non-negative ``Decimal``.
+
+    Raises ``ValueError`` when *value* is not a valid decimal or is negative.
+    """
+    try:
+        d = Decimal(str(value))
+    except (InvalidOperation, TypeError):
+        raise ValueError(f"Invalid decimal format for {field_label}.")
+    if d < 0:
+        raise ValueError(f"Negative value not allowed for {field_label}.")
+    return d
 
 
 def validate_required_fields(fields: dict, entity: str, xero_id):

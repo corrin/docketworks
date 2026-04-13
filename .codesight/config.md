@@ -2,6 +2,7 @@
 
 ## Environment Variables
 
+- `ACCOUNTING_BACKEND` **required** — docketworks/settings.py
 - `ALLOWED_HOSTS` (has default) — .env.example
 - `APP_DOMAIN` (has default) — .env.example
 - `APP_URL` **required** — frontend/scripts/capture_metrics.cjs

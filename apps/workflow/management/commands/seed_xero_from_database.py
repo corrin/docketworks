@@ -1,6 +1,7 @@
 import logging
 import socket
 import time
+from decimal import ROUND_HALF_UP, Decimal
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
@@ -18,14 +19,14 @@ from apps.client.models import Client
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.timesheet.services.payroll_employee_sync import PayrollEmployeeSyncService
-from apps.workflow.api.xero.stock_sync import sync_all_local_stock_to_xero
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.seed import (
     fetch_xero_entity_lookup,
     seed_clients_to_xero,
     seed_jobs_to_xero,
 )
+from apps.workflow.api.xero.stock_sync import sync_all_local_stock_to_xero
 from apps.workflow.api.xero.transforms import process_xero_data
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.models import CompanyDefaults, XeroAccount
 from apps.workflow.views.xero.xero_helpers import (
     clean_payload,
@@ -413,9 +414,13 @@ class Command(BaseCommand):
                 inv.xero_id = existing_id
                 inv.xero_tenant_id = xero_tenant_id
                 inv.xero_last_synced = None
-                inv.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
+                inv.save(
+                    update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"]
+                )
                 linked += 1
-                self.stdout.write(f"  ↳ Linked existing: {inv.number} ({inv.client.name})")
+                self.stdout.write(
+                    f"  ↳ Linked existing: {inv.number} ({inv.client.name})"
+                )
             else:
                 self._seed_single_invoice(inv, xero_api, xero_tenant_id)
                 result["created"] += 1
@@ -441,18 +446,25 @@ class Command(BaseCommand):
         # Build line items from stored InvoiceLineItem records
         line_items = []
         for li in invoice.line_items.all():
+            quantity = Decimal(str(li.quantity or 1))
+            line_amount_excl_tax = (
+                Decimal(str(li.line_amount_excl_tax))
+                if li.line_amount_excl_tax is not None
+                else None
+            )
+            unit_amount = self._get_invoice_line_unit_amount(
+                quantity=quantity,
+                line_amount_excl_tax=line_amount_excl_tax,
+                unit_price=li.unit_price,
+            )
             line_items.append(
                 LineItem(
                     description=sanitize_for_xero(li.description),
-                    quantity=float(li.quantity) if li.quantity else 1.0,
-                    unit_amount=(
-                        float(li.unit_price)
-                        if li.unit_price
-                        else float(li.line_amount_excl_tax or 0)
-                    ),
+                    quantity=float(quantity),
+                    unit_amount=float(unit_amount),
                     line_amount=(
-                        float(li.line_amount_excl_tax)
-                        if li.line_amount_excl_tax
+                        float(line_amount_excl_tax)
+                        if line_amount_excl_tax is not None
                         else None
                     ),
                     tax_amount=float(li.tax_amount) if li.tax_amount else None,
@@ -509,6 +521,19 @@ class Command(BaseCommand):
         invoice.xero_tenant_id = xero_tenant_id
         invoice.xero_last_synced = None  # Will be set on next sync
         invoice.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
+
+    @staticmethod
+    def _get_invoice_line_unit_amount(quantity, line_amount_excl_tax, unit_price):
+        """Return a unit amount consistent with Xero's Exclusive line totals."""
+        if line_amount_excl_tax is not None and quantity != 0:
+            return (line_amount_excl_tax / quantity).quantize(
+                Decimal("0.0000"), rounding=ROUND_HALF_UP
+            )
+
+        if unit_price is not None:
+            return Decimal(str(unit_price))
+
+        return Decimal("0.0000")
 
     def process_quotes(self, dry_run):
         """Phase 3b: Delete orphaned quotes, re-create job-linked quotes in dev Xero."""

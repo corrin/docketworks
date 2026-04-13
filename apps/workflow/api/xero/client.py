@@ -2,7 +2,7 @@
 
 Subclasses the SDK's RESTClientObject to add:
 - Minimum 1s sleep between API calls
-- Quota logging on every response (X-DayLimit-Remaining, X-MinLimit-Remaining)
+- Threshold-based quota logging with periodic summaries
 - 429 handling: log + sleep for minute limits, raise for day limits
 - Disables urllib3's silent Retry-After sleeping
 """
@@ -11,14 +11,32 @@ import logging
 import time
 
 import urllib3.util
+from django.core.cache import cache
 from xero_python.exceptions import ApiException
-from xero_python.rest import RESTClientObject, RESTResponse
+from xero_python.rest import RESTClientObject
 
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
 
 MINIMUM_SLEEP = 1  # seconds between API calls
+SUMMARY_INTERVAL_SECONDS = 300
+MINUTE_WARNING_THRESHOLDS = (10, 5, 1)
+DAY_WARNING_THRESHOLDS = (
+    4000,
+    3000,
+    2000,
+    1000,
+    750,
+    500,
+    300,
+    200,
+    100,
+    50,
+    10,
+)
+QUOTA_CACHE_KEY = "xero_quota_snapshot"
+QUOTA_CACHE_TIMEOUT_SECONDS = 60 * 60 * 24
 
 
 class RateLimitedRESTClient(RESTClientObject):
@@ -28,6 +46,13 @@ class RateLimitedRESTClient(RESTClientObject):
             0, respect_retry_after_header=False
         )
         self._last_call_time = 0.0
+        self._summary_started_at = time.time()
+        self._request_count = 0
+        self._low_water_minute_remaining = None
+        self._low_water_day_remaining = None
+        self._minute_warning_band = None
+        self._day_warning_band = None
+        self._rate_limit_hits = 0
 
     def request(
         self,
@@ -77,7 +102,7 @@ class RateLimitedRESTClient(RESTClientObject):
             )
 
     def _log_quota(self, response):
-        """Log remaining API quota from response headers."""
+        """Log quota state without spamming the hot path."""
         resp_headers = None
         if hasattr(response, "getheaders"):
             resp_headers = response.getheaders()
@@ -89,10 +114,7 @@ class RateLimitedRESTClient(RESTClientObject):
 
         day_remaining = resp_headers.get("X-DayLimit-Remaining")
         min_remaining = resp_headers.get("X-MinLimit-Remaining")
-        if day_remaining is not None:
-            logger.debug(
-                f"Xero quota: day={day_remaining}, minute={min_remaining}"
-            )
+        self._record_quota(day_remaining, min_remaining)
 
     def _handle_rate_limit(self, exc):
         """Handle a 429 rate limit response."""
@@ -104,6 +126,7 @@ class RateLimitedRESTClient(RESTClientObject):
         limit_type = resp_headers.get("X-Rate-Limit-Problem", "unknown")
         day_remaining = resp_headers.get("X-DayLimit-Remaining", "?")
         min_remaining = resp_headers.get("X-MinLimit-Remaining", "?")
+        self._rate_limit_hits += 1
 
         logger.warning(
             f"Xero rate limit hit: {limit_type} limit. "
@@ -118,3 +141,88 @@ class RateLimitedRESTClient(RESTClientObject):
 
         logger.info(f"Sleeping {retry_after}s for {limit_type} rate limit...")
         time.sleep(retry_after)
+
+    def _record_quota(self, day_remaining, min_remaining):
+        self._request_count += 1
+        day_value = self._parse_int(day_remaining)
+        minute_value = self._parse_int(min_remaining)
+        self._store_quota_snapshot(day_value, minute_value)
+
+        if day_value is not None:
+            if (
+                self._low_water_day_remaining is None
+                or day_value < self._low_water_day_remaining
+            ):
+                self._low_water_day_remaining = day_value
+            self._maybe_log_threshold_warning(
+                quota_name="day",
+                remaining=day_value,
+                thresholds=DAY_WARNING_THRESHOLDS,
+            )
+
+        if minute_value is not None:
+            if (
+                self._low_water_minute_remaining is None
+                or minute_value < self._low_water_minute_remaining
+            ):
+                self._low_water_minute_remaining = minute_value
+            self._maybe_log_threshold_warning(
+                quota_name="minute",
+                remaining=minute_value,
+                thresholds=MINUTE_WARNING_THRESHOLDS,
+            )
+
+        now = time.time()
+        if now - self._summary_started_at >= SUMMARY_INTERVAL_SECONDS:
+            self._log_summary(now)
+
+    def _maybe_log_threshold_warning(self, quota_name, remaining, thresholds):
+        warning_band = next((value for value in thresholds if remaining <= value), None)
+        band_attr = f"_{quota_name}_warning_band"
+        last_band = getattr(self, band_attr)
+
+        if warning_band is None:
+            if last_band is not None and remaining > last_band:
+                setattr(self, band_attr, None)
+            return
+
+        if last_band == warning_band:
+            return
+
+        logger.warning("Xero %s quota low: remaining=%s", quota_name, remaining)
+        setattr(self, band_attr, warning_band)
+
+    def _log_summary(self, now):
+        window_seconds = max(int(now - self._summary_started_at), 1)
+        logger.info(
+            "Xero traffic summary: requests=%s window=%ss minute_quota_low=%s day_quota_low=%s 429s=%s",
+            self._request_count,
+            window_seconds,
+            self._low_water_minute_remaining,
+            self._low_water_day_remaining,
+            self._rate_limit_hits,
+        )
+        self._summary_started_at = now
+        self._request_count = 0
+        self._low_water_minute_remaining = None
+        self._low_water_day_remaining = None
+        self._rate_limit_hits = 0
+
+    @staticmethod
+    def _parse_int(value):
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return None
+
+    @staticmethod
+    def _store_quota_snapshot(day_remaining, minute_remaining):
+        cache.set(
+            QUOTA_CACHE_KEY,
+            {
+                "timestamp": time.time(),
+                "day_remaining": day_remaining,
+                "minute_remaining": minute_remaining,
+            },
+            timeout=QUOTA_CACHE_TIMEOUT_SECONDS,
+        )

@@ -9,11 +9,11 @@
 - `/apps.py` — imported by **9** files
 - `frontend/src/api/client.ts` — imported by **7** files
 - `/enums.py` — imported by **5** files
-- `/xero_helpers.py` — imported by **5** files
 - `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `frontend/src/stores/jobs.ts` — imported by **5** files
 - `/utils.py` — imported by **3** files
 - `/models.py` — imported by **3** files
+- `/xero_helpers.py` — imported by **3** files
 - `/xero_base_manager.py` — imported by **3** files
 - `frontend/src/services/costline.service.ts` — imported by **3** files
 - `frontend/src/utils/dateUtils.ts` — imported by **3** files
@@ -32,6 +32,6 @@
 - `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/process/__init__.py` +4 more
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
 - `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`
-- `/xero_helpers.py` ← `apps/workflow/views/xero/__init__.py`, `apps/workflow/views/xero/xero_base_manager.py`, `apps/workflow/views/xero/xero_invoice_manager.py`, `apps/workflow/views/xero/xero_po_manager.py`, `apps/workflow/views/xero/xero_quote_manager.py`
 - `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/global-teardown.ts`, `frontend/tests/scripts/xero-login.ts`
 - `frontend/src/stores/jobs.ts` ← `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobHeaderAutosave.ts`, `frontend/src/composables/useOptimizedKanban.ts`, `frontend/src/composables/useTimesheetEntryCalculations.ts`, `frontend/src/main.ts`
+- `/utils.py` ← `apps/client/__init__.py`, `apps/quoting/mcp.py`, `apps/workflow/api/reports/__init__.py`

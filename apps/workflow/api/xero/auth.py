@@ -34,6 +34,34 @@ token_api = TokenApi(
 )
 
 
+def _get_database_token_payload(
+    include_expired: bool = False,
+) -> Optional[Dict[str, Any]]:
+    """Build an OAuth token payload from the persisted XeroToken row."""
+    db_token = XeroToken.objects.first()
+    if not db_token or not db_token.access_token:
+        logger.debug("No valid token found in database")
+        return None
+
+    if not db_token.expires_at:
+        logger.debug("Token in database has no expiry time")
+        return None
+
+    expires_in = int((db_token.expires_at - datetime.now(timezone.utc)).total_seconds())
+    if expires_in <= 0 and not include_expired:
+        logger.debug("Token in database is expired")
+        return None
+
+    return {
+        "access_token": db_token.access_token,
+        "refresh_token": db_token.refresh_token,
+        "token_type": db_token.token_type,
+        "expires_at": db_token.expires_at.timestamp(),
+        "scope": db_token.scope.split(),
+        "expires_in": expires_in,
+    }
+
+
 @api_client.oauth2_token_getter
 def get_token() -> Optional[Dict[str, Any]]:
     """Get token from cache or database."""
@@ -44,26 +72,9 @@ def get_token() -> Optional[Dict[str, Any]]:
         return token
 
     logger.debug("Token not found in cache, checking database")
-    db_token = XeroToken.objects.first()
-    if not db_token or not db_token.access_token:
-        logger.debug("No valid token found in database")
+    token = _get_database_token_payload()
+    if not token:
         return None
-
-    if not db_token.expires_at:
-        logger.debug("Token in database has no expiry time")
-        return None
-
-    # Convert database token to OAuth2Token format
-    token = {
-        "access_token": db_token.access_token,
-        "refresh_token": db_token.refresh_token,
-        "token_type": db_token.token_type,
-        "expires_at": db_token.expires_at.timestamp(),
-        "scope": db_token.scope.split(),
-        "expires_in": int(
-            (db_token.expires_at - datetime.now(timezone.utc)).total_seconds()
-        ),
-    }
 
     # Only cache if not expired
     if token["expires_in"] > 0:
@@ -71,7 +82,6 @@ def get_token() -> Optional[Dict[str, Any]]:
         logger.debug("Retrieved valid token from database and cached it")
         return token
 
-    logger.debug("Token in database is expired")
     return None
 
 
@@ -144,6 +154,9 @@ def refresh_token() -> Optional[Dict[str, Any]]:
     logger.debug("Starting token refresh")
 
     token = get_token()
+    if not token:
+        logger.debug("No cached valid token found, checking for expired DB token")
+        token = _get_database_token_payload(include_expired=True)
     if not token:
         logger.debug("No token found to refresh")
         return None

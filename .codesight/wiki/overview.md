@@ -6,7 +6,7 @@
 
 ## Scale
 
-82 API routes · 40 database models · 181 UI components · 8 middleware layers · 69 environment variables
+82 API routes · 40 database models · 181 UI components · 8 middleware layers · 70 environment variables
 
 ## Subsystems
 
@@ -32,6 +32,7 @@ Changes to these files have the widest blast radius across the codebase:
 
 ## Required Environment Variables
 
+- `ACCOUNTING_BACKEND` — `docketworks/settings.py`
 - `APP_URL` — `frontend/scripts/capture_metrics.cjs`
 - `BASE_URL` — `frontend/src/router/index.ts`
 - `CI` — `frontend/playwright.config.ts`
@@ -43,8 +44,7 @@ Changes to these files have the widest blast radius across the codebase:
 - `MEDIA_ROOT` — `docketworks/settings.py`
 - `MODE` — `frontend/src/utils/debug.ts`
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `frontend/tests/scripts/xero-login.ts`
-- `REDIS_HOST` — `docketworks/settings.py`
-- _...4 more_
+- _...5 more_
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-12_
+_Back to [index.md](./index.md) · Generated 2026-04-13_

@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 174 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-12
+> 176 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-12
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-12 (174 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-12 (176 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
 
 ## Open Questions (10)
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
@@ -19,7 +19,7 @@
 verification · tips · steps · what youll need · files to modify · what happens next · implementation steps · troubleshooting · problem statement · benefits · implementation notes · design
 
 ## People
-@docketworks · @transaction · @pytest · @patch · @morrissheetmetal · @property · @dataclass · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @vulcansteel · @coregas · @xtra · @vodafone · @fluidandgeneral · @ppsindustries · @eclgroup
+@docketworks · @transaction · @pytest · @patch · @morrissheetmetal · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone · @fluidandgeneral · @ppsindustries
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -28,7 +28,7 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/restore-prod-to-nonprod.md` — **2** incoming references — Restore Production to Non-Production
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 
-## Note Index (174)
+## Note Index (176)
 
 ### Specs & PRDs (29)
 - `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
@@ -67,8 +67,10 @@ verification · tips · steps · what youll need · files to modify · what happ
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (139)
-- `docs/plans/2026-04-12-accounting-abstraction.md` — 2026-04-12 — A customer uses MYOB instead of Xero. Docketworks is single-tenant (one installation per client), so each instance uses exactly one accounting package. We need …
+### General Notes (141)
+- `docs/plans/2026-04-12-delivery-receipt-code-review.md` — 2026-04-12 — Reviewing `delivery_receipt_service.py` (431 lines) against the project's defensive programming philosophy: fail early, handle unhappy cases first, no fallbacks…
+- `docs/plans/completed/2026-04-12-accounting-abstraction.md` — 2026-04-12 — A customer uses MYOB instead of Xero. Docketworks is single-tenant (one installation per client), so each instance uses exactly one accounting package. We need …
+- `docs/plans/completed/2026-04-12-accounting-provider-review-fixes.md` — 2026-04-12 — Code review found the `XeroAccountingProvider` has massive DRY violations, missing `persist_app_error` calls, defensive code that doesn't trust the data model, …
 - `docs/plans/2026-04-10-seed-invoices-to-xero.md` — 2026-04-10 — When restoring a production database to dev, Invoice records come with `xero_id` values pointing at prod's Xero tenant. The `xero_id` field is NOT NULL, so we c…
 - `docs/plans/2026-04-10-xero-account-backup-cleanup.md` — 2026-04-10 — Restoring a production backup fails at Step 5 (`loaddata`) because the backup excludes `workflow.XeroAccount` but includes line items that FK to it. A separate …
 - `docs/plans/completed/2026-04-10-backup-include-all-models.md` — 2026-04-10 — The `backport_data_backup.py` command uses an `INCLUDE_MODELS` allowlist. Any model not explicitly listed is silently excluded from backups. The `accounting` ap…
@@ -86,9 +88,7 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/2026-03-31-scheduler-service-plan.md` — 2026-03-31 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/completed/2026-03-31-e2e-test8-edit-fix.md` — 2026-03-31 — Test 8 in `create-estimate-entry.spec.ts` fails because `dblclick()` + `keyboard.type()` on `<input type="number">` doesn't reliably select/replace text in head…
 - `docs/plans/completed/2026-03-31-env-consolidation.md` — 2026-03-31 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
-- `docs/plans/2026-03-29-finalize-restore-doc.md` — 2026-03-29 — The restore process is the same on dev and UAT. The restore doc should be environment-agnostic: assume venv active, .env loaded, in the project root (which is `…
-- `docs/plans/2026-03-28-debranding-and-stale-docs.md` — 2026-03-28 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
-- _…and 119 more_
+- _…and 121 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

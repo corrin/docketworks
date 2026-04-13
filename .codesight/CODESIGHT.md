@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 82 routes | 40 models | 181 components | 341 lib files | 69 env vars | 8 middleware | 35% test coverage
-> **Token savings:** this file is ~28,400 tokens. Without it, AI exploration would cost ~225,900 tokens. **Saves ~197,400 tokens per conversation.**
+> 82 routes | 40 models | 181 components | 345 lib files | 70 env vars | 8 middleware | 35% test coverage
+> **Token savings:** this file is ~28,600 tokens. Without it, AI exploration would cost ~227,000 tokens. **Saves ~198,400 tokens per conversation.**
 
 ---
 
@@ -1238,6 +1238,20 @@
   - function get_xero_hours_by_staff_week: () -> list[dict]
   - function get_jm_hours_for_staff_week: (staff_id, week_start) -> dict
   - function build_staff_lookup: () -> dict[str, Staff]
+- `apps/workflow/accounting/provider.py` — class AccountingProvider
+- `apps/workflow/accounting/registry.py`
+  - function register_provider: (name, provider_class) -> None
+  - function get_provider: () -> AccountingProvider
+  - function get_provider_name: () -> str
+  - function is_accounting_enabled: () -> bool
+- `apps/workflow/accounting/types.py`
+  - class DocumentLineItem
+  - class InvoicePayload
+  - class QuotePayload
+  - class POPayload
+  - class DocumentResult
+  - class ContactResult
+- `apps/workflow/accounting/xero/provider.py` — class XeroAccountingProvider
 - `apps/workflow/api/enums.py` — function get_enum_choices: (request, enum_name) -> JsonResponse
 - `apps/workflow/api/pagination.py` — class FiftyPerPagePagination
 - `apps/workflow/api/reports/job_movement.py` — class JobMovementMetricsView
@@ -1293,13 +1307,13 @@
   - function sync_all_local_stock_to_xero: (limit) -> Dict[str, Any]
   - _...2 more_
 - `apps/workflow/api/xero/sync.py`
-  - function serialize_xero_object: (obj)
-  - function clean_json: (data)
-  - function process_xero_data: (xero_obj)
-  - function get_or_fetch_client: (contact_id, reference)
-  - function sync_entities: (items, model_class, xero_id_attr, transform_func, delete_orphans)
-  - function transform_invoice: (xero_invoice, xero_id)
-  - _...35 more_
+  - function get_last_modified_time: (model)
+  - function get_sync_cursor: (entity_key, model)
+  - function update_sync_cursor: (entity_key, timestamp)
+  - function process_xero_item: (item, sync_function, entity_type)
+  - function sync_xero_data: (xero_entity_type, our_entity_type, xero_api_fetch_function, sync_function, last_modified_time, additional_params, pagination_mode, xero_tenant_id, entity_key)
+  - function sync_all_xero_data: (use_latest_timestamps, days_back, entities, force)
+  - _...4 more_
 - `apps/workflow/api/xero/transforms.py`
   - function serialize_xero_object: (obj)
   - function clean_json: (data)
@@ -1309,13 +1323,13 @@
   - function transform_invoice: (xero_invoice, xero_id)
   - _...10 more_
 - `apps/workflow/api/xero/xero.py`
-  - function get_token: () -> Optional[Dict[str, Any]]
-  - function store_token: (token, Any]) -> None
-  - function refresh_token: () -> Optional[Dict[str, Any]]
-  - function get_valid_token: () -> Optional[Dict[str, Any]]
-  - function get_authentication_url: (state) -> str
-  - function get_tenant_id_from_connections: () -> str
-  - _...11 more_
+  - function get_xero_items: (if_modified_since) -> Any
+  - function get_projects: (if_modified_since) -> Any
+  - function create_project: (project_data, Any]) -> Any
+  - function update_project: (project_id, project_data, Any]) -> Any
+  - function create_time_entries: (project_id, time_entries_data, Any]]) -> Any
+  - function create_default_task: (project_id) -> Any
+  - _...3 more_
 - `apps/workflow/apps.py` — function check_company_defaults_field_sections: (app_configs, **kwargs), class WorkflowConfig
 - `apps/workflow/authentication.py`
   - function service_api_key_required: (view_func)
@@ -1379,7 +1393,7 @@
   - function quick_completion: (prompt, system_prompt, provider_type, **kwargs) -> str
   - function quick_json_completion: (prompt, system_prompt, provider_type, **kwargs) -> dict
   - class LLMService
-- `apps/workflow/services/validation.py` — function validate_required_fields: (fields, entity, xero_id)
+- `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
 - `apps/workflow/utils.py`
   - function extract_messages: (request) -> List[Dict[str, Any]]
@@ -1797,6 +1811,7 @@
 
 ## Environment Variables
 
+- `ACCOUNTING_BACKEND` **required** — docketworks/settings.py
 - `ALLOWED_HOSTS` (has default) — .env.example
 - `APP_DOMAIN` (has default) — .env.example
 - `APP_URL` **required** — frontend/scripts/capture_metrics.cjs
@@ -1905,11 +1920,11 @@
 - `/apps.py` — imported by **9** files
 - `frontend/src/api/client.ts` — imported by **7** files
 - `/enums.py` — imported by **5** files
-- `/xero_helpers.py` — imported by **5** files
 - `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `frontend/src/stores/jobs.ts` — imported by **5** files
 - `/utils.py` — imported by **3** files
 - `/models.py` — imported by **3** files
+- `/xero_helpers.py` — imported by **3** files
 - `/xero_base_manager.py` — imported by **3** files
 - `frontend/src/services/costline.service.ts` — imported by **3** files
 - `frontend/src/utils/dateUtils.ts` — imported by **3** files
@@ -1928,9 +1943,9 @@
 - `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/process/__init__.py` +4 more
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
 - `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`
-- `/xero_helpers.py` ← `apps/workflow/views/xero/__init__.py`, `apps/workflow/views/xero/xero_base_manager.py`, `apps/workflow/views/xero/xero_invoice_manager.py`, `apps/workflow/views/xero/xero_po_manager.py`, `apps/workflow/views/xero/xero_quote_manager.py`
 - `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/global-teardown.ts`, `frontend/tests/scripts/xero-login.ts`
 - `frontend/src/stores/jobs.ts` ← `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobHeaderAutosave.ts`, `frontend/src/composables/useOptimizedKanban.ts`, `frontend/src/composables/useTimesheetEntryCalculations.ts`, `frontend/src/main.ts`
+- `/utils.py` ← `apps/client/__init__.py`, `apps/quoting/mcp.py`, `apps/workflow/api/reports/__init__.py`
 
 ---
 

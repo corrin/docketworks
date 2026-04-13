@@ -168,3 +168,4 @@ frontend/dist/
 
 # Claude Code MCP config (developer-specific paths and credentials)
 .mcp.json
+.codex
