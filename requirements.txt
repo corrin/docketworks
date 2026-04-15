@@ -32,7 +32,7 @@ deptry==0.25.1
 dill==0.4.1
 distlib==0.4.0
 distro==1.9.0
-Django==6.0.3
+Django==6.0.4
 django-apscheduler==0.7.0
 django-encrypted-model-fields==0.6.5
 django-filter==25.2
