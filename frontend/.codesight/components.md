@@ -1,0 +1,183 @@
+# Components
+
+- **App** [client] — `src/App.vue`
+- **AIProvidersDialog** [client] — props: providers — `src/components/AIProvidersDialog.vue`
+- **AdvancedSearchDialog** [client] — `src/components/AdvancedSearchDialog.vue`
+- **AppLayout** [client] — `src/components/AppLayout.vue`
+- **AppNavbar** [client] — `src/components/AppNavbar.vue`
+- **ClientDropdown** [client] — `src/components/ClientDropdown.vue`
+- **ClientLookup** [client] — props: id, label, placeholder, required, modelValue, supplierLookup — `src/components/ClientLookup.vue`
+- **CompanyDefaultsFormModal** [client] — props: defaults — `src/components/CompanyDefaultsFormModal.vue`
+- **ConfirmModal** [client] — props: title, message — `src/components/ConfirmModal.vue`
+- **ContactSelectionModal** [client] — props: isOpen, clientId, clientName, contacts, selectedContact, isLoading, newContactForm, editingContact, isEditing — `src/components/ContactSelectionModal.vue`
+- **ContactSelector** [client] — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `src/components/ContactSelector.vue`
+- **CreateClientModal** [client] — `src/components/CreateClientModal.vue`
+- **DataTable** [client] — props: columns, data, pageSize, hideFooter, isLoading — `src/components/DataTable.vue`
+- **ExecutionsModal** [client] — `src/components/ExecutionsModal.vue`
+- **JobCard** [client] — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `src/components/JobCard.vue`
+- **JobFormModal** [client] — props: job — `src/components/JobFormModal.vue`
+- **JobsModal** [client] — `src/components/JobsModal.vue`
+- **KanbanColumn** [client] — `src/components/KanbanColumn.vue`
+- **QuoteStatus** [client] — props: jobId, autoRefresh — `src/components/QuoteStatus.vue`
+- **RichTextEditor** [client] — `src/components/RichTextEditor.vue`
+- **SectionModal** [client] — props: section — `src/components/SectionModal.vue`
+- **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `src/components/StaffAvatar.vue`
+- **StaffDropdown** [client] — `src/components/StaffDropdown.vue`
+- **StaffFormModal** [client] — props: staff — `src/components/StaffFormModal.vue`
+- **StaffPanel** [client] — `src/components/StaffPanel.vue`
+- **StatusMultiSelect** [client] — `src/components/StatusMultiSelect.vue`
+- **AIProviderFormModal** [client] — props: provider — `src/components/admin/AIProviderFormModal.vue`
+- **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `src/components/admin/MonthEndSummary.vue`
+- **ErrorDialog** [client] — props: error — `src/components/admin/errors/ErrorDialog.vue`
+- **ErrorFilter** [client] — props: modelValue — `src/components/admin/errors/ErrorFilter.vue`
+- **ErrorTable** [client] — props: headers, rows, id, occurredAt, message, entity, severity — `src/components/admin/errors/ErrorTable.vue`
+- **ErrorTabs** [client] — props: modelValue — `src/components/admin/errors/ErrorTabs.vue`
+- **JobErrorFilter** [client] — props: modelValue — `src/components/admin/errors/JobErrorFilter.vue`
+- **SystemErrorFilter** [client] — props: modelValue — `src/components/admin/errors/SystemErrorFilter.vue`
+- **ActiveJobCard** [client] — props: job — `src/components/board/ActiveJobCard.vue`
+- **NoActiveJobPrompt** [client] — `src/components/board/NoActiveJobPrompt.vue`
+- **WorkshopModeView** [client] — `src/components/board/WorkshopModeView.vue`
+- **WorkshopOfficeToggle** [client] — `src/components/board/WorkshopOfficeToggle.vue`
+- **McpToolDetails** [client] — `src/components/chat/McpToolDetails.vue`
+- **ToolCallDisplay** [client] — `src/components/chat/ToolCallDisplay.vue`
+- **IconCommunity** [client] — `src/components/icons/IconCommunity.vue`
+- **IconDocumentation** [client] — `src/components/icons/IconDocumentation.vue`
+- **IconEcosystem** [client] — `src/components/icons/IconEcosystem.vue`
+- **IconSupport** [client] — `src/components/icons/IconSupport.vue`
+- **IconTooling** [client] — `src/components/icons/IconTooling.vue`
+- **CameraModal** [client] — `src/components/job/CameraModal.vue`
+- **JobActualTab** [client] — props: jobId, jobNumber, pricingMethodology, quoted, fullyInvoiced, paid — `src/components/job/JobActualTab.vue`
+- **JobAttachmentsTab** [client] — `src/components/job/JobAttachmentsTab.vue`
+- **JobCostAnalysisTab** [client] — props: jobId, pricingMethodology — `src/components/job/JobCostAnalysisTab.vue`
+- **JobEstimateTab** [client] — `src/components/job/JobEstimateTab.vue`
+- **JobHistoryTab** [client] — `src/components/job/JobHistoryTab.vue`
+- **JobPdfDialog** [client] — props: jobId, jobNumber, open — `src/components/job/JobPdfDialog.vue`
+- **JobPdfTab** [client] — props: variant — `src/components/job/JobPdfTab.vue`
+- **JobPricingGrids** [client] — `src/components/job/JobPricingGrids.vue`
+- **JobQuoteTab** [client] — props: jobId, jobNumber, jobStatus, pricingMethodology, quoted, fullyInvoiced, quoteAcceptanceDate — `src/components/job/JobQuoteTab.vue`
+- **JobQuotingChatTab** [client] — `src/components/job/JobQuotingChatTab.vue`
+- **JobSafetyTab** [client] — `src/components/job/JobSafetyTab.vue`
+- **JobSettingsTab** [client] — props: jobId, jobNumber, pricingMethodology, quoted, fullyInvoiced — `src/components/job/JobSettingsTab.vue`
+- **JobViewTabs** [client] — props: activeTab, jobId, jobNumber, jobStatus, chargeOutRate, pricingMethodology, quoted, fullyInvoiced, paid, companyDefaults — `src/components/job/JobViewTabs.vue`
+- **SimpleTotalTable** [client] — `src/components/job/SimpleTotalTable.vue`
+- **WorkshopPdfViewer** [client] — props: jobId — `src/components/job/WorkshopPdfViewer.vue`
+- **KanbanGridLayout** [client] — props: mode, visibleStatusChoices, getSortedJobsByStatus, isLoading, isDragging, getColumnHasMore, getColumnTotal, getColumnLoadedCount, isSearchActive, mobileAssignStaffId — `src/components/kanban/KanbanGridLayout.vue`
+- **KanbanMobileLayout** [client] — props: visibleStatusChoices, getSortedJobsByStatus, isLoading, isDragging, getColumnHasMore, getColumnTotal, getColumnLoadedCount, isSearchActive, mobileAssignStaffId, enableTapAssign — `src/components/kanban/KanbanMobileLayout.vue`
+- **StatusBadge** [client] — `src/components/kanban/StatusBadge.vue`
+- **KPICalendar** [client] — props: calendarData, thresholds, year, month — `src/components/kpi/KPICalendar.vue`
+- **KPICalendarDay** [client] — props: dayData, thresholds — `src/components/kpi/KPICalendarDay.vue`
+- **KPICard** [client] — `src/components/kpi/KPICard.vue`
+- **KPIDayDetailsModal** [client] — `src/components/kpi/KPIDayDetailsModal.vue`
+- **KPILabourDetailsModal** [client] — props: monthlyData, calendarData, year, month, isOpen — `src/components/kpi/KPILabourDetailsModal.vue`
+- **KPIMaterialsDetailsModal** [client] — props: calendarData, year, month, isOpen — `src/components/kpi/KPIMaterialsDetailsModal.vue`
+- **KPIProfitDetailsModal** [client] — props: monthlyData, thresholds, calendarData, year, month, isOpen — `src/components/kpi/KPIProfitDetailsModal.vue`
+- **MonthSelector** [client] — props: year, month — `src/components/kpi/MonthSelector.vue`
+- **ChildRecordsTable** [client] — `src/components/process-documents/ChildRecordsTable.vue`
+- **DynamicFormEntry** [client] — `src/components/process-documents/DynamicFormEntry.vue`
+- **EntriesTable** [client] — `src/components/process-documents/EntriesTable.vue`
+- **FillTemplateModal** [client] — `src/components/process-documents/FillTemplateModal.vue`
+- **ProcessDocumentFilters** [client] — `src/components/process-documents/ProcessDocumentFilters.vue`
+- **ProcessDocumentModal** [client] — `src/components/process-documents/ProcessDocumentModal.vue`
+- **ProcessDocumentTable** [client] — `src/components/process-documents/ProcessDocumentTable.vue`
+- **ControlsList** [client] — `src/components/process-documents/safety-wizard/ControlsList.vue`
+- **HazardsList** [client] — `src/components/process-documents/safety-wizard/HazardsList.vue`
+- **PPEEditor** [client] — `src/components/process-documents/safety-wizard/PPEEditor.vue`
+- **SafetyWizardModal** [client] — `src/components/process-documents/safety-wizard/SafetyWizardModal.vue`
+- **SideBySideEditor** [client] — `src/components/process-documents/safety-wizard/SideBySideEditor.vue`
+- **AddressAutocompleteInput** [client] — props: modelValue, placeholder, debounceMs, autofocus — `src/components/purchasing/AddressAutocompleteInput.vue`
+- **AllocationCellEditor** [client] — `src/components/purchasing/AllocationCellEditor.vue`
+- **DragAndDropUploader** [client] — `src/components/purchasing/DragAndDropUploader.vue`
+- **ExistingAllocationsDisplay** [client] — props: existingAllocations, lines — `src/components/purchasing/ExistingAllocationsDisplay.vue`
+- **JobSelect** [client] — props: modelValue, jobs, placeholder, hasError, errorMessage, isLoading, disabled — `src/components/purchasing/JobSelect.vue`
+- **PendingItemsTable** [client] — `src/components/purchasing/PendingItemsTable.vue`
+- **PickupAddressSelectionModal** [client] — props: isOpen, supplierId, supplierName, addresses, selectedAddress, isLoading, newAddressForm, editingAddress, isEditing — `src/components/purchasing/PickupAddressSelectionModal.vue`
+- **PickupAddressSelector** [client] — props: id, label, placeholder, optional, supplierId, supplierName, modelValue, initialAddressId, disabled — `src/components/purchasing/PickupAddressSelector.vue`
+- **PoCommentsSection** [client] — props: poId — `src/components/purchasing/PoCommentsSection.vue`
+- **PoLinesTable** [client] — `src/components/purchasing/PoLinesTable.vue`
+- **PoPdfDialog** [client] — props: purchaseOrderId, poNumber, open — `src/components/purchasing/PoPdfDialog.vue`
+- **PoPdfViewer** [client] — props: purchaseOrderId — `src/components/purchasing/PoPdfViewer.vue`
+- **PoSummaryCard** [client] — props: po, isCreateMode, showActions, syncEnabled, supplierReadonly — `src/components/purchasing/PoSummaryCard.vue`
+- **QuoteCostLinesGrid** [client] — props: costLines, isLoading — `src/components/quote/QuoteCostLinesGrid.vue`
+- **CompactSummaryCard** [client] — props: title, summary, costLines, isLoading, revision — `src/components/shared/CompactSummaryCard.vue`
+- **CostLinesGrid** [client] — props: costLines, isLoading, showActions — `src/components/shared/CostLinesGrid.vue`
+- **CostSetSummaryCard** [client] — props: title, summary, costLines, isLoading, revision — `src/components/shared/CostSetSummaryCard.vue`
+- **InlineEditClient** [client] — `src/components/shared/InlineEditClient.vue`
+- **InlineEditSelect** [client] — `src/components/shared/InlineEditSelect.vue`
+- **InlineEditText** [client] — `src/components/shared/InlineEditText.vue`
+- **SmartCostLinesTable** [client] — props: lines, tabKind, readOnly, showItemColumn, showSourceColumn, sourceResolver, line — `src/components/shared/SmartCostLinesTable.vue`
+- **BillablePercentageBadge** [client] — props: percentage — `src/components/timesheet/BillablePercentageBadge.vue`
+- **MetricsModal** [client] — props: open, summary — `src/components/timesheet/MetricsModal.vue`
+- **PayrollControlSection** [client] — `src/components/timesheet/PayrollControlSection.vue`
+- **PayrollStaffRow** [client] — `src/components/timesheet/PayrollStaffRow.vue`
+- **StaffDetailModal** [client] — `src/components/timesheet/StaffDetailModal.vue`
+- **StaffRow** [client] — `src/components/timesheet/StaffRow.vue`
+- **StaffWeekRow** [client] — `src/components/timesheet/StaffWeekRow.vue`
+- **StatusBadge** [client] — `src/components/timesheet/StatusBadge.vue`
+- **SummaryCard** [client] — props: title, value, subtitle, progress, icon, color — `src/components/timesheet/SummaryCard.vue`
+- **SummaryDrawer** [client] — `src/components/timesheet/SummaryDrawer.vue`
+- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete — `src/components/timesheet/TimesheetActionsCell.vue`
+- **WeekPickerModal** [client] — `src/components/timesheet/WeekPickerModal.vue`
+- **WeeklyMetricsModal** [client] — `src/components/timesheet/WeeklyMetricsModal.vue`
+- **WorkshopJobAttachmentsCard** [client] — `src/components/workshop/WorkshopJobAttachmentsCard.vue`
+- **WorkshopJobDescriptionCard** [client] — `src/components/workshop/WorkshopJobDescriptionCard.vue`
+- **WorkshopJobHeader** [client] — `src/components/workshop/WorkshopJobHeader.vue`
+- **WorkshopJobKeyInfoCard** [client] — `src/components/workshop/WorkshopJobKeyInfoCard.vue`
+- **WorkshopJobNotesCard** [client] — `src/components/workshop/WorkshopJobNotesCard.vue`
+- **WorkshopJobPickerDrawer** [client] — `src/components/workshop/WorkshopJobPickerDrawer.vue`
+- **WorkshopJobSummaryCard** [client] — `src/components/workshop/WorkshopJobSummaryCard.vue`
+- **WorkshopMaterialsUsedTable** [client] — props: jobId — `src/components/workshop/WorkshopMaterialsUsedTable.vue`
+- **WorkshopMyTimeHeader** [client] — `src/components/workshop/WorkshopMyTimeHeader.vue`
+- **WorkshopStopwatch** [client] — props: jobId, jobName — `src/components/workshop/WorkshopStopwatch.vue`
+- **WorkshopTimeUsedTable** [client] — props: jobId, workshopHours — `src/components/workshop/WorkshopTimeUsedTable.vue`
+- **WorkshopTimesheetCalendar** [client] — `src/components/workshop/WorkshopTimesheetCalendar.vue`
+- **WorkshopTimesheetEntryDrawer** [client] — `src/components/workshop/WorkshopTimesheetEntryDrawer.vue`
+- **WorkshopTimesheetLegacyTable** [client] — `src/components/workshop/WorkshopTimesheetLegacyTable.vue`
+- **WorkshopTimesheetSummaryCard** [client] — `src/components/workshop/WorkshopTimesheetSummaryCard.vue`
+- **AboutView** [client] — `src/views/AboutView.vue`
+- **AdminAIProvidersView** [client] — `src/views/AdminAIProvidersView.vue`
+- **AdminArchiveJobsView** [client] — `src/views/AdminArchiveJobsView.vue`
+- **AdminCompanyView** [client] — `src/views/AdminCompanyView.vue`
+- **AdminDjangoJobsView** [client] — `src/views/AdminDjangoJobsView.vue`
+- **AdminErrorView** [client] — `src/views/AdminErrorView.vue`
+- **AdminMonthEnd** [client] — `src/views/AdminMonthEnd.vue`
+- **AdminStaffView** [client] — `src/views/AdminStaffView.vue`
+- **AdminView** [client] — `src/views/AdminView.vue`
+- **ClientDetailView** [client] — `src/views/ClientDetailView.vue`
+- **ClientsView** [client] — `src/views/ClientsView.vue`
+- **DailyTimesheetView** [client] — `src/views/DailyTimesheetView.vue`
+- **DataQualityArchivedJobsView** [client] — `src/views/DataQualityArchivedJobsView.vue`
+- **FormEntriesView** [client] — `src/views/FormEntriesView.vue`
+- **JobAgingReportView** [client] — `src/views/JobAgingReportView.vue`
+- **JobCreateView** [client] — `src/views/JobCreateView.vue`
+- **JobMovementReportView** [client] — props: title — `src/views/JobMovementReportView.vue`
+- **JobProfitabilityReportView** [client] — `src/views/JobProfitabilityReportView.vue`
+- **JobTable** [client] — props: columns, data, title, modelValue, isLoading — `src/views/JobTable.vue`
+- **JobView** [client] — `src/views/JobView.vue`
+- **JsaListView** [client] — `src/views/JsaListView.vue`
+- **KPIReportsView** [client] — `src/views/KPIReportsView.vue`
+- **KanbanView** [client] — `src/views/KanbanView.vue`
+- **LoginView** [client] — `src/views/LoginView.vue`
+- **PayrollReconciliationReportView** [client] — `src/views/PayrollReconciliationReportView.vue`
+- **ProcessDocumentsView** [client] — `src/views/ProcessDocumentsView.vue`
+- **ProfitLossReportView** [client] — `src/views/ProfitLossReportView.vue`
+- **QuotingChatView** [client] — `src/views/QuotingChatView.vue`
+- **RDTISpendReportView** [client] — `src/views/RDTISpendReportView.vue`
+- **SalesForecastReportView** [client] — `src/views/SalesForecastReportView.vue`
+- **StaffPerformanceReportView** [client] — `src/views/StaffPerformanceReportView.vue`
+- **SwpListView** [client] — `src/views/SwpListView.vue`
+- **TimesheetEntryView** [client] — `src/views/TimesheetEntryView.vue`
+- **WIPReportView** [client] — `src/views/WIPReportView.vue`
+- **WeeklyTimesheetView** [client] — `src/views/WeeklyTimesheetView.vue`
+- **WorkshopJobView** [client] — `src/views/WorkshopJobView.vue`
+- **WorkshopKanbanView** [client] — `src/views/WorkshopKanbanView.vue`
+- **WorkshopMyTimeView** [client] — `src/views/WorkshopMyTimeView.vue`
+- **WorkshopView** [client] — `src/views/WorkshopView.vue`
+- **XeroView** [client] — `src/views/XeroView.vue`
+- **CreateFromQuoteView** [client] — `src/views/purchasing/CreateFromQuoteView.vue`
+- **ItemSelect** [client] — props: modelValue, disabled, showQuantity, lineKind, tabKind — `src/views/purchasing/ItemSelect.vue`
+- **PoCreateView** [client] — `src/views/purchasing/PoCreateView.vue`
+- **ProductMappingValidationView** [client] — `src/views/purchasing/ProductMappingValidationView.vue`
+- **PurchaseOrderFormView** [client] — `src/views/purchasing/PurchaseOrderFormView.vue`
+- **PurchaseOrderView** [client] — `src/views/purchasing/PurchaseOrderView.vue`
+- **StockView** [client] — `src/views/purchasing/StockView.vue`
+- **SupplierPricingUploadView** [client] — `src/views/purchasing/SupplierPricingUploadView.vue`

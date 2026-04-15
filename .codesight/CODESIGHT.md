@@ -1,0 +1,2008 @@
+# docketworks — AI Context Map
+
+> **Stack:** django | django | vue | mixed
+
+> 82 routes | 40 models | 181 components | 345 lib files | 70 env vars | 8 middleware | 35% test coverage
+> **Token savings:** this file is ~28,600 tokens. Without it, AI exploration would cost ~227,000 tokens. **Saves ~198,400 tokens per conversation.**
+
+---
+
+# Routes
+
+- `ALL` `/reports/calendar/` params()
+- `ALL` `/reports/job-aging/` params()
+- `ALL` `/reports/job-movement/` params()
+- `ALL` `/reports/payroll-date-range/` params()
+- `ALL` `/reports/payroll-reconciliation/` params()
+- `ALL` `/reports/profit-and-loss/` params()
+- `ALL` `/reports/sales-forecast/` params()
+- `ALL` `/reports/sales-forecast/<str:month>/` params(month)
+- `ALL` `/reports/staff-performance-summary/` params()
+- `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
+- `ALL` `/reports/rdti-spend/` params()
+- `ALL` `/reports/wip/` params()
+- `ALL` `/staff/all/` params() [auth]
+- `ALL` `/staff/rates/<uuid:staff_id>/` params(staff_id) [auth]
+- `ALL` `/token/` params() [auth]
+- `ALL` `/token/refresh/` params() [auth]
+- `ALL` `/token/verify/` params() [auth]
+- `ALL` `/me/` params() [auth]
+- `ALL` `/logout/` params() [auth]
+- `ALL` `/password_change/` params() [auth]
+- `ALL` `/staff/` params() [auth]
+- `ALL` `/staff/<uuid:pk>/` params(pk) [auth]
+- `ALL` `/job/completed/` params()
+- `ALL` `/job/completed/archive` params()
+- `ALL` `/job/<uuid:job_id>/assignment` params(job_id)
+- `ALL` `/job/<uuid:job_id>/assignment/<uuid:staff_id>` params(job_id, staff_id)
+- `ALL` `/company_defaults/` params()
+- `ALL` `/jobs/fetch-all/` params()
+- `ALL` `/jobs/workshop` params()
+- `ALL` `/workshop/timesheets/` params()
+- `ALL` `/jobs/<str:job_id>/update-status/` params(job_id)
+- `ALL` `/jobs/<uuid:job_id>/reorder/` params(job_id)
+- `ALL` `/jobs/fetch/<str:status>/` params(status)
+- `ALL` `/jobs/fetch-by-column/<str:column_id>/` params(column_id)
+- `ALL` `/jobs/status-values/` params()
+- `ALL` `/jobs/advanced-search/` params()
+- `ALL` `/` ✓
+- `ALL` `/extract-supplier-price-list/` params()
+- `ALL` `/daily/<str:target_date>/` params(target_date)
+- `ALL` `/staff/<str:staff_id>/daily/<str:target_date>/` params(staff_id, target_date)
+- `ALL` `/weekly/` params()
+- `ALL` `/jobs/` params() ✓
+- `ALL` `/payroll/pay-runs/refresh` params()
+- `ALL` `/payroll/pay-runs/create` params()
+- `ALL` `/payroll/pay-runs/` params()
+- `ALL` `/payroll/post-staff-week/` params()
+- `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
+- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
+- `ALL` `/xero/authenticate/` params() [auth, payment, upload]
+- `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
+- `ALL` `/xero/disconnect/` params() [auth, payment, upload]
+- `ALL` `/xero/sync-stream/` params() [auth, payment, upload]
+- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/sync-info/` params() [auth, payment, upload]
+- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/sync/` params() [auth, payment, upload]
+- `ALL` `/xero/webhook/` params() [auth, payment, upload]
+- `ALL` `/xero/ping/` params() [auth, payment, upload]
+- `ALL` `/app-errors/` params() [auth, payment, upload]
+- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/rest/app-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/company-defaults/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/upload-logo/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/schema/` params() [auth, payment, upload]
+- `ALL` `/workflow/` params() [auth, payment, upload]
+- `ALL` `/api/` params() ✓
+- `ALL` `/api/job/` params()
+- `ALL` `/api/accounts/` params()
+- `ALL` `/api/timesheets/` params()
+- `ALL` `/api/quoting/` params()
+- `ALL` `/api/clients/` params()
+- `ALL` `/api/purchasing/` params()
+- `ALL` `/api/accounting/` params()
+- `ALL` `/api/process/` params()
+- `ALL` `/api/schema/` params()
+- `ALL` `/api/docs` params()
+
+---
+
+# Schema
+
+### Invoice
+- job_id: integer (fk)
+- online_url: string (nullable)
+- _relations_: job: one(Job)
+
+### InvoiceLineItem
+- invoice_id: integer (fk)
+- _relations_: invoice: one(Invoice)
+
+### BillLineItem
+- bill_id: integer (fk)
+- _relations_: bill: one(Bill)
+
+### CreditNoteLineItem
+- credit_note_id: integer (fk)
+- _relations_: credit_note: one(CreditNote)
+
+### Quote
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- job_id: integer (fk)
+- client_id: integer (fk)
+- date: date
+- status: string (default)
+- total_excl_tax: decimal
+- total_incl_tax: decimal
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (default)
+- number: string (nullable)
+- online_url: string (nullable)
+- raw_json: json (nullable)
+- _relations_: job: one(Job), client: one(Client)
+
+### Client
+- id: uuid (pk, default)
+- xero_contact_id: string (unique, nullable)
+- xero_tenant_id: string (nullable)
+- name: string
+- email: string (nullable)
+- phone: string (nullable)
+- address: string (nullable)
+- is_account_customer: boolean (default)
+- is_supplier: boolean (default)
+- xero_last_modified: timestamp
+- raw_json: json (nullable)
+- primary_contact_name: string (nullable)
+- primary_contact_email: string (nullable)
+- additional_contact_persons: json (nullable, default)
+- all_phones: json (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- xero_archived: boolean (default)
+- xero_merged_into_id: string (nullable)
+- merged_into_id: integer (fk)
+- _relations_: merged_into: one(self)
+
+### ClientContact
+- id: uuid (pk, default)
+- client_id: integer (fk)
+- name: string
+- email: string (nullable)
+- phone: string (nullable)
+- position: string (nullable)
+- is_primary: boolean (default)
+- notes: string (nullable)
+- is_active: boolean (default)
+- _relations_: client: one(Client)
+
+### SupplierPickupAddress
+- id: uuid (pk, default)
+- client_id: integer (fk)
+- name: string
+- street: string
+- suburb: string (nullable)
+- city: string
+- state: string (nullable)
+- postal_code: string (nullable)
+- country: string (default)
+- google_place_id: string (nullable)
+- latitude: decimal (nullable)
+- longitude: decimal (nullable)
+- is_primary: boolean (default)
+- notes: string (nullable)
+- is_active: boolean (default)
+- _relations_: client: one(Client)
+
+### CostSet
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- kind: string
+- rev: integer
+- summary: json (default)
+- created: timestamp
+- _relations_: job: one(Job)
+
+### CostLine
+- id: uuid (pk, default)
+- cost_set_id: integer (fk)
+- kind: string
+- desc: string
+- quantity: decimal (default)
+- unit_cost: decimal (default)
+- unit_rev: decimal (default)
+- ext_refs: json (default)
+- meta: json (default)
+- accounting_date: date
+- xero_time_id: string (nullable)
+- xero_expense_id: string (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- approved: boolean (default)
+- xero_pay_item_id: integer (fk)
+- _relations_: cost_set: one(CostSet), xero_pay_item: one(XeroPayItem)
+
+### Job
+- id: uuid (pk, default)
+- name: string
+- client_id: integer (fk)
+- order_number: string (nullable)
+- contact_id: integer (fk)
+- job_number: integer (unique)
+- description: string (nullable)
+- delivery_date: date (nullable)
+- completed_at: timestamp (nullable)
+- rdti_type: string (nullable)
+- pricing_methodology: string (default)
+- price_cap: decimal (nullable)
+- speed_quality_tradeoff: string (default)
+- job_is_valid: boolean (default)
+- charge_out_rate: decimal
+- complex_job: boolean (default)
+- notes: string (nullable)
+- created_by_id: integer (fk)
+- latest_estimate_id: integer (fk)
+- latest_quote_id: integer (fk)
+- latest_actual_id: integer (fk)
+- priority: float (default)
+- xero_project_id: string (unique, nullable)
+- xero_default_task_id: string (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- default_xero_pay_item_id: integer (fk)
+- _relations_: client: one(Client), contact: one(ClientContact), created_by: one(Staff), people: many(Staff), latest_estimate: one(CostSet), latest_quote: one(CostSet), latest_actual: one(CostSet), default_xero_pay_item: one(XeroPayItem)
+
+### JobDeltaRejection
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- staff_id: integer (fk)
+- change_id: uuid (nullable)
+- reason: string
+- detail: string
+- envelope: json
+- checksum: string
+- request_etag: string
+- request_ip: string (nullable)
+- _relations_: job: one(Job), staff: one(Staff)
+
+### JobEvent
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- timestamp: timestamp (default)
+- staff_id: integer (fk)
+- event_type: string (default)
+- description: string
+- schema_version: integer (default)
+- change_id: uuid (nullable)
+- delta_before: json (nullable)
+- delta_after: json (nullable)
+- delta_meta: json (nullable)
+- delta_checksum: string (default)
+- dedup_hash: string (nullable)
+- _relations_: job: one(Job), staff: one(Staff)
+
+### JobFile
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- filename: string
+- file_path: string
+- mime_type: string
+- uploaded_at: timestamp
+- status: string (default)
+- print_on_jobsheet: boolean (default)
+- _relations_: job: one(Job)
+
+### JobQuoteChat
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- message_id: string (unique)
+- role: string
+- content: string
+- timestamp: timestamp
+- metadata: json (default)
+- _relations_: job: one(Job)
+
+### QuoteSpreadsheet
+- id: uuid (pk, default)
+- sheet_id: string
+- sheet_url: string (nullable)
+- tab: string (nullable, default)
+- job_id: integer (fk)
+- _relations_: job: one(Job)
+
+### Form
+- id: uuid (pk, default)
+- document_type: string
+- title: string
+- document_number: string (nullable)
+- tags: json (default)
+- status: string (default)
+- form_schema: json (default)
+
+### FormEntry
+- id: uuid (pk, default)
+- form_id: integer (fk)
+- job_id: integer (fk)
+- entry_date: date
+- staff_id: integer (fk)
+- entered_by_id: integer (fk)
+- data: json (default)
+- is_active: boolean (default)
+- _relations_: form: one(Form), job: one(Job), staff: one(Staff), entered_by: one(Staff)
+
+### Procedure
+- id: uuid (pk, default)
+- document_type: string
+- title: string
+- document_number: string (nullable)
+- site_location: string
+- tags: json (default)
+- status: string (default)
+- job_id: integer (fk)
+- google_doc_id: string
+- google_doc_url: string
+- _relations_: job: one(Job)
+
+### PurchaseOrder
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- pickup_address_id: integer (fk)
+- job_id: integer (fk)
+- created_by_id: integer (fk)
+- po_number: string (unique)
+- reference: string (nullable)
+- order_date: date (default)
+- expected_delivery: date (nullable)
+- xero_id: uuid (unique, nullable)
+- xero_tenant_id: string (nullable)
+- status: string (default)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+- online_url: string (nullable)
+- raw_json: json (nullable)
+- _relations_: supplier: one(Client), pickup_address: one(SupplierPickupAddress), job: one(Job), created_by: one(Staff)
+
+### PurchaseOrderLine
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- job_id: integer (fk)
+- description: string
+- quantity: decimal
+- dimensions: string (nullable)
+- unit_cost: decimal (nullable)
+- price_tbc: boolean (default)
+- supplier_item_code: string (nullable)
+- item_code: string (nullable)
+- received_quantity: decimal (default)
+- metal_type: string (default, nullable)
+- alloy: string (nullable)
+- specifics: string (nullable)
+- location: string (nullable)
+- raw_line_data: json (nullable)
+- xero_line_item_id: uuid (nullable)
+- _relations_: purchase_order: one(PurchaseOrder), job: one(Job)
+
+### PurchaseOrderSupplierQuote
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- filename: string
+- file_path: string
+- mime_type: string
+- uploaded_at: timestamp
+- extracted_data: json (nullable)
+- status: string (default)
+- _relations_: purchase_order: one(PurchaseOrder)
+
+### Stock
+- id: uuid (pk, default)
+- job_id: integer (fk)
+- item_code: string (nullable, unique)
+- description: string
+- quantity: decimal
+- unit_cost: decimal
+- unit_revenue: decimal (nullable)
+- date: timestamp (default)
+- source: string
+- source_purchase_order_line_id: integer (fk)
+- active_source_purchase_order_line_id: uuid (nullable)
+- source_parent_stock_id: integer (fk)
+- location: string
+- metal_type: string (default)
+- alloy: string (nullable)
+- specifics: string (nullable)
+- is_active: boolean (default)
+- xero_id: string (unique, nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable)
+- raw_json: json (nullable)
+- xero_inventory_tracked: boolean (default)
+- parsed_at: timestamp (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- _relations_: job: one(Job), source_purchase_order_line: one(PurchaseOrderLine), source_parent_stock: one(self)
+
+### PurchaseOrderEvent
+- id: uuid (pk, default)
+- purchase_order_id: integer (fk)
+- timestamp: timestamp (default)
+- staff_id: integer (fk)
+- description: string
+- _relations_: purchase_order: one(PurchaseOrder), staff: one(Staff)
+
+### SupplierProduct
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- price_list_id: integer (fk)
+- product_name: string
+- item_no: string
+- description: string (nullable)
+- specifications: string (nullable)
+- variant_id: string
+- variant_width: string (nullable)
+- variant_length: string (nullable)
+- variant_price: decimal (nullable)
+- price_unit: string (nullable)
+- variant_available_stock: integer (nullable)
+- url: string
+- is_discontinued: boolean (default)
+- last_scraped: timestamp
+- parsed_item_code: string (nullable)
+- parsed_description: string (nullable)
+- parsed_metal_type: string (nullable)
+- parsed_alloy: string (nullable)
+- parsed_specifics: string (nullable)
+- parsed_dimensions: string (nullable)
+- parsed_unit_cost: decimal (nullable)
+- parsed_price_unit: string (nullable)
+- parsed_at: timestamp (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- mapping_hash: string (nullable)
+- _relations_: supplier: one(Client), price_list: one(SupplierPriceList)
+
+### SupplierPriceList
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- file_name: string
+- uploaded_at: timestamp
+- _relations_: supplier: one(Client)
+
+### ScrapeJob
+- id: uuid (pk, default)
+- supplier_id: integer (fk)
+- status: string (default)
+- started_at: timestamp (default)
+- completed_at: timestamp (nullable)
+- products_scraped: integer (default)
+- products_failed: integer (default)
+- error_message: string (nullable)
+- _relations_: supplier: one(Client)
+
+### ProductParsingMapping
+- id: uuid (pk, default)
+- input_hash: string (unique)
+- input_data: json
+- derived_key: string (nullable)
+- mapped_item_code: string (nullable)
+- mapped_description: string (nullable)
+- mapped_metal_type: string (nullable)
+- mapped_alloy: string (nullable)
+- mapped_specifics: string (nullable)
+- mapped_dimensions: string (nullable)
+- mapped_unit_cost: decimal (nullable)
+- mapped_price_unit: string (nullable)
+- parser_version: string (nullable)
+- parser_confidence: decimal (nullable)
+- llm_response: json (nullable)
+- is_validated: boolean (default)
+- validated_by_id: integer (fk)
+- validated_at: timestamp (nullable)
+- validation_notes: string (nullable)
+- item_code_is_in_xero: boolean (default)
+- _relations_: validated_by: one(Staff)
+
+### AIProvider
+- name: string
+- api_key: string (nullable)
+- default: boolean (default)
+- model_name: string
+- provider_type: string
+
+### AppError
+- id: uuid (pk, default)
+- timestamp: timestamp
+- message: string
+- data: json (nullable)
+- app: string (nullable)
+- file: string (nullable)
+- function: string (nullable)
+- severity: integer (default)
+- job_id: uuid (nullable)
+- user_id: uuid (nullable)
+- resolved: boolean (default)
+- resolved_by_id: integer (fk)
+- resolved_timestamp: timestamp (nullable)
+- _relations_: resolved_by: one(Staff)
+
+### XeroError
+- entity: string
+- reference_id: string
+- kind: string
+
+### ServiceAPIKey
+- id: uuid (pk, default)
+- name: string
+- key: string (unique)
+- is_active: boolean (default)
+- last_used: timestamp (nullable)
+
+### XeroAccount
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- account_code: string (nullable)
+- account_name: string (unique)
+- description: string (nullable)
+- account_type: string (nullable)
+- tax_type: string (nullable)
+- enable_payments: boolean (default)
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- raw_json: json
+- django_created_at: timestamp
+- django_updated_at: timestamp
+
+### XeroJournal
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string (nullable)
+- journal_date: date
+- created_date_utc: timestamp
+- journal_number: integer (unique)
+- reference: string (nullable)
+- source_id: uuid (nullable)
+- source_type: string (nullable)
+- raw_json: json
+- xero_last_modified: timestamp
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- xero_last_synced: timestamp (nullable, default)
+
+### XeroJournalLineItem
+- id: uuid (pk, default)
+- journal_id: integer (fk)
+- xero_line_id: uuid (unique)
+- account_id: integer (fk)
+- description: string (nullable)
+- net_amount: decimal
+- gross_amount: decimal
+- tax_amount: decimal
+- tax_type: string (nullable)
+- tax_name: string (nullable)
+- raw_json: json
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- _relations_: journal: one(XeroJournal), account: one(XeroAccount)
+
+### XeroPayItem
+- id: uuid (pk, default)
+- xero_id: string (unique, nullable)
+- xero_tenant_id: string (nullable)
+- name: string
+- uses_leave_api: boolean
+- multiplier: decimal (nullable)
+- xero_last_modified: timestamp (nullable)
+- xero_last_synced: timestamp (nullable, default)
+
+### XeroPayRun
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string
+- payroll_calendar_id: uuid (nullable)
+- period_start_date: date
+- period_end_date: date
+- payment_date: date
+- pay_run_status: string (nullable)
+- pay_run_type: string (nullable)
+- total_cost: decimal (nullable)
+- total_pay: decimal (nullable)
+- raw_json: json
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
+
+### XeroPaySlip
+- id: uuid (pk, default)
+- xero_id: uuid (unique)
+- xero_tenant_id: string
+- pay_run_id: integer (fk)
+- xero_employee_id: uuid
+- employee_name: string (nullable)
+- gross_earnings: decimal (default)
+- tax_amount: decimal (default)
+- net_pay: decimal (default)
+- timesheet_hours: decimal (default)
+- leave_hours: decimal (default)
+- raw_json: json
+- xero_last_modified: timestamp
+- xero_last_synced: timestamp (nullable, default)
+- django_created_at: timestamp
+- django_updated_at: timestamp
+- _relations_: pay_run: one(XeroPayRun)
+
+### XeroSyncCursor
+- entity_key: string (unique)
+- last_modified: timestamp
+
+### XeroToken
+- tenant_id: string (unique)
+- token_type: string
+- access_token: string
+- refresh_token: string
+- expires_at: timestamp
+- scope: string (default)
+
+---
+
+# Components
+
+- **App** [client] — `frontend/src/App.vue`
+- **AIProvidersDialog** [client] — props: providers — `frontend/src/components/AIProvidersDialog.vue`
+- **AdvancedSearchDialog** [client] — `frontend/src/components/AdvancedSearchDialog.vue`
+- **AppLayout** [client] — `frontend/src/components/AppLayout.vue`
+- **AppNavbar** [client] — `frontend/src/components/AppNavbar.vue`
+- **ClientDropdown** [client] — `frontend/src/components/ClientDropdown.vue`
+- **ClientLookup** [client] — props: id, label, placeholder, required, modelValue, supplierLookup — `frontend/src/components/ClientLookup.vue`
+- **CompanyDefaultsFormModal** [client] — props: defaults — `frontend/src/components/CompanyDefaultsFormModal.vue`
+- **ConfirmModal** [client] — props: title, message — `frontend/src/components/ConfirmModal.vue`
+- **ContactSelectionModal** [client] — props: isOpen, clientId, clientName, contacts, selectedContact, isLoading, newContactForm, editingContact, isEditing — `frontend/src/components/ContactSelectionModal.vue`
+- **ContactSelector** [client] — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `frontend/src/components/ContactSelector.vue`
+- **CreateClientModal** [client] — `frontend/src/components/CreateClientModal.vue`
+- **DataTable** [client] — props: columns, data, pageSize, hideFooter, isLoading — `frontend/src/components/DataTable.vue`
+- **ExecutionsModal** [client] — `frontend/src/components/ExecutionsModal.vue`
+- **JobCard** [client] — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `frontend/src/components/JobCard.vue`
+- **JobFormModal** [client] — props: job — `frontend/src/components/JobFormModal.vue`
+- **JobsModal** [client] — `frontend/src/components/JobsModal.vue`
+- **KanbanColumn** [client] — `frontend/src/components/KanbanColumn.vue`
+- **QuoteStatus** [client] — props: jobId, autoRefresh — `frontend/src/components/QuoteStatus.vue`
+- **RichTextEditor** [client] — `frontend/src/components/RichTextEditor.vue`
+- **SectionModal** [client] — props: section — `frontend/src/components/SectionModal.vue`
+- **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `frontend/src/components/StaffAvatar.vue`
+- **StaffDropdown** [client] — `frontend/src/components/StaffDropdown.vue`
+- **StaffFormModal** [client] — props: staff — `frontend/src/components/StaffFormModal.vue`
+- **StaffPanel** [client] — `frontend/src/components/StaffPanel.vue`
+- **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
+- **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
+- **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
+- **ErrorDialog** [client] — props: error — `frontend/src/components/admin/errors/ErrorDialog.vue`
+- **ErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorFilter.vue`
+- **ErrorTable** [client] — props: headers, rows, id, occurredAt, message, entity, severity — `frontend/src/components/admin/errors/ErrorTable.vue`
+- **ErrorTabs** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorTabs.vue`
+- **JobErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/JobErrorFilter.vue`
+- **SystemErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/SystemErrorFilter.vue`
+- **ActiveJobCard** [client] — props: job — `frontend/src/components/board/ActiveJobCard.vue`
+- **NoActiveJobPrompt** [client] — `frontend/src/components/board/NoActiveJobPrompt.vue`
+- **WorkshopModeView** [client] — `frontend/src/components/board/WorkshopModeView.vue`
+- **WorkshopOfficeToggle** [client] — `frontend/src/components/board/WorkshopOfficeToggle.vue`
+- **McpToolDetails** [client] — `frontend/src/components/chat/McpToolDetails.vue`
+- **ToolCallDisplay** [client] — `frontend/src/components/chat/ToolCallDisplay.vue`
+- **IconCommunity** [client] — `frontend/src/components/icons/IconCommunity.vue`
+- **IconDocumentation** [client] — `frontend/src/components/icons/IconDocumentation.vue`
+- **IconEcosystem** [client] — `frontend/src/components/icons/IconEcosystem.vue`
+- **IconSupport** [client] — `frontend/src/components/icons/IconSupport.vue`
+- **IconTooling** [client] — `frontend/src/components/icons/IconTooling.vue`
+- **CameraModal** [client] — `frontend/src/components/job/CameraModal.vue`
+- **JobActualTab** [client] — props: jobId, jobNumber, pricingMethodology, quoted, fullyInvoiced, paid — `frontend/src/components/job/JobActualTab.vue`
+- **JobAttachmentsTab** [client] — `frontend/src/components/job/JobAttachmentsTab.vue`
+- **JobCostAnalysisTab** [client] — props: jobId, pricingMethodology — `frontend/src/components/job/JobCostAnalysisTab.vue`
+- **JobEstimateTab** [client] — `frontend/src/components/job/JobEstimateTab.vue`
+- **JobHistoryTab** [client] — `frontend/src/components/job/JobHistoryTab.vue`
+- **JobPdfDialog** [client] — props: jobId, jobNumber, open — `frontend/src/components/job/JobPdfDialog.vue`
+- **JobPdfTab** [client] — props: variant — `frontend/src/components/job/JobPdfTab.vue`
+- **JobPricingGrids** [client] — `frontend/src/components/job/JobPricingGrids.vue`
+- **JobQuoteTab** [client] — props: jobId, jobNumber, jobStatus, pricingMethodology, quoted, fullyInvoiced, quoteAcceptanceDate — `frontend/src/components/job/JobQuoteTab.vue`
+- **JobQuotingChatTab** [client] — `frontend/src/components/job/JobQuotingChatTab.vue`
+- **JobSafetyTab** [client] — `frontend/src/components/job/JobSafetyTab.vue`
+- **JobSettingsTab** [client] — props: jobId, jobNumber, pricingMethodology, quoted, fullyInvoiced — `frontend/src/components/job/JobSettingsTab.vue`
+- **JobViewTabs** [client] — props: activeTab, jobId, jobNumber, jobStatus, chargeOutRate, pricingMethodology, quoted, fullyInvoiced, paid, companyDefaults — `frontend/src/components/job/JobViewTabs.vue`
+- **SimpleTotalTable** [client] — `frontend/src/components/job/SimpleTotalTable.vue`
+- **WorkshopPdfViewer** [client] — props: jobId — `frontend/src/components/job/WorkshopPdfViewer.vue`
+- **KanbanGridLayout** [client] — props: mode, visibleStatusChoices, getSortedJobsByStatus, isLoading, isDragging, getColumnHasMore, getColumnTotal, getColumnLoadedCount, isSearchActive, mobileAssignStaffId — `frontend/src/components/kanban/KanbanGridLayout.vue`
+- **KanbanMobileLayout** [client] — props: visibleStatusChoices, getSortedJobsByStatus, isLoading, isDragging, getColumnHasMore, getColumnTotal, getColumnLoadedCount, isSearchActive, mobileAssignStaffId, enableTapAssign — `frontend/src/components/kanban/KanbanMobileLayout.vue`
+- **StatusBadge** [client] — `frontend/src/components/kanban/StatusBadge.vue`
+- **KPICalendar** [client] — props: calendarData, thresholds, year, month — `frontend/src/components/kpi/KPICalendar.vue`
+- **KPICalendarDay** [client] — props: dayData, thresholds — `frontend/src/components/kpi/KPICalendarDay.vue`
+- **KPICard** [client] — `frontend/src/components/kpi/KPICard.vue`
+- **KPIDayDetailsModal** [client] — `frontend/src/components/kpi/KPIDayDetailsModal.vue`
+- **KPILabourDetailsModal** [client] — props: monthlyData, calendarData, year, month, isOpen — `frontend/src/components/kpi/KPILabourDetailsModal.vue`
+- **KPIMaterialsDetailsModal** [client] — props: calendarData, year, month, isOpen — `frontend/src/components/kpi/KPIMaterialsDetailsModal.vue`
+- **KPIProfitDetailsModal** [client] — props: monthlyData, thresholds, calendarData, year, month, isOpen — `frontend/src/components/kpi/KPIProfitDetailsModal.vue`
+- **MonthSelector** [client] — props: year, month — `frontend/src/components/kpi/MonthSelector.vue`
+- **ChildRecordsTable** [client] — `frontend/src/components/process-documents/ChildRecordsTable.vue`
+- **DynamicFormEntry** [client] — `frontend/src/components/process-documents/DynamicFormEntry.vue`
+- **EntriesTable** [client] — `frontend/src/components/process-documents/EntriesTable.vue`
+- **FillTemplateModal** [client] — `frontend/src/components/process-documents/FillTemplateModal.vue`
+- **ProcessDocumentFilters** [client] — `frontend/src/components/process-documents/ProcessDocumentFilters.vue`
+- **ProcessDocumentModal** [client] — `frontend/src/components/process-documents/ProcessDocumentModal.vue`
+- **ProcessDocumentTable** [client] — `frontend/src/components/process-documents/ProcessDocumentTable.vue`
+- **ControlsList** [client] — `frontend/src/components/process-documents/safety-wizard/ControlsList.vue`
+- **HazardsList** [client] — `frontend/src/components/process-documents/safety-wizard/HazardsList.vue`
+- **PPEEditor** [client] — `frontend/src/components/process-documents/safety-wizard/PPEEditor.vue`
+- **SafetyWizardModal** [client] — `frontend/src/components/process-documents/safety-wizard/SafetyWizardModal.vue`
+- **SideBySideEditor** [client] — `frontend/src/components/process-documents/safety-wizard/SideBySideEditor.vue`
+- **AddressAutocompleteInput** [client] — props: modelValue, placeholder, debounceMs, autofocus — `frontend/src/components/purchasing/AddressAutocompleteInput.vue`
+- **AllocationCellEditor** [client] — `frontend/src/components/purchasing/AllocationCellEditor.vue`
+- **DragAndDropUploader** [client] — `frontend/src/components/purchasing/DragAndDropUploader.vue`
+- **ExistingAllocationsDisplay** [client] — props: existingAllocations, lines — `frontend/src/components/purchasing/ExistingAllocationsDisplay.vue`
+- **JobSelect** [client] — props: modelValue, jobs, placeholder, hasError, errorMessage, isLoading, disabled — `frontend/src/components/purchasing/JobSelect.vue`
+- **PendingItemsTable** [client] — `frontend/src/components/purchasing/PendingItemsTable.vue`
+- **PickupAddressSelectionModal** [client] — props: isOpen, supplierId, supplierName, addresses, selectedAddress, isLoading, newAddressForm, editingAddress, isEditing — `frontend/src/components/purchasing/PickupAddressSelectionModal.vue`
+- **PickupAddressSelector** [client] — props: id, label, placeholder, optional, supplierId, supplierName, modelValue, initialAddressId, disabled — `frontend/src/components/purchasing/PickupAddressSelector.vue`
+- **PoCommentsSection** [client] — props: poId — `frontend/src/components/purchasing/PoCommentsSection.vue`
+- **PoLinesTable** [client] — `frontend/src/components/purchasing/PoLinesTable.vue`
+- **PoPdfDialog** [client] — props: purchaseOrderId, poNumber, open — `frontend/src/components/purchasing/PoPdfDialog.vue`
+- **PoPdfViewer** [client] — props: purchaseOrderId — `frontend/src/components/purchasing/PoPdfViewer.vue`
+- **PoSummaryCard** [client] — props: po, isCreateMode, showActions, syncEnabled, supplierReadonly — `frontend/src/components/purchasing/PoSummaryCard.vue`
+- **QuoteCostLinesGrid** [client] — props: costLines, isLoading — `frontend/src/components/quote/QuoteCostLinesGrid.vue`
+- **CompactSummaryCard** [client] — props: title, summary, costLines, isLoading, revision — `frontend/src/components/shared/CompactSummaryCard.vue`
+- **CostLinesGrid** [client] — props: costLines, isLoading, showActions — `frontend/src/components/shared/CostLinesGrid.vue`
+- **CostSetSummaryCard** [client] — props: title, summary, costLines, isLoading, revision — `frontend/src/components/shared/CostSetSummaryCard.vue`
+- **InlineEditClient** [client] — `frontend/src/components/shared/InlineEditClient.vue`
+- **InlineEditSelect** [client] — `frontend/src/components/shared/InlineEditSelect.vue`
+- **InlineEditText** [client] — `frontend/src/components/shared/InlineEditText.vue`
+- **SmartCostLinesTable** [client] — props: lines, tabKind, readOnly, showItemColumn, showSourceColumn, sourceResolver, line — `frontend/src/components/shared/SmartCostLinesTable.vue`
+- **BillablePercentageBadge** [client] — props: percentage — `frontend/src/components/timesheet/BillablePercentageBadge.vue`
+- **MetricsModal** [client] — props: open, summary — `frontend/src/components/timesheet/MetricsModal.vue`
+- **PayrollControlSection** [client] — `frontend/src/components/timesheet/PayrollControlSection.vue`
+- **PayrollStaffRow** [client] — `frontend/src/components/timesheet/PayrollStaffRow.vue`
+- **StaffDetailModal** [client] — `frontend/src/components/timesheet/StaffDetailModal.vue`
+- **StaffRow** [client] — `frontend/src/components/timesheet/StaffRow.vue`
+- **StaffWeekRow** [client] — `frontend/src/components/timesheet/StaffWeekRow.vue`
+- **StatusBadge** [client] — `frontend/src/components/timesheet/StatusBadge.vue`
+- **SummaryCard** [client] — props: title, value, subtitle, progress, icon, color — `frontend/src/components/timesheet/SummaryCard.vue`
+- **SummaryDrawer** [client] — `frontend/src/components/timesheet/SummaryDrawer.vue`
+- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete — `frontend/src/components/timesheet/TimesheetActionsCell.vue`
+- **WeekPickerModal** [client] — `frontend/src/components/timesheet/WeekPickerModal.vue`
+- **WeeklyMetricsModal** [client] — `frontend/src/components/timesheet/WeeklyMetricsModal.vue`
+- **WorkshopJobAttachmentsCard** [client] — `frontend/src/components/workshop/WorkshopJobAttachmentsCard.vue`
+- **WorkshopJobDescriptionCard** [client] — `frontend/src/components/workshop/WorkshopJobDescriptionCard.vue`
+- **WorkshopJobHeader** [client] — `frontend/src/components/workshop/WorkshopJobHeader.vue`
+- **WorkshopJobKeyInfoCard** [client] — `frontend/src/components/workshop/WorkshopJobKeyInfoCard.vue`
+- **WorkshopJobNotesCard** [client] — `frontend/src/components/workshop/WorkshopJobNotesCard.vue`
+- **WorkshopJobPickerDrawer** [client] — `frontend/src/components/workshop/WorkshopJobPickerDrawer.vue`
+- **WorkshopJobSummaryCard** [client] — `frontend/src/components/workshop/WorkshopJobSummaryCard.vue`
+- **WorkshopMaterialsUsedTable** [client] — props: jobId — `frontend/src/components/workshop/WorkshopMaterialsUsedTable.vue`
+- **WorkshopMyTimeHeader** [client] — `frontend/src/components/workshop/WorkshopMyTimeHeader.vue`
+- **WorkshopStopwatch** [client] — props: jobId, jobName — `frontend/src/components/workshop/WorkshopStopwatch.vue`
+- **WorkshopTimeUsedTable** [client] — props: jobId, workshopHours — `frontend/src/components/workshop/WorkshopTimeUsedTable.vue`
+- **WorkshopTimesheetCalendar** [client] — `frontend/src/components/workshop/WorkshopTimesheetCalendar.vue`
+- **WorkshopTimesheetEntryDrawer** [client] — `frontend/src/components/workshop/WorkshopTimesheetEntryDrawer.vue`
+- **WorkshopTimesheetLegacyTable** [client] — `frontend/src/components/workshop/WorkshopTimesheetLegacyTable.vue`
+- **WorkshopTimesheetSummaryCard** [client] — `frontend/src/components/workshop/WorkshopTimesheetSummaryCard.vue`
+- **AboutView** [client] — `frontend/src/views/AboutView.vue`
+- **AdminAIProvidersView** [client] — `frontend/src/views/AdminAIProvidersView.vue`
+- **AdminArchiveJobsView** [client] — `frontend/src/views/AdminArchiveJobsView.vue`
+- **AdminCompanyView** [client] — `frontend/src/views/AdminCompanyView.vue`
+- **AdminDjangoJobsView** [client] — `frontend/src/views/AdminDjangoJobsView.vue`
+- **AdminErrorView** [client] — `frontend/src/views/AdminErrorView.vue`
+- **AdminMonthEnd** [client] — `frontend/src/views/AdminMonthEnd.vue`
+- **AdminStaffView** [client] — `frontend/src/views/AdminStaffView.vue`
+- **AdminView** [client] — `frontend/src/views/AdminView.vue`
+- **ClientDetailView** [client] — `frontend/src/views/ClientDetailView.vue`
+- **ClientsView** [client] — `frontend/src/views/ClientsView.vue`
+- **DailyTimesheetView** [client] — `frontend/src/views/DailyTimesheetView.vue`
+- **DataQualityArchivedJobsView** [client] — `frontend/src/views/DataQualityArchivedJobsView.vue`
+- **FormEntriesView** [client] — `frontend/src/views/FormEntriesView.vue`
+- **JobAgingReportView** [client] — `frontend/src/views/JobAgingReportView.vue`
+- **JobCreateView** [client] — `frontend/src/views/JobCreateView.vue`
+- **JobMovementReportView** [client] — props: title — `frontend/src/views/JobMovementReportView.vue`
+- **JobProfitabilityReportView** [client] — `frontend/src/views/JobProfitabilityReportView.vue`
+- **JobTable** [client] — props: columns, data, title, modelValue, isLoading — `frontend/src/views/JobTable.vue`
+- **JobView** [client] — `frontend/src/views/JobView.vue`
+- **JsaListView** [client] — `frontend/src/views/JsaListView.vue`
+- **KPIReportsView** [client] — `frontend/src/views/KPIReportsView.vue`
+- **KanbanView** [client] — `frontend/src/views/KanbanView.vue`
+- **LoginView** [client] — `frontend/src/views/LoginView.vue`
+- **PayrollReconciliationReportView** [client] — `frontend/src/views/PayrollReconciliationReportView.vue`
+- **ProcessDocumentsView** [client] — `frontend/src/views/ProcessDocumentsView.vue`
+- **ProfitLossReportView** [client] — `frontend/src/views/ProfitLossReportView.vue`
+- **QuotingChatView** [client] — `frontend/src/views/QuotingChatView.vue`
+- **RDTISpendReportView** [client] — `frontend/src/views/RDTISpendReportView.vue`
+- **SalesForecastReportView** [client] — `frontend/src/views/SalesForecastReportView.vue`
+- **StaffPerformanceReportView** [client] — `frontend/src/views/StaffPerformanceReportView.vue`
+- **SwpListView** [client] — `frontend/src/views/SwpListView.vue`
+- **TimesheetEntryView** [client] — `frontend/src/views/TimesheetEntryView.vue`
+- **WIPReportView** [client] — `frontend/src/views/WIPReportView.vue`
+- **WeeklyTimesheetView** [client] — `frontend/src/views/WeeklyTimesheetView.vue`
+- **WorkshopJobView** [client] — `frontend/src/views/WorkshopJobView.vue`
+- **WorkshopKanbanView** [client] — `frontend/src/views/WorkshopKanbanView.vue`
+- **WorkshopMyTimeView** [client] — `frontend/src/views/WorkshopMyTimeView.vue`
+- **WorkshopView** [client] — `frontend/src/views/WorkshopView.vue`
+- **XeroView** [client] — `frontend/src/views/XeroView.vue`
+- **CreateFromQuoteView** [client] — `frontend/src/views/purchasing/CreateFromQuoteView.vue`
+- **ItemSelect** [client] — props: modelValue, disabled, showQuantity, lineKind, tabKind — `frontend/src/views/purchasing/ItemSelect.vue`
+- **PoCreateView** [client] — `frontend/src/views/purchasing/PoCreateView.vue`
+- **ProductMappingValidationView** [client] — `frontend/src/views/purchasing/ProductMappingValidationView.vue`
+- **PurchaseOrderFormView** [client] — `frontend/src/views/purchasing/PurchaseOrderFormView.vue`
+- **PurchaseOrderView** [client] — `frontend/src/views/purchasing/PurchaseOrderView.vue`
+- **StockView** [client] — `frontend/src/views/purchasing/StockView.vue`
+- **SupplierPricingUploadView** [client] — `frontend/src/views/purchasing/SupplierPricingUploadView.vue`
+
+---
+
+# Libraries
+
+- `adhoc/debug_xero_serialization.py` — class MockContact, class MockBill
+- `adhoc/drive_storage_check.py` — function check_drive_storage: ()
+- `adhoc/fix_missing_default_tasks.py` — function main: ()
+- `adhoc/import_supplier_products_one_off.py` — function validate_and_parse_csv: (csv_file_path), function import_products: (csv_file_path)
+- `adhoc/test_actual_job_sync.py` — function main: ()
+- `adhoc/test_costline_sync.py` — function main: ()
+- `adhoc/test_google_drive.py` — function test_google_drive_access: () -> bool
+- `adhoc/test_pdf_parsing.py` — function test_pdf_parsing: ()
+- `adhoc/test_quote_chat_api.py` — function test_with_different_headers: (), function test_options_request: ()
+- `adhoc/test_template_access.py` — function test_template_access: ()
+- `adhoc/upgrade_script.py`
+  - function normalize_version: (spec) -> str
+  - function fetch_release_dates: (name, requested_version)
+  - function main: (pyproject_path)
+- `apps/accounting/apps.py` — class AccountingConfig
+- `apps/accounting/enums.py` — class QuoteStatus, class InvoiceStatus
+- `apps/accounting/models/invoice.py`
+  - class BaseXeroInvoiceDocument
+  - class BaseLineItem
+  - class Invoice
+  - class Bill
+  - class CreditNote
+  - class InvoiceLineItem
+  - _...2 more_
+- `apps/accounting/models/quote.py` — class Quote
+- `apps/accounting/serializers/core.py`
+  - class KPICalendarErrorResponseSerializer
+  - class KPIJobBreakdownSerializer
+  - class KPIProfitBreakdownSerializer
+  - class KPIDetailsSerializer
+  - class KPIDayDataSerializer
+  - class KPIMonthlyTotalsSerializer
+  - _...14 more_
+- `apps/accounting/serializers/payroll_reconciliation_serializers.py`
+  - class PayrollStaffWeekSerializer
+  - class PayrollWeekTotalsSerializer
+  - class PayrollWeekSerializer
+  - class PayrollStaffSummarySerializer
+  - class PayrollHeatmapRowSerializer
+  - class PayrollHeatmapSerializer
+  - _...3 more_
+- `apps/accounting/serializers/rdti_spend_serializers.py`
+  - class RDTISpendQuerySerializer
+  - class RDTISpendCategorySummarySerializer
+  - class RDTISpendJobDetailSerializer
+  - class RDTISpendTotalsSerializer
+  - class RDTISpendResponseSerializer
+- `apps/accounting/serializers/wip_serializers.py`
+  - class WIPQuerySerializer
+  - class WIPJobSerializer
+  - class WIPStatusBreakdownSerializer
+  - class WIPSummarySerializer
+  - class WIPResponseSerializer
+- `apps/accounting/services/core.py`
+  - class KPIService
+  - class JobAgingService
+  - class StaffPerformanceService
+- `apps/accounting/services/payroll_reconciliation_service.py` — class PayrollReconciliationService
+- `apps/accounting/services/rdti_spend_service.py` — class RDTISpendService
+- `apps/accounting/services/wip_service.py` — class WIPService
+- `apps/accounts/apps.py` — class AccountsConfig
+- `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
+- `apps/accounts/managers.py` — class StaffManager
+- `apps/accounts/models.py` — class Staff
+- `apps/accounts/permissions.py` — class IsStaff, class CanManageTimesheets
+- `apps/accounts/serializers.py`
+  - class EmptySerializer
+  - class CustomTokenObtainPairSerializer
+  - class GenericStaffMethodsMixin
+  - class BaseStaffSerializer
+  - class StaffSerializer
+  - class StaffCreateSerializer
+  - _...4 more_
+- `apps/accounts/staff_anonymization.py` — function generate_email: (profile, last_name) -> str, function create_staff_profile: () -> dict
+- `apps/accounts/utils.py` — function get_excluded_staff: (apps_registry, *, target_date) -> List[str], function is_valid_uuid: (val) -> bool
+- `apps/client/apps.py` — class ClientConfig
+- `apps/client/management/commands/merge_clients.py` — class Command
+- `apps/client/models.py`
+  - class Client
+  - class ClientContact
+  - class Supplier
+  - class SupplierPickupAddress
+- `apps/client/serializers.py`
+  - class ClientContactSerializer
+  - class SupplierPickupAddressSerializer
+  - class ClientSerializer
+  - class ClientNameOnlySerializer
+  - class StandardErrorSerializer
+  - class ClientListResponseSerializer
+  - _...13 more_
+- `apps/client/services/client_rest_service.py` — class ClientRestService
+- `apps/client/services/geocoding_service.py`
+  - function get_api_key: () -> str
+  - function geocode_address: (address, api_key) -> GeocodingResult | None
+  - class GeocodingResult
+  - class GeocodingError
+  - class GeocodingNotConfiguredError
+- `apps/client/utils.py` — function date_to_datetime: (date_obj)
+- `apps/job/apps.py` — class JobConfig
+- `apps/job/diff.py`
+  - function diff_costset: (old, drafts) -> DiffResult
+  - function apply_diff: (cost_set, diff_result) -> CostSet
+  - class DiffResult
+- `apps/job/enums.py`
+  - class SpeedQualityTradeoff
+  - class RDTIType
+  - class MetalType
+- `apps/job/helpers.py` — function get_job_folder_path: (job_number) -> str
+- `apps/job/importers/draft.py` — class DraftLine
+- `apps/job/importers/google_sheets.py`
+  - function extract_file_id: (url_or_id) -> str
+  - function create_folder: (name, parent_id) -> str
+  - function copy_file: (template_id, name, parent_id, make_public_editable) -> str
+  - function fetch_sheet_df: (sheet_id, sheet_range) -> pd.DataFrame
+  - function copy_template_for_job: (job) -> tuple[str, str]
+  - function populate_sheet_from_costset: (sheet_id, costset) -> None
+  - _...1 more_
+- `apps/job/importers/quote_spreadsheet.py`
+  - function detect_labour_column: (df)
+  - function detect_material_columns: (df)
+  - function parse_xlsx: (path, company, skip_validation) -> tuple[list[DraftLine], list[str]]
+  - function find_validation_cells: (df, labour_col)
+  - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
+  - function parse_xlsx_old: (path) -> list[DraftLine]
+  - _...7 more_
+- `apps/job/management/commands/create_shop_jobs.py` — class Command
+- `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
+- `apps/job/management/commands/test_gemini_chat.py` — class Command
+- `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
+- `apps/job/models/costing.py`
+  - function get_default_cost_set_summary: ()
+  - class CostSet
+  - class CostLine
+- `apps/job/models/costline_validators.py` — function validate_costline_meta: (meta, Any] | None, kind) -> None, function validate_costline_ext_refs: (ext_refs, Any] | None) -> None
+- `apps/job/models/job.py` — class Job
+- `apps/job/models/job_delta_rejection.py` — class JobDeltaRejection
+- `apps/job/models/job_event.py` — class JobEvent
+- `apps/job/models/job_file.py` — class JobFile
+- `apps/job/models/job_quote_chat.py` — class JobQuoteChat
+- `apps/job/models/spreadsheet.py` — class QuoteSpreadsheet
+- `apps/job/permissions.py` — class IsOfficeStaff, class IsStaffUser
+- `apps/job/scheduler_jobs.py` — function set_paid_flag_jobs: (), function auto_archive_completed_jobs: ()
+- `apps/job/schemas/quote_mode_schemas.py` — function get_schema: (mode) -> Dict[str, Any], function get_allowed_tools: (mode) -> List[str]
+- `apps/job/serializers/costing_serializer.py`
+  - class CostLineSerializer
+  - class TimesheetCostLineSerializer
+  - class CostLineCreateUpdateSerializer
+  - class CostSetSummarySerializer
+  - class CostSetSerializer
+  - class CostSetSummaryOnlySerializer
+  - _...6 more_
+- `apps/job/serializers/data_integrity_serializers.py`
+  - class BrokenFKReferenceSerializer
+  - class BrokenJSONReferenceSerializer
+  - class BusinessRuleViolationSerializer
+  - class DataIntegritySummarySerializer
+  - class DataIntegrityResponseSerializer
+- `apps/job/serializers/data_quality_report_serializers.py`
+  - class ComplianceSummarySerializer
+  - class ArchivedJobIssueSerializer
+  - class ArchivedJobsComplianceResponseSerializer
+- `apps/job/serializers/job_file_serializer.py`
+  - class JobFileSerializer
+  - class UploadedFileSerializer
+  - class JobFileUploadSerializer
+  - class JobFileUploadSuccessResponseSerializer
+  - class JobFileUploadPartialResponseSerializer
+  - class JobFileErrorResponseSerializer
+  - _...3 more_
+- `apps/job/serializers/job_profitability_report_serializers.py`
+  - class JobProfitabilityQuerySerializer
+  - class CostSetMetricsSerializer
+  - class JobProfitabilityItemSerializer
+  - class JobProfitabilitySummarySerializer
+  - class FiltersAppliedSerializer
+  - class JobProfitabilityReportResponseSerializer
+- `apps/job/serializers/job_quote_chat_serializer.py`
+  - class JobQuoteChatCreateSerializer
+  - class JobQuoteChatSerializer
+  - class JobQuoteChatUpdateSerializer
+  - class JobQuoteChatMessageResponseSerializer
+  - class JobQuoteChatHistoryResponseSerializer
+  - class JobQuoteChatCreateResponseSerializer
+  - _...5 more_
+- `apps/job/serializers/job_serializer.py`
+  - class InvoiceSerializer
+  - class QuoteSerializer
+  - class XeroQuoteSerializer
+  - class XeroInvoiceSerializer
+  - class CompanyDefaultsJobDetailSerializer
+  - class JobSerializer
+  - _...50 more_
+- `apps/job/serializers/kanban_serializer.py`
+  - class JobReorderSerializer
+  - class JobStatusUpdateSerializer
+  - class KanbanSuccessResponseSerializer
+  - class KanbanErrorResponseSerializer
+  - class JobSearchFiltersSerializer
+  - class KanbanJobPersonSerializer
+  - _...8 more_
+- `apps/job/serializers/quote_spreadsheet_serializer.py` — class QuoteSpreadsheetSerializer
+- `apps/job/serializers/quote_sync_serializer.py`
+  - class ValidationReportSerializer
+  - class DiffPreviewSerializer
+  - class QuoteSyncErrorResponseSerializer
+  - class LinkQuoteSheetSerializer
+  - class LinkQuoteSheetResponseSerializer
+  - class DraftLineSerializer
+  - _...4 more_
+- `apps/job/services/auto_archive_service.py` — class AutoArchiveResult, class AutoArchiveService
+- `apps/job/services/chat_file_service.py` — class ChatFileService
+- `apps/job/services/chat_service.py` — class ChatService
+- `apps/job/services/data_integrity_service.py` — class DataIntegrityService
+- `apps/job/services/data_quality_report.py` — class ArchivedJobsComplianceService
+- `apps/job/services/delivery_docket_service.py` — function generate_delivery_docket: (job) -> tuple[BytesIO, JobFile]
+- `apps/job/services/delta_checksum.py`
+  - function compute_job_delta_checksum: (job_id, field_values, object], fields) -> str
+  - function normalise_value: (value) -> str
+  - class ChecksumInput
+- `apps/job/services/file_service.py` — function get_thumbnail_folder: (job_number), function sync_job_folder: (job)
+- `apps/job/services/import_quote_service.py`
+  - function serialize_validation_report: (validation_report) -> Optional[Dict[str, Any]]
+  - function serialize_draft_lines: (draft_lines) -> List[Dict[str, Any]]
+  - function preview_quote_import_from_drafts: (job, draft_lines) -> Dict[str, Any]
+  - function import_quote_from_drafts: (job, draft_lines) -> QuoteImportResult
+  - function import_quote_from_file: (job, file_path, skip_validation) -> QuoteImportResult
+  - function preview_quote_import: (job, file_path) -> Dict[str, Any]
+  - _...2 more_
+- `apps/job/services/job_profitability_report.py` — class JobProfitabilityReportService
+- `apps/job/services/job_rest_service.py`
+  - class PreconditionFailed
+  - class DeltaValidationError
+  - class JobDeltaPayload
+  - class JobRestService
+- `apps/job/services/job_service.py`
+  - function get_paid_complete_jobs: ()
+  - function archive_complete_jobs: (job_ids)
+  - function get_job_total_value: (job) -> Decimal
+  - function recalculate_job_invoicing_state: (job_id) -> None
+  - class JobStaffService
+- `apps/job/services/kanban_categorization_service.py` — class KanbanColumn, class KanbanCategorizationService
+- `apps/job/services/kanban_service.py` — class KanbanService
+- `apps/job/services/mcp_chat_service.py` — class MCPChatService
+- `apps/job/services/month_end_service.py` — class MonthEndService
+- `apps/job/services/paid_flag_service.py` — class PaidFlagResult, class PaidFlagService
+- `apps/job/services/quote_mode_controller.py` — class QuoteModeController
+- `apps/job/services/quote_sync_service.py`
+  - function link_quote_sheet: (job, template_url) -> QuoteSpreadsheet
+  - function preview_quote: (job)
+  - function apply_quote: (job)
+- `apps/job/services/workshop_pdf_service.py`
+  - function format_hours_display: (hours) -> str
+  - function get_workshop_hours: (job) -> float
+  - function get_time_breakdown: (job) -> dict
+  - function draw_table_with_page_breaks: (pdf, table, y_position, *, x_position, margin, available_width, on_new_page, float]]) -> float
+  - function wait_until_file_ready: (file_path, max_wait)
+  - function get_image_dimensions: (image_path)
+  - _...17 more_
+- `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
+- `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
+- `apps/process/apps.py` — class ProcessConfig
+- `apps/process/management/commands/import_dropbox_hs_documents.py` — class Command
+- `apps/process/models/form.py` — class Form
+- `apps/process/models/form_entry.py` — class FormEntry
+- `apps/process/models/procedure.py` — class Procedure
+- `apps/process/serializers/form_serializer.py`
+  - class FormEntrySerializer
+  - class FormListSerializer
+  - class FormDetailSerializer
+  - class FormCreateSerializer
+  - class FormUpdateSerializer
+- `apps/process/serializers/procedure_serializer.py`
+  - class SWPGenerateRequestSerializer
+  - class ProcedureListSerializer
+  - class ProcedureDetailSerializer
+  - class ProcedureCreateSerializer
+  - class ProcedureUpdateSerializer
+  - class ProcessDocumentErrorResponseSerializer
+- `apps/process/services/form_service.py` — class FormService
+- `apps/process/services/google_docs_service.py`
+  - class GoogleDocResult
+  - class ProcessDocumentContent
+  - class GoogleDocsService
+- `apps/process/services/procedure_service.py` — class ProcedureService
+- `apps/process/services/safety_ai_service.py` — class SafetyAIService
+- `apps/process/urls_rest.py` — class CategoriesView
+- `apps/purchasing/apps.py` — class PurchasingConfig
+- `apps/purchasing/etag.py` — function normalize_etag: (etag) -> Optional[str], function generate_po_etag: (po) -> str
+- `apps/purchasing/exceptions.py` — class PreconditionFailedError
+- `apps/purchasing/models.py`
+  - class PurchaseOrder
+  - class PurchaseOrderLine
+  - class PurchaseOrderSupplierQuote
+  - class Stock
+  - class PurchaseOrderEvent
+- `apps/purchasing/serializers.py`
+  - class SupplierPriceStatusItemSerializer
+  - class SupplierPriceStatusResponseSerializer
+  - class JobForPurchasingSerializer
+  - class PurchaseOrderLineSerializer
+  - class PurchaseOrderDetailSerializer
+  - class AllJobsResponseSerializer
+  - _...40 more_
+- `apps/purchasing/services/allocation_service.py`
+  - class AllocationDeletionError
+  - class DeletionResult
+  - class AllocationService
+- `apps/purchasing/services/delivery_receipt_service.py` — function process_delivery_receipt: (purchase_order_id, line_allocations, *, expected_etag) -> PurchaseOrder, class DeliveryReceiptValidationError
+- `apps/purchasing/services/purchase_order_email_service.py` — function create_purchase_order_email: (purchase_order) -> dict
+- `apps/purchasing/services/purchase_order_pdf_service.py` — function create_purchase_order_pdf: (purchase_order), class PurchaseOrderPDFGenerator
+- `apps/purchasing/services/purchasing_rest_service.py` — class PurchasingRestService
+- `apps/purchasing/services/quote_to_po_service.py`
+  - function normalize: (s)
+  - function fuzzy_find_supplier: (supplier_name)
+  - function save_quote_file: (purchase_order, file_obj)
+  - function extract_data_from_supplier_quote: (quote_path, content_type, use_pdf_parser)
+  - function read_file_content: (file_path) -> Optional[bytes]
+  - function create_concise_prompt: (metal_types) -> str
+  - _...8 more_
+- `apps/purchasing/services/stock_service.py` — function merge_stock_into: (source_stock_id, target_stock_id) -> None, function consume_stock: (item, job, qty, user, unit_cost, unit_rev, line) -> CostLine
+- `apps/quoting/apps.py` — class QuotingConfig
+- `apps/quoting/management/commands/run_scrapers.py` — class Command
+- `apps/quoting/mcp.py` — class SupplierProductQueryTool, class QuotingTool
+- `apps/quoting/models.py`
+  - class SupplierProduct
+  - class SupplierPriceList
+  - class ScrapeJob
+  - class ProductParsingMapping
+- `apps/quoting/scheduler_jobs.py` — function run_all_scrapers_job: (), function delete_old_job_executions: (max_age_days)
+- `apps/quoting/scrapers/base.py` — class BaseScraper
+- `apps/quoting/scrapers/steel_and_tube.py` — class SteelAndTubeScraper
+- `apps/quoting/serializers.py`
+  - class SupplierPriceListUploadSerializer
+  - class SupplierInfoSerializer
+  - class PriceListInfoSerializer
+  - class ImportStatisticsSerializer
+  - class ValidationInfoSerializer
+  - class ExtractSupplierPriceListResponseSerializer
+  - _...1 more_
+- `apps/quoting/serializers_django_jobs.py` — class DjangoJobSerializer, class DjangoJobExecutionSerializer
+- `apps/quoting/services/ai_price_extraction.py`
+  - function get_prioritized_active_providers: ()
+  - function extract_price_data: (file_path, content_type) -> Tuple[Optional[Dict[str, Any]], Optional[str]]
+  - class PriceExtractionProvider
+  - class PriceExtractionFactory
+- `apps/quoting/services/pdf_data_validation.py` — class PDFDataValidationService
+- `apps/quoting/services/pdf_import_service.py` — class PDFImportService
+- `apps/quoting/services/product_parser.py`
+  - function parse_supplier_product: (product_data, Any]) -> Tuple[Dict[str, Any], bool]
+  - function create_mapping_record: (instance)
+  - function populate_all_mappings_with_llm: ()
+  - class ProductParser
+- `apps/quoting/services/providers/common.py`
+  - function create_extraction_prompt: () -> str
+  - function clean_json_response: (text) -> str
+  - function log_token_usage: (usage, api_name)
+- `apps/quoting/services/providers/gemini_provider.py` — class GeminiPriceExtractionProvider
+- `apps/quoting/services/providers/mistral_provider.py` — function encode_pdf: (pdf_path), class MistralPriceExtractionProvider
+- `apps/quoting/services/stock_parser.py` — function auto_parse_stock_item: (stock_instance)
+- `apps/quoting/tests_mcp.py` — class QuotingToolTests, class SupplierProductQueryToolTests
+- `apps/quoting/tests_utils.py` — class TestCalculateSheetTenths
+- `apps/quoting/utils.py`
+  - function calculate_product_mapping_hash: (product_data, Any]) -> str
+  - function calculate_supplier_product_hash: (supplier_product) -> str
+  - function calculate_sheet_tenths: (part_width_mm, part_height_mm, sheet_width_mm, sheet_height_mm) -> int
+- `apps/quoting/views.py` — function extract_supplier_price_list_data_view: (request)
+- `apps/quoting/views_django_jobs.py` — class DjangoJobViewSet, class DjangoJobExecutionViewSet
+- `apps/testing.py`
+  - class BaseTestCase
+  - class BaseTransactionTestCase
+  - class BaseAPITestCase
+- `apps/timesheet/api/daily_timesheet_views.py` — class DailyTimesheetSummaryAPIView, class StaffDailyDetailAPIView
+- `apps/timesheet/apps.py` — class TimesheetConfig
+- `apps/timesheet/enums.py` — class RateType
+- `apps/timesheet/management/commands/create_leave_entries.py` — class Command
+- `apps/timesheet/management/commands/create_overtime_entries.py` — class Command
+- `apps/timesheet/management/commands/create_special_job.py` — class Command
+- `apps/timesheet/management/commands/reassign_time_entries.py` — class Command
+- `apps/timesheet/management/commands/reclassify_overtime_entries.py` — class Command
+- `apps/timesheet/serializers/daily_timesheet_serializers.py`
+  - class JobBreakdownSerializer
+  - class StaffDailyDataSerializer
+  - class DailyTotalsSerializer
+  - class SummaryStatsSerializer
+  - class DailyTimesheetSummarySerializer
+  - class TimesheetErrorResponseSerializer
+- `apps/timesheet/serializers/modern_timesheet_serializers.py`
+  - class ModernTimesheetJobSerializer
+  - class ModernStaffSerializer
+  - class WeeklySummarySerializer
+  - class JobMetricsSerializer
+  - class WeeklyStaffDataWeeklyHoursSerializer
+  - class WeeklyStaffDataSerializer
+  - _...10 more_
+- `apps/timesheet/serializers/payroll_serializers.py`
+  - class CreatePayRunSerializer
+  - class CreatePayRunResponseSerializer
+  - class PostWeekToXeroSerializer
+  - class PostWeekToXeroResponseSerializer
+  - class PayRunListItemSerializer
+  - class PayRunListResponseSerializer
+  - _...1 more_
+- `apps/timesheet/services/daily_timesheet_service.py` — function ensure_json_serializable: (obj), class DailyTimesheetService
+- `apps/timesheet/services/demo_payroll_data.py`
+  - function generate_ird_number: (employee_num) -> str
+  - function get_bank_account: (index) -> str
+  - function setup_employee_tax: (employee_id, ird_number) -> None
+  - function setup_employee_leave: (employee_id) -> None
+  - function setup_employee_bank: (employee_id, bank_account_number) -> None
+- `apps/timesheet/services/payroll_employee_sync.py` — class PayrollEmployeeSyncService
+- `apps/timesheet/services/weekly_timesheet_service.py` — class WeeklyTimesheetService
+- `apps/timesheet/services/xero_hours.py`
+  - function get_xero_hours_by_staff_week: () -> list[dict]
+  - function get_jm_hours_for_staff_week: (staff_id, week_start) -> dict
+  - function build_staff_lookup: () -> dict[str, Staff]
+- `apps/workflow/accounting/provider.py` — class AccountingProvider
+- `apps/workflow/accounting/registry.py`
+  - function register_provider: (name, provider_class) -> None
+  - function get_provider: () -> AccountingProvider
+  - function get_provider_name: () -> str
+  - function is_accounting_enabled: () -> bool
+- `apps/workflow/accounting/types.py`
+  - class DocumentLineItem
+  - class InvoicePayload
+  - class QuotePayload
+  - class POPayload
+  - class DocumentResult
+  - class ContactResult
+- `apps/workflow/accounting/xero/provider.py` — class XeroAccountingProvider
+- `apps/workflow/api/enums.py` — function get_enum_choices: (request, enum_name) -> JsonResponse
+- `apps/workflow/api/pagination.py` — class FiftyPerPagePagination
+- `apps/workflow/api/reports/job_movement.py` — class JobMovementMetricsView
+- `apps/workflow/api/reports/payroll_reconciliation.py` — class PayrollReconciliationReport, class PayrollDateRangeView
+- `apps/workflow/api/reports/pnl.py` — class CompanyProfitAndLossReport
+- `apps/workflow/api/reports/utils.py` — function format_period_label: (period_start, period_end)
+- `apps/workflow/api/xero/auth.py`
+  - function get_token: () -> Optional[Dict[str, Any]]
+  - function store_token: (token, Any]) -> None
+  - function refresh_token: () -> Optional[Dict[str, Any]]
+  - function get_valid_token: () -> Optional[Dict[str, Any]]
+  - function get_authentication_url: (state) -> str
+  - function get_tenant_id_from_connections: () -> str
+  - _...2 more_
+- `apps/workflow/api/xero/client.py` — class RateLimitedRESTClient
+- `apps/workflow/api/xero/payroll.py`
+  - function get_employees: () -> List[Employee]
+  - function create_payroll_employee: (employee_data, Any]) -> Employee
+  - function update_employee_name: (employee_id, first_name, last_name) -> None
+  - function get_employee_salary_and_wages: (employee_id) -> List[SalaryAndWage]
+  - function get_employee_working_patterns: (employee_id) -> List[Dict[str, float]]
+  - function get_payroll_calendars: () -> List[Dict[str, Any]]
+  - _...20 more_
+- `apps/workflow/api/xero/push.py`
+  - function sync_client_to_xero: (client)
+  - function sync_job_to_xero: (job)
+  - function sync_costlines_to_xero: (job) -> bool
+  - function map_costline_to_time_entry: (costline, task_id) -> TimeEntryCreateOrUpdate
+  - function map_costline_to_expense_entry: (costline) -> Dict[str, Any]
+  - function sync_time_entries_bulk: (project_id, time_entries_list)
+  - _...4 more_
+- `apps/workflow/api/xero/reprocess_xero.py`
+  - function set_invoice_or_bill_fields: (document, document_type, new_from_xero)
+  - function set_client_fields: (client, new_from_xero)
+  - function set_journal_fields: (journal)
+  - function reprocess_invoices: ()
+  - function reprocess_bills: ()
+  - function reprocess_credit_notes: ()
+  - _...3 more_
+- `apps/workflow/api/xero/seed.py`
+  - function seed_clients_to_xero: (clients)
+  - function seed_jobs_to_xero: (jobs)
+  - function sync_single_contact: (sync_service, contact_id)
+  - function sync_single_invoice: (sync_service, invoice_id)
+  - function sync_single_pay_run: (pay_run_id)
+  - function fetch_xero_entity_lookup: (entity_name, key_func, value_func)
+- `apps/workflow/api/xero/stock_sync.py`
+  - function fetch_all_xero_items: (api, tenant_id) -> Dict[str, Any]
+  - function get_xero_item_by_code_from_lookup: (code, xero_items_lookup, Any]) -> Optional[Any]
+  - function generate_item_code: (stock_item) -> str
+  - function validate_stock_for_xero: (stock_item) -> bool
+  - function sync_stock_to_xero: (stock_item, xero_items_lookup, Any]]) -> bool
+  - function sync_all_local_stock_to_xero: (limit) -> Dict[str, Any]
+  - _...2 more_
+- `apps/workflow/api/xero/sync.py`
+  - function get_last_modified_time: (model)
+  - function get_sync_cursor: (entity_key, model)
+  - function update_sync_cursor: (entity_key, timestamp)
+  - function process_xero_item: (item, sync_function, entity_type)
+  - function sync_xero_data: (xero_entity_type, our_entity_type, xero_api_fetch_function, sync_function, last_modified_time, additional_params, pagination_mode, xero_tenant_id, entity_key)
+  - function sync_all_xero_data: (use_latest_timestamps, days_back, entities, force)
+  - _...4 more_
+- `apps/workflow/api/xero/transforms.py`
+  - function serialize_xero_object: (obj)
+  - function clean_json: (data)
+  - function process_xero_data: (xero_obj)
+  - function get_or_fetch_client: (contact_id, reference)
+  - function sync_entities: (items, model_class, xero_id_attr, transform_func, delete_orphans)
+  - function transform_invoice: (xero_invoice, xero_id)
+  - _...10 more_
+- `apps/workflow/api/xero/xero.py`
+  - function get_xero_items: (if_modified_since) -> Any
+  - function get_projects: (if_modified_since) -> Any
+  - function create_project: (project_data, Any]) -> Any
+  - function update_project: (project_id, project_data, Any]) -> Any
+  - function create_time_entries: (project_id, time_entries_data, Any]]) -> Any
+  - function create_default_task: (project_id) -> Any
+  - _...3 more_
+- `apps/workflow/apps.py` — function check_company_defaults_field_sections: (app_configs, **kwargs), class WorkflowConfig
+- `apps/workflow/authentication.py`
+  - function service_api_key_required: (view_func)
+  - class JWTAuthentication
+  - class ServiceAPIKeyAuthentication
+- `apps/workflow/context_processors.py` — function debug_mode: (request) -> Dict[str, Any]
+- `apps/workflow/enums.py` — class AIProviderTypes
+- `apps/workflow/exception_handlers.py` — function custom_exception_handler: (exc, context) -> Optional[Response]
+- `apps/workflow/exceptions.py` — class XeroValidationError, class AlreadyLoggedException
+- `apps/workflow/extensions.py` — class CookieJWTScheme
+- `apps/workflow/management/commands/backport_data_backup.py` — class Command
+- `apps/workflow/management/commands/create_service_api_key.py` — class Command
+- `apps/workflow/management/commands/e2e_cleanup.py` — class Command
+- `apps/workflow/management/commands/run_scheduler.py` — class Command
+- `apps/workflow/management/commands/seed_xero_from_database.py` — class Command
+- `apps/workflow/management/commands/start_xero_sync.py` — class Command
+- `apps/workflow/management/commands/sync_sequences.py` — class Command
+- `apps/workflow/management/commands/xero.py` — function get_employees_simple_dev: (), class Command
+- `apps/workflow/middleware.py`
+  - class DisallowedHostMiddleware
+  - class AccessLoggingMiddleware
+  - class FrontendRedirectMiddleware
+  - class LoginRequiredMiddleware
+  - class PasswordStrengthMiddleware
+- `apps/workflow/models/ai_provider.py` — class AIProvider
+- `apps/workflow/models/app_error.py` — class AppError, class XeroError
+- `apps/workflow/models/company_defaults.py` — class CompanyDefaults
+- `apps/workflow/models/service_api_key.py` — class ServiceAPIKey
+- `apps/workflow/models/settings_metadata.py`
+  - function get_ui_type_for_field: (field, Any]") -> str
+  - function get_field_metadata: (field, Any]", field_name, read_only_fields) -> dict[str, Any]
+  - class SettingsSection
+- `apps/workflow/models/xero_account.py` — class XeroAccount
+- `apps/workflow/models/xero_journal.py` — class XeroJournal, class XeroJournalLineItem
+- `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
+- `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
+- `apps/workflow/models/xero_sync_cursor.py` — class XeroSyncCursor
+- `apps/workflow/models/xero_token.py` — class XeroToken
+- `apps/workflow/permissions.py` — class F
+- `apps/workflow/scheduler.py` — function get_scheduler: () -> BackgroundScheduler, function stop_scheduler: () -> bool
+- `apps/workflow/scheduler_jobs.py`
+  - function xero_heartbeat_job: () -> None
+  - function xero_regular_sync_job: () -> None
+  - function xero_30_day_sync_job: () -> None
+- `apps/workflow/serializers.py`
+  - class XeroTokenSerializer
+  - class AIProviderSerializer
+  - class CompanyDefaultsSerializer
+  - class XeroAccountSerializer
+  - class XeroPayItemSerializer
+  - class AIProviderCreateUpdateSerializer
+  - _...19 more_
+- `apps/workflow/services/error_persistence.py`
+  - function extract_request_context: (request) -> Dict[str, Any]
+  - function extract_job_context: (job)
+  - function persist_xero_error: (exc)
+  - function persist_app_error: (exception, app, file, function, severity, job_id, user_id, additional_context) -> AppError
+  - function list_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
+  - function persist_and_raise: (exception, **context) -> None
+- `apps/workflow/services/llm_service.py`
+  - function quick_completion: (prompt, system_prompt, provider_type, **kwargs) -> str
+  - function quick_json_completion: (prompt, system_prompt, provider_type, **kwargs) -> dict
+  - class LLMService
+- `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
+- `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
+- `apps/workflow/utils.py`
+  - function extract_messages: (request) -> List[Dict[str, Any]]
+  - function is_valid_uuid: (value) -> bool
+  - function is_valid_invoice_number: (value) -> bool
+  - function get_machine_id: (path) -> Optional[str]
+  - function parse_pagination_params: (request) -> tuple[int, int]
+  - function build_xero_payroll_url: (pay_run_xero_id) -> Optional[str]
+- `apps/workflow/xero_webhooks.py`
+  - function validate_webhook_signature: (request) -> bool
+  - function process_webhook_event: (event, Any]) -> None
+  - function process_webhook_queue: () -> None
+  - class XeroWebhookView
+- `docketworks/settings.py` — function validate_required_settings: () -> None
+- `frontend/src/api/client.ts`
+  - function setupETagManager: (manager) => void
+  - function setupJobReloadManager: (manager) => void
+  - function setupPoETagManager: (manager) => void
+  - function setupPoReloadManager: (manager) => void
+  - function getApi: () => InstanceType<typeof Zodios<typeof endpoints>>
+  - const api
+- `frontend/src/api/generated/api.ts`
+  - function createApiClient: (baseUrl, options?) => void
+  - const schemas
+  - const api
+- `frontend/src/composables/useActiveJob.ts` — function useActiveJob: () => void
+- `frontend/src/composables/useAddEmptyCostLine.ts` — function useAddEmptyCostLine: (options) => void, interface UseAddEmptyCostLineOptions
+- `frontend/src/composables/useAddMaterialCostLine.ts` — function useAddMaterialCostLine: (options) => void, interface UseAddMaterialCostLineOptions
+- `frontend/src/composables/useAppLayout.ts` — function useAppLayout: () => void
+- `frontend/src/composables/useBoardMode.ts` — function useBoardMode: () => void, type BoardMode
+- `frontend/src/composables/useCamera.ts` — function useCamera: (options) => void
+- `frontend/src/composables/useClientLookup.ts`
+  - function useClientLookup: () => void
+  - type Client
+  - type ClientContact
+- `frontend/src/composables/useConcurrencyEvents.ts` — function emitConcurrencyRetry: (jobId) => void, function onConcurrencyRetry: (jobId, handler) => void
+- `frontend/src/composables/useContactManagement.ts` — function useContactManagement: () => void, type ContactFormData
+- `frontend/src/composables/useCostLineAutosave.ts` — function useCostLineAutosave: (opts) => void, type SaveStatus
+- `frontend/src/composables/useCostLineCalculations.ts`
+  - function useCostLineCalculations: (options?) => void
+  - interface LineDerivedValues
+  - interface ValidationIssue
+  - interface ValidationResult
+  - interface ApplyResult
+- `frontend/src/composables/useCostLinesActions.ts` — function useCostLinesActions: (options) => void, interface UseCostLinesActionsOptions
+- `frontend/src/composables/useCostSummary.ts`
+  - function useCostSummary: (options) => void
+  - interface UseCostSummaryOptions
+  - type CostSummary
+- `frontend/src/composables/useCreateCostLineFromEmpty.ts` — function useCreateCostLineFromEmpty: (options) => void, interface UseCreateCostLineFromEmptyOptions
+- `frontend/src/composables/useDashboard.ts` — function useDashboard: () => void
+- `frontend/src/composables/useDeviceDetection.ts` — function useDeviceDetection: () => void
+- `frontend/src/composables/useDragAndDrop.ts`
+  - function useDragAndDrop: (onDragEvent?) => void
+  - interface DragEventPayload
+  - type DragEventHandler
+- `frontend/src/composables/useErrorApi.ts` — function useErrorApi: () => void
+- `frontend/src/composables/useFinancialYear.ts` — function useFinancialYear: () => void
+- `frontend/src/composables/useGridKeyboardNav.ts` — function useGridKeyboardNav: (opts) => void, type EditIntent
+- `frontend/src/composables/useJobAttachments.ts` — function useJobAttachments: (jobId) => void
+- `frontend/src/composables/useJobAutoSync.ts` — function useJobAutoSync: (jobId, reloadFunction) => void
+- `frontend/src/composables/useJobAutosave.ts`
+  - function createJobAutosave: (opts) => JobAutosaveApi
+  - type SaveResult
+  - type RetryPolicy
+  - type NormalizeFn
+  - type IsEqualFn
+  - type CanSaveFn
+  - _...2 more_
+- `frontend/src/composables/useJobCache.ts` — function useJobCache: () => void
+- `frontend/src/composables/useJobCard.ts` — function useJobCard: (job, emit, job) => void
+- `frontend/src/composables/useJobDelta.ts` — function useJobDeltaQueue: (jobId) => void, function buildJobDeltaEnvelope: (input) => Promise<JobDeltaEnvelope>
+- `frontend/src/composables/useJobETags.ts` — function useJobETags: () => void
+- `frontend/src/composables/useJobEvents.ts` — function useJobEvents: (jobId) => void
+- `frontend/src/composables/useJobFiles.ts` — function useJobFiles: (jobId) => void
+- `frontend/src/composables/useJobFinancials.ts` — function useJobFinancials: (jobId) => void
+- `frontend/src/composables/useJobHeaderAutosave.ts` — function useJobHeaderAutosave: (headerRef) => void
+- `frontend/src/composables/useJobNotifications.ts` — function useJobNotifications: () => void
+- `frontend/src/composables/useJobTabs.ts` — function useJobTabs: (defaultTab) => void
+- `frontend/src/composables/useLogin.ts` — function useLogin: () => void
+- `frontend/src/composables/useMonthEnd.ts` — function fetchMonthEnd: () => Promise<, function runMonthEnd: (jobIds) => Promise<
+- `frontend/src/composables/useOptimizedDragAndDrop.ts`
+  - function useOptimizedDragAndDrop: (onDragEvent?) => void
+  - interface OptimizedDragEventPayload
+  - type OptimizedDragEventHandler
+- `frontend/src/composables/useOptimizedKanban.ts` — function useOptimizedKanban: (onJobsLoaded?) => void
+- `frontend/src/composables/usePickupAddressManagement.ts`
+  - function usePickupAddressManagement: () => void
+  - type AddressFormData
+  - type AddressCandidate
+- `frontend/src/composables/usePoConcurrencyEvents.ts` — function emitPoConcurrencyRetry: (poId) => void, function onPoConcurrencyRetry: (poId, handler) => void
+- `frontend/src/composables/usePoETags.ts` — function usePoETags: () => void
+- `frontend/src/composables/usePurchaseOrderGrid.ts` — function usePurchaseOrderGrid: (lines) => void
+- `frontend/src/composables/useQuoteImport.ts` — function useQuoteImport: () => void
+- `frontend/src/composables/useSettingsSchema.ts` — function useSettingsSchema: () => void
+- `frontend/src/composables/useSmartCostLineDelete.ts` — function useSmartCostLineDelete: (options) => void, interface UseSmartCostLineDeleteOptions
+- `frontend/src/composables/useStaffApi.ts` — function useStaffApi: () => void
+- `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
+- `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
+- `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
+- `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
+- `frontend/src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
+- `frontend/src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
+- `frontend/src/composables/useWorkshopTimesheetDay.ts`
+  - function formatDateKey: (date) => string
+  - function parseDateKey: (key) => Date
+  - function formatFullDate: (date) => string
+  - function useWorkshopTimesheetDay: (selectedDate) => void
+  - type WorkingDayStartKey
+- `frontend/src/composables/useWorkshopTimesheetForm.ts` — function useWorkshopTimesheetForm: (options, silent?) => void
+- `frontend/src/composables/useWorkshopTimesheetJobs.ts` — function useWorkshopTimesheetJobs: () => void
+- `frontend/src/composables/useWorkshopTimesheetTimeUtils.ts`
+  - function ensureTimeWithSeconds: (time) => string
+  - function formatTimeInputValue: (time?) => string
+  - function minutesFromTime: (time) => number
+  - function minutesToTime: (minutes) => string
+  - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
+  - function combineDateTime: (dateKey, time) => Date
+  - _...2 more_
+- `frontend/src/composables/useXeroAuth.ts` — function useXeroAuth: () => void
+- `frontend/src/constants/job-status.ts`
+  - function getStatusChoice: (key) => StatusChoice | undefined
+  - function getStatusLabel: (key) => string
+  - type JobStatusKey
+  - type StatusChoice
+  - const JOB_STATUS_CHOICES
+- `frontend/src/lib/utils.ts` — function cn: (...inputs) => void
+- `frontend/src/plugins/axios.ts` — function getApiBaseUrl
+- `frontend/src/schemas/mcp-tool-metadata.schema.ts`
+  - function parseMetadata: (metadata) => ValidationResult<McpMetadata>
+  - function hasToolCalls: (metadata) => boolean
+  - function getToolCallCount: (metadata) => number
+  - interface ValidationResult
+  - type ToolCall
+  - type ToolDefinition
+  - _...4 more_
+- `frontend/src/services/admin-company-defaults-service.ts`
+  - function getCompanyDefaults: () => Promise<CompanyDefaults>
+  - function updateCompanyDefaults: (payload) => Promise<CompanyDefaults>
+  - function uploadLogo: (fieldName, file) => Promise<CompanyDefaults>
+  - function deleteLogo: (fieldName) => Promise<CompanyDefaults>
+  - type CompanyDefaults
+  - type PatchedCompanyDefaults
+  - _...1 more_
+- `frontend/src/services/aiProviderService.ts`
+  - class AIProviderService
+  - type AIProvider
+  - type AIProviderCreateUpdate
+  - const aiProviderService
+- `frontend/src/services/clientService.ts`
+  - class ClientService
+  - type Client
+  - type CreateClientData
+  - const clientService
+- `frontend/src/services/costing.service.ts` — function fetchCostSet
+- `frontend/src/services/costline.service.ts`
+  - function getTimesheetEntries
+  - function createCostLine
+  - function updateCostLine
+  - function approveCostLine
+  - function deleteCostLine
+  - type TimesheetEntriesResponse
+  - _...1 more_
+- `frontend/src/services/daily-timesheet.service.ts`
+  - function getDailyTimesheetSummary
+  - function getStaffDailyDetail
+  - function formatHours
+  - function formatCurrency
+  - function getStatusVariant
+  - type DailyTimesheetSummary
+  - _...1 more_
+- `frontend/src/services/date.service.ts`
+  - function today
+  - function getCurrentWeekStart
+  - function getWeekRange
+  - function getCurrentWeekRange
+  - function navigateWeek
+  - function navigateDay
+  - _...12 more_
+- `frontend/src/services/delta.service.ts` — function submitJobDelta: (jobId, envelope) => Promise<
+- `frontend/src/services/django-jobs-service.ts`
+  - function getDjangoJobs: () => Promise<DjangoJob[]>
+  - function createDjangoJob: (data) => Promise<DjangoJob>
+  - function updateDjangoJob: (id, data) => Promise<DjangoJob>
+  - function deleteDjangoJob: (id) => Promise<void>
+  - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
+  - type DjangoJob
+  - _...1 more_
+- `frontend/src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
+- `frontend/src/services/job-aging-report.service.ts`
+  - class JobAgingReportService
+  - interface JobAgingData
+  - interface JobAgingReportResponse
+  - interface JobAgingReportParams
+  - const jobAgingReportService
+- `frontend/src/services/kanban-categorization.service.ts` — class KanbanCategorizationService
+- `frontend/src/services/payroll-reconciliation-report.service.ts`
+  - function fetchAlignedDateRange: (startDate, endDate) => void
+  - function fetchPayrollReconciliation: (startDate, endDate) => Promise<PayrollReconciliationResponse>
+  - function exportPayrollReconciliationCsv: (data) => void
+  - type PayrollReconciliationResponse
+- `frontend/src/services/payroll.service.ts`
+  - function createPayRun: (weekStartDate) => Promise<CreatePayRunResponse>
+  - function postStaffWeek: (staffIds, weekStartDate, callbacks?) => Promise<PostStaffWeekDoneEvent>
+  - function fetchAllPayRuns: () => Promise<PayRunListResponse>
+  - function refreshPayRuns: () => Promise<PayRunSyncResult>
+  - interface PostStaffWeekStartEvent
+  - interface PostStaffWeekProgressEvent
+  - _...8 more_
+- `frontend/src/services/quote-chat.service.ts` — class QuoteChatService, const quoteChatService
+- `frontend/src/services/staff-performance-report.service.ts` — class StaffPerformanceReportService, const staffPerformanceReportService
+- `frontend/src/services/timesheet.service.ts` — class TimesheetService
+- `frontend/src/services/weekly-timesheet.service.ts`
+  - function fetchWeeklyOverview: (startDate?) => Promise<WeeklyTimesheetData>
+  - function getCurrentWeekRange: () => void
+  - function getWeekRange: (date) => void
+  - function formatDateRange: (startDate, endDate) => string
+  - function formatHours: (hours) => string
+  - function formatPercentage: (percentage) => string
+- `frontend/src/services/wip-report.service.ts`
+  - class WIPReportService
+  - interface WIPJobData
+  - interface WIPSummaryByStatus
+  - interface WIPSummary
+  - interface WIPReportResponse
+  - interface WIPReportParams
+  - _...1 more_
+- `frontend/src/types/concurrency.ts`
+  - function isConcurrencyError: (error) => error is ConcurrencyError
+  - function extractJobId: (url) => string | null
+  - function isJobEndpoint: (url) => boolean
+  - function isJobMutationEndpoint: (url) => boolean
+  - function extractPoId: (url) => string | null
+  - function isPoEndpoint: (url) => boolean
+  - _...4 more_
+- `frontend/src/utils/contractValidation.ts` — function validateFields: (data, requiredFields) => void
+- `frontend/src/utils/costLineMeta.ts`
+  - function getJobEstimatedHours: (job) => number
+  - function getJobActualHours: (job) => number
+  - function getCostSetHoursSafe: (costSet?) => number
+- `frontend/src/utils/csrf.ts` — function getCookie: (name) => string | null, function getCsrfToken: () => string | null
+- `frontend/src/utils/dateUtils.ts`
+  - function toLocalDateString: (date) => void
+  - function toDateValue: (date) => DateValue | undefined
+  - function fromDateValue: (dateValue) => Date | null
+- `frontend/src/utils/debug.ts` — function debugLog: (...args) => void, const isDebugEnabled
+- `frontend/src/utils/delivery-receipt.ts`
+  - function transformDeliveryReceiptForAPI: (purchaseOrderId, uiAllocations, DeliveryAllocation[]>) => DeliveryReceiptRequest
+  - function initializeEmptyAllocations: (lineIds) => Record<string, DeliveryAllocation[]>
+  - type DeliveryAllocation
+- `frontend/src/utils/deltaChecksum.ts`
+  - function canonicaliseValue: (value) => string
+  - function serialiseForChecksum: (jobId, before, unknown>, fields?) => string
+  - function sha256Hex: (input) => Promise<string>
+  - function computeJobDeltaChecksum: (jobId, before, unknown>, fields?) => Promise<string>
+  - const deltaChecksumUtils
+- `frontend/src/utils/deviceType.ts`
+  - function setDevicePreference: (preference) => void
+  - const isComputer
+  - const isTouchscreen
+  - const detectedDeviceType
+- `frontend/src/utils/email.ts` — function openGmailCompose: ({...}, subject, body }) => void, interface EmailComposeOptions
+- `frontend/src/utils/embeddedComponentRegistry.ts`
+  - function getEmbeddedComponents: (sectionKey) => Component[]
+  - function hasEmbeddedComponents: (sectionKey) => boolean
+  - const SECTION_EMBEDDED_COMPONENTS: Record<string, Component[]>
+- `frontend/src/utils/error-handler.ts`
+  - function extractErrorMessage: (error) => string
+  - function extractQuoteErrorMessage: (error) => string
+  - function logError: (context, error, additionalData?, unknown>) => void
+- `frontend/src/utils/errorHandler.ts`
+  - function extractErrorMessage: (error, fallbackMessage) => string
+  - function createErrorToast: () => void
+  - function isAuthenticationError: (error) => boolean
+- `frontend/src/utils/iconRegistry.ts`
+  - function resolveIcon: (iconName) => Component
+  - function getSectionIcon: (sectionKey) => Component
+  - function getFieldIcon: (fieldKey) => Component
+  - function hasIcon: (iconName) => boolean
+- `frontend/src/utils/metalType.ts`
+  - function formatMetalType: (metalType) => string
+  - function getMetalTypeValue: (label) => string
+  - const metalTypeOptions: Array<{ value: MetalType; label: string }>
+- `frontend/src/utils/number.ts` — function roundToDecimalPlaces: (value, decimalPlaces) => number, function normalizeOptionalDecimal: (value, options?) => number | null | undefined
+- `frontend/src/utils/safetyUtils.ts`
+  - function createSafeDate: (dateValue) => Date
+  - function getSafeNumber: (value, defaultValue) => number
+  - function getSafeString: (value, defaultValue) => string
+- `frontend/src/utils/sanitize.ts` — function trimStringsDeep: (input) => T, function normalizeOptionalString: (value) => string | undefined
+- `frontend/src/utils/statusUtils.ts` — function getStatusVariant: (status) => string, function getJobColor: (jobId) => string
+- `frontend/src/utils/string-formatting.ts`
+  - function formatEventType: (snakeCaseString) => string
+  - function formatFileSize: (bytes) => string
+  - function formatDate: (dateString) => string
+  - function truncateText: (text, maxLength) => string
+  - function capitalize: (str) => string
+  - function formatCurrency: (value, {...}) => string
+  - _...5 more_
+- `manage.py` — function main: () -> None
+- `scripts/analyze_client_contacts.py`
+  - function analyze_empty_names: (verbose) -> None
+  - function analyze_duplicates: (verbose) -> None
+  - function main: () -> None
+- `scripts/cleanup_backups.py`
+  - function parse_arguments: ()
+  - function list_backup_dirs: (root)
+  - function validate_entries: (root, entries)
+  - function parse_timestamps: (entries)
+  - function compute_keep_set: (pairs, now)
+  - function delete_and_purge: (root, pairs, keep, dry_run)
+  - _...2 more_
+- `scripts/create_master_template.py`
+  - function get_drive_service: ()
+  - function find_or_create_templates_folder: (service)
+  - function search_existing_template: (service, template_name)
+  - function create_template: (service, folder_id, template_name, source_file_path)
+  - function save_template_info: (template_data, templates_folder, existing_templates)
+  - function main: ()
+- `scripts/detect_fstrings_without_placeholder.py` — function scan_dirs: (dirs), function find_empty_fstrings: (path)
+- `scripts/dump_settings.py` — function level: (name), function main: ()
+- `scripts/explore_google_drive.py`
+  - function get_drive_service: ()
+  - function get_root_folder: (service)
+  - function list_folders: (service, parent_id, max_results)
+  - function list_files: (service, parent_id, max_results)
+  - function search_by_name: (service, name, file_type)
+  - function get_drive_info: (service)
+  - _...1 more_
+- `scripts/find_duplicates.py`
+  - function scan_file: (filepath)
+  - function main: ()
+  - class DuplicateFinder
+- `scripts/find_late_imports.py`
+  - function has_late_import_excuse: (content) -> bool
+  - function find_late_imports: (root_dirs, easy_only, skip_tests, skip_migrations, skip_excused) -> list[tuple[str, int, str]]
+  - function main: ()
+  - class ImportVisitor
+- `scripts/find_wrapper_candidates.py`
+  - function count_function_lines: (node) -> int
+  - function extract_functions_and_calls: (filepath) -> tuple[dict, set]
+  - function main: ()
+- `scripts/generate_url_docs.py`
+  - function setup_django: ()
+  - function main: ()
+  - class URLDocumentationGenerator
+- `scripts/geocode_addresses.py` — function build_freetext_address: (address) -> str, function main: () -> None
+- `scripts/move_time_between_jobs.py` — function main: ()
+- `scripts/payroll_reconciliation.py`
+  - function get_monday: (d) -> date
+  - function build_staff_xero_map: () -> dict[str, "Staff"]
+  - function get_xero_week_data: (pay_run, staff_map, "Staff"]) -> dict[str, dict]
+  - function get_jm_week_data: (week_start, week_end) -> dict[str, dict]
+  - function reconcile_week: (pay_run, staff_map, "Staff"]) -> dict
+  - function get_all_weeks: (num_weeks) -> list[dict]
+- `scripts/persist_error_audit.py`
+  - function gather_usage: (project_root) -> list[PersistUsage]
+  - function summarize_by_app: (usages) -> dict[str, dict[str, int]]
+  - function format_report: (usages) -> str
+  - function main: () -> None
+  - class PersistUsage
+- `scripts/populate_product_mappings.py`
+  - function get_processed_hashes: () -> Set[str]
+  - function get_unprocessed_products: (processed_hashes) -> list
+  - function main: () -> None
+- `scripts/production_data_fixer.py` — function fix_empty_string_notes: (dry_run, verbose), function main: ()
+- `scripts/push_clients_to_xero.py`
+  - function get_database_name: ()
+  - function confirm_operation: (force, dry_run)
+  - function find_clients_to_push: ()
+  - function push_clients_to_xero: (clients, dry_run)
+  - function main: ()
+- `scripts/recreate_jobfiles.py` — function create_dummy_file: (filepath, job_name, job_number, filename), function main: ()
+- `scripts/restore_checks/test_kanban_api.py` — function test_kanban_api: () -> bool
+- `scripts/restore_checks/test_serializers.py` — function main: (), class SerializerTester
+- `scripts/setup_demo_payroll.py` — function main: ()
+- `scripts/test_chat_conversation.py` — function test_simple_scenario: (), function test_conversation: (file_path)
+- `scripts/test_full_quote_conversation.py`
+  - function print_separator: (char, length)
+  - function print_test_step: (step_num, description, mode)
+  - function print_message: (role, content, truncate)
+  - function send_message: (service, job, content, step_num, description, expected_mode)
+  - function main: ()
+- `scripts/test_kpi_service.py` — function test_kpi_calendar: (year, month)
+- `scripts/test_login_logging.py`
+  - function test_direct_api: ()
+  - function test_selenium_frontend: ()
+  - function test_login_logging: ()
+- `scripts/test_quote_import.py`
+  - function get_or_create_test_job: () -> Job
+  - function test_preview: (job, file_path) -> None
+  - function test_import: (job, file_path, skip_validation) -> None
+  - function main: () -> None
+- `scripts/test_xero_payroll.py` — function main: ()
+- `scripts/update_init.py`
+  - function get_import_type: (module_path, module_name) -> str
+  - function generate_django_safe_imports: (import_data)
+  - function update_empty_init_py: (target_dir, verbose) -> int
+  - function update_init_py: (target_dir, verbose) -> int
+  - function find_all_init_directories: () -> list[str]
+  - function update_all_init_files: (verbose) -> int
+  - _...1 more_
+- `scripts/upgrade_script.py`
+  - function normalize_version: (spec) -> str
+  - function fetch_release_dates: (name, requested_version)
+  - function main: (pyproject_path)
+- `scripts/validate_restore_progress.py`
+  - function check_basic_restore: ()
+  - function check_xero_oauth: ()
+  - function check_xero_config: ()
+  - function validate_restore_state: (allow_testing)
+
+---
+
+# Config
+
+## Environment Variables
+
+- `ACCOUNTING_BACKEND` **required** — docketworks/settings.py
+- `ALLOWED_HOSTS` (has default) — .env.example
+- `APP_DOMAIN` (has default) — .env.example
+- `APP_URL` **required** — frontend/scripts/capture_metrics.cjs
+- `BASE_URL` **required** — frontend/src/router/index.ts
+- `CI` **required** — frontend/playwright.config.ts
+- `CORS_ALLOWED_ORIGINS` (has default) — .env.example
+- `DB_ENGINE` (has default) — .env
+- `DB_HOST` (has default) — .env.example
+- `DB_NAME` (has default) — .env.example
+- `DB_PASSWORD` (has default) — .env.example
+- `DB_PORT` (has default) — .env.example
+- `DB_USER` (has default) — .env.example
+- `DEBUG` (has default) — .env.example
+- `DEBUG_PAYLOAD` (has default) — .env.example
+- `DEFAULT_FROM_EMAIL` (has default) — .env.example
+- `DJANGO_ADMINS` (has default) — .env.example
+- `DJANGO_ENV` (has default) — .env.example
+- `DJANGO_PASSWORD` **required** — frontend/scripts/capture_metrics.cjs
+- `DJANGO_RUN_SCHEDULER` **required** — docketworks/settings.py
+- `DJANGO_SITE_DOMAIN` (has default) — .env.example
+- `DJANGO_USER` **required** — frontend/scripts/capture_metrics.cjs
+- `DROPBOX_WORKFLOW_FOLDER` (has default) — .env.example
+- `DRY_RUN` **required** — scripts/copy_material_lines.py
+- `E2E_TEST_PASSWORD` (has default) — frontend/.env.example
+- `E2E_TEST_USERNAME` (has default) — frontend/.env.example
+- `EMAIL_BACKEND` (has default) — .env
+- `EMAIL_BCC` (has default) — .env.example
+- `EMAIL_HOST` (has default) — .env.example
+- `EMAIL_HOST_PASSWORD` (has default) — .env.example
+- `EMAIL_HOST_USER` (has default) — .env.example
+- `EMAIL_PORT` (has default) — .env.example
+- `EMAIL_USE_TLS` (has default) — .env.example
+- `ENABLE_JWT_AUTH` (has default) — .env.example
+- `FRONT_END_URL` (has default) — .env.example
+- `GCP_CREDENTIALS` (has default) — .env.example
+- `GOOGLE_MAPS_API_KEY` (has default) — .env.example
+- `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
+- `LOG_DIR` **required** — docketworks/settings.py
+- `MEDIA_ROOT` **required** — docketworks/settings.py
+- `MODE` **required** — frontend/src/utils/debug.ts
+- `NGROK_AUTH_TOKEN` (has default) — .env.example
+- `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
+- `REDIS_HOST` **required** — docketworks/settings.py
+- `REDIS_PORT` **required** — docketworks/settings.py
+- `SECRET_KEY` (has default) — .env.example
+- `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py
+- `STEEL_TUBE_ENABLED` (has default) — .env
+- `STEEL_TUBE_PASSWORD` (has default) — .env.example
+- `STEEL_TUBE_USERNAME` (has default) — .env.example
+- `TARGET_JOB_ID` **required** — scripts/copy_material_lines.py
+- `TEST_DB_PASSWORD` (has default) — .env.example
+- `TEST_DB_USER` (has default) — .env.example
+- `UAT_AWS_KEY` (has default) — .env
+- `UAT_AWS_REGION` (has default) — .env
+- `UAT_AWS_SECRET` (has default) — .env
+- `UAT_INSTANCE_ID` (has default) — .env
+- `VITE_APP_NAME` (has default) — frontend/.env
+- `VITE_UAT_URL` (has default) — frontend/.env.example
+- `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
+- `WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
+- `XERO_CLIENT_ID` (has default) — .env.example
+- `XERO_CLIENT_SECRET` (has default) — .env.example
+- `XERO_DEFAULT_USER_ID` (has default) — .env.example
+- `XERO_PASSWORD` (has default) — frontend/.env.example
+- `XERO_REDIRECT_URI` (has default) — .env.example
+- `XERO_SCOPES` **required** — docketworks/settings.py
+- `XERO_SYNC_PROJECTS` (has default) — .env.example
+- `XERO_USERNAME` (has default) — frontend/.env.example
+- `XERO_WEBHOOK_KEY` (has default) — .env.example
+
+## Config Files
+
+- `.env.example`
+- `frontend/.env.example`
+- `frontend/vite.config.ts`
+- `pyproject.toml`
+
+---
+
+# Middleware
+
+## auth
+- auth — `apps/workflow/api/xero/auth.py`
+- authentication — `apps/workflow/authentication.py`
+- middleware — `apps/workflow/middleware.py`
+- auth — `frontend/src/stores/auth.ts`
+- auth — `frontend/tests/fixtures/auth.ts`
+
+## custom
+- url_autogenerate_plan — `docs/plans/completed/url_autogenerate_plan.md`
+- e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
+
+## logging
+- generate_url_docs — `scripts/generate_url_docs.py`
+
+---
+
+# Dependency Graph
+
+## Most Imported Files (change these carefully)
+
+- `frontend/src/api/generated/api.ts` — imported by **27** files
+- `frontend/tests/fixtures/auth.ts` — imported by **27** files
+- `frontend/tests/fixtures/helpers.ts` — imported by **19** files
+- `frontend/src/utils/debug.ts` — imported by **14** files
+- `/apps.py` — imported by **9** files
+- `frontend/src/api/client.ts` — imported by **7** files
+- `/enums.py` — imported by **5** files
+- `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
+- `frontend/src/stores/jobs.ts` — imported by **5** files
+- `/utils.py` — imported by **3** files
+- `/models.py` — imported by **3** files
+- `/xero_helpers.py` — imported by **3** files
+- `/xero_base_manager.py` — imported by **3** files
+- `frontend/src/services/costline.service.ts` — imported by **3** files
+- `frontend/src/utils/dateUtils.ts` — imported by **3** files
+- `frontend/src/stores/auth.ts` — imported by **3** files
+- `frontend/src/services/job.service.ts` — imported by **3** files
+- `frontend/src/constants/advanced-filters.ts` — imported by **3** files
+- `/costing.py` — imported by **2** files
+- `/job.py` — imported by **2** files
+
+## Import Map (who imports what)
+
+- `frontend/src/api/generated/api.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAddEmptyCostLine.ts`, `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCostLineAutosave.ts` +22 more
+- `frontend/tests/fixtures/auth.ts` ← `frontend/tests/company-defaults.spec.ts`, `frontend/tests/example.spec.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/create-job.spec.ts` +22 more
+- `frontend/tests/fixtures/helpers.ts` ← `frontend/tests/fixtures/auth.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/job-attachments.spec.ts`, `frontend/tests/job/job-header.spec.ts` +14 more
+- `frontend/src/utils/debug.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobAutosave.ts`, `frontend/src/composables/useOptimizedDragAndDrop.ts` +9 more
+- `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/process/__init__.py` +4 more
+- `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
+- `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`
+- `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/global-teardown.ts`, `frontend/tests/scripts/xero-login.ts`
+- `frontend/src/stores/jobs.ts` ← `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobHeaderAutosave.ts`, `frontend/src/composables/useOptimizedKanban.ts`, `frontend/src/composables/useTimesheetEntryCalculations.ts`, `frontend/src/main.ts`
+- `/utils.py` ← `apps/client/__init__.py`, `apps/quoting/mcp.py`, `apps/workflow/api/reports/__init__.py`
+
+---
+
+# Test Coverage
+
+> **35%** of routes and models are covered by tests
+> 99 test files found
+
+## Covered Routes
+
+- ALL:/
+- ALL:/jobs/
+- ALL:/api/
+
+## Covered Models
+
+- Invoice
+- InvoiceLineItem
+- BillLineItem
+- CreditNoteLineItem
+- Quote
+- Client
+- ClientContact
+- SupplierPickupAddress
+- CostSet
+- CostLine
+- Job
+- JobDeltaRejection
+- JobEvent
+- JobFile
+- JobQuoteChat
+- QuoteSpreadsheet
+- Form
+- FormEntry
+- Procedure
+- PurchaseOrder
+- PurchaseOrderLine
+- PurchaseOrderSupplierQuote
+- Stock
+- PurchaseOrderEvent
+- SupplierProduct
+- SupplierPriceList
+- ScrapeJob
+- ProductParsingMapping
+- AIProvider
+- AppError
+- XeroError
+- ServiceAPIKey
+- XeroAccount
+- XeroJournal
+- XeroJournalLineItem
+- XeroPayItem
+- XeroPayRun
+- XeroPaySlip
+- XeroSyncCursor
+- XeroToken
+
+---
+
+_Generated by [codesight](https://github.com/Houseofmvps/codesight) — see your codebase clearly_

@@ -29,7 +29,7 @@
         <h1
           class="text-4xl font-bold bg-gradient-to-r from-blue-600 to-indigo-600 bg-clip-text text-transparent animate-fade-in-up animation-delay-300"
         >
-          DocketWorks
+          {{ appName }}
         </h1>
         <p class="mt-3 text-gray-600 animate-fade-in-up animation-delay-500">
           Welcome back! Sign in to your account
@@ -151,6 +151,9 @@ import { Eye, EyeOff } from 'lucide-vue-next'
 import { useLogin } from '@/composables/useLogin'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../stores/auth'
+import { APP_NAME } from '@/config/app'
+
+const appName = APP_NAME
 
 const { credentials, hasError, isFormValid, isLoading, error, handleLogin } = useLogin()
 

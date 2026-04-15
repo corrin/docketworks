@@ -98,6 +98,11 @@ class CompanyDefaults(SingletonModel):
     )
 
     # Xero integration
+    accounting_provider = models.CharField(
+        max_length=20,
+        default="xero",
+        help_text="Active accounting integration: 'xero' or 'myob'",
+    )
     xero_tenant_id = models.CharField(
         max_length=100,
         null=True,

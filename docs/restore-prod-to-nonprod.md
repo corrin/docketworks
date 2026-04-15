@@ -17,8 +17,8 @@ This process runs unattended on server instances with no user interaction. Any w
 **NEVER run steps out of order. The following steps MUST be completed before ANY testing:**
 1. Steps 1-14: Basic restore and setup
 2. Step 15: **XERO OAUTH CONNECTION** (CANNOT BE SKIPPED)
-3. Steps 16-21: Xero configuration
-4. Steps 22-24: Testing ONLY AFTER Xero is connected
+3. Steps 16-20: Xero configuration
+4. Steps 21-23: Testing ONLY AFTER Xero is connected
 
 ## Prerequisites
 
@@ -311,30 +311,7 @@ Xero setup complete.
 
 Brand new install or reset Xero Dev? The payroll calendar won't be found here. You must create the missing calendar in Xero (Payroll > Payroll Settings > Payroll Calendars).
 
-#### Step 17: Sync Chart of Accounts from Xero
-
-```bash
-python manage.py start_xero_sync --entity accounts --force
-```
-
-**What this does:**
-Fetches the chart of accounts from Xero and populates the XeroAccount table with account codes, names, and types. This is required for stock sync to work correctly (needs account codes 200 for Sales and 300 for Purchases).
-
-**Check:**
-
-```bash
-python scripts/restore_checks/check_xero_accounts.py
-```
-
-**Expected output:**
-
-```
-Total accounts synced: ~62
-Sales account (200): Sales
-Purchases account (300): Purchases
-```
-
-#### Step 18: Sync Pay Items from Xero
+#### Step 17: Sync Pay Items from Xero
 
 ```bash
 python manage.py xero --configure-payroll
@@ -342,7 +319,7 @@ python manage.py xero --configure-payroll
 
 **Expected output:** `✓ XeroPayItem sync completed!`
 
-#### Step 19: Seed Database to Xero
+#### Step 18: Seed Database to Xero
 
 **WARNING:** This step takes 10+ minutes. Run in background.
 
@@ -353,12 +330,15 @@ echo "Background process started, PID: $!"
 
 **What this does:**
 1. Clears production Xero IDs (clients, jobs, stock, purchase orders, staff)
-2. Remaps XeroPayItem FK references (Job.default_xero_pay_item, CostLine.xero_pay_item) from prod UUIDs to dev UUIDs by matching pay item names
-3. Links/creates contacts in Xero for all clients
-4. Creates projects in Xero for all jobs
-5. Syncs stock items to Xero inventory (using account codes from Step 17)
-6. Links/creates payroll employees for all active staff (uses Staff UUID in job_title for reliable re-linking)
-7. Sets `enable_xero_sync = True` in CompanyDefaults (Xero sync is blocked until this point)
+2. Updates XeroAccount xero_ids from prod to dev Xero tenant (fetches from dev Xero, upserts by account_name)
+3. Remaps XeroPayItem FK references (Job.default_xero_pay_item, CostLine.xero_pay_item) from prod UUIDs to dev UUIDs by matching pay item names
+4. Links/creates contacts in Xero for all clients
+5. Creates projects in Xero for all jobs
+6. Deletes orphaned invoices, re-creates job-linked invoices in dev Xero
+7. Deletes orphaned quotes, re-creates job-linked quotes in dev Xero
+8. Syncs stock items to Xero inventory
+9. Links/creates payroll employees for all active staff (uses Staff UUID in job_title for reliable re-linking)
+10. Sets `enable_xero_sync = True` in CompanyDefaults (Xero sync is blocked until this point)
 
 **Monitor progress:**
 
@@ -382,7 +362,7 @@ Stock items synced to Xero: ~440
 Staff linked to Xero Payroll: ~15
 ```
 
-#### Step 20: Sync Xero
+#### Step 19: Sync Xero
 
 ```bash
 python manage.py start_xero_sync
@@ -390,7 +370,7 @@ python manage.py start_xero_sync
 
 **Expected output:** Error and warning free sync between local and Xero data.
 
-#### Step 21a (Dev): Start Background Scheduler
+#### Step 20a (Dev): Start Background Scheduler
 
 The scheduler is a separate process that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. In a separate terminal (it blocks forever):
 
@@ -398,7 +378,7 @@ The scheduler is a separate process that keeps Xero tokens refreshed, runs hourl
 python manage.py run_scheduler
 ```
 
-#### Step 21b (Server): Verify Background Scheduler
+#### Step 20b (Server): Verify Background Scheduler
 
 On server instances the scheduler is already running as a systemd service (`scheduler-<instance>`), installed by `instance.sh create`. Verify:
 
@@ -408,7 +388,7 @@ sudo systemctl status scheduler-<instance>
 
 Must show `active (running)`. The "registered jobs" lines in Django startup logs are just declarations -- they do not mean jobs are executing.
 
-#### Step 22: Test Serializers
+#### Step 21: Test Serializers
 
 ```bash
 python scripts/restore_checks/test_serializers.py --verbose
@@ -416,7 +396,7 @@ python scripts/restore_checks/test_serializers.py --verbose
 
 **Expected:** `ALL SERIALIZERS PASSED!` or specific failure details if issues found.
 
-#### Step 23: Test Kanban HTTP API
+#### Step 22: Test Kanban HTTP API
 
 ```bash
 python scripts/restore_checks/test_kanban_api.py
@@ -428,7 +408,7 @@ python scripts/restore_checks/test_kanban_api.py
 API working: 174 active jobs, 23 archived
 ```
 
-#### Step 24: Run Playwright Tests
+#### Step 23: Run Playwright Tests
 
 ```bash
 cd frontend && npx playwright test

@@ -8,6 +8,7 @@ from xero_python.project import ProjectApi
 
 from apps.accounts.models import Staff
 from apps.timesheet.services import PayrollEmployeeSyncService
+from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
 from apps.workflow.api.xero.payroll import (
     get_earnings_rates,
     get_employees,
@@ -15,7 +16,6 @@ from apps.workflow.api.xero.payroll import (
     get_pay_runs,
     get_payroll_calendars,
 )
-from apps.workflow.api.xero.xero import api_client, get_tenant_id, get_valid_token
 from apps.workflow.models import XeroToken
 from apps.workflow.models.company_defaults import CompanyDefaults
 

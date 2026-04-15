@@ -14,7 +14,7 @@ from xero_python.accounting import AccountingApi
 from xero_python.identity import IdentityApi
 from xero_python.payrollnz import PayrollNzApi
 
-from apps.workflow.api.xero.xero import api_client
+from apps.workflow.api.xero.auth import api_client
 
 
 def main():

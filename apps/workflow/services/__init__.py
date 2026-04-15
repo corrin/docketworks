@@ -14,7 +14,7 @@ try:
             persist_xero_error,
         )
         from .llm_service import LLMService, quick_completion, quick_json_completion
-        from .validation import validate_required_fields
+        from .validation import to_decimal, validate_required_fields
         from .xero_sync_service import XeroSyncService
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -31,5 +31,6 @@ __all__ = [
     "persist_xero_error",
     "quick_completion",
     "quick_json_completion",
+    "to_decimal",
     "validate_required_fields",
 ]

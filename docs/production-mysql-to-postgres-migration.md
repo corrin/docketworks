@@ -132,7 +132,7 @@ PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U "$DB_USER" "$DB_NAME" \
 ### Step 8: Load data into PostgreSQL
 
 ```bash
-python manage.py loaddata /tmp/dw_mysql_to_pg.json
+python manage.py loaddata --no-transactions /tmp/dw_mysql_to_pg.json
 ```
 
 **Check:** Shows "Installed NNNNN object(s) from 1 fixture(s)". No errors.

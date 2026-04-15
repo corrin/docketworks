@@ -1,0 +1,286 @@
+# Libraries
+
+- `src/api/client.ts`
+  - function setupETagManager: (manager) => void
+  - function setupJobReloadManager: (manager) => void
+  - function setupPoETagManager: (manager) => void
+  - function setupPoReloadManager: (manager) => void
+  - function getApi: () => InstanceType<typeof Zodios<typeof endpoints>>
+  - const api
+- `src/api/generated/api.ts`
+  - function createApiClient: (baseUrl, options?) => void
+  - const schemas
+  - const api
+- `src/composables/useActiveJob.ts` — function useActiveJob: () => void
+- `src/composables/useAddEmptyCostLine.ts` — function useAddEmptyCostLine: (options) => void, interface UseAddEmptyCostLineOptions
+- `src/composables/useAddMaterialCostLine.ts` — function useAddMaterialCostLine: (options) => void, interface UseAddMaterialCostLineOptions
+- `src/composables/useAppLayout.ts` — function useAppLayout: () => void
+- `src/composables/useBoardMode.ts` — function useBoardMode: () => void, type BoardMode
+- `src/composables/useCamera.ts` — function useCamera: (options) => void
+- `src/composables/useClientLookup.ts`
+  - function useClientLookup: () => void
+  - type Client
+  - type ClientContact
+- `src/composables/useConcurrencyEvents.ts` — function emitConcurrencyRetry: (jobId) => void, function onConcurrencyRetry: (jobId, handler) => void
+- `src/composables/useContactManagement.ts` — function useContactManagement: () => void, type ContactFormData
+- `src/composables/useCostLineAutosave.ts` — function useCostLineAutosave: (opts) => void, type SaveStatus
+- `src/composables/useCostLineCalculations.ts`
+  - function useCostLineCalculations: (options?) => void
+  - interface LineDerivedValues
+  - interface ValidationIssue
+  - interface ValidationResult
+  - interface ApplyResult
+- `src/composables/useCostLinesActions.ts` — function useCostLinesActions: (options) => void, interface UseCostLinesActionsOptions
+- `src/composables/useCostSummary.ts`
+  - function useCostSummary: (options) => void
+  - interface UseCostSummaryOptions
+  - type CostSummary
+- `src/composables/useCreateCostLineFromEmpty.ts` — function useCreateCostLineFromEmpty: (options) => void, interface UseCreateCostLineFromEmptyOptions
+- `src/composables/useDashboard.ts` — function useDashboard: () => void
+- `src/composables/useDeviceDetection.ts` — function useDeviceDetection: () => void
+- `src/composables/useDragAndDrop.ts`
+  - function useDragAndDrop: (onDragEvent?) => void
+  - interface DragEventPayload
+  - type DragEventHandler
+- `src/composables/useErrorApi.ts` — function useErrorApi: () => void
+- `src/composables/useFinancialYear.ts` — function useFinancialYear: () => void
+- `src/composables/useGridKeyboardNav.ts` — function useGridKeyboardNav: (opts) => void, type EditIntent
+- `src/composables/useJobAttachments.ts` — function useJobAttachments: (jobId) => void
+- `src/composables/useJobAutoSync.ts` — function useJobAutoSync: (jobId, reloadFunction) => void
+- `src/composables/useJobAutosave.ts`
+  - function createJobAutosave: (opts) => JobAutosaveApi
+  - type SaveResult
+  - type RetryPolicy
+  - type NormalizeFn
+  - type IsEqualFn
+  - type CanSaveFn
+  - _...2 more_
+- `src/composables/useJobCache.ts` — function useJobCache: () => void
+- `src/composables/useJobCard.ts` — function useJobCard: (job, emit, job) => void
+- `src/composables/useJobDelta.ts` — function useJobDeltaQueue: (jobId) => void, function buildJobDeltaEnvelope: (input) => Promise<JobDeltaEnvelope>
+- `src/composables/useJobETags.ts` — function useJobETags: () => void
+- `src/composables/useJobEvents.ts` — function useJobEvents: (jobId) => void
+- `src/composables/useJobFiles.ts` — function useJobFiles: (jobId) => void
+- `src/composables/useJobFinancials.ts` — function useJobFinancials: (jobId) => void
+- `src/composables/useJobHeaderAutosave.ts` — function useJobHeaderAutosave: (headerRef) => void
+- `src/composables/useJobNotifications.ts` — function useJobNotifications: () => void
+- `src/composables/useJobTabs.ts` — function useJobTabs: (defaultTab) => void
+- `src/composables/useLogin.ts` — function useLogin: () => void
+- `src/composables/useMonthEnd.ts` — function fetchMonthEnd: () => Promise<, function runMonthEnd: (jobIds) => Promise<
+- `src/composables/useOptimizedDragAndDrop.ts`
+  - function useOptimizedDragAndDrop: (onDragEvent?) => void
+  - interface OptimizedDragEventPayload
+  - type OptimizedDragEventHandler
+- `src/composables/useOptimizedKanban.ts` — function useOptimizedKanban: (onJobsLoaded?) => void
+- `src/composables/usePickupAddressManagement.ts`
+  - function usePickupAddressManagement: () => void
+  - type AddressFormData
+  - type AddressCandidate
+- `src/composables/usePoConcurrencyEvents.ts` — function emitPoConcurrencyRetry: (poId) => void, function onPoConcurrencyRetry: (poId, handler) => void
+- `src/composables/usePoETags.ts` — function usePoETags: () => void
+- `src/composables/usePurchaseOrderGrid.ts` — function usePurchaseOrderGrid: (lines) => void
+- `src/composables/useQuoteImport.ts` — function useQuoteImport: () => void
+- `src/composables/useSettingsSchema.ts` — function useSettingsSchema: () => void
+- `src/composables/useSmartCostLineDelete.ts` — function useSmartCostLineDelete: (options) => void, interface UseSmartCostLineDeleteOptions
+- `src/composables/useStaffApi.ts` — function useStaffApi: () => void
+- `src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
+- `src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
+- `src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
+- `src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
+- `src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
+- `src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
+- `src/composables/useWorkshopTimesheetDay.ts`
+  - function formatDateKey: (date) => string
+  - function parseDateKey: (key) => Date
+  - function formatFullDate: (date) => string
+  - function useWorkshopTimesheetDay: (selectedDate) => void
+  - type WorkingDayStartKey
+- `src/composables/useWorkshopTimesheetForm.ts` — function useWorkshopTimesheetForm: (options, silent?) => void
+- `src/composables/useWorkshopTimesheetJobs.ts` — function useWorkshopTimesheetJobs: () => void
+- `src/composables/useWorkshopTimesheetTimeUtils.ts`
+  - function ensureTimeWithSeconds: (time) => string
+  - function formatTimeInputValue: (time?) => string
+  - function minutesFromTime: (time) => number
+  - function minutesToTime: (minutes) => string
+  - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
+  - function combineDateTime: (dateKey, time) => Date
+  - _...2 more_
+- `src/composables/useXeroAuth.ts` — function useXeroAuth: () => void
+- `src/constants/job-status.ts`
+  - function getStatusChoice: (key) => StatusChoice | undefined
+  - function getStatusLabel: (key) => string
+  - type JobStatusKey
+  - type StatusChoice
+  - const JOB_STATUS_CHOICES
+- `src/lib/utils.ts` — function cn: (...inputs) => void
+- `src/plugins/axios.ts` — function getApiBaseUrl
+- `src/schemas/mcp-tool-metadata.schema.ts`
+  - function parseMetadata: (metadata) => ValidationResult<McpMetadata>
+  - function hasToolCalls: (metadata) => boolean
+  - function getToolCallCount: (metadata) => number
+  - interface ValidationResult
+  - type ToolCall
+  - type ToolDefinition
+  - _...4 more_
+- `src/services/admin-company-defaults-service.ts`
+  - function getCompanyDefaults: () => Promise<CompanyDefaults>
+  - function updateCompanyDefaults: (payload) => Promise<CompanyDefaults>
+  - function uploadLogo: (fieldName, file) => Promise<CompanyDefaults>
+  - function deleteLogo: (fieldName) => Promise<CompanyDefaults>
+  - type CompanyDefaults
+  - type PatchedCompanyDefaults
+  - _...1 more_
+- `src/services/aiProviderService.ts`
+  - class AIProviderService
+  - type AIProvider
+  - type AIProviderCreateUpdate
+  - const aiProviderService
+- `src/services/clientService.ts`
+  - class ClientService
+  - type Client
+  - type CreateClientData
+  - const clientService
+- `src/services/costing.service.ts` — function fetchCostSet
+- `src/services/costline.service.ts`
+  - function getTimesheetEntries
+  - function createCostLine
+  - function updateCostLine
+  - function approveCostLine
+  - function deleteCostLine
+  - type TimesheetEntriesResponse
+  - _...1 more_
+- `src/services/daily-timesheet.service.ts`
+  - function getDailyTimesheetSummary
+  - function getStaffDailyDetail
+  - function formatHours
+  - function formatCurrency
+  - function getStatusVariant
+  - type DailyTimesheetSummary
+  - _...1 more_
+- `src/services/date.service.ts`
+  - function today
+  - function getCurrentWeekStart
+  - function getWeekRange
+  - function getCurrentWeekRange
+  - function navigateWeek
+  - function navigateDay
+  - _...12 more_
+- `src/services/delta.service.ts` — function submitJobDelta: (jobId, envelope) => Promise<
+- `src/services/django-jobs-service.ts`
+  - function getDjangoJobs: () => Promise<DjangoJob[]>
+  - function createDjangoJob: (data) => Promise<DjangoJob>
+  - function updateDjangoJob: (id, data) => Promise<DjangoJob>
+  - function deleteDjangoJob: (id) => Promise<void>
+  - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
+  - type DjangoJob
+  - _...1 more_
+- `src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
+- `src/services/job-aging-report.service.ts`
+  - class JobAgingReportService
+  - interface JobAgingData
+  - interface JobAgingReportResponse
+  - interface JobAgingReportParams
+  - const jobAgingReportService
+- `src/services/kanban-categorization.service.ts` — class KanbanCategorizationService
+- `src/services/payroll-reconciliation-report.service.ts`
+  - function fetchAlignedDateRange: (startDate, endDate) => void
+  - function fetchPayrollReconciliation: (startDate, endDate) => Promise<PayrollReconciliationResponse>
+  - function exportPayrollReconciliationCsv: (data) => void
+  - type PayrollReconciliationResponse
+- `src/services/payroll.service.ts`
+  - function createPayRun: (weekStartDate) => Promise<CreatePayRunResponse>
+  - function postStaffWeek: (staffIds, weekStartDate, callbacks?) => Promise<PostStaffWeekDoneEvent>
+  - function fetchAllPayRuns: () => Promise<PayRunListResponse>
+  - function refreshPayRuns: () => Promise<PayRunSyncResult>
+  - interface PostStaffWeekStartEvent
+  - interface PostStaffWeekProgressEvent
+  - _...8 more_
+- `src/services/quote-chat.service.ts` — class QuoteChatService, const quoteChatService
+- `src/services/staff-performance-report.service.ts` — class StaffPerformanceReportService, const staffPerformanceReportService
+- `src/services/timesheet.service.ts` — class TimesheetService
+- `src/services/weekly-timesheet.service.ts`
+  - function fetchWeeklyOverview: (startDate?) => Promise<WeeklyTimesheetData>
+  - function getCurrentWeekRange: () => void
+  - function getWeekRange: (date) => void
+  - function formatDateRange: (startDate, endDate) => string
+  - function formatHours: (hours) => string
+  - function formatPercentage: (percentage) => string
+- `src/services/wip-report.service.ts`
+  - class WIPReportService
+  - interface WIPJobData
+  - interface WIPSummaryByStatus
+  - interface WIPSummary
+  - interface WIPReportResponse
+  - interface WIPReportParams
+  - _...1 more_
+- `src/types/concurrency.ts`
+  - function isConcurrencyError: (error) => error is ConcurrencyError
+  - function extractJobId: (url) => string | null
+  - function isJobEndpoint: (url) => boolean
+  - function isJobMutationEndpoint: (url) => boolean
+  - function extractPoId: (url) => string | null
+  - function isPoEndpoint: (url) => boolean
+  - _...4 more_
+- `src/utils/contractValidation.ts` — function validateFields: (data, requiredFields) => void
+- `src/utils/costLineMeta.ts`
+  - function getJobEstimatedHours: (job) => number
+  - function getJobActualHours: (job) => number
+  - function getCostSetHoursSafe: (costSet?) => number
+- `src/utils/csrf.ts` — function getCookie: (name) => string | null, function getCsrfToken: () => string | null
+- `src/utils/dateUtils.ts`
+  - function toLocalDateString: (date) => void
+  - function toDateValue: (date) => DateValue | undefined
+  - function fromDateValue: (dateValue) => Date | null
+- `src/utils/debug.ts` — function debugLog: (...args) => void, const isDebugEnabled
+- `src/utils/delivery-receipt.ts`
+  - function transformDeliveryReceiptForAPI: (purchaseOrderId, uiAllocations, DeliveryAllocation[]>) => DeliveryReceiptRequest
+  - function initializeEmptyAllocations: (lineIds) => Record<string, DeliveryAllocation[]>
+  - type DeliveryAllocation
+- `src/utils/deltaChecksum.ts`
+  - function canonicaliseValue: (value) => string
+  - function serialiseForChecksum: (jobId, before, unknown>, fields?) => string
+  - function sha256Hex: (input) => Promise<string>
+  - function computeJobDeltaChecksum: (jobId, before, unknown>, fields?) => Promise<string>
+  - const deltaChecksumUtils
+- `src/utils/deviceType.ts`
+  - function setDevicePreference: (preference) => void
+  - const isComputer
+  - const isTouchscreen
+  - const detectedDeviceType
+- `src/utils/email.ts` — function openGmailCompose: ({...}, subject, body }) => void, interface EmailComposeOptions
+- `src/utils/embeddedComponentRegistry.ts`
+  - function getEmbeddedComponents: (sectionKey) => Component[]
+  - function hasEmbeddedComponents: (sectionKey) => boolean
+  - const SECTION_EMBEDDED_COMPONENTS: Record<string, Component[]>
+- `src/utils/error-handler.ts`
+  - function extractErrorMessage: (error) => string
+  - function extractQuoteErrorMessage: (error) => string
+  - function logError: (context, error, additionalData?, unknown>) => void
+- `src/utils/errorHandler.ts`
+  - function extractErrorMessage: (error, fallbackMessage) => string
+  - function createErrorToast: () => void
+  - function isAuthenticationError: (error) => boolean
+- `src/utils/iconRegistry.ts`
+  - function resolveIcon: (iconName) => Component
+  - function getSectionIcon: (sectionKey) => Component
+  - function getFieldIcon: (fieldKey) => Component
+  - function hasIcon: (iconName) => boolean
+- `src/utils/metalType.ts`
+  - function formatMetalType: (metalType) => string
+  - function getMetalTypeValue: (label) => string
+  - const metalTypeOptions: Array<{ value: MetalType; label: string }>
+- `src/utils/number.ts` — function roundToDecimalPlaces: (value, decimalPlaces) => number, function normalizeOptionalDecimal: (value, options?) => number | null | undefined
+- `src/utils/safetyUtils.ts`
+  - function createSafeDate: (dateValue) => Date
+  - function getSafeNumber: (value, defaultValue) => number
+  - function getSafeString: (value, defaultValue) => string
+- `src/utils/sanitize.ts` — function trimStringsDeep: (input) => T, function normalizeOptionalString: (value) => string | undefined
+- `src/utils/statusUtils.ts` — function getStatusVariant: (status) => string, function getJobColor: (jobId) => string
+- `src/utils/string-formatting.ts`
+  - function formatEventType: (snakeCaseString) => string
+  - function formatFileSize: (bytes) => string
+  - function formatDate: (dateString) => string
+  - function truncateText: (text, maxLength) => string
+  - function capitalize: (str) => string
+  - function formatCurrency: (value, {...}) => string
+  - _...5 more_

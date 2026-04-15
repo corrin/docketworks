@@ -27,7 +27,7 @@ tox                  # Runs full tox suite
 # Database & data
 python manage.py migrate
 python manage.py loaddata apps/workflow/fixtures/company_defaults.json
-python manage.py loaddata apps/workflow/fixtures/initial_data.json  # or backport_data_restore
+python manage.py loaddata apps/workflow/fixtures/initial_data.json
 
 # Integrations & schedulers
 python manage.py xero --setup
