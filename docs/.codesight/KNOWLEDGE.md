@@ -7,13 +7,13 @@
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
+- when is each job expected to start?
+- when is each job expected to finish?
+- where are jobs overlapping in time?
+- which jobs are late?
 - 1. Which active jobs are likely to miss their promised date?
-- 2. Which upcoming days look underused or overloaded?
-- 3. Which jobs cannot be scheduled because required planning data is missing or invalid?
-- Option A: Sum of time entries for this job?
-- Option B: Estimated hours from quote/cost set?
-- Option C: New field on Job model?
-- 1. **Workshop time allocated** - What is the data source?
+- 2. When is each job expected to start and finish?
+- 3. Which jobs cannot be scheduled because planning data is missing or invalid?
 
 ## Recurring Themes
 verification · tips · steps · what youll need · files to modify · what happens next · implementation steps · troubleshooting · purpose · problem statement · benefits · implementation notes
@@ -68,8 +68,8 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
 ### General Notes (146)
-- `docs/plans/2026-04-16-workshop-report-frontend.md` — 2026-04-16 — Build a Workshop Schedule screen that lets office staff:
-- `docs/plans/2026-04-16-workshop-report.md` — 2026-04-16 — Build the backend for an **operations** screen that helps office staff answer three practical
+- `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
+- `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
 - `docs/plans/2026-04-15-msm-prod-server-install.md` — 2026-04-15 — **This is an ops runbook, not a code implementation plan.**
 - `docs/plans/completed/2026-04-15-server-setup-apt-consolidation.md` — 2026-04-15 — **Context:** `server-setup.sh` has 10 separate `apt install` calls. Six are unconditional and can be grouped into one block right after `apt update && apt upgra…
 - `docs/plans/completed/2026-04-15-server-setup-no-cert-fqdn.md` — 2026-04-15 — **Goal:** Allow `server-setup.sh` to skip SSL cert acquisition, and allow `instance.sh create` to configure nginx for a custom FQDN so cutover day is just: poin…
