@@ -11,12 +11,12 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.reprocess_xero import (
     set_client_fields,
     set_invoice_or_bill_fields,
     set_journal_fields,
 )
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.exceptions import XeroValidationError
 from apps.workflow.models import (
     XeroAccount,

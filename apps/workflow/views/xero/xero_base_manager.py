@@ -9,7 +9,6 @@ from apps.job.models import Job
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.services.error_persistence import persist_app_error
 
-
 logger = logging.getLogger("xero")
 
 

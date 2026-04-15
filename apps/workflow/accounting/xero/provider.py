@@ -30,8 +30,9 @@ class XeroAccountingProvider:
 
     @staticmethod
     def _get_api():
-        from apps.workflow.api.xero.auth import api_client, get_tenant_id
         from xero_python.accounting import AccountingApi
+
+        from apps.workflow.api.xero.auth import api_client, get_tenant_id
 
         return AccountingApi(api_client), get_tenant_id()
 
@@ -167,8 +168,9 @@ class XeroAccountingProvider:
     # --- Documents ---
 
     def create_invoice(self, payload: InvoicePayload) -> DocumentResult:
-        from apps.workflow.accounting.types import DocumentResult
         from xero_python.accounting.models import Contact, Invoice
+
+        from apps.workflow.accounting.types import DocumentResult
 
         try:
             api, tenant_id = self._get_api()
@@ -197,7 +199,9 @@ class XeroAccountingProvider:
             created = response[0].invoices[0]
             invoice_id = str(created.invoice_id)
             online_url = f"https://go.xero.com/app/invoicing/edit/{invoice_id}"
-            logger.info("Created Xero invoice %s (%s)", created.invoice_number, invoice_id)
+            logger.info(
+                "Created Xero invoice %s (%s)", created.invoice_number, invoice_id
+            )
 
             return DocumentResult(
                 success=True,
@@ -234,8 +238,9 @@ class XeroAccountingProvider:
             return self._make_error_result(exc)
 
     def create_quote(self, payload: QuotePayload) -> DocumentResult:
-        from apps.workflow.accounting.types import DocumentResult
         from xero_python.accounting.models import Contact, Quote
+
+        from apps.workflow.accounting.types import DocumentResult
 
         try:
             api, tenant_id = self._get_api()
@@ -301,8 +306,9 @@ class XeroAccountingProvider:
 
     def _create_or_update_purchase_order(self, payload: POPayload) -> DocumentResult:
         """Shared implementation for PO create and update."""
-        from apps.workflow.accounting.types import DocumentResult
         from xero_python.accounting.models import Contact, PurchaseOrder
+
+        from apps.workflow.accounting.types import DocumentResult
 
         api, tenant_id = self._get_api()
 
@@ -347,7 +353,9 @@ class XeroAccountingProvider:
         # Validation errors on the response
         if hasattr(result_po, "validation_errors") and result_po.validation_errors:
             errors = [str(ve.message) for ve in result_po.validation_errors]
-            logger.warning("Xero PO %s validation errors: %s", payload.po_number, errors)
+            logger.warning(
+                "Xero PO %s validation errors: %s", payload.po_number, errors
+            )
             return DocumentResult(
                 success=False,
                 external_id=po_id if po_id != zero_uuid else None,
@@ -355,7 +363,9 @@ class XeroAccountingProvider:
                 validation_errors=errors,
             )
 
-        online_url = f"https://go.xero.com/Accounts/Payable/PurchaseOrders/Edit/{po_id}/"
+        online_url = (
+            f"https://go.xero.com/Accounts/Payable/PurchaseOrders/Edit/{po_id}/"
+        )
         action = "Updated" if payload.external_id else "Created"
         logger.info("%s Xero PO %s (%s)", action, payload.po_number, po_id)
 
@@ -414,23 +424,36 @@ class XeroAccountingProvider:
             api.create_invoice_attachment_by_file_name(
                 tenant_id, invoice_external_id, file_name, content, include_online=False
             )
-            logger.info("Attached %s to Xero invoice %s", file_name, invoice_external_id)
+            logger.info(
+                "Attached %s to Xero invoice %s", file_name, invoice_external_id
+            )
             return True
         except Exception as exc:
             persist_app_error(exc)
-            logger.error("Failed to attach %s to invoice %s: %s", file_name, invoice_external_id, exc)
+            logger.error(
+                "Failed to attach %s to invoice %s: %s",
+                file_name,
+                invoice_external_id,
+                exc,
+            )
             return False
 
     # --- History Notes ---
 
-    def _add_history_note(self, api_method_name: str, document_id: str, note: str) -> bool:
+    def _add_history_note(
+        self, api_method_name: str, document_id: str, note: str
+    ) -> bool:
         from xero_python.accounting.models import HistoryRecord, HistoryRecords
 
         try:
             api, tenant_id = self._get_api()
-            history_records = HistoryRecords(history_records=[HistoryRecord(details=note)])
+            history_records = HistoryRecords(
+                history_records=[HistoryRecord(details=note)]
+            )
             getattr(api, api_method_name)(tenant_id, document_id, history_records)
-            logger.info("Added history note to Xero %s %s", api_method_name, document_id)
+            logger.info(
+                "Added history note to Xero %s %s", api_method_name, document_id
+            )
             return True
         except Exception as exc:
             persist_app_error(exc)
@@ -438,7 +461,9 @@ class XeroAccountingProvider:
             return False
 
     def add_history_note_to_invoice(self, invoice_external_id: str, note: str) -> bool:
-        return self._add_history_note("create_invoice_history", invoice_external_id, note)
+        return self._add_history_note(
+            "create_invoice_history", invoice_external_id, note
+        )
 
     def add_history_note_to_quote(self, quote_external_id: str, note: str) -> bool:
         return self._add_history_note("create_quote_history", quote_external_id, note)

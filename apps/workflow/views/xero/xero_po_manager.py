@@ -74,13 +74,6 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             return str(self.purchase_order.xero_id)
         return None
 
-    def _get_account_code(self) -> str | None:
-        """
-        Return the Purchases account code for PO line creation, or None if
-        it's not found.
-        """
-        return self.provider.get_account_code("Purchases")
-
     def state_valid_for_xero(self) -> bool:
         """
         Checks if the purchase order is in a valid state for operations.
@@ -100,7 +93,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
         """
         logger.info("Starting get_line_items for PO")
         line_items = []
-        account_code = self._get_account_code()
+        account_code = self._get_account_code("Purchases")
 
         if not self.purchase_order:
             logger.error("Purchase order object is missing in get_line_items.")
@@ -110,7 +103,9 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
             line_item_data = {
                 "description": line.xero_description,
                 "quantity": Decimal(str(line.quantity)),
-                "unit_amount": Decimal(str(line.unit_cost)) if line.unit_cost else Decimal("0"),
+                "unit_amount": (
+                    Decimal(str(line.unit_cost)) if line.unit_cost else Decimal("0")
+                ),
             }
 
             if line.item_code:
@@ -193,7 +188,9 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
 
         self.purchase_order.save(update_fields=update_fields)
 
-    def _update_line_item_ids_from_response(self, response_line_items: list[dict]) -> None:
+    def _update_line_item_ids_from_response(
+        self, response_line_items: list[dict]
+    ) -> None:
         """
         Update local PurchaseOrderLine records with line_item_ids from response.
 
@@ -205,8 +202,7 @@ class XeroPurchaseOrderManager(XeroDocumentManager):
 
         # Build a list of (xero_description, line) tuples for matching
         local_lines = [
-            (line.xero_description, line)
-            for line in self.purchase_order.po_lines.all()
+            (line.xero_description, line) for line in self.purchase_order.po_lines.all()
         ]
 
         updated_count = 0

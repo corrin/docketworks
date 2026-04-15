@@ -6,17 +6,17 @@ from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, Invoice
 from apps.client.models import Client
-from apps.workflow.api.xero.reprocess_xero import (
-    set_client_fields,
-    set_invoice_or_bill_fields,
-)
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.push import (
     bulk_create_contacts_in_xero,
     get_all_xero_contacts,
     sync_job_to_xero,
 )
+from apps.workflow.api.xero.reprocess_xero import (
+    set_client_fields,
+    set_invoice_or_bill_fields,
+)
 from apps.workflow.api.xero.transforms import process_xero_data, transform_pay_run
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
 
 SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 
@@ -261,9 +261,7 @@ def fetch_xero_entity_lookup(entity_name, key_func, value_func):
         if entities is None:
             raise ValueError(f"API returned None for {entity_name}")
 
-        items = (
-            entities if isinstance(entities, list) else getattr(entities, xero_type)
-        )
+        items = entities if isinstance(entities, list) else getattr(entities, xero_type)
         if not items:
             break
 

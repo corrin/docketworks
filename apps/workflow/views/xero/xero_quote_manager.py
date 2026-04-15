@@ -185,9 +185,7 @@ class XeroQuoteManager(XeroDocumentManager):
             # Update job.updated_at to invalidate ETags and prevent 304 responses
             self.job.save(update_fields=["updated_at"])
 
-            logger.info(
-                f"Quote {quote.id} created successfully for job {self.job.id}"
-            )
+            logger.info(f"Quote {quote.id} created successfully for job {self.job.id}")
 
             self._add_xero_history_note("quote", result.external_id)
 
@@ -202,9 +200,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 )
             except Exception as exc:
                 persist_app_error(exc)
-                logger.error(
-                    f"Failed to create job event for quote creation: {exc}"
-                )
+                logger.error(f"Failed to create job event for quote creation: {exc}")
 
             return {
                 "success": True,
@@ -216,9 +212,7 @@ class XeroQuoteManager(XeroDocumentManager):
         except Exception as exc:
             persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
-            logger.exception(
-                f"Unexpected error during quote creation for job {job_id}"
-            )
+            logger.exception(f"Unexpected error during quote creation for job {job_id}")
             return {
                 "success": False,
                 "error": f"An unexpected error occurred ({str(exc)}) while creating "
@@ -244,9 +238,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 }
 
             if not hasattr(self.job, "quote") or not self.job.quote:
-                logger.warning(
-                    f"No local quote found for job {self.job.id} to delete."
-                )
+                logger.warning(f"No local quote found for job {self.job.id} to delete.")
                 return {
                     "success": True,
                     "xero_id": xero_id,
@@ -278,9 +270,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 )
             except Exception as exc:
                 persist_app_error(exc)
-                logger.warning(
-                    f"Failed to create job event for quote deletion: {exc}"
-                )
+                logger.warning(f"Failed to create job event for quote deletion: {exc}")
 
             return {
                 "success": True,
@@ -291,9 +281,7 @@ class XeroQuoteManager(XeroDocumentManager):
         except Exception as exc:
             persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
-            logger.exception(
-                f"Unexpected error during quote deletion for job {job_id}"
-            )
+            logger.exception(f"Unexpected error during quote deletion for job {job_id}")
             return {
                 "success": False,
                 "error": f"An unexpected error occurred ({str(exc)}) while deleting "

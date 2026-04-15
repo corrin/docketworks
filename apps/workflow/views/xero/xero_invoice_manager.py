@@ -163,9 +163,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                 invoice_external_id, file_name, pdf_buffer.read()
             )
             if success:
-                logger.info(
-                    f"Attached workshop PDF to invoice {invoice_external_id}"
-                )
+                logger.info(f"Attached workshop PDF to invoice {invoice_external_id}")
                 return None
             return "Workshop PDF could not be attached to the invoice"
         except Exception as exc:

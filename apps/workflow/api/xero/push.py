@@ -12,7 +12,11 @@ from xero_python.project.models import TimeEntryCreateOrUpdate
 from apps.accounts.models import Staff
 from apps.job.models.costing import CostLine
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
-from apps.workflow.api.xero.xero import create_default_task, create_project, update_project
+from apps.workflow.api.xero.xero import (
+    create_default_task,
+    create_project,
+    update_project,
+)
 
 logger = logging.getLogger("xero")
 

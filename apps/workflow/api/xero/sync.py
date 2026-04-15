@@ -35,10 +35,10 @@ from apps.workflow.api.xero.seed import (  # noqa: F401
     sync_single_invoice,
     sync_single_pay_run,
 )
+from apps.workflow.api.xero.transforms import process_xero_data  # noqa: F401
+from apps.workflow.api.xero.transforms import sync_clients  # noqa: F401
 from apps.workflow.api.xero.transforms import (
-    process_xero_data,  # noqa: F401
     sync_accounts,
-    sync_clients,  # noqa: F401
     sync_entities,
     transform_bill,
     transform_credit_note,
