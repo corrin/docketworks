@@ -2213,14 +2213,14 @@ tests = ["pytest"]
 
 [[package]]
 name = "holidays"
-version = "0.93"
+version = "0.94"
 description = "Open World Holidays Framework"
 optional = false
 python-versions = ">=3.10"
 groups = ["main"]
 files = [
-    {file = "holidays-0.93-py3-none-any.whl", hash = "sha256:2bf4585b5b0956aa608e3dcab3cf7d19b69bf34f664f5881a4b9fdf87a0907da"},
-    {file = "holidays-0.93.tar.gz", hash = "sha256:6b04c45f759bce7c8df70863918ccaab0b465afd6c630a62c9855c99965704e5"},
+    {file = "holidays-0.94-py3-none-any.whl", hash = "sha256:8d7c0a458e533f2856338354bcf82d24855a767edd765a80b7b335db30914d67"},
+    {file = "holidays-0.94.tar.gz", hash = "sha256:2eb6968fb66402b0fdc05d27ef36acef606a8324d19ed33c9850dde24d00914d"},
 ]
 
 [package.dependencies]
@@ -6815,4 +6815,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "21394c7a90cb5e88f890b11610e67ab25b43fa92644289d4911805fcdf7317ad"
+content-hash = "ff6b27676fe0a10d7b45288399d248f24c7aa26de9e46501036d62d789aa8bb8"
