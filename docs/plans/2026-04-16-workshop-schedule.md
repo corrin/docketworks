@@ -198,7 +198,8 @@ The implementation must include:
 
 - a scheduler job that recomputes the workshop schedule forecast
 - persistence of the latest successful schedule output
-- safe handling of failures so a bad run does not destroy the last known good forecast
+- fail-early error handling: if a run fails, call `persist_app_error(exc)` and leave the
+  previous successful forecast intact — do not overwrite good data with a failed result
 
 At minimum, the design should make it possible to answer:
 

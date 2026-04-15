@@ -42,8 +42,7 @@ in the repo, while adapting them to a calendar-first experience.
 
 Use these as reference points:
 
-- `frontend/src/views/JobAgingReportView.vue` for report-page loading/error/action patterns
-- `frontend/src/services/job-aging-report.service.ts` for the thin report service pattern
+- `frontend/src/views/JobAgingReportView.vue` for page loading/error/action shell patterns
 - `frontend/src/router/index.ts` for route registration
 - `frontend/src/components/AppNavbar.vue` for desktop and mobile navigation links
 - `frontend/src/services/job.service.ts` for partial job header updates
@@ -51,6 +50,10 @@ Use these as reference points:
   - `accounts_staff_list`
   - `job_job_assignment_create`
   - `job_job_assignment_destroy`
+
+For the new service, use `import { api } from '@/api/client'` and `z.infer<typeof schemas.X>`
+for all types. Do not copy the axios import or hand-written interface pattern from existing
+report services — those predate the generated client and do not follow current frontend rules.
 
 Keep this feature as one screen plus a thin service. Do not add a store unless there is a clear,
 existing pattern that requires it.
