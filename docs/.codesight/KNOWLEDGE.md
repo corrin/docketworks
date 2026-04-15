@@ -1,22 +1,22 @@
 # Knowledge Map — docketworks
-> 179 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-15
+> 181 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-16
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-15 (179 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-16 (181 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
 
 ## Open Questions (10)
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
-- Option A: Sum of time entries for this job?
-- Option B: Estimated hours from quote/cost set?
-- Option C: New field on Job model?
-- 1. **Workshop time allocated** - What is the data source?
-- Estimated hours from quote?
-- 2. **PO-0334 orphans:** These have costs on Jobs 96257 and 95427. Are the valid CostLines the correct ones, or are the orphans the real deliveries?
-- *Aggregate mode:** Do the totals match?
+- when is each job expected to start?
+- when is each job expected to finish?
+- where are jobs overlapping in time?
+- which jobs are late?
+- 1. Which active jobs are likely to miss their promised date?
+- 2. When is each job expected to start and finish?
+- 3. Which jobs cannot be scheduled because planning data is missing or invalid?
 
 ## Recurring Themes
-verification · tips · steps · what youll need · files to modify · what happens next · implementation steps · troubleshooting · problem statement · benefits · implementation notes · design
+verification · tips · steps · what youll need · files to modify · what happens next · implementation steps · troubleshooting · purpose · problem statement · benefits · implementation notes
 
 ## People
 @docketworks · @transaction · @pytest · @patch · @morrissheetmetal · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone · @fluidandgeneral · @ppsindustries
@@ -28,7 +28,7 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/restore-prod-to-nonprod.md` — **2** incoming references — Restore Production to Non-Production
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 
-## Note Index (179)
+## Note Index (181)
 
 ### Specs & PRDs (29)
 - `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
@@ -67,7 +67,9 @@ verification · tips · steps · what youll need · files to modify · what happ
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (144)
+### General Notes (146)
+- `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
+- `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
 - `docs/plans/2026-04-15-msm-prod-server-install.md` — 2026-04-15 — **This is an ops runbook, not a code implementation plan.**
 - `docs/plans/completed/2026-04-15-server-setup-apt-consolidation.md` — 2026-04-15 — **Context:** `server-setup.sh` has 10 separate `apt install` calls. Six are unconditional and can be grouped into one block right after `apt update && apt upgra…
 - `docs/plans/completed/2026-04-15-server-setup-no-cert-fqdn.md` — 2026-04-15 — **Goal:** Allow `server-setup.sh` to skip SSL cert acquisition, and allow `instance.sh create` to configure nginx for a custom FQDN so cutover day is just: poin…
@@ -86,9 +88,7 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/completed/2026-04-02-rename-tables-to-defaults.md` — 2026-04-02 — Moving from MySQL to PostgreSQL. Since no production Postgres data exists yet, this is the clean window to rename 30 tables from their legacy `workflow_*` names…
 - `docs/plans/completed/2026-04-02-timesheet-superuser-gate-plan.md` — 2026-04-02 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/completed/2026-04-02-timesheet-superuser-gate.md` — 2026-04-02 — Timesheet views expose sensitive pay data (how much staff are paid, hours worked at what rates). Currently all 10 timesheet API views independently set `permiss…
-- `docs/plans/completed/2026-04-02-workshop-timesheet-test-plan.md` — 2026-04-02 — The workshop timesheet API (`/api/job/workshop/timesheets/`) has zero backend test coverage. Need to verify that normal (non-admin) staff users can create times…
-- `docs/plans/2026-03-31-scheduler-service-per-instance.md` — 2026-03-31 — Each docketworks instance needs a running APScheduler process for Xero sync, auto-archiving, scraper jobs, etc. Currently there is no systemd service for the sc…
-- _…and 124 more_
+- _…and 126 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
