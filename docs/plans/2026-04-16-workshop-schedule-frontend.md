@@ -18,6 +18,18 @@ This screen is the frontend consumer of the backend described in
 This is not a classic “report page.” It should feel like a time-based sibling to Kanban: an
 operations work surface built around time instead of status columns.
 
+This screen assumes the backend is running a real schedule simulation. The calendar should show
+projected work flowing through time, not dates inferred from aggregate totals.
+
+The business expectation is that a user should be able to answer questions like:
+
+- “According to the simulation, who is expected to be on job 12415 today?”
+- “What is Connor expected to work on first, then next?”
+- “Given the earlier assigned work, when is job 12415 expected to start?”
+
+That means the UI should be built on detailed simulated allocations and sequencing, even if the
+default view shows a summarized calendar.
+
 ---
 
 ## What Success Looks Like
@@ -30,6 +42,7 @@ When this work is complete:
 - clicking a scheduled job takes the user to that job
 - colour makes overload, lateness, and problem states obvious
 - the screen still includes a clear place to see unscheduled/problem jobs
+- users can inspect the underlying detailed simulated allocations when needed
 - API types come from generated schema, not hand-written interfaces
 - required frontend checks pass
 
@@ -65,6 +78,10 @@ existing pattern that requires it.
 Before frontend work starts, the backend must provide:
 
 `GET /api/operations/workshop-schedule/`
+
+and:
+
+`POST /api/operations/workshop-schedule/recalculate/`
 
 with top-level collections:
 
@@ -103,6 +120,10 @@ with top-level collections:
 `anticipated_staff` is always populated — the scheduler assigns specific workers to check
 `min_people`/`max_people` constraints, so it always knows which staff it picked.
 
+The backend’s detailed persisted schedule is the source of truth. The frontend may show summary
+views by default, but it should be able to surface allocation detail from that simulated schedule
+when needed.
+
 ### Required `unscheduled_jobs` fields
 
 - `id`
@@ -116,6 +137,10 @@ with top-level collections:
 The frontend expects stable machine-readable `reason` codes from the backend.
 
 If the backend contract changes, regenerate schema/types before doing frontend work.
+
+The frontend should treat `POST /api/operations/workshop-schedule/recalculate/` as the
+authoritative refresh path after user edits. Do not assume a fresh `GET` will reflect recent
+changes immediately if the background scheduler has not run yet.
 
 ---
 
@@ -164,6 +189,8 @@ This is the primary UI and should answer:
 - when is each job expected to finish?
 - where are jobs overlapping in time?
 - which jobs are late?
+- how does work actually flow across the upcoming days?
+- who is expected to be working on each job during that time?
 
 Required behaviour:
 
@@ -185,6 +212,31 @@ For v1, keep layout simple:
 - no complex resize interactions
 
 This should be a readable schedule board, not a full scheduling application.
+
+The UI must preserve the meaning of the simulation:
+
+- a multi-day job should visibly span multiple days
+- overlapping jobs should appear as overlapping work in the same schedule window
+- the schedule should not collapse into “completion markers only”
+
+### Allocation detail
+
+The screen must make it possible to inspect the underlying simulated allocation detail when
+needed.
+
+That does not require a complex scheduler UI in v1, but it does require a path to see more than
+just summary bars. Acceptable v1 options include:
+
+- a day drill-down panel
+- a selected-job detail panel
+- a selected-staff detail panel
+- an expandable section showing worker/date/hour allocations
+
+At minimum, the user should be able to inspect:
+
+- which worker is anticipated to be on a given job on a given date
+- what sequence that job sits in for that worker
+- enough duration/order detail to understand when that work would be expected to start
 
 ### Secondary job details/editing
 
@@ -212,8 +264,8 @@ edits.
 
 Use the generated assignment endpoints for assign/unassign actions.
 
-After each successful edit, reload the workshop schedule so the screen reflects recalculated
-scheduling results.
+After each successful edit, call `POST /api/operations/workshop-schedule/recalculate/` and update
+the view from that response so the screen reflects recalculated scheduling results immediately.
 
 ### Staff list source
 
@@ -221,7 +273,10 @@ The schedule response gives currently assigned and anticipated staff per job, bu
 needs a list of available workshop staff for adding assignments.
 
 Fetch the full staff list once using the generated `accounts_staff_list` endpoint and filter out
-office staff client-side.
+non-workshop staff client-side using `is_workshop_staff === true`.
+
+The backend plan includes adding `is_workshop_staff` to the staff API shape for this reason, so
+schema generation must happen after that backend serializer change lands.
 
 Do not fetch staff separately for every job.
 
@@ -313,13 +368,15 @@ The frontend work is complete when all of the following are true:
    `anticipated_start_date` to `anticipated_end_date`.
 4. Clicking a scheduled job opens that job.
 5. Late jobs, overloaded days, and no-capacity days are visually obvious.
-6. There is a clear on-screen area for unscheduled/problem jobs with readable reason labels and
+6. The UI provides a practical way to inspect underlying simulated worker allocations for a given
+   job/day when needed.
+7. There is a clear on-screen area for unscheduled/problem jobs with readable reason labels and
    an explicit empty state when none exist.
-7. Editing promised date or people constraints uses the existing job update flow and reloads the
-   schedule afterward.
-8. Staff can be assigned and unassigned using existing assignment endpoints, and the schedule
-   reloads afterward.
-9. Required frontend checks pass.
+8. Editing promised date or people constraints uses the existing job update flow and then calls
+   the recalculate endpoint to refresh the screen from the returned data.
+9. Staff can be assigned and unassigned using existing assignment endpoints, and the screen then
+   calls the recalculate endpoint and updates from that response.
+10. Required frontend checks pass.
 
 ---
 

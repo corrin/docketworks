@@ -11,9 +11,9 @@
 - when is each job expected to finish?
 - where are jobs overlapping in time?
 - which jobs are late?
+- how does work actually flow across the upcoming days?
 - 1. Which active jobs are likely to miss their promised date?
 - 2. When is each job expected to start and finish?
-- 3. Which jobs cannot be scheduled because planning data is missing or invalid?
 
 ## Recurring Themes
 verification · tips · steps · what youll need · files to modify · what happens next · implementation steps · troubleshooting · purpose · problem statement · benefits · implementation notes
