@@ -529,10 +529,14 @@ log "  Shared node_modules installed."
 
 SHARED_PLAYWRIGHT_BROWSERS="/opt/docketworks/.playwright-browsers"
 log "Installing shared Playwright browsers to $SHARED_PLAYWRIGHT_BROWSERS..."
+# Install system-level browser dependencies as root (apt packages)
+PLAYWRIGHT_BROWSERS_PATH="$SHARED_PLAYWRIGHT_BROWSERS" \
+    npx --prefix "$LOCAL_REPO/frontend" playwright install-deps chromium
+# Install browser binary as the shared service user
 sudo -u docketworks bash -c "
     export PLAYWRIGHT_BROWSERS_PATH='$SHARED_PLAYWRIGHT_BROWSERS'
     cd '$LOCAL_REPO/frontend'
-    npx playwright install --with-deps chromium
+    npx playwright install chromium
 "
 log "  Shared Playwright browsers installed."
 
