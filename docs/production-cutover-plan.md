@@ -21,6 +21,7 @@ Run on the new server as root.
 
 ```bash
 # Bootstrap: get the setup script onto the server
+sudo apt install git
 git clone https://github.com/corrin/docketworks.git /tmp/docketworks-bootstrap
 sudo /tmp/docketworks-bootstrap/scripts/server/server-setup.sh <dreamhost-api-key> <google-maps-api-key>
 rm -rf /tmp/docketworks-bootstrap

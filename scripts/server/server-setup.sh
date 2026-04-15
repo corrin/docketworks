@@ -2,7 +2,7 @@
 set -euo pipefail
 
 # Base server setup for docketworks.
-# Runs once on a fresh Ubuntu 24.04 ARM server as the 'ubuntu' user.
+# Runs once on a fresh Ubuntu 24.04 server as the 'ubuntu' user.
 # Idempotent — safe to re-run.
 #
 # First run:  sudo ./server-setup.sh <dreamhost-api-key> <google-maps-api-key>
@@ -233,19 +233,19 @@ else
     log "Logrotate config already installed, skipping."
 fi
 
-# --- Firewall (Oracle Cloud iptables) ---
+# --- Firewall ---
 
 log "Configuring firewall — opening ports 80 and 443..."
 # Check if rules already exist before adding
 if ! iptables -C INPUT -m state --state NEW -p tcp --dport 80 -j ACCEPT 2>/dev/null; then
-    iptables -I INPUT 6 -m state --state NEW -p tcp --dport 80 -j ACCEPT
+    iptables -I INPUT 1 -m state --state NEW -p tcp --dport 80 -j ACCEPT
     log "  Added iptables rule for port 80."
 else
     log "  Port 80 rule already exists, skipping."
 fi
 
 if ! iptables -C INPUT -m state --state NEW -p tcp --dport 443 -j ACCEPT 2>/dev/null; then
-    iptables -I INPUT 6 -m state --state NEW -p tcp --dport 443 -j ACCEPT
+    iptables -I INPUT 1 -m state --state NEW -p tcp --dport 443 -j ACCEPT
     log "  Added iptables rule for port 443."
 else
     log "  Port 443 rule already exists, skipping."
