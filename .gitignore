@@ -169,3 +169,7 @@ frontend/dist/
 # Claude Code MCP config (developer-specific paths and credentials)
 .mcp.json
 .codex
+
+# Generated codesight logs
+.codesight/wiki/log.md
+frontend/.codesight/wiki/log.md
