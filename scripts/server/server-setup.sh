@@ -5,8 +5,9 @@ set -euo pipefail
 # Runs once on a fresh Ubuntu 24.04 server as the 'ubuntu' user.
 # Idempotent — safe to re-run.
 #
-# First run:  sudo ./server-setup.sh <dreamhost-api-key> <google-maps-api-key>
-# Re-run:     sudo ./server-setup.sh   (reads keys from files saved on first run)
+# First run (UAT):   sudo ./server-setup.sh <dreamhost-api-key> <google-maps-api-key>
+# First run (prod):  sudo ./server-setup.sh --no-cert <google-maps-api-key>
+# Re-run:            sudo ./server-setup.sh   (reads keys from files saved on first run)
 
 SETUP_LOG="/var/log/docketworks-setup.log"
 MANIFEST="/opt/docketworks/server-manifest.txt"
@@ -34,28 +35,38 @@ fi
 DREAMHOST_KEY_FILE="/etc/letsencrypt/dreamhost-api-key.txt"
 SHARED_ENV_FILE="/opt/docketworks/shared.env"
 
+NO_CERT=false
+if [[ $# -ge 1 && "$1" == "--no-cert" ]]; then
+    NO_CERT=true
+    shift
+fi
+
 if [[ $# -eq 2 ]]; then
     DREAMHOST_API_KEY="$1"
     GOOGLE_MAPS_API_KEY="$2"
+elif [[ $# -eq 1 && "$NO_CERT" == true ]]; then
+    DREAMHOST_API_KEY=""
+    GOOGLE_MAPS_API_KEY="$1"
 elif [[ $# -eq 0 ]]; then
     # Re-run: read keys from files saved on first run
-    if [[ ! -f "$DREAMHOST_KEY_FILE" ]]; then
+    if [[ "$NO_CERT" == false && ! -f "$DREAMHOST_KEY_FILE" ]]; then
         echo "ERROR: No Dreamhost API key found at $DREAMHOST_KEY_FILE"
-        echo "First run requires: $0 <dreamhost-api-key> <google-maps-api-key>"
+        echo "First run requires: $0 [--no-cert] <dreamhost-api-key> <google-maps-api-key>"
         exit 1
     fi
     if [[ ! -f "$SHARED_ENV_FILE" ]]; then
         echo "ERROR: No Google Maps API key found at $SHARED_ENV_FILE"
-        echo "First run requires: $0 <dreamhost-api-key> <google-maps-api-key>"
+        echo "First run requires: $0 [--no-cert] <dreamhost-api-key> <google-maps-api-key>"
         exit 1
     fi
-    DREAMHOST_API_KEY="$(cat "$DREAMHOST_KEY_FILE")"
+    [[ "$NO_CERT" == false ]] && DREAMHOST_API_KEY="$(cat "$DREAMHOST_KEY_FILE")"
     GOOGLE_MAPS_API_KEY="$(grep GOOGLE_MAPS_API_KEY "$SHARED_ENV_FILE" | cut -d"'" -f2)"
 else
-    echo "Usage: $0 [<dreamhost-api-key> <google-maps-api-key>]"
+    echo "Usage: $0 [--no-cert] [<dreamhost-api-key>] <google-maps-api-key>"
     echo ""
-    echo "  First run:  $0 <dreamhost-api-key> <google-maps-api-key>"
-    echo "  Re-run:     $0   (reads keys from files saved on first run)"
+    echo "  UAT (wildcard cert):  $0 <dreamhost-api-key> <google-maps-api-key>"
+    echo "  Prod (no cert):       $0 --no-cert <google-maps-api-key>"
+    echo "  Re-run:               $0"
     echo ""
     echo "  dreamhost-api-key:   panel.dreamhost.com → Home > API (grant dns-* permissions)"
     echo "  google-maps-api-key: GCP console → APIs & Services → Credentials"
@@ -188,14 +199,16 @@ log_version "certbot" "$(certbot --version 2>&1)"
 
 # --- Certbot Dreamhost DNS hook scripts ---
 
-HOOK_DIR="/opt/docketworks/certbot-hooks"
-log "Installing Dreamhost DNS hook scripts to $HOOK_DIR..."
-mkdir -p "$HOOK_DIR"
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-cp "$SCRIPT_DIR/certbot-dreamhost-auth.sh" "$HOOK_DIR/auth.sh"
-cp "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh" "$HOOK_DIR/cleanup.sh"
-chmod 700 "$HOOK_DIR"/*.sh
-log "  Hooks installed: $HOOK_DIR/auth.sh, $HOOK_DIR/cleanup.sh"
+if [[ "$NO_CERT" == false ]]; then
+    HOOK_DIR="/opt/docketworks/certbot-hooks"
+    log "Installing Dreamhost DNS hook scripts to $HOOK_DIR..."
+    mkdir -p "$HOOK_DIR"
+    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    cp "$SCRIPT_DIR/certbot-dreamhost-auth.sh" "$HOOK_DIR/auth.sh"
+    cp "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh" "$HOOK_DIR/cleanup.sh"
+    chmod 700 "$HOOK_DIR"/*.sh
+    log "  Hooks installed: $HOOK_DIR/auth.sh, $HOOK_DIR/cleanup.sh"
+fi
 
 # --- Git ---
 
@@ -273,13 +286,15 @@ chown -R docketworks:docketworks /opt/docketworks
 
 # --- Install Dreamhost API key for certbot hooks ---
 
-if [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
-    log "Dreamhost API key already configured, skipping."
-else
-    mkdir -p /etc/letsencrypt
-    echo "$DREAMHOST_API_KEY" > /etc/letsencrypt/dreamhost-api-key.txt
-    chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
-    log "  Dreamhost API key saved to /etc/letsencrypt/dreamhost-api-key.txt"
+if [[ "$NO_CERT" == false ]]; then
+    if [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
+        log "Dreamhost API key already configured, skipping."
+    else
+        mkdir -p /etc/letsencrypt
+        echo "$DREAMHOST_API_KEY" > /etc/letsencrypt/dreamhost-api-key.txt
+        chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
+        log "  Dreamhost API key saved to /etc/letsencrypt/dreamhost-api-key.txt"
+    fi
 fi
 
 # --- Write shared.env (Google Maps key, sourced by instance .env files) ---
@@ -352,37 +367,40 @@ log_version "claude" "$CLAUDE_VERSION"
 
 # --- Wildcard SSL certificate ---
 
-if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
-    log "Wildcard SSL certificate already exists, skipping."
-else
-    log "Obtaining wildcard SSL certificate via Dreamhost DNS..."
-    log "  This will take ~2-4 minutes (DNS propagation wait)."
-    certbot certonly --manual --preferred-challenges dns \
-        --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
-        --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
-        -d "*.docketworks.site" -d "docketworks.site" \
-        --non-interactive --agree-tos --email admin@docketworks.site
-    log "  Wildcard SSL certificate obtained."
-fi
+if [[ "$NO_CERT" == false ]]; then
+    if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
+        log "Wildcard SSL certificate already exists, skipping."
+    else
+        log "Obtaining wildcard SSL certificate via Dreamhost DNS..."
+        log "  This will take ~2-4 minutes (DNS propagation wait)."
+        certbot certonly --manual --preferred-challenges dns \
+            --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
+            --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
+            -d "*.docketworks.site" -d "docketworks.site" \
+            --non-interactive --agree-tos --email admin@docketworks.site
+        log "  Wildcard SSL certificate obtained."
+    fi
 
-# certbot certonly --manual doesn't create the standard SSL config files
-# that the nginx plugin would. Instance nginx configs reference these,
-# so we must ensure they exist.
-if [[ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]]; then
-    log "Creating /etc/letsencrypt/options-ssl-nginx.conf..."
-    curl -fsSL -o /etc/letsencrypt/options-ssl-nginx.conf \
-        https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf
-fi
-if [[ ! -f /etc/letsencrypt/ssl-dhparams.pem ]]; then
-    log "Creating /etc/letsencrypt/ssl-dhparams.pem..."
-    curl -fsSL -o /etc/letsencrypt/ssl-dhparams.pem \
-        https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem
+    # certbot certonly --manual doesn't create the standard SSL config files
+    # that the nginx plugin would. Instance nginx configs reference these,
+    # so we must ensure they exist.
+    if [[ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]]; then
+        log "Creating /etc/letsencrypt/options-ssl-nginx.conf..."
+        curl -fsSL -o /etc/letsencrypt/options-ssl-nginx.conf \
+            https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf
+    fi
+    if [[ ! -f /etc/letsencrypt/ssl-dhparams.pem ]]; then
+        log "Creating /etc/letsencrypt/ssl-dhparams.pem..."
+        curl -fsSL -o /etc/letsencrypt/ssl-dhparams.pem \
+            https://raw.githubusercontent.com/certbot/certbot/master/certbot/certbot/ssl-dhparams.pem
+    fi
 fi
 
 # --- Base Nginx config (reject unknown hosts) ---
 
 log "Installing base Nginx config (reject unknown hosts)..."
-cat > /etc/nginx/sites-available/default <<'EOF'
+if [[ "$NO_CERT" == false ]]; then
+    cat > /etc/nginx/sites-available/default <<'EOF'
 server {
     listen 80 default_server;
     listen 443 ssl default_server;
@@ -394,6 +412,15 @@ server {
     return 444;
 }
 EOF
+else
+    cat > /etc/nginx/sites-available/default <<'EOF'
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
+}
+EOF
+fi
 nginx -t && systemctl restart nginx
 log "  Nginx started."
 
