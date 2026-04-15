@@ -91,30 +91,23 @@ log "Updating system packages..."
 apt update && apt upgrade -y
 log "System packages updated."
 
-# --- etckeeper (track /etc changes in git — install first) ---
+# --- System packages (all unconditional installs in one pass) ---
 
-if dpkg -l | grep -q "ii  etckeeper "; then
-    log "etckeeper already installed, skipping."
-else
-    log "Installing etckeeper — tracks all /etc changes in git..."
-    apt install -y etckeeper
-    if [[ -d /etc/.git ]]; then
-        log "  etckeeper initialized. /etc is now tracked in git."
-    fi
+log "Installing system packages..."
+DEBIAN_FRONTEND=noninteractive apt install -y \
+    etckeeper \
+    build-essential libpq-dev pkg-config pandoc unzip \
+    python3.12 python3.12-venv python3.12-dev \
+    git \
+    iptables-persistent netfilter-persistent \
+    quota
+log "System packages installed."
+if [[ -d /etc/.git ]]; then
+    log "  etckeeper initialized. /etc is now tracked in git."
 fi
 log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
-
-# --- Build dependencies ---
-
-log "Installing build dependencies (build-essential, libpq-dev, pkg-config, pandoc, unzip)..."
-apt install -y build-essential libpq-dev pkg-config pandoc unzip
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
-
-# --- Python 3.12 ---
-
-log "Ensuring Python 3.12 and dev packages..."
-apt install -y python3.12 python3.12-venv python3.12-dev
 log_version "python3.12" "$(python3.12 --version 2>&1)"
 
 # --- Node.js 22 (NodeSource) ---
@@ -210,20 +203,12 @@ if [[ "$NO_CERT" == false ]]; then
     log "  Hooks installed: $HOOK_DIR/auth.sh, $HOOK_DIR/cleanup.sh"
 fi
 
-# --- Git ---
-
-apt install -y git
 log_version "git" "$(git --version)"
-
-# --- netfilter-persistent (for iptables save) ---
-
-apt install -y iptables-persistent netfilter-persistent
 log_version "iptables" "$(iptables --version)"
 
 # --- Filesystem quotas (per-instance disk limits) ---
 
-log "Installing quota tools and enabling filesystem quotas..."
-apt install -y quota
+log "Enabling filesystem quotas..."
 QUOTA_MOUNT="$(df --output=target /opt | tail -1)"
 if ! quotaon -p "$QUOTA_MOUNT" &>/dev/null; then
     log "  Enabling quotas on $QUOTA_MOUNT..."
