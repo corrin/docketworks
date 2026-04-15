@@ -3,7 +3,7 @@ set -euo pipefail
 
 # Manage docketworks instances.
 # Usage: instance.sh prepare-config <client> <env>
-#        instance.sh create <client> <env> [--seed]
+#        instance.sh create <client> <env> [--seed] [--fqdn <hostname>]
 #        instance.sh destroy <client> <env>
 #        instance.sh list
 #
@@ -19,6 +19,17 @@ source "$SCRIPT_DIR/common.sh"
 
 # Escape special chars for sed replacement strings (handles / & \ in values)
 sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\\"]/\\&/g'; }
+
+# Get the FQDN for an instance: custom if set, else <instance>.<domain>
+get_fqdn() {
+    local instance="$1"
+    local fqdn_file="$INSTANCES_DIR/$instance/.fqdn"
+    if [[ -f "$fqdn_file" ]]; then
+        cat "$fqdn_file"
+    else
+        echo "${instance}.${DOMAIN}"
+    fi
+}
 
 # Parse and validate <client> <env> args (shared by all commands except list)
 parse_client_env() {
@@ -80,10 +91,12 @@ do_create() {
     shift 2
 
     local SEED=false
+    local CUSTOM_FQDN=""
     while [[ $# -gt 0 ]]; do
         case "$1" in
-            --seed) SEED=true; shift ;;
-            *) echo "Unknown option: $1"; exit 1 ;;
+            --seed)  SEED=true; shift ;;
+            --fqdn)  CUSTOM_FQDN="$2"; shift 2 ;;
+            *)       echo "Unknown option: $1"; exit 1 ;;
         esac
     done
 
@@ -180,6 +193,16 @@ do_create() {
     # .env and logs stay owner-only (dw-<name>:dw-<name>, 600/700).
     # Instance users have NO supplementary groups, so dw-acme cannot
     # traverse dw-msm's dir (not owner, not in www-data).
+    # Derive FQDN and cert domain
+    local FQDN CERT_DOMAIN
+    if [[ -n "$CUSTOM_FQDN" ]]; then
+        FQDN="$CUSTOM_FQDN"
+        CERT_DOMAIN="$CUSTOM_FQDN"
+    else
+        FQDN="${INSTANCE}.${DOMAIN}"
+        CERT_DOMAIN="$DOMAIN"
+    fi
+
     log "Creating instance directory structure..."
     mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox}
     chown -R "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
@@ -193,6 +216,8 @@ do_create() {
     cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
+    echo "$FQDN" > "$INSTANCE_DIR/.fqdn"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
     # Symlink shared venv into instance dir so the user can `source ~/.venv/bin/activate`
     ln -sfn "$SHARED_VENV" "$INSTANCE_DIR/.venv"
     # Create .bash_profile that activates venv and loads .env.
@@ -381,20 +406,27 @@ EOSQL
     systemctl restart "scheduler-$INSTANCE"
 
     # --- Install Nginx server block ---
-    log "Installing Nginx config for $INSTANCE.$DOMAIN..."
+    log "Installing Nginx config for $FQDN..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__DOMAIN__|$DOMAIN|g" \
+        -e "s|__FQDN__|$FQDN|g" \
+        -e "s|__CERT_DOMAIN__|$CERT_DOMAIN|g" \
         "$TEMPLATE_DIR/nginx-instance.conf.template" \
         > "/etc/nginx/sites-available/docketworks-$INSTANCE"
     ln -sf "/etc/nginx/sites-available/docketworks-$INSTANCE" "/etc/nginx/sites-enabled/"
-    nginx -t
-    systemctl reload nginx
+
+    local CERT_PATH="/etc/letsencrypt/live/$CERT_DOMAIN/fullchain.pem"
+    if [[ -f "$CERT_PATH" ]]; then
+        nginx -t && systemctl reload nginx
+    else
+        log "  NOTE: SSL cert not yet at $CERT_PATH — skipping nginx reload."
+        log "  After DNS cutover: sudo certbot --nginx -d $FQDN"
+    fi
 
     # --- Summary ---
     log "=========================================="
     log "Instance '$INSTANCE' created successfully"
-    log "  URL:        https://$INSTANCE.$DOMAIN"
+    log "  URL:        https://$FQDN"
     log "  Directory:  $INSTANCE_DIR (= git checkout)"
     log "  User:       $INSTANCE_USER"
     log "  Database:   $DB_NAME"
@@ -403,7 +435,7 @@ EOSQL
     log "=========================================="
 
     echo ""
-    echo "  Instance is live at: https://$INSTANCE.$DOMAIN"
+    echo "  Instance is live at: https://$FQDN"
 }
 
 # ============================================================
@@ -533,7 +565,7 @@ do_list() {
             branch="no code"
         fi
 
-        printf "%-15s %-12s %-12s %-20s %-40s\n" "$name" "$status" "$sched_status" "$branch" "https://$name.$DOMAIN"
+        printf "%-15s %-12s %-12s %-20s %-40s\n" "$name" "$status" "$sched_status" "$branch" "https://$(get_fqdn "$name")"
     done
 }
 
