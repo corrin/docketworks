@@ -1,12 +1,10 @@
-import api from '@/plugins/axios'
+import { api } from '@/api/client'
 import type { JobMovementParams, JobMovementReportResponse } from '@/types/job-movement.types'
 
 export const jobMovementReportService = {
   async getJobMovementReport(params: JobMovementParams): Promise<JobMovementReportResponse> {
-    const response = await api.get<JobMovementReportResponse>(
-      '/api/accounting/reports/job-movement/',
-      { params },
-    )
-    return response.data
+    return (await api.accounting_reports_job_movement_retrieve({
+      queries: params,
+    })) as unknown as JobMovementReportResponse
   },
 }

@@ -1,6 +1,5 @@
 import { reactive, ref, computed, type ComputedRef, type Ref } from 'vue'
 import { api } from '@/api/client'
-import axios from '@/plugins/axios'
 import { schemas } from '@/api/generated/api'
 import { toast } from 'vue-sonner'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
@@ -259,7 +258,7 @@ export function useWorkshopTimesheetForm(options: {
     if (!id) return
     try {
       isDayLoading.value = true
-      await axios.delete('/api/job/workshop/timesheets/', { data: { entry_id: id } })
+      await api.job_workshop_timesheets_destroy(undefined, { queries: { entry_id: id } })
       toast.success('Entry deleted.')
       await loadDay(selectedDate.value)
     } catch (error) {

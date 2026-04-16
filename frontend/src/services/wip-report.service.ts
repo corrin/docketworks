@@ -1,4 +1,4 @@
-import api from '@/plugins/axios'
+import { api } from '@/api/client'
 import { debugLog } from '@/utils/debug'
 import { exportToCsv } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
@@ -60,19 +60,11 @@ export class WIPReportService {
 
   async getWIPReport(params: WIPReportParams = {}): Promise<WIPReportResponse> {
     try {
-      const searchParams = new URLSearchParams()
-      if (params.date) {
-        searchParams.append('date', params.date)
+      const queries: Record<string, string> = {
+        ...(params.date && { date: params.date }),
+        ...(params.method && { method: params.method }),
       }
-      if (params.method) {
-        searchParams.append('method', params.method)
-      }
-
-      const queryString = searchParams.toString()
-      const url = `/api/accounting/reports/wip/${queryString ? `?${queryString}` : ''}`
-
-      const response = await api.get<WIPReportResponse>(url)
-      return response.data
+      return (await api.accounting_reports_wip_retrieve({ queries })) as WIPReportResponse
     } catch (error) {
       debugLog('Error fetching WIP report:', error)
       throw new Error('Failed to load WIP report')

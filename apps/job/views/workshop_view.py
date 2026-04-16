@@ -217,7 +217,15 @@ class WorkshopTimesheetView(APIView):
             )
 
     @extend_schema(
-        request=WorkshopTimesheetDeleteRequestSerializer,
+        parameters=[
+            OpenApiParameter(
+                name="entry_id",
+                type=str,
+                required=True,
+                location=OpenApiParameter.QUERY,
+                description="UUID of the timesheet entry to delete.",
+            ),
+        ],
         responses={
             status.HTTP_204_NO_CONTENT: None,
             status.HTTP_400_BAD_REQUEST: OpenApiTypes.OBJECT,
@@ -229,7 +237,7 @@ class WorkshopTimesheetView(APIView):
     def delete(self, request):
         """Delete a timesheet entry belonging to the staff member."""
         staff = request.user
-        serializer = WorkshopTimesheetDeleteRequestSerializer(data=request.data)
+        serializer = WorkshopTimesheetDeleteRequestSerializer(data=request.query_params)
         if not serializer.is_valid():
             logger.info(
                 "Invalid workshop timesheet delete payload: %s", serializer.errors

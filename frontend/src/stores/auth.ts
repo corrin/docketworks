@@ -1,6 +1,5 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
-import axios from '@/plugins/axios'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { debugLog } from '@/utils/debug'
@@ -118,7 +117,7 @@ export const useAuthStore = defineStore('auth', () => {
 
   const logout = async (): Promise<void> => {
     try {
-      await axios.post('/api/accounts/logout/')
+      await api.accounts_logout_create(undefined)
     } catch (err) {
       debugLog('Backend logout failed:', err)
     } finally {
