@@ -8,7 +8,6 @@ import type { z } from 'zod'
 type Staff = z.infer<typeof schemas.ModernStaff>
 type Job = z.infer<typeof schemas.ModernTimesheetJob>
 type WeeklyOverviewData = z.infer<typeof schemas.WeeklyTimesheetData>
-type CostLine = z.infer<typeof schemas.CostLine>
 
 export class TimesheetService {
   static async getStaff(): Promise<Staff[]> {
@@ -34,20 +33,6 @@ export class TimesheetService {
       return normalizedStaff
     } catch (error) {
       debugLog('Error fetching staff:', error)
-      throw error
-    }
-  }
-
-  // Legacy method - use CostLine queries instead
-  static async getTimeEntries(staffId: string, date: string): Promise<CostLine[]> {
-    try {
-      const response = await api.job_timesheet_entries_retrieve({
-        queries: { staff_id: staffId, date },
-      })
-      const parsed = schemas.ModernTimesheetEntryGetResponse.parse(response)
-      return parsed.cost_lines || []
-    } catch (error) {
-      debugLog('Error fetching cost lines:', error)
       throw error
     }
   }
