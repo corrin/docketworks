@@ -15,6 +15,7 @@ urlpatterns = [
     path("api/purchasing/", include("apps.purchasing.urls", namespace="purchasing")),
     path("api/accounting/", include("apps.accounting.urls", namespace="accounting")),
     path("api/process/", include("apps.process.urls", namespace="process")),
+    path("api/operations/", include("apps.operations.urls", namespace="operations")),
     path("api/schema/", SpectacularAPIView.as_view(), name="schema"),
     path("api/docs", SpectacularRedocView.as_view(url_name="schema"), name="redoc"),
 ]

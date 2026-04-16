@@ -215,8 +215,16 @@ class KanbanStaffSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Staff
-        fields = ["id", "first_name", "last_name", "icon_url", "display_name"]
-        read_only_fields = ["display_name"]
+        fields = [
+            "id",
+            "first_name",
+            "last_name",
+            "icon_url",
+            "display_name",
+            "is_office_staff",
+            "is_workshop_staff",
+        ]
+        read_only_fields = ["display_name", "is_office_staff", "is_workshop_staff"]
 
 
 class UserProfileSerializer(serializers.ModelSerializer):

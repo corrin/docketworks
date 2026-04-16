@@ -240,6 +240,8 @@ class JobSerializer(serializers.ModelSerializer):
             "rdti_type",
             "default_xero_pay_item_id",
             "default_xero_pay_item_name",
+            "min_people",
+            "max_people",
         ]
 
     def validate(self, attrs):

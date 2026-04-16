@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Schema shapes and field types extracted via AST. Read the actual schema source files before writing migrations or query logic.
 
-**django** — 40 models
+**django** — 43 models
 
 ### Invoice
 
@@ -176,6 +176,8 @@ pk: `id` (uuid) · fk: client_id, contact_id, created_by_id, latest_estimate_id,
 - `latest_quote_id`: integer _(fk)_
 - `latest_actual_id`: integer _(fk)_
 - `priority`: float _(default)_
+- `min_people`: integer _(default)_
+- `max_people`: integer _(default)_
 - `xero_project_id`: string _(unique, nullable)_
 - `xero_default_task_id`: string _(nullable)_
 - `xero_last_modified`: timestamp _(nullable)_
@@ -255,6 +257,46 @@ pk: `id` (uuid) · fk: job_id
 - `tab`: string _(nullable, default)_
 - `job_id`: integer _(fk)_
 - _relations_: job: one(Job)
+
+### AllocationBlock
+
+pk: `id` (uuid) · fk: scheduler_run_id, job_id, staff_id
+
+- `id`: uuid _(pk, default)_
+- `scheduler_run_id`: integer _(fk)_
+- `job_id`: integer _(fk)_
+- `staff_id`: integer _(fk)_
+- `allocation_date`: date
+- `allocated_hours`: float
+- `sequence`: integer _(default)_
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job), staff: one(Staff)
+
+### JobProjection
+
+pk: `id` (uuid) · fk: scheduler_run_id, job_id
+
+- `id`: uuid _(pk, default)_
+- `scheduler_run_id`: integer _(fk)_
+- `job_id`: integer _(fk)_
+- `anticipated_start_date`: date _(nullable)_
+- `anticipated_end_date`: date _(nullable)_
+- `remaining_hours`: float
+- `is_late`: boolean _(default)_
+- `is_unscheduled`: boolean _(default)_
+- `unscheduled_reason`: string _(nullable)_
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job)
+
+### SchedulerRun
+
+pk: `id` (uuid)
+
+- `id`: uuid _(pk, default)_
+- `ran_at`: timestamp _(default)_
+- `algorithm_version`: string _(default)_
+- `succeeded`: boolean _(default)_
+- `failure_reason`: string _(nullable)_
+- `job_count`: integer _(default)_
+- `unscheduled_count`: integer _(default)_
 
 ### Form
 

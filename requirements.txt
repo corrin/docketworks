@@ -44,7 +44,7 @@ django-stubs-ext==6.0.1
 djangorestframework==3.17.1
 djangorestframework-stubs==3.16.8
 djangorestframework_simplejwt==5.5.1
--e git+https://github.com/corrin/docketworks.git@2ad53a4a2b1af7c8d5e519c956084adb82b35f4a#egg=docketworks
+-e git+https://github.com/corrin/docketworks.git@761ffb8dd28037fae984d020860e1a9dc152877c#egg=docketworks
 docstring_parser==0.17.0
 drf-spectacular==0.29.0
 dropbox==12.0.2

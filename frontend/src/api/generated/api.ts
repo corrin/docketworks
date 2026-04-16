@@ -333,6 +333,7 @@ const Staff = z.object({
   xero_user_id: z.string().max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
+  is_workshop_staff: z.boolean().optional(),
   is_superuser: z.boolean().optional(),
   password_needs_reset: z.boolean().optional(),
   hours_mon: z.number().gt(-100).lt(100).optional(),
@@ -359,6 +360,7 @@ const StaffCreateRequest = z.object({
   xero_user_id: z.string().max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
+  is_workshop_staff: z.boolean().optional(),
   is_superuser: z.boolean().optional(),
   password_needs_reset: z.boolean().optional(),
   hours_mon: z.number().gt(-100).lt(100).optional(),
@@ -385,6 +387,7 @@ const StaffRequest = z.object({
   xero_user_id: z.string().max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
+  is_workshop_staff: z.boolean().optional(),
   is_superuser: z.boolean().optional(),
   password_needs_reset: z.boolean().optional(),
   hours_mon: z.number().gt(-100).lt(100).optional(),
@@ -409,6 +412,7 @@ const PatchedStaffRequest = z
     xero_user_id: z.string().max(255).nullable(),
     date_left: z.string().nullable(),
     is_office_staff: z.boolean(),
+    is_workshop_staff: z.boolean(),
     is_superuser: z.boolean(),
     password_needs_reset: z.boolean(),
     hours_mon: z.number().gt(-100).lt(100),
@@ -430,6 +434,8 @@ const KanbanStaff = z.object({
   last_name: z.string().max(30),
   icon_url: z.string().nullable(),
   display_name: z.string(),
+  is_office_staff: z.boolean(),
+  is_workshop_staff: z.boolean(),
 })
 const StaffRatesResponse = z.object({
   base_wage_rate: z.number(),
@@ -515,6 +521,8 @@ const ClientJobHeader = z.object({
   quote_acceptance_date: z.string().datetime({ offset: true }).nullable(),
   paid: z.boolean(),
   rejected_flag: z.boolean(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
 })
 const ClientJobsResponse = z.object({ results: z.array(ClientJobHeader) })
 const ClientUpdateRequest = z
@@ -1152,6 +1160,8 @@ const Job = z.object({
   rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
   default_xero_pay_item_id: z.string().uuid().nullish(),
   default_xero_pay_item_name: z.string().nullable(),
+  min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobEvent = z.object({
   id: z.string().uuid(),
@@ -1353,6 +1363,8 @@ const JobHeaderResponse = z.object({
   paid: z.boolean().optional(),
   rejected_flag: z.boolean().optional(),
   rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
+  min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobInvoicesResponse = z.object({ invoices: z.array(Invoice) })
 const JobQuoteChatHistoryResponse = z.object({
@@ -1474,6 +1486,8 @@ const JobSummary = z.object({
   rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
   default_xero_pay_item_id: z.string().uuid().nullish(),
   default_xero_pay_item_name: z.string().nullable(),
+  min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobSummaryData = z.object({
   job: JobSummary,
@@ -1632,6 +1646,8 @@ const KanbanJob = z.object({
   over_budget: z.boolean(),
   quote_revenue: z.number(),
   time_and_materials_revenue: z.number(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
 })
 const AdvancedSearchResponse = z
   .object({
@@ -1672,6 +1688,8 @@ const KanbanColumnJob = z.object({
   over_budget: z.boolean(),
   quote_revenue: z.number(),
   time_and_materials_revenue: z.number(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
   badge_label: z.string(),
   badge_color: z.string(),
 })
@@ -1933,6 +1951,42 @@ const PatchedWorkshopTimesheetEntryUpdateRequest = z
     wage_rate_multiplier: z.number().gte(0).lt(100),
   })
   .partial()
+const Day = z.object({
+  date: z.string(),
+  total_capacity_hours: z.number(),
+  allocated_hours: z.number(),
+  utilisation_pct: z.number(),
+})
+const AssignedStaff = z.object({ id: z.string().uuid(), name: z.string() })
+const ScheduledJob = z.object({
+  id: z.string().uuid(),
+  job_number: z.number().int(),
+  name: z.string(),
+  client_name: z.string(),
+  remaining_hours: z.number(),
+  delivery_date: z.string().nullable(),
+  anticipated_start_date: z.string().nullable(),
+  anticipated_end_date: z.string().nullable(),
+  is_late: z.boolean(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
+  assigned_staff: z.array(AssignedStaff),
+  anticipated_staff: z.array(AssignedStaff),
+})
+const UnscheduledJob = z.object({
+  id: z.string().uuid(),
+  job_number: z.number().int(),
+  name: z.string(),
+  client_name: z.string(),
+  delivery_date: z.string().nullable(),
+  remaining_hours: z.number(),
+  reason: z.string(),
+})
+const WorkshopScheduleResponse = z.object({
+  days: z.array(Day),
+  jobs: z.array(ScheduledJob),
+  unscheduled_jobs: z.array(UnscheduledJob),
+})
 const CategoriesResponse = z.object({
   procedures: z.array(z.string()),
   forms: z.array(z.string()),
@@ -3084,6 +3138,11 @@ export const schemas = {
   WorkshopTimesheetListResponse,
   WorkshopTimesheetEntryRequestRequest,
   PatchedWorkshopTimesheetEntryUpdateRequest,
+  Day,
+  AssignedStaff,
+  ScheduledJob,
+  UnscheduledJob,
+  WorkshopScheduleResponse,
   CategoriesResponse,
   FormDocumentTypeEnum,
   FormStatusEnum,
@@ -6210,6 +6269,36 @@ POST: Processes selected jobs for month-end archiving and status updates`,
         schema: z.object({}).partial().passthrough(),
       },
     ],
+  },
+  {
+    method: 'get',
+    path: '/api/operations/workshop-schedule/',
+    alias: 'operations_workshop_schedule_retrieve',
+    description: `GET /api/operations/workshop-schedule/`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'day_horizon',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+    ],
+    response: WorkshopScheduleResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/operations/workshop-schedule/recalculate/',
+    alias: 'operations_workshop_schedule_recalculate_create',
+    description: `POST /api/operations/workshop-schedule/recalculate/`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'day_horizon',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+    ],
+    response: WorkshopScheduleResponse,
   },
   {
     method: 'get',

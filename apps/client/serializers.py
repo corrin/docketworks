@@ -238,6 +238,8 @@ class ClientJobHeaderSerializer(serializers.Serializer):
     quote_acceptance_date = serializers.DateTimeField(allow_null=True)
     paid = serializers.BooleanField()
     rejected_flag = serializers.BooleanField()
+    min_people = serializers.IntegerField()
+    max_people = serializers.IntegerField()
 
 
 class ClientJobsResponseSerializer(serializers.Serializer):

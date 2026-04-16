@@ -1,7 +1,7 @@
 # Test Coverage
 
-> **35%** of routes and models are covered by tests
-> 99 test files found
+> **36%** of routes and models are covered by tests
+> 103 test files found
 
 ## Covered Routes
 
@@ -27,6 +27,9 @@
 - JobFile
 - JobQuoteChat
 - QuoteSpreadsheet
+- AllocationBlock
+- JobProjection
+- SchedulerRun
 - Form
 - FormEntry
 - Procedure

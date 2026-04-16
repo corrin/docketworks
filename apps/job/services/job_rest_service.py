@@ -930,6 +930,8 @@ class JobRestService:
                     "paid": job.paid,
                     "rejected_flag": job.rejected_flag,
                     "rdti_type": job.rdti_type,
+                    "min_people": job.min_people,
+                    "max_people": job.max_people,
                 }
 
                 logger.debug(

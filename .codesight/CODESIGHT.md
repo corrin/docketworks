@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 82 routes | 40 models | 181 components | 345 lib files | 70 env vars | 8 middleware | 35% test coverage
-> **Token savings:** this file is ~28,600 tokens. Without it, AI exploration would cost ~227,000 tokens. **Saves ~198,400 tokens per conversation.**
+> 85 routes | 43 models | 181 components | 352 lib files | 70 env vars | 8 middleware | 36% test coverage
+> **Token savings:** this file is ~29,200 tokens. Without it, AI exploration would cost ~231,600 tokens. **Saves ~202,400 tokens per conversation.**
 
 ---
 
@@ -45,6 +45,8 @@
 - `ALL` `/jobs/fetch-by-column/<str:column_id>/` params(column_id)
 - `ALL` `/jobs/status-values/` params()
 - `ALL` `/jobs/advanced-search/` params()
+- `ALL` `/workshop-schedule/` params()
+- `ALL` `/workshop-schedule/recalculate/` params()
 - `ALL` `/` ✓
 - `ALL` `/extract-supplier-price-list/` params()
 - `ALL` `/daily/<str:target_date>/` params(target_date)
@@ -89,6 +91,7 @@
 - `ALL` `/api/purchasing/` params()
 - `ALL` `/api/accounting/` params()
 - `ALL` `/api/process/` params()
+- `ALL` `/api/operations/` params()
 - `ALL` `/api/schema/` params()
 - `ALL` `/api/docs` params()
 
@@ -235,6 +238,8 @@
 - latest_quote_id: integer (fk)
 - latest_actual_id: integer (fk)
 - priority: float (default)
+- min_people: integer (default)
+- max_people: integer (default)
 - xero_project_id: string (unique, nullable)
 - xero_default_task_id: string (nullable)
 - xero_last_modified: timestamp (nullable)
@@ -299,6 +304,37 @@
 - tab: string (nullable, default)
 - job_id: integer (fk)
 - _relations_: job: one(Job)
+
+### AllocationBlock
+- id: uuid (pk, default)
+- scheduler_run_id: integer (fk)
+- job_id: integer (fk)
+- staff_id: integer (fk)
+- allocation_date: date
+- allocated_hours: float
+- sequence: integer (default)
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job), staff: one(Staff)
+
+### JobProjection
+- id: uuid (pk, default)
+- scheduler_run_id: integer (fk)
+- job_id: integer (fk)
+- anticipated_start_date: date (nullable)
+- anticipated_end_date: date (nullable)
+- remaining_hours: float
+- is_late: boolean (default)
+- is_unscheduled: boolean (default)
+- unscheduled_reason: string (nullable)
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job)
+
+### SchedulerRun
+- id: uuid (pk, default)
+- ran_at: timestamp (default)
+- algorithm_version: string (default)
+- succeeded: boolean (default)
+- failure_reason: string (nullable)
+- job_count: integer (default)
+- unscheduled_count: integer (default)
 
 ### Form
 - id: uuid (pk, default)
@@ -1083,6 +1119,22 @@
   - _...17 more_
 - `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
 - `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
+- `apps/operations/apps.py` — class OperationsConfig
+- `apps/operations/models/allocation_block.py` — class AllocationBlock
+- `apps/operations/models/job_projection.py` — class UnscheduledReason, class JobProjection
+- `apps/operations/models/scheduler_run.py` — class SchedulerRun
+- `apps/operations/scheduler_jobs.py` — function recompute_workshop_schedule: () -> None
+- `apps/operations/serializers/workshop_schedule_serializer.py`
+  - class DaySerializer
+  - class AssignedStaffSerializer
+  - class ScheduledJobSerializer
+  - class UnscheduledJobSerializer
+  - class WorkshopScheduleResponseSerializer
+  - class WorkshopScheduleQuerySerializer
+- `apps/operations/services/scheduler_service.py`
+  - function run_workshop_schedule: () -> SchedulerRun
+  - class JobScheduleState
+  - class UnschedulableJob
 - `apps/process/apps.py` — class ProcessConfig
 - `apps/process/management/commands/import_dropbox_hs_documents.py` — class Command
 - `apps/process/models/form.py` — class Form
@@ -1951,8 +2003,8 @@
 
 # Test Coverage
 
-> **35%** of routes and models are covered by tests
-> 99 test files found
+> **36%** of routes and models are covered by tests
+> 103 test files found
 
 ## Covered Routes
 
@@ -1978,6 +2030,9 @@
 - JobFile
 - JobQuoteChat
 - QuoteSpreadsheet
+- AllocationBlock
+- JobProjection
+- SchedulerRun
 - Form
 - FormEntry
 - Procedure

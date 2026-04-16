@@ -55,6 +55,8 @@ class Job(models.Model):
         "paid",
         "rejected_flag",
         "rdti_type",
+        "min_people",
+        "max_people",
     ]
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -249,6 +251,15 @@ class Job(models.Model):
         help_text="Priority of the job, higher numbers are higher priority.",
     )
 
+    min_people = models.IntegerField(
+        default=1,
+        help_text="Minimum number of workshop staff required to work on this job simultaneously",
+    )
+    max_people = models.IntegerField(
+        default=1,
+        help_text="Maximum number of workshop staff that can work on this job simultaneously",
+    )
+
     # Xero Projects sync fields
     xero_project_id = models.CharField(
         max_length=255, unique=True, null=True, blank=True
@@ -327,6 +338,19 @@ class Job(models.Model):
     def __str__(self) -> str:
         status_display = self.get_status_display()
         return f"[Job {self.job_number}] {self.name} ({status_display})"
+
+    def clean(self) -> None:
+        from django.core.exceptions import ValidationError
+
+        errors = {}
+        if self.min_people < 1:
+            errors["min_people"] = "min_people must be at least 1"
+        if self.max_people < 1:
+            errors["max_people"] = "max_people must be at least 1"
+        if self.max_people < self.min_people:
+            errors["max_people"] = "max_people must be >= min_people"
+        if errors:
+            raise ValidationError(errors)
 
     def get_absolute_url(self) -> str:
         """Front-end URL for this job."""

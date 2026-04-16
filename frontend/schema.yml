@@ -4420,6 +4420,48 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/operations/workshop-schedule/:
+    get:
+      operationId: operations_workshop_schedule_retrieve
+      description: GET /api/operations/workshop-schedule/
+      parameters:
+        - in: query
+          name: day_horizon
+          schema:
+            type: integer
+          description: Number of days to include in the response (default 14, max 365)
+      tags:
+        - operations
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopScheduleResponse'
+          description: ''
+  /api/operations/workshop-schedule/recalculate/:
+    post:
+      operationId: operations_workshop_schedule_recalculate_create
+      description: POST /api/operations/workshop-schedule/recalculate/
+      parameters:
+        - in: query
+          name: day_horizon
+          schema:
+            type: integer
+          description: Number of days to include in the response (default 14, max 365)
+      tags:
+        - operations
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopScheduleResponse'
+          description: ''
   /api/process/categories/:
     get:
       operationId: process_categories_retrieve
@@ -8066,6 +8108,17 @@ components:
           type: string
       required:
         - success
+    AssignedStaff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+        - id
+        - name
     BlankEnum:
       enum:
         - ''
@@ -8460,6 +8513,10 @@ components:
           type: boolean
         rejected_flag:
           type: boolean
+        min_people:
+          type: integer
+        max_people:
+          type: integer
       required:
         - client
         - fully_invoiced
@@ -8467,6 +8524,8 @@ components:
         - is_fixed_price
         - job_id
         - job_number
+        - max_people
+        - min_people
         - name
         - paid
         - pricing_methodology
@@ -9907,6 +9966,26 @@ components:
         - total_broken_json_refs
         - total_business_rule_violations
         - total_issues
+    Day:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        total_capacity_hours:
+          type: number
+          format: double
+        allocated_hours:
+          type: number
+          format: double
+        utilisation_pct:
+          type: number
+          format: double
+      required:
+        - allocated_hours
+        - date
+        - total_capacity_hours
+        - utilisation_pct
     DeliveryReceiptAllocationRequest:
       type: object
       description: Serializer for individual allocation within a delivery receipt
@@ -10896,6 +10975,18 @@ components:
           type: string
           readOnly: true
           nullable: true
+        min_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Minimum number of workshop staff required to work on this job
+            simultaneously
+        max_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Maximum number of workshop staff that can work on this job
+            simultaneously
       required:
         - charge_out_rate
         - client_name
@@ -11780,6 +11871,18 @@ components:
             - $ref: '#/components/schemas/RdtiTypeEnum'
             - $ref: '#/components/schemas/BlankEnum'
             - $ref: '#/components/schemas/NullEnum'
+        min_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Minimum number of workshop staff required to work on this job
+            simultaneously
+        max_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Maximum number of workshop staff that can work on this job
+            simultaneously
       required:
         - client_id
         - client_name
@@ -12360,6 +12463,18 @@ components:
           type: string
           readOnly: true
           nullable: true
+        min_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Minimum number of workshop staff required to work on this job
+            simultaneously
+        max_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Maximum number of workshop staff that can work on this job
+            simultaneously
       required:
         - charge_out_rate
         - client_name
@@ -12845,6 +12960,10 @@ components:
         time_and_materials_revenue:
           type: number
           format: double
+        min_people:
+          type: integer
+        max_people:
+          type: integer
         badge_label:
           type: string
         badge_color:
@@ -12861,6 +12980,8 @@ components:
         - fully_invoiced
         - id
         - job_number
+        - max_people
+        - min_people
         - name
         - over_budget
         - paid
@@ -12943,6 +13064,10 @@ components:
         time_and_materials_revenue:
           type: number
           format: double
+        min_people:
+          type: integer
+        max_people:
+          type: integer
       required:
         - client_name
         - contact_person
@@ -12953,6 +13078,8 @@ components:
         - fully_invoiced
         - id
         - job_number
+        - max_people
+        - min_people
         - name
         - over_budget
         - paid
@@ -13002,11 +13129,19 @@ components:
         display_name:
           type: string
           readOnly: true
+        is_office_staff:
+          type: boolean
+          readOnly: true
+        is_workshop_staff:
+          type: boolean
+          readOnly: true
       required:
         - display_name
         - first_name
         - icon_url
         - id
+        - is_office_staff
+        - is_workshop_staff
         - last_name
     KanbanSuccessResponse:
       type: object
@@ -14162,6 +14297,8 @@ components:
           nullable: true
           description: Date staff member left employment (null for current employees)
         is_office_staff:
+          type: boolean
+        is_workshop_staff:
           type: boolean
         is_superuser:
           type: boolean
@@ -16222,6 +16359,61 @@ components:
       required:
         - description
         - title
+    ScheduledJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_number:
+          type: integer
+        name:
+          type: string
+        client_name:
+          type: string
+        remaining_hours:
+          type: number
+          format: double
+        delivery_date:
+          type: string
+          format: date
+          nullable: true
+        anticipated_start_date:
+          type: string
+          format: date
+          nullable: true
+        anticipated_end_date:
+          type: string
+          format: date
+          nullable: true
+        is_late:
+          type: boolean
+        min_people:
+          type: integer
+        max_people:
+          type: integer
+        assigned_staff:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedStaff'
+        anticipated_staff:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedStaff'
+      required:
+        - anticipated_end_date
+        - anticipated_staff
+        - anticipated_start_date
+        - assigned_staff
+        - client_name
+        - delivery_date
+        - id
+        - is_late
+        - job_number
+        - max_people
+        - min_people
+        - name
+        - remaining_hours
     SettingsField:
       type: object
       description: Serializer for individual field metadata.
@@ -16339,6 +16531,8 @@ components:
           nullable: true
           description: Date staff member left employment (null for current employees)
         is_office_staff:
+          type: boolean
+        is_workshop_staff:
           type: boolean
         is_superuser:
           type: boolean
@@ -16487,6 +16681,8 @@ components:
           nullable: true
           description: Date staff member left employment (null for current employees)
         is_office_staff:
+          type: boolean
+        is_workshop_staff:
           type: boolean
         is_superuser:
           type: boolean
@@ -16902,6 +17098,8 @@ components:
           nullable: true
           description: Date staff member left employment (null for current employees)
         is_office_staff:
+          type: boolean
+        is_workshop_staff:
           type: boolean
         is_superuser:
           type: boolean
@@ -17816,6 +18014,35 @@ components:
           minLength: 1
       required:
         - token
+    UnscheduledJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_number:
+          type: integer
+        name:
+          type: string
+        client_name:
+          type: string
+        delivery_date:
+          type: string
+          format: date
+          nullable: true
+        remaining_hours:
+          type: number
+          format: double
+        reason:
+          type: string
+      required:
+        - client_name
+        - delivery_date
+        - id
+        - job_number
+        - name
+        - reason
+        - remaining_hours
     UploadedFile:
       type: object
       description: Serializer for file upload response.
@@ -18428,6 +18655,25 @@ components:
         message:
           type: string
           description: Error message if applicable
+    WorkshopScheduleResponse:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/Day'
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledJob'
+        unscheduled_jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnscheduledJob'
+      required:
+        - days
+        - jobs
+        - unscheduled_jobs
     WorkshopTimesheetEntry:
       type: object
       description: Serializer used to expose simplified workshop timesheet entries.
