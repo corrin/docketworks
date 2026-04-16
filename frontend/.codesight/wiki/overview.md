@@ -35,4 +35,4 @@ Changes to these files have the widest blast radius across the codebase:
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `tests/scripts/xero-login.ts`
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-15_
+_Back to [index.md](./index.md) · Generated 2026-04-16_
