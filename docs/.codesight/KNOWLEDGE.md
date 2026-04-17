@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 182 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-16
+> 182 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-17
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-16 (182 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-17 (182 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
 
 ## Open Questions (10)
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
@@ -68,6 +68,7 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
 ### General Notes (147)
+- `docs/plans/completed/2026-04-17-e2e-backup-lifecycle-fix.md` — 2026-04-17 — The current setup/teardown uses a persistent `.latest_backup` file to track the backup path across runs. This causes two problems:
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
 - `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
@@ -87,7 +88,6 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/2026-04-09-wip-report-script.md` — 2026-04-09 — A WIP (Work In Progress) report was prototyped directly in production as a CLI script. The business logic works — it calculates uninvoiced value on active jobs …
 - `docs/plans/completed/2026-04-02-fix-po-e2e-autosave.md` — 2026-04-02 — E2E test `add a line item to the purchase order` times out waiting for a PATCH. Two issues:
 - `docs/plans/completed/2026-04-02-rename-tables-to-defaults.md` — 2026-04-02 — Moving from MySQL to PostgreSQL. Since no production Postgres data exists yet, this is the clean window to rename 30 tables from their legacy `workflow_*` names…
-- `docs/plans/completed/2026-04-02-timesheet-superuser-gate-plan.md` — 2026-04-02 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - _…and 127 more_
 
 ---
