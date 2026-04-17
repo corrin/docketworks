@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import * as fs from 'fs'
 import os from 'os'
 import AdmZip from 'adm-zip'
-import { getBackupsDir, getDbConfig, runPsql, syncSequences } from './db-backup-utils'
+import { getDbConfig, runPsql, syncSequences } from './db-backup-utils'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -144,16 +144,21 @@ function collectAndAppendTimings() {
 function restoreDatabase() {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
-  const backupDir = getBackupsDir()
-  const latestBackupPath = path.join(backupDir, '.latest_backup')
 
-  if (!fs.existsSync(latestBackupPath)) {
-    console.warn('[db] No backup found. Skipping restore.')
+  if (!fs.existsSync(LOCK_FILE)) {
+    console.warn('[db] No lock file found. Skipping restore.')
     return
   }
 
-  const backupFile = fs.readFileSync(latestBackupPath, 'utf8').trim()
-  if (!backupFile || !fs.existsSync(backupFile)) {
+  const lockContents = fs.readFileSync(LOCK_FILE, 'utf8')
+  const backupFile = lockContents.split('\n')[1]?.trim()
+  if (!backupFile) {
+    console.warn(
+      '[db] Setup did not complete a backup (no backup path in lock file). Skipping restore.',
+    )
+    return
+  }
+  if (!fs.existsSync(backupFile)) {
     console.warn(`[db] Backup file not found: ${backupFile}. Skipping restore.`)
     return
   }
@@ -216,6 +221,9 @@ function restoreDatabase() {
   // Sync sequences after restore
   console.log('[db] Syncing sequences...')
   syncSequences(dbConfig)
+
+  // Backup has served its purpose — delete it.
+  fs.unlinkSync(backupFile)
 
   console.log('[db] Database restored successfully.')
 }

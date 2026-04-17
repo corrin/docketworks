@@ -128,20 +128,9 @@ export default async function globalSetup() {
     throw new Error(`Database backup failed (exit code ${result.status}).`)
   }
 
-  fs.writeFileSync(path.join(backupDir, '.latest_backup'), backupFile, 'utf8')
-
-  const backups = fs
-    .readdirSync(backupDir)
-    .filter((name) => name.startsWith('backup_') && name.endsWith('.sql'))
-    .map((name) => ({
-      path: path.join(backupDir, name),
-      mtimeMs: fs.statSync(path.join(backupDir, name)).mtimeMs,
-    }))
-    .sort((a, b) => b.mtimeMs - a.mtimeMs)
-
-  backups.slice(5).forEach((entry) => {
-    fs.unlinkSync(entry.path)
-  })
+  // Record backup path in the lock file (line 2) so teardown knows a backup
+  // was taken in this run and where to find it.
+  fs.appendFileSync(LOCK_FILE, `\n${backupFile}`, 'utf8')
 
   console.log(`[db] Backup complete: ${backupFile}`)
 }
