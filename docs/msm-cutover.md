@@ -46,10 +46,10 @@ ls /opt/docketworks/restore/extracted/
 # Expect: etc home opt root srv usr var
 ```
 
-### 3. [ ] Verify CODE_DIR bug is fixed in the repo
+### 3. [ ] Pull latest repo and verify CODE_DIR fix
 
-**STATUS: BUG PRESENT on the server's repo. Fix committed on branch `docs/production-cutover` but
-NOT merged to main. MUST merge PR and `git pull` on server before Phase 8.**
+The `CODE_DIR` fix is on `main`. The server needs to `git pull` before Phase 8 or the migration
+script will look for code in the wrong directory.
 
 ```bash
 sudo -u docketworks git -C /opt/docketworks/repo pull
@@ -444,7 +444,7 @@ timestamp vs. current state.
 ## Phase 8: Migrate MariaDB → PostgreSQL
 
 ```bash
-sudo /opt/docketworks/instances/msm-prod/scripts/migrate_mariadb_to_postgres.sh msm-prod jobs_manager
+sudo /opt/docketworks/repo/scripts/migrate_mariadb_to_postgres.sh msm-prod jobs_manager
 ```
 
 The script: stops gunicorn, copies MariaDB data, runs pending migrations against MariaDB, dumps
@@ -502,21 +502,42 @@ else:
 
 ## Phase 10: SSL Certificate (DNS-01 via Dreamhost)
 
-`server-setup.sh --no-cert` skipped hook setup and SSL config files. Install manually.
+`server-setup.sh --no-cert` skipped certbot hook setup, the Dreamhost API key file, and the SSL
+config files nginx needs. Some of these may already be in place from a prior setup run — check
+first and install only what's missing.
 
 ```bash
-# Certbot hooks from the repo
+# Certbot hooks — idempotent (overwriting with same content is safe)
 sudo mkdir -p /opt/docketworks/certbot-hooks
 sudo cp /opt/docketworks/repo/scripts/server/certbot-dreamhost-auth.sh \
     /opt/docketworks/certbot-hooks/auth.sh
 sudo cp /opt/docketworks/repo/scripts/server/certbot-dreamhost-cleanup.sh \
     /opt/docketworks/certbot-hooks/cleanup.sh
 sudo chmod 700 /opt/docketworks/certbot-hooks/*.sh
+```
 
-# Dreamhost API key
-sudo sh -c 'echo "<your-dreamhost-api-key>" > /etc/letsencrypt/dreamhost-api-key.txt'
-sudo chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
+**Dreamhost API key — do NOT overwrite an existing valid key.**
 
+```bash
+if [[ -s /etc/letsencrypt/dreamhost-api-key.txt ]]; then
+    echo "Key already present — leaving it alone."
+else
+    sudo mkdir -p /etc/letsencrypt
+    sudo sh -c 'cat > /etc/letsencrypt/dreamhost-api-key.txt'
+    # Paste the real Dreamhost API key (panel.dreamhost.com → Home → API,
+    # dns-* permissions), then press Ctrl-D.
+    sudo chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
+fi
+```
+
+Verify the file contains a real key (not a placeholder):
+
+```bash
+sudo head -c 8 /etc/letsencrypt/dreamhost-api-key.txt; echo
+# Expected: first 8 chars of the API key, NOT "<your-dr"
+```
+
+```bash
 # SSL config files required by nginx
 sudo curl -fsSL -o /etc/letsencrypt/options-ssl-nginx.conf \
     https://raw.githubusercontent.com/certbot/certbot/master/certbot-nginx/certbot_nginx/_internal/tls_configs/options-ssl-nginx.conf
