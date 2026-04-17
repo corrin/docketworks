@@ -1,4 +1,4 @@
-import api from '@/plugins/axios'
+import { api } from '@/api/client'
 import { debugLog } from '@/utils/debug'
 import { exportToCsv } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
@@ -46,16 +46,13 @@ export class JobAgingReportService {
 
   async getJobAgingReport(params: JobAgingReportParams = {}): Promise<JobAgingReportResponse> {
     try {
-      const searchParams = new URLSearchParams()
+      const queries: Record<string, string> = {}
       if (params.include_archived) {
-        searchParams.append('include_archived', 'true')
+        queries.include_archived = 'true'
       }
-
-      const queryString = searchParams.toString()
-      const url = `/api/accounting/reports/job-aging/${queryString ? `?${queryString}` : ''}`
-
-      const response = await api.get<JobAgingReportResponse>(url)
-      return response.data
+      return (await api.accounting_reports_job_aging_retrieve({
+        queries,
+      })) as JobAgingReportResponse
     } catch (error) {
       debugLog('Error fetching job aging report:', error)
       throw new Error('Failed to load job aging report')

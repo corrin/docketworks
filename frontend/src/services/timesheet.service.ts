@@ -1,4 +1,3 @@
-import axios from '@/plugins/axios'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { debugLog } from '../utils/debug'
@@ -9,7 +8,6 @@ import type { z } from 'zod'
 type Staff = z.infer<typeof schemas.ModernStaff>
 type Job = z.infer<typeof schemas.ModernTimesheetJob>
 type WeeklyOverviewData = z.infer<typeof schemas.WeeklyTimesheetData>
-type CostLine = z.infer<typeof schemas.CostLine>
 
 export class TimesheetService {
   static async getStaff(): Promise<Staff[]> {
@@ -39,20 +37,6 @@ export class TimesheetService {
     }
   }
 
-  // Legacy method - use CostLine queries instead
-  static async getTimeEntries(staffId: string, date: string): Promise<CostLine[]> {
-    try {
-      const response = await axios.get('/api/job/timesheet/entries/', {
-        params: { staff_id: staffId, date },
-      })
-      const parsed = schemas.ModernTimesheetEntryGetResponse.parse(response.data)
-      return parsed.cost_lines || []
-    } catch (error) {
-      debugLog('Error fetching cost lines:', error)
-      throw error
-    }
-  }
-
   static async getJobs(): Promise<Job[]> {
     try {
       const jobsResponse = await api.timesheets_jobs_retrieve()
@@ -65,10 +49,10 @@ export class TimesheetService {
 
   static async getWeeklyOverview(startDate: string): Promise<WeeklyOverviewData> {
     try {
-      const response = await axios.get('/timesheets/api/weekly/', {
-        params: { start_date: startDate },
+      const response = await api.timesheets_weekly_retrieve({
+        queries: { start_date: startDate },
       })
-      return schemas.WeeklyTimesheetData.parse(response.data)
+      return schemas.WeeklyTimesheetData.parse(response)
     } catch (error) {
       debugLog('Error fetching weekly overview:', error)
       throw error

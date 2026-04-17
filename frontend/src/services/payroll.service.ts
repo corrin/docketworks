@@ -3,7 +3,7 @@
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
-import axios, { getApiBaseUrl } from '@/plugins/axios'
+import { getApiBaseUrl } from '@/plugins/axios'
 
 export type CreatePayRunResponse = z.infer<typeof schemas.CreatePayRunResponse>
 export type PayRunListItem = z.infer<typeof schemas.PayRunListItem>
@@ -93,15 +93,12 @@ export async function postStaffWeek(
   callbacks?: PostStaffWeekCallbacks,
 ): Promise<PostStaffWeekDoneEvent> {
   // Step 1: Start the job
-  const startResponse = await axios.post<PostStaffWeekStartResponse>(
-    '/timesheets/api/payroll/post-staff-week/',
-    {
-      staff_ids: staffIds,
-      week_start_date: weekStartDate,
-    },
-  )
+  const startResponse = (await api.timesheets_payroll_post_staff_week_create({
+    staff_ids: staffIds,
+    week_start_date: weekStartDate,
+  })) as unknown as PostStaffWeekStartResponse
 
-  const { stream_url } = startResponse.data
+  const { stream_url } = startResponse
 
   // Step 2: Connect to SSE stream using EventSource (matches Xero sync pattern)
   // Prefix with API base URL since frontend/backend may be on different origins
@@ -188,6 +185,8 @@ export async function fetchAllPayRuns(): Promise<PayRunListResponse> {
  * @returns Counts of fetched/created/updated pay runs from Xero.
  */
 export async function refreshPayRuns(): Promise<PayRunSyncResult> {
-  const response = await axios.post('/timesheets/api/payroll/pay-runs/refresh', {})
-  return response.data as PayRunSyncResult
+  const response = await api.timesheets_payroll_pay_runs_refresh_create(
+    {} as Parameters<typeof api.timesheets_payroll_pay_runs_refresh_create>[0],
+  )
+  return response as PayRunSyncResult
 }

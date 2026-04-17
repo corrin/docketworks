@@ -3316,7 +3316,23 @@ Query Parameters:
 Returns:
     JSON response with job aging data structure`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'include_archived',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+    ],
     response: JobAgingResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({
+          error: z.string(),
+          details: z.unknown().optional(),
+        }),
+      },
+    ],
   },
   {
     method: 'get',
@@ -3324,6 +3340,38 @@ Returns:
     alias: 'accounting_reports_job_movement_retrieve',
     description: `Handle GET request for job movement metrics.`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'baseline_days',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'compare_end_date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'compare_start_date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
+        name: 'include_details',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: z.object({}).partial().passthrough(),
   },
   {
@@ -3396,6 +3444,28 @@ Returns:
     path: '/api/accounting/reports/profit-and-loss/',
     alias: 'accounting_reports_profit_and_loss_retrieve',
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'compare',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
+        name: 'period_type',
+        type: 'Query',
+        schema: z.enum(['month', 'year']).optional(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: z.object({}).partial().passthrough(),
   },
   {
@@ -3508,6 +3578,18 @@ Returns:
     alias: 'accounting_reports_staff_performance_summary_retrieve',
     description: `API endpoint for staff performance summary (all staff)`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: StaffPerformanceResponse,
   },
   {
@@ -3518,9 +3600,19 @@ Returns:
     requestFormat: 'json',
     parameters: [
       {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
         name: 'staff_id',
         type: 'Path',
         schema: z.string().uuid(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
       },
     ],
     response: StaffPerformanceResponse,
@@ -3538,7 +3630,28 @@ Query Parameters:
 Returns:
     JSON response with WIP data, archived jobs, and summary.`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'method',
+        type: 'Query',
+        schema: z.enum(['cost', 'revenue']).optional(),
+      },
+    ],
     response: WIPResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({
+          error: z.string(),
+          details: z.unknown().optional(),
+        }),
+      },
+    ],
   },
   {
     method: 'post',
@@ -6250,6 +6363,13 @@ POST: Processes selected jobs for month-end archiving and status updates`,
     alias: 'job_workshop_timesheets_destroy',
     description: `Delete a timesheet entry belonging to the staff member.`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'entry_id',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: z.void(),
     errors: [
       {

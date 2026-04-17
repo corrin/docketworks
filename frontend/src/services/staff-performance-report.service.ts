@@ -1,4 +1,4 @@
-import api from '@/plugins/axios'
+import { api } from '@/api/client'
 import { debugLog } from '@/utils/debug'
 import {
   formatCurrency,
@@ -28,13 +28,9 @@ export class StaffPerformanceReportService {
     params: StaffPerformanceReportParams,
   ): Promise<StaffPerformanceReportResponse> {
     try {
-      const searchParams = new URLSearchParams()
-      searchParams.append('start_date', params.start_date)
-      searchParams.append('end_date', params.end_date)
-
-      const url = `/api/accounting/reports/staff-performance-summary/?${searchParams.toString()}`
-      const response = await api.get<StaffPerformanceReportResponse>(url)
-      return response.data
+      return (await api.accounting_reports_staff_performance_summary_retrieve({
+        queries: { start_date: params.start_date, end_date: params.end_date },
+      })) as StaffPerformanceReportResponse
     } catch (error) {
       debugLog('Error fetching staff performance summary:', error)
       throw new Error('Failed to load staff performance summary')
@@ -46,13 +42,10 @@ export class StaffPerformanceReportService {
     params: StaffPerformanceReportParams,
   ): Promise<StaffPerformanceReportResponse> {
     try {
-      const searchParams = new URLSearchParams()
-      searchParams.append('start_date', params.start_date)
-      searchParams.append('end_date', params.end_date)
-
-      const url = `/api/accounting/reports/staff-performance/${staffId}/?${searchParams.toString()}`
-      const response = await api.get<StaffPerformanceReportResponse>(url)
-      return response.data
+      return (await api.accounting_reports_staff_performance_retrieve({
+        params: { staff_id: staffId },
+        queries: { start_date: params.start_date, end_date: params.end_date },
+      })) as StaffPerformanceReportResponse
     } catch (error) {
       debugLog('Error fetching staff performance detail:', error)
       throw new Error('Failed to load staff performance detail')

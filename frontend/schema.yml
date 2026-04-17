@@ -54,6 +54,12 @@ paths:
 
         Returns:
             JSON response with job aging data structure
+      parameters:
+        - in: query
+          name: include_archived
+          schema:
+            type: boolean
+          description: Whether to include archived jobs. Defaults to False.
       tags:
         - accounting
       security:
@@ -65,10 +71,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobAgingResponse'
           description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+          description: ''
   /api/accounting/reports/job-movement/:
     get:
       operationId: accounting_reports_job_movement_retrieve
       description: Handle GET request for job movement metrics.
+      parameters:
+        - in: query
+          name: baseline_days
+          schema:
+            type: integer
+          description: Number of days to calculate baseline averages over
+        - in: query
+          name: compare_end_date
+          schema:
+            type: string
+          description: Comparison period end date (YYYY-MM-DD)
+        - in: query
+          name: compare_start_date
+          schema:
+            type: string
+          description: Comparison period start date (YYYY-MM-DD)
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: End date (YYYY-MM-DD)
+          required: true
+        - in: query
+          name: include_details
+          schema:
+            type: boolean
+          description: Include job listings with IDs. Defaults to false.
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Start date (YYYY-MM-DD)
+          required: true
       tags:
         - accounting
       security:
@@ -166,6 +211,32 @@ paths:
   /api/accounting/reports/profit-and-loss/:
     get:
       operationId: accounting_reports_profit_and_loss_retrieve
+      parameters:
+        - in: query
+          name: compare
+          schema:
+            type: integer
+          description: Number of comparison periods to include. Defaults to 0.
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: Period end date (YYYY-MM-DD)
+          required: true
+        - in: query
+          name: period_type
+          schema:
+            type: string
+            enum:
+              - month
+              - year
+          description: Period type for comparison. Defaults to 'month'.
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Period start date (YYYY-MM-DD)
+          required: true
       tags:
         - accounting
       security:
@@ -350,6 +421,19 @@ paths:
     get:
       operationId: accounting_reports_staff_performance_summary_retrieve
       description: API endpoint for staff performance summary (all staff)
+      parameters:
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: End date (YYYY-MM-DD)
+          required: true
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Start date (YYYY-MM-DD)
+          required: true
       tags:
         - accounting
       security:
@@ -366,11 +450,23 @@ paths:
       operationId: accounting_reports_staff_performance_retrieve
       description: API endpoint for individual staff performance detail
       parameters:
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: End date (YYYY-MM-DD)
+          required: true
         - in: path
           name: staff_id
           schema:
             type: string
             format: uuid
+          required: true
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Start date (YYYY-MM-DD)
           required: true
       tags:
         - accounting
@@ -395,6 +491,20 @@ paths:
 
         Returns:
             JSON response with WIP data, archived jobs, and summary.
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+          description: Report date in YYYY-MM-DD format. Defaults to today.
+        - in: query
+          name: method
+          schema:
+            type: string
+            enum:
+              - cost
+              - revenue
+          description: Valuation method. Defaults to 'revenue'.
       tags:
         - accounting
       security:
@@ -405,6 +515,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WIPResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
           description: ''
   /api/accounts/logout/:
     post:
@@ -4385,6 +4501,13 @@ paths:
     delete:
       operationId: job_workshop_timesheets_destroy
       description: Delete a timesheet entry belonging to the staff member.
+      parameters:
+        - in: query
+          name: entry_id
+          schema:
+            type: string
+          description: UUID of the timesheet entry to delete.
+          required: true
       tags:
         - job
       security:

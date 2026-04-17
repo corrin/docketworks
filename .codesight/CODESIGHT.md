@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 85 routes | 43 models | 181 components | 352 lib files | 70 env vars | 8 middleware | 36% test coverage
-> **Token savings:** this file is ~29,200 tokens. Without it, AI exploration would cost ~231,600 tokens. **Saves ~202,400 tokens per conversation.**
+> 85 routes | 43 models | 181 components | 352 lib files | 70 env vars | 8 middleware | 21% test coverage
+> **Token savings:** this file is ~29,100 tokens. Without it, AI exploration would cost ~231,600 tokens. **Saves ~202,500 tokens per conversation.**
 
 ---
 
@@ -2003,8 +2003,8 @@
 
 # Test Coverage
 
-> **36%** of routes and models are covered by tests
-> 103 test files found
+> **21%** of routes and models are covered by tests
+> 98 test files found
 
 ## Covered Routes
 
@@ -2015,21 +2015,15 @@
 ## Covered Models
 
 - Invoice
-- InvoiceLineItem
-- BillLineItem
-- CreditNoteLineItem
 - Quote
 - Client
 - ClientContact
-- SupplierPickupAddress
 - CostSet
 - CostLine
 - Job
-- JobDeltaRejection
 - JobEvent
 - JobFile
 - JobQuoteChat
-- QuoteSpreadsheet
 - AllocationBlock
 - JobProjection
 - SchedulerRun
@@ -2037,25 +2031,12 @@
 - FormEntry
 - Procedure
 - PurchaseOrder
-- PurchaseOrderLine
-- PurchaseOrderSupplierQuote
 - Stock
-- PurchaseOrderEvent
 - SupplierProduct
 - SupplierPriceList
 - ScrapeJob
-- ProductParsingMapping
 - AIProvider
-- AppError
-- XeroError
-- ServiceAPIKey
-- XeroAccount
-- XeroJournal
-- XeroJournalLineItem
 - XeroPayItem
-- XeroPayRun
-- XeroPaySlip
-- XeroSyncCursor
 - XeroToken
 
 ---

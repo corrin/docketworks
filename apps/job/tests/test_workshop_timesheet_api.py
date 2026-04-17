@@ -99,9 +99,7 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
         entry = self._create_entry()
         self.client.force_authenticate(user=self.staff)
         resp = self.client.delete(
-            self.url,
-            {"entry_id": entry["id"]},
-            format="json",
+            f"{self.url}?entry_id={entry['id']}",
         )
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(CostLine.objects.filter(id=entry["id"]).exists())

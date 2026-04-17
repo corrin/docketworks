@@ -7,13 +7,13 @@
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
+- is enough approved work flowing into the shop, and if not, where is the bottleneck? The report must be reproducible hist
 - when is each job expected to start?
 - when is each job expected to finish?
 - where are jobs overlapping in time?
 - which jobs are late?
 - how does work actually flow across the upcoming days?
 - 1. Which active jobs are likely to miss their promised date?
-- 2. When is each job expected to start and finish?
 
 ## Recurring Themes
 verification · tips · steps · what youll need · files to modify · what happens next · implementation steps · troubleshooting · purpose · problem statement · benefits · implementation notes
@@ -68,6 +68,7 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
 ### General Notes (147)
+- `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
 - `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
 - `docs/plans/2026-04-15-msm-prod-server-install.md` — 2026-04-15 — **This is an ops runbook, not a code implementation plan.**
@@ -87,7 +88,6 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/completed/2026-04-02-fix-po-e2e-autosave.md` — 2026-04-02 — E2E test `add a line item to the purchase order` times out waiting for a PATCH. Two issues:
 - `docs/plans/completed/2026-04-02-rename-tables-to-defaults.md` — 2026-04-02 — Moving from MySQL to PostgreSQL. Since no production Postgres data exists yet, this is the clean window to rename 30 tables from their legacy `workflow_*` names…
 - `docs/plans/completed/2026-04-02-timesheet-superuser-gate-plan.md` — 2026-04-02 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
-- `docs/plans/completed/2026-04-02-timesheet-superuser-gate.md` — 2026-04-02 — Timesheet views expose sensitive pay data (how much staff are paid, hours worked at what rates). Currently all 10 timesheet API views independently set `permiss…
 - _…and 127 more_
 
 ---

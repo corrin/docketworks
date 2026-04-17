@@ -2,6 +2,7 @@ from datetime import date
 from logging import getLogger
 from typing import Any, Type
 
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -44,6 +45,24 @@ class WIPReportAPIView(APIView):
             return WIPResponseSerializer
         return WIPQuerySerializer
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="date",
+                type=str,
+                required=False,
+                description="Report date in YYYY-MM-DD format. Defaults to today.",
+            ),
+            OpenApiParameter(
+                name="method",
+                type=str,
+                required=False,
+                enum=["revenue", "cost"],
+                description="Valuation method. Defaults to 'revenue'.",
+            ),
+        ],
+        responses={200: WIPResponseSerializer, 400: StandardErrorSerializer},
+    )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         Get WIP data as at a given date.
