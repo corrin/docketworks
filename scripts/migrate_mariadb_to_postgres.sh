@@ -49,7 +49,7 @@ if [[ "$MODE" == "production" ]]; then
     MARIA_SOURCE_DB="$2"
     INSTANCE_DIR="/opt/docketworks/instances/$INSTANCE"
     ENV_FILE="$INSTANCE_DIR/.env"
-    CODE_DIR="$INSTANCE_DIR/code"
+    CODE_DIR="$INSTANCE_DIR"
     SERVICE="gunicorn-$INSTANCE"
     SHARED_VENV="/opt/docketworks/.venv"
     INSTANCE_USER="dw-$INSTANCE"

@@ -256,6 +256,7 @@ BASH_PROFILE
         sed \
             -e "s|__INSTANCE__|$INSTANCE|g" \
             -e "s|__DOMAIN__|$DOMAIN|g" \
+            -e "s|__FQDN__|$FQDN|g" \
             -e "s|__DB_NAME__|$DB_NAME|g" \
             -e "s|__DB_USER__|$DB_USER|g" \
             -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
