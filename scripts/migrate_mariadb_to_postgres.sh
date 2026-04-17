@@ -67,13 +67,9 @@ if [[ "$MODE" == "production" ]]; then
     # Read database config from .env (PostgreSQL target)
     set -a; source "$ENV_FILE"; set +a
 
-    if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
-        echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
-        exit 1
-    fi
-
-    PG_DB="$DB_NAME"
-    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$DB_NAME DB_HOST=127.0.0.1 DB_PORT=3306"
+    # In production, Step 2 copies the source MariaDB into a MariaDB named $DB_NAME
+    # so later migration commands can target it with the Postgres env shape.
+    MARIA_DB="$DB_NAME"
 
     # dw_run: execute as instance user with venv and env
     # Optional first arg: env var overrides (detected by containing "=")
@@ -114,19 +110,12 @@ else
     # Read database config from .env
     set -a; source "$ENV_FILE"; set +a
 
-    if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
-        echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
-        exit 1
-    fi
-
     MARIA_DB=jobs_manager_prod
-    PG_DB="$DB_NAME"
     DUMP_FILE=/tmp/dw_mysql_to_pg.json
     MYSQL_COUNTS=/tmp/dw_mysql_counts.txt
     PG_COUNTS=/tmp/dw_pg_counts.txt
     SQL_DUMP="$PROJECT_DIR/restore/jobs_manager_backup_20260327.sql"
     LOGFILE="$PROJECT_DIR/logs/mysql_to_postgres_dryrun_$(date +%Y%m%d_%H%M%S).log"
-    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$MARIA_DB DB_HOST=127.0.0.1 DB_PORT=3306"
 
     # dw_run: passthrough with optional env var overrides
     dw_run() {
@@ -142,6 +131,15 @@ else
         fi
     }
 fi
+
+# --- Shared configuration (both modes) ---
+if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
+    echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
+    exit 1
+fi
+
+PG_DB="$DB_NAME"
+MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$MARIA_DB DB_HOST=127.0.0.1 DB_PORT=3306"
 
 # --- Logging ---
 mkdir -p "$(dirname "$LOGFILE")"
