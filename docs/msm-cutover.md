@@ -271,6 +271,25 @@ sudo systemctl status scheduler-msm-prod
 # Both should be listed (gunicorn may be up and failing — no DB yet. That's fine.)
 ```
 
+### 4.4 Append LAN hostnames to ALLOWED_HOSTS
+
+`instance.sh` sets `ALLOWED_HOSTS=office.morrissheetmetal.co.nz` from `--fqdn`. LAN clients that
+browse to `http://msm/` or `http://192.168.1.17/` need those hostnames accepted by Django too.
+
+```bash
+sudo sed -i \
+    "s|^ALLOWED_HOSTS=\(.*\)|ALLOWED_HOSTS=\1,msm,msm.local,192.168.1.17|" \
+    /opt/docketworks/instances/msm-prod/.env
+sudo systemctl restart gunicorn-msm-prod
+```
+
+Verify:
+
+```bash
+grep "^ALLOWED_HOSTS=" /opt/docketworks/instances/msm-prod/.env
+# Expected: ALLOWED_HOSTS=office.morrissheetmetal.co.nz,msm,msm.local,192.168.1.17
+```
+
 ---
 
 ## Phase 5: Set Up Maestral (Dropbox Sync)
@@ -297,7 +316,20 @@ sudo -u dw-msm-prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestr
     config set local_folder /opt/docketworks/instances/msm-prod/dropbox -c msm
 ```
 
-### 5.3 Install as a systemd service
+### 5.3 Pre-populate the dropbox directory from the old server
+
+Maestral's initial cloud sync can take hours on a large Dropbox. Copying files directly from the
+old server over LAN is dramatically faster — Maestral then reconciles with cloud without
+re-downloading content it already has.
+
+```bash
+sudo rsync -av --progress \
+    root@192.168.1.17:/srv/samba/dropbox/ \
+    /opt/docketworks/instances/msm-prod/dropbox/
+sudo chown -R dw-msm-prod:dw-msm-prod /opt/docketworks/instances/msm-prod/dropbox/
+```
+
+### 5.4 Install as a systemd service
 
 ```bash
 cat <<'EOF' | sudo tee /etc/systemd/system/maestral-msm-prod.service
@@ -637,6 +669,22 @@ Compare to the numbers the migration script logged in `/opt/docketworks/instance
 - [ ] Create a time entry for today, it appears on the job, delete it
 - [ ] Open Kanban in two tabs, move a card in one — it moves in the other without refresh
 
+**E2E test suite** — covers login, jobs, kanban, timesheets, purchase orders, reports, and
+company settings. Backs up the DB before running and restores it after. Playwright targets
+the URL derived from `APP_DOMAIN` in the instance `.env`.
+
+```bash
+cd /opt/docketworks/repo/frontend
+npm run test:e2e
+```
+
+- [ ] All tests pass
+
+**LAN-hostname access** (confirms Phase 4.4 ALLOWED_HOSTS edit):
+
+- [ ] `curl -sI -H "Host: msm" http://192.168.1.17/api/admin/login/` — 200 or 302 (not 400)
+- [ ] `curl -sI -H "Host: 192.168.1.17" http://192.168.1.17/api/admin/login/` — 200 or 302
+
 ### 14.3 Email
 
 ```bash
@@ -654,8 +702,14 @@ print('sent')
 
 ### 14.4 Xero
 
+The existing token in the DB was issued to the old server. Don't trust it — force a fresh OAuth
+against the new redirect URI to confirm Phase 13 took effect end-to-end.
+
 - [ ] `https://office.morrissheetmetal.co.nz/admin/` loads
-- [ ] Admin → Workflow → Xero tokens → token exists, not expired
+- [ ] Admin → Workflow → Xero tokens — reconnect / re-authorise against Xero
+- [ ] OAuth redirect completes at `https://office.morrissheetmetal.co.nz/api/xero/oauth/callback/`
+      (not `api.office...`) and returns to the app without error
+- [ ] After reconnect, token row exists and is not expired
 - [ ] Clients list loads (data syncs from Xero)
 - [ ] `journalctl -u gunicorn-msm-prod --since "1 hour ago" | grep -i xero` — no errors
 
