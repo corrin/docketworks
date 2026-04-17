@@ -73,7 +73,7 @@ if [[ "$MODE" == "production" ]]; then
     fi
 
     PG_DB="$DB_NAME"
-    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$DB_NAME"
+    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$DB_NAME DB_HOST=127.0.0.1 DB_PORT=3306"
 
     # dw_run: execute as instance user with venv and env
     # Optional first arg: env var overrides (detected by containing "=")
@@ -126,7 +126,7 @@ else
     PG_COUNTS=/tmp/dw_pg_counts.txt
     SQL_DUMP="$PROJECT_DIR/restore/jobs_manager_backup_20260327.sql"
     LOGFILE="$PROJECT_DIR/logs/mysql_to_postgres_dryrun_$(date +%Y%m%d_%H%M%S).log"
-    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$MARIA_DB"
+    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$MARIA_DB DB_HOST=127.0.0.1 DB_PORT=3306"
 
     # dw_run: passthrough with optional env var overrides
     dw_run() {
