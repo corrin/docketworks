@@ -1,9 +1,13 @@
+import datetime
+
 import requests
 from django.core.cache import cache
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 from xero_python.accounting import AccountingApi
 from xero_python.identity import IdentityApi
+from xero_python.payrollnz import PayrollNzApi
+from xero_python.payrollnz.models import CalendarType, PayRunCalendar
 from xero_python.project import ProjectApi
 
 from apps.accounts.models import Staff
@@ -112,6 +116,11 @@ class Command(BaseCommand):
             help="Get Xero Payroll pay runs",
         )
         parser.add_argument(
+            "--create-missing-xero-items",
+            action="store_true",
+            help="Create the payroll calendar in Xero if it does not exist (use when restoring to dev after a demo org reset)",
+        )
+        parser.add_argument(
             "--configure-payroll",
             action="store_true",
             help="Interactively configure payroll earnings rate mappings",
@@ -185,7 +194,9 @@ class Command(BaseCommand):
 
         # Handle specific flags
         if options["setup"]:
-            self.run_setup()
+            self.run_setup(
+                create_missing_xero_items=options["create_missing_xero_items"]
+            )
             return
 
         if options["users"]:
@@ -297,7 +308,101 @@ class Command(BaseCommand):
                 )
             )
 
-    def run_setup(self):
+    def _ensure_demo_xero_items_exist(self, calendar_name: str, tenant_id: str) -> None:
+        """Create any Xero payroll items missing from the demo org (e.g. after a demo org reset)."""
+        from xero_python.payrollnz.models import EarningsRate, LeaveType
+
+        from apps.workflow.models import XeroPayItem
+
+        payroll_api = PayrollNzApi(api_client)
+
+        # Calendar
+        if calendar_name:
+            calendars = get_payroll_calendars()
+            if not any(c["name"] == calendar_name for c in calendars):
+                self.stdout.write(
+                    f"Payroll calendar '{calendar_name}' not found — creating it."
+                )
+                today = datetime.date.today()
+                period_start = today - datetime.timedelta(days=today.weekday())
+                payroll_api.create_pay_run_calendar(
+                    xero_tenant_id=tenant_id,
+                    pay_run_calendar=PayRunCalendar(
+                        name=calendar_name,
+                        calendar_type=CalendarType.WEEKLY,
+                        period_start_date=period_start,
+                        payment_date=period_start + datetime.timedelta(days=4),
+                    ),
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(f"Created payroll calendar: {calendar_name}")
+                )
+
+        # Pay items with no xero_id — present in DB (from prod backup) but missing in this Xero org
+        missing = XeroPayItem.objects.filter(xero_id__isnull=True)
+        if not missing.exists():
+            return
+
+        all_rates = get_earnings_rates()
+        existing_rates = {r["name"] for r in all_rates}
+        existing_leave = {lt["name"] for lt in get_leave_types()}
+
+        # Use the expense account from an existing OtherGrossEarnings rate
+        expense_account_id = next(
+            (r["expense_account_id"] for r in all_rates if r.get("expense_account_id")),
+            None,
+        )
+        if not expense_account_id:
+            self.stdout.write(
+                self.style.ERROR(
+                    "Cannot create earnings rates: no existing rate has an expense_account_id."
+                )
+            )
+            return
+
+        for item in missing:
+            if item.uses_leave_api:
+                if item.name in existing_leave:
+                    continue
+                self.stdout.write(f"Leave type '{item.name}' not found — creating it.")
+                payroll_api.create_leave_type(
+                    xero_tenant_id=tenant_id,
+                    leave_type=LeaveType(
+                        name=item.name,
+                        is_paid_leave=item.multiplier != 0,
+                        show_on_payslip=True,
+                    ),
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(f"Created leave type: {item.name}")
+                )
+            else:
+                if item.name in existing_rates:
+                    continue
+                self.stdout.write(
+                    f"Earnings rate '{item.name}' not found — creating it."
+                )
+                multiplier = (
+                    float(item.multiplier) if item.multiplier is not None else 1.0
+                )
+                payroll_api.create_earnings_rate(
+                    xero_tenant_id=tenant_id,
+                    earnings_rate=EarningsRate(
+                        name=item.name,
+                        earnings_type="OtherGrossEarnings",
+                        rate_type="MultipleOfOrdinaryEarningsRate",
+                        multiple_of_ordinary_earnings_rate=multiplier,
+                        type_of_units="Hours",
+                        expense_account_id=expense_account_id,
+                    ),
+                )
+                self.stdout.write(
+                    self.style.SUCCESS(
+                        f"Created earnings rate: {item.name} ({multiplier}x)"
+                    )
+                )
+
+    def run_setup(self, create_missing_xero_items: bool):
         """Configure Xero tenant ID, shortcode, and payroll calendar."""
         self.stdout.write("Setting up Xero connection...")
 
@@ -350,6 +455,11 @@ class Command(BaseCommand):
         # Always update cache to prevent stale tenant ID from being used
         cache.set("xero_tenant_id", tenant_id)
 
+        if create_missing_xero_items:
+            self._ensure_demo_xero_items_exist(
+                company.xero_payroll_calendar_name, tenant_id
+            )
+
         # Step 4: Fetch organisation shortcode for deep linking
         accounting_api = AccountingApi(api_client)
         org_response = accounting_api.get_organisations(xero_tenant_id=tenant_id)
@@ -382,7 +492,8 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.ERROR(
                         f"Payroll calendar '{calendar_name}' not found in Xero.\n"
-                        f"Available calendars: {available}"
+                        f"Available calendars: {available}\n"
+                        f"If restoring to dev after a demo org reset, re-run with --create-missing-xero-items."
                     )
                 )
                 return
