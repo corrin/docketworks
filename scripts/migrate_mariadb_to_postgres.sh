@@ -91,7 +91,7 @@ set -a; source '$ENV_FILE'; set +a
 cd '$CODE_DIR'
 $env_prefix $(printf '%q ' "$@")
 DWEOF
-        chmod +x "$tmpscript"
+        chmod 755 "$tmpscript"
         sudo -u "$INSTANCE_USER" bash "$tmpscript"
         local rc=$?
         rm -f "$tmpscript"
