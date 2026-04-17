@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 182 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-17
+> 186 notes · 0 decisions · 10 open questions · 2026-02-24 → 2026-04-17
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-17 (182 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-17 (186 notes). Key topics: verification, tips, steps, what youll need. 10 open questions remain.
 
 ## Open Questions (10)
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
@@ -16,7 +16,7 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · tips · steps · what youll need · files to modify · what happens next · implementation steps · troubleshooting · purpose · problem statement · benefits · implementation notes
+verification · tips · steps · what youll need · files to modify · what happens next · troubleshooting · implementation steps · purpose · fix · changes · problem statement
 
 ## People
 @docketworks · @transaction · @pytest · @patch · @morrissheetmetal · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone · @fluidandgeneral · @ppsindustries
@@ -28,9 +28,9 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/restore-prod-to-nonprod.md` — **2** incoming references — Restore Production to Non-Production
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 
-## Note Index (182)
+## Note Index (186)
 
-### Specs & PRDs (29)
+### Specs & PRDs (30)
 - `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
 - `docs/plans/2026-03-03-process-documents-design.md` — 2026-03-03 — Replace the Dropbox `Health & Safety` folder with an in-app document management system. Rename `SafetyDocument` to `ProcessDocument` to reflect broader scope. M…
 - `docs/plans/2026-03-03-process-documents-frontend-spec.md` — 2026-03-03 — The backend `SafetyDocument` model has been renamed to `ProcessDocument` with expanded functionality. The frontend needs a new **Process Documents** section tha…
@@ -50,8 +50,8 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/completed/xero-projects-ticket-1.md` — Adding Xero sync fields to Job, Staff, and CostLine models to support Xero Projects API integration.
 - `docs/plans/completed/xero-projects-ticket-2.md` — Changing Invoice model relationship from OneToOneField to ForeignKey to support multiple invoices per job, as required by Xero Projects API.
 - `docs/plans/completed/xero-projects-ticket-3.md` — Adding Projects API calls to the existing Xero API infrastructure to support project creation, updates, and time/expense entry management.
-- `docs/plans/jsa-swp-api.md` — This document describes the backend API for AI-powered Job Safety Analysis (JSA) and Safe Work Procedure (SWP) generation and editing.
-- _…and 9 more_
+- `docs/plans/iridescent-shimmying-breeze-agent-add52a5ae24bf99aa.md` — When Django redirects to the login page after a cancelled Xero OAuth flow with
+- _…and 10 more_
 
 ### Meeting Notes (3)
 - `docs/plans/completed/2026-04-01-postgres-sequence-sync.md` — 2026-04-01 — E2E tests fail with `IntegrityError` on `workflow_historicaljob_pkey` because the custom `syncSequences` SQL query misses identity column sequences (all SimpleH…
@@ -67,8 +67,9 @@ verification · tips · steps · what youll need · files to modify · what happ
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (147)
+### General Notes (150)
 - `docs/plans/completed/2026-04-17-e2e-backup-lifecycle-fix.md` — 2026-04-17 — The current setup/teardown uses a persistent `.latest_backup` file to track the backup path across runs. This causes two problems:
+- `docs/plans/transient-crafting-curry.md` — 2026-04-17 — When restoring prod data to a dev environment, the Xero demo org periodically gets reset. The payroll calendar (e.g. "Weekly Testing") no longer exists in the f…
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
 - `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
@@ -87,8 +88,7 @@ verification · tips · steps · what youll need · files to modify · what happ
 - `docs/plans/completed/2026-04-10-wip-historical-state.md` — 2026-04-10 — The WIP report is supposed to show work-in-progress as at a given date. When you pick a past date, it should show what jobs **were** in progress on that date an…
 - `docs/plans/2026-04-09-wip-report-script.md` — 2026-04-09 — A WIP (Work In Progress) report was prototyped directly in production as a CLI script. The business logic works — it calculates uninvoiced value on active jobs …
 - `docs/plans/completed/2026-04-02-fix-po-e2e-autosave.md` — 2026-04-02 — E2E test `add a line item to the purchase order` times out waiting for a PATCH. Two issues:
-- `docs/plans/completed/2026-04-02-rename-tables-to-defaults.md` — 2026-04-02 — Moving from MySQL to PostgreSQL. Since no production Postgres data exists yet, this is the clean window to rename 30 tables from their legacy `workflow_*` names…
-- _…and 127 more_
+- _…and 130 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

@@ -309,7 +309,11 @@ Xero setup complete.
 
 **Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Step 7).
 
-Brand new install or reset Xero Dev? The payroll calendar won't be found here. You must create the missing calendar in Xero (Payroll > Payroll Settings > Payroll Calendars).
+If the payroll calendar is missing (e.g. after a Xero demo org reset), re-run with:
+
+```bash
+python manage.py xero --setup --create-missing-xero-items
+```
 
 #### Step 17: Sync Pay Items from Xero
 

@@ -3,6 +3,7 @@ import json
 import logging
 import time
 import uuid
+from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
@@ -109,16 +110,35 @@ def xero_authenticate(request: HttpRequest) -> HttpResponse:
     return redirect(authorization_url)
 
 
+def _build_post_xero_url(redirect_path: str) -> str:
+    frontend_url = getattr(settings, "FRONT_END_URL", None)
+    if not isinstance(frontend_url, str) or not frontend_url:
+        return redirect_path
+    if not redirect_path.startswith("/"):
+        return frontend_url.rstrip("/") + "/"
+    return frontend_url.rstrip("/") + redirect_path
+
+
 # OAuth callback
 @csrf_exempt
 def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
+    redirect_path = request.session.pop("post_login_redirect", "/") or "/"
+
+    error = request.GET.get("error")
+    if error:
+        error_description = request.GET.get("error_description", error)
+        logger.info(f"Xero OAuth cancelled or denied: {error_description}")
+        return redirect(
+            f"{_build_post_xero_url(redirect_path)}?{urlencode({'xero_error': error_description})}"
+        )
+
     code = request.GET.get("code")
     state = request.GET.get("state")
     session_state = request.session.get("oauth_state")
     result = exchange_code_for_token(code, state, session_state)
     if "error" in result:
-        return render(
-            request, "xero/error_xero_auth.html", {"error_message": result["error"]}
+        return redirect(
+            f"{_build_post_xero_url(redirect_path)}?{urlencode({'xero_error': result['error']})}"
         )
 
     try:
@@ -135,21 +155,7 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
             f"Failed to log available tenant IDs after authentication: {str(e)}"
         )
 
-    redirect_path = request.session.pop("post_login_redirect", "/")
-    if not redirect_path:
-        redirect_path = "/"
-
-    frontend_url = getattr(settings, "FRONT_END_URL", None)
-
-    if not isinstance(frontend_url, str) or not frontend_url:
-        logger.info(f"Redirecting user to frontend: {redirect_path}")
-        return redirect(redirect_path)
-
-    if not redirect_path.startswith("/"):
-        logger.info(f"Redirecting user to frontend: {frontend_url.rstrip('/')}/")
-        return redirect(frontend_url.rstrip("/") + "/")
-
-    redirect_url = frontend_url.rstrip("/") + redirect_path
+    redirect_url = _build_post_xero_url(redirect_path)
     logger.info(f"Redirecting user to frontend: {redirect_url}")
     return redirect(redirect_url)
 
