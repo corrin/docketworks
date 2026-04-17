@@ -886,6 +886,13 @@
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
 - `manage.py` — function main: () -> None
+- `restore/extracted/home/corrin/backport_data_backup.py` — class Command
+- `restore/extracted/usr/local/bin/cleanup_backups.py`
+  - function find_timestamped_dirs: (root)
+  - function find_daily_sql_backups: (root)
+  - function compute_keep_set: (pairs, now)
+  - function delete_items: (root, pairs, keep, dry_run)
+  - function main: ()
 - `scripts/analyze_client_contacts.py`
   - function analyze_empty_names: (verbose) -> None
   - function analyze_duplicates: (verbose) -> None

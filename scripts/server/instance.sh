@@ -173,10 +173,13 @@ do_create() {
     fi
 
     # --- Set disk quota for instance user ---
+    # quotaon -p exits 0 whether quotas are on or off; parse its output instead.
+    # Format: "user quota on <mount> (<device>) is on|off"
     if command -v setquota &>/dev/null; then
-        local QUOTA_MOUNT
+        local QUOTA_MOUNT QUOTA_STATUS
         QUOTA_MOUNT="$(df --output=target "$INSTANCES_DIR" | tail -1)"
-        if quotaon -p "$QUOTA_MOUNT" &>/dev/null; then
+        QUOTA_STATUS="$(quotaon -pu "$QUOTA_MOUNT" 2>/dev/null || true)"
+        if [[ "$QUOTA_STATUS" == *"is on"* ]]; then
             log "Setting disk quota for $INSTANCE_USER: soft=$QUOTA_SOFT hard=$QUOTA_HARD"
             setquota -u "$INSTANCE_USER" "$QUOTA_SOFT" "$QUOTA_HARD" 0 0 "$QUOTA_MOUNT"
         else

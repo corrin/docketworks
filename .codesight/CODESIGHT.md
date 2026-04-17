@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 85 routes | 43 models | 181 components | 352 lib files | 70 env vars | 8 middleware | 21% test coverage
-> **Token savings:** this file is ~29,100 tokens. Without it, AI exploration would cost ~231,600 tokens. **Saves ~202,500 tokens per conversation.**
+> 85 routes | 43 models | 181 components | 354 lib files | 70 env vars | 8 middleware | 21% test coverage
+> **Token savings:** this file is ~29,200 tokens. Without it, AI exploration would cost ~232,100 tokens. **Saves ~202,900 tokens per conversation.**
 
 ---
 
@@ -1745,6 +1745,13 @@
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
 - `manage.py` — function main: () -> None
+- `restore/extracted/home/corrin/backport_data_backup.py` — class Command
+- `restore/extracted/usr/local/bin/cleanup_backups.py`
+  - function find_timestamped_dirs: (root)
+  - function find_daily_sql_backups: (root)
+  - function compute_keep_set: (pairs, now)
+  - function delete_items: (root, pairs, keep, dry_run)
+  - function main: ()
 - `scripts/analyze_client_contacts.py`
   - function analyze_empty_names: (verbose) -> None
   - function analyze_duplicates: (verbose) -> None
@@ -2004,7 +2011,7 @@
 # Test Coverage
 
 > **21%** of routes and models are covered by tests
-> 98 test files found
+> 99 test files found
 
 ## Covered Routes
 
