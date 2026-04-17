@@ -160,6 +160,8 @@ class KanbanService:
             "over_budget": over_budget,
             "quote_revenue": quote_revenue,
             "time_and_materials_revenue": time_and_materials_revenue,
+            "min_people": job.min_people,
+            "max_people": job.max_people,
             "badge_label": badge_info["label"],
             "badge_color": badge_info["color_class"],
         }

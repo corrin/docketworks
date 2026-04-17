@@ -753,6 +753,8 @@ class ClientRestService:
                     "quote_acceptance_date": job.quote_acceptance_date,
                     "paid": job.paid,
                     "rejected_flag": job.rejected_flag,
+                    "min_people": job.min_people,
+                    "max_people": job.max_people,
                 }
                 for job in jobs
             ]

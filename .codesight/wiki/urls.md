@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Urls subsystem handles **74 routes** and touches: auth, payment.
+The Urls subsystem handles **77 routes** and touches: auth, payment.
 
 ## Routes
 
@@ -70,6 +70,10 @@ The Urls subsystem handles **74 routes** and touches: auth, payment.
   `apps/job/urls.py`
 - `ALL` `/jobs/advanced-search/`
   `apps/job/urls.py`
+- `ALL` `/workshop-schedule/`
+  `apps/operations/urls.py`
+- `ALL` `/workshop-schedule/recalculate/`
+  `apps/operations/urls.py`
 - `ALL` `/extract-supplier-price-list/`
   `apps/quoting/urls.py`
 - `ALL` `/daily/<str:target_date>/` params(target_date)
@@ -150,6 +154,8 @@ The Urls subsystem handles **74 routes** and touches: auth, payment.
   `docketworks/urls.py`
 - `ALL` `/api/process/`
   `docketworks/urls.py`
+- `ALL` `/api/operations/`
+  `docketworks/urls.py`
 - `ALL` `/api/schema/`
   `docketworks/urls.py`
 - `ALL` `/api/docs`
@@ -161,6 +167,7 @@ Read these before implementing or modifying this subsystem:
 - `apps/accounting/urls.py`
 - `apps/accounts/urls.py`
 - `apps/job/urls.py`
+- `apps/operations/urls.py`
 - `apps/quoting/urls.py`
 - `apps/timesheet/urls.py`
 - `apps/workflow/urls.py`

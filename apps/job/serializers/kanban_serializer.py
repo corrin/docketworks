@@ -117,6 +117,10 @@ class KanbanJobSerializer(serializers.Serializer):
     quote_revenue = serializers.FloatField()
     time_and_materials_revenue = serializers.FloatField()
 
+    # Workshop scheduling
+    min_people = serializers.IntegerField()
+    max_people = serializers.IntegerField()
+
 
 class FetchAllJobsResponseSerializer(serializers.Serializer):
     """Serializer for fetch_all_jobs response."""
@@ -204,6 +208,10 @@ class KanbanColumnJobSerializer(serializers.Serializer):
     over_budget = serializers.BooleanField()
     quote_revenue = serializers.FloatField()
     time_and_materials_revenue = serializers.FloatField()
+
+    # Workshop scheduling
+    min_people = serializers.IntegerField()
+    max_people = serializers.IntegerField()
 
     # Badge information (specific to column view)
     badge_label = serializers.CharField()

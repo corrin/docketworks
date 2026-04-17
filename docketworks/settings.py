@@ -140,6 +140,7 @@ INSTALLED_APPS = [
     "apps.client.apps.ClientConfig",
     "apps.purchasing.apps.PurchasingConfig",
     "apps.process.apps.ProcessConfig",
+    "apps.operations.apps.OperationsConfig",
     "channels",
     "mcp_server",
     "drf_spectacular",

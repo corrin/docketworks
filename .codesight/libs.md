@@ -260,6 +260,22 @@
   - _...17 more_
 - `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
 - `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
+- `apps/operations/apps.py` — class OperationsConfig
+- `apps/operations/models/allocation_block.py` — class AllocationBlock
+- `apps/operations/models/job_projection.py` — class UnscheduledReason, class JobProjection
+- `apps/operations/models/scheduler_run.py` — class SchedulerRun
+- `apps/operations/scheduler_jobs.py` — function recompute_workshop_schedule: () -> None
+- `apps/operations/serializers/workshop_schedule_serializer.py`
+  - class DaySerializer
+  - class AssignedStaffSerializer
+  - class ScheduledJobSerializer
+  - class UnscheduledJobSerializer
+  - class WorkshopScheduleResponseSerializer
+  - class WorkshopScheduleQuerySerializer
+- `apps/operations/services/scheduler_service.py`
+  - function run_workshop_schedule: () -> SchedulerRun
+  - class JobScheduleState
+  - class UnschedulableJob
 - `apps/process/apps.py` — class ProcessConfig
 - `apps/process/management/commands/import_dropbox_hs_documents.py` — class Command
 - `apps/process/models/form.py` — class Form

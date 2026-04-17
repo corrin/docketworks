@@ -6,9 +6,7 @@
 
 ## Scale
 
-61 database models · 181 UI components · 3 middleware layers · 15 environment variables
-
-**Database:** unknown, 61 models — see [database.md](./database.md)
+181 UI components · 3 middleware layers · 15 environment variables
 
 **UI:** 181 components (vue) — see [ui.md](./ui.md)
 
@@ -35,4 +33,4 @@ Changes to these files have the widest blast radius across the codebase:
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `tests/scripts/xero-login.ts`
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-16_
+_Back to [index.md](./index.md) · Generated 2026-04-17_
