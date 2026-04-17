@@ -48,7 +48,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dayjs": "^1.11.20",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.0",
     "event-source-polyfill": "^1.0.31",
     "js-cookie": "^3.0.5",
     "lodash-es": "^4.18.1",
