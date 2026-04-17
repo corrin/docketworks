@@ -68,6 +68,21 @@ ssh corrin@<new-server-ip>                    # logs in, no password prompt
 ssh corrin@<new-server-ip> 'id; sudo -n true' # shows groups; sudo works with saved creds
 ```
 
+### 5. Extract AI provider keys from the MariaDB dump
+
+`instance.sh create` (Phase 4.3) requires `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, and
+`MISTRAL_API_KEY` in the credentials env file. They live in the DB (`workflow_aiprovider`
+table), not the old `.env`.
+
+```bash
+sudo zcat /opt/docketworks/restore/extracted/usr/local/semantic-backup/mysql-dumps/jobs_manager.sql.gz \
+  | grep -A10 "INSERT INTO \`workflow_aiprovider\`"
+```
+
+Row format: `(id, name, api_key, provider_type, default, model_name)`. Note the `api_key`
+values for the Claude, Gemini, and Mistral rows — they map to `ANTHROPIC_API_KEY`,
+`GEMINI_API_KEY`, and `MISTRAL_API_KEY` in the credentials file in Phase 4.2.
+
 ---
 
 ## Prerequisites
@@ -80,8 +95,12 @@ ssh corrin@<new-server-ip> 'id; sudo -n true' # shows groups; sudo works with sa
 - [ ] Django admin email(s) for `DJANGO_ADMINS`
 - [ ] Email BCC address
 
-All other app credentials (Xero, Gmail, Anthropic/Gemini/Mistral, E2E) are in the tarball at
+All other env-file app credentials (Xero, Gmail, E2E) are in the tarball at
 `/opt/docketworks/restore/extracted/usr/local/semantic-backup/env-files/jobs_manager.env`.
+
+AI provider keys (Anthropic, Gemini, Mistral) are stored in the database via `AIProvider` /
+`CompanyDefaults`, not in the env file — they come across with the MariaDB dump in Phase 7.
+Leave those fields empty in the credentials file.
 
 ---
 
@@ -244,7 +263,7 @@ Values:
 - `XERO_CLIENT_ID`, `XERO_CLIENT_SECRET`, `XERO_WEBHOOK_KEY`, `XERO_DEFAULT_USER_ID` — from old `.env`
 - `EMAIL_HOST_USER`, `EMAIL_HOST_PASSWORD` — from old `.env`
 - `DJANGO_ADMINS`, `EMAIL_BCC` — from old `.env`
-- `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY` — from old `.env`
+- `ANTHROPIC_API_KEY`, `GEMINI_API_KEY`, `MISTRAL_API_KEY` — from Pre-Cutover step 5
 - `E2E_TEST_USERNAME`, `E2E_TEST_PASSWORD`, `XERO_USERNAME`, `XERO_PASSWORD` — from old `.env`
 
 Do NOT copy `XERO_REDIRECT_URI`, `ALLOWED_HOSTS`, `APP_DOMAIN`, `DJANGO_SITE_DOMAIN`,
@@ -587,56 +606,42 @@ sudo /opt/docketworks/repo/scripts/backup_db.sh msm-prod
 
 ## Phase 12: LAN Cutover
 
-The old server is `192.168.1.17` with hostname `msm`. LAN clients use this IP and hostname for
-Samba (`\\msm\Dropbox`), the web app, and bookmarks. Give the new server that identity.
+Old server powers off; new server takes `192.168.1.17`, hostname `msm`, and the SSH host
+keys so LAN clients see no change. Old server's on-disk config is left untouched — rollback
+is `poweroff new` + `poweron old`.
 
-**Do this via Hyper-V console on the old server, not SSH — changing the IP will drop SSH
-immediately. The Hyper-V console gives you a Linux terminal on the VM.**
-
-### 12.1 Change old server's IP
-
-Via Hyper-V console on the old server:
+### 12.1 Power off old server
 
 ```bash
-ls /etc/netplan/
-# Edit the config — change 192.168.1.17 to a temporary e.g. 192.168.1.18
-sudo vi /etc/netplan/01-netcfg.yaml   # filename may differ
-sudo netplan apply
+ssh corrin@192.168.1.17 'sudo poweroff'
 ```
+
+Confirm the VM shows as stopped in Hyper-V before continuing.
 
 ### 12.2 Give the new server the old identity
 
 On the new server:
 
 ```bash
-# 1. Change IP
+# 1. Change IP to 192.168.1.17/24
 sudo vi /etc/netplan/<config-file>
-# Edit address to 192.168.1.17
 sudo netplan apply
 
-# 2. Change hostname
+# 2. Change hostname to msm
 sudo hostnamectl set-hostname msm
 sudo vi /etc/hosts   # update 127.0.1.1 line to: 127.0.1.1  msm
 
-# 3. Replace SSH host keys (preserves fingerprint for existing clients)
+# 3. Replace SSH host keys + sshd_config so known_hosts entries for `msm` still validate
 EXTRACT=/opt/docketworks/restore/extracted
 sudo cp $EXTRACT/etc/ssh/ssh_host_* /etc/ssh/
+sudo cp $EXTRACT/etc/ssh/sshd_config /etc/ssh/sshd_config
 sudo chmod 600 /etc/ssh/ssh_host_*_key
 sudo chmod 644 /etc/ssh/ssh_host_*_key.pub
-
-# 4. Replace sshd_config (old server had non-default HostKeyAlgorithms +ssh-rsa,
-#    PubkeyAcceptedAlgorithms +ssh-rsa for older clients)
-sudo cp $EXTRACT/etc/ssh/sshd_config /etc/ssh/sshd_config
-
-# 5. Restart sshd with the new keys and config
 sudo systemctl restart sshd
 ```
 
-LAN clients hit the new server at the familiar IP and hostname. `\\msm\Dropbox` and existing
-shortcuts continue to work.
-
-Public DNS (`office.morrissheetmetal.co.nz`) points to the router, and the router port-forwards
-443 to `192.168.1.17`. Nothing external needs to change.
+LAN clients at `\\msm\Dropbox`, `http://msm/`, and `https://office.morrissheetmetal.co.nz`
+now hit the new server. Public DNS + router port-forward to .17 is unchanged.
 
 ---
 
@@ -679,9 +684,9 @@ Expected: eight lines, each `active`.
 Row counts match the old server:
 
 ```bash
-sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM workflow_job;"
-sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM workflow_costline;"
-sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM workflow_client;"
+sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM job_job;"
+sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM job_costline;"
+sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM client_client;"
 ```
 
 Compare to the numbers the migration script logged in `/opt/docketworks/instances/msm-prod/logs/`.
@@ -833,40 +838,26 @@ certbot certificates
 
 ---
 
-## Rollback
+## DR
 
-### Before Phase 12 (LAN cutover)
+### Roll back
 
-The old server is untouched. Abort the new server's setup — keep using the old one.
-
-### After Phase 12
-
-Actions needed, in order:
-
-1. **Via Hyper-V console on the NEW server**, change its IP off `192.168.1.17`:
-   ```bash
-   sudo vi /etc/netplan/<config>   # set to 192.168.1.18 or other temp
-   sudo netplan apply
-   ```
-
-2. **Via Hyper-V console on the OLD server**, put it back on `192.168.1.17`:
-   ```bash
-   sudo vi /etc/netplan/01-netcfg.yaml
-   sudo netplan apply
-   ```
-
-3. **Revert Xero redirect URI** at myapps.developer.xero.com →
+1. New server: `sudo poweroff`
+2. Hyper-V: power on old VM (boots at 192.168.1.17, unchanged)
+3. Xero developer portal → MSM app → Redirect URIs: change
+   `https://office.morrissheetmetal.co.nz/api/xero/oauth/callback/` → back to
    `https://api.office.morrissheetmetal.co.nz/api/xero/oauth/callback/`
+4. Xero portal → MSM → Settings → Webhooks: delivery URL back to the
+   `api.office.morrissheetmetal.co.nz` path
+5. Google Drive (signed in as MSM): rename `DocketWorks` → `Jobs Manager`
+   (skip if Phase 9.3 hasn't run)
 
-4. **Revert Xero webhook delivery URL** to the previous `api.office.morrissheetmetal.co.nz` path.
+Verify: `https://office.morrissheetmetal.co.nz` loads the old app; Clients list loads
+(Xero token + DNS OK); open a job with linked Drive sheets (Drive OK).
 
-5. Verify old server: `systemctl status gunicorn nginx mariadb smbd nmbd cups maestral`
-   (should still be running — nothing on the old server was stopped).
+### Roll forward
 
-6. Verify `https://office.morrissheetmetal.co.nz` and `https://api.office.morrissheetmetal.co.nz`
-   both resolve to the old server and serve the old app.
-
-MariaDB, files, and services on the old server were never modified — rollback is IP + Xero only.
+Default after Phase 14 passes. Old VM stays off; after 1 week stable, Phase 15 deletes it.
 
 ---
 
