@@ -207,6 +207,11 @@ function mapGroupedRows(
   type: ErrorTab,
   rows: (GroupedAppError | GroupedJobDeltaRejection)[],
 ): GroupedErrorRow[] {
+  // `resolved` is hardcoded false because the grouped endpoints only return
+  // unresolved groups by default — the default `resolved=false` filter is
+  // applied server-side. When the `resolved=true` filter is used (showing
+  // resolved groups), the Resolve button will incorrectly show instead of
+  // Unresolve until the backend serializer exposes `resolved` on each group.
   if (type === 'job') {
     return (rows as GroupedJobDeltaRejection[]).map((row) => ({
       id: row.latest_id,
