@@ -187,7 +187,7 @@ pk: `id` (uuid) · fk: client_id, contact_id, created_by_id, latest_estimate_id,
 
 ### JobDeltaRejection
 
-pk: `id` (uuid) · fk: job_id, staff_id
+pk: `id` (uuid) · fk: job_id, staff_id, resolved_by_id
 
 - `id`: uuid _(pk, default)_
 - `job_id`: integer _(fk)_
@@ -199,7 +199,10 @@ pk: `id` (uuid) · fk: job_id, staff_id
 - `checksum`: string
 - `request_etag`: string
 - `request_ip`: string _(nullable)_
-- _relations_: job: one(Job), staff: one(Staff)
+- `resolved`: boolean _(default)_
+- `resolved_by_id`: integer _(fk)_
+- `resolved_timestamp`: timestamp _(nullable)_
+- _relations_: job: one(Job), staff: one(Staff), resolved_by: one(Staff)
 
 ### JobEvent
 

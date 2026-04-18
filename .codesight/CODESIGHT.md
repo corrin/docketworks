@@ -2,7 +2,7 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 85 routes | 43 models | 181 components | 354 lib files | 70 env vars | 8 middleware | 21% test coverage
+> 85 routes | 43 models | 181 components | 354 lib files | 70 env vars | 8 middleware | 22% test coverage
 > **Token savings:** this file is ~29,200 tokens. Without it, AI exploration would cost ~232,100 tokens. **Saves ~202,900 tokens per conversation.**
 
 ---
@@ -258,7 +258,10 @@
 - checksum: string
 - request_etag: string
 - request_ip: string (nullable)
-- _relations_: job: one(Job), staff: one(Staff)
+- resolved: boolean (default)
+- resolved_by_id: integer (fk)
+- resolved_timestamp: timestamp (nullable)
+- _relations_: job: one(Job), staff: one(Staff), resolved_by: one(Staff)
 
 ### JobEvent
 - id: uuid (pk, default)
@@ -2010,8 +2013,8 @@
 
 # Test Coverage
 
-> **21%** of routes and models are covered by tests
-> 99 test files found
+> **22%** of routes and models are covered by tests
+> 100 test files found
 
 ## Covered Routes
 
@@ -2028,6 +2031,7 @@
 - CostSet
 - CostLine
 - Job
+- JobDeltaRejection
 - JobEvent
 - JobFile
 - JobQuoteChat

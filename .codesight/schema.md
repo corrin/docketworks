@@ -159,7 +159,10 @@
 - checksum: string
 - request_etag: string
 - request_ip: string (nullable)
-- _relations_: job: one(Job), staff: one(Staff)
+- resolved: boolean (default)
+- resolved_by_id: integer (fk)
+- resolved_timestamp: timestamp (nullable)
+- _relations_: job: one(Job), staff: one(Staff), resolved_by: one(Staff)
 
 ### JobEvent
 - id: uuid (pk, default)
