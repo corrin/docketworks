@@ -1,6 +1,7 @@
 import logging
 
 from django.views.generic import TemplateView
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.generics import ListAPIView
 from rest_framework.pagination import PageNumberPagination
@@ -53,14 +54,17 @@ class ArchiveCompleteJobsViews:
         """API Endpoint to set 'paid' flag as True in the received jobs"""
 
         permission_classes = [IsAuthenticated, IsOfficeStaff]
-        serializer_class = ArchiveJobsResponseSerializer
 
-        def get_serializer_class(self):
-            """Return the serializer class for documentation"""
-            if self.request.method == "POST":
-                return ArchiveJobsSerializer
-            return ArchiveJobsResponseSerializer
-
+        @extend_schema(
+            summary="Archive completed and paid jobs",
+            request=ArchiveJobsSerializer,
+            responses={
+                200: ArchiveJobsResponseSerializer,
+                207: ArchiveJobsResponseSerializer,
+                400: ArchiveJobsResponseSerializer,
+                500: ArchiveJobsResponseSerializer,
+            },
+        )
         def post(self, request, *args, **kwargs):
             try:
                 # Validate request data

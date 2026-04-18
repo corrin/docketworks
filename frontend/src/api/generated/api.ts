@@ -1026,7 +1026,12 @@ const PaginatedCompleteJobList = z.object({
   results: z.array(CompleteJob),
 })
 const ArchiveJobsRequest = z.object({ ids: z.array(z.string().min(1)) })
-const ArchiveJobs = z.object({ ids: z.array(z.string()) })
+const ArchiveJobsResponse = z.object({
+  success: z.boolean(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+  errors: z.array(z.string()).optional(),
+})
 const JobCreateRequest = z.object({
   name: z.string().min(1).max(255),
   client_id: z.string().uuid(),
@@ -1529,26 +1534,6 @@ const JobUndoRequest = z.object({
   undo_change_id: z.string().uuid().nullish(),
 })
 const JobStatusUpdateRequest = z.object({ status: z.string().min(1) })
-const DraftLineRequest = z.object({
-  kind: z.string().min(1),
-  desc: z.string().min(1),
-  quantity: z.number().gt(-100000000).lt(100000000),
-  unit_cost: z.number().gt(-100000000).lt(100000000),
-  unit_rev: z.number().gt(-100000000).lt(100000000),
-  total_cost: z.number().gt(-100000000).lt(100000000),
-  total_rev: z.number().gt(-100000000).lt(100000000),
-})
-const QuoteChangesRequest = z.object({
-  additions: z.array(DraftLineRequest),
-  updates: z.array(DraftLineRequest),
-  deletions: z.array(DraftLineRequest),
-})
-const ApplyQuoteResponseRequest = z.object({
-  success: z.boolean(),
-  draft_lines: z.array(DraftLineRequest).optional(),
-  changes: QuoteChangesRequest.optional(),
-  error: z.string().min(1).optional(),
-})
 const DraftLine = z.object({
   kind: z.string(),
   desc: z.string(),
@@ -1570,33 +1555,17 @@ const ApplyQuoteResponse = z.object({
   changes: QuoteChanges.optional(),
   error: z.string().optional(),
 })
-const LinkQuoteSheetRequest = z.object({ template_url: z.string().url() }).partial()
-const LinkQuoteSheet = z.object({ template_url: z.string().url() }).partial()
-const ValidationReportRequest = z
-  .object({
-    warnings: z.array(z.string().min(1)),
-    errors: z.array(z.string().min(1)),
-  })
-  .partial()
-const DiffPreviewRequest = z.object({
-  additions_count: z.number().int(),
-  updates_count: z.number().int(),
-  deletions_count: z.number().int(),
-  total_changes: z.number().int(),
-  next_revision: z.number().int().optional(),
-  current_revision: z.number().int().nullish(),
+const ApplyQuoteErrorResponse = z.object({
+  success: z.boolean().optional().default(false),
+  error: z.string(),
 })
-const PreviewQuoteResponseRequest = z
-  .object({
-    success: z.boolean(),
-    draft_lines: z.array(DraftLineRequest),
-    changes: QuoteChangesRequest,
-    message: z.string().min(1),
-    can_proceed: z.boolean().default(false),
-    validation_report: ValidationReportRequest.nullable(),
-    diff_preview: DiffPreviewRequest.nullable(),
-  })
-  .partial()
+const QuoteSyncErrorResponse = z.object({ error: z.string() })
+const LinkQuoteSheetRequest = z.object({ template_url: z.string().url() }).partial()
+const LinkQuoteSheetResponse = z.object({
+  sheet_url: z.string().url(),
+  sheet_id: z.string(),
+  job_id: z.string(),
+})
 const ValidationReport = z
   .object({ warnings: z.array(z.string()), errors: z.array(z.string()) })
   .partial()
@@ -2704,12 +2673,6 @@ const CreatePayRunResponse = z.object({
   payment_date: z.string(),
   xero_url: z.string(),
 })
-const PayRunSyncResponseRequest = z.object({
-  synced: z.boolean(),
-  fetched: z.number().int(),
-  created: z.number().int(),
-  updated: z.number().int(),
-})
 const PayRunSyncResponse = z.object({
   synced: z.boolean(),
   fetched: z.number().int(),
@@ -3011,7 +2974,7 @@ export const schemas = {
   CompleteJob,
   PaginatedCompleteJobList,
   ArchiveJobsRequest,
-  ArchiveJobs,
+  ArchiveJobsResponse,
   JobCreateRequest,
   JobCreateResponse,
   JobRestErrorResponse,
@@ -3087,17 +3050,13 @@ export const schemas = {
   JobTimelineResponse,
   JobUndoRequest,
   JobStatusUpdateRequest,
-  DraftLineRequest,
-  QuoteChangesRequest,
-  ApplyQuoteResponseRequest,
   DraftLine,
   QuoteChanges,
   ApplyQuoteResponse,
+  ApplyQuoteErrorResponse,
+  QuoteSyncErrorResponse,
   LinkQuoteSheetRequest,
-  LinkQuoteSheet,
-  ValidationReportRequest,
-  DiffPreviewRequest,
-  PreviewQuoteResponseRequest,
+  LinkQuoteSheetResponse,
   ValidationReport,
   DiffPreview,
   PreviewQuoteResponse,
@@ -3238,7 +3197,6 @@ export const schemas = {
   PayRunListResponse,
   CreatePayRunRequest,
   CreatePayRunResponse,
-  PayRunSyncResponseRequest,
   PayRunSyncResponse,
   PostWeekToXeroRequest,
   ModernStaff,
@@ -4887,7 +4845,17 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
         schema: ArchiveJobsRequest,
       },
     ],
-    response: ArchiveJobs,
+    response: ArchiveJobsResponse,
+    errors: [
+      {
+        status: 400,
+        schema: ArchiveJobsResponse,
+      },
+      {
+        status: 500,
+        schema: ArchiveJobsResponse,
+      },
+    ],
   },
   {
     method: 'post',
@@ -4947,17 +4915,26 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/apply/`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'body',
-        type: 'Body',
-        schema: ApplyQuoteResponseRequest,
-      },
-      {
         name: 'id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
     response: ApplyQuoteResponse,
+    errors: [
+      {
+        status: 400,
+        schema: ApplyQuoteErrorResponse,
+      },
+      {
+        status: 404,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 500,
+        schema: z.object({ error: z.string() }),
+      },
+    ],
   },
   {
     method: 'post',
@@ -4979,7 +4956,21 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/link/`,
         schema: z.string().uuid(),
       },
     ],
-    response: z.object({ template_url: z.string().url() }).partial(),
+    response: LinkQuoteSheetResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 404,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 500,
+        schema: z.object({ error: z.string() }),
+      },
+    ],
   },
   {
     method: 'post',
@@ -4991,17 +4982,26 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'body',
-        type: 'Body',
-        schema: PreviewQuoteResponseRequest,
-      },
-      {
         name: 'id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
     response: PreviewQuoteResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 404,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 500,
+        schema: z.object({ error: z.string() }),
+      },
+    ],
   },
   {
     method: 'get',
@@ -7835,13 +7835,6 @@ Returns:
     alias: 'timesheets_payroll_pay_runs_refresh_create',
     description: `Synchronize local pay run cache with Xero.`,
     requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PayRunSyncResponseRequest,
-      },
-    ],
     response: PayRunSyncResponse,
     errors: [
       {
