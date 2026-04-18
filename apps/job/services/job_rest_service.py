@@ -817,6 +817,98 @@ class JobRestService:
             "results": results,
         }
 
+    @classmethod
+    def list_grouped_job_delta_rejections(
+        cls,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        job_id: str | None = None,
+        resolved: bool | None = None,
+    ) -> Dict[str, Any]:
+        import hashlib
+
+        from django.db.models import Count, Max, Min, OuterRef, Subquery
+
+        if limit <= 0:
+            limit = 1
+        limit = min(limit, 200)
+        offset = max(offset, 0)
+
+        queryset = JobDeltaRejection.objects.all()
+        if resolved is None:
+            queryset = queryset.filter(resolved=False)
+        else:
+            queryset = queryset.filter(resolved=resolved)
+        if job_id:
+            queryset = queryset.filter(job_id=job_id)
+
+        # Subquery is intentionally unfiltered: latest_id is an informational
+        # pointer to the most-recent row by created_at for this reason, across
+        # all resolved states.
+        latest_id_sq = (
+            JobDeltaRejection.objects.filter(reason=OuterRef("reason"))
+            .order_by("-created_at")
+            .values("id")[:1]
+        )
+
+        aggregated = (
+            queryset.values("reason")
+            .annotate(
+                occurrence_count=Count("id"),
+                first_seen=Min("created_at"),
+                last_seen=Max("created_at"),
+                latest_id=Subquery(latest_id_sq),
+            )
+            .order_by("-last_seen")
+        )
+        total = aggregated.count()
+        rows = list(aggregated[offset : offset + limit])
+
+        results = [
+            {
+                "fingerprint": hashlib.sha256(
+                    row["reason"].encode("utf-8")
+                ).hexdigest(),
+                "reason": row["reason"],
+                "occurrence_count": row["occurrence_count"],
+                "first_seen": row["first_seen"],
+                "last_seen": row["last_seen"],
+                "latest_id": row["latest_id"],
+            }
+            for row in rows
+        ]
+
+        next_offset = str(offset + limit) if offset + limit < total else None
+        prev_offset = str(max(offset - limit, 0)) if offset > 0 else None
+
+        return {
+            "count": total,
+            "next": next_offset,
+            "previous": prev_offset,
+            "results": results,
+        }
+
+    @classmethod
+    def mark_job_delta_rejection_group_resolved(cls, reason: str, staff: Staff) -> int:
+        from django.utils import timezone as tz
+
+        return JobDeltaRejection.objects.filter(reason=reason).update(
+            resolved=True,
+            resolved_by=staff,
+            resolved_timestamp=tz.now(),
+        )
+
+    @classmethod
+    def mark_job_delta_rejection_group_unresolved(
+        cls, reason: str, staff: Staff
+    ) -> int:
+        return JobDeltaRejection.objects.filter(reason=reason).update(
+            resolved=False,
+            resolved_by=None,
+            resolved_timestamp=None,
+        )
+
     @staticmethod
     def update_job(
         job_id: UUID, data: Dict[str, Any], user: Staff, if_match: str | None = None

@@ -1,9 +1,10 @@
 # Knowledge Map — docketworks
-> 196 notes · 1 decisions · 10 open questions · 2026-02-24 → 2026-04-19
+> 197 notes · 2 decisions · 10 open questions · 2026-02-24 → 2026-04-19
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (196 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: /usr/local/lib/nodemodules/ VS your user account using ~/. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (197 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: What we chose, stated as an imperative. One paragraph. 10 open questions remain.
 
-## Key Decisions (1)
+## Key Decisions (2)
+- What we chose, stated as an imperative. One paragraph.
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
 ## Open Questions (10)
@@ -32,7 +33,10 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (196)
+## Note Index (197)
+
+### Decision Records (1)
+- `docs/plans/1-mechanics-what-synchronous-clover.md` — `docs/plans/completed/` holds 66 finished implementation plans (~9,950 lines). Plans bundle two things:
 
 ### Specs & PRDs (31)
 - `docs/plans/2026-04-19-admin-errors-dedup-design.md` — 2026-04-19 — **Status:** Design — awaiting user review
