@@ -400,6 +400,7 @@ EOSQL
     log "Installing systemd service gunicorn-$INSTANCE..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
         "$TEMPLATE_DIR/gunicorn-instance.service.template" \
         > "/etc/systemd/system/gunicorn-$INSTANCE.service"
     systemctl daemon-reload
@@ -409,6 +410,7 @@ EOSQL
     log "Installing systemd service scheduler-$INSTANCE..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
         "$TEMPLATE_DIR/scheduler-instance.service.template" \
         > "/etc/systemd/system/scheduler-$INSTANCE.service"
     systemctl daemon-reload
