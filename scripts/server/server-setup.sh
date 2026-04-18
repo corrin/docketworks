@@ -135,8 +135,10 @@ log "Starting and enabling PostgreSQL..."
 systemctl enable --now postgresql
 
 # Allow password auth over sockets for app users (keep peer for postgres).
-# Without this, instance users can't connect via socket because their OS
-# username (dw-msm-uat) doesn't match the DB role (dw_msm_uat).
+# Per-instance OS users share the same name as their DB role
+# (dw_<client>_<env>), so peer auth would also work for them — but the
+# shared dw_test pytest user has no matching Linux user and requires
+# password auth. Keep the setting uniform for all non-postgres roles.
 PG_HBA="$(sudo -u postgres psql -t -c 'SHOW hba_file;' | tr -d ' ')"
 if grep -q 'local.*all.*all.*peer' "$PG_HBA"; then
     log "Configuring pg_hba.conf for password auth over sockets..."
