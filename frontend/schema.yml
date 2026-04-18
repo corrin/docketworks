@@ -2330,6 +2330,7 @@ paths:
     post:
       operationId: job_job_completed_archive_create
       description: API Endpoint to set 'paid' flag as True in the received jobs
+      summary: Archive completed and paid jobs
       tags:
         - job
       requestBody:
@@ -2351,7 +2352,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArchiveJobs'
+                $ref: '#/components/schemas/ArchiveJobsResponse'
+          description: ''
+        '207':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveJobsResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveJobsResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveJobsResponse'
           description: ''
   /api/job/jobs/:
     post:
@@ -3765,6 +3784,7 @@ paths:
         Apply quote import from linked Google Sheet.
 
         POST /job/rest/jobs/<uuid:pk>/quote/apply/
+      summary: Apply quote import from linked Google Sheet
       parameters:
         - in: path
           name: id
@@ -3774,18 +3794,6 @@ paths:
           required: true
       tags:
         - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ApplyQuoteResponseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ApplyQuoteResponseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ApplyQuoteResponseRequest'
-        required: true
       security:
         - cookieAuth: []
       responses:
@@ -3795,6 +3803,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApplyQuoteResponse'
           description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyQuoteErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
   /api/job/jobs/{id}/quote/link/:
     post:
       operationId: job_jobs_quote_link_create
@@ -3802,6 +3828,7 @@ paths:
         Link a job to a Google Sheets quote template.
 
         POST /job/rest/jobs/<uuid:pk>/quote/link/
+      summary: Link a job to a Google Sheets quote template
       parameters:
         - in: path
           name: id
@@ -3829,7 +3856,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LinkQuoteSheet'
+                $ref: '#/components/schemas/LinkQuoteSheetResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
           description: ''
   /api/job/jobs/{id}/quote/preview/:
     post:
@@ -3838,6 +3883,7 @@ paths:
         Preview quote import from linked Google Sheet.
 
         POST /job/rest/jobs/<uuid:pk>/quote/preview/
+      summary: Preview quote import from linked Google Sheet
       parameters:
         - in: path
           name: id
@@ -3847,17 +3893,6 @@ paths:
           required: true
       tags:
         - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PreviewQuoteResponseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PreviewQuoteResponseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PreviewQuoteResponseRequest'
       security:
         - cookieAuth: []
       responses:
@@ -3866,6 +3901,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PreviewQuoteResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
           description: ''
   /api/job/jobs/advanced-search/:
     get:
@@ -6690,18 +6743,6 @@ paths:
       summary: Refresh cached pay runs from Xero
       tags:
         - timesheets
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PayRunSyncResponseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PayRunSyncResponseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PayRunSyncResponseRequest'
-        required: true
       security:
         - cookieAuth: []
       responses:
@@ -8071,6 +8112,17 @@ components:
           nullable: true
       required:
         - message
+    ApplyQuoteErrorResponse:
+      type: object
+      description: Serializer for apply quote error response.
+      properties:
+        success:
+          type: boolean
+          default: false
+        error:
+          type: string
+      required:
+        - error
     ApplyQuoteResponse:
       type: object
       description: Serializer for apply quote response.
@@ -8091,34 +8143,6 @@ components:
           type: string
       required:
         - success
-    ApplyQuoteResponseRequest:
-      type: object
-      description: Serializer for apply quote response.
-      properties:
-        success:
-          type: boolean
-        draft_lines:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        changes:
-          $ref: '#/components/schemas/QuoteChangesRequest'
-        error:
-          type: string
-          minLength: 1
-      required:
-        - success
-    ArchiveJobs:
-      type: object
-      description: Serialiser for job archiving request
-      properties:
-        ids:
-          type: array
-          items:
-            type: string
-          description: List of job IDs to archive
-      required:
-        - ids
     ArchiveJobsRequest:
       type: object
       description: Serialiser for job archiving request
@@ -8131,6 +8155,23 @@ components:
           description: List of job IDs to archive
       required:
         - ids
+    ArchiveJobsResponse:
+      type: object
+      description: Serialiser for job archiving response
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        error:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+          description: List of specific errors
+      required:
+        - success
     ArchivedJobIssue:
       type: object
       description: Details of a non-compliant archived job.
@@ -9693,74 +9734,6 @@ components:
         * `time` - Time
         * `material` - Material
         * `adjust` - Adjustment
-    CostLineRequest:
-      type: object
-      description: Serializer for CostLine model - read-only with basic depth
-      properties:
-        kind:
-          $ref: '#/components/schemas/CostLineKindEnum'
-        desc:
-          type: string
-          description: Description of this cost line
-          maxLength: 255
-        quantity:
-          type: number
-          format: double
-          maximum: 10000000
-          minimum: -10000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_cost:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_rev:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        ext_refs:
-          description: External references (e.g., time entry IDs, material IDs)
-        meta:
-          description: Additional metadata - structure varies by kind (see class docstring)
-        accounting_date:
-          type: string
-          format: date
-          description: The date this cost should be attributed to for accounting purposes
-        xero_time_id:
-          type: string
-          nullable: true
-          maxLength: 255
-        xero_expense_id:
-          type: string
-          nullable: true
-          maxLength: 255
-        xero_last_modified:
-          type: string
-          format: date-time
-          nullable: true
-        xero_last_synced:
-          type: string
-          format: date-time
-          nullable: true
-        approved:
-          type: boolean
-          description: Indicates whether this line is approved or not by an office
-            staff (when the line is created by a workshop worker)
-        xero_pay_item:
-          type: string
-          format: uuid
-          nullable: true
-          description: The Xero pay item for this time entry (leave type, earnings
-            rate, etc.)
-      required:
-        - accounting_date
-        - kind
     CostSet:
       type: object
       description: Serializer for CostSet model - includes nested cost lines
@@ -10206,28 +10179,6 @@ components:
         - deletions_count
         - total_changes
         - updates_count
-    DiffPreviewRequest:
-      type: object
-      description: Serializer for a summary of changes in a quote sync.
-      properties:
-        additions_count:
-          type: integer
-        updates_count:
-          type: integer
-        deletions_count:
-          type: integer
-        total_changes:
-          type: integer
-        next_revision:
-          type: integer
-        current_revision:
-          type: integer
-          nullable: true
-      required:
-        - additions_count
-        - deletions_count
-        - total_changes
-        - updates_count
     DjangoJob:
       type: object
       properties:
@@ -10330,59 +10281,6 @@ components:
           type: string
         desc:
           type: string
-        quantity:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_cost:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_rev:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        total_cost:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        total_rev:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-      required:
-        - desc
-        - kind
-        - quantity
-        - total_cost
-        - total_rev
-        - unit_cost
-        - unit_rev
-    DraftLineRequest:
-      type: object
-      description: Serializer for draft line data.
-      properties:
-        kind:
-          type: string
-          minLength: 1
-        desc:
-          type: string
-          minLength: 1
         quantity:
           type: number
           format: double
@@ -13277,13 +13175,6 @@ components:
           type: string
       required:
         - message
-    LinkQuoteSheet:
-      type: object
-      description: Serializer for link quote sheet request data.
-      properties:
-        template_url:
-          type: string
-          format: uri
     LinkQuoteSheetRequest:
       type: object
       description: Serializer for link quote sheet request data.
@@ -13291,6 +13182,21 @@ components:
         template_url:
           type: string
           format: uri
+    LinkQuoteSheetResponse:
+      type: object
+      description: Serializer for link quote sheet response.
+      properties:
+        sheet_url:
+          type: string
+          format: uri
+        sheet_id:
+          type: string
+        job_id:
+          type: string
+      required:
+        - job_id
+        - sheet_id
+        - sheet_url
     MetalTypeEnum:
       enum:
         - stainless_steel
@@ -14770,26 +14676,6 @@ components:
         - fetched
         - synced
         - updated
-    PayRunSyncResponseRequest:
-      type: object
-      description: Response payload after refreshing cached pay runs.
-      properties:
-        synced:
-          type: boolean
-        fetched:
-          type: integer
-          description: Number of pay runs fetched from Xero
-        created:
-          type: integer
-          description: Number of new pay runs created locally
-        updated:
-          type: integer
-          description: Number of existing pay runs updated
-      required:
-        - created
-        - fetched
-        - synced
-        - updated
     PayrollDateRangeResponse:
       type: object
       description: Response for the pay-period date alignment endpoint.
@@ -15082,32 +14968,6 @@ components:
         diff_preview:
           allOf:
             - $ref: '#/components/schemas/DiffPreview'
-          nullable: true
-    PreviewQuoteResponseRequest:
-      type: object
-      description: Serializer for preview quote response.
-      properties:
-        success:
-          type: boolean
-        draft_lines:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        changes:
-          $ref: '#/components/schemas/QuoteChangesRequest'
-        message:
-          type: string
-          minLength: 1
-        can_proceed:
-          type: boolean
-          default: false
-        validation_report:
-          allOf:
-            - $ref: '#/components/schemas/ValidationReportRequest'
-          nullable: true
-        diff_preview:
-          allOf:
-            - $ref: '#/components/schemas/DiffPreviewRequest'
           nullable: true
     PricingMethodologyEnum:
       enum:
@@ -16170,26 +16030,6 @@ components:
         - additions
         - deletions
         - updates
-    QuoteChangesRequest:
-      type: object
-      description: Serializer for quote changes data.
-      properties:
-        additions:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        updates:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        deletions:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-      required:
-        - additions
-        - deletions
-        - updates
     QuoteImportStatusResponse:
       type: object
       description: Serializer for quote import status response
@@ -16323,6 +16163,14 @@ components:
         * `ACCEPTED` - Accepted
         * `INVOICED` - Invoiced
         * `DELETED` - Deleted
+    QuoteSyncErrorResponse:
+      type: object
+      description: Serializer for quote sync error responses.
+      properties:
+        error:
+          type: string
+      required:
+        - error
     RDTISpendCategorySummary:
       type: object
       description: Summary data for a single RDTI classification category.
@@ -18243,20 +18091,6 @@ components:
           type: array
           items:
             type: string
-    ValidationReportRequest:
-      type: object
-      description: Serializer for validation report data.
-      properties:
-        warnings:
-          type: array
-          items:
-            type: string
-            minLength: 1
-        errors:
-          type: array
-          items:
-            type: string
-            minLength: 1
     WIPJob:
       type: object
       description: A single job row in the WIP report.

@@ -185,8 +185,5 @@ export async function fetchAllPayRuns(): Promise<PayRunListResponse> {
  * @returns Counts of fetched/created/updated pay runs from Xero.
  */
 export async function refreshPayRuns(): Promise<PayRunSyncResult> {
-  const response = await api.timesheets_payroll_pay_runs_refresh_create(
-    {} as Parameters<typeof api.timesheets_payroll_pay_runs_refresh_create>[0],
-  )
-  return response as PayRunSyncResult
+  return api.timesheets_payroll_pay_runs_refresh_create(undefined)
 }

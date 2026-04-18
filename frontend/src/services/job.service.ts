@@ -163,7 +163,7 @@ type JobDeleteResponse = z.infer<typeof schemas.JobDeleteResponse>
 type JobSummaryResponse = z.infer<typeof schemas.JobSummaryResponse>
 type QuoteImportStatusResponse = z.infer<typeof schemas.QuoteImportStatusResponse>
 type JobStatusUpdateResponse = z.infer<typeof schemas.KanbanSuccessResponse>
-type ArchiveJobsRequest = z.infer<typeof schemas.ArchiveJobsRequest>
+type ArchiveJobsResponse = z.infer<typeof schemas.ArchiveJobsResponse>
 type JobFile = z.infer<typeof schemas.JobFile>
 type JobFileRequest = z.infer<typeof schemas.JobFileRequest>
 type FetchAllJobsResponse = z.infer<typeof schemas.FetchAllJobsResponse>
@@ -261,7 +261,7 @@ export const jobService = {
     return api.job_job_completed_list()
   },
 
-  archiveJobs(jobIds: string[]): Promise<ArchiveJobsRequest> {
+  archiveJobs(jobIds: string[]): Promise<ArchiveJobsResponse> {
     return api.job_job_completed_archive_create({ ids: jobIds })
   },
 

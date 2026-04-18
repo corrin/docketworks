@@ -460,10 +460,9 @@ class PayRunListAPIView(TimesheetBaseView):
 class RefreshPayRunsAPIView(TimesheetBaseView):
     """API endpoint to refresh cached pay runs from Xero."""
 
-    serializer_class = PayRunSyncResponseSerializer
-
     @extend_schema(
         summary="Refresh cached pay runs from Xero",
+        request=None,
         responses={
             200: PayRunSyncResponseSerializer,
             500: ClientErrorResponseSerializer,

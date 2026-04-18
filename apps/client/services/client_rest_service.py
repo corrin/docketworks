@@ -635,6 +635,7 @@ class ClientRestService:
                 phone=client_data.get("phone") or "",
                 address=client_data.get("address") or "",
                 is_account_customer=client_data.get("is_account_customer", True),
+                xero_last_modified=timezone.now(),
             )
 
         # Push to accounting provider
