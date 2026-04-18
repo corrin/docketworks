@@ -21,7 +21,7 @@ fi
 INSTANCE="$1"
 shift
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-INSTANCE_USER="dw-$INSTANCE"
+INSTANCE_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -d "$INSTANCE_DIR" ]]; then
     echo "ERROR: Instance directory $INSTANCE_DIR does not exist." >&2
