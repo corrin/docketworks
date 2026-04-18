@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 194 notes · 1 decisions · 10 open questions · 2026-02-24 → 2026-04-19
+> 195 notes · 1 decisions · 10 open questions · 2026-02-24 → 2026-04-19
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (194 notes). Key topics: verification, tips, files to modify, steps. Most recent decision: /usr/local/lib/nodemodules/ VS your user account using ~/. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (195 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: /usr/local/lib/nodemodules/ VS your user account using ~/. 10 open questions remain.
 
 ## Key Decisions (1)
 - /usr/local/lib/nodemodules/ VS your user account using ~/
@@ -19,7 +19,7 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · tips · files to modify · steps · what youll need · what happens next · troubleshooting · purpose · fix · implementation steps · prerequisites · design
+verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · purpose · implementation steps · prerequisites · design
 
 ## People
 @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @extend_schema · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone
@@ -32,7 +32,7 @@ verification · tips · files to modify · steps · what youll need · what happ
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (194)
+## Note Index (195)
 
 ### Specs & PRDs (31)
 - `docs/plans/2026-04-19-admin-errors-dedup-design.md` — 2026-04-19 — **Status:** Design — awaiting user review
