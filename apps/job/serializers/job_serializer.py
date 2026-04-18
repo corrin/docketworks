@@ -1188,3 +1188,35 @@ class JobUndoSerializer(serializers.Serializer):
 
     change_id = serializers.UUIDField()
     undo_change_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class GroupedJobDeltaRejectionSerializer(serializers.Serializer):
+    """Serializer for a single grouped JobDeltaRejection row."""
+
+    fingerprint = serializers.CharField()
+    reason = serializers.CharField()
+    occurrence_count = serializers.IntegerField()
+    first_seen = serializers.DateTimeField()
+    last_seen = serializers.DateTimeField()
+    latest_id = serializers.UUIDField()
+
+
+class GroupedJobDeltaRejectionListResponseSerializer(serializers.Serializer):
+    """Paginated response for grouped delta rejections."""
+
+    count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True, required=False)
+    previous = serializers.CharField(allow_null=True, required=False)
+    results = GroupedJobDeltaRejectionSerializer(many=True)
+
+
+class GroupedJobDeltaRejectionResolveRequestSerializer(serializers.Serializer):
+    """Request body for grouped resolve/unresolve actions on delta rejections."""
+
+    reason = serializers.CharField()
+
+
+class GroupedJobDeltaRejectionResolveResponseSerializer(serializers.Serializer):
+    """Response body for grouped resolve/unresolve actions on delta rejections."""
+
+    updated = serializers.IntegerField()

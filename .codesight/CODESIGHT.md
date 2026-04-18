@@ -1053,7 +1053,7 @@
   - class XeroInvoiceSerializer
   - class CompanyDefaultsJobDetailSerializer
   - class JobSerializer
-  - _...50 more_
+  - _...54 more_
 - `apps/job/serializers/kanban_serializer.py`
   - class JobReorderSerializer
   - class JobStatusUpdateSerializer
@@ -1436,7 +1436,7 @@
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
   - class AIProviderCreateUpdateSerializer
-  - _...19 more_
+  - _...23 more_
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
   - function list_grouped_xero_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
