@@ -465,7 +465,12 @@ def create_client_contact_in_xero(client):
     )
     time.sleep(SLEEP_TIME)
 
-    client.xero_contact_id = response.contacts[0].contact_id
+    if not response or not response.contacts:
+        raise ValueError(
+            f"Xero API returned empty response when creating contact for client {client.id}"
+        )
+
+    client.xero_contact_id = str(response.contacts[0].contact_id)
     client.save(update_fields=["xero_contact_id"])
     return client.xero_contact_id
 
