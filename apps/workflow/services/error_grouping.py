@@ -2,7 +2,9 @@ import hashlib
 from typing import Any, Dict, Type
 
 from django.db.models import Count, Max, Min, OuterRef, QuerySet, Subquery
+from django.utils import timezone
 
+from apps.accounts.models import Staff
 from apps.workflow.models import AppError, XeroError
 
 
@@ -142,3 +144,35 @@ def list_grouped_xero_errors(
         user_id=user_id,
     )
     return _group_payload(queryset, group_field="message", limit=limit, offset=offset)
+
+
+def _mark_group(
+    model: Type[AppError],
+    *,
+    message: str,
+    staff: Staff,
+    resolved: bool,
+) -> int:
+    now = timezone.now() if resolved else None
+    resolver = staff if resolved else None
+    return model.objects.filter(message=message).update(
+        resolved=resolved,
+        resolved_by=resolver,
+        resolved_timestamp=now,
+    )
+
+
+def mark_app_error_group_resolved(message: str, staff: Staff) -> int:
+    return _mark_group(AppError, message=message, staff=staff, resolved=True)
+
+
+def mark_app_error_group_unresolved(message: str, staff: Staff) -> int:
+    return _mark_group(AppError, message=message, staff=staff, resolved=False)
+
+
+def mark_xero_error_group_resolved(message: str, staff: Staff) -> int:
+    return _mark_group(XeroError, message=message, staff=staff, resolved=True)
+
+
+def mark_xero_error_group_unresolved(message: str, staff: Staff) -> int:
+    return _mark_group(XeroError, message=message, staff=staff, resolved=False)

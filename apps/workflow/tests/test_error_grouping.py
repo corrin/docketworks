@@ -7,6 +7,8 @@ from apps.workflow.models import AppError, XeroError
 from apps.workflow.services.error_grouping import (
     list_grouped_app_errors,
     list_grouped_xero_errors,
+    mark_app_error_group_resolved,
+    mark_app_error_group_unresolved,
 )
 
 
@@ -70,3 +72,62 @@ def test_xero_errors_grouped(db):
 
     assert len(payload["results"]) == 1
     assert payload["results"][0]["occurrence_count"] == 2
+
+
+def test_mark_group_resolved_cascades(db):
+    staff_kwargs = {
+        "email": "tester@example.test",
+        "first_name": "T",
+        "last_name": "E",
+        "password_needs_reset": False,
+    }
+    from apps.accounts.models import Staff
+
+    staff = Staff.objects.create(**staff_kwargs)
+    for _ in range(3):
+        AppError.objects.create(message="Recurring", app="workflow", severity=40)
+
+    count = mark_app_error_group_resolved("Recurring", staff)
+    assert count == 3
+    assert AppError.objects.filter(resolved=True).count() == 3
+    assert all(
+        err.resolved_by_id == staff.id
+        for err in AppError.objects.filter(message="Recurring")
+    )
+
+
+def test_mark_group_unresolved_clears(db):
+    from apps.accounts.models import Staff
+
+    staff = Staff.objects.create(
+        email="tester2@example.test",
+        first_name="T",
+        last_name="E",
+        password_needs_reset=False,
+    )
+    AppError.objects.create(message="R", app="workflow", severity=40, resolved=True)
+    AppError.objects.create(message="R", app="workflow", severity=40, resolved=True)
+
+    count = mark_app_error_group_unresolved("R", staff)
+    assert count == 2
+    assert AppError.objects.filter(resolved=False).count() == 2
+
+
+def test_regression_creates_new_unresolved_group(db):
+    from apps.accounts.models import Staff
+
+    staff = Staff.objects.create(
+        email="tester3@example.test",
+        first_name="T",
+        last_name="E",
+        password_needs_reset=False,
+    )
+    AppError.objects.create(message="Regress", app="workflow", severity=40)
+    mark_app_error_group_resolved("Regress", staff)
+    # New occurrence arrives after resolution
+    AppError.objects.create(message="Regress", app="workflow", severity=40)
+
+    payload = list_grouped_app_errors(limit=50, offset=0)
+    regress = [r for r in payload["results"] if r["message"] == "Regress"]
+    assert len(regress) == 1
+    assert regress[0]["occurrence_count"] == 1

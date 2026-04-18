@@ -5,7 +5,14 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .error_grouping import list_grouped_app_errors, list_grouped_xero_errors
+        from .error_grouping import (
+            list_grouped_app_errors,
+            list_grouped_xero_errors,
+            mark_app_error_group_resolved,
+            mark_app_error_group_unresolved,
+            mark_xero_error_group_resolved,
+            mark_xero_error_group_unresolved,
+        )
         from .error_persistence import (
             extract_job_context,
             extract_request_context,
@@ -29,6 +36,10 @@ __all__ = [
     "list_app_errors",
     "list_grouped_app_errors",
     "list_grouped_xero_errors",
+    "mark_app_error_group_resolved",
+    "mark_app_error_group_unresolved",
+    "mark_xero_error_group_resolved",
+    "mark_xero_error_group_unresolved",
     "persist_and_raise",
     "persist_app_error",
     "persist_xero_error",
