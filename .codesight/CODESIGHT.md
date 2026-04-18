@@ -712,7 +712,7 @@
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
 - **ErrorDialog** [client] — props: error — `frontend/src/components/admin/errors/ErrorDialog.vue`
 - **ErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorFilter.vue`
-- **ErrorTable** [client] — props: headers, rows, id, occurredAt, message, entity, severity — `frontend/src/components/admin/errors/ErrorTable.vue`
+- **ErrorTable** [client] — props: headers, rows, loading, page, pageCount, grouped — `frontend/src/components/admin/errors/ErrorTable.vue`
 - **ErrorTabs** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorTabs.vue`
 - **JobErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/JobErrorFilter.vue`
 - **SystemErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/SystemErrorFilter.vue`

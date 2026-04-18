@@ -36,7 +36,7 @@
 - **MonthEndSummary** — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `src/components/admin/MonthEndSummary.vue`
 - **ErrorDialog** — props: error — `src/components/admin/errors/ErrorDialog.vue`
 - **ErrorFilter** — props: modelValue — `src/components/admin/errors/ErrorFilter.vue`
-- **ErrorTable** — props: headers, rows, id, occurredAt, message, entity, severity — `src/components/admin/errors/ErrorTable.vue`
+- **ErrorTable** — props: headers, rows, loading, page, pageCount, grouped — `src/components/admin/errors/ErrorTable.vue`
 - **ErrorTabs** — props: modelValue — `src/components/admin/errors/ErrorTabs.vue`
 - **JobErrorFilter** — props: modelValue — `src/components/admin/errors/JobErrorFilter.vue`
 - **SystemErrorFilter** — props: modelValue — `src/components/admin/errors/SystemErrorFilter.vue`

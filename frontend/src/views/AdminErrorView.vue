@@ -6,13 +6,20 @@
       <ErrorFilter v-if="activeTab === 'xero'" v-model="xeroFilter" />
       <SystemErrorFilter v-else-if="activeTab === 'system'" v-model="systemFilter" />
       <JobErrorFilter v-else v-model="jobFilter" />
+      <label class="flex items-center gap-2 text-sm">
+        <input type="checkbox" v-model="showIndividual" />
+        Show individual occurrences
+      </label>
       <ErrorTable
         :headers="tableHeaders"
-        :rows="errors"
+        :rows="showIndividual ? errors : groupedErrors"
         :loading="loading"
         :page="page"
         :page-count="pageCount"
+        :grouped="!showIndividual"
         @rowClick="openErrorDialog"
+        @resolve="onResolveGroup"
+        @unresolve="onUnresolveGroup"
         @update:page="page = $event"
       />
       <ErrorDialog :error="selectedError" @close="closeErrorDialog" />
@@ -42,6 +49,8 @@ import type { FilterState } from '@/constants/date-range'
 type XeroError = z.infer<typeof schemas.XeroError>
 type AppError = z.infer<typeof schemas.AppError>
 type JobDeltaRejection = z.infer<typeof schemas.JobDeltaRejection>
+type GroupedAppError = z.infer<typeof schemas.GroupedAppError>
+type GroupedJobDeltaRejection = z.infer<typeof schemas.GroupedJobDeltaRejection>
 type ErrorTab = 'xero' | 'system' | 'job'
 
 type RawErrorRecord =
@@ -58,14 +67,29 @@ interface DisplayErrorRow {
   raw: RawErrorRecord
 }
 
-const { fetchErrors, error: fetchError } = useErrorApi()
+interface GroupedErrorRow {
+  id: string
+  occurredAt: string
+  message: string
+  entity: string
+  severity: string
+  occurrenceCount: number
+  resolved: boolean
+  fingerprint: string
+  keyField: 'message' | 'reason'
+  keyValue: string
+}
+
+const { fetchErrors, fetchGroupedErrors, resolveGroup, error: fetchError } = useErrorApi()
 
 const errors = ref<DisplayErrorRow[]>([])
+const groupedErrors = ref<GroupedErrorRow[]>([])
 const loading = ref(false)
 const page = ref(1)
 const pageCount = ref(1)
 const activeTab = ref<ErrorTab>('xero')
 const selectedError = ref<DisplayErrorRow | null>(null)
+const showIndividual = ref(false)
 const xeroFilter = ref<FilterState>({
   search: '',
   range: { from: undefined, to: undefined },
@@ -94,25 +118,52 @@ const tableHeaders = computed(() => {
 async function loadErrors() {
   loading.value = true
   try {
-    let res
-    if (activeTab.value === 'xero') {
-      res = await fetchErrors('xero', page.value, {
-        search: xeroFilter.value.search,
-        range: {
-          start: xeroFilter.value.range.from ?? null,
-          end: xeroFilter.value.range.to ?? null,
-        },
-      })
-    } else if (activeTab.value === 'system') {
-      res = await fetchErrors('system', page.value, buildSystemFilterPayload())
+    if (showIndividual.value) {
+      await loadFlatErrors()
     } else {
-      res = await fetchErrors('job', page.value, buildJobFilterPayload())
+      await loadGroupedErrors()
     }
-    errors.value = mapResultsToRows(activeTab.value, res.results)
-    pageCount.value = Math.max(res.pageCount, 1)
   } finally {
     loading.value = false
   }
+}
+
+async function loadFlatErrors() {
+  let res
+  if (activeTab.value === 'xero') {
+    res = await fetchErrors('xero', page.value, {
+      search: xeroFilter.value.search,
+      range: {
+        start: xeroFilter.value.range.from ?? null,
+        end: xeroFilter.value.range.to ?? null,
+      },
+    })
+  } else if (activeTab.value === 'system') {
+    res = await fetchErrors('system', page.value, buildSystemFilterPayload())
+  } else {
+    res = await fetchErrors('job', page.value, buildJobFilterPayload())
+  }
+  errors.value = mapResultsToRows(activeTab.value, res.results)
+  pageCount.value = Math.max(res.pageCount, 1)
+}
+
+async function loadGroupedErrors() {
+  let res
+  if (activeTab.value === 'xero') {
+    res = await fetchGroupedErrors('xero', page.value, {
+      search: xeroFilter.value.search,
+      range: {
+        start: xeroFilter.value.range.from ?? null,
+        end: xeroFilter.value.range.to ?? null,
+      },
+    })
+  } else if (activeTab.value === 'system') {
+    res = await fetchGroupedErrors('system', page.value, buildSystemFilterPayload())
+  } else {
+    res = await fetchGroupedErrors('job', page.value, buildJobFilterPayload())
+  }
+  groupedErrors.value = mapGroupedRows(activeTab.value, res.results)
+  pageCount.value = Math.max(res.pageCount, 1)
 }
 
 function mapResultsToRows(
@@ -152,6 +203,38 @@ function mapResultsToRows(
   }))
 }
 
+function mapGroupedRows(
+  type: ErrorTab,
+  rows: (GroupedAppError | GroupedJobDeltaRejection)[],
+): GroupedErrorRow[] {
+  if (type === 'job') {
+    return (rows as GroupedJobDeltaRejection[]).map((row) => ({
+      id: row.latest_id,
+      occurredAt: row.last_seen,
+      message: row.reason,
+      entity: '-',
+      severity: '-',
+      occurrenceCount: row.occurrence_count,
+      resolved: false,
+      fingerprint: row.fingerprint,
+      keyField: 'reason' as const,
+      keyValue: row.reason,
+    }))
+  }
+  return (rows as GroupedAppError[]).map((row) => ({
+    id: row.latest_id,
+    occurredAt: row.last_seen,
+    message: row.message,
+    entity: row.app ?? '-',
+    severity: row.severity != null ? String(row.severity) : '-',
+    occurrenceCount: row.occurrence_count,
+    resolved: false,
+    fingerprint: row.fingerprint,
+    keyField: 'message' as const,
+    keyValue: row.message,
+  }))
+}
+
 function openErrorDialog(err: DisplayErrorRow) {
   selectedError.value = err
 }
@@ -159,10 +242,37 @@ function closeErrorDialog() {
   selectedError.value = null
 }
 
+async function onResolveGroup(row: {
+  id: string
+  message: string
+  keyField?: 'message' | 'reason'
+  keyValue?: string
+}) {
+  if (!row.keyField || !row.keyValue) {
+    throw new Error('resolve called without keyField/keyValue — only valid in grouped mode')
+  }
+  await resolveGroup(activeTab.value, row.keyField, row.keyValue, 'mark_resolved')
+  await loadErrors()
+}
+
+async function onUnresolveGroup(row: {
+  id: string
+  message: string
+  keyField?: 'message' | 'reason'
+  keyValue?: string
+}) {
+  if (!row.keyField || !row.keyValue) {
+    throw new Error('unresolve called without keyField/keyValue — only valid in grouped mode')
+  }
+  await resolveGroup(activeTab.value, row.keyField, row.keyValue, 'mark_unresolved')
+  await loadErrors()
+}
+
 watch(
   () => activeTab.value,
   () => {
     errors.value = []
+    groupedErrors.value = []
     selectedError.value = null
     if (page.value !== 1) {
       page.value = 1
@@ -175,6 +285,17 @@ watch(
 watch(
   () => page.value,
   () => {
+    loadErrors()
+  },
+)
+
+watch(
+  () => showIndividual.value,
+  () => {
+    if (page.value !== 1) {
+      page.value = 1
+      return
+    }
     loadErrors()
   },
 )

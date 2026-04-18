@@ -8,24 +8,64 @@ import {
   TableRow,
 } from '@/components/ui/table'
 import { Pagination } from '@/components/ui/pagination'
+import { Button } from '@/components/ui/button'
+
+interface ErrorRow {
+  id: string
+  occurredAt: string
+  message: string
+  entity: string
+  severity: string
+  occurrenceCount?: number
+  resolved?: boolean
+  keyField?: 'message' | 'reason'
+  keyValue?: string
+}
 
 const props = defineProps<{
   headers: string[]
-  rows: Array<{
-    id: string
-    occurredAt: string
-    message: string
-    entity: string
-    severity: string
-  }>
+  rows: ErrorRow[]
   loading: boolean
   page: number
   pageCount: number
+  grouped?: boolean
 }>()
-const emit = defineEmits(['rowClick', 'update:page'])
 
-function onRowClick(record: (typeof props.rows)[number]) {
+const emit = defineEmits<{
+  (e: 'rowClick', row: { id: string; occurredAt: string; message: string }): void
+  (
+    e: 'resolve',
+    row: { id: string; message: string; keyField?: 'message' | 'reason'; keyValue?: string },
+  ): void
+  (
+    e: 'unresolve',
+    row: { id: string; message: string; keyField?: 'message' | 'reason'; keyValue?: string },
+  ): void
+  (e: 'update:page', value: number): void
+}>()
+
+function onRowClick(record: ErrorRow) {
   emit('rowClick', record)
+}
+
+function onResolve(event: Event, row: ErrorRow) {
+  event.stopPropagation()
+  emit('resolve', {
+    id: row.id,
+    message: row.message,
+    keyField: row.keyField,
+    keyValue: row.keyValue,
+  })
+}
+
+function onUnresolve(event: Event, row: ErrorRow) {
+  event.stopPropagation()
+  emit('unresolve', {
+    id: row.id,
+    message: row.message,
+    keyField: row.keyField,
+    keyValue: row.keyValue,
+  })
 }
 </script>
 
@@ -36,11 +76,15 @@ function onRowClick(record: (typeof props.rows)[number]) {
         <TableHeader>
           <TableRow>
             <TableHead v-for="header in props.headers" :key="header">{{ header }}</TableHead>
+            <TableHead v-if="props.grouped">Actions</TableHead>
           </TableRow>
         </TableHeader>
         <TableBody>
           <TableRow v-if="props.loading">
-            <TableCell :colspan="props.headers.length" class="text-center py-6">
+            <TableCell
+              :colspan="props.grouped ? props.headers.length + 1 : props.headers.length"
+              class="text-center py-6"
+            >
               <div class="flex items-center justify-center gap-2">
                 <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
                 Error records are still loading, please wait
@@ -54,12 +98,36 @@ function onRowClick(record: (typeof props.rows)[number]) {
             @click="onRowClick(row)"
           >
             <TableCell>{{ new Date(row.occurredAt).toLocaleString() }}</TableCell>
-            <TableCell>{{ row.message }}</TableCell>
+            <TableCell>
+              {{ row.message }}
+              <span
+                v-if="props.grouped && row.occurrenceCount != null"
+                class="ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"
+              >
+                ×{{ row.occurrenceCount }}
+              </span>
+            </TableCell>
             <TableCell>{{ row.entity || '-' }}</TableCell>
             <TableCell>{{ row.severity || '-' }}</TableCell>
+            <TableCell v-if="props.grouped">
+              <Button
+                v-if="!row.resolved"
+                variant="outline"
+                size="sm"
+                @click="onResolve($event, row)"
+              >
+                Resolve
+              </Button>
+              <Button v-else variant="outline" size="sm" @click="onUnresolve($event, row)">
+                Unresolve
+              </Button>
+            </TableCell>
           </TableRow>
           <TableRow v-if="!props.loading && props.rows.length === 0">
-            <TableCell :colspan="props.headers.length" class="text-center py-6">
+            <TableCell
+              :colspan="props.grouped ? props.headers.length + 1 : props.headers.length"
+              class="text-center py-6"
+            >
               No errors found for the current filters.
             </TableCell>
           </TableRow>
