@@ -1,7 +1,7 @@
 # Test Coverage
 
-> **22%** of routes and models are covered by tests
-> 100 test files found
+> **23%** of routes and models are covered by tests
+> 101 test files found
 
 ## Covered Routes
 
@@ -34,5 +34,7 @@
 - SupplierPriceList
 - ScrapeJob
 - AIProvider
+- AppError
+- XeroError
 - XeroPayItem
 - XeroToken

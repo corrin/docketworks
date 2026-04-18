@@ -575,6 +575,7 @@
   - class XeroPayItemSerializer
   - class AIProviderCreateUpdateSerializer
   - _...19 more_
+- `apps/workflow/services/error_grouping.py` — function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any], function list_grouped_xero_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
 - `apps/workflow/services/error_persistence.py`
   - function extract_request_context: (request) -> Dict[str, Any]
   - function extract_job_context: (job)

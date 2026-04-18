@@ -5,6 +5,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
+        from .error_grouping import list_grouped_app_errors, list_grouped_xero_errors
         from .error_persistence import (
             extract_job_context,
             extract_request_context,
@@ -26,6 +27,8 @@ __all__ = [
     "extract_job_context",
     "extract_request_context",
     "list_app_errors",
+    "list_grouped_app_errors",
+    "list_grouped_xero_errors",
     "persist_and_raise",
     "persist_app_error",
     "persist_xero_error",
