@@ -34,10 +34,11 @@ Vue 3, TypeScript, Zodios-generated API client.
   (and the XeroError equivalents to keep all grouped error views together).
 - `apps/job/views/job_delta_rejection_grouped_view.py` — DRF view for the
   Job tab's grouped endpoint and resolve actions.
-- `apps/workflow/migrations/0169_job_delta_rejection_resolved.py` —
+- `apps/job/migrations/0NNN_jobdeltarejection_resolved.py` —
   auto-generated after model changes (task 1). Numbering may shift; use
-  `python manage.py makemigrations`.
-- `apps/workflow/migrations/0170_error_group_indexes.py` — indexes.
+  `python manage.py makemigrations job`.
+- `apps/workflow/migrations/0NNN_app_error_resolved_message_idx.py` —
+  auto-generated when the AppError index is added (task 2).
 - `apps/workflow/tests/test_error_grouping.py` — service and view tests
   for the AppError/XeroError side.
 - `apps/job/tests/test_job_delta_rejection_grouping.py` — service and view
