@@ -335,11 +335,18 @@ log "Core Step 4: Running Django migrate on PostgreSQL..."
 dw_run python manage.py migrate --no-input || check_fail "PostgreSQL migration failed"
 check_ok "All migrations applied to PostgreSQL"
 
-# --- Truncate auto-generated content types ---
-log "Core Step 5: Truncating auto-generated content types..."
+# --- Clear post-migrate rows that collide with loaddata ---
+# Post-migrate, only these tables contain rows (besides django_migrations):
+#   workflow_xeropayitem — 7 seeds from migration 0187; loaddata brings the
+#     real Xero-synced records (post-0207 dedup), which collide on
+#     UniqueConstraint(name, uses_leave_api).
+#   django_site — Django's default example.com Site; loaddata reinstates the
+#     real one.
+# django_content_type is empty post-migrate on this setup, so no truncate needed.
+log "Core Step 5: Clearing post-migrate seed rows before loaddata..."
 PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U "$DB_USER" "$PG_DB" \
-    -c "TRUNCATE django_content_type CASCADE;"
-check_ok "Content types truncated"
+    -c "TRUNCATE workflow_xeropayitem, django_site RESTART IDENTITY CASCADE;"
+check_ok "Seed rows cleared"
 
 # --- Load data into PostgreSQL ---
 log "Core Step 6: Loading data into PostgreSQL (this takes several minutes)..."
