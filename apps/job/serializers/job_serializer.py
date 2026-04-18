@@ -1213,7 +1213,9 @@ class GroupedJobDeltaRejectionListResponseSerializer(serializers.Serializer):
 class GroupedJobDeltaRejectionResolveRequestSerializer(serializers.Serializer):
     """Request body for grouped resolve/unresolve actions on delta rejections."""
 
-    reason = serializers.CharField()
+    # trim_whitespace=False for parity with the AppError grouped resolve body.
+    # Ensures the posted reason matches the raw DB value in `filter(reason=...)`.
+    reason = serializers.CharField(trim_whitespace=False)
 
 
 class GroupedJobDeltaRejectionResolveResponseSerializer(serializers.Serializer):

@@ -407,7 +407,10 @@ class GroupedAppErrorListResponseSerializer(serializers.Serializer):
 class GroupedErrorResolveRequestSerializer(serializers.Serializer):
     """Request body for grouped resolve/unresolve endpoints."""
 
-    message = serializers.CharField()
+    # trim_whitespace=False: some error messages end with `\n` (e.g. Xero API
+    # error bodies). Trimming would make the message fail to match the raw DB
+    # value in `filter(message=...)`, leaving every row unresolved.
+    message = serializers.CharField(trim_whitespace=False)
 
 
 class GroupedErrorResolveResponseSerializer(serializers.Serializer):
