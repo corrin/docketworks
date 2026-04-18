@@ -28,10 +28,11 @@ three tabs on the page (Xero, System, Job).
 - Message normalisation / fingerprinting beyond exact-string match.
   Errors that differ only by an embedded UUID or supplier name are
   considered distinct groups; they usually need distinct remediation.
-  This is an easy additive enhancement if we later decide we want it:
-  the grouping key in the service layer becomes a derived
-  `fingerprint` (normalised `message`) instead of the raw `message`,
-  and the API/UI shapes stay the same.
+  This is an easy additive enhancement if we later decide we want it
+  (**for grouping only** — the displayed `message` remains the raw
+  original on each group and row): the grouping key in the service
+  layer becomes a derived `fingerprint` (normalised `message`)
+  instead of the raw `message`, and the API/UI shapes stay the same.
 - A `message_hash` column. The database has thousands of error rows,
   not millions; Postgres `GROUP BY` on a `TEXT` column with the indexes
   below is cheap at this scale. Revisit only if cardinality grows
