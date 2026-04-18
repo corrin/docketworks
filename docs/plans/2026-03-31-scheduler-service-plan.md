@@ -23,7 +23,7 @@ Description=Scheduler instance for docketworks __INSTANCE__
 After=network.target
 
 [Service]
-User=dw-__INSTANCE__
+User=__INSTANCE_USER__
 Group=www-data
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__
 ExecStart=/opt/docketworks/.venv/bin/python manage.py run_scheduler
