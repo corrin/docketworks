@@ -830,6 +830,7 @@ certbot certificates
 - [ ] `sudo -u docketworks /opt/docketworks/.venv/bin/pip uninstall mysqlclient`
 - [ ] `sudo rm /tmp/jobs_manager.sql /tmp/smb.conf /tmp/gcp-credentials.json`
 - [ ] `sudo rm -rf /opt/docketworks/restore/extracted/`
+- [ ] `sudo rm -f /opt/docketworks/instances/msm-prod/apps/workflow/fixtures/ai_providers.json` — stale placeholder fixture from instance.sh (real keys are in `workflow_aiprovider`)
 - [ ] Keep `/opt/docketworks/restore/system-data.tar.zst` archived or copy to cold storage
 - [ ] Delete migration dump file in `/opt/docketworks/instances/msm-prod/logs/`
 - [ ] Delete `docs/plans/old_msm_restore_plan.md` (replaced by this document)
