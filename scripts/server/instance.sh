@@ -7,10 +7,10 @@ set -euo pipefail
 #        instance.sh destroy <client> <env>
 #        instance.sh list
 #
-# Naming convention: dw_<client>_<env>
-#   Instance name: <client>-<env>  (e.g., msm-uat)
-#   Database:      dw_<client>_<env> (e.g., dw_msm_uat)
-#   OS user:       dw-<client>-<env> (e.g., dw-msm-uat)
+# Naming convention:
+#   Instance name: <client>-<env>     (e.g., msm-uat)     — directory, systemd unit suffix
+#   Database:      dw_<client>_<env>  (e.g., dw_msm_uat)
+#   OS user:       dw_<client>_<env>  (e.g., dw_msm_uat)  — same string as the DB role
 #   URL:           <client>-<env>.docketworks.site
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -149,7 +149,8 @@ do_create() {
     fi
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-    local INSTANCE_USER="dw-$INSTANCE"
+    local INSTANCE_USER
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
 
@@ -193,9 +194,9 @@ do_create() {
     # --- Create instance directory structure ---
     # Instance dir is 750 with group www-data so nginx can traverse to
     # mediafiles, frontend/dist, and gunicorn.sock.
-    # .env and logs stay owner-only (dw-<name>:dw-<name>, 600/700).
-    # Instance users have NO supplementary groups, so dw-acme cannot
-    # traverse dw-msm's dir (not owner, not in www-data).
+    # .env and logs stay owner-only (dw_<client>_<env>:dw_<client>_<env>, 600/700).
+    # Instance users have NO supplementary groups, so dw_acme_uat cannot
+    # traverse dw_msm_uat's dir (not owner, not in www-data).
     # Derive FQDN and cert domain
     local FQDN CERT_DOMAIN
     if [[ -n "$CUSTOM_FQDN" ]]; then
@@ -454,7 +455,8 @@ do_destroy() {
     parse_client_env "$@"
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-    local INSTANCE_USER="dw-$INSTANCE"
+    local INSTANCE_USER
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
 
