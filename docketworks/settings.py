@@ -11,7 +11,7 @@ from apps.workflow.api.xero.constants import XERO_SCOPES as DEFAULT_XERO_SCOPES_
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / ".env", override=True)
+load_dotenv(BASE_DIR / ".env", override=False)
 
 
 def validate_required_settings() -> None:
