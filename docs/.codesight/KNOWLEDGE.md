@@ -22,7 +22,7 @@
 verification · tips · steps · what youll need · files to modify · what happens next · troubleshooting · purpose · implementation steps · prerequisites · fix · changes
 
 ## People
-@docketworks · @msm · @transaction · @pytest · @patch · @morrissheetmetal · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone · @fluidandgeneral
+@docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone · @fluidandgeneral
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide

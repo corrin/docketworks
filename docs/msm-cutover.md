@@ -484,13 +484,20 @@ sudo systemctl status gunicorn-msm-prod scheduler-msm-prod
 New fields added since the last production deploy:
 
 ```bash
-# Company phone (migration 0205)
+# Contact and identity fields added since the last production deploy:
+#   company_email, company_url (migration 0177)
+#   company_phone              (migration 0205)
+# All three land as NULL after loaddata because the MariaDB dump never held them.
 sudo /opt/docketworks/repo/scripts/server/dw-run.sh msm-prod python manage.py shell -c "
 from apps.workflow.models import CompanyDefaults
 cd = CompanyDefaults.objects.get()
-cd.company_phone = '+64 9 XXX XXXX'
+cd.company_email = 'office@morrissheetmetal.co.nz'
+cd.company_phone = '+64 9 636 5131'
+cd.company_url = 'https://www.morrissheetmetal.co.nz'
 cd.save()
-print('Phone set:', cd.company_phone)
+print('Email:', cd.company_email)
+print('Phone:', cd.company_phone)
+print('URL:  ', cd.company_url)
 "
 ```
 
