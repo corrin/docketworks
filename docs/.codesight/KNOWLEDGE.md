@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
 > 194 notes · 1 decisions · 10 open questions · 2026-02-24 → 2026-04-19
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (194 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: /usr/local/lib/nodemodules/ VS your user account using ~/. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (194 notes). Key topics: verification, tips, files to modify, steps. Most recent decision: /usr/local/lib/nodemodules/ VS your user account using ~/. 10 open questions remain.
 
 ## Key Decisions (1)
 - /usr/local/lib/nodemodules/ VS your user account using ~/
@@ -19,7 +19,7 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · purpose · implementation steps · prerequisites · changes
+verification · tips · files to modify · steps · what youll need · what happens next · troubleshooting · purpose · fix · implementation steps · prerequisites · design
 
 ## People
 @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @extend_schema · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone
@@ -34,7 +34,8 @@ verification · files to modify · tips · steps · what youll need · what happ
 
 ## Note Index (194)
 
-### Specs & PRDs (30)
+### Specs & PRDs (31)
+- `docs/plans/2026-04-19-admin-errors-dedup-design.md` — 2026-04-19 — **Status:** Design — awaiting user review
 - `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
 - `docs/plans/2026-03-03-process-documents-design.md` — 2026-03-03 — Replace the Dropbox `Health & Safety` folder with an in-app document management system. Rename `SafetyDocument` to `ProcessDocument` to reflect broader scope. M…
 - `docs/plans/2026-03-03-process-documents-frontend-spec.md` — 2026-03-03 — The backend `SafetyDocument` model has been renamed to `ProcessDocument` with expanded functionality. The frontend needs a new **Process Documents** section tha…
@@ -54,8 +55,7 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/plans/completed/xero-projects-ticket-1.md` — Adding Xero sync fields to Job, Staff, and CostLine models to support Xero Projects API integration.
 - `docs/plans/completed/xero-projects-ticket-2.md` — Changing Invoice model relationship from OneToOneField to ForeignKey to support multiple invoices per job, as required by Xero Projects API.
 - `docs/plans/completed/xero-projects-ticket-3.md` — Adding Projects API calls to the existing Xero API infrastructure to support project creation, updates, and time/expense entry management.
-- `docs/plans/jsa-swp-api.md` — This document describes the backend API for AI-powered Job Safety Analysis (JSA) and Safe Work Procedure (SWP) generation and editing.
-- _…and 10 more_
+- _…and 11 more_
 
 ### Meeting Notes (3)
 - `docs/plans/completed/2026-04-01-postgres-sequence-sync.md` — 2026-04-01 — E2E tests fail with `IntegrityError` on `workflow_historicaljob_pkey` because the custom `syncSequences` SQL query misses identity column sequences (all SimpleH…
