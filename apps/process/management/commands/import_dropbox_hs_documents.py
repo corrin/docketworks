@@ -647,7 +647,7 @@ class Command(BaseCommand):
         parser.add_argument(
             "--impersonate",
             help="Email address to impersonate via domain-wide delegation "
-            "(e.g. office@morrissheetmetal.co.nz)",
+            "(e.g. admin@example.com)",
         )
 
     def handle(self, *args, **options):
