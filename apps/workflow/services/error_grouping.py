@@ -19,7 +19,7 @@ def _paginate(limit: int, offset: int) -> tuple[int, int]:
 
 
 def _group_payload(
-    queryset: QuerySet,
+    queryset: QuerySet[AppError],
     *,
     group_field: str,
     limit: int,
@@ -27,7 +27,8 @@ def _group_payload(
 ) -> Dict[str, Any]:
     model = queryset.model
 
-    # Subquery: id of the most-recent row for each group_field value.
+    # Subquery is intentionally unfiltered: latest_id is an informational
+    # pointer to the most-recent row by timestamp for this message.
     latest_id_sq = (
         model.objects.filter(**{group_field: OuterRef(group_field)})
         .order_by("-timestamp")
@@ -82,8 +83,8 @@ def _build_queryset(
     resolved: bool | None,
     job_id: str | None,
     user_id: str | None,
-) -> QuerySet:
-    queryset: QuerySet = model.objects.all()
+) -> QuerySet[AppError]:
+    queryset: QuerySet[AppError] = model.objects.all()
     if resolved is None:
         queryset = queryset.filter(resolved=False)
     else:
