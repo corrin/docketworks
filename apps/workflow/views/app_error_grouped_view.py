@@ -40,7 +40,10 @@ def _parse_common_filters(request: Request) -> dict[str, Any]:
     severity_param = request.query_params.get("severity")
     severity: int | None = None
     if severity_param is not None:
-        severity = int(severity_param)
+        try:
+            severity = int(severity_param)
+        except ValueError as exc:
+            raise ValueError(f"Invalid severity parameter: {severity_param!r}") from exc
 
     return {
         "app": request.query_params.get("app"),
@@ -92,7 +95,8 @@ class _BaseGroupedErrorResolveView(APIView):
     def post(self, request: Request) -> Response:
         body = self.request_serializer(data=request.data)
         body.is_valid(raise_exception=True)
-        staff: Staff = request.user  # type: ignore[assignment]
+        assert isinstance(request.user, Staff)
+        staff = request.user
         updated = self.resolve_callable(body.validated_data["message"], staff)
         return Response({"updated": updated}, status=status.HTTP_200_OK)
 
