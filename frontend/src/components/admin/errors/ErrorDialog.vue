@@ -23,7 +23,19 @@ interface DisplayErrorRow {
   raw: RawErrorRecord
 }
 
-const props = defineProps<{ error: DisplayErrorRow | null }>()
+interface GroupMeta {
+  occurrenceCount: number
+  firstSeen: string
+  lastSeen: string
+  keyField: 'message' | 'reason'
+  keyValue: string
+  tab: 'xero' | 'system' | 'job'
+}
+
+const props = defineProps<{
+  error: DisplayErrorRow | null
+  groupMeta?: GroupMeta | null
+}>()
 const emit = defineEmits(['close'])
 
 const recordMeta = computed(() => {
@@ -79,6 +91,21 @@ const errorTypeLabel = computed(() => {
       <DialogHeader>
         <DialogTitle>{{ errorTypeLabel || 'Error Details' }}</DialogTitle>
       </DialogHeader>
+      <div v-if="props.groupMeta" class="border rounded-md p-3 space-y-1 bg-muted/30">
+        <div class="flex items-center gap-2">
+          <span
+            class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold"
+          >
+            ×{{ props.groupMeta.occurrenceCount }} occurrences
+          </span>
+        </div>
+        <div class="text-xs text-muted-foreground">
+          First seen: {{ new Date(props.groupMeta.firstSeen).toLocaleString() }}
+        </div>
+        <div class="text-xs text-muted-foreground">
+          Last seen: {{ new Date(props.groupMeta.lastSeen).toLocaleString() }}
+        </div>
+      </div>
       <div v-if="props.error" class="space-y-3">
         <div class="text-sm text-muted-foreground">
           {{ new Date(props.error.occurredAt).toLocaleString() }}

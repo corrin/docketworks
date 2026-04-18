@@ -28,7 +28,7 @@
 - **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
 - **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
-- **ErrorDialog** [client] — props: error — `frontend/src/components/admin/errors/ErrorDialog.vue`
+- **ErrorDialog** [client] — props: error, groupMeta — `frontend/src/components/admin/errors/ErrorDialog.vue`
 - **ErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorFilter.vue`
 - **ErrorTable** [client] — props: headers, rows, loading, page, pageCount, grouped — `frontend/src/components/admin/errors/ErrorTable.vue`
 - **ErrorTabs** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorTabs.vue`

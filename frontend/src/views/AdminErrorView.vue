@@ -22,7 +22,11 @@
         @unresolve="onUnresolveGroup"
         @update:page="page = $event"
       />
-      <ErrorDialog :error="selectedError" @close="closeErrorDialog" />
+      <ErrorDialog
+        :error="selectedError"
+        :group-meta="selectedGroupMeta"
+        @close="closeErrorDialog"
+      />
       <Progress v-if="loading" class="absolute top-0 left-0 right-0" />
     </div>
   </AppLayout>
@@ -40,6 +44,7 @@ import ErrorTable from '@/components/admin/errors/ErrorTable.vue'
 import ErrorDialog from '@/components/admin/errors/ErrorDialog.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useErrorApi } from '@/composables/useErrorApi'
+import { api } from '@/api/client'
 import { z } from 'zod'
 import { schemas } from '@/api/generated/api'
 import type { SystemErrorFilterState, JobErrorFilterState } from '@/types/errorFilters'
@@ -70,6 +75,7 @@ interface DisplayErrorRow {
 interface GroupedErrorRow {
   id: string
   occurredAt: string
+  firstSeen: string
   message: string
   entity: string
   severity: string
@@ -89,6 +95,14 @@ const page = ref(1)
 const pageCount = ref(1)
 const activeTab = ref<ErrorTab>('xero')
 const selectedError = ref<DisplayErrorRow | null>(null)
+const selectedGroupMeta = ref<null | {
+  occurrenceCount: number
+  firstSeen: string
+  lastSeen: string
+  keyField: 'message' | 'reason'
+  keyValue: string
+  tab: ErrorTab
+}>(null)
 const showIndividual = ref(false)
 const xeroFilter = ref<FilterState>({
   search: '',
@@ -216,6 +230,7 @@ function mapGroupedRows(
     return (rows as GroupedJobDeltaRejection[]).map((row) => ({
       id: row.latest_id,
       occurredAt: row.last_seen,
+      firstSeen: row.first_seen,
       message: row.reason,
       entity: '-',
       severity: '-',
@@ -229,6 +244,7 @@ function mapGroupedRows(
   return (rows as GroupedAppError[]).map((row) => ({
     id: row.latest_id,
     occurredAt: row.last_seen,
+    firstSeen: row.first_seen,
     message: row.message,
     entity: row.app ?? '-',
     severity: row.severity != null ? String(row.severity) : '-',
@@ -240,11 +256,57 @@ function mapGroupedRows(
   }))
 }
 
-function openErrorDialog(err: DisplayErrorRow) {
-  selectedError.value = err
+async function openErrorDialog(row: DisplayErrorRow | GroupedErrorRow) {
+  if (!showIndividual.value) {
+    const grouped = row as GroupedErrorRow
+    selectedGroupMeta.value = {
+      occurrenceCount: grouped.occurrenceCount,
+      firstSeen: grouped.firstSeen,
+      lastSeen: grouped.occurredAt,
+      keyField: grouped.keyField,
+      keyValue: grouped.keyValue,
+      tab: activeTab.value,
+    }
+
+    if (activeTab.value === 'system' || activeTab.value === 'xero') {
+      try {
+        const endpoint =
+          activeTab.value === 'xero'
+            ? `/api/xero-errors/${grouped.id}/`
+            : `/api/app-errors/${grouped.id}/`
+        const { data } = await api.axios.get(endpoint)
+        selectedError.value = mapResultsToRows(activeTab.value, [data])[0] ?? null
+      } catch {
+        selectedError.value = {
+          id: grouped.id,
+          occurredAt: grouped.occurredAt,
+          message: grouped.message,
+          entity: grouped.entity,
+          severity: grouped.severity,
+          raw: { type: activeTab.value, record: grouped } as unknown as RawErrorRecord,
+        }
+      }
+      return
+    }
+
+    selectedError.value = {
+      id: grouped.id,
+      occurredAt: grouped.occurredAt,
+      message: grouped.message,
+      entity: grouped.entity,
+      severity: grouped.severity,
+      raw: { type: activeTab.value, record: grouped } as unknown as RawErrorRecord,
+    }
+    return
+  }
+
+  selectedError.value = row as DisplayErrorRow
+  selectedGroupMeta.value = null
 }
+
 function closeErrorDialog() {
   selectedError.value = null
+  selectedGroupMeta.value = null
 }
 
 async function onResolveGroup(row: {
