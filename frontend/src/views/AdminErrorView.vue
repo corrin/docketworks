@@ -104,6 +104,7 @@ const selectedGroupMeta = ref<null | {
   tab: ErrorTab
 }>(null)
 const showIndividual = ref(false)
+let openRequestId = 0
 const xeroFilter = ref<FilterState>({
   search: '',
   range: { from: undefined, to: undefined },
@@ -259,6 +260,7 @@ function mapGroupedRows(
 async function openErrorDialog(row: DisplayErrorRow | GroupedErrorRow) {
   if (!showIndividual.value) {
     const grouped = row as GroupedErrorRow
+    const thisRequest = ++openRequestId
     selectedGroupMeta.value = {
       occurrenceCount: grouped.occurrenceCount,
       firstSeen: grouped.firstSeen,
@@ -270,13 +272,15 @@ async function openErrorDialog(row: DisplayErrorRow | GroupedErrorRow) {
 
     if (activeTab.value === 'system' || activeTab.value === 'xero') {
       try {
-        const endpoint =
+        const data =
           activeTab.value === 'xero'
-            ? `/api/xero-errors/${grouped.id}/`
-            : `/api/app-errors/${grouped.id}/`
-        const { data } = await api.axios.get(endpoint)
+            ? await api.xero_errors_retrieve({ params: { id: grouped.id } })
+            : await api.app_errors_retrieve({ params: { id: grouped.id } })
+        if (openRequestId !== thisRequest) return
         selectedError.value = mapResultsToRows(activeTab.value, [data])[0] ?? null
-      } catch {
+      } catch (e) {
+        console.error('[ErrorDialog] Failed to fetch latest occurrence detail:', e)
+        if (openRequestId !== thisRequest) return
         selectedError.value = {
           id: grouped.id,
           occurredAt: grouped.occurredAt,
@@ -289,6 +293,9 @@ async function openErrorDialog(row: DisplayErrorRow | GroupedErrorRow) {
       return
     }
 
+    // Job tab has no per-occurrence detail endpoint; render a stub built
+    // from the grouped row so the header still shows and the body isn't
+    // blank. Add that endpoint later if we need full per-rejection context.
     selectedError.value = {
       id: grouped.id,
       occurredAt: grouped.occurredAt,
@@ -305,6 +312,7 @@ async function openErrorDialog(row: DisplayErrorRow | GroupedErrorRow) {
 }
 
 function closeErrorDialog() {
+  openRequestId += 1
   selectedError.value = null
   selectedGroupMeta.value = null
 }
