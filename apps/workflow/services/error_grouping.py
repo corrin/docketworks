@@ -162,6 +162,45 @@ def _mark_group(
     )
 
 
+def _mark_group_by_fingerprint(
+    model: Type[AppError],
+    *,
+    fingerprint: str,
+    staff: Staff,
+    resolved: bool,
+) -> int:
+    """Find every row whose message hashes to `fingerprint` and cascade.
+
+    The grouped listing returns `fingerprint = sha256(message)`; callers
+    send it back verbatim so the server can match without dealing with
+    whitespace mangling in transit — see
+    GroupedErrorResolveRequestSerializer.
+
+    We iterate the candidate rows in Python because Postgres has no
+    built-in SHA-256 function we rely on and keeping the hash in the
+    application layer avoids a schema migration. At current scale
+    (thousands of rows per model, not millions) this is cheap.
+    """
+    # Narrow by the opposite resolved state of what we're about to set:
+    # resolving only touches rows that are currently unresolved; unresolving
+    # only touches rows currently resolved. Keeps the iteration bounded.
+    candidates = model.objects.filter(resolved=not resolved).values("id", "message")
+    matching_ids = [
+        row["id"]
+        for row in candidates
+        if hashlib.sha256(row["message"].encode("utf-8")).hexdigest() == fingerprint
+    ]
+    if not matching_ids:
+        return 0
+    now = timezone.now() if resolved else None
+    resolver = staff if resolved else None
+    return model.objects.filter(id__in=matching_ids).update(
+        resolved=resolved,
+        resolved_by=resolver,
+        resolved_timestamp=now,
+    )
+
+
 def mark_app_error_group_resolved(message: str, staff: Staff) -> int:
     return _mark_group(AppError, message=message, staff=staff, resolved=True)
 
@@ -176,3 +215,27 @@ def mark_xero_error_group_resolved(message: str, staff: Staff) -> int:
 
 def mark_xero_error_group_unresolved(message: str, staff: Staff) -> int:
     return _mark_group(XeroError, message=message, staff=staff, resolved=False)
+
+
+def mark_app_error_group_resolved_by_fingerprint(fp: str, staff: Staff) -> int:
+    return _mark_group_by_fingerprint(
+        AppError, fingerprint=fp, staff=staff, resolved=True
+    )
+
+
+def mark_app_error_group_unresolved_by_fingerprint(fp: str, staff: Staff) -> int:
+    return _mark_group_by_fingerprint(
+        AppError, fingerprint=fp, staff=staff, resolved=False
+    )
+
+
+def mark_xero_error_group_resolved_by_fingerprint(fp: str, staff: Staff) -> int:
+    return _mark_group_by_fingerprint(
+        XeroError, fingerprint=fp, staff=staff, resolved=True
+    )
+
+
+def mark_xero_error_group_unresolved_by_fingerprint(fp: str, staff: Staff) -> int:
+    return _mark_group_by_fingerprint(
+        XeroError, fingerprint=fp, staff=staff, resolved=False
+    )

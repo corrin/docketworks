@@ -26,6 +26,8 @@
         :error="selectedError"
         :group-meta="selectedGroupMeta"
         @close="closeErrorDialog"
+        @resolve="onDialogResolveGroup"
+        @unresolve="onDialogUnresolveGroup"
       />
       <Progress v-if="loading" class="absolute top-0 left-0 right-0" />
     </div>
@@ -101,6 +103,8 @@ const selectedGroupMeta = ref<null | {
   lastSeen: string
   keyField: 'message' | 'reason'
   keyValue: string
+  fingerprint: string
+  resolved: boolean
   tab: ErrorTab
 }>(null)
 const showIndividual = ref(false)
@@ -267,6 +271,8 @@ async function openErrorDialog(row: DisplayErrorRow | GroupedErrorRow) {
       lastSeen: grouped.occurredAt,
       keyField: grouped.keyField,
       keyValue: grouped.keyValue,
+      fingerprint: grouped.fingerprint,
+      resolved: grouped.resolved,
       tab: activeTab.value,
     }
 
@@ -317,29 +323,33 @@ function closeErrorDialog() {
   selectedGroupMeta.value = null
 }
 
-async function onResolveGroup(row: {
-  id: string
-  message: string
-  keyField?: 'message' | 'reason'
-  keyValue?: string
-}) {
-  if (!row.keyField || !row.keyValue) {
-    throw new Error('resolve called without keyField/keyValue — only valid in grouped mode')
+async function onResolveGroup(row: { id: string; fingerprint?: string }) {
+  if (!row.fingerprint) {
+    console.warn('[AdminErrorView] resolve called without fingerprint', row)
+    return
   }
-  await resolveGroup(activeTab.value, row.keyField, row.keyValue, 'mark_resolved')
+  await resolveGroup(activeTab.value, row.fingerprint, 'mark_resolved')
   await loadErrors()
 }
 
-async function onUnresolveGroup(row: {
-  id: string
-  message: string
-  keyField?: 'message' | 'reason'
-  keyValue?: string
-}) {
-  if (!row.keyField || !row.keyValue) {
-    throw new Error('unresolve called without keyField/keyValue — only valid in grouped mode')
+async function onUnresolveGroup(row: { id: string; fingerprint?: string }) {
+  if (!row.fingerprint) {
+    console.warn('[AdminErrorView] unresolve called without fingerprint', row)
+    return
   }
-  await resolveGroup(activeTab.value, row.keyField, row.keyValue, 'mark_unresolved')
+  await resolveGroup(activeTab.value, row.fingerprint, 'mark_unresolved')
+  await loadErrors()
+}
+
+async function onDialogResolveGroup(payload: { fingerprint: string; tab: ErrorTab }) {
+  await resolveGroup(payload.tab, payload.fingerprint, 'mark_resolved')
+  closeErrorDialog()
+  await loadErrors()
+}
+
+async function onDialogUnresolveGroup(payload: { fingerprint: string; tab: ErrorTab }) {
+  await resolveGroup(payload.tab, payload.fingerprint, 'mark_unresolved')
+  closeErrorDialog()
   await loadErrors()
 }
 

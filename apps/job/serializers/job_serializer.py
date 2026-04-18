@@ -1211,11 +1211,14 @@ class GroupedJobDeltaRejectionListResponseSerializer(serializers.Serializer):
 
 
 class GroupedJobDeltaRejectionResolveRequestSerializer(serializers.Serializer):
-    """Request body for grouped resolve/unresolve actions on delta rejections."""
+    """Request body for grouped resolve/unresolve actions on delta rejections.
 
-    # trim_whitespace=False for parity with the AppError grouped resolve body.
-    # Ensures the posted reason matches the raw DB value in `filter(reason=...)`.
-    reason = serializers.CharField(trim_whitespace=False)
+    Identifies the group by the SHA-256 fingerprint of the reason (matches
+    the `fingerprint` field returned in the grouped listing). See
+    GroupedErrorResolveRequestSerializer for the rationale.
+    """
+
+    fingerprint = serializers.RegexField(regex=r"^[0-9a-f]{64}$")
 
 
 class GroupedJobDeltaRejectionResolveResponseSerializer(serializers.Serializer):

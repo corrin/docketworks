@@ -10953,13 +10953,25 @@ components:
         - results
     GroupedErrorResolveRequestRequest:
       type: object
-      description: Request body for grouped resolve/unresolve endpoints.
+      description: |-
+        Request body for grouped resolve/unresolve endpoints.
+
+        Identifies the group by the SHA-256 fingerprint of the message (matches
+        the `fingerprint` field returned in the grouped listing). The server
+        iterates the unresolved rows, computes each message's hash, and cascades
+        the resolve across every row whose hash matches.
+
+        Using a fingerprint (not the message string) avoids client-side
+        whitespace mangling: the frontend's global axios interceptor calls
+        trimStringsDeep on outbound payloads, which would strip trailing
+        whitespace and prevent a later exact match.
       properties:
-        message:
+        fingerprint:
           type: string
           minLength: 1
+          pattern: ^[0-9a-f]{64}$
       required:
-        - message
+        - fingerprint
     GroupedErrorResolveResponse:
       type: object
       description: Response body for grouped resolve/unresolve endpoints.
@@ -11015,13 +11027,19 @@ components:
         - results
     GroupedJobDeltaRejectionResolveRequestRequest:
       type: object
-      description: Request body for grouped resolve/unresolve actions on delta rejections.
+      description: |-
+        Request body for grouped resolve/unresolve actions on delta rejections.
+
+        Identifies the group by the SHA-256 fingerprint of the reason (matches
+        the `fingerprint` field returned in the grouped listing). See
+        GroupedErrorResolveRequestSerializer for the rationale.
       properties:
-        reason:
+        fingerprint:
           type: string
           minLength: 1
+          pattern: ^[0-9a-f]{64}$
       required:
-        - reason
+        - fingerprint
     GroupedJobDeltaRejectionResolveResponse:
       type: object
       description: Response body for grouped resolve/unresolve actions on delta rejections.

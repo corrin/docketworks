@@ -17,10 +17,10 @@ from apps.workflow.serializers import (
 from apps.workflow.services.error_grouping import (
     list_grouped_app_errors,
     list_grouped_xero_errors,
-    mark_app_error_group_resolved,
-    mark_app_error_group_unresolved,
-    mark_xero_error_group_resolved,
-    mark_xero_error_group_unresolved,
+    mark_app_error_group_resolved_by_fingerprint,
+    mark_app_error_group_unresolved_by_fingerprint,
+    mark_xero_error_group_resolved_by_fingerprint,
+    mark_xero_error_group_unresolved_by_fingerprint,
 )
 from apps.workflow.utils import parse_pagination_params
 
@@ -86,7 +86,7 @@ class _BaseGroupedErrorResolveView(APIView):
     response_serializer = GroupedErrorResolveResponseSerializer
 
     # Subclasses set resolve_callable.
-    resolve_callable = staticmethod(mark_app_error_group_resolved)
+    resolve_callable = staticmethod(mark_app_error_group_resolved_by_fingerprint)
 
     @extend_schema(
         request=GroupedErrorResolveRequestSerializer,
@@ -97,21 +97,21 @@ class _BaseGroupedErrorResolveView(APIView):
         body.is_valid(raise_exception=True)
         assert isinstance(request.user, Staff)
         staff = request.user
-        updated = self.resolve_callable(body.validated_data["message"], staff)
+        updated = self.resolve_callable(body.validated_data["fingerprint"], staff)
         return Response({"updated": updated}, status=status.HTTP_200_OK)
 
 
 class AppErrorGroupedMarkResolvedView(_BaseGroupedErrorResolveView):
-    resolve_callable = staticmethod(mark_app_error_group_resolved)
+    resolve_callable = staticmethod(mark_app_error_group_resolved_by_fingerprint)
 
 
 class AppErrorGroupedMarkUnresolvedView(_BaseGroupedErrorResolveView):
-    resolve_callable = staticmethod(mark_app_error_group_unresolved)
+    resolve_callable = staticmethod(mark_app_error_group_unresolved_by_fingerprint)
 
 
 class XeroErrorGroupedMarkResolvedView(_BaseGroupedErrorResolveView):
-    resolve_callable = staticmethod(mark_xero_error_group_resolved)
+    resolve_callable = staticmethod(mark_xero_error_group_resolved_by_fingerprint)
 
 
 class XeroErrorGroupedMarkUnresolvedView(_BaseGroupedErrorResolveView):
-    resolve_callable = staticmethod(mark_xero_error_group_unresolved)
+    resolve_callable = staticmethod(mark_xero_error_group_unresolved_by_fingerprint)

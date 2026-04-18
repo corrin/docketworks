@@ -1450,6 +1450,7 @@
   - function mark_app_error_group_unresolved: (message, staff) -> int
   - function mark_xero_error_group_resolved: (message, staff) -> int
   - function mark_xero_error_group_unresolved: (message, staff) -> int
+  - _...4 more_
 - `apps/workflow/services/error_persistence.py`
   - function extract_request_context: (request) -> Dict[str, Any]
   - function extract_job_context: (job)

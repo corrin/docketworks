@@ -495,7 +495,10 @@ const GroupedAppErrorListResponse = z.object({
   results: z.array(GroupedAppError),
 })
 const GroupedErrorResolveRequestRequest = z.object({
-  message: z.string().min(1),
+  fingerprint: z
+    .string()
+    .min(1)
+    .regex(/^[0-9a-f]{64}$/),
 })
 const GroupedErrorResolveResponse = z.object({ updated: z.number().int() })
 const ClientDetailResponse = z.object({
@@ -1661,7 +1664,10 @@ const GroupedJobDeltaRejectionListResponse = z.object({
   results: z.array(GroupedJobDeltaRejection),
 })
 const GroupedJobDeltaRejectionResolveRequestRequest = z.object({
-  reason: z.string().min(1),
+  fingerprint: z
+    .string()
+    .min(1)
+    .regex(/^[0-9a-f]{64}$/),
 })
 const GroupedJobDeltaRejectionResolveResponse = z.object({
   updated: z.number().int(),
@@ -3974,7 +3980,12 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
       {
         name: 'body',
         type: 'Body',
-        schema: z.object({ message: z.string().min(1) }),
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
       },
     ],
     response: z.object({ updated: z.number().int() }),
@@ -3988,7 +3999,12 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
       {
         name: 'body',
         type: 'Body',
-        schema: z.object({ message: z.string().min(1) }),
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
       },
     ],
     response: z.object({ updated: z.number().int() }),
@@ -6121,7 +6137,12 @@ Expected JSON:
       {
         name: 'body',
         type: 'Body',
-        schema: z.object({ reason: z.string().min(1) }),
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
       },
     ],
     response: z.object({ updated: z.number().int() }),
@@ -6135,7 +6156,12 @@ Expected JSON:
       {
         name: 'body',
         type: 'Body',
-        schema: z.object({ reason: z.string().min(1) }),
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
       },
     ],
     response: z.object({ updated: z.number().int() }),
@@ -8430,7 +8456,12 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
       {
         name: 'body',
         type: 'Body',
-        schema: z.object({ message: z.string().min(1) }),
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
       },
     ],
     response: z.object({ updated: z.number().int() }),
@@ -8444,7 +8475,12 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
       {
         name: 'body',
         type: 'Body',
-        schema: z.object({ message: z.string().min(1) }),
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
       },
     ],
     response: z.object({ updated: z.number().int() }),

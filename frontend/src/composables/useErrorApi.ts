@@ -99,7 +99,7 @@ export function useErrorApi() {
         if (systemFilters?.jobId) params.job_id = systemFilters.jobId
         if (systemFilters?.userId) params.user_id = systemFilters.userId
 
-        const response = await api.axios.get<AppErrorListResponse>('/rest/app-errors/', {
+        const response = await api.axios.get<AppErrorListResponse>('/api/rest/app-errors/', {
           params,
         })
         const payload = response.data
@@ -187,8 +187,9 @@ export function useErrorApi() {
       )
       return mapGroupedResponse<T>(response.data)
     } catch (e: unknown) {
-      if (e instanceof Error) error.value = e.message
-      else error.value = 'Failed to fetch grouped errors.'
+      const message = e instanceof Error ? e.message : 'Failed to fetch grouped errors.'
+      console.error('[useErrorApi] fetchGroupedErrors failed:', e)
+      error.value = message
       return { results: [] as GroupedResultMap[T][], pageCount: 0 }
     }
   }
@@ -204,8 +205,7 @@ export function useErrorApi() {
 
   async function resolveGroup(
     type: ErrorType,
-    keyField: 'message' | 'reason',
-    keyValue: string,
+    fingerprint: string,
     action: 'mark_resolved' | 'mark_unresolved',
   ): Promise<number> {
     error.value = null
@@ -215,13 +215,24 @@ export function useErrorApi() {
         : type === 'system'
           ? `/api/app-errors/grouped/${action}/`
           : `/api/job/jobs/delta-rejections/grouped/${action}/`
-    const body = { [keyField]: keyValue }
+    // Identify the group by the SHA-256 fingerprint of the message/reason.
+    // Hashing sidesteps the global trimStringsDeep axios interceptor, which
+    // would otherwise strip trailing whitespace on the raw text and break
+    // downstream matching.
+    const body = { fingerprint }
     try {
       const response = await api.axios.post<{ updated: number }>(endpoint, body)
-      return response.data.updated
+      const updated = response.data.updated
+      if (updated === 0) {
+        const msg = `${action} matched no rows — the row may have been deleted.`
+        console.warn('[useErrorApi] resolveGroup:', msg, { endpoint, body })
+        error.value = msg
+      }
+      return updated
     } catch (e: unknown) {
-      if (e instanceof Error) error.value = e.message
-      else error.value = 'Failed to update group.'
+      const message = e instanceof Error ? e.message : 'Failed to update group.'
+      console.error('[useErrorApi] resolveGroup failed:', e, { endpoint, body })
+      error.value = message
       return 0
     }
   }

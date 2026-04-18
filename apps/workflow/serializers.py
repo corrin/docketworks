@@ -405,12 +405,20 @@ class GroupedAppErrorListResponseSerializer(serializers.Serializer):
 
 
 class GroupedErrorResolveRequestSerializer(serializers.Serializer):
-    """Request body for grouped resolve/unresolve endpoints."""
+    """Request body for grouped resolve/unresolve endpoints.
 
-    # trim_whitespace=False: some error messages end with `\n` (e.g. Xero API
-    # error bodies). Trimming would make the message fail to match the raw DB
-    # value in `filter(message=...)`, leaving every row unresolved.
-    message = serializers.CharField(trim_whitespace=False)
+    Identifies the group by the SHA-256 fingerprint of the message (matches
+    the `fingerprint` field returned in the grouped listing). The server
+    iterates the unresolved rows, computes each message's hash, and cascades
+    the resolve across every row whose hash matches.
+
+    Using a fingerprint (not the message string) avoids client-side
+    whitespace mangling: the frontend's global axios interceptor calls
+    trimStringsDeep on outbound payloads, which would strip trailing
+    whitespace and prevent a later exact match.
+    """
+
+    fingerprint = serializers.RegexField(regex=r"^[0-9a-f]{64}$")
 
 
 class GroupedErrorResolveResponseSerializer(serializers.Serializer):

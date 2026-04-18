@@ -1,8 +1,14 @@
+import hashlib
+
 import pytest
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
 from apps.job.models.job_delta_rejection import JobDeltaRejection
+
+
+def _fingerprint(reason: str) -> str:
+    return hashlib.sha256(reason.encode("utf-8")).hexdigest()
 
 
 @pytest.fixture
@@ -41,7 +47,7 @@ def test_resolve_cascades(client, office_staff, db):
 
     resp = client.post(
         "/api/job/jobs/delta-rejections/grouped/mark_resolved/",
-        data={"reason": "conflict"},
+        data={"fingerprint": _fingerprint("conflict")},
         format="json",
     )
     assert resp.status_code == 200
@@ -55,7 +61,7 @@ def test_unresolve_cascades(client, office_staff, db):
 
     resp = client.post(
         "/api/job/jobs/delta-rejections/grouped/mark_unresolved/",
-        data={"reason": "conflict"},
+        data={"fingerprint": _fingerprint("conflict")},
         format="json",
     )
     assert resp.status_code == 200

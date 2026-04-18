@@ -1,8 +1,14 @@
+import hashlib
+
 import pytest
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
 from apps.workflow.models import AppError
+
+
+def _fingerprint(message: str) -> str:
+    return hashlib.sha256(message.encode("utf-8")).hexdigest()
 
 
 @pytest.fixture
@@ -46,7 +52,7 @@ def test_resolve_cascades(client, office_staff, db):
 
     resp = client.post(
         "/api/app-errors/grouped/mark_resolved/",
-        data={"message": "Cascade"},
+        data={"fingerprint": _fingerprint("Cascade")},
         format="json",
     )
     assert resp.status_code == 200
@@ -60,11 +66,29 @@ def test_unresolve_cascades(client, office_staff, db):
 
     resp = client.post(
         "/api/app-errors/grouped/mark_unresolved/",
-        data={"message": "Un"},
+        data={"fingerprint": _fingerprint("Un")},
         format="json",
     )
     assert resp.status_code == 200
     assert resp.json() == {"updated": 2}
+
+
+def test_resolve_preserves_trailing_whitespace(client, office_staff, db):
+    """Regression: messages ending in `\\n` must resolve correctly even
+    though the frontend can't round-trip the raw message (global axios trim).
+    """
+    msg = "Trailing\n"
+    AppError.objects.create(message=msg, app="workflow", severity=40)
+    AppError.objects.create(message=msg, app="workflow", severity=40)
+
+    resp = client.post(
+        "/api/app-errors/grouped/mark_resolved/",
+        data={"fingerprint": _fingerprint(msg)},
+        format="json",
+    )
+    assert resp.status_code == 200
+    assert resp.json() == {"updated": 2}
+    assert AppError.objects.filter(message=msg, resolved=True).count() == 2
 
 
 def test_xero_grouped_endpoint(client, db):

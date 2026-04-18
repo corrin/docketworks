@@ -18,8 +18,7 @@ interface ErrorRow {
   severity: string
   occurrenceCount?: number
   resolved?: boolean
-  keyField?: 'message' | 'reason'
-  keyValue?: string
+  fingerprint?: string
 }
 
 const props = defineProps<{
@@ -33,16 +32,21 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   (e: 'rowClick', row: { id: string; occurredAt: string; message: string }): void
-  (
-    e: 'resolve',
-    row: { id: string; message: string; keyField?: 'message' | 'reason'; keyValue?: string },
-  ): void
-  (
-    e: 'unresolve',
-    row: { id: string; message: string; keyField?: 'message' | 'reason'; keyValue?: string },
-  ): void
+  (e: 'resolve', row: { id: string; fingerprint?: string }): void
+  (e: 'unresolve', row: { id: string; fingerprint?: string }): void
   (e: 'update:page', value: number): void
 }>()
+
+const MESSAGE_MAX_CHARS = 40
+
+function truncate(value: string): string {
+  // Collapse newlines/whitespace so a multi-line error body renders as one
+  // row; keep the full text accessible via the title tooltip and the dialog.
+  const oneLine = value.replace(/\s+/g, ' ').trim()
+  return oneLine.length > MESSAGE_MAX_CHARS
+    ? oneLine.slice(0, MESSAGE_MAX_CHARS - 1) + '…'
+    : oneLine
+}
 
 function onRowClick(record: ErrorRow) {
   emit('rowClick', record)
@@ -50,22 +54,12 @@ function onRowClick(record: ErrorRow) {
 
 function onResolve(event: Event, row: ErrorRow) {
   event.stopPropagation()
-  emit('resolve', {
-    id: row.id,
-    message: row.message,
-    keyField: row.keyField,
-    keyValue: row.keyValue,
-  })
+  emit('resolve', { id: row.id, fingerprint: row.fingerprint })
 }
 
 function onUnresolve(event: Event, row: ErrorRow) {
   event.stopPropagation()
-  emit('unresolve', {
-    id: row.id,
-    message: row.message,
-    keyField: row.keyField,
-    keyValue: row.keyValue,
-  })
+  emit('unresolve', { id: row.id, fingerprint: row.fingerprint })
 }
 </script>
 
@@ -99,7 +93,7 @@ function onUnresolve(event: Event, row: ErrorRow) {
           >
             <TableCell>{{ new Date(row.occurredAt).toLocaleString() }}</TableCell>
             <TableCell>
-              {{ row.message }}
+              <span :title="row.message">{{ truncate(row.message) }}</span>
               <span
                 v-if="props.grouped && row.occurrenceCount != null"
                 class="ml-2 inline-flex items-center justify-center rounded-full bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground"

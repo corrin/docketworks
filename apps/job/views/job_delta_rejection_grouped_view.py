@@ -75,14 +75,18 @@ class _BaseJobDeltaRejectionResolveView(APIView):
         body.is_valid(raise_exception=True)
         assert isinstance(request.user, Staff)
         staff = request.user
-        reason = body.validated_data["reason"]
+        fingerprint = body.validated_data["fingerprint"]
         if self.resolve:
-            updated = JobRestService.mark_job_delta_rejection_group_resolved(
-                reason, staff
+            updated = (
+                JobRestService.mark_job_delta_rejection_group_resolved_by_fingerprint(
+                    fingerprint, staff
+                )
             )
         else:
-            updated = JobRestService.mark_job_delta_rejection_group_unresolved(
-                reason, staff
+            updated = (
+                JobRestService.mark_job_delta_rejection_group_unresolved_by_fingerprint(
+                    fingerprint, staff
+                )
             )
         return Response({"updated": updated}, status=status.HTTP_200_OK)
 

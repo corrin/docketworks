@@ -29,6 +29,8 @@ interface GroupMeta {
   lastSeen: string
   keyField: 'message' | 'reason'
   keyValue: string
+  fingerprint: string
+  resolved: boolean
   tab: 'xero' | 'system' | 'job'
 }
 
@@ -36,7 +38,11 @@ const props = defineProps<{
   error: DisplayErrorRow | null
   groupMeta?: GroupMeta | null
 }>()
-const emit = defineEmits(['close'])
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'resolve', payload: { fingerprint: string; tab: GroupMeta['tab'] }): void
+  (e: 'unresolve', payload: { fingerprint: string; tab: GroupMeta['tab'] }): void
+}>()
 
 const recordMeta = computed(() => {
   if (!props.error) return []
@@ -127,7 +133,31 @@ const errorTypeLabel = computed(() => {
           >{{ rawPayload }}</pre
         >
       </div>
-      <div class="flex justify-end">
+      <div class="flex justify-end gap-2">
+        <Button
+          v-if="props.groupMeta && !props.groupMeta.resolved"
+          variant="default"
+          @click="
+            emit('resolve', {
+              fingerprint: props.groupMeta.fingerprint,
+              tab: props.groupMeta.tab,
+            })
+          "
+        >
+          Resolve group
+        </Button>
+        <Button
+          v-if="props.groupMeta && props.groupMeta.resolved"
+          variant="default"
+          @click="
+            emit('unresolve', {
+              fingerprint: props.groupMeta.fingerprint,
+              tab: props.groupMeta.tab,
+            })
+          "
+        >
+          Unresolve group
+        </Button>
         <Button variant="outline" @click="emit('close')">Close</Button>
       </div>
     </DialogContent>

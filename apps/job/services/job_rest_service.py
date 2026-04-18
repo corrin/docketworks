@@ -907,6 +907,51 @@ class JobRestService:
             resolved_timestamp=None,
         )
 
+    @classmethod
+    def _mark_job_delta_rejection_group_by_fingerprint(
+        cls, fingerprint: str, staff: Staff, resolved: bool
+    ) -> int:
+        """Match rows by sha256(reason) and cascade.
+
+        Callers send the fingerprint returned by the grouped listing; this
+        sidesteps client-side whitespace mangling on the raw reason. See
+        apps.workflow.services.error_grouping._mark_group_by_fingerprint
+        for the same pattern on AppError/XeroError.
+        """
+        import hashlib
+
+        candidates = JobDeltaRejection.objects.filter(resolved=not resolved).values(
+            "id", "reason"
+        )
+        matching_ids = [
+            row["id"]
+            for row in candidates
+            if hashlib.sha256(row["reason"].encode("utf-8")).hexdigest() == fingerprint
+        ]
+        if not matching_ids:
+            return 0
+        return JobDeltaRejection.objects.filter(id__in=matching_ids).update(
+            resolved=resolved,
+            resolved_by=staff if resolved else None,
+            resolved_timestamp=timezone.now() if resolved else None,
+        )
+
+    @classmethod
+    def mark_job_delta_rejection_group_resolved_by_fingerprint(
+        cls, fingerprint: str, staff: Staff
+    ) -> int:
+        return cls._mark_job_delta_rejection_group_by_fingerprint(
+            fingerprint, staff, resolved=True
+        )
+
+    @classmethod
+    def mark_job_delta_rejection_group_unresolved_by_fingerprint(
+        cls, fingerprint: str, staff: Staff
+    ) -> int:
+        return cls._mark_job_delta_rejection_group_by_fingerprint(
+            fingerprint, staff, resolved=False
+        )
+
     @staticmethod
     def update_job(
         job_id: UUID, data: Dict[str, Any], user: Staff, if_match: str | None = None
