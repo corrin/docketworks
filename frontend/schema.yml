@@ -4106,6 +4106,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
+  /api/job/jobs/delta-rejections/grouped/:
+    get:
+      operationId: job_jobs_delta_rejections_grouped_retrieve
+      tags:
+        - Jobs
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionListResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/mark_resolved/:
+    post:
+      operationId: job_jobs_delta_rejections_grouped_mark_resolved_create
+      tags:
+        - Jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/mark_unresolved/:
+    post:
+      operationId: job_jobs_delta_rejections_grouped_mark_unresolved_create
+      tags:
+        - Jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveResponse'
+          description: ''
   /api/job/jobs/fetch-all/:
     get:
       operationId: job_jobs_fetch_all_retrieve
@@ -10897,6 +10963,68 @@ components:
     GroupedErrorResolveResponse:
       type: object
       description: Response body for grouped resolve/unresolve endpoints.
+      properties:
+        updated:
+          type: integer
+      required:
+        - updated
+    GroupedJobDeltaRejection:
+      type: object
+      description: Serializer for a single grouped JobDeltaRejection row.
+      properties:
+        fingerprint:
+          type: string
+        reason:
+          type: string
+        occurrence_count:
+          type: integer
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        latest_id:
+          type: string
+          format: uuid
+      required:
+        - fingerprint
+        - first_seen
+        - last_seen
+        - latest_id
+        - occurrence_count
+        - reason
+    GroupedJobDeltaRejectionListResponse:
+      type: object
+      description: Paginated response for grouped delta rejections.
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupedJobDeltaRejection'
+      required:
+        - count
+        - results
+    GroupedJobDeltaRejectionResolveRequestRequest:
+      type: object
+      description: Request body for grouped resolve/unresolve actions on delta rejections.
+      properties:
+        reason:
+          type: string
+          minLength: 1
+      required:
+        - reason
+    GroupedJobDeltaRejectionResolveResponse:
+      type: object
+      description: Response body for grouped resolve/unresolve actions on delta rejections.
       properties:
         updated:
           type: integer
