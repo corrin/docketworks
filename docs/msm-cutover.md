@@ -466,14 +466,14 @@ timestamp vs. current state.
 sudo /opt/docketworks/repo/scripts/migrate_mariadb_to_postgres.sh msm-prod jobs_manager
 ```
 
-The script: stops gunicorn, copies MariaDB data, runs pending migrations against MariaDB, dumps
-all data, recreates PostgreSQL `dw_msm_prod`, runs migrations on PostgreSQL, loads data, verifies
-row counts match, restarts gunicorn.
+The script: stops gunicorn and scheduler, copies MariaDB data, runs pending migrations against
+MariaDB, dumps all data, recreates PostgreSQL `dw_msm_prod`, runs migrations on PostgreSQL, loads
+data, verifies row counts match, restarts gunicorn and scheduler.
 
 Verify:
 
 ```bash
-sudo systemctl status gunicorn-msm-prod
+sudo systemctl status gunicorn-msm-prod scheduler-msm-prod
 # Check log at /opt/docketworks/instances/msm-prod/logs/ — row counts must match
 ```
 
