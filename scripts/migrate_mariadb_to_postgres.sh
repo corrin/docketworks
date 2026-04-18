@@ -50,7 +50,7 @@ if [[ "$MODE" == "production" ]]; then
     INSTANCE_DIR="/opt/docketworks/instances/$INSTANCE"
     ENV_FILE="$INSTANCE_DIR/.env"
     CODE_DIR="$INSTANCE_DIR"
-    SERVICE="gunicorn-$INSTANCE"
+    SERVICES=("gunicorn-$INSTANCE" "scheduler-$INSTANCE")
     SHARED_VENV="/opt/docketworks/.venv"
     INSTANCE_USER="dw-$INSTANCE"
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -272,8 +272,8 @@ fi
 # ==========================================================================
 
 if [[ "$MODE" == "production" ]]; then
-    log "Step 1: Stopping $SERVICE..."
-    systemctl stop "$SERVICE"
+    log "Step 1: Stopping ${SERVICES[*]}..."
+    systemctl stop "${SERVICES[@]}"
 
     log "Step 2: Copy MariaDB $MARIA_SOURCE_DB → $DB_NAME"
     echo "  Creating MariaDB database $DB_NAME and copying data..."
@@ -377,8 +377,8 @@ pause "Core migration complete"
 
 if [[ "$MODE" == "production" ]]; then
     # --- Restart application ---
-    log "Restarting $SERVICE..."
-    systemctl start "$SERVICE"
+    log "Restarting ${SERVICES[*]}..."
+    systemctl start "${SERVICES[@]}"
 
     echo ""
     echo "=========================================================================="
