@@ -380,6 +380,11 @@ EOSQL
     log "Loading AI providers..."
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/workflow/fixtures/ai_providers.json
 
+    # Remove the fixture after loading — keys live in the DB now, and the
+    # file is a loaddata time-bomb (restore-prod-to-nonprod runs loaddata on
+    # it, which would overwrite real DB keys with whatever is on disk).
+    rm -f "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
+
     # --- Create initial admin user ---
     log "Creating initial admin user..."
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py
