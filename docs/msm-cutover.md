@@ -276,7 +276,7 @@ sudo /opt/docketworks/repo/scripts/server/instance.sh create msm prod \
     --fqdn office.morrissheetmetal.co.nz
 ```
 
-Creates: user `dw-msm-prod`, PostgreSQL database `dw_msm_prod` (empty), instance directory at
+Creates: user `dw_msm_prod`, PostgreSQL database `dw_msm_prod` (empty), instance directory at
 `/opt/docketworks/instances/msm-prod/` including `dropbox/`, gunicorn + scheduler services, and
 nginx config.
 
@@ -313,25 +313,25 @@ grep "^ALLOWED_HOSTS=" /opt/docketworks/instances/msm-prod/.env
 
 ## Phase 5: Set Up Maestral (Dropbox Sync)
 
-Maestral replaces the old Dropbox daemon. It runs as `dw-msm-prod` and syncs the MSM Dropbox
+Maestral replaces the old Dropbox daemon. It runs as `dw_msm_prod` and syncs the MSM Dropbox
 account to the instance's `dropbox/` directory.
 
 ```bash
-sudo -u dw-msm-prod python3 -m venv /opt/docketworks/instances/msm-prod/maestral-venv
-sudo -u dw-msm-prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/pip install maestral
+sudo -u dw_msm_prod python3 -m venv /opt/docketworks/instances/msm-prod/maestral-venv
+sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/pip install maestral
 ```
 
 ### 5.1 Link to the Dropbox account (browser required)
 
 ```bash
-sudo -u dw-msm-prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral link -c msm
+sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral link -c msm
 # Open the printed URL, log in as MSM's Dropbox account, paste the code back
 ```
 
 ### 5.2 Point Maestral at the instance dropbox directory
 
 ```bash
-sudo -u dw-msm-prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral \
+sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral \
     config set local_folder /opt/docketworks/instances/msm-prod/dropbox -c msm
 ```
 
@@ -345,7 +345,7 @@ re-downloading content it already has.
 sudo rsync -av --progress \
     root@192.168.1.17:/srv/samba/dropbox/ \
     /opt/docketworks/instances/msm-prod/dropbox/
-sudo chown -R dw-msm-prod:dw-msm-prod /opt/docketworks/instances/msm-prod/dropbox/
+sudo chown -R dw_msm_prod:dw_msm_prod /opt/docketworks/instances/msm-prod/dropbox/
 ```
 
 ### 5.4 Install as a systemd service
@@ -359,7 +359,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-User=dw-msm-prod
+User=dw_msm_prod
 ExecStart=/opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral start -f -c msm
 Restart=on-failure
 RestartSec=10
@@ -375,7 +375,7 @@ sudo systemctl enable --now maestral-msm-prod
 Verify:
 
 ```bash
-sudo -u dw-msm-prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral status -c msm
+sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral status -c msm
 # Expected: Syncing or Up to date
 ```
 
@@ -403,11 +403,11 @@ writable = yes
 create mask = 0660
 directory mask = 0770
 valid users = samba_user
-force user = dw-msm-prod
+force user = dw_msm_prod
 ```
 
-`force user = dw-msm-prod` makes Samba access the (700) dropbox directory as its owner. Remove
-`force group = samba_users` from the old config — `dw-msm-prod` isn't in that group and it would
+`force user = dw_msm_prod` makes Samba access the (700) dropbox directory as its owner. Remove
+`force group = samba_users` from the old config — `dw_msm_prod` isn't in that group and it would
 break file creation.
 
 Leave `[MSM]` and `[ADMIN]` at `/srv/samba/msm` and `/srv/samba/admin` unchanged.
@@ -691,9 +691,9 @@ Expected: eight lines, each `active`.
 Row counts match the old server:
 
 ```bash
-sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM job_job;"
-sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM job_costline;"
-sudo -u dw-msm-prod psql dw_msm_prod -c "SELECT COUNT(*) FROM client_client;"
+sudo -u dw_msm_prod psql dw_msm_prod -c "SELECT COUNT(*) FROM job_job;"
+sudo -u dw_msm_prod psql dw_msm_prod -c "SELECT COUNT(*) FROM job_costline;"
+sudo -u dw_msm_prod psql dw_msm_prod -c "SELECT COUNT(*) FROM client_client;"
 ```
 
 Compare to the numbers the migration script logged in `/opt/docketworks/instances/msm-prod/logs/`.
@@ -760,7 +760,7 @@ From a Windows machine on the LAN:
 ### 14.6 Maestral
 
 ```bash
-sudo -u dw-msm-prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral status -c msm
+sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral status -c msm
 ```
 
 Expected: `Syncing` or `Up to date`. Not `Not linked`, `Paused`, or error.
@@ -768,13 +768,13 @@ Expected: `Syncing` or `Up to date`. Not `Not linked`, `Paused`, or error.
 End-to-end test:
 
 ```bash
-sudo -u dw-msm-prod touch /opt/docketworks/instances/msm-prod/dropbox/migration-canary.txt
+sudo -u dw_msm_prod touch /opt/docketworks/instances/msm-prod/dropbox/migration-canary.txt
 # Wait ~30s
 ```
 
 - [ ] `migration-canary.txt` appears in MSM Dropbox on dropbox.com
 - [ ] Delete it from server — disappears from dropbox.com within ~60s:
-      `sudo -u dw-msm-prod rm /opt/docketworks/instances/msm-prod/dropbox/migration-canary.txt`
+      `sudo -u dw_msm_prod rm /opt/docketworks/instances/msm-prod/dropbox/migration-canary.txt`
 
 ### 14.7 Printing
 
@@ -896,13 +896,13 @@ Default after Phase 14 passes. Old VM stays off; after 1 week stable, Phase 15 d
 
 - Passwords restored from tarball; if wrong: `sudo smbpasswd -a samba_user`
 - Share path: verify `/etc/samba/smb.conf` matches Phase 6.1
-- `dw-msm-prod` owns dropbox dir: `ls -ld /opt/docketworks/instances/msm-prod/dropbox`
+- `dw_msm_prod` owns dropbox dir: `ls -ld /opt/docketworks/instances/msm-prod/dropbox`
 
 ### Maestral not syncing
 
-- `sudo -u dw-msm-prod .../maestral status -c msm`
-- `sudo -u dw-msm-prod .../maestral start -c msm`
-- Re-link if required: `sudo -u dw-msm-prod .../maestral link -c msm`
+- `sudo -u dw_msm_prod .../maestral status -c msm`
+- `sudo -u dw_msm_prod .../maestral start -c msm`
+- Re-link if required: `sudo -u dw_msm_prod .../maestral link -c msm`
 - Service logs: `journalctl -u maestral-msm-prod -f`
 
 ### rclone "token expired"
