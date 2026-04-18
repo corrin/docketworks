@@ -1,9 +1,10 @@
 # Knowledge Map — docketworks
-> 194 notes · 1 decisions · 10 open questions · 2026-02-24 → 2026-04-19
+> 199 notes · 2 decisions · 10 open questions · 2026-02-24 → 2026-04-19
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (194 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: /usr/local/lib/nodemodules/ VS your user account using ~/. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (199 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: What we chose, stated as an imperative. One paragraph. 10 open questions remain.
 
-## Key Decisions (1)
+## Key Decisions (2)
+- What we chose, stated as an imperative. One paragraph.
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
 ## Open Questions (10)
@@ -19,10 +20,10 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · purpose · implementation steps · prerequisites · changes
+verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · design · purpose · changes · implementation steps
 
 ## People
-@docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @extend_schema · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property · @dataclass · @staticmethod · @vulcansteel · @coregas · @xtra · @vodafone
+@docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @extend_schema · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -32,9 +33,13 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (194)
+## Note Index (199)
 
-### Specs & PRDs (30)
+### Decision Records (1)
+- `docs/plans/1-mechanics-what-synchronous-clover.md` — `docs/plans/completed/` holds 66 finished implementation plans (~9,950 lines). Plans bundle two things:
+
+### Specs & PRDs (31)
+- `docs/plans/2026-04-19-admin-errors-dedup-design.md` — 2026-04-19 — **Status:** Design — awaiting user review
 - `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
 - `docs/plans/2026-03-03-process-documents-design.md` — 2026-03-03 — Replace the Dropbox `Health & Safety` folder with an in-app document management system. Rename `SafetyDocument` to `ProcessDocument` to reflect broader scope. M…
 - `docs/plans/2026-03-03-process-documents-frontend-spec.md` — 2026-03-03 — The backend `SafetyDocument` model has been renamed to `ProcessDocument` with expanded functionality. The frontend needs a new **Process Documents** section tha…
@@ -54,8 +59,7 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/plans/completed/xero-projects-ticket-1.md` — Adding Xero sync fields to Job, Staff, and CostLine models to support Xero Projects API integration.
 - `docs/plans/completed/xero-projects-ticket-2.md` — Changing Invoice model relationship from OneToOneField to ForeignKey to support multiple invoices per job, as required by Xero Projects API.
 - `docs/plans/completed/xero-projects-ticket-3.md` — Adding Projects API calls to the existing Xero API infrastructure to support project creation, updates, and time/expense entry management.
-- `docs/plans/jsa-swp-api.md` — This document describes the backend API for AI-powered Job Safety Analysis (JSA) and Safe Work Procedure (SWP) generation and editing.
-- _…and 10 more_
+- _…and 11 more_
 
 ### Meeting Notes (3)
 - `docs/plans/completed/2026-04-01-postgres-sequence-sync.md` — 2026-04-01 — E2E tests fail with `IntegrityError` on `workflow_historicaljob_pkey` because the custom `syncSequences` SQL query misses identity column sequences (all SimpleH…
@@ -71,7 +75,8 @@ verification · files to modify · tips · steps · what youll need · what happ
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (158)
+### General Notes (161)
+- `docs/plans/2026-04-19-admin-errors-dedup-plan.md` — 2026-04-19 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-04-19-fix-xero-client-creation-500.md` — 2026-04-19 — Creating a client via `POST /clients/` returns 500. The Xero contact is created successfully, but response serialization rejects `xero_contact_id` because it co…
 - `docs/plans/completed/2026-04-19-favicon-404-fix.md` — 2026-04-19 — Browsers requesting `https://office.morrissheetmetal.co.nz/favicon.ico` (and every other docketworks instance) get a 404. The favicon file itself is fine — `fro…
 - `docs/plans/2026-04-18-extend-schema-explicit-request-body.md` — 2026-04-18 — Naming note: file should be renamed to `2026-04-18-remove-response-serializer-class-from-apiviews.md` (project convention is `YYYY-MM-DD-description.md`). Plan-…
@@ -91,8 +96,7 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/plans/2026-04-10-xero-account-backup-cleanup.md` — 2026-04-10 — Restoring a production backup fails at Step 5 (`loaddata`) because the backup excludes `workflow.XeroAccount` but includes line items that FK to it. A separate …
 - `docs/plans/completed/2026-04-10-backup-include-all-models.md` — 2026-04-10 — The `backport_data_backup.py` command uses an `INCLUDE_MODELS` allowlist. Any model not explicitly listed is silently excluded from backups. The `accounting` ap…
 - `docs/plans/completed/2026-04-10-cleanup-management-commands.md` — 2026-04-10 — The project has 32 management commands. Many are one-off debug/test scripts. This cleans up `management/commands/` — deleting dead code and moving reusable onbo…
-- `docs/plans/completed/2026-04-10-codesight-setup.md` — 2026-04-10 — Codesight is already installed (`npx codesight` works, v1.10.0) and has been run manually — there are three untracked `.codesight/` directories (root, `frontend…
-- _…and 138 more_
+- _…and 141 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

@@ -9,6 +9,14 @@ from rest_framework.routers import DefaultRouter
 
 from apps.workflow.api.enums import get_enum_choices
 from apps.workflow.views.ai_provider_viewset import AIProviderViewSet
+from apps.workflow.views.app_error_grouped_view import (
+    AppErrorGroupedListView,
+    AppErrorGroupedMarkResolvedView,
+    AppErrorGroupedMarkUnresolvedView,
+    XeroErrorGroupedListView,
+    XeroErrorGroupedMarkResolvedView,
+    XeroErrorGroupedMarkUnresolvedView,
+)
 from apps.workflow.views.app_error_view import (
     AppErrorDetailAPIView,
     AppErrorListAPIView,
@@ -103,6 +111,21 @@ urlpatterns = [
         name="xero_ping",
     ),
     path(
+        "app-errors/grouped/",
+        AppErrorGroupedListView.as_view(),
+        name="app-error-grouped-list",
+    ),
+    path(
+        "app-errors/grouped/mark_resolved/",
+        AppErrorGroupedMarkResolvedView.as_view(),
+        name="app-error-grouped-mark-resolved",
+    ),
+    path(
+        "app-errors/grouped/mark_unresolved/",
+        AppErrorGroupedMarkUnresolvedView.as_view(),
+        name="app-error-grouped-mark-unresolved",
+    ),
+    path(
         "app-errors/",
         AppErrorListAPIView.as_view(),
         name="app-error-list",
@@ -116,6 +139,21 @@ urlpatterns = [
         "rest/app-errors/",
         AppErrorRestListView.as_view(),
         name="app-error-rest-list",
+    ),
+    path(
+        "xero-errors/grouped/",
+        XeroErrorGroupedListView.as_view(),
+        name="xero-error-grouped-list",
+    ),
+    path(
+        "xero-errors/grouped/mark_resolved/",
+        XeroErrorGroupedMarkResolvedView.as_view(),
+        name="xero-error-grouped-mark-resolved",
+    ),
+    path(
+        "xero-errors/grouped/mark_unresolved/",
+        XeroErrorGroupedMarkUnresolvedView.as_view(),
+        name="xero-error-grouped-mark-unresolved",
     ),
     path(
         "xero-errors/",

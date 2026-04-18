@@ -15,6 +15,12 @@ from .job_costline_views import (
     CostLineDeleteView,
     CostLineUpdateView,
 )
+from .job_delta_rejection_grouped_view import (
+    JobDeltaRejectionGroupedListView,
+    JobDeltaRejectionGroupedMarkResolvedView,
+    JobDeltaRejectionGroupedMarkUnresolvedView,
+    _BaseJobDeltaRejectionResolveView,
+)
 from .job_file_detail_view import BinaryFileRenderer, JobFileDetailView
 from .job_file_thumbnail_view import JobFileThumbnailView
 from .job_files_collection_view import JobFilesCollectionView
@@ -108,6 +114,9 @@ __all__ = [
     "JobCostSummaryRestView",
     "JobCreateRestView",
     "JobDeltaRejectionAdminRestView",
+    "JobDeltaRejectionGroupedListView",
+    "JobDeltaRejectionGroupedMarkResolvedView",
+    "JobDeltaRejectionGroupedMarkUnresolvedView",
     "JobDeltaRejectionListRestView",
     "JobDetailRestView",
     "JobEventListRestView",
@@ -144,5 +153,6 @@ __all__ = [
     "WorkshopKanbanView",
     "WorkshopPDFView",
     "WorkshopTimesheetView",
+    "_BaseJobDeltaRejectionResolveView",
     "get_company_defaults_api",
 ]

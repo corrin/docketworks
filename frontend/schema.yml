@@ -969,6 +969,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/AppError'
           description: ''
+  /api/app-errors/grouped/:
+    get:
+      operationId: app_errors_grouped_retrieve
+      tags:
+        - app-errors
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedAppErrorListResponse'
+          description: ''
+  /api/app-errors/grouped/mark_resolved/:
+    post:
+      operationId: app_errors_grouped_mark_resolved_create
+      tags:
+        - app-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
+          description: ''
+  /api/app-errors/grouped/mark_unresolved/:
+    post:
+      operationId: app_errors_grouped_mark_unresolved_create
+      tags:
+        - app-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
+          description: ''
   /api/clients/{client_id}/:
     get:
       operationId: clients_retrieve
@@ -4039,6 +4105,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/:
+    get:
+      operationId: job_jobs_delta_rejections_grouped_retrieve
+      tags:
+        - Jobs
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionListResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/mark_resolved/:
+    post:
+      operationId: job_jobs_delta_rejections_grouped_mark_resolved_create
+      tags:
+        - Jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/mark_unresolved/:
+    post:
+      operationId: job_jobs_delta_rejections_grouped_mark_unresolved_create
+      tags:
+        - Jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveResponse'
           description: ''
   /api/job/jobs/fetch-all/:
     get:
@@ -7395,6 +7527,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/XeroError'
           description: ''
+  /api/xero-errors/grouped/:
+    get:
+      operationId: xero_errors_grouped_retrieve
+      tags:
+        - xero-errors
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedAppErrorListResponse'
+          description: ''
+  /api/xero-errors/grouped/mark_resolved/:
+    post:
+      operationId: xero_errors_grouped_mark_resolved_create
+      tags:
+        - xero-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
+          description: ''
+  /api/xero-errors/grouped/mark_unresolved/:
+    post:
+      operationId: xero_errors_grouped_mark_unresolved_create
+      tags:
+        - xero-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
+          description: ''
   /api/xero/create_invoice/{job_id}:
     post:
       operationId: xero_create_invoice_create
@@ -10700,6 +10898,156 @@ components:
             type: string
       required:
         - hazards
+    GroupedAppError:
+      type: object
+      description: Serializer for a single grouped AppError/XeroError row.
+      properties:
+        fingerprint:
+          type: string
+        message:
+          type: string
+        occurrence_count:
+          type: integer
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        severity:
+          type: integer
+          nullable: true
+        app:
+          type: string
+          nullable: true
+        latest_id:
+          type: string
+          format: uuid
+      required:
+        - app
+        - fingerprint
+        - first_seen
+        - last_seen
+        - latest_id
+        - message
+        - occurrence_count
+        - severity
+    GroupedAppErrorListResponse:
+      type: object
+      description: Paginated response wrapper for grouped AppError/XeroError listings.
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupedAppError'
+      required:
+        - count
+        - results
+    GroupedErrorResolveRequestRequest:
+      type: object
+      description: |-
+        Request body for grouped resolve/unresolve endpoints.
+
+        Identifies the group by the SHA-256 fingerprint of the message (matches
+        the `fingerprint` field returned in the grouped listing). The server
+        iterates the unresolved rows, computes each message's hash, and cascades
+        the resolve across every row whose hash matches.
+
+        Using a fingerprint (not the message string) avoids client-side
+        whitespace mangling: the frontend's global axios interceptor calls
+        trimStringsDeep on outbound payloads, which would strip trailing
+        whitespace and prevent a later exact match.
+      properties:
+        fingerprint:
+          type: string
+          minLength: 1
+          pattern: ^[0-9a-f]{64}$
+      required:
+        - fingerprint
+    GroupedErrorResolveResponse:
+      type: object
+      description: Response body for grouped resolve/unresolve endpoints.
+      properties:
+        updated:
+          type: integer
+      required:
+        - updated
+    GroupedJobDeltaRejection:
+      type: object
+      description: Serializer for a single grouped JobDeltaRejection row.
+      properties:
+        fingerprint:
+          type: string
+        reason:
+          type: string
+        occurrence_count:
+          type: integer
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        latest_id:
+          type: string
+          format: uuid
+      required:
+        - fingerprint
+        - first_seen
+        - last_seen
+        - latest_id
+        - occurrence_count
+        - reason
+    GroupedJobDeltaRejectionListResponse:
+      type: object
+      description: Paginated response for grouped delta rejections.
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupedJobDeltaRejection'
+      required:
+        - count
+        - results
+    GroupedJobDeltaRejectionResolveRequestRequest:
+      type: object
+      description: |-
+        Request body for grouped resolve/unresolve actions on delta rejections.
+
+        Identifies the group by the SHA-256 fingerprint of the reason (matches
+        the `fingerprint` field returned in the grouped listing). See
+        GroupedErrorResolveRequestSerializer for the rationale.
+      properties:
+        fingerprint:
+          type: string
+          minLength: 1
+          pattern: ^[0-9a-f]{64}$
+      required:
+        - fingerprint
+    GroupedJobDeltaRejectionResolveResponse:
+      type: object
+      description: Response body for grouped resolve/unresolve actions on delta rejections.
+      properties:
+        updated:
+          type: integer
+      required:
+        - updated
     ImproveDocumentRequestRequest:
       type: object
       properties:

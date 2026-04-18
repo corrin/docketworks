@@ -817,6 +817,141 @@ class JobRestService:
             "results": results,
         }
 
+    @classmethod
+    def list_grouped_job_delta_rejections(
+        cls,
+        *,
+        limit: int = 50,
+        offset: int = 0,
+        job_id: str | None = None,
+        resolved: bool | None = None,
+    ) -> Dict[str, Any]:
+        import hashlib
+
+        from django.db.models import Count, Max, Min, OuterRef, Subquery
+
+        if limit <= 0:
+            limit = 1
+        limit = min(limit, 200)
+        offset = max(offset, 0)
+
+        queryset = JobDeltaRejection.objects.all()
+        if resolved is None:
+            queryset = queryset.filter(resolved=False)
+        else:
+            queryset = queryset.filter(resolved=resolved)
+        if job_id:
+            queryset = queryset.filter(job_id=job_id)
+
+        # Subquery is intentionally unfiltered: latest_id is an informational
+        # pointer to the most-recent row by created_at for this reason, across
+        # all resolved states.
+        latest_id_sq = (
+            JobDeltaRejection.objects.filter(reason=OuterRef("reason"))
+            .order_by("-created_at")
+            .values("id")[:1]
+        )
+
+        aggregated = (
+            queryset.values("reason")
+            .annotate(
+                occurrence_count=Count("id"),
+                first_seen=Min("created_at"),
+                last_seen=Max("created_at"),
+                latest_id=Subquery(latest_id_sq),
+            )
+            .order_by("-last_seen")
+        )
+        total = aggregated.count()
+        rows = list(aggregated[offset : offset + limit])
+
+        results = [
+            {
+                "fingerprint": hashlib.sha256(
+                    row["reason"].encode("utf-8")
+                ).hexdigest(),
+                "reason": row["reason"],
+                "occurrence_count": row["occurrence_count"],
+                "first_seen": row["first_seen"],
+                "last_seen": row["last_seen"],
+                "latest_id": row["latest_id"],
+            }
+            for row in rows
+        ]
+
+        next_offset = str(offset + limit) if offset + limit < total else None
+        prev_offset = str(max(offset - limit, 0)) if offset > 0 else None
+
+        return {
+            "count": total,
+            "next": next_offset,
+            "previous": prev_offset,
+            "results": results,
+        }
+
+    @classmethod
+    def mark_job_delta_rejection_group_resolved(cls, reason: str, staff: Staff) -> int:
+        return JobDeltaRejection.objects.filter(reason=reason).update(
+            resolved=True,
+            resolved_by=staff,
+            resolved_timestamp=timezone.now(),
+        )
+
+    @classmethod
+    def mark_job_delta_rejection_group_unresolved(
+        cls, reason: str, staff: Staff
+    ) -> int:
+        return JobDeltaRejection.objects.filter(reason=reason).update(
+            resolved=False,
+            resolved_by=None,
+            resolved_timestamp=None,
+        )
+
+    @classmethod
+    def _mark_job_delta_rejection_group_by_fingerprint(
+        cls, fingerprint: str, staff: Staff, resolved: bool
+    ) -> int:
+        """Match rows by sha256(reason) and cascade.
+
+        Callers send the fingerprint returned by the grouped listing; this
+        sidesteps client-side whitespace mangling on the raw reason. See
+        apps.workflow.services.error_grouping._mark_group_by_fingerprint
+        for the same pattern on AppError/XeroError.
+        """
+        import hashlib
+
+        candidates = JobDeltaRejection.objects.filter(resolved=not resolved).values(
+            "id", "reason"
+        )
+        matching_ids = [
+            row["id"]
+            for row in candidates
+            if hashlib.sha256(row["reason"].encode("utf-8")).hexdigest() == fingerprint
+        ]
+        if not matching_ids:
+            return 0
+        return JobDeltaRejection.objects.filter(id__in=matching_ids).update(
+            resolved=resolved,
+            resolved_by=staff if resolved else None,
+            resolved_timestamp=timezone.now() if resolved else None,
+        )
+
+    @classmethod
+    def mark_job_delta_rejection_group_resolved_by_fingerprint(
+        cls, fingerprint: str, staff: Staff
+    ) -> int:
+        return cls._mark_job_delta_rejection_group_by_fingerprint(
+            fingerprint, staff, resolved=True
+        )
+
+    @classmethod
+    def mark_job_delta_rejection_group_unresolved_by_fingerprint(
+        cls, fingerprint: str, staff: Staff
+    ) -> int:
+        return cls._mark_job_delta_rejection_group_by_fingerprint(
+            fingerprint, staff, resolved=False
+        )
+
     @staticmethod
     def update_job(
         job_id: UUID, data: Dict[str, Any], user: Staff, if_match: str | None = None

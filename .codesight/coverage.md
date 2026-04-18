@@ -1,7 +1,7 @@
 # Test Coverage
 
-> **21%** of routes and models are covered by tests
-> 99 test files found
+> **22%** of routes and models are covered by tests
+> 104 test files found
 
 ## Covered Routes
 
@@ -18,6 +18,7 @@
 - CostSet
 - CostLine
 - Job
+- JobDeltaRejection
 - JobEvent
 - JobFile
 - JobQuoteChat
@@ -33,5 +34,7 @@
 - SupplierPriceList
 - ScrapeJob
 - AIProvider
+- AppError
+- XeroError
 - XeroPayItem
 - XeroToken

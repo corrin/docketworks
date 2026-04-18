@@ -69,6 +69,9 @@
 | `/jobs/<uuid:pk>/quote/preview/` | `quote_sync_views.PreviewQuoteAPIView` | `jobs:quote_preview` | Preview quote import from linked Google Sheet. |
 | `/jobs/advanced-search/` | `kanban_view_api.AdvancedSearchAPIView` | `jobs:api_advanced_search` | Endpoint for advanced job search - API endpoint. |
 | `/jobs/delta-rejections/` | `job_rest_views.JobDeltaRejectionAdminRestView` | `jobs:job_delta_rejections_admin_rest` | Global listing of delta rejections for admin/monitoring usage. |
+| `/jobs/delta-rejections/grouped/` | `job_delta_rejection_grouped_view.JobDeltaRejectionGroupedListView` | `jobs:jobs-delta-rejections-grouped` | No description available |
+| `/jobs/delta-rejections/grouped/mark_resolved/` | `job_delta_rejection_grouped_view.JobDeltaRejectionGroupedMarkResolvedView` | `jobs:jobs-delta-rejections-grouped-mark-resolved` | No description available |
+| `/jobs/delta-rejections/grouped/mark_unresolved/` | `job_delta_rejection_grouped_view.JobDeltaRejectionGroupedMarkUnresolvedView` | `jobs:jobs-delta-rejections-grouped-mark-unresolved` | No description available |
 | `/jobs/fetch-all/` | `kanban_view_api.FetchAllJobsAPIView` | `jobs:api_fetch_all_jobs` | Fetch all jobs for Kanban board - API endpoint. |
 | `/jobs/fetch-by-column/<str:column_id>/` | `kanban_view_api.FetchJobsByColumnAPIView` | `jobs:api_fetch_jobs_by_column` | Fetch jobs by kanban column using new categorization system. |
 | `/jobs/fetch/<str:status>/` | `kanban_view_api.FetchJobsAPIView` | `jobs:api_fetch_jobs` | Fetch jobs by status with optional search - API endpoint. |

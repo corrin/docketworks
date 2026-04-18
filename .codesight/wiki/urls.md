@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Urls subsystem handles **77 routes** and touches: auth, payment.
+The Urls subsystem handles **83 routes** and touches: auth, payment.
 
 ## Routes
 
@@ -118,11 +118,23 @@ The Urls subsystem handles **77 routes** and touches: auth, payment.
   `apps/workflow/urls.py`
 - `ALL` `/xero/ping/` [auth, payment, upload]
   `apps/workflow/urls.py`
+- `ALL` `/app-errors/grouped/` [auth, payment, upload]
+  `apps/workflow/urls.py`
+- `ALL` `/app-errors/grouped/mark_resolved/` [auth, payment, upload]
+  `apps/workflow/urls.py`
+- `ALL` `/app-errors/grouped/mark_unresolved/` [auth, payment, upload]
+  `apps/workflow/urls.py`
 - `ALL` `/app-errors/` [auth, payment, upload]
   `apps/workflow/urls.py`
 - `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
   `apps/workflow/urls.py`
 - `ALL` `/rest/app-errors/` [auth, payment, upload]
+  `apps/workflow/urls.py`
+- `ALL` `/xero-errors/grouped/` [auth, payment, upload]
+  `apps/workflow/urls.py`
+- `ALL` `/xero-errors/grouped/mark_resolved/` [auth, payment, upload]
+  `apps/workflow/urls.py`
+- `ALL` `/xero-errors/grouped/mark_unresolved/` [auth, payment, upload]
   `apps/workflow/urls.py`
 - `ALL` `/xero-errors/` [auth, payment, upload]
   `apps/workflow/urls.py`

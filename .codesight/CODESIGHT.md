@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 85 routes | 43 models | 181 components | 354 lib files | 70 env vars | 8 middleware | 21% test coverage
-> **Token savings:** this file is ~29,200 tokens. Without it, AI exploration would cost ~232,100 tokens. **Saves ~202,900 tokens per conversation.**
+> 91 routes | 43 models | 181 components | 355 lib files | 70 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,500 tokens. Without it, AI exploration would cost ~235,500 tokens. **Saves ~206,000 tokens per conversation.**
 
 ---
 
@@ -73,9 +73,15 @@
 - `ALL` `/xero/sync/` params() [auth, payment, upload]
 - `ALL` `/xero/webhook/` params() [auth, payment, upload]
 - `ALL` `/xero/ping/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_resolved/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
 - `ALL` `/app-errors/` params() [auth, payment, upload]
 - `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
 - `ALL` `/rest/app-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_resolved/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
 - `ALL` `/xero-errors/` params() [auth, payment, upload]
 - `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
 - `ALL` `/company-defaults/` params() [auth, payment, upload]
@@ -258,7 +264,10 @@
 - checksum: string
 - request_etag: string
 - request_ip: string (nullable)
-- _relations_: job: one(Job), staff: one(Staff)
+- resolved: boolean (default)
+- resolved_by_id: integer (fk)
+- resolved_timestamp: timestamp (nullable)
+- _relations_: job: one(Job), staff: one(Staff), resolved_by: one(Staff)
 
 ### JobEvent
 - id: uuid (pk, default)
@@ -701,9 +710,9 @@
 - **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
 - **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
-- **ErrorDialog** [client] — props: error — `frontend/src/components/admin/errors/ErrorDialog.vue`
+- **ErrorDialog** [client] — props: error, groupMeta — `frontend/src/components/admin/errors/ErrorDialog.vue`
 - **ErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorFilter.vue`
-- **ErrorTable** [client] — props: headers, rows, id, occurredAt, message, entity, severity — `frontend/src/components/admin/errors/ErrorTable.vue`
+- **ErrorTable** [client] — props: headers, rows, loading, page, pageCount, grouped — `frontend/src/components/admin/errors/ErrorTable.vue`
 - **ErrorTabs** [client] — props: modelValue — `frontend/src/components/admin/errors/ErrorTabs.vue`
 - **JobErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/JobErrorFilter.vue`
 - **SystemErrorFilter** [client] — props: modelValue — `frontend/src/components/admin/errors/SystemErrorFilter.vue`
@@ -1050,7 +1059,7 @@
   - class XeroInvoiceSerializer
   - class CompanyDefaultsJobDetailSerializer
   - class JobSerializer
-  - _...50 more_
+  - _...54 more_
 - `apps/job/serializers/kanban_serializer.py`
   - class JobReorderSerializer
   - class JobStatusUpdateSerializer
@@ -1433,7 +1442,15 @@
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
   - class AIProviderCreateUpdateSerializer
-  - _...19 more_
+  - _...23 more_
+- `apps/workflow/services/error_grouping.py`
+  - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
+  - function list_grouped_xero_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
+  - function mark_app_error_group_resolved: (message, staff) -> int
+  - function mark_app_error_group_unresolved: (message, staff) -> int
+  - function mark_xero_error_group_resolved: (message, staff) -> int
+  - function mark_xero_error_group_unresolved: (message, staff) -> int
+  - _...4 more_
 - `apps/workflow/services/error_persistence.py`
   - function extract_request_context: (request) -> Dict[str, Any]
   - function extract_job_context: (job)
@@ -2010,8 +2027,8 @@
 
 # Test Coverage
 
-> **21%** of routes and models are covered by tests
-> 99 test files found
+> **22%** of routes and models are covered by tests
+> 104 test files found
 
 ## Covered Routes
 
@@ -2028,6 +2045,7 @@
 - CostSet
 - CostLine
 - Job
+- JobDeltaRejection
 - JobEvent
 - JobFile
 - JobQuoteChat
@@ -2043,6 +2061,8 @@
 - SupplierPriceList
 - ScrapeJob
 - AIProvider
+- AppError
+- XeroError
 - XeroPayItem
 - XeroToken
 

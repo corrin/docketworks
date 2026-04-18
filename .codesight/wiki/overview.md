@@ -6,13 +6,13 @@
 
 ## Scale
 
-85 API routes · 43 database models · 181 UI components · 8 middleware layers · 70 environment variables
+91 API routes · 43 database models · 181 UI components · 8 middleware layers · 70 environment variables
 
 ## Subsystems
 
 - **[Auth](./auth.md)** — 6 routes — touches: auth, payment, upload
 - **[Payments](./payments.md)** — 1 routes — touches: auth, payment, upload
-- **[Urls](./urls.md)** — 77 routes — touches: auth, payment, upload
+- **[Urls](./urls.md)** — 83 routes — touches: auth, payment, upload
 - **[Infra](./infra.md)** — 1 routes
 
 **Database:** django, 43 models — see [database.md](./database.md)

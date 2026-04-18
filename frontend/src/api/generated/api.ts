@@ -478,6 +478,29 @@ const PaginatedAppErrorList = z.object({
   previous: z.string().url().nullish(),
   results: z.array(AppError),
 })
+const GroupedAppError = z.object({
+  fingerprint: z.string(),
+  message: z.string(),
+  occurrence_count: z.number().int(),
+  first_seen: z.string().datetime({ offset: true }),
+  last_seen: z.string().datetime({ offset: true }),
+  severity: z.number().int().nullable(),
+  app: z.string().nullable(),
+  latest_id: z.string().uuid(),
+})
+const GroupedAppErrorListResponse = z.object({
+  count: z.number().int(),
+  next: z.string().nullish(),
+  previous: z.string().nullish(),
+  results: z.array(GroupedAppError),
+})
+const GroupedErrorResolveRequestRequest = z.object({
+  fingerprint: z
+    .string()
+    .min(1)
+    .regex(/^[0-9a-f]{64}$/),
+})
+const GroupedErrorResolveResponse = z.object({ updated: z.number().int() })
 const ClientDetailResponse = z.object({
   id: z.string(),
   name: z.string(),
@@ -1626,6 +1649,29 @@ const AdvancedSearchResponse = z
     error: z.string(),
   })
   .partial()
+const GroupedJobDeltaRejection = z.object({
+  fingerprint: z.string(),
+  reason: z.string(),
+  occurrence_count: z.number().int(),
+  first_seen: z.string().datetime({ offset: true }),
+  last_seen: z.string().datetime({ offset: true }),
+  latest_id: z.string().uuid(),
+})
+const GroupedJobDeltaRejectionListResponse = z.object({
+  count: z.number().int(),
+  next: z.string().nullish(),
+  previous: z.string().nullish(),
+  results: z.array(GroupedJobDeltaRejection),
+})
+const GroupedJobDeltaRejectionResolveRequestRequest = z.object({
+  fingerprint: z
+    .string()
+    .min(1)
+    .regex(/^[0-9a-f]{64}$/),
+})
+const GroupedJobDeltaRejectionResolveResponse = z.object({
+  updated: z.number().int(),
+})
 const FetchAllJobsResponse = z
   .object({
     success: z.boolean().default(true),
@@ -2926,6 +2972,10 @@ export const schemas = {
   TokenVerifyRequest,
   AppError,
   PaginatedAppErrorList,
+  GroupedAppError,
+  GroupedAppErrorListResponse,
+  GroupedErrorResolveRequestRequest,
+  GroupedErrorResolveResponse,
   ClientDetailResponse,
   ClientErrorResponse,
   ClientJobHeader,
@@ -3063,6 +3113,10 @@ export const schemas = {
   KanbanJobPerson,
   KanbanJob,
   AdvancedSearchResponse,
+  GroupedJobDeltaRejection,
+  GroupedJobDeltaRejectionListResponse,
+  GroupedJobDeltaRejectionResolveRequestRequest,
+  GroupedJobDeltaRejectionResolveResponse,
   FetchAllJobsResponse,
   KanbanColumnJob,
   FetchJobsByColumnResponse,
@@ -3909,6 +3963,51 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
       },
     ],
     response: AppError,
+  },
+  {
+    method: 'get',
+    path: '/api/app-errors/grouped/',
+    alias: 'app_errors_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedAppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/app-errors/grouped/mark_resolved/',
+    alias: 'app_errors_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/app-errors/grouped/mark_unresolved/',
+    alias: 'app_errors_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
   },
   {
     method: 'get',
@@ -6021,6 +6120,51 @@ Expected JSON:
         schema: z.object({ error: z.string() }),
       },
     ],
+  },
+  {
+    method: 'get',
+    path: '/api/job/jobs/delta-rejections/grouped/',
+    alias: 'job_jobs_delta_rejections_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedJobDeltaRejectionListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/job/jobs/delta-rejections/grouped/mark_resolved/',
+    alias: 'job_jobs_delta_rejections_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/job/jobs/delta-rejections/grouped/mark_unresolved/',
+    alias: 'job_jobs_delta_rejections_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
   },
   {
     method: 'get',
@@ -8295,6 +8439,51 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
       },
     ],
     response: XeroError,
+  },
+  {
+    method: 'get',
+    path: '/api/xero-errors/grouped/',
+    alias: 'xero_errors_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedAppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/xero-errors/grouped/mark_resolved/',
+    alias: 'xero_errors_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/xero-errors/grouped/mark_unresolved/',
+    alias: 'xero_errors_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
   },
   {
     method: 'post',
