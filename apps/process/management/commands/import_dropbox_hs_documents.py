@@ -644,24 +644,19 @@ class Command(BaseCommand):
             "--credentials",
             help="Path to Google service account JSON key file (overrides default)",
         )
-        parser.add_argument(
-            "--impersonate",
-            help="Email address to impersonate via domain-wide delegation "
-            "(e.g. office@morrissheetmetal.co.nz)",
-        )
 
     def handle(self, *args, **options):
         folder_path = Path(options["folder"])
         dry_run = options["dry_run"]
         self._credentials_file = options.get("credentials")
-        self._impersonate_email = options.get("impersonate")
 
         if not folder_path.exists():
             raise CommandError(f"Folder does not exist: {folder_path}")
         if not folder_path.is_dir():
             raise CommandError(f"Path is not a directory: {folder_path}")
 
-        # Load company config — needed for Google Drive folder IDs
+        # Load company config — needed for Google Drive folder IDs and the
+        # domain-wide-delegation subject when a custom credentials file is used.
         company = CompanyDefaults.get_solo()
 
         if not dry_run and not company.gdrive_reference_library_folder_id:
@@ -669,6 +664,14 @@ class Command(BaseCommand):
                 "CompanyDefaults.gdrive_reference_library_folder_id is not configured. "
                 "Set it in Settings before uploading."
             )
+
+        if self._credentials_file and not company.company_email:
+            raise CommandError(
+                "CompanyDefaults.company_email is not set. "
+                "Google Workspace domain-wide delegation needs a user to impersonate — "
+                "populate CompanyDefaults.company_email in Settings."
+            )
+        self._impersonate_email = company.company_email
 
         # Phase 1: discover all candidate files
         candidates = self._discover_files(folder_path)
@@ -869,9 +872,7 @@ class Command(BaseCommand):
             ]
             creds = service_account.Credentials.from_service_account_file(
                 self._credentials_file, scopes=scopes
-            )
-            if self._impersonate_email:
-                creds = creds.with_subject(self._impersonate_email)
+            ).with_subject(self._impersonate_email)
             return build("drive", "v3", credentials=creds, cache_discovery=False)
 
         from apps.job.importers.google_sheets import _svc
