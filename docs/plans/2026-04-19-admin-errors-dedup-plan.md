@@ -1361,7 +1361,7 @@ def test_grouped_list_returns_shape(client, db):
     JobDeltaRejection.objects.create(reason="stale_etag", envelope={})
     JobDeltaRejection.objects.create(reason="stale_etag", envelope={})
 
-    resp = client.get("/job/rest/jobs/delta-rejections/admin/grouped/")
+    resp = client.get("/api/job/jobs/delta-rejections/grouped/")
     assert resp.status_code == 200
     body = resp.json()
     assert body["count"] == 1
@@ -1374,7 +1374,7 @@ def test_resolve_cascades(client, office_staff, db):
     JobDeltaRejection.objects.create(reason="conflict", envelope={})
 
     resp = client.post(
-        "/job/rest/jobs/delta-rejections/admin/grouped/mark_resolved/",
+        "/api/job/jobs/delta-rejections/grouped/mark_resolved/",
         data={"reason": "conflict"},
         format="json",
     )
@@ -1390,7 +1390,7 @@ def test_unresolve_cascades(client, office_staff, db):
         )
 
     resp = client.post(
-        "/job/rest/jobs/delta-rejections/admin/grouped/mark_unresolved/",
+        "/api/job/jobs/delta-rejections/grouped/mark_unresolved/",
         data={"reason": "conflict"},
         format="json",
     )
@@ -1523,19 +1523,19 @@ And add three path entries alongside the existing
 
 ```python
     path(
-        "jobs/delta-rejections/admin/grouped/",
+        "jobs/delta-rejections/grouped/",
         JobDeltaRejectionGroupedListView.as_view(),
-        name="jobs-delta-rejections-admin-grouped",
+        name="jobs-delta-rejections-grouped",
     ),
     path(
-        "jobs/delta-rejections/admin/grouped/mark_resolved/",
+        "jobs/delta-rejections/grouped/mark_resolved/",
         JobDeltaRejectionGroupedMarkResolvedView.as_view(),
-        name="jobs-delta-rejections-admin-grouped-mark-resolved",
+        name="jobs-delta-rejections-grouped-mark-resolved",
     ),
     path(
-        "jobs/delta-rejections/admin/grouped/mark_unresolved/",
+        "jobs/delta-rejections/grouped/mark_unresolved/",
         JobDeltaRejectionGroupedMarkUnresolvedView.as_view(),
-        name="jobs-delta-rejections-admin-grouped-mark-unresolved",
+        name="jobs-delta-rejections-grouped-mark-unresolved",
     ),
 ```
 
@@ -1572,7 +1572,7 @@ cd frontend && npm run update-schema
 
 Expected: `frontend/src/api/schema.yml` updated with new paths:
 `/api/app-errors/grouped/`, `/api/xero-errors/grouped/`, plus the
-`/job/rest/jobs/delta-rejections/admin/grouped/` triple.
+`/api/job/jobs/delta-rejections/grouped/` triple.
 
 - [ ] **Step 2: Regenerate the Zodios client**
 
@@ -1678,7 +1678,7 @@ Inside the `useErrorApi` factory, add:
       const params: Record<string, unknown> = { limit: PAGE_SIZE, offset }
       if (jobFilters?.jobId) params.job_id = jobFilters.jobId
       const response = await api.axios.get<GroupedJobDeltaRejectionListResponse>(
-        '/job/rest/jobs/delta-rejections/admin/grouped/',
+        '/api/job/jobs/delta-rejections/grouped/',
         { params },
       )
       return mapGroupedResponse<T>(response.data)
@@ -1711,7 +1711,7 @@ Inside the `useErrorApi` factory, add:
         ? `/api/xero-errors/grouped/${action}/`
         : type === 'system'
           ? `/api/app-errors/grouped/${action}/`
-          : `/job/rest/jobs/delta-rejections/admin/grouped/${action}/`
+          : `/api/job/jobs/delta-rejections/grouped/${action}/`
     const body = { [keyField]: keyValue }
     const response = await api.axios.post<{ updated: number }>(endpoint, body)
     return response.data.updated
