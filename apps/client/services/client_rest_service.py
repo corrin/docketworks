@@ -638,16 +638,12 @@ class ClientRestService:
                 xero_last_modified=timezone.now(),
             )
 
-        # Push to accounting provider
+        # Push to accounting provider (persists xero_contact_id on the client object)
         result = provider.create_contact(client)
         if not result.success:
             raise ValueError(
                 f"Failed to create client in {provider.provider_name}: {result.error}"
             )
-
-        # Save external ID from the accounting provider
-        client.xero_contact_id = result.external_id
-        client.save(update_fields=["xero_contact_id"])
 
         logger.info(
             f"Client {client.id} created locally and in {provider.provider_name}",

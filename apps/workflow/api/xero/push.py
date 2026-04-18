@@ -450,31 +450,24 @@ def get_all_xero_contacts():
 
 
 def create_client_contact_in_xero(client):
-    """Create a single client as Xero contact"""
+    """Create a single client as Xero contact. Returns xero_contact_id on success, raises on failure."""
     if not client.validate_for_xero():
-        logger.warning(f"Client {client.id} failed Xero validation")
-        return False
+        raise ValueError(f"Client {client.id} failed Xero validation")
 
     accounting_api = AccountingApi(api_client)
     contact_data = client.get_client_for_xero()
 
     if not contact_data:
-        logger.warning(f"Client {client.id} failed to generate Xero data")
-        return False
+        raise ValueError(f"Client {client.id} failed to generate Xero data")
 
-    try:
-        response = accounting_api.create_contacts(
-            get_tenant_id(), contacts={"contacts": [contact_data]}
-        )
-        time.sleep(SLEEP_TIME)
+    response = accounting_api.create_contacts(
+        get_tenant_id(), contacts={"contacts": [contact_data]}
+    )
+    time.sleep(SLEEP_TIME)
 
-        client.xero_contact_id = response.contacts[0].contact_id
-        client.save(update_fields=["xero_contact_id"])
-        return True
-
-    except Exception as e:
-        logger.error(f"Error creating client {client.name} in Xero: {e}")
-        return False
+    client.xero_contact_id = response.contacts[0].contact_id
+    client.save(update_fields=["xero_contact_id"])
+    return client.xero_contact_id
 
 
 def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
