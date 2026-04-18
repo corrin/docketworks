@@ -64,10 +64,10 @@ sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 # --- Pull latest code for all target instances (from local repo) ---
 for instance in "${TARGETS[@]}"; do
     inst_dir="$INSTANCES_DIR/$instance"
-    instance_user="dw-$instance"
+    inst_user="$(instance_user "$instance")"
     log "Pulling latest code for $instance..."
-    sudo -u "$instance_user" git -C "$inst_dir" fetch origin
-    sudo -u "$instance_user" git -C "$inst_dir" pull --ff-only
+    sudo -u "$inst_user" git -C "$inst_dir" fetch origin
+    sudo -u "$inst_user" git -C "$inst_dir" pull --ff-only
 done
 
 # --- Update shared Python dependencies (from local repo) ---
@@ -94,13 +94,13 @@ sudo -u docketworks bash -c "
 FAILED_INSTANCES=()
 for instance in "${TARGETS[@]}"; do
     instance_dir="$INSTANCES_DIR/$instance"
-    instance_user="dw-$instance"
+    inst_user="$(instance_user "$instance")"
 
     log "--- Processing instance: $instance ---"
 
     # Build frontend
     log "  Building frontend..."
-    sudo -u "$instance_user" bash -c "
+    sudo -u "$inst_user" bash -c "
         cd '$instance_dir/frontend'
         npm run build
     "

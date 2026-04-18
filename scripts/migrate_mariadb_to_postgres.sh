@@ -52,8 +52,9 @@ if [[ "$MODE" == "production" ]]; then
     CODE_DIR="$INSTANCE_DIR"
     SERVICES=("gunicorn-$INSTANCE" "scheduler-$INSTANCE")
     SHARED_VENV="/opt/docketworks/.venv"
-    INSTANCE_USER="dw-$INSTANCE"
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    source "$SCRIPT_DIR/server/common.sh"
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
     DUMP_FILE="/tmp/dw_${INSTANCE}_dump.json"
     MYSQL_COUNTS="/tmp/dw_${INSTANCE}_mysql_counts.txt"
     PG_COUNTS="/tmp/dw_${INSTANCE}_pg_counts.txt"

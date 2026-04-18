@@ -28,3 +28,12 @@ validate_env() {
     echo "ERROR: Invalid environment '$env'. Must be one of: $VALID_ENVS"
     exit 1
 }
+
+# Returns the OS user name for an instance: "msm-prod" -> "dw_msm_prod".
+# Matches the DB role name (see templates/env-instance.template DB_USER)
+# so Postgres peer auth via socket is possible and scripts only need one
+# string for both the Linux account and the database role.
+instance_user() {
+    local instance="$1"
+    echo "dw_${instance//-/_}"
+}
