@@ -160,7 +160,10 @@ export function useErrorApi() {
         const systemFilters = filters as SystemErrorFilters
         const params: Record<string, unknown> = { limit: PAGE_SIZE, offset }
         if (systemFilters?.app) params.app = systemFilters.app
-        if (typeof systemFilters?.severity === 'number') {
+        if (
+          typeof systemFilters?.severity === 'number' &&
+          Number.isFinite(systemFilters.severity)
+        ) {
           params.severity = systemFilters.severity
         }
         if (typeof systemFilters?.resolved === 'boolean') {
@@ -205,6 +208,7 @@ export function useErrorApi() {
     keyValue: string,
     action: 'mark_resolved' | 'mark_unresolved',
   ): Promise<number> {
+    error.value = null
     const endpoint =
       type === 'xero'
         ? `/api/xero-errors/grouped/${action}/`
@@ -212,8 +216,14 @@ export function useErrorApi() {
           ? `/api/app-errors/grouped/${action}/`
           : `/api/job/jobs/delta-rejections/grouped/${action}/`
     const body = { [keyField]: keyValue }
-    const response = await api.axios.post<{ updated: number }>(endpoint, body)
-    return response.data.updated
+    try {
+      const response = await api.axios.post<{ updated: number }>(endpoint, body)
+      return response.data.updated
+    } catch (e: unknown) {
+      if (e instanceof Error) error.value = e.message
+      else error.value = 'Failed to update group.'
+      return 0
+    }
   }
 
   return { fetchErrors, fetchGroupedErrors, resolveGroup, error }
