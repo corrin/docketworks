@@ -891,12 +891,10 @@ class JobRestService:
 
     @classmethod
     def mark_job_delta_rejection_group_resolved(cls, reason: str, staff: Staff) -> int:
-        from django.utils import timezone as tz
-
         return JobDeltaRejection.objects.filter(reason=reason).update(
             resolved=True,
             resolved_by=staff,
-            resolved_timestamp=tz.now(),
+            resolved_timestamp=timezone.now(),
         )
 
     @classmethod
