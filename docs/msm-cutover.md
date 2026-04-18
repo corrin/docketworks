@@ -316,6 +316,15 @@ grep "^ALLOWED_HOSTS=" /opt/docketworks/instances/msm-prod/.env
 Maestral replaces the old Dropbox daemon. It runs as `dw_msm_prod` and syncs the MSM Dropbox
 account to the instance's `dropbox/` directory.
 
+`dw_msm_prod`'s HOME is `/opt/docketworks/instances/msm-prod` (set by `useradd -d` in Phase 4),
+not `/home/dw_msm_prod`. Maestral config/state therefore live at:
+
+- `/opt/docketworks/instances/msm-prod/.config/maestral/msm.ini`
+- `/opt/docketworks/instances/msm-prod/.local/share/maestral/`
+- `/opt/docketworks/instances/msm-prod/.local/share/python_keyring/`
+
+Grepping `/home/` for debugging will return nothing.
+
 ```bash
 sudo -u dw_msm_prod python3 -m venv /opt/docketworks/instances/msm-prod/maestral-venv
 sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/pip install maestral
@@ -324,15 +333,29 @@ sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/pip in
 ### 5.1 Link to the Dropbox account (browser required)
 
 ```bash
-sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral link -c msm
+sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral auth link -c msm
 # Open the printed URL, log in as MSM's Dropbox account, paste the code back
 ```
 
+In Maestral 1.9.6 `auth` is a subcommand group: `auth link`, `auth unlink`, `auth status`.
+
 ### 5.2 Point Maestral at the instance dropbox directory
+
+`auth link` only writes credentials — it does NOT prompt for or persist the sync folder path.
+Starting the daemon without setting `path` would fail or sync to an unintended default. This step
+is mandatory.
 
 ```bash
 sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral \
-    config set local_folder /opt/docketworks/instances/msm-prod/dropbox -c msm
+    config set path /opt/docketworks/instances/msm-prod/dropbox -c msm
+```
+
+Verify:
+
+```bash
+sudo -u dw_msm_prod /opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral \
+    config get path -c msm
+# Expected: /opt/docketworks/instances/msm-prod/dropbox
 ```
 
 ### 5.3 Pre-populate the dropbox directory from the old server
@@ -348,6 +371,11 @@ sudo rsync -av --progress \
 sudo chown -R dw_msm_prod:dw_msm_prod /opt/docketworks/instances/msm-prod/dropbox/
 ```
 
+This rsync depends only on SSH access to `root@192.168.1.17:/srv/samba/dropbox/` — it is NOT
+tied to the rest of the Phase 5 sequence. Run it any time before Phase 12 cutover, and ideally
+twice: once well in advance (the long transfer) and once as a delta just before the old server
+is shut down.
+
 ### 5.4 Install as a systemd service
 
 ```bash
@@ -358,9 +386,12 @@ After=network-online.target
 Wants=network-online.target
 
 [Service]
-Type=simple
+Type=notify
+NotifyAccess=exec
+WatchdogSec=30s
 User=dw_msm_prod
 ExecStart=/opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral start -f -c msm
+ExecStop=/opt/docketworks/instances/msm-prod/maestral-venv/bin/maestral stop -c msm
 Restart=on-failure
 RestartSec=10
 
@@ -371,6 +402,10 @@ EOF
 sudo systemctl daemon-reload
 sudo systemctl enable --now maestral-msm-prod
 ```
+
+`Type=notify` + `WatchdogSec=30s` lets systemd detect a hung daemon and restart it; `ExecStop`
+gives Maestral a graceful shutdown. This matches the old server's unit
+(`$EXTRACT/etc/systemd/system/maestral.service`).
 
 Verify:
 
@@ -941,7 +976,7 @@ Default after Phase 14 passes. Old VM stays off; after 1 week stable, Phase 15 d
 
 - `sudo -u dw_msm_prod .../maestral status -c msm`
 - `sudo -u dw_msm_prod .../maestral start -c msm`
-- Re-link if required: `sudo -u dw_msm_prod .../maestral link -c msm`
+- Re-link if required: `sudo -u dw_msm_prod .../maestral auth link -c msm`
 - Service logs: `journalctl -u maestral-msm-prod -f`
 
 ### rclone "token expired"
