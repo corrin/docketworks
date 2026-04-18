@@ -478,6 +478,26 @@ const PaginatedAppErrorList = z.object({
   previous: z.string().url().nullish(),
   results: z.array(AppError),
 })
+const GroupedAppError = z.object({
+  fingerprint: z.string(),
+  message: z.string(),
+  occurrence_count: z.number().int(),
+  first_seen: z.string().datetime({ offset: true }),
+  last_seen: z.string().datetime({ offset: true }),
+  severity: z.number().int().nullable(),
+  app: z.string().nullable(),
+  latest_id: z.string().uuid(),
+})
+const GroupedAppErrorListResponse = z.object({
+  count: z.number().int(),
+  next: z.string().nullish(),
+  previous: z.string().nullish(),
+  results: z.array(GroupedAppError),
+})
+const GroupedErrorResolveRequestRequest = z.object({
+  message: z.string().min(1),
+})
+const GroupedErrorResolveResponse = z.object({ updated: z.number().int() })
 const ClientDetailResponse = z.object({
   id: z.string(),
   name: z.string(),
@@ -2926,6 +2946,10 @@ export const schemas = {
   TokenVerifyRequest,
   AppError,
   PaginatedAppErrorList,
+  GroupedAppError,
+  GroupedAppErrorListResponse,
+  GroupedErrorResolveRequestRequest,
+  GroupedErrorResolveResponse,
   ClientDetailResponse,
   ClientErrorResponse,
   ClientJobHeader,
@@ -3909,6 +3933,41 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
       },
     ],
     response: AppError,
+  },
+  {
+    method: 'get',
+    path: '/api/app-errors/grouped/',
+    alias: 'app_errors_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedAppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/app-errors/grouped/mark_resolved/',
+    alias: 'app_errors_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ message: z.string().min(1) }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/app-errors/grouped/mark_unresolved/',
+    alias: 'app_errors_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ message: z.string().min(1) }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
   },
   {
     method: 'get',
@@ -8295,6 +8354,41 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
       },
     ],
     response: XeroError,
+  },
+  {
+    method: 'get',
+    path: '/api/xero-errors/grouped/',
+    alias: 'xero_errors_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedAppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/xero-errors/grouped/mark_resolved/',
+    alias: 'xero_errors_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ message: z.string().min(1) }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/xero-errors/grouped/mark_unresolved/',
+    alias: 'xero_errors_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ message: z.string().min(1) }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
   },
   {
     method: 'post',

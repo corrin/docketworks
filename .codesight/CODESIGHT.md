@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 85 routes | 43 models | 181 components | 355 lib files | 70 env vars | 8 middleware | 23% test coverage
-> **Token savings:** this file is ~29,400 tokens. Without it, AI exploration would cost ~232,400 tokens. **Saves ~203,000 tokens per conversation.**
+> 91 routes | 43 models | 181 components | 355 lib files | 70 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,500 tokens. Without it, AI exploration would cost ~235,500 tokens. **Saves ~206,000 tokens per conversation.**
 
 ---
 
@@ -73,9 +73,15 @@
 - `ALL` `/xero/sync/` params() [auth, payment, upload]
 - `ALL` `/xero/webhook/` params() [auth, payment, upload]
 - `ALL` `/xero/ping/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_resolved/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
 - `ALL` `/app-errors/` params() [auth, payment, upload]
 - `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
 - `ALL` `/rest/app-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_resolved/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
 - `ALL` `/xero-errors/` params() [auth, payment, upload]
 - `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
 - `ALL` `/company-defaults/` params() [auth, payment, upload]
@@ -2020,8 +2026,8 @@
 
 # Test Coverage
 
-> **23%** of routes and models are covered by tests
-> 102 test files found
+> **22%** of routes and models are covered by tests
+> 103 test files found
 
 ## Covered Routes
 

@@ -7,6 +7,9 @@
 |-------------|------|------|-------------|
 | `/app-errors/` | `app_error_view.AppErrorListAPIView` | `app-error-list` | API view for listing application errors. |
 | `/app-errors/<uuid:pk>/` | `app_error_view.AppErrorDetailAPIView` | `app-error-detail` | API view for retrieving a single application error. |
+| `/app-errors/grouped/` | `app_error_grouped_view.AppErrorGroupedListView` | `app-error-grouped-list` | No description available |
+| `/app-errors/grouped/mark_resolved/` | `app_error_grouped_view.AppErrorGroupedMarkResolvedView` | `app-error-grouped-mark-resolved` | No description available |
+| `/app-errors/grouped/mark_unresolved/` | `app_error_grouped_view.AppErrorGroupedMarkUnresolvedView` | `app-error-grouped-mark-unresolved` | No description available |
 
 ### Company-Defaults Management
 | URL Pattern | View | Name | Description |
@@ -52,3 +55,10 @@
 | `/xero/sync-stream/` | `xero_view.stream_xero_sync` | `stream_xero_sync` | HTTP endpoint to serve an EventSource stream of Xero sync events. |
 | `/xero/sync/` | `xero_view.start_xero_sync` | `synchronise_xero_data` | View function to start a Xero sync as a background task. |
 | `/xero/webhook/` | `XeroWebhookView` | `xero_webhook` | Handle incoming Xero webhook notifications. |
+
+### Xero-Errors Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/xero-errors/grouped/` | `app_error_grouped_view.XeroErrorGroupedListView` | `xero-error-grouped-list` | No description available |
+| `/xero-errors/grouped/mark_resolved/` | `app_error_grouped_view.XeroErrorGroupedMarkResolvedView` | `xero-error-grouped-mark-resolved` | No description available |
+| `/xero-errors/grouped/mark_unresolved/` | `app_error_grouped_view.XeroErrorGroupedMarkUnresolvedView` | `xero-error-grouped-mark-unresolved` | No description available |
