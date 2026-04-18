@@ -539,25 +539,9 @@ print('URL:  ', cd.company_url)
 **Company logos** (migration 0206): upload via Django admin →
 `https://office.morrissheetmetal.co.nz/admin/` → Company Defaults → Logo and Logo Wide.
 
-**Google Drive folder rename** — code now looks for `DocketWorks` not `Jobs Manager`:
-
-```bash
-sudo /opt/docketworks/repo/scripts/server/dw-run.sh msm-prod python manage.py shell -c "
-from apps.job.importers.google_sheets import _svc
-drive = _svc('drive', 'v3')
-results = drive.files().list(
-    q=\"name='Jobs Manager' and mimeType='application/vnd.google-apps.folder' and trashed=false\",
-    fields='files(id, name)', supportsAllDrives=True, includeItemsFromAllDrives=True,
-).execute()
-folders = results.get('files', [])
-if not folders:
-    print('No Jobs Manager folder found - may already be renamed')
-else:
-    fid = folders[0]['id']
-    drive.files().update(fileId=fid, body={'name': 'DocketWorks'}, supportsAllDrives=True).execute()
-    print(f'Renamed folder {fid} to DocketWorks')
-"
-```
+**Google Drive folder** — MSM has no legacy `Jobs Manager` folder, so nothing to rename.
+`_get_or_create_docketworks_folder` (`apps/job/importers/google_sheets.py`) creates
+`DocketWorks` automatically the first time the quote/sheet sync runs.
 
 ---
 
@@ -931,8 +915,6 @@ certbot certificates
    `https://api.office.morrissheetmetal.co.nz/api/xero/oauth/callback/`
 4. Xero portal → MSM → Settings → Webhooks: delivery URL back to the
    `api.office.morrissheetmetal.co.nz` path
-5. Google Drive (signed in as MSM): rename `DocketWorks` → `Jobs Manager`
-   (skip if Phase 9.3 hasn't run)
 
 Verify: `https://office.morrissheetmetal.co.nz` loads the old app; Clients list loads
 (Xero token + DNS OK); open a job with linked Drive sheets (Drive OK).
