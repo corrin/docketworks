@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults, getStaffList } from '../fixtures/api'
-import { autoId, gridCell, createTestJob } from '../fixtures/helpers'
+import { autoId, createTestJob, gridCell } from '../fixtures/helpers'
+import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
  * Tests that staff wage_rate includes annual leave loading and that
@@ -11,14 +12,6 @@ import { autoId, gridCell, createTestJob } from '../fixtures/helpers'
  * - At least one active staff member with base_wage_rate > 0
  * - Backend running the feature/staff-wages branch
  */
-
-function getWeekdayDate(): string {
-  const date = new Date()
-  const day = date.getDay()
-  if (day === 6) date.setDate(date.getDate() - 1)
-  if (day === 0) date.setDate(date.getDate() - 2)
-  return date.toISOString().split('T')[0]
-}
 
 test.describe.serial('staff wage loading', () => {
   let staffId: string
@@ -104,7 +97,7 @@ test.describe.serial('staff wage loading', () => {
   test('timesheet entry uses loaded wage_rate for cost calculation', async ({
     authenticatedPage: page,
   }) => {
-    const weekday = getWeekdayDate()
+    const weekday = getLatestWeekdayDate()
     await page.goto(`/timesheets/entry?date=${weekday}&staffId=${staffId}`)
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)

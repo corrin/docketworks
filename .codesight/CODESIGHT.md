@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 91 routes | 43 models | 181 components | 355 lib files | 70 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,500 tokens. Without it, AI exploration would cost ~235,500 tokens. **Saves ~206,000 tokens per conversation.**
+> 91 routes | 43 models | 181 components | 355 lib files | 69 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,600 tokens. Without it, AI exploration would cost ~235,400 tokens. **Saves ~205,800 tokens per conversation.**
 
 ---
 
@@ -1706,6 +1706,7 @@
 - `frontend/src/utils/csrf.ts` — function getCookie: (name) => string | null, function getCsrfToken: () => string | null
 - `frontend/src/utils/dateUtils.ts`
   - function toLocalDateString: (date) => void
+  - function getLatestWeekdayDate: (date) => void
   - function toDateValue: (date) => DateValue | undefined
   - function fromDateValue: (dateValue) => Date | null
 - `frontend/src/utils/debug.ts` — function debugLog: (...args) => void, const isDebugEnabled
@@ -1927,7 +1928,6 @@
 - `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
 - `LOG_DIR` **required** — docketworks/settings.py
 - `MEDIA_ROOT` **required** — docketworks/settings.py
-- `MODE` **required** — frontend/src/utils/debug.ts
 - `NGROK_AUTH_TOKEN` (has default) — .env.example
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
@@ -1995,6 +1995,7 @@
 - `frontend/src/utils/debug.ts` — imported by **14** files
 - `/apps.py` — imported by **9** files
 - `frontend/src/api/client.ts` — imported by **7** files
+- `frontend/src/utils/dateUtils.ts` — imported by **6** files
 - `/enums.py` — imported by **5** files
 - `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `frontend/src/stores/jobs.ts` — imported by **5** files
@@ -2003,7 +2004,6 @@
 - `/xero_helpers.py` — imported by **3** files
 - `/xero_base_manager.py` — imported by **3** files
 - `frontend/src/services/costline.service.ts` — imported by **3** files
-- `frontend/src/utils/dateUtils.ts` — imported by **3** files
 - `frontend/src/stores/auth.ts` — imported by **3** files
 - `frontend/src/services/job.service.ts` — imported by **3** files
 - `frontend/src/constants/advanced-filters.ts` — imported by **3** files
@@ -2018,10 +2018,10 @@
 - `frontend/src/utils/debug.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobAutosave.ts`, `frontend/src/composables/useOptimizedDragAndDrop.ts` +9 more
 - `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/process/__init__.py` +4 more
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
+- `frontend/src/utils/dateUtils.ts` ← `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/services/timesheet.service.ts`, `frontend/tests/staff/staff-wage-loading.spec.ts`, `frontend/tests/timesheet/create-timesheet-entry.spec.ts` +1 more
 - `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`
 - `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/global-teardown.ts`, `frontend/tests/scripts/xero-login.ts`
 - `frontend/src/stores/jobs.ts` ← `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobHeaderAutosave.ts`, `frontend/src/composables/useOptimizedKanban.ts`, `frontend/src/composables/useTimesheetEntryCalculations.ts`, `frontend/src/main.ts`
-- `/utils.py` ← `apps/client/__init__.py`, `apps/quoting/mcp.py`, `apps/workflow/api/reports/__init__.py`
 
 ---
 

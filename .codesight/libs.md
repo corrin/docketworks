@@ -838,6 +838,7 @@
 - `frontend/src/utils/csrf.ts` — function getCookie: (name) => string | null, function getCsrfToken: () => string | null
 - `frontend/src/utils/dateUtils.ts`
   - function toLocalDateString: (date) => void
+  - function getLatestWeekdayDate: (date) => void
   - function toDateValue: (date) => DateValue | undefined
   - function fromDateValue: (dateValue) => Date | null
 - `frontend/src/utils/debug.ts` — function debugLog: (...args) => void, const isDebugEnabled
