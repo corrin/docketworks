@@ -6,7 +6,7 @@
 
 ## Scale
 
-181 UI components · 3 middleware layers · 15 environment variables
+181 UI components · 3 middleware layers · 14 environment variables
 
 **UI:** 181 components (vue) — see [ui.md](./ui.md)
 
@@ -19,7 +19,7 @@ Changes to these files have the widest blast radius across the codebase:
 - `src/api/client.ts` — imported by **46** files
 - `tests/fixtures/auth.ts` — imported by **27** files
 - `tests/fixtures/helpers.ts` — imported by **19** files
-- `src/utils/string-formatting.ts` — imported by **14** files
+- `src/utils/dateUtils.ts` — imported by **16** files
 
 ## Required Environment Variables
 
@@ -29,7 +29,6 @@ Changes to these files have the widest blast radius across the codebase:
 - `DEBUG` — `tests/fixtures/auth.ts`
 - `DJANGO_PASSWORD` — `scripts/capture_metrics.cjs`
 - `DJANGO_USER` — `scripts/capture_metrics.cjs`
-- `MODE` — `src/utils/debug.ts`
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `tests/scripts/xero-login.ts`
 
 ---

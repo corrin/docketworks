@@ -1,6 +1,7 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
 import { autoId, createTestJob, gridCell } from '../fixtures/helpers'
+import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
  * Tests for timesheet entry operations.
@@ -10,19 +11,6 @@ import { autoId, createTestJob, gridCell } from '../fixtures/helpers'
 // ============================================================================
 // Helper Functions
 // ============================================================================
-
-/**
- * Get a weekday date string (YYYY-MM-DD) - skips weekends
- */
-function getWeekdayDate(): string {
-  const date = new Date()
-  const day = date.getDay()
-  // If Saturday (6), go back to Friday (-1 day)
-  // If Sunday (0), go back to Friday (-2 days)
-  if (day === 6) date.setDate(date.getDate() - 1)
-  if (day === 0) date.setDate(date.getDate() - 2)
-  return date.toISOString().split('T')[0]
-}
 
 async function navigateToActualsTab(page: Page, jobUrl: string): Promise<void> {
   const baseUrl = jobUrl.split('?')[0]
@@ -92,7 +80,7 @@ test.describe.serial('timesheet entry operations', () => {
 
   test('add timesheet entry for the test job', async ({ authenticatedPage: page }) => {
     // Navigate to daily timesheet with a weekday date (weekends may be disabled)
-    const weekday = getWeekdayDate()
+    const weekday = getLatestWeekdayDate()
     await page.goto(`/timesheets/daily?date=${weekday}`)
     await page.waitForLoadState('networkidle')
 
@@ -176,7 +164,7 @@ async function getPayItemValue(page: Page, rowId: string): Promise<string> {
  * Navigate to timesheet entry view for the first staff member
  */
 async function navigateToTimesheetEntry(page: Page): Promise<void> {
-  const weekday = getWeekdayDate()
+  const weekday = getLatestWeekdayDate()
   await page.goto(`/timesheets/daily?date=${weekday}`)
   await page.waitForLoadState('networkidle')
 

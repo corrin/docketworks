@@ -10,7 +10,6 @@
 - `DJANGO_USER` **required** — scripts/capture_metrics.cjs
 - `E2E_TEST_PASSWORD` (has default) — .env.example
 - `E2E_TEST_USERNAME` (has default) — .env.example
-- `MODE` **required** — src/utils/debug.ts
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — tests/scripts/xero-login.ts
 - `VITE_APP_NAME` (has default) — .env
 - `VITE_UAT_URL` (has default) — .env.example

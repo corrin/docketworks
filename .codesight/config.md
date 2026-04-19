@@ -42,7 +42,6 @@
 - `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
 - `LOG_DIR` **required** — docketworks/settings.py
 - `MEDIA_ROOT` **required** — docketworks/settings.py
-- `MODE` **required** — frontend/src/utils/debug.ts
 - `NGROK_AUTH_TOKEN` (has default) — .env.example
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
