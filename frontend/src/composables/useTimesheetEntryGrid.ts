@@ -224,17 +224,22 @@ export function useTimesheetEntryGrid(
       field: 'actions' as unknown as undefined,
       editable: false,
       cellRenderer: (params: AgICellRendererParams) => {
-        if (!params.data || !params.data.id) return ''
+        if (!params.data || (!params.data.id && !params.data.tempId)) return ''
         const container = document.createElement('div')
         const app = createApp(TimesheetActionsCell, {
           approved: params.data.approved !== false,
-          canApprove: !!options?.approveRow,
+          canApprove: !!options?.approveRow && !!params.data.id,
           onApprove: () => options?.approveRow?.(String(params.data.id)),
           onDelete: () => {
-            const rowId = params.data?.id
-            if (!rowId) return
+            const data = params.data
+            if (!data) return
+            const rowId = data.id
+            const tempId = data.tempId
+            if (!rowId && !tempId) return
             const rowIndex = gridData.value.findIndex(
-              (row: TimesheetEntryGridRow) => String(row.id) === String(rowId),
+              (row: TimesheetEntryGridRow) =>
+                (!!rowId && String(row.id) === String(rowId)) ||
+                (!!tempId && String(row.tempId) === String(tempId)),
             )
             if (rowIndex === -1) return
             deleteRow(rowIndex)
@@ -281,10 +286,18 @@ export function useTimesheetEntryGrid(
     onGridPreDestroyed: () => gridPreDestroy(),
     getRowStyle: (params: { data?: TimesheetEntryGridRow }) => {
       if (!params.data) return undefined
-      if (params.data.isNewRow) {
-        return { backgroundColor: '#F0F9FF', border: '1px dashed #3B82F6' }
+      if (!params.data.isNewRow) return undefined
+
+      const hasJob = Boolean(params.data.jobNumber || params.data.job_number)
+      const hours = Number(params.data.hours ?? params.data.quantity ?? 0)
+      const description = String(params.data.description ?? params.data.desc ?? '').trim()
+      const isEmpty = !hasJob && hours === 0 && !description
+      const isComplete = hasJob && hours > 0
+
+      if (!isEmpty && !isComplete) {
+        return { backgroundColor: '#FFFBEB', border: '1px dashed #F59E0B' }
       }
-      return undefined
+      return { backgroundColor: '#F0F9FF', border: '1px dashed #3B82F6' }
     },
   }))
 
@@ -513,8 +526,7 @@ export function useTimesheetEntryGrid(
 
         api.stopEditing()
 
-        const staffData =
-          options?.resolveStaffById?.(rowData.staffId || '') || currentStaffRef.value || undefined
+        const staffData = resolveStaffForRow(rowData)
         if (!staffData) {
           console.error('Cannot add new row on Enter without staff data')
           toast.error('Unable to add row - staff data not loaded')
@@ -756,6 +768,16 @@ export function useTimesheetEntryGrid(
     }
   }
 
+  function resolveStaffForRow(
+    rowData: TimesheetEntryGridRow | undefined,
+  ): TimesheetEntryStaffMember | undefined {
+    return (
+      (rowData?.staffId ? options?.resolveStaffById?.(rowData.staffId) : undefined) ||
+      currentStaffRef.value ||
+      undefined
+    )
+  }
+
   async function deleteRow(rowIndex: number): Promise<void> {
     if (!gridApi.value) return
     const [rowDataToRemove] = gridData.value.splice(rowIndex, 1)
@@ -764,11 +786,13 @@ export function useTimesheetEntryGrid(
         gridApi.value!.applyTransaction({ remove: [rowDataToRemove] })
       }
     }
+    const staffData = resolveStaffForRow(rowDataToRemove)
+    const staffId = rowDataToRemove?.staffId || staffData?.id
     if (rowDataToRemove && rowDataToRemove.isNewRow) {
       clearRow(rowIndex)
       // Ensure there's always an empty row at the end
       nextTick(() => {
-        ensureEmptyRow()
+        ensureEmptyRow(staffId, staffData)
       })
       return
     }
@@ -787,7 +811,7 @@ export function useTimesheetEntryGrid(
       loading.value = false
       // Ensure there's always an empty row at the end
       nextTick(() => {
-        ensureEmptyRow()
+        ensureEmptyRow(staffId, staffData)
       })
     }
   }
@@ -948,6 +972,18 @@ export function useTimesheetEntryGrid(
     return data
   }
 
+  function getIncompleteDraftRows(): TimesheetEntryGridRow[] {
+    return gridData.value.filter((row) => {
+      if (!row.isNewRow) return false
+      const hasJob = Boolean(row.jobNumber || row.job_number)
+      const hours = Number(row.hours ?? row.quantity ?? 0)
+      const description = String(row.description ?? row.desc ?? '').trim()
+      const isEmpty = !hasJob && hours === 0 && !description
+      const isComplete = hasJob && hours > 0
+      return !isEmpty && !isComplete
+    })
+  }
+
   const resolveStaffById = options?.resolveStaffById
   const currentStaffRef = ref<TimesheetEntryStaffMember | null>(null)
 
@@ -974,6 +1010,7 @@ export function useTimesheetEntryGrid(
     handleCellValueChanged,
     isDuplicateEntry,
     isRowComplete,
+    getIncompleteDraftRows,
     hasData: computed(() => gridData.value.length > 0),
     setCurrentStaff,
     ensureEmptyRow,

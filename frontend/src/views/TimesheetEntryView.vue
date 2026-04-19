@@ -999,6 +999,7 @@ const {
   handleKeyboardShortcut,
   setCurrentStaff,
   createEntryFromRow,
+  getIncompleteDraftRows,
 } = useTimesheetEntryGrid(
   companyDefaultsRef,
   jobsForGrid, // Pass jobs from timesheet store
@@ -1134,6 +1135,16 @@ const autosave = useTimesheetAutosave<TimesheetEntryViewRow>({
   },
 })
 
+const warnIncompleteDrafts = (): void => {
+  const drafts = getIncompleteDraftRows()
+  for (const row of drafts) {
+    const jobValue = row.jobNumber || row.job_number
+    const jobPart = jobValue ? `job ${jobValue}` : '(no job)'
+    const missing = !jobValue ? 'a job number' : 'hours'
+    toast.warning(`Entry for ${jobPart} not saved — needs ${missing}`, { duration: 6000 })
+  }
+}
+
 const canNavigateStaff = (direction: number): boolean => {
   if (!timesheetStore.staff.length) return false
   const currentIndex = timesheetStore.staff.findIndex((s) => s.id === selectedStaffId.value)
@@ -1151,12 +1162,14 @@ const navigateStaff = (direction: number) => {
   const newStaff = timesheetStore.staff[newIndex]
 
   if (newStaff) {
+    warnIncompleteDrafts()
     selectedStaffId.value = newStaff.id
     updateRoute()
   }
 }
 
 const navigateDate = (direction: number) => {
+  warnIncompleteDrafts()
   const parts = currentDate.value.split('-')
   const year = parseInt(parts[0], 10)
   const month = parseInt(parts[1], 10) - 1
@@ -1190,6 +1203,7 @@ const navigateDate = (direction: number) => {
 }
 
 const goToToday = () => {
+  warnIncompleteDrafts()
   const today = new Date()
 
   // Only skip weekends if weekend feature is disabled
@@ -1459,6 +1473,7 @@ async function softRefreshRow(entry: TimesheetEntryViewRow): Promise<void> {
       rateMultiplier,
       isNewRow: false,
       isModified: false,
+      approved: line.approved,
       xeroPayItemId,
       xeroPayItemName,
       xero_pay_item: xeroPayItemId ?? null,
