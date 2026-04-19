@@ -72,8 +72,66 @@ ipython_config.py
 # pipenv
 #Pipfile.lock
 
-# Claude Code harness runtime locks
-.claude/*.lock
+# Claude Code: ignore everything under .claude/ except the handful of tracked files.
+# When this repo is a user's $HOME (UAT/PROD), Claude writes session/history/cache
+# state into .claude/ — we don't want to enumerate every subdir by name.
+.claude/*
+!.claude/settings.json
+!.claude/skills/
+
+# Home-directory state (instance dir doubles as the service user's $HOME on servers)
+.bash_history
+.bash_logout
+.bash_profile
+.bashrc
+.profile
+.zsh_history
+.zshrc
+.zprofile
+.zlogin
+.zlogout
+.zcompdump*
+.inputrc
+.selected_editor
+.sudo_as_admin_successful
+.wget-hsts
+.lesshst
+.viminfo
+.vim/
+.vimrc
+.nanorc
+.python_history
+.psql_history
+.pg_history
+.sqlite_history
+.node_repl_history
+.rediscli_history
+.mysql_history
+.pgpass
+.pg_service.conf
+.ssh/
+.gnupg/
+.gitconfig
+.git-credentials
+.netrc
+.curlrc
+.wgetrc
+.ICEauthority
+.Xauthority
+.xsession-errors*
+.config/
+.local/
+.npm/
+.nvm/
+.cargo/
+.rustup/
+.docker/
+.kube/
+.aws/
+.gcloud/
+.azure/
+.codex/
+.anthropic/
 
 # Environments
 .env
