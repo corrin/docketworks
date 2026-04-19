@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 200 notes · 2 decisions · 10 open questions · 2026-02-24 → 2026-04-19
+> 201 notes · 2 decisions · 10 open questions · 2026-02-24 → 2026-04-19
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (200 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: What we chose, stated as an imperative. One paragraph. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (201 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: What we chose, stated as an imperative. One paragraph. 10 open questions remain.
 
 ## Key Decisions (2)
 - What we chose, stated as an imperative. One paragraph.
@@ -20,7 +20,7 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · design · purpose · implementation steps · changes
+verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · changes · design · purpose · implementation steps
 
 ## People
 @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @extend_schema · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property
@@ -33,7 +33,7 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (200)
+## Note Index (201)
 
 ### Decision Records (1)
 - `docs/plans/1-mechanics-what-synchronous-clover.md` — `docs/plans/completed/` holds 66 finished implementation plans (~9,950 lines). Plans bundle two things:
@@ -75,12 +75,13 @@ verification · files to modify · tips · steps · what youll need · what happ
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (162)
+### General Notes (163)
 - `docs/plans/2026-04-19-admin-errors-dedup-plan.md` — 2026-04-19 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-04-19-fix-xero-client-creation-500.md` — 2026-04-19 — Creating a client via `POST /clients/` returns 500. The Xero contact is created successfully, but response serialization rejects `xero_contact_id` because it co…
 - `docs/plans/2026-04-19-predeploy-backup.md` — 2026-04-19 — `scripts/server/deploy.sh` currently does: pull central repo → per-instance `git pull` → shared deps → per-instance build + migrate + restart. There is no safet…
 - `docs/plans/completed/2026-04-19-e2e-cleanup-protect-fks.md` — 2026-04-19 — Filename note: the auto-generated plan name doesn't follow the `YYYY-MM-DD-description.md` convention. Rename to `2026-04-19-e2e-cleanup-protect-fks.md` before …
 - `docs/plans/completed/2026-04-19-favicon-404-fix.md` — 2026-04-19 — Browsers requesting `https://office.morrissheetmetal.co.nz/favicon.ico` (and every other docketworks instance) get a 404. The favicon file itself is fine — `fro…
+- `docs/plans/completed/2026-04-19-fix-client-lookup-option-name.md` — 2026-04-19 — `frontend/tests/job/edit-job-settings.spec.ts:479` uses
 - `docs/plans/2026-04-18-extend-schema-explicit-request-body.md` — 2026-04-18 — Naming note: file should be renamed to `2026-04-18-remove-response-serializer-class-from-apiviews.md` (project convention is `YYYY-MM-DD-description.md`). Plan-…
 - `docs/plans/2026-04-18-linux-user-underscore-naming.md` — 2026-04-18 — **Goal:** Make per-instance OS user names match the DB role names (both `dw_<client>_<env>`) instead of diverging (`dw-<client>-<env>` vs `dw_<client>_<env>`).
 - `docs/plans/completed/2026-04-17-create-missing-xero-items.md` — 2026-04-17 — When restoring prod data to a dev environment, the Xero demo org periodically gets reset. The payroll calendar (e.g. "Weekly Testing") no longer exists in the f…
@@ -95,8 +96,7 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/plans/completed/2026-04-12-accounting-abstraction.md` — 2026-04-12 — A customer uses MYOB instead of Xero. Docketworks is single-tenant (one installation per client), so each instance uses exactly one accounting package. We need …
 - `docs/plans/completed/2026-04-12-accounting-provider-review-fixes.md` — 2026-04-12 — Code review found the `XeroAccountingProvider` has massive DRY violations, missing `persist_app_error` calls, defensive code that doesn't trust the data model, …
 - `docs/plans/2026-04-10-seed-invoices-to-xero.md` — 2026-04-10 — When restoring a production database to dev, Invoice records come with `xero_id` values pointing at prod's Xero tenant. The `xero_id` field is NOT NULL, so we c…
-- `docs/plans/2026-04-10-xero-account-backup-cleanup.md` — 2026-04-10 — Restoring a production backup fails at Step 5 (`loaddata`) because the backup excludes `workflow.XeroAccount` but includes line items that FK to it. A separate …
-- _…and 142 more_
+- _…and 143 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
