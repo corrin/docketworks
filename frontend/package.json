@@ -22,7 +22,6 @@
     "manual:dev": "vitepress dev manual --port 5174",
     "manual:build": "vitepress build manual",
     "manual:preview": "vitepress preview manual",
-    "manual:pdf": "vitepress-export-pdf export manual",
     "manual:screenshots": "npx tsx scripts/capture-screenshots.ts"
   },
   "dependencies": {
@@ -102,7 +101,6 @@
     "vite": "^8.0.8",
     "vite-plugin-vue-devtools": "^8.1.1",
     "vitepress": "2.0.0-alpha.17",
-    "vitepress-export-pdf": "^1.0.0",
     "vitest": "^4.1.4",
     "vue-tsc": "^3.2.6"
   },
