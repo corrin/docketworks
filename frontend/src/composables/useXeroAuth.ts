@@ -1,5 +1,5 @@
 import { ref, reactive, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useRouter } from 'vue-router'
+import router from '@/router'
 import { getApiBaseUrl } from '@/plugins/axios'
 import { api } from '@/api/client'
 import { toast } from 'vue-sonner'
@@ -47,9 +47,14 @@ const currentEntity = ref('')
 const syncStatus = ref<string | null>(null)
 const syncErrorMessages = ref<string[]>([])
 
-export function useXeroAuth() {
-  const router = useRouter()
+export function loginXero() {
+  const frontendUrl = window.location.origin + router.currentRoute.value.fullPath
+  const next = encodeURIComponent(frontendUrl)
+  const url = `${window.location.origin}/api/xero/authenticate/?next=${next}`
+  window.location.href = url
+}
 
+export function useXeroAuth() {
   function formatEntityName(entity: string) {
     return entity
       .replace(/_/g, ' ')
@@ -99,12 +104,6 @@ export function useXeroAuth() {
     currentEntity.value ? formatEntityName(currentEntity.value) : 'None',
   )
 
-  function loginXero() {
-    const frontendUrl = window.location.origin + router.currentRoute.value.fullPath
-    const next = encodeURIComponent(frontendUrl)
-    const url = `${window.location.origin}/api/xero/authenticate/?next=${next}`
-    window.location.href = url
-  }
   async function logoutXero() {
     try {
       await api.xero_disconnect_create(undefined)
