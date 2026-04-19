@@ -48,18 +48,18 @@ verification · files to modify · alternatives considered · tips · steps · w
 ## Note Index (215)
 
 ### Decision Records (13)
-- `docs/adr/0001-exception-already-logged-dedup.md` — **Status:** Accepted
-- `docs/adr/0002-auth-gate-global-allowlist.md` — **Status:** Accepted
-- `docs/adr/0003-etag-optimistic-concurrency.md` — **Status:** Accepted
-- `docs/adr/0004-job-delta-envelope.md` — **Status:** Accepted
-- `docs/adr/0005-emit-tools-pattern.md` — **Status:** Accepted
-- `docs/adr/0006-rest-resource-hierarchy.md` — **Status:** Accepted
-- `docs/adr/0008-frontend-subtree-merge.md` — **Status:** Accepted
-- `docs/adr/0009-env-consolidation-app-domain.md` — **Status:** Accepted
-- `docs/adr/0010-single-deploy-script.md` — **Status:** Accepted
-- `docs/adr/0011-codesight-precommit-wiki.md` — **Status:** Accepted
-- `docs/adr/0012-accounting-provider-strategy.md` — **Status:** Accepted (Phase 1 — interface exists; later phases in progress)
-- `docs/adr/_template.md` ← 1 refs — **Status:** Accepted
+- `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
+- `docs/adr/0002-auth-gate-global-allowlist.md` — A blocking middleware gate rejects any request that is neither authenticated nor on the `AUTH_ANON_ALLOWLIST`; identity comes from cookies in all envs and, in D…
+- `docs/adr/0003-etag-optimistic-concurrency.md` — Every Job and PO mutation requires an `If-Match` header carrying the latest ETag; the server rejects mismatches with `412` and missing headers with `428`, atomi…
+- `docs/adr/0004-job-delta-envelope.md` — Clients submit a `{change_id, fields, before, after, before_checksum, etag}` envelope for every Job update; the backend re-canonicalises, verifies the checksum,…
+- `docs/adr/0005-emit-tools-pattern.md` — Each quote-chat mode terminates by calling an `emit_<mode>_result` tool whose parameter schema *is* the mode's output schema — sidestepping Gemini's tools-vs-JS…
+- `docs/adr/0006-rest-resource-hierarchy.md` — Identifiers live in the URL path (not body or query); request bodies carry data only; one endpoint per operation — no conditional routing inside views.
+- `docs/adr/0008-frontend-subtree-merge.md` — Pull the frontend repo into `frontend/` via `git subtree add` so backend + frontend share one history, one CI, one deploy script, and one PR for any cross-cutti…
+- `docs/adr/0009-env-consolidation-app-domain.md` — Frontend build and test tooling reads `APP_DOMAIN` from the backend `.env` (resolved by convention at `../.env`) and derives URLs + allowed hosts from it — elim…
+- `docs/adr/0010-single-deploy-script.md` — One `scripts/deploy.sh` handles PROD, UAT, and SCHEDULER via hostname detection; CD runs it against both UAT machines in parallel with `continue-on-error`, and …
+- `docs/adr/0011-codesight-precommit-wiki.md` — Commit `.codesight/` and `docs/.codesight/` to git and regenerate both on pre-commit via `--wiki` and `--mode knowledge` so AI-assistant context never drifts fr…
+- `docs/adr/0012-accounting-provider-strategy.md` — Introduce an `AccountingProvider` protocol with per-backend implementations (Xero today, MYOB next) resolved at request time via `get_provider()` — runtime poly…
+- `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 - `docs/plans/1-mechanics-what-synchronous-clover.md` — `docs/plans/completed/` holds 66 finished implementation plans (~9,950 lines). Plans bundle two things:
 
 ### Specs & PRDs (31)
@@ -87,7 +87,7 @@ verification · files to modify · alternatives considered · tips · steps · w
 
 ### Meeting Notes (4)
 - `docs/plans/completed/2026-04-01-postgres-sequence-sync.md` — 2026-04-01 — E2E tests fail with `IntegrityError` on `workflow_historicaljob_pkey` because the custom `syncSequences` SQL query misses identity column sequences (all SimpleH…
-- `docs/adr/0007-xero-payroll-sync.md` — **Status:** Accepted (backend; frontend/REST endpoints deferred)
+- `docs/adr/0007-xero-payroll-sync.md` — Split a week's `CostLine` time entries into work / other-leave / annual-or-sick / unpaid buckets and post each through the right Xero surface (Timesheets API or…
 - `docs/plans/xero-projects-sync-plan.md` — This document outlines the plan to synchronize job data between Morris Sheetmetal's job management system and Xero Projects API.
 - `frontend/manual/enquiries/new-customer-call.md` — **When to use:** A new or existing customer calls asking about work they need done.
 
