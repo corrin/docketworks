@@ -12,11 +12,12 @@ Usage:
 import logging
 
 from django.core.management.base import BaseCommand
+from django.db import transaction
 
-from apps.accounting.models import Invoice
+from apps.accounting.models import Invoice, Quote
 from apps.client.models import Client, ClientContact
-from apps.job.models import Job
-from apps.purchasing.models import PurchaseOrder
+from apps.job.models import Job, QuoteSpreadsheet
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +43,11 @@ class Command(BaseCommand):
         test_jobs = Job.objects.filter(name__startswith=TEST_DATA_PREFIX)
         test_contacts = ClientContact.objects.filter(name__startswith=TEST_DATA_PREFIX)
         test_clients = Client.objects.filter(name__startswith=TEST_DATA_PREFIX)
+        # Swept so Job.client PROTECT doesn't block the [TEST] client delete.
+        test_prefix_client_jobs = Job.objects.filter(client__in=test_clients)
+        test_prefix_client_contacts = ClientContact.objects.filter(
+            client__in=test_clients
+        )
 
         # Legacy E2E-prefixed clients and their data
         from django.db.models import Q
@@ -77,6 +83,14 @@ class Command(BaseCommand):
             test_client_contacts,
             "name",
         )
+        self._report_queryset(
+            "Jobs on [TEST]-prefixed clients", test_prefix_client_jobs, "name"
+        )
+        self._report_queryset(
+            "Contacts on [TEST]-prefixed clients",
+            test_prefix_client_contacts,
+            "name",
+        )
 
         total = (
             test_jobs.count()
@@ -87,6 +101,8 @@ class Command(BaseCommand):
             + legacy_client_contacts.count()
             + test_client_jobs.count()
             + test_client_contacts.count()
+            + test_prefix_client_jobs.count()
+            + test_prefix_client_contacts.count()
         )
 
         if total == 0:
@@ -110,16 +126,40 @@ class Command(BaseCommand):
 
         # Collect all jobs that will be deleted (union of all sources)
         all_jobs_to_delete = (
-            test_jobs | test_client_jobs | legacy_client_jobs
+            test_jobs | test_client_jobs | legacy_client_jobs | test_prefix_client_jobs
         ).distinct()
 
-        # Check for invoices linked to these jobs (PROTECTED FK)
+        # Check for rows with PROTECTED FKs pointing at these jobs
         linked_invoices = Invoice.objects.filter(job__in=all_jobs_to_delete)
+        linked_quotes = Quote.objects.filter(job__in=all_jobs_to_delete)
+        linked_po_lines = PurchaseOrderLine.objects.filter(job__in=all_jobs_to_delete)
+        linked_quote_sheets = QuoteSpreadsheet.objects.filter(
+            job__in=all_jobs_to_delete
+        )
+
         if linked_invoices.exists():
             self._report_queryset(
                 "Invoices linked to test jobs (will be deleted)",
                 linked_invoices,
                 "number",
+            )
+        if linked_quotes.exists():
+            self._report_queryset(
+                "Quotes linked to test jobs (will be deleted)",
+                linked_quotes,
+                "number",
+            )
+        if linked_po_lines.exists():
+            self._report_queryset(
+                "PO lines linked to test jobs (will be deleted)",
+                linked_po_lines,
+                "description",
+            )
+        if linked_quote_sheets.exists():
+            self._report_queryset(
+                "Quote spreadsheets linked to test jobs (will be deleted)",
+                linked_quote_sheets,
+                "sheet_id",
             )
 
         # Collect all clients to delete
@@ -135,46 +175,70 @@ class Command(BaseCommand):
                 "id",
             )
 
-        # Delete in correct order — PROTECTED FKs first, then cascading
+        # Delete in correct order — PROTECTED FKs first, then cascading.
         self.stdout.write("\nDeleting...")
 
-        # 1. Invoices on test jobs (PROTECTED FK)
-        count, details = linked_invoices.delete()
-        if count:
-            self.stdout.write(f"  Invoices: {count} objects ({details})")
+        # Atomic so a mid-run failure can't leave half-deleted test data.
+        with transaction.atomic():
+            # 1. Invoices on test jobs (PROTECTED FK)
+            count, details = linked_invoices.delete()
+            if count:
+                self.stdout.write(f"  Invoices: {count} objects ({details})")
 
-        # 2. POs on test clients (PROTECTED FK on supplier)
-        count, details = linked_pos.delete()
-        if count:
-            self.stdout.write(f"  Purchase orders: {count} objects ({details})")
+            # 2. POs on test clients (PROTECTED FK on supplier)
+            count, details = linked_pos.delete()
+            if count:
+                self.stdout.write(f"  Purchase orders: {count} objects ({details})")
 
-        # 3. Jobs on test client (cascade deletes cost sets, cost lines, etc.)
-        count, details = test_client_jobs.delete()
-        self.stdout.write(f"  Test client jobs: {count} objects ({details})")
+            # 3. Other PROTECTED dependents of test jobs
+            count, details = linked_quotes.delete()
+            if count:
+                self.stdout.write(f"  Quotes: {count} objects ({details})")
 
-        # 4. Contacts on test client
-        count, details = test_client_contacts.delete()
-        self.stdout.write(f"  Test client contacts: {count} objects ({details})")
+            count, details = linked_po_lines.delete()
+            if count:
+                self.stdout.write(f"  PO lines: {count} objects ({details})")
 
-        # 5. Legacy client data
-        count, details = legacy_client_jobs.delete()
-        self.stdout.write(f"  Legacy client jobs: {count} objects ({details})")
+            count, details = linked_quote_sheets.delete()
+            if count:
+                self.stdout.write(f"  Quote spreadsheets: {count} objects ({details})")
 
-        count, details = legacy_client_contacts.delete()
-        self.stdout.write(f"  Legacy client contacts: {count} objects ({details})")
+            # 4. Jobs on test client (cascade deletes cost sets, cost lines, etc.)
+            count, details = test_client_jobs.delete()
+            self.stdout.write(f"  Test client jobs: {count} objects ({details})")
 
-        count, details = legacy_clients.delete()
-        self.stdout.write(f"  Legacy clients: {count} objects ({details})")
+            # 5. Contacts on test client
+            count, details = test_client_contacts.delete()
+            self.stdout.write(f"  Test client contacts: {count} objects ({details})")
 
-        # 6. [TEST]-prefixed items (may overlap with above, that's fine)
-        count, details = test_jobs.delete()
-        self.stdout.write(f"  [TEST] jobs: {count} objects ({details})")
+            # 6. Legacy client data
+            count, details = legacy_client_jobs.delete()
+            self.stdout.write(f"  Legacy client jobs: {count} objects ({details})")
 
-        count, details = test_contacts.delete()
-        self.stdout.write(f"  [TEST] contacts: {count} objects ({details})")
+            count, details = legacy_client_contacts.delete()
+            self.stdout.write(f"  Legacy client contacts: {count} objects ({details})")
 
-        count, details = test_clients.delete()
-        self.stdout.write(f"  [TEST] clients: {count} objects ({details})")
+            count, details = legacy_clients.delete()
+            self.stdout.write(f"  Legacy clients: {count} objects ({details})")
+
+            # 7. [TEST]-prefixed items (may overlap with above, that's fine)
+            count, details = test_jobs.delete()
+            self.stdout.write(f"  [TEST] jobs: {count} objects ({details})")
+
+            count, details = test_contacts.delete()
+            self.stdout.write(f"  [TEST] contacts: {count} objects ({details})")
+
+            # 8. Jobs/contacts on [TEST]-prefixed clients (unblocks client delete)
+            count, details = test_prefix_client_jobs.delete()
+            self.stdout.write(f"  Jobs on [TEST] clients: {count} objects ({details})")
+
+            count, details = test_prefix_client_contacts.delete()
+            self.stdout.write(
+                f"  Contacts on [TEST] clients: {count} objects ({details})"
+            )
+
+            count, details = test_clients.delete()
+            self.stdout.write(f"  [TEST] clients: {count} objects ({details})")
 
         self.stdout.write("\nDone.")
 
