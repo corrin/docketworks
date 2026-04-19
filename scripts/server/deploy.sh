@@ -31,6 +31,7 @@ for arg in "$@"; do
     case "$arg" in
         --no-backup)   DO_BACKUP=0 ;;
         --allow-dirty) ALLOW_DIRTY=1 ;;
+        --all)         POSITIONAL+=("$arg") ;;
         --*)
             echo "ERROR: Unknown flag: $arg"
             echo "Usage: $0 <instance-name|--all> [--no-backup] [--allow-dirty]"

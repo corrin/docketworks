@@ -1,9 +1,14 @@
 # Knowledge Map — docketworks
-> 201 notes · 2 decisions · 10 open questions · 2026-02-24 → 2026-04-19
+> 208 notes · 7 decisions · 10 open questions · 2026-02-24 → 2026-04-19
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (201 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: What we chose, stated as an imperative. One paragraph. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-19 (208 notes). Key topics: verification, files to modify, tips, steps. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
-## Key Decisions (2)
+## Key Decisions (7)
+- Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
+- Two layers. An **identity layer** (non-blocking) that reads either cookies (always) or, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, a short-lived HS256 bearer signed with `DEV_JWT_SECRET` — on failure it does nothing, remaining anonymous. A **global gate** (blocking) that runs on every request: if not authenticated and the path is not in `AUTH_ANON_ALLOWLIST`, return `401 JSON` for `/api/**` or `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
+- GET endpoints return an `ETag` header derived from `updated_at` (plus the primary key for delivery-receipt endpoints). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs — add event, accept quote, process delivery receipt) require `If-Match` with the latest ETag. Missing header → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so the comparison and the write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS is configured to expose `ETag` and allow `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
+- Every `PUT`/`PATCH` to a Job must submit a delta envelope: `{change_id, actor_id, made_at, job_id, fields, before, after, before_checksum, etag}`. The backend recomputes `before_checksum` over the canonical serialisation of the named fields and rejects the request if it doesn't match the current DB state. Canonicalisation is the shared `compute_job_delta_checksum` function (sorted field keys, `__NULL__` sentinel for `None`, trimmed strings, decimals normalised, dates ISO-8601-UTC with millisecond precision) mirrored in both Python and TypeScript. Rejected envelopes are persisted to `JobDeltaRejection` for diagnostics. Accepted deltas write a `JobEvent` with `delta_before`, `delta_after`, `delta_meta`, `delta_checksum` — enough to support `POST /jobs/{id}/undo-change/` which generates the reversing envelope server-side. `If-Match` from ADR 0003 is still required.
+- Drop the JSON response-format enforcement entirely. For each mode define an "emit" tool — `emit_calc_result`, `emit_price_result`, `emit_table_result` — whose parameter schema *is* the mode's output schema. The model's terminal action is to call the emit tool with the final result; tool arguments are already JSON, already validated by Gemini against the declared schema. In `PRICE` mode the model can still call catalogue tools (`search_products`, `get_pricing_for_material`, `compare_suppliers`), and the controller loops, executing them and feeding responses back, until the model calls the emit tool or hits the retry cap.
 - What we chose, stated as an imperative. One paragraph.
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
@@ -20,10 +25,10 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · changes · design · purpose · implementation steps
+verification · files to modify · tips · steps · what youll need · what happens next · troubleshooting · fix · changes · alternatives considered · design · purpose
 
 ## People
-@docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @extend_schema · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets · @property
+@login_required · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @extend_schema · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @playwright · @tailwindcss · @vitejs · @cmeconnect · @require_superuser · @can_manage_timesheets
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -33,9 +38,15 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (201)
+## Note Index (208)
 
-### Decision Records (1)
+### Decision Records (7)
+- `docs/adr/0001-exception-already-logged-dedup.md` — **Status:** Accepted
+- `docs/adr/0002-auth-gate-global-allowlist.md` — **Status:** Accepted
+- `docs/adr/0003-etag-optimistic-concurrency.md` — **Status:** Accepted
+- `docs/adr/0004-job-delta-envelope.md` — **Status:** Accepted
+- `docs/adr/0005-emit-tools-pattern.md` — **Status:** Accepted
+- `docs/adr/_template.md` ← 1 refs — **Status:** Accepted
 - `docs/plans/1-mechanics-what-synchronous-clover.md` — `docs/plans/completed/` holds 66 finished implementation plans (~9,950 lines). Plans bundle two things:
 
 ### Specs & PRDs (31)
@@ -75,7 +86,7 @@ verification · files to modify · tips · steps · what youll need · what happ
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (163)
+### General Notes (164)
 - `docs/plans/2026-04-19-admin-errors-dedup-plan.md` — 2026-04-19 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-04-19-fix-xero-client-creation-500.md` — 2026-04-19 — Creating a client via `POST /clients/` returns 500. The Xero contact is created successfully, but response serialization rejects `xero_contact_id` because it co…
 - `docs/plans/2026-04-19-predeploy-backup.md` — 2026-04-19 — `scripts/server/deploy.sh` currently does: pull central repo → per-instance `git pull` → shared deps → per-instance build + migrate + restart. There is no safet…
@@ -96,7 +107,7 @@ verification · files to modify · tips · steps · what youll need · what happ
 - `docs/plans/completed/2026-04-12-accounting-abstraction.md` — 2026-04-12 — A customer uses MYOB instead of Xero. Docketworks is single-tenant (one installation per client), so each instance uses exactly one accounting package. We need …
 - `docs/plans/completed/2026-04-12-accounting-provider-review-fixes.md` — 2026-04-12 — Code review found the `XeroAccountingProvider` has massive DRY violations, missing `persist_app_error` calls, defensive code that doesn't trust the data model, …
 - `docs/plans/2026-04-10-seed-invoices-to-xero.md` — 2026-04-10 — When restoring a production database to dev, Invoice records come with `xero_id` values pointing at prod's Xero tenant. The `xero_id` field is NOT NULL, so we c…
-- _…and 143 more_
+- _…and 144 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
