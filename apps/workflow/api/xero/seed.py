@@ -152,6 +152,7 @@ def sync_single_contact(sync_service, contact_id):
         ).first()
         if merged_into:
             client.merged_into = merged_into
+            client.allow_jobs = False
             client.save()
 
     logger.info(f"Synced contact {contact_id} from webhook")

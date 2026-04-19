@@ -509,6 +509,7 @@ const ClientDetailResponse = z.object({
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),
+  allow_jobs: z.boolean(),
   xero_contact_id: z.string(),
   xero_tenant_id: z.string(),
   primary_contact_name: z.string(),
@@ -555,6 +556,7 @@ const ClientUpdateRequest = z
     phone: z.string().max(50),
     address: z.string(),
     is_account_customer: z.boolean(),
+    allow_jobs: z.boolean(),
   })
   .partial()
 const ClientUpdateResponse = z.object({
@@ -569,6 +571,7 @@ const PatchedClientUpdateRequest = z
     phone: z.string().max(50),
     address: z.string(),
     is_account_customer: z.boolean(),
+    allow_jobs: z.boolean(),
   })
   .partial()
 const ClientNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
@@ -611,6 +614,7 @@ const ClientCreateRequest = z.object({
   phone: z.string().max(50).nullish(),
   address: z.string().nullish(),
   is_account_customer: z.boolean().optional().default(true),
+  allow_jobs: z.boolean().optional().default(true),
 })
 const ClientSearchResult = z.object({
   id: z.string(),
@@ -620,6 +624,7 @@ const ClientSearchResult = z.object({
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),
+  allow_jobs: z.boolean(),
   xero_contact_id: z.string(),
   last_invoice_date: z.string().datetime({ offset: true }).nullable(),
   total_spend: z.string(),
