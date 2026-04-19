@@ -164,6 +164,7 @@ def sync_single_contact(sync_service, contact_id):
             )
 
             client.merged_into = merged_into
+            client.allow_jobs = False
             client.save()
             destination = client.get_final_client()
             if destination.id != client.id:

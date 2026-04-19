@@ -8715,6 +8715,9 @@ components:
         is_account_customer:
           type: boolean
           default: true
+        allow_jobs:
+          type: boolean
+          default: true
       required:
         - name
     ClientCreateResponse:
@@ -8748,6 +8751,8 @@ components:
         is_account_customer:
           type: boolean
         is_supplier:
+          type: boolean
+        allow_jobs:
           type: boolean
         xero_contact_id:
           type: string
@@ -8792,6 +8797,7 @@ components:
           type: string
       required:
         - address
+        - allow_jobs
         - django_created_at
         - django_updated_at
         - email
@@ -8958,6 +8964,8 @@ components:
           type: boolean
         is_supplier:
           type: boolean
+        allow_jobs:
+          type: boolean
         xero_contact_id:
           type: string
         last_invoice_date:
@@ -8968,6 +8976,7 @@ components:
           type: string
       required:
         - address
+        - allow_jobs
         - email
         - id
         - is_account_customer
@@ -8994,6 +9003,8 @@ components:
         address:
           type: string
         is_account_customer:
+          type: boolean
+        allow_jobs:
           type: boolean
     ClientUpdateResponse:
       type: object
@@ -14115,6 +14126,8 @@ components:
         address:
           type: string
         is_account_customer:
+          type: boolean
+        allow_jobs:
           type: boolean
     PatchedCompanyDefaultsRequest:
       type: object

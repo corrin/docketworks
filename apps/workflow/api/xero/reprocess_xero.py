@@ -204,6 +204,7 @@ def set_client_fields(client, new_from_xero=False):
     contact_status = raw_json.get("_contact_status", "ACTIVE")
     if contact_status == "ARCHIVED":
         client.xero_archived = True
+        client.allow_jobs = False
 
     # Check for merge information
     merged_to_contact_id = raw_json.get("_merged_to_contact_id")

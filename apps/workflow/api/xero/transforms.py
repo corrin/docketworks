@@ -910,6 +910,7 @@ def sync_clients(xero_contacts):
                 )
                 continue
             client.merged_into = merged_into
+            client.allow_jobs = False
             client.save()
             destination = client.get_final_client()
             if destination.id != client.id:

@@ -66,6 +66,7 @@ pk: `id` (uuid) · fk: merged_into_id
 - `address`: string _(nullable)_
 - `is_account_customer`: boolean _(default)_
 - `is_supplier`: boolean _(default)_
+- `allow_jobs`: boolean _(default)_
 - `xero_last_modified`: timestamp
 - `raw_json`: json _(nullable)_
 - `primary_contact_name`: string _(nullable)_
