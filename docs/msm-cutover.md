@@ -609,6 +609,45 @@ sudo /opt/docketworks/repo/scripts/backup_db.sh msm-prod
 # and uploads to gdrive:dw_backups/msm-prod/
 ```
 
+### Rolling back a deploy
+
+`deploy.sh` takes a pre-deploy DB snapshot into the same `backups/` dir,
+named `predeploy_<YYYYMMDD_HHMMSS>_<shorthash>.sql.gz`. The hash is the
+commit that was running *before* the deploy — i.e. the rollback target.
+`cleanup_backups.sh` prunes these after 30 days.
+
+The one-line rollback:
+
+```bash
+# Pick a backup (the hash identifies the code you'd revert to)
+ls /opt/docketworks/instances/msm-prod/backups/predeploy_*
+
+# Runs with a y/N confirm: stops gunicorn, git checkout <hash>, restore DB, restart
+sudo /opt/docketworks/repo/scripts/predeploy_rollback.sh msm-prod <hash>
+```
+
+Manual equivalent, for when the script can't run end-to-end:
+
+```bash
+sudo systemctl stop gunicorn-msm-prod
+sudo -u dw_msm_prod git -C /opt/docketworks/instances/msm-prod checkout <hash>
+gunzip -c /opt/docketworks/instances/msm-prod/backups/predeploy_<ts>_<hash>.sql.gz \
+    | sudo -u postgres psql <db_name>
+sudo systemctl start gunicorn-msm-prod
+```
+
+The rollback script doesn't rebuild the frontend or refresh shared Python/node
+deps. If the old commit's `frontend/` sources or lockfiles have diverged from
+what's currently installed in `/opt/docketworks/`, follow up with
+`npm run build` in the instance dir and/or `poetry install` from
+`/opt/docketworks/repo/`.
+
+Flags on `deploy.sh`:
+- `--no-backup` skips the pg_dump (only do this when you know what you're doing).
+- `--allow-dirty` overrides the abort-on-uncommitted-changes check. The check
+  exists because a dirty tree means the stamped hash doesn't fully describe
+  the deployed code.
+
 ---
 
 ## Phase 12: LAN Cutover

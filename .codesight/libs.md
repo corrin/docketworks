@@ -908,11 +908,11 @@
 - `scripts/cleanup_backups.py`
   - function parse_arguments: ()
   - function list_backup_dirs: (root)
-  - function validate_entries: (root, entries)
-  - function parse_timestamps: (entries)
-  - function compute_keep_set: (pairs, now)
-  - function delete_and_purge: (root, pairs, keep, dry_run)
-  - _...2 more_
+  - function classify: (name)
+  - function parse_ts_dir_pairs: (entries)
+  - function compute_ts_dir_keep: (pairs, now)
+  - function compute_predeploy_keep: (entries, now)
+  - _...4 more_
 - `scripts/create_master_template.py`
   - function get_drive_service: ()
   - function find_or_create_templates_folder: (service)

@@ -9,6 +9,18 @@ from datetime import datetime, timedelta
 
 REMOTE = "gdrive:dw_backups"
 
+# Two backup styles live in the same per-instance backups dir:
+#   ts_dir:    nested <YYYYMMDD_HHMMSS>/ trees produced by some release flows
+#              (consumed by rollback_release.sh); retention is 24h+daily+monthly.
+#   predeploy: flat predeploy_<ts>_<hash>.sql.gz files produced by
+#              predeploy_backup.sh; retention is 30 days.
+# Any other entry (daily_*.sql.gz, monthly_*.sql.gz from backup_db.sh, etc.)
+# is left completely untouched — not a deletion candidate, not a keep target.
+TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
+PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
+
+PREDEPLOY_RETENTION_DAYS = 30
+
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
@@ -33,17 +45,15 @@ def list_backup_dirs(root):
         sys.exit(f"ERROR: backup root not found: {root}")
 
 
-def validate_entries(root, entries):
-    if not entries:
-        sys.exit(f"ERROR: no backups found in {root}")
-    pattern = re.compile(r"^\d{8}_\d{6}$")
-    for name in entries:
-        path = os.path.join(root, name)
-        if not os.path.isdir(path) or not pattern.match(name):
-            sys.exit(f"ERROR: unexpected entry in '{root}': {name}")
+def classify(name):
+    if TS_DIR_RE.match(name):
+        return "ts_dir"
+    if PREDEPLOY_RE.match(name):
+        return "predeploy"
+    return "other"
 
 
-def parse_timestamps(entries):
+def parse_ts_dir_pairs(entries):
     pairs = []
     for name in entries:
         ts = datetime.strptime(name, "%Y%m%d_%H%M%S")
@@ -51,18 +61,17 @@ def parse_timestamps(entries):
     return sorted(pairs, key=lambda x: x[1])
 
 
-def compute_keep_set(pairs, now):
+def compute_ts_dir_keep(pairs, now):
+    """24h + one/day for the past week + oldest per month beyond a week."""
     keep = set()
+    if not pairs:
+        return keep
     cut24 = now - timedelta(hours=24)
     cut7 = now - timedelta(days=7)
 
-    # Always keep newest
     keep.add(pairs[-1][0])
-
-    # Keep last 24h
     keep |= {n for n, ts in pairs if ts > cut24}
 
-    # One per day for past week
     seen_days = set()
     for n, ts in reversed(pairs):
         if cut24 >= ts > cut7:
@@ -71,7 +80,6 @@ def compute_keep_set(pairs, now):
                 keep.add(n)
                 seen_days.add(d)
 
-    # One oldest per month beyond a week
     months = {}
     for n, ts in pairs:
         key = (ts.year, ts.month)
@@ -82,8 +90,27 @@ def compute_keep_set(pairs, now):
     return keep
 
 
-def delete_and_purge(root, pairs, keep, dry_run):
-    to_delete = [name for name, _ in pairs if name not in keep]
+def compute_predeploy_keep(entries, now):
+    """Keep predeploy_*.sql.gz files whose timestamp is within the retention window."""
+    cutoff = now - timedelta(days=PREDEPLOY_RETENTION_DAYS)
+    keep = set()
+    for name in entries:
+        m = PREDEPLOY_RE.match(name)
+        ts = datetime.strptime(m.group(1), "%Y%m%d_%H%M%S")
+        if ts >= cutoff:
+            keep.add(name)
+    return keep
+
+
+def remove_entry(root, name):
+    path = os.path.join(root, name)
+    if os.path.isdir(path):
+        shutil.rmtree(path)
+    else:
+        os.remove(path)
+
+
+def delete_and_purge(root, to_delete, dry_run):
     print("To delete locally and purge from remote:", sorted(to_delete))
     for name in to_delete:
         local_path = os.path.join(root, name)
@@ -93,22 +120,19 @@ def delete_and_purge(root, pairs, keep, dry_run):
             print(f"[DRY] Would purge remote: {remote_path}")
         else:
             print(f"Removing local: {local_path}")
-            shutil.rmtree(local_path)
+            remove_entry(root, name)
             print(f"Purging remote: {remote_path}")
             subprocess.run(["rclone", "purge", remote_path], check=False)
 
 
 def sync_remote(root, dry_run):
-    # Normalize remote listing and compare to local dirs
     rem_list = subprocess.check_output(
         ["rclone", "lsf", REMOTE], universal_newlines=True
     ).splitlines()
-    # strip trailing slashes for directories
     rem_names = [entry.rstrip("/") for entry in rem_list]
     local_names = os.listdir(root)
     remote_only = sorted(set(rem_names) - set(local_names))
 
-    # Display remote-only entries
     if remote_only:
         print("Remote-only entries that would be deleted from Drive:")
         for entry in remote_only:
@@ -116,11 +140,9 @@ def sync_remote(root, dry_run):
     else:
         print("No remote-only entries.")
 
-    # Skip actual sync in dry-run
     if dry_run:
         return
 
-    # Perform real sync
     print(f"Syncing {root} → {REMOTE} --delete-excluded")
     subprocess.run(["rclone", "sync", root, REMOTE, "--delete-excluded"], check=False)
 
@@ -131,15 +153,34 @@ def main():
     dry_run = not args.delete
 
     entries = list_backup_dirs(backup_dir)
-    validate_entries(backup_dir, entries)
-    pairs = parse_timestamps(entries)
+
+    ts_dir_entries = []
+    predeploy_entries = []
+    other_entries = []
+    for name in entries:
+        kind = classify(name)
+        if kind == "ts_dir":
+            ts_dir_entries.append(name)
+        elif kind == "predeploy":
+            predeploy_entries.append(name)
+        else:
+            other_entries.append(name)
 
     now = datetime.now()
-    keep = compute_keep_set(pairs, now)
 
-    print("Keeping:", sorted(keep))
+    ts_dir_pairs = parse_ts_dir_pairs(ts_dir_entries)
+    ts_dir_keep = compute_ts_dir_keep(ts_dir_pairs, now)
+    predeploy_keep = compute_predeploy_keep(predeploy_entries, now)
 
-    delete_and_purge(backup_dir, pairs, keep, dry_run)
+    managed = set(ts_dir_entries) | set(predeploy_entries)
+    to_delete = sorted(managed - ts_dir_keep - predeploy_keep)
+
+    print("Keeping (ts_dir):", sorted(ts_dir_keep))
+    print("Keeping (predeploy):", sorted(predeploy_keep))
+    if other_entries:
+        print("Leaving untouched (unmanaged pattern):", sorted(other_entries))
+
+    delete_and_purge(backup_dir, to_delete, dry_run)
     sync_remote(backup_dir, dry_run)
 
 

@@ -2,11 +2,17 @@
 set -euo pipefail
 
 # Deploy one or all instances.
-# Usage: deploy.sh <name>       — deploy a single instance
-#        deploy.sh --all        — deploy all instances
+# Usage: deploy.sh <name> [--no-backup] [--allow-dirty]
+#        deploy.sh --all  [--no-backup] [--allow-dirty]
+#
+# Flags:
+#   --no-backup     Skip the pre-deploy pg_dump. Default: take a backup.
+#   --allow-dirty   Proceed even if an instance's working tree has uncommitted
+#                   changes. Default: abort (a dirty tree makes the hash we
+#                   stamp on the backup a lie about what code will restore).
 #
 # Steps:
-#   1. Git pull per-instance code
+#   1. Per-instance: clean-tree check, pg_dump, git pull
 #   2. Update shared deps (poetry install, npm install)
 #   3. Per-instance: npm run build, migrate, restart
 
@@ -18,14 +24,30 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <instance-name|--all>"
+DO_BACKUP=1
+ALLOW_DIRTY=0
+POSITIONAL=()
+for arg in "$@"; do
+    case "$arg" in
+        --no-backup)   DO_BACKUP=0 ;;
+        --allow-dirty) ALLOW_DIRTY=1 ;;
+        --*)
+            echo "ERROR: Unknown flag: $arg"
+            echo "Usage: $0 <instance-name|--all> [--no-backup] [--allow-dirty]"
+            exit 1
+            ;;
+        *) POSITIONAL+=("$arg") ;;
+    esac
+done
+
+if [[ ${#POSITIONAL[@]} -lt 1 ]]; then
+    echo "Usage: $0 <instance-name|--all> [--no-backup] [--allow-dirty]"
     exit 1
 fi
 
 # --- Determine which instances to deploy ---
 TARGETS=()
-if [[ "$1" == "--all" ]]; then
+if [[ "${POSITIONAL[0]}" == "--all" ]]; then
     for instance_dir in "$INSTANCES_DIR"/*/; do
         [[ -d "$instance_dir" ]] || continue
         if [[ -f "$instance_dir/.env" && -d "$instance_dir/.git" ]]; then
@@ -37,8 +59,8 @@ if [[ "$1" == "--all" ]]; then
         exit 1
     fi
 else
-    TARGETS=("$1")
-    local_dir="$INSTANCES_DIR/$1"
+    TARGETS=("${POSITIONAL[0]}")
+    local_dir="$INSTANCES_DIR/${POSITIONAL[0]}"
     if [[ ! -d "$local_dir" ]]; then
         echo "ERROR: Instance directory $local_dir does not exist."
         exit 1
@@ -61,10 +83,40 @@ log "=========================================="
 log "Pulling latest from GitHub into local repo..."
 sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 
-# --- Pull latest code for all target instances (from local repo) ---
+# --- Per-instance prepare: clean-tree check, pre-deploy backup, git pull ---
 for instance in "${TARGETS[@]}"; do
     inst_dir="$INSTANCES_DIR/$instance"
     inst_user="$(instance_user "$instance")"
+
+    # Clean-tree check. A dirty tree means the commit hash we'd stamp on
+    # the backup doesn't fully describe the code that produced the data,
+    # so a later `git checkout <hash>` would silently drop the uncommitted
+    # bit. UAT/prod instances should never be dirty; dirty = something
+    # needs investigation.
+    tree_dirty=0
+    if ! sudo -u "$inst_user" git -C "$inst_dir" diff --quiet --ignore-submodules HEAD --; then
+        tree_dirty=1
+    elif [[ -n "$(sudo -u "$inst_user" git -C "$inst_dir" status --porcelain)" ]]; then
+        tree_dirty=1
+    fi
+    if [[ $tree_dirty -eq 1 ]]; then
+        if [[ $ALLOW_DIRTY -eq 1 ]]; then
+            log "WARNING: $instance has a dirty working tree (--allow-dirty set, proceeding)"
+        else
+            log "ERROR: $instance has a dirty working tree. Refusing to deploy."
+            log "  Investigate with: sudo -u $inst_user git -C $inst_dir status"
+            log "  To override: re-run with --allow-dirty"
+            exit 1
+        fi
+    fi
+
+    if [[ $DO_BACKUP -eq 1 ]]; then
+        log "Backing up DB for $instance (pre-deploy)..."
+        "$SCRIPT_DIR/../predeploy_backup.sh" "$instance"
+    else
+        log "Skipping pre-deploy backup for $instance (--no-backup)"
+    fi
+
     log "Pulling latest code for $instance..."
     sudo -u "$inst_user" git -C "$inst_dir" fetch origin
     sudo -u "$inst_user" git -C "$inst_dir" pull --ff-only
