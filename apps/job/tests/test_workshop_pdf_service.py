@@ -13,7 +13,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
 from django.utils import timezone
 from PIL import Image
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from apps.client.models import Client
 from apps.job.models import Job
