@@ -92,13 +92,23 @@ do_create() {
 
     local SEED=false
     local CUSTOM_FQDN=""
-    while [[ $# -gt 0 ]]; do
+    local parsed
+    if ! parsed=$(getopt -o '' --long seed,fqdn: -n "$(basename "$0") create" -- "$@"); then
+        echo "Usage: $(basename "$0") create <client> <env> [--seed] [--fqdn <hostname>]" >&2
+        exit 1
+    fi
+    eval set -- "$parsed"
+    while true; do
         case "$1" in
-            --seed)  SEED=true; shift ;;
-            --fqdn)  CUSTOM_FQDN="$2"; shift 2 ;;
-            *)       echo "Unknown option: $1"; exit 1 ;;
+            --seed) SEED=true;        shift ;;
+            --fqdn) CUSTOM_FQDN="$2"; shift 2 ;;
+            --)     shift; break ;;
         esac
     done
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Unexpected arguments to 'create': $*" >&2
+        exit 1
+    fi
 
     # --- Read instance credentials file ---
     local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"

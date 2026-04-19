@@ -118,7 +118,7 @@ sudo nginx -t
 
 If anything is wrong, re-run:
 ```bash
-sudo /opt/docketworks/repo/scripts/server/server-setup.sh --no-cert <google-maps-api-key>
+sudo /opt/docketworks/repo/scripts/server/server-setup.sh --no-cert --google-maps-key <KEY>
 ```
 
 ---

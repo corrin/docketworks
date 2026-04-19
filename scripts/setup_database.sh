@@ -19,21 +19,35 @@ fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 
+USAGE="Usage: $0 [--db <name>] [--user <user>] [--password <pass>] [--drop]
+  Reads any missing values from .env in the project root."
+
+if ! parsed=$(getopt -o '' --long db:,user:,password:,drop -n "$(basename "$0")" -- "$@"); then
+    echo "$USAGE" >&2
+    exit 1
+fi
+eval set -- "$parsed"
+
 DB_NAME=""
 DB_USER=""
 DB_PASSWORD=""
 DROP=false
 
-# --- Parse arguments ---
-while [[ $# -gt 0 ]]; do
+while true; do
     case "$1" in
-        --db)       DB_NAME="$2"; shift 2 ;;
-        --user)     DB_USER="$2"; shift 2 ;;
+        --db)       DB_NAME="$2";     shift 2 ;;
+        --user)     DB_USER="$2";     shift 2 ;;
         --password) DB_PASSWORD="$2"; shift 2 ;;
-        --drop)     DROP=true; shift ;;
-        *)          echo "Unknown option: $1"; exit 1 ;;
+        --drop)     DROP=true;        shift ;;
+        --)         shift; break ;;
     esac
 done
+
+if [[ $# -gt 0 ]]; then
+    echo "ERROR: Unexpected positional arguments: $*" >&2
+    echo "$USAGE" >&2
+    exit 1
+fi
 
 # --- Fall back to .env if arguments not provided ---
 if [[ -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASSWORD" ]]; then

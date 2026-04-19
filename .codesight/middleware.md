@@ -8,6 +8,7 @@
 - auth — `frontend/tests/fixtures/auth.ts`
 
 ## custom
+- 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - url_autogenerate_plan — `docs/plans/completed/url_autogenerate_plan.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
 

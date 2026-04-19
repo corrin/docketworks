@@ -33,6 +33,15 @@ system dependencies, creates the `docketworks` user, configures the firewall,
 and sets up the base Nginx config.
 
 ```bash
+# First run on a UAT server (Let's Encrypt wildcard via Dreamhost DNS):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY"
+
+# First run on a prod server (no wildcard cert; DNS is elsewhere):
+sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key "$GOOGLE_MAPS_API_KEY"
+
+# Re-run on an already-configured server (reads keys from saved files):
 sudo ./scripts/server/server-setup.sh
 ```
 

@@ -24,30 +24,35 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+USAGE="Usage: $0 <instance-name> [--no-backup] [--allow-dirty]
+       $0 --all          [--no-backup] [--allow-dirty]"
+
+if ! parsed=$(getopt -o '' --long all,no-backup,allow-dirty -n "$(basename "$0")" -- "$@"); then
+    echo "$USAGE" >&2
+    exit 1
+fi
+eval set -- "$parsed"
+
 DO_BACKUP=1
 ALLOW_DIRTY=0
-POSITIONAL=()
-for arg in "$@"; do
-    case "$arg" in
-        --no-backup)   DO_BACKUP=0 ;;
-        --allow-dirty) ALLOW_DIRTY=1 ;;
-        --*)
-            echo "ERROR: Unknown flag: $arg"
-            echo "Usage: $0 <instance-name|--all> [--no-backup] [--allow-dirty]"
-            exit 1
-            ;;
-        *) POSITIONAL+=("$arg") ;;
+DEPLOY_ALL=0
+while true; do
+    case "$1" in
+        --no-backup)   DO_BACKUP=0;   shift ;;
+        --allow-dirty) ALLOW_DIRTY=1; shift ;;
+        --all)         DEPLOY_ALL=1;  shift ;;
+        --)            shift; break ;;
     esac
 done
 
-if [[ ${#POSITIONAL[@]} -lt 1 ]]; then
-    echo "Usage: $0 <instance-name|--all> [--no-backup] [--allow-dirty]"
-    exit 1
-fi
-
 # --- Determine which instances to deploy ---
 TARGETS=()
-if [[ "${POSITIONAL[0]}" == "--all" ]]; then
+if [[ $DEPLOY_ALL -eq 1 ]]; then
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Cannot pass an instance name together with --all" >&2
+        echo "$USAGE" >&2
+        exit 1
+    fi
     for instance_dir in "$INSTANCES_DIR"/*/; do
         [[ -d "$instance_dir" ]] || continue
         if [[ -f "$instance_dir/.env" && -d "$instance_dir/.git" ]]; then
@@ -55,22 +60,26 @@ if [[ "${POSITIONAL[0]}" == "--all" ]]; then
         fi
     done
     if [[ ${#TARGETS[@]} -eq 0 ]]; then
-        echo "ERROR: No instances found in $INSTANCES_DIR"
+        echo "ERROR: No instances found in $INSTANCES_DIR" >&2
         exit 1
     fi
 else
-    TARGETS=("${POSITIONAL[0]}")
-    local_dir="$INSTANCES_DIR/${POSITIONAL[0]}"
+    if [[ $# -ne 1 ]]; then
+        echo "$USAGE" >&2
+        exit 1
+    fi
+    TARGETS=("$1")
+    local_dir="$INSTANCES_DIR/$1"
     if [[ ! -d "$local_dir" ]]; then
-        echo "ERROR: Instance directory $local_dir does not exist."
+        echo "ERROR: Instance directory $local_dir does not exist." >&2
         exit 1
     fi
     if [[ ! -f "$local_dir/.env" ]]; then
-        echo "ERROR: No .env file found at $local_dir/.env"
+        echo "ERROR: No .env file found at $local_dir/.env" >&2
         exit 1
     fi
     if [[ ! -d "$local_dir/.git" ]]; then
-        echo "ERROR: No git repo found at $local_dir"
+        echo "ERROR: No git repo found at $local_dir" >&2
         exit 1
     fi
 fi
