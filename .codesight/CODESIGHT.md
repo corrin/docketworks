@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 91 routes | 43 models | 181 components | 355 lib files | 70 env vars | 9 middleware | 22% test coverage
-> **Token savings:** this file is ~29,500 tokens. Without it, AI exploration would cost ~235,800 tokens. **Saves ~206,200 tokens per conversation.**
+> 91 routes | 43 models | 181 components | 355 lib files | 70 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,500 tokens. Without it, AI exploration would cost ~235,500 tokens. **Saves ~206,000 tokens per conversation.**
 
 ---
 
@@ -1978,7 +1978,6 @@
 
 ## custom
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
-- url_autogenerate_plan — `docs/plans/completed/url_autogenerate_plan.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
 
 ## logging
