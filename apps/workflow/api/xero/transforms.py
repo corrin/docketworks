@@ -901,6 +901,7 @@ def sync_clients(xero_contacts):
             ).first()
             if merged_into:
                 client.merged_into = merged_into
+                client.allow_jobs = False
                 client.save()
 
     return clients

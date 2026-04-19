@@ -270,6 +270,12 @@ class JobRestService:
         except Client.DoesNotExist:
             raise ValueError("Client not found")
 
+        if not client.allow_jobs:
+            raise ValueError(
+                f"Client '{client.name}' is not permitted for jobs. "
+                f"Update the client to allow jobs if this is wrong."
+            )
+
         job_data = {
             "name": data["name"],
             "client": client,

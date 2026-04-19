@@ -28,6 +28,7 @@ class Client(models.Model):
         "address",
         "is_account_customer",
         "is_supplier",
+        "allow_jobs",
         "xero_contact_id",
         "xero_tenant_id",
         "primary_contact_name",
@@ -60,6 +61,15 @@ class Client(models.Model):
     is_supplier = models.BooleanField(
         default=False
     )  # Indicates if this client is also a supplier
+    allow_jobs = models.BooleanField(
+        default=True,
+        help_text=(
+            "If False, this client cannot be selected as the client on a Job. "
+            "Use for Xero contacts that must exist (tax authorities, internal "
+            "accounts, etc.) but should never appear on a job. Automatically "
+            "set to False when a client is archived or merged in Xero."
+        ),
+    )
     xero_last_modified = models.DateTimeField(null=False, blank=False)
 
     raw_json = models.JSONField(

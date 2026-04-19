@@ -557,6 +557,7 @@ const currentClientData = ref({
   phone: '',
   address: '',
   is_account_customer: true,
+  allow_jobs: true,
 })
 
 const normalizeNullable = (v: unknown): string | null => {
@@ -1013,6 +1014,7 @@ const editCurrentClient = async () => {
       phone: clientDetail.phone,
       address: clientDetail.address,
       is_account_customer: clientDetail.is_account_customer,
+      allow_jobs: clientDetail.allow_jobs,
     }
 
     showEditClientModal.value = true
