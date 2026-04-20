@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 91 routes | 43 models | 181 components | 355 lib files | 69 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,600 tokens. Without it, AI exploration would cost ~235,400 tokens. **Saves ~205,800 tokens per conversation.**
+> 91 routes | 43 models | 181 components | 356 lib files | 69 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,600 tokens. Without it, AI exploration would cost ~235,600 tokens. **Saves ~206,000 tokens per conversation.**
 
 ---
 
@@ -1582,7 +1582,8 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
-- `frontend/src/composables/useXeroAuth.ts` — function useXeroAuth: () => void
+- `frontend/src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
+- `frontend/src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `frontend/src/constants/job-status.ts`
   - function getStatusChoice: (key) => StatusChoice | undefined
   - function getStatusLabel: (key) => string

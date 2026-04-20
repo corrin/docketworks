@@ -186,7 +186,7 @@
                   <div class="text-gray-500 mb-4">No quotes for this project</div>
                   <button
                     @click="createQuote"
-                    :disabled="isCreatingQuote"
+                    :disabled="isCreatingQuote || !xeroConnected"
                     class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:opacity-50 flex items-center gap-2"
                   >
                     <svg
@@ -203,7 +203,13 @@
                         stroke-width="4"
                       />
                     </svg>
-                    {{ isCreatingQuote ? 'Creating...' : 'Create Quote' }}
+                    {{
+                      isCreatingQuote
+                        ? 'Creating...'
+                        : xeroConnected
+                          ? 'Create Quote'
+                          : 'Login to Xero first'
+                    }}
                   </button>
                   <div class="space-y-2">
                     <div class="flex items-center gap-3">
@@ -498,6 +504,7 @@ import { z } from 'zod'
 import { costlineService } from '../../services/costline.service'
 import { fetchCostSet } from '../../services/costing.service'
 import { useCostLinesActions } from '../../composables/useCostLinesActions'
+import { useXeroConnection } from '../../composables/useXeroConnection'
 import CompactSummaryCard from '../shared/CompactSummaryCard.vue'
 import {
   Dialog,
@@ -593,6 +600,7 @@ const isQuoteDeleted = ref(false)
 const isDeletingQuote = ref(false)
 const isAcceptingQuote = ref(false)
 const showXeroExportModal = ref(false)
+const { xeroConnected } = useXeroConnection()
 
 const hasCostSetQuote = computed(
   () => !!(currentQuote.value?.has_quote && currentQuote.value.quote),

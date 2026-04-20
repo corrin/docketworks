@@ -213,7 +213,7 @@
               <CardFooter class="flex flex-col items-center gap-2 pt-4">
                 <button
                   @click="createInvoice()"
-                  :disabled="isCreatingInvoice || !!props.paid"
+                  :disabled="isCreatingInvoice || !!props.paid || !xeroConnected"
                   class="px-4 py-2 bg-orange-600 text-white rounded-md hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-orange-500 disabled:opacity-50 flex items-center gap-2"
                 >
                   <svg
@@ -288,6 +288,7 @@ import { schemas } from '../../api/generated/api'
 import { useSmartCostLineDelete } from '../../composables/useSmartCostLineDelete'
 import { useAddEmptyCostLine } from '../../composables/useAddEmptyCostLine'
 import { useCostSummary } from '../../composables/useCostSummary'
+import { useXeroConnection } from '../../composables/useXeroConnection'
 import { api } from '../../api/client'
 import { z } from 'zod'
 import type { AxiosError } from 'axios'
@@ -374,6 +375,7 @@ const stockStore = useStockStore()
 // Local state for invoices
 const isCreatingInvoice = ref(false)
 const deletingInvoiceId = ref<string | null>(null) // Track which invoice is being deleted
+const { xeroConnected } = useXeroConnection()
 
 // Local state for KPIs
 const estimateTotal = ref(0)
@@ -401,6 +403,9 @@ const toBeInvoiced = computed(() => {
 })
 
 const invoiceButtonText = computed(() => {
+  if (!xeroConnected.value) {
+    return 'Login to Xero first'
+  }
   if (props.pricingMethodology === 'fixed_price') {
     return 'Create Invoice from Quote'
   } else if (props.pricingMethodology === 'time_materials') {

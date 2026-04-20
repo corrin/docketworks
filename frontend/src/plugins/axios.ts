@@ -5,7 +5,7 @@
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import router from '@/router'
-import { useXeroAuth } from '../composables/useXeroAuth'
+import { loginXero } from '../composables/useXeroAuth'
 import { debugLog } from '@/utils/debug'
 
 // ETag / concurrency handling lives in api/client.ts (Zodios). This helper remains for auth (401/logout) and Xero only.
@@ -35,7 +35,6 @@ axios.interceptors.response.use(
     const currentPath = router.currentRoute.value.path
     const isOnLoginPage = currentPath === '/login'
     if (error.response?.data?.redirect_to_auth) {
-      const { loginXero } = useXeroAuth()
       loginXero()
       return Promise.reject(error)
     }
