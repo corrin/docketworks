@@ -1,0 +1,46 @@
+name: "CodeQL"
+
+# Advanced code-scanning setup that replaces GitHub's default setup so we can
+# version-control query filters via .github/codeql/codeql-config.yml.
+#
+# After this lands, disable default code-scanning in repo Settings -> Code
+# security -> Code scanning, otherwise both configurations run and each
+# alert is raised twice.
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  schedule:
+    # Weekly baseline in case no pushes land on main for a while.
+    - cron: "27 4 * * 1"
+
+permissions:
+  actions: read
+  contents: read
+  security-events: write
+
+jobs:
+  analyze:
+    name: Analyze (${{ matrix.language }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ["python", "javascript-typescript", "actions"]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
