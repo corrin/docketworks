@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 91 routes | 43 models | 181 components | 356 lib files | 69 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,600 tokens. Without it, AI exploration would cost ~235,600 tokens. **Saves ~206,000 tokens per conversation.**
+> 91 routes | 43 models | 181 components | 357 lib files | 69 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,700 tokens. Without it, AI exploration would cost ~235,900 tokens. **Saves ~206,200 tokens per conversation.**
 
 ---
 
@@ -961,6 +961,7 @@
   - class StandardErrorSerializer
   - class ClientListResponseSerializer
   - _...13 more_
+- `apps/client/services/client_merge_service.py` — function reassign_client_fk_records: (source, destination, *, logger_prefix) -> dict[str, int]
 - `apps/client/services/client_rest_service.py` — class ClientRestService
 - `apps/client/services/geocoding_service.py`
   - function get_api_key: () -> str
@@ -2032,7 +2033,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 105 test files found
+> 108 test files found
 
 ## Covered Routes
 

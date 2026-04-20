@@ -5,6 +5,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
+        from .client_merge_service import reassign_client_fk_records
         from .client_rest_service import ClientRestService
         from .geocoding_service import (
             GeocodingError,
@@ -24,4 +25,5 @@ __all__ = [
     "GeocodingResult",
     "geocode_address",
     "get_api_key",
+    "reassign_client_fk_records",
 ]
