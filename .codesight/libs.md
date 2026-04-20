@@ -93,6 +93,7 @@
   - class StandardErrorSerializer
   - class ClientListResponseSerializer
   - _...13 more_
+- `apps/client/services/client_merge_service.py` — function reassign_client_fk_records: (source, destination, *, logger_prefix) -> dict[str, int]
 - `apps/client/services/client_rest_service.py` — class ClientRestService
 - `apps/client/services/geocoding_service.py`
   - function get_api_key: () -> str

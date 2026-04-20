@@ -145,14 +145,31 @@ def sync_single_contact(sync_service, contact_id):
 
     set_client_fields(client, new_from_xero=created)
 
-    # Handle merge if needed
+    # Handle merge if needed — set pointer, then move stranded FK records
+    # onto the terminal client.
     if client.xero_merged_into_id and not client.merged_into:
         merged_into = Client.objects.filter(
             xero_contact_id=client.xero_merged_into_id
         ).first()
-        if merged_into:
+        if not merged_into:
+            logger.warning(
+                "Deferred merge: client %s points at unsynced "
+                "xero_contact_id=%s; reassignment will retry on next sync",
+                client.id,
+                client.xero_merged_into_id,
+            )
+        else:
+            from apps.client.services.client_merge_service import (
+                reassign_client_fk_records,
+            )
+
             client.merged_into = merged_into
             client.save()
+            destination = client.get_final_client()
+            if destination.id != client.id:
+                reassign_client_fk_records(
+                    client, destination, logger_prefix="[webhook] "
+                )
 
     logger.info(f"Synced contact {contact_id} from webhook")
 
