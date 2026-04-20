@@ -522,8 +522,9 @@ class ClientRestService:
 
         return (
             Client.objects.filter(
-                name__icontains=query
-            )  # Case insensitive substring search
+                name__icontains=query,
+                allow_jobs=True,
+            )  # Case insensitive substring search, job-eligible only
             .annotate(
                 last_invoice_date=Max("invoice__date"),
                 total_spend=Coalesce(
@@ -543,6 +544,8 @@ class ClientRestService:
                 "phone",
                 "address",
                 "is_account_customer",
+                "is_supplier",
+                "allow_jobs",
                 "xero_contact_id",
             )
             .order_by("name")[:limit]
@@ -569,6 +572,7 @@ class ClientRestService:
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
+            "allow_jobs": client.allow_jobs,
             "xero_contact_id": client.xero_contact_id or "",
             "last_invoice_date": date_to_datetime(last_invoice_date),
             "total_spend": f"${total_spend:,.2f}",
@@ -594,6 +598,7 @@ class ClientRestService:
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
+            "allow_jobs": client.allow_jobs,
             "xero_contact_id": client.xero_contact_id or "",
             "xero_tenant_id": client.xero_tenant_id or "",
             "primary_contact_name": client.primary_contact_name or "",
@@ -677,9 +682,20 @@ class ClientRestService:
             client.is_account_customer = data.get(
                 "is_account_customer", client.is_account_customer
             )
+            if "allow_jobs" in data:
+                client.allow_jobs = data["allow_jobs"]
             client.xero_last_modified = timezone.now()
             client.save()
 
+        # FIXME: `allow_jobs` is a local-only field (not synced to Xero) but
+        # toggling it still routes through this method, which unconditionally
+        # bumps `xero_last_modified` and pushes to Xero below. That wastes
+        # Xero API quota and -- more concerning -- can fool the next sync
+        # into thinking local state is newer than remote, potentially
+        # clobbering a genuine Xero-side change. Fix: either split into a
+        # local-only `_update_client_locally` path for flags like
+        # `allow_jobs`, or detect when `data` contains only local-only keys
+        # and skip the push + timestamp bump.
         # Push updated client to accounting provider
         result = provider.update_contact(client)
         if not result.success:

@@ -44,6 +44,7 @@
 - address: string (nullable)
 - is_account_customer: boolean (default)
 - is_supplier: boolean (default)
+- allow_jobs: boolean (default)
 - xero_last_modified: timestamp
 - raw_json: json (nullable)
 - primary_contact_name: string (nullable)
