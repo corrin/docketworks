@@ -17,6 +17,18 @@ export function toLocalDateString(date: Date = new Date()): string {
   return `${year}-${month}-${day}`
 }
 
+/**
+ * Returns today's date as YYYY-MM-DD in the local timezone, shifting back to
+ * Friday when today is a Saturday or Sunday.
+ */
+export function getLatestWeekdayDate(date: Date = new Date()): string {
+  const shifted = new Date(date)
+  const day = shifted.getDay()
+  if (day === 6) shifted.setDate(shifted.getDate() - 1)
+  if (day === 0) shifted.setDate(shifted.getDate() - 2)
+  return toLocalDateString(shifted)
+}
+
 export function toDateValue(date: Date | string | null | undefined): DateValue | undefined {
   if (!date) {
     return undefined
