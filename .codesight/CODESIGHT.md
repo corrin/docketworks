@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 91 routes | 43 models | 181 components | 357 lib files | 69 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,700 tokens. Without it, AI exploration would cost ~235,900 tokens. **Saves ~206,200 tokens per conversation.**
+> 92 routes | 43 models | 181 components | 357 lib files | 69 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,700 tokens. Without it, AI exploration would cost ~236,400 tokens. **Saves ~206,700 tokens per conversation.**
 
 ---
 
@@ -58,6 +58,7 @@
 - `ALL` `/payroll/pay-runs/` params()
 - `ALL` `/payroll/post-staff-week/` params()
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
+- `ALL` `/build-id/` params() [auth, payment, upload]
 - `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
 - `ALL` `/xero/authenticate/` params() [auth, payment, upload]
 - `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]

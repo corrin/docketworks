@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Urls subsystem handles **83 routes** and touches: auth, payment.
+The Urls subsystem handles **84 routes** and touches: auth, payment.
 
 ## Routes
 
@@ -92,6 +92,8 @@ The Urls subsystem handles **83 routes** and touches: auth, payment.
   `apps/timesheet/urls.py`
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
   `apps/timesheet/urls.py`
+- `ALL` `/build-id/` [auth, payment, upload]
+  `apps/workflow/urls.py`
 - `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
   `apps/workflow/urls.py`
 - `ALL` `/xero/authenticate/` [auth, payment, upload]
