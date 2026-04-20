@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 92 routes | 43 models | 181 components | 357 lib files | 69 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,700 tokens. Without it, AI exploration would cost ~236,400 tokens. **Saves ~206,700 tokens per conversation.**
+> 92 routes | 43 models | 181 components | 358 lib files | 69 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,700 tokens. Without it, AI exploration would cost ~236,700 tokens. **Saves ~206,900 tokens per conversation.**
 
 ---
 
@@ -1568,6 +1568,7 @@
 - `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
 - `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
+- `frontend/src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
 - `frontend/src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
 - `frontend/src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
