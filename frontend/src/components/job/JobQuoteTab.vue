@@ -504,6 +504,7 @@ import { z } from 'zod'
 import { costlineService } from '../../services/costline.service'
 import { fetchCostSet } from '../../services/costing.service'
 import { useCostLinesActions } from '../../composables/useCostLinesActions'
+import { useXeroConnection } from '../../composables/useXeroConnection'
 import CompactSummaryCard from '../shared/CompactSummaryCard.vue'
 import {
   Dialog,
@@ -599,7 +600,7 @@ const isQuoteDeleted = ref(false)
 const isDeletingQuote = ref(false)
 const isAcceptingQuote = ref(false)
 const showXeroExportModal = ref(false)
-const xeroConnected = ref(false)
+const { xeroConnected } = useXeroConnection()
 
 const hasCostSetQuote = computed(
   () => !!(currentQuote.value?.has_quote && currentQuote.value.quote),
@@ -624,15 +625,6 @@ onMounted(async () => {
     } catch {
       hasEstimateData.value = false
     }
-  }
-})
-
-onMounted(async () => {
-  try {
-    const pingRes = await api.xero_ping_retrieve()
-    xeroConnected.value = !!pingRes?.connected
-  } catch {
-    xeroConnected.value = false
   }
 })
 

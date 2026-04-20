@@ -106,6 +106,7 @@
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
 - `src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
+- `src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `src/constants/job-status.ts`
   - function getStatusChoice: (key) => StatusChoice | undefined
   - function getStatusLabel: (key) => string

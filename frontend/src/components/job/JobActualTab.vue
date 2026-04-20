@@ -288,6 +288,7 @@ import { schemas } from '../../api/generated/api'
 import { useSmartCostLineDelete } from '../../composables/useSmartCostLineDelete'
 import { useAddEmptyCostLine } from '../../composables/useAddEmptyCostLine'
 import { useCostSummary } from '../../composables/useCostSummary'
+import { useXeroConnection } from '../../composables/useXeroConnection'
 import { api } from '../../api/client'
 import { z } from 'zod'
 import type { AxiosError } from 'axios'
@@ -374,7 +375,7 @@ const stockStore = useStockStore()
 // Local state for invoices
 const isCreatingInvoice = ref(false)
 const deletingInvoiceId = ref<string | null>(null) // Track which invoice is being deleted
-const xeroConnected = ref(false)
+const { xeroConnected } = useXeroConnection()
 
 // Local state for KPIs
 const estimateTotal = ref(0)
@@ -710,12 +711,6 @@ function handleAddLine(kind: 'material' | 'adjust' = 'material') {
 
 onMounted(async () => {
   await Promise.all([loadStaff(), loadActualCosts(), loadCostsSummary(), loadInvoices()])
-  try {
-    const pingRes = await api.xero_ping_retrieve()
-    xeroConnected.value = !!pingRes?.connected
-  } catch {
-    xeroConnected.value = false
-  }
 })
 
 // Use the cost summary composable (simple version for actual)

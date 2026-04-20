@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 181 components | 101 lib files | 14 env vars | 3 middleware | 7 events | 0% test coverage
-> **Token savings:** this file is ~11,300 tokens. Without it, AI exploration would cost ~98,200 tokens. **Saves ~86,800 tokens per conversation.**
+> 0 routes | 0 models | 181 components | 102 lib files | 14 env vars | 3 middleware | 7 events | 0% test coverage
+> **Token savings:** this file is ~11,300 tokens. Without it, AI exploration would cost ~98,400 tokens. **Saves ~87,100 tokens per conversation.**
 
 ---
 
@@ -301,6 +301,7 @@
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
 - `src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
+- `src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `src/constants/job-status.ts`
   - function getStatusChoice: (key) => StatusChoice | undefined
   - function getStatusLabel: (key) => string
@@ -533,7 +534,7 @@
 
 - `src/api/generated/api.ts` — imported by **75** files
 - `src/utils/debug.ts` — imported by **51** files
-- `src/api/client.ts` — imported by **46** files
+- `src/api/client.ts` — imported by **47** files
 - `tests/fixtures/auth.ts` — imported by **27** files
 - `tests/fixtures/helpers.ts` — imported by **19** files
 - `src/utils/dateUtils.ts` — imported by **16** files
@@ -556,7 +557,7 @@
 
 - `src/api/generated/api.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useActiveJob.ts`, `src/composables/useAddEmptyCostLine.ts` +70 more
 - `src/utils/debug.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useAppLayout.ts`, `src/composables/useCamera.ts` +46 more
-- `src/api/client.ts` ← `src/composables/useClientLookup.ts`, `src/composables/useContactManagement.ts`, `src/composables/useErrorApi.ts`, `src/composables/useJobEvents.ts`, `src/composables/useJobFinancials.ts` +41 more
+- `src/api/client.ts` ← `src/composables/useClientLookup.ts`, `src/composables/useContactManagement.ts`, `src/composables/useErrorApi.ts`, `src/composables/useJobEvents.ts`, `src/composables/useJobFinancials.ts` +42 more
 - `tests/fixtures/auth.ts` ← `tests/company-defaults.spec.ts`, `tests/example.spec.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/create-job.spec.ts` +22 more
 - `tests/fixtures/helpers.ts` ← `tests/fixtures/auth.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/job-attachments.spec.ts`, `tests/job/job-header.spec.ts` +14 more
 - `src/utils/dateUtils.ts` ← `src/composables/useAddMaterialCostLine.ts`, `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useFinancialYear.ts`, `src/composables/useStaffApi.ts`, `src/composables/useTimesheetEntryGrid.ts` +11 more
