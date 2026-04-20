@@ -180,7 +180,44 @@ for instance in "${TARGETS[@]}"; do
         log "  Restarting gunicorn-$instance"
         systemctl restart "gunicorn-$instance"
     fi
+
+    # Re-render nginx config from template. The rendered config is written once
+    # at instance creation (instance.sh), so template edits only reach live
+    # servers if we re-render on each deploy. FQDN and cert domain are pulled
+    # back out of the existing rendered config — we need whatever was true at
+    # creation time, and parsing the live config is the one source of truth
+    # we know matches the cert actually in use.
+    existing_conf="/etc/nginx/sites-available/docketworks-$instance"
+    if [[ ! -f "$existing_conf" ]]; then
+        log "  ERROR: No existing nginx config at $existing_conf. Run instance.sh first."
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+    FQDN=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | tr -d ' ')
+    CERT_DOMAIN=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1)
+    if [[ -z "$FQDN" || -z "$CERT_DOMAIN" ]]; then
+        log "  ERROR: Could not extract FQDN/CERT_DOMAIN from $existing_conf"
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+    log "  Re-rendering nginx config (FQDN=$FQDN, CERT_DOMAIN=$CERT_DOMAIN)"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__FQDN__|$FQDN|g" \
+        -e "s|__CERT_DOMAIN__|$CERT_DOMAIN|g" \
+        "$SCRIPT_DIR/templates/nginx-instance.conf.template" \
+        > "$existing_conf"
 done
+
+# --- Reload nginx once if any configs were rewritten ---
+if nginx -t 2>&1; then
+    log "Reloading nginx..."
+    systemctl reload nginx
+else
+    log "ERROR: nginx -t failed. Configs written but NOT reloaded."
+    log "  Fix the config error and run: systemctl reload nginx"
+    exit 1
+fi
 
 # --- Summary ---
 log "=========================================="
