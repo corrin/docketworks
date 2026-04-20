@@ -20,7 +20,7 @@ def backfill_allow_jobs_false(apps, schema_editor):
     ).update(allow_jobs=False)
 
     logger.info(
-        "Migration 0017: set allow_jobs=False on %d archived/merged clients",
+        "Migration 0018: set allow_jobs=False on %d archived/merged clients",
         updated,
     )
 
@@ -34,7 +34,7 @@ def reverse_backfill_allow_jobs_false(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ("client", "0016_alter_client_table_alter_clientcontact_table_and_more"),
+        ("client", "0017_reassign_stranded_merged_client_fks"),
     ]
 
     operations = [

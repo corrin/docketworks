@@ -205,6 +205,15 @@ def set_client_fields(client, new_from_xero=False):
     if contact_status == "ARCHIVED":
         client.xero_archived = True
         client.allow_jobs = False
+        # FIXME: asymmetric -- un-archiving in Xero does not reset either
+        # flag. If a contact is archived then un-archived, `xero_archived`
+        # and `allow_jobs` stay in the archived state until an admin toggles
+        # `allow_jobs` back on via the client detail UI. The un-archive
+        # path is rare enough that we accepted the asymmetry rather than
+        # introduce a "manually set" protection flag. If un-archive becomes
+        # common, revisit: (a) auto-reset both flags, which overwrites any
+        # manual admin-set `allow_jobs=False`; or (b) track admin overrides
+        # separately so they survive a sync.
 
     # Check for merge information
     merged_to_contact_id = raw_json.get("_merged_to_contact_id")

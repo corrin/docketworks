@@ -551,6 +551,16 @@ const TYPING_TIMEOUT_MS = 1000 // Consider user stopped typing after 1 second
 
 // Status choices are now loaded in the combined onMounted hook above
 
+// FIXME: `allow_jobs` is threaded through here so the edit-client modal
+// can surface/change it, but the job settings tab itself does NOT warn
+// the user when the currently-attached client has `allow_jobs=false`
+// (e.g. the client was archived or merged in Xero after the job was
+// created). The user only discovers the block when trying to create a
+// NEW job for the same client. Fix: add an amber banner near the top
+// of the tab when `currentClientData.allow_jobs === false`, explaining
+// that new jobs cannot be created against this client but the existing
+// job remains editable. Existing jobs on now-blocked clients are a
+// known backlog -- see the prod snapshot from the merge-reassign PR.
 const currentClientData = ref({
   name: '',
   email: '',

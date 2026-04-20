@@ -687,6 +687,15 @@ class ClientRestService:
             client.xero_last_modified = timezone.now()
             client.save()
 
+        # FIXME: `allow_jobs` is a local-only field (not synced to Xero) but
+        # toggling it still routes through this method, which unconditionally
+        # bumps `xero_last_modified` and pushes to Xero below. That wastes
+        # Xero API quota and -- more concerning -- can fool the next sync
+        # into thinking local state is newer than remote, potentially
+        # clobbering a genuine Xero-side change. Fix: either split into a
+        # local-only `_update_client_locally` path for flags like
+        # `allow_jobs`, or detect when `data` contains only local-only keys
+        # and skip the push + timestamp bump.
         # Push updated client to accounting provider
         result = provider.update_contact(client)
         if not result.success:
