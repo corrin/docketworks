@@ -11,6 +11,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from django.core.cache import cache
+from django.db.models import Q
 from django.http import JsonResponse, StreamingHttpResponse
 from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
@@ -184,21 +185,32 @@ class JobsAPIView(TimesheetBaseView):
 
     serializer_class = JobsListResponseSerializer
 
+    # Fixed-price jobs can safely receive late time entries even after being
+    # archived (the invoice total isn't affected). We allow a short window
+    # after archival to cover post-pickup adjustments.
+    ARCHIVED_FIXED_PRICE_WINDOW = timedelta(days=7)
+
     def get(self, request):
         """Get list of active jobs for timesheet entries using CostSet system."""
         try:
-            # Get active jobs - exclude archived only
+            active_statuses = [
+                "draft",
+                "awaiting_approval",
+                "approved",
+                "in_progress",
+                "unusual",
+                "recently_completed",
+                "special",
+            ]
+            recent_cutoff = timezone.now() - self.ARCHIVED_FIXED_PRICE_WINDOW
             jobs = (
                 Job.objects.filter(
-                    status__in=[
-                        "draft",
-                        "awaiting_approval",
-                        "approved",
-                        "in_progress",
-                        "unusual",
-                        "recently_completed",
-                        "special",
-                    ]
+                    Q(status__in=active_statuses)
+                    | Q(
+                        status="archived",
+                        pricing_methodology="fixed_price",
+                        completed_at__gte=recent_cutoff,
+                    )
                 )
                 .select_related("client")
                 .prefetch_related("cost_sets")  # Prefetch cost sets for efficiency
