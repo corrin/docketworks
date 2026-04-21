@@ -528,6 +528,12 @@ class Job(models.Model):
     def save(self, *args, **kwargs):
         staff = kwargs.pop("staff", None)
 
+        if staff is None:
+            raise ValueError(
+                "Job.save() requires staff; use Staff.get_automation_user() "
+                "for system-initiated writes"
+            )
+
         # Event enrichment context — passed through to _create_change_events()
         enrichment_keys = (
             "change_id",
@@ -538,6 +544,8 @@ class Job(models.Model):
         )
         enrichment = {k: kwargs.pop(k) for k in enrichment_keys if k in kwargs}
 
+        update_fields = kwargs.get("update_fields")
+
         is_new = self._state.adding
         original_job = None
 
@@ -545,14 +553,7 @@ class Job(models.Model):
         if not is_new:
             original_job = Job.objects.get(pk=self.pk)
 
-        if not is_new and staff is None:
-            logger.error(
-                "Job.save() called without staff for job %s. "
-                "Event will be created with staff=None.",
-                self.pk,
-            )
-
-        if (staff and is_new) or (not self.created_by and staff):
+        if is_new or not self.created_by:
             self.created_by = staff
 
         if self.charge_out_rate is None:
@@ -624,11 +625,16 @@ class Job(models.Model):
                 # to prevent duplicate event creation between model and service layers
 
         else:
-            # Dynamic change detection and event creation for existing jobs
-            self._create_change_events(original_job, staff, **enrichment)
-
-            # Save the job
-            super(Job, self).save(*args, **kwargs)
+            # Persist first, then create events atomically against the committed row.
+            # A failure in _create_change_events rolls the save back.
+            with transaction.atomic():
+                super(Job, self).save(*args, **kwargs)
+                self._create_change_events(
+                    original_job,
+                    staff,
+                    update_fields=update_fields,
+                    **enrichment,
+                )
 
     # ── Field change tracking ──────────────────────────────────────────
     #
@@ -636,12 +642,21 @@ class Job(models.Model):
     # Fields with custom description logic have handlers in _FIELD_HANDLERS.
     # Any tracked field without a handler gets a generic "X changed" event.
 
-    def _create_change_events(self, original_job, staff, **enrichment):
-        """Detect all field changes and create a single JobEvent."""
+    def _create_change_events(
+        self, original_job, staff, update_fields=None, **enrichment
+    ):
+        """Detect all field changes and create a single JobEvent.
+
+        When update_fields is passed to save(), only those fields are considered —
+        in-memory mutations on other fields weren't persisted, so emitting events
+        for them would misrepresent what changed on the row.
+        """
         changes_before = {}
         changes_after = {}
         detail_changes = []
         event_types = []
+
+        restricted = set(update_fields) if update_fields is not None else None
 
         for field in self._meta.get_fields():
             # Only concrete scalar fields (skip reverse FKs, M2M, generic relations)
@@ -649,6 +664,10 @@ class Job(models.Model):
                 continue
             attr = field.attname
             if attr in self.UNTRACKED_FIELDS:
+                continue
+            if restricted is not None and not (
+                attr in restricted or field.name in restricted
+            ):
                 continue
 
             old_val = getattr(original_job, attr)
