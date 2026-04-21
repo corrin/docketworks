@@ -193,7 +193,8 @@ for instance in "${TARGETS[@]}"; do
         FAILED_INSTANCES+=("$instance")
         continue
     fi
-    FQDN=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | tr -d ' ')
+    # Keep internal spaces so multi-name server_name directives survive re-rendering.
+    FQDN=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | awk '{$1=$1; print}')
     CERT_DOMAIN=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1)
     if [[ -z "$FQDN" || -z "$CERT_DOMAIN" ]]; then
         log "  ERROR: Could not extract FQDN/CERT_DOMAIN from $existing_conf"
