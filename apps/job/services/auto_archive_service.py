@@ -8,6 +8,7 @@ from typing import List
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounts.models import Staff
 from apps.job.models import Job
 
 logger = logging.getLogger(__name__)
@@ -76,10 +77,11 @@ class AutoArchiveService:
             archived_jobs.append(job)
 
         if not dry_run and archived_jobs:
+            automation_user = Staff.get_automation_user()
             with transaction.atomic():
                 for job in archived_jobs:
                     job.status = "archived"
-                    job.save()
+                    job.save(staff=automation_user)
                     logger.info(f"Job {job.job_number} ({job.name}) auto-archived")
 
         end_time = timezone.now()

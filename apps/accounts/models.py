@@ -11,6 +11,8 @@ from simple_history.models import HistoricalRecords
 
 from .managers import StaffManager
 
+SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
+
 
 class Staff(AbstractBaseUser, PermissionsMixin):
     # CHECKLIST - when adding a new field or property to Staff, check these locations:
@@ -218,28 +220,20 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     @classmethod
     def get_automation_user(cls) -> "Staff":
-        """Return the senior admin to attribute automation-triggered actions to.
+        """Return the dedicated System Automation staff row.
 
         Used when a save is initiated by a background job, webhook, data
         migration, or management command — anywhere a specific human staff
-        member isn't on the call stack. Picks the oldest still-active
-        superuser on the install; raises if none exists.
+        member isn't on the call stack. The row is seeded by migration
+        accounts.0015 and carries no privileges.
         """
-        user = (
-            cls.objects.filter(is_superuser=True)
-            .filter(
-                models.Q(date_left__isnull=True)
-                | models.Q(date_left__gt=timezone.now().date())
-            )
-            .order_by("date_joined")
-            .first()
-        )
-        if user is None:
+        try:
+            return cls.objects.get(email=SYSTEM_AUTOMATION_EMAIL)
+        except cls.DoesNotExist as exc:
             raise RuntimeError(
-                "No active superuser exists; cannot attribute automation event. "
-                "Promote a Staff to superuser before running this operation."
-            )
-        return user
+                f"System Automation staff ({SYSTEM_AUTOMATION_EMAIL}) is missing. "
+                "Run `python manage.py migrate` to seed it."
+            ) from exc
 
     @property
     def is_currently_active(self) -> bool:

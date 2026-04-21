@@ -97,7 +97,7 @@ class WorkshopTimesheetService:
                 approved=self.staff.is_office_staff,
             )
 
-            self._update_latest_actual(job, cost_set)
+            self._update_latest_actual(job, cost_set, self.staff)
 
         return cost_line
 
@@ -269,10 +269,10 @@ class WorkshopTimesheetService:
         return unit_cost, unit_rev, wage_rate, charge_out_rate
 
     @staticmethod
-    def _update_latest_actual(job: Job, cost_set: CostSet):
+    def _update_latest_actual(job: Job, cost_set: CostSet, staff):
         if not job.latest_actual or cost_set.rev >= job.latest_actual.rev:
             job.latest_actual = cost_set
-            job.save(update_fields=["latest_actual", "updated_at"])
+            job.save(staff=staff, update_fields=["latest_actual", "updated_at"])
 
     @staticmethod
     def _to_decimal(value, default: str):

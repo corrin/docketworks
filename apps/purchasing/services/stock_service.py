@@ -92,7 +92,7 @@ def consume_stock(
                 job=job, kind="actual", rev=1, summary={"cost": 0, "rev": 0, "hours": 0}
             )
             job.latest_actual = actual_cost_set
-            job.save(update_fields=["latest_actual"])
+            job.save(staff=user, update_fields=["latest_actual"])
             logger.info(f"Created missing actual CostSet for job {job.id}")
 
         cost_set = job.latest_actual

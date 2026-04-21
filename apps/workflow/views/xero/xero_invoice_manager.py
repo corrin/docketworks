@@ -10,6 +10,7 @@ from apps.accounting.enums import InvoiceStatus
 
 # Import models
 from apps.accounting.models import Invoice
+from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.models.costing import CostSet
@@ -218,7 +219,10 @@ class XeroInvoiceManager(XeroDocumentManager):
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             logger.info(
                 f"Invoice {invoice.id} created successfully for job {self.job.id}"
@@ -297,7 +301,10 @@ class XeroInvoiceManager(XeroDocumentManager):
                 f"Invoice {xero_id} deleted and {deleted_count} local record(s) removed."
             )
 
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             from apps.job.models import JobEvent
 

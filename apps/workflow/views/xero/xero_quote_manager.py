@@ -10,6 +10,7 @@ from apps.accounting.enums import QuoteStatus
 
 # Import models
 from apps.accounting.models import Quote
+from apps.accounts.models import Staff
 from apps.job.models.costing import CostSet
 from apps.workflow.accounting.types import DocumentLineItem, QuotePayload
 from apps.workflow.services.error_persistence import persist_app_error
@@ -185,7 +186,10 @@ class XeroQuoteManager(XeroDocumentManager):
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             logger.info(f"Quote {quote.id} created successfully for job {self.job.id}")
 
@@ -260,7 +264,10 @@ class XeroQuoteManager(XeroDocumentManager):
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             # Create a job event for quote deletion
             from apps.job.models import JobEvent

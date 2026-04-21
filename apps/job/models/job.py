@@ -461,13 +461,14 @@ class Job(models.Model):
 
         return getattr(self, field_mapping[kind], None)
 
-    def set_latest(self, kind: str, cost_set: "CostSet") -> None:
+    def set_latest(self, kind: str, cost_set: "CostSet", staff) -> None:
         """
         Updates pointer and saves.
 
         Args:
             kind: 'estimate', 'quote' or 'actual'
             cost_set: CostSet instance to set as latest
+            staff: Staff to attribute the save event to
         """
         field_mapping = {
             "estimate": "latest_estimate",
@@ -490,7 +491,7 @@ class Job(models.Model):
             )
 
         setattr(self, field_mapping[kind], cost_set)
-        self.save(update_fields=[field_mapping[kind], "updated_at"])
+        self.save(staff=staff, update_fields=[field_mapping[kind], "updated_at"])
 
     @property
     def job_display_name(self) -> str:

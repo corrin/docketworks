@@ -51,7 +51,7 @@ class JobEvent(models.Model):
         "Job", on_delete=models.CASCADE, related_name="events", null=True, blank=True
     )
     timestamp = models.DateTimeField(default=now)
-    staff = models.ForeignKey(Staff, on_delete=models.PROTECT, null=True, blank=True)
+    staff = models.ForeignKey(Staff, on_delete=models.PROTECT)
     event_type = models.CharField(
         max_length=100, null=False, blank=False, default="automatic_event"
     )  # e.g., "status_change", "manual_note"

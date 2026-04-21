@@ -27,12 +27,13 @@ class JobEventTrackingTest(BaseTestCase):
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
-        self.job = Job.objects.create(
+        self.job = Job(
             name="Test Job",
             client=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
         )
+        self.job.save(staff=self.user)
 
     def test_status_change_creates_event(self):
         self.job.status = "in_progress"
@@ -140,41 +141,41 @@ class QuerySetGuardTest(BaseTestCase):
             )
 
 
-class StaffNoneLoggingTest(BaseTestCase):
-    """Verify that saving without staff logs an error."""
+class StaffRequiredTest(BaseTestCase):
+    """Verify that Job.save() refuses to run without staff."""
 
     def setUp(self):
         self.user = Staff.objects.create_user(
-            email="logger@example.com",
+            email="required@example.com",
             password="testpass123",
-            first_name="Test",
-            last_name="Logger",
+            first_name="Staff",
+            last_name="Required",
         )
         self.client_obj = Client.objects.create(
-            name="Log Client",
-            email="log@example.com",
+            name="Required Client",
+            email="required-client@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
-        self.job = Job.objects.create(
-            name="Log Job",
+        self.job = Job(
+            name="Required Job",
             client=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
         )
+        self.job.save(staff=self.user)
 
-    def test_save_without_staff_logs_error(self):
-        with self.assertLogs("apps.job.models.job", level="ERROR") as cm:
-            self.job.status = "in_progress"
-            self.job.save()
-        self.assertTrue(any("without staff" in msg for msg in cm.output))
-
-    def test_save_without_staff_still_creates_event(self):
+    def test_save_without_staff_raises(self):
         self.job.status = "in_progress"
-        self.job.save()
+        with self.assertRaises(ValueError) as ctx:
+            self.job.save()
+        self.assertIn("requires staff", str(ctx.exception))
 
-        event = JobEvent.objects.filter(
-            job=self.job, event_type="status_changed"
-        ).first()
-        self.assertIsNotNone(event)
-        self.assertIsNone(event.staff)
+    def test_save_without_staff_does_not_persist_change(self):
+        self.job.status = "in_progress"
+        with self.assertRaises(ValueError):
+            self.job.save()
+
+        # The in-memory mutation was rejected before any DB write.
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.status, "draft")

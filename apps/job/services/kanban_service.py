@@ -220,7 +220,7 @@ class KanbanService:
         return before_prio, after_prio
 
     @staticmethod
-    def rebalance_column(status: str) -> None:
+    def rebalance_column(status: str, staff) -> None:
         """
         Re-number priorities so that the top card keeps the highest value
         and values step down by Job.PRIORITY_INCREMENT.
@@ -235,7 +235,7 @@ class KanbanService:
                 old_priority = job.priority
                 # highest card gets total*increment, next gets (total-1)*increment, …
                 job.priority = (total - index + 1) * increment
-                job.save(update_fields=["priority", "updated_at"])
+                job.save(staff=staff, update_fields=["priority", "updated_at"])
                 logger.info(
                     f"Job #{job.job_number} priority updated: {old_priority} -> {job.priority}"
                 )
@@ -245,6 +245,7 @@ class KanbanService:
         before_prio: Optional[int],
         after_prio: Optional[int],
         status: str,
+        staff,
         before_id: Optional[str] = None,
         after_id: Optional[str] = None,
     ) -> int:
@@ -274,7 +275,7 @@ class KanbanService:
                     return (before + after) // 2
 
                 # Gap too small → rebalance first, then recompute
-                KanbanService.rebalance_column(status)
+                KanbanService.rebalance_column(status, staff)
 
                 new_before_prio = Job.objects.get(pk=before_id).priority
                 new_after_prio = Job.objects.get(pk=after_id).priority
@@ -337,7 +338,7 @@ class KanbanService:
 
         # Calculate new priority
         new_priority = KanbanService.calculate_priority(
-            before_prio, after_prio, target_status, before_id, after_id
+            before_prio, after_prio, target_status, staff, before_id, after_id
         )
         logger.info(
             f"Calculated new priority for job {job.job_number}: {new_priority} (was {job.priority})"
