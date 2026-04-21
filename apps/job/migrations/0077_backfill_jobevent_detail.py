@@ -57,6 +57,10 @@ def _backfill_status_changed(event):
     m = re.match(r"Status changed from '([^']+)' to '([^']+)'", event.description)
     if m:
         return _make_changes_list("Status", m.group(1), m.group(2))
+    # Older unquoted format: "Job status changed from X to Y"
+    m = re.match(r"Job status changed from (\S+) to (\S+)", event.description)
+    if m:
+        return _make_changes_list("Status", m.group(1), m.group(2))
     return None
 
 
@@ -353,6 +357,14 @@ def backfill_detail(apps, schema_editor):
                     detail = _backfill_job_updated_with_deltas(event)
                 else:
                     detail = _backfill_job_updated_no_deltas(event)
+
+            # If the type-specific parser couldn't extract structure, try the
+            # raw delta_before/delta_after — events backfilled from
+            # HistoricalJob (migration 0075) store the actual change there
+            # with only a generic description, so regex-on-description fails
+            # but the underlying data is intact.
+            if not detail and event.delta_before:
+                detail = _backfill_job_updated_with_deltas(event)
 
             if detail:
                 event.detail = detail
