@@ -567,6 +567,7 @@ class DeliveryReceiptRestView(PurchaseOrderETagMixin, APIView):
             po = process_delivery_receipt(
                 purchase_order_id,
                 allocations,
+                request.user,
                 expected_etag=if_match,
             )
 

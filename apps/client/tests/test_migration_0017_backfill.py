@@ -31,13 +31,14 @@ def _make_client(name: str) -> Client:
     return Client.objects.create(name=name, xero_last_modified=timezone.now())
 
 
-def _make_stranded_records(source: Client) -> dict:
+def _make_stranded_records(source: Client, staff) -> dict:
     """Create one Job + one Invoice on source (covers the two most-common
     prod scenarios; the service itself is exhaustively tested per-FK)."""
     job = Job.objects.create(
         name=f"Job for {source.name}",
         job_number=800000 + abs(hash(source.name)) % 10000,
         client=source,
+        staff=staff,
     )
     invoice = Invoice.objects.create(
         xero_id=uuid.uuid4(),
@@ -61,7 +62,7 @@ class MigrationBackfillTests(BaseTestCase):
         source.merged_into = destination
         source.save()
 
-        records = _make_stranded_records(source)
+        records = _make_stranded_records(source, self.test_staff)
 
         _migration_module.reassign_stranded_fks(django_apps, schema_editor=None)
 
@@ -80,7 +81,7 @@ class MigrationBackfillTests(BaseTestCase):
         a.merged_into = b
         a.save()
 
-        records = _make_stranded_records(a)
+        records = _make_stranded_records(a, self.test_staff)
 
         _migration_module.reassign_stranded_fks(django_apps, schema_editor=None)
 
@@ -92,7 +93,7 @@ class MigrationBackfillTests(BaseTestCase):
     def test_backfill_ignores_non_merged_clients(self) -> None:
         """Clients without merged_into are untouched by the migration."""
         standalone = _make_client("Standalone")
-        records = _make_stranded_records(standalone)
+        records = _make_stranded_records(standalone, self.test_staff)
 
         _migration_module.reassign_stranded_fks(django_apps, schema_editor=None)
 
@@ -108,7 +109,7 @@ class MigrationBackfillTests(BaseTestCase):
         source.merged_into = destination
         source.save()
 
-        records = _make_stranded_records(source)
+        records = _make_stranded_records(source, self.test_staff)
 
         _migration_module.reassign_stranded_fks(django_apps, schema_editor=None)
         _migration_module.reassign_stranded_fks(django_apps, schema_editor=None)

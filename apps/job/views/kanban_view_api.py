@@ -130,7 +130,7 @@ class UpdateJobStatusAPIView(APIView):
 
             new_status = serializer.validated_data["status"]
 
-            KanbanService.update_job_status(job_id, new_status)
+            KanbanService.update_job_status(job_id, new_status, staff=request.user)
 
             # Return success response
             success_response = {
@@ -204,7 +204,9 @@ class ReorderJobAPIView(APIView):
             after_id = validated_data.get("after_id")
             new_status = validated_data.get("status")
 
-            KanbanService.reorder_job(job_id, before_id, after_id, new_status)
+            KanbanService.reorder_job(
+                job_id, before_id, after_id, new_status, staff=request.user
+            )
 
             # Return success response
             success_response = {

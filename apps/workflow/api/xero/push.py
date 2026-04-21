@@ -154,9 +154,13 @@ def sync_job_to_xero(job):
             time.sleep(SLEEP_TIME)
 
             # Save the project ID back to our job
+            automation_user = Staff.get_automation_user()
             job.xero_project_id = response.project_id
             job.xero_last_synced = timezone.now()
-            job.save(update_fields=["xero_project_id", "xero_last_synced"])
+            job.save(
+                staff=automation_user,
+                update_fields=["xero_project_id", "xero_last_synced"],
+            )
 
             logger.info(
                 f"Created Job {job.job_number} in Xero with project ID {job.xero_project_id}"
@@ -168,7 +172,7 @@ def sync_job_to_xero(job):
             time.sleep(SLEEP_TIME)
 
             job.xero_default_task_id = default_task.task_id
-            job.save(update_fields=["xero_default_task_id"])
+            job.save(staff=automation_user, update_fields=["xero_default_task_id"])
 
             logger.info(
                 f"Created default Labor task for Job {job.job_number} with task ID {job.xero_default_task_id}"

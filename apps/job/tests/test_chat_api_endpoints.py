@@ -48,6 +48,7 @@ class ChatAPIEndpointTests(BaseTestCase):
             client=self.client_obj,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.ai_provider = AIProvider.objects.create(
@@ -369,6 +370,7 @@ class ChatAPIPermissionTests(BaseTestCase):
             client=self.client_obj,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         # Create test users
@@ -453,6 +455,7 @@ class ChatAPIValidationTests(BaseTestCase):
             client=self.client_obj,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.chat_history_url = reverse(

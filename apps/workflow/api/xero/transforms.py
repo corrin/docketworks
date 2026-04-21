@@ -270,9 +270,10 @@ def transform_invoice(xero_invoice, xero_id):
 
     # Recalculate job state if invoice is linked to a job
     if invoice.job:
+        from apps.accounts.models import Staff
         from apps.job.services.job_service import recalculate_job_invoicing_state
 
-        recalculate_job_invoicing_state(invoice.job.id)
+        recalculate_job_invoicing_state(invoice.job.id, Staff.get_automation_user())
 
     return invoice, _build_sync_status(created, changed_fields)
 
@@ -914,8 +915,13 @@ def sync_clients(xero_contacts):
             client.save()
             destination = client.get_final_client()
             if destination.id != client.id:
+                from apps.accounts.models import Staff
+
                 reassign_client_fk_records(
-                    client, destination, logger_prefix="[batch-sync] "
+                    client,
+                    destination,
+                    Staff.get_automation_user(),
+                    logger_prefix="[batch-sync] ",
                 )
 
     return clients

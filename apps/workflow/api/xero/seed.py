@@ -159,6 +159,7 @@ def sync_single_contact(sync_service, contact_id):
                 client.xero_merged_into_id,
             )
         else:
+            from apps.accounts.models import Staff
             from apps.client.services.client_merge_service import (
                 reassign_client_fk_records,
             )
@@ -169,7 +170,10 @@ def sync_single_contact(sync_service, contact_id):
             destination = client.get_final_client()
             if destination.id != client.id:
                 reassign_client_fk_records(
-                    client, destination, logger_prefix="[webhook] "
+                    client,
+                    destination,
+                    Staff.get_automation_user(),
+                    logger_prefix="[webhook] ",
                 )
 
     logger.info(f"Synced contact {contact_id} from webhook")

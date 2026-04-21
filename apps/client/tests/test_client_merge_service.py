@@ -37,13 +37,15 @@ def make_client(name: str) -> Client:
 _next_job_number = {"n": 90000}
 
 
-def make_job(client: Client, *, name: str = "Test Job") -> Job:
+def make_job(client: Client, staff, *, name: str = "Test Job") -> Job:
     _next_job_number["n"] += 1
-    return Job.objects.create(
+    job = Job(
         name=name,
         job_number=_next_job_number["n"],
         client=client,
     )
+    job.save(staff=staff)
+    return job
 
 
 def _invoice_fields(client: Client) -> dict:
@@ -129,9 +131,11 @@ class ReassignFKBaseCase(BaseTestCase):
 
 class ReassignJobTests(ReassignFKBaseCase):
     def test_job_moves_to_destination(self) -> None:
-        job = make_job(self.source)
+        job = make_job(self.source, self.test_staff)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         job.refresh_from_db()
         self.assertEqual(job.client_id, self.destination.id)
@@ -142,7 +146,9 @@ class ReassignInvoiceTests(ReassignFKBaseCase):
     def test_invoice_moves_to_destination(self) -> None:
         invoice = make_invoice(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         invoice.refresh_from_db()
         self.assertEqual(invoice.client_id, self.destination.id)
@@ -153,7 +159,9 @@ class ReassignBillTests(ReassignFKBaseCase):
     def test_bill_moves_to_destination(self) -> None:
         bill = make_bill(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         bill.refresh_from_db()
         self.assertEqual(bill.client_id, self.destination.id)
@@ -164,7 +172,9 @@ class ReassignCreditNoteTests(ReassignFKBaseCase):
     def test_credit_note_moves_to_destination(self) -> None:
         cn = make_credit_note(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         cn.refresh_from_db()
         self.assertEqual(cn.client_id, self.destination.id)
@@ -175,7 +185,9 @@ class ReassignQuoteTests(ReassignFKBaseCase):
     def test_quote_moves_to_destination(self) -> None:
         quote = make_quote(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         quote.refresh_from_db()
         self.assertEqual(quote.client_id, self.destination.id)
@@ -186,7 +198,9 @@ class ReassignPurchaseOrderTests(ReassignFKBaseCase):
     def test_purchase_order_supplier_moves_to_destination(self) -> None:
         po = make_purchase_order(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         po.refresh_from_db()
         self.assertEqual(po.supplier_id, self.destination.id)
@@ -198,7 +212,9 @@ class ReassignSupplierProductTests(ReassignFKBaseCase):
         price_list = make_supplier_price_list(self.source)
         product = make_supplier_product(self.source, price_list)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         product.refresh_from_db()
         self.assertEqual(product.supplier_id, self.destination.id)
@@ -209,7 +225,9 @@ class ReassignSupplierPriceListTests(ReassignFKBaseCase):
     def test_supplier_price_list_moves_to_destination(self) -> None:
         price_list = make_supplier_price_list(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         price_list.refresh_from_db()
         self.assertEqual(price_list.supplier_id, self.destination.id)
@@ -220,7 +238,9 @@ class ReassignScrapeJobTests(ReassignFKBaseCase):
     def test_scrape_job_moves_to_destination(self) -> None:
         scrape = make_scrape_job(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         scrape.refresh_from_db()
         self.assertEqual(scrape.supplier_id, self.destination.id)
@@ -234,7 +254,7 @@ class ReassignScrapeJobTests(ReassignFKBaseCase):
 
 class ReassignAllFKTypesTogetherTests(ReassignFKBaseCase):
     def test_all_fk_types_move_in_one_call(self) -> None:
-        job = make_job(self.source)
+        job = make_job(self.source, self.test_staff)
         invoice = make_invoice(self.source)
         bill = make_bill(self.source)
         cn = make_credit_note(self.source)
@@ -244,7 +264,9 @@ class ReassignAllFKTypesTogetherTests(ReassignFKBaseCase):
         product = make_supplier_product(self.source, price_list)
         scrape = make_scrape_job(self.source)
 
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         job.refresh_from_db()
         invoice.refresh_from_db()
@@ -292,16 +314,20 @@ class SourceEqualsDestinationGuardTests(BaseTestCase):
         client = make_client("Only Client")
 
         with self.assertRaises(ValueError):
-            reassign_client_fk_records(client, client)
+            reassign_client_fk_records(client, client, self.test_staff)
 
 
 class IdempotencyTests(ReassignFKBaseCase):
     def test_second_call_returns_all_zero_counts(self) -> None:
-        make_job(self.source)
+        make_job(self.source, self.test_staff)
         make_invoice(self.source)
 
-        first_counts = reassign_client_fk_records(self.source, self.destination)
-        second_counts = reassign_client_fk_records(self.source, self.destination)
+        first_counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
+        second_counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
 
         self.assertEqual(first_counts["jobs"], 1)
         self.assertEqual(first_counts["invoices"], 1)
@@ -311,10 +337,10 @@ class IdempotencyTests(ReassignFKBaseCase):
 
 class SimpleHistoryTests(ReassignFKBaseCase):
     def test_job_reassignment_creates_history_entry(self) -> None:
-        job = make_job(self.source)
+        job = make_job(self.source, self.test_staff)
         history_before = job.history.count()
 
-        reassign_client_fk_records(self.source, self.destination)
+        reassign_client_fk_records(self.source, self.destination, self.test_staff)
 
         job.refresh_from_db()
         history_after = job.history.count()
@@ -346,9 +372,9 @@ class ChainWalkingTests(BaseTestCase):
 
         self.assertEqual(a.get_final_client().id, c.id)
 
-        job = make_job(a)
+        job = make_job(a, self.test_staff)
 
-        reassign_client_fk_records(a, a.get_final_client())
+        reassign_client_fk_records(a, a.get_final_client(), self.test_staff)
 
         job.refresh_from_db()
         self.assertEqual(job.client_id, c.id)
@@ -369,10 +395,10 @@ class ChainWalkingTests(BaseTestCase):
         # not passing source as destination. Service must refuse the no-op.
         if terminal.id == a.id:
             with self.assertRaises(ValueError):
-                reassign_client_fk_records(a, terminal)
+                reassign_client_fk_records(a, terminal, self.test_staff)
         else:
-            make_job(a)
-            counts = reassign_client_fk_records(a, terminal)
+            make_job(a, self.test_staff)
+            counts = reassign_client_fk_records(a, terminal, self.test_staff)
             self.assertEqual(counts["jobs"], 1)
 
 
@@ -385,7 +411,7 @@ class AtomicityTests(ReassignFKBaseCase):
     def test_rollback_if_any_update_fails(self) -> None:
         """Simulate a failure partway through the service's update block and
         assert that earlier updates roll back (no records moved)."""
-        make_job(self.source)
+        make_job(self.source, self.test_staff)
         make_invoice(self.source)
 
         # Force Quote.objects.filter(...).update(...) to explode. This is
@@ -411,7 +437,9 @@ class AtomicityTests(ReassignFKBaseCase):
                 "apps.client.services.client_merge_service.persist_app_error"
             ) as mock_persist:
                 with self.assertRaises(IntegrityError):
-                    reassign_client_fk_records(self.source, self.destination)
+                    reassign_client_fk_records(
+                        self.source, self.destination, self.test_staff
+                    )
 
                 # Error persistence MUST have been called per CLAUDE.md.
                 self.assertTrue(mock_persist.called)
@@ -430,7 +458,9 @@ class AtomicityTests(ReassignFKBaseCase):
 
 class NoRecordsToMoveTests(ReassignFKBaseCase):
     def test_zero_records_returns_all_zero_counts(self) -> None:
-        counts = reassign_client_fk_records(self.source, self.destination)
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
         self.assertEqual(
             counts,
             {

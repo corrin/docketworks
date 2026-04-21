@@ -1,5 +1,6 @@
 from django.core.management.base import BaseCommand, CommandError
 
+from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import Job
 from apps.workflow.models import CompanyDefaults
@@ -70,6 +71,7 @@ class Command(BaseCommand):
             )
 
         # Iterate through the shop jobs and create them
+        automation_user = Staff.get_automation_user()
         for job_details in shop_jobs:
             # Create the job instance
             job = Job(
@@ -82,7 +84,7 @@ class Command(BaseCommand):
                 paid=False,
                 charge_out_rate=0.00,
             )
-            job.save()
+            job.save(staff=automation_user)
 
         self.stdout.write(
             self.style.SUCCESS("Shop jobs have been successfully created.")

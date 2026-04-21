@@ -167,12 +167,12 @@ def _delete_previous_stock_for_line(line: PurchaseOrderLine, *, run_id: str) -> 
         )
 
 
-def _ensure_actual_costset(job: Job) -> CostSet:
+def _ensure_actual_costset(job: Job, staff) -> CostSet:
     if job.latest_actual:
         return job.latest_actual
     cs = CostSet.objects.create(job=job, kind="actual", rev=1)
     job.latest_actual = cs
-    job.save(update_fields=["latest_actual"])
+    job.save(staff=staff, update_fields=["latest_actual"])
     logger.debug("Created missing actual CostSet for job %s", job.id)
     return cs
 
@@ -219,6 +219,7 @@ def _create_costline_from_allocation(
     job: Job,
     qty: Decimal,
     retail_rate_pct: Decimal,
+    staff,
 ) -> CostLine:
     r = _retail_pct_to_rate(retail_rate_pct)
     unit_revenue = (line.unit_cost * (Decimal("1") + r)).quantize(Decimal("0.01"))
@@ -239,7 +240,7 @@ def _create_costline_from_allocation(
         unit_revenue,
     )
 
-    cs = _ensure_actual_costset(job)
+    cs = _ensure_actual_costset(job, staff)
     cl = CostLine.objects.create(
         cost_set=cs,
         kind="material",
@@ -299,6 +300,7 @@ def _recompute_po_status(po: PurchaseOrder) -> None:
 def process_delivery_receipt(
     purchase_order_id: str,
     line_allocations: dict,
+    staff,
     *,
     expected_etag: str | None = None,
 ) -> PurchaseOrder:
@@ -391,6 +393,7 @@ def process_delivery_receipt(
                             job=job,
                             qty=qty,
                             retail_rate_pct=retail_rate_pct,
+                            staff=staff,
                         )
 
             _recompute_po_status(po)

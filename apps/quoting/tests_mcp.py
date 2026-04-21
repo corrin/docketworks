@@ -35,6 +35,7 @@ class QuotingToolTests(BaseTestCase):
             name="Test Job",
             client=self.client_obj,
             description="Test metal work",
+            staff=self.test_staff,
         )
 
         # Create price list

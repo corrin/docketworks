@@ -197,7 +197,7 @@ class ApplyQuoteAPIView(APIView):
                 return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
 
             # Apply quote
-            result = quote_sync_service.apply_quote(job)
+            result = quote_sync_service.apply_quote(job, request.user)
 
             if result.success:
                 # Serialize the cost set if available

@@ -93,7 +93,7 @@
   - class StandardErrorSerializer
   - class ClientListResponseSerializer
   - _...13 more_
-- `apps/client/services/client_merge_service.py` — function reassign_client_fk_records: (source, destination, *, logger_prefix) -> dict[str, int]
+- `apps/client/services/client_merge_service.py` — function reassign_client_fk_records: (source, destination, staff, *, logger_prefix) -> dict[str, int]
 - `apps/client/services/client_rest_service.py` — class ClientRestService
 - `apps/client/services/geocoding_service.py`
   - function get_api_key: () -> str
@@ -129,7 +129,18 @@
   - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
   - function parse_xlsx_old: (path) -> list[DraftLine]
   - _...7 more_
+- `apps/job/management/commands/_history_enrichment_utils.py`
+  - function get_client_names: () -> dict
+  - function get_contact_names: () -> dict
+  - function safe_value: (value)
+  - function display_value: (field_name, raw_value) -> str
+  - function walk_history_pairs: (job_id, HistoricalJob)
+  - function get_first_history_record: (job_id, HistoricalJob)
+  - _...4 more_
 - `apps/job/management/commands/create_shop_jobs.py` — class Command
+- `apps/job/management/commands/jobevent_diagnostic.py` — class Command
+- `apps/job/management/commands/jobevent_enrich_from_history.py` — class Command
+- `apps/job/management/commands/jobevent_match_history.py` — class Command
 - `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
 - `apps/job/management/commands/test_gemini_chat.py` — class Command
 - `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
@@ -138,7 +149,7 @@
   - class CostSet
   - class CostLine
 - `apps/job/models/costline_validators.py` — function validate_costline_meta: (meta, Any] | None, kind) -> None, function validate_costline_ext_refs: (ext_refs, Any] | None) -> None
-- `apps/job/models/job.py` — class Job
+- `apps/job/models/job.py` — class JobQuerySet, class Job
 - `apps/job/models/job_delta_rejection.py` — class JobDeltaRejection
 - `apps/job/models/job_event.py` — class JobEvent
 - `apps/job/models/job_file.py` — class JobFile
@@ -228,8 +239,8 @@
   - function serialize_validation_report: (validation_report) -> Optional[Dict[str, Any]]
   - function serialize_draft_lines: (draft_lines) -> List[Dict[str, Any]]
   - function preview_quote_import_from_drafts: (job, draft_lines) -> Dict[str, Any]
-  - function import_quote_from_drafts: (job, draft_lines) -> QuoteImportResult
-  - function import_quote_from_file: (job, file_path, skip_validation) -> QuoteImportResult
+  - function import_quote_from_drafts: (job, draft_lines, staff) -> QuoteImportResult
+  - function import_quote_from_file: (job, file_path, staff, skip_validation) -> QuoteImportResult
   - function preview_quote_import: (job, file_path) -> Dict[str, Any]
   - _...2 more_
 - `apps/job/services/job_profitability_report.py` — class JobProfitabilityReportService
@@ -240,9 +251,9 @@
   - class JobRestService
 - `apps/job/services/job_service.py`
   - function get_paid_complete_jobs: ()
-  - function archive_complete_jobs: (job_ids)
+  - function archive_complete_jobs: (job_ids, staff)
   - function get_job_total_value: (job) -> Decimal
-  - function recalculate_job_invoicing_state: (job_id) -> None
+  - function recalculate_job_invoicing_state: (job_id, staff) -> None
   - class JobStaffService
 - `apps/job/services/kanban_categorization_service.py` — class KanbanColumn, class KanbanCategorizationService
 - `apps/job/services/kanban_service.py` — class KanbanService
@@ -253,7 +264,7 @@
 - `apps/job/services/quote_sync_service.py`
   - function link_quote_sheet: (job, template_url) -> QuoteSpreadsheet
   - function preview_quote: (job)
-  - function apply_quote: (job)
+  - function apply_quote: (job, staff)
 - `apps/job/services/workshop_pdf_service.py`
   - function format_hours_display: (hours) -> str
   - function get_workshop_hours: (job) -> float
@@ -327,7 +338,7 @@
   - class AllocationDeletionError
   - class DeletionResult
   - class AllocationService
-- `apps/purchasing/services/delivery_receipt_service.py` — function process_delivery_receipt: (purchase_order_id, line_allocations, *, expected_etag) -> PurchaseOrder, class DeliveryReceiptValidationError
+- `apps/purchasing/services/delivery_receipt_service.py` — function process_delivery_receipt: (purchase_order_id, line_allocations, staff, *, expected_etag) -> PurchaseOrder, class DeliveryReceiptValidationError
 - `apps/purchasing/services/purchase_order_email_service.py` — function create_purchase_order_email: (purchase_order) -> dict
 - `apps/purchasing/services/purchase_order_pdf_service.py` — function create_purchase_order_pdf: (purchase_order), class PurchaseOrderPDFGenerator
 - `apps/purchasing/services/purchasing_rest_service.py` — class PurchasingRestService

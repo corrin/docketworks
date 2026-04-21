@@ -9,6 +9,7 @@ Usage:
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
+from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import CostSet, Job
 from apps.workflow.models import CompanyDefaults, XeroPayItem
@@ -68,7 +69,7 @@ class Command(BaseCommand):
             return
 
         with transaction.atomic():
-            job = Job.objects.create(
+            job = Job(
                 name=name,
                 status="special",
                 client=client,
@@ -79,6 +80,7 @@ class Command(BaseCommand):
                 job_is_valid=True,
                 default_xero_pay_item=pay_item,
             )
+            job.save(staff=Staff.get_automation_user())
 
             for kind in ("quote", "estimate", "actual"):
                 CostSet.objects.create(

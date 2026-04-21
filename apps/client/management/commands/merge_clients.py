@@ -1,6 +1,7 @@
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
+from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.client.services.client_merge_service import reassign_client_fk_records
 from apps.job.models import Job
@@ -114,7 +115,10 @@ class Command(BaseCommand):
                 # on the deleted client via the PROTECT constraint failure
                 # path — or silently lost on cascade with the old pointer.
                 counts = reassign_client_fk_records(
-                    client, primary_client, logger_prefix="[manual-merge] "
+                    client,
+                    primary_client,
+                    Staff.get_automation_user(),
+                    logger_prefix="[manual-merge] ",
                 )
                 self.stdout.write(f"  Reassigned records: {counts}")
 

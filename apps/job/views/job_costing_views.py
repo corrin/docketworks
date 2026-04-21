@@ -230,7 +230,7 @@ class JobQuoteRevisionView(APIView):
 
                 # Reset quote acceptance date to allow accepting the new quote revision
                 job.quote_acceptance_date = None
-                job.save()
+                job.save(staff=request.user)
 
                 # Save the CostSet (summary was updated in _archive_quote_data)
                 current_quote.save()

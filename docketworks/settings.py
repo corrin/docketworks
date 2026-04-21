@@ -34,6 +34,7 @@ def validate_required_settings() -> None:
         "SECRET_KEY",
         "DEBUG",
         "DEBUG_PAYLOAD",
+        "SKIP_VERSION_CHECK",
         "DJANGO_ENV",
         "ALLOWED_HOSTS",
         "DJANGO_SITE_DOMAIN",
@@ -88,6 +89,10 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 # Enable detailed payload logging for debugging
 DEBUG_PAYLOAD = os.getenv("DEBUG_PAYLOAD").lower() == "true"
+
+# Disable the build-id / version-check feature. When True, /api/build-id/
+# returns an empty build_id sentinel and the frontend skips its reload check.
+SKIP_VERSION_CHECK = os.getenv("SKIP_VERSION_CHECK").lower() == "true"
 
 # Job delta soft fail setting - controls whether checksum mismatches are logged but not raised
 JOB_DELTA_SOFT_FAIL = os.getenv("JOB_DELTA_SOFT_FAIL", "True").strip() == "True"

@@ -30,6 +30,12 @@ class BuildIdAPIView(APIView):
         },
     )
     def get(self, request: Request) -> Response:
-        response = Response({"build_id": settings.BUILD_ID})
+        # "BUILD_ID_DISABLED" is the feature-disabled sentinel. Real SHAs are
+        # 40 hex chars so this cannot collide. The frontend matches on this
+        # exact string and skips the reload flow.
+        build_id = (
+            "BUILD_ID_DISABLED" if settings.SKIP_VERSION_CHECK else settings.BUILD_ID
+        )
+        response = Response({"build_id": build_id})
         response["Cache-Control"] = "no-store"
         return response

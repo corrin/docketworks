@@ -11,6 +11,8 @@ from simple_history.models import HistoricalRecords
 
 from .managers import StaffManager
 
+SYSTEM_AUTOMATION_EMAIL = "system.automation@docketworks.local"
+
 
 class Staff(AbstractBaseUser, PermissionsMixin):
     # CHECKLIST - when adding a new field or property to Staff, check these locations:
@@ -215,6 +217,23 @@ class Staff(AbstractBaseUser, PermissionsMixin):
 
     def is_staff_manager(self) -> bool:
         return self.groups.filter(name="StaffManager").exists() or self.is_superuser
+
+    @classmethod
+    def get_automation_user(cls) -> "Staff":
+        """Return the dedicated System Automation staff row.
+
+        Used when a save is initiated by a background job, webhook, data
+        migration, or management command — anywhere a specific human staff
+        member isn't on the call stack. The row is seeded by migration
+        accounts.0015 and carries no privileges.
+        """
+        try:
+            return cls.objects.get(email=SYSTEM_AUTOMATION_EMAIL)
+        except cls.DoesNotExist as exc:
+            raise RuntimeError(
+                f"System Automation staff ({SYSTEM_AUTOMATION_EMAIL}) is missing. "
+                "Run `python manage.py migrate` to seed it."
+            ) from exc
 
     @property
     def is_currently_active(self) -> bool:

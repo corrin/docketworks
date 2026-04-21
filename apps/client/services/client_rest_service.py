@@ -7,8 +7,11 @@ All business logic for Client REST operations should be implemented here.
 
 import logging
 from decimal import Decimal
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
 
 from django.db import transaction
 from django.db.models import DecimalField, Max, Sum, Value
@@ -439,7 +442,7 @@ class ClientRestService:
 
     @staticmethod
     def update_job_contact(
-        job_id: UUID, contact_data: Dict[str, Any]
+        job_id: UUID, contact_data: Dict[str, Any], user: "Staff"
     ) -> Dict[str, Any]:
         """
         Updates the contact person for a specific job.
@@ -447,6 +450,7 @@ class ClientRestService:
         Args:
             job_id: Job UUID
             contact_data: Contact data to update
+            user: Staff performing the update
 
         Returns:
             Dict with updated contact information
@@ -479,7 +483,7 @@ class ClientRestService:
 
             # Update job's contact
             job.contact = contact
-            job.save()
+            job.save(staff=user)
 
             logger.info(
                 f"Contact {contact_id} assigned to job {job_id}",

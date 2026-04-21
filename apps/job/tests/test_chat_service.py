@@ -138,6 +138,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
             client=self.client,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.service = ChatService()
@@ -282,6 +283,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
             client=self.client,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.ai_provider = AIProvider.objects.create(
@@ -431,6 +433,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
             client=self.client,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.service = ChatService()
@@ -631,6 +634,7 @@ class ChatServiceIntegrationTests(BaseTestCase):
             client=self.client,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.ai_provider = AIProvider.objects.create(
@@ -718,6 +722,7 @@ class ChatServiceModeResponseTests(BaseTestCase):
             client=self.client,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.ai_provider = AIProvider.objects.create(

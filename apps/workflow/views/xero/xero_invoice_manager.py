@@ -10,6 +10,7 @@ from apps.accounting.enums import InvoiceStatus
 
 # Import models
 from apps.accounting.models import Invoice
+from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.models.costing import CostSet
@@ -218,7 +219,10 @@ class XeroInvoiceManager(XeroDocumentManager):
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             logger.info(
                 f"Invoice {invoice.id} created successfully for job {self.job.id}"
@@ -239,7 +243,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="invoice_created",
-                    description=f"Invoice {invoice.number} created",
+                    detail={"xero_invoice_number": invoice.number},
                 )
             except Exception as exc:
                 persist_app_error(exc)
@@ -290,12 +294,17 @@ class XeroInvoiceManager(XeroDocumentManager):
                     "status": result.status_code or 400,
                 }
 
+            invoice_to_delete = Invoice.objects.filter(xero_id=xero_id).first()
+            invoice_number = invoice_to_delete.number if invoice_to_delete else None
             deleted_count = Invoice.objects.filter(xero_id=xero_id).delete()[0]
             logger.info(
                 f"Invoice {xero_id} deleted and {deleted_count} local record(s) removed."
             )
 
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             from apps.job.models import JobEvent
 
@@ -303,7 +312,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="invoice_deleted",
-                    description="Invoice deleted",
+                    detail={"xero_invoice_number": invoice_number},
                 )
             except Exception as exc:
                 persist_app_error(exc)

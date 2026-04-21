@@ -281,12 +281,13 @@ def preview_quote(job: Job):
         raise RuntimeError(f"Failed to preview quote: {str(e)}") from e
 
 
-def apply_quote(job: Job):
+def apply_quote(job: Job, staff):
     """
     Apply quote import from linked Google Sheet.
 
     Args:
         job: Job instance
+        staff: Staff attributed to the resulting job update
 
     Returns:
         QuoteImportResult with operation details
@@ -298,7 +299,7 @@ def apply_quote(job: Job):
 
     try:
         drafts = _fetch_drafts(job)
-        result = import_quote_from_drafts(job, drafts)
+        result = import_quote_from_drafts(job, drafts, staff)
 
         if result.success:
             logger.info(f"Successfully applied quote for job {job.job_number}")

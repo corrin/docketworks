@@ -171,13 +171,14 @@
 - timestamp: timestamp (default)
 - staff_id: integer (fk)
 - event_type: string (default)
-- description: string
+- description: string (default)
 - schema_version: integer (default)
 - change_id: uuid (nullable)
 - delta_before: json (nullable)
 - delta_after: json (nullable)
 - delta_meta: json (nullable)
 - delta_checksum: string (default)
+- detail: json (default)
 - dedup_hash: string (nullable)
 - _relations_: job: one(Job), staff: one(Staff)
 

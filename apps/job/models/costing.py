@@ -292,7 +292,11 @@ class CostLine(models.Model):
 
         # Update job.updated_at to ensure ETag changes when cost data changes
         # This prevents 304 Not Modified responses when quotes/costs are modified
-        cost_set.job.save(update_fields=["updated_at"])
+        from apps.accounts.models import Staff
+
+        cost_set.job.save(
+            staff=Staff.get_automation_user(), update_fields=["updated_at"]
+        )
 
     def save(self, *args, **kwargs):
         # Fail fast if trying to set revenue on shop jobs

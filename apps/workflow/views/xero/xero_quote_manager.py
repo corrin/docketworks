@@ -10,6 +10,7 @@ from apps.accounting.enums import QuoteStatus
 
 # Import models
 from apps.accounting.models import Quote
+from apps.accounts.models import Staff
 from apps.job.models.costing import CostSet
 from apps.workflow.accounting.types import DocumentLineItem, QuotePayload
 from apps.workflow.services.error_persistence import persist_app_error
@@ -185,7 +186,10 @@ class XeroQuoteManager(XeroDocumentManager):
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             logger.info(f"Quote {quote.id} created successfully for job {self.job.id}")
 
@@ -198,7 +202,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="quote_created",
-                    description="Quote created",
+                    detail={"xero_quote_number": result.number},
                 )
             except Exception as exc:
                 persist_app_error(exc)
@@ -253,13 +257,17 @@ class XeroQuoteManager(XeroDocumentManager):
                 }
 
             local_quote_id = self.job.quote.id
+            quote_number = self.job.quote.number
             self.job.quote.delete()
             logger.info(
                 f"Quote {local_quote_id} deleted successfully for job {self.job.id}"
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=Staff.get_automation_user(),
+                update_fields=["updated_at"],
+            )
 
             # Create a job event for quote deletion
             from apps.job.models import JobEvent
@@ -268,7 +276,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="quote_deleted",
-                    description="Quote deleted",
+                    detail={"xero_quote_number": quote_number},
                 )
             except Exception as exc:
                 persist_app_error(exc)

@@ -13,6 +13,7 @@ from faker import Faker
 
 from apps.accounts.staff_anonymization import create_staff_profile
 from apps.workflow.models import CompanyDefaults
+from apps.workflow.services.error_persistence import persist_app_error
 
 
 class Command(BaseCommand):
@@ -169,12 +170,15 @@ class Command(BaseCommand):
             # Step 5: Create combined zip file in /tmp
             self.create_combined_zip(output_path, schema_path, timestamp, env_name)
 
-        except subprocess.CalledProcessError as e:
-            self.stdout.write(self.style.ERROR(f"dumpdata failed: {e.stderr}"))
-        except Exception as e:
-            self.stdout.write(self.style.ERROR(f"Error during data backup: {e}"))
+        except subprocess.CalledProcessError as exc:
+            self.stdout.write(self.style.ERROR(f"dumpdata failed: {exc.stderr}"))
+            persist_app_error(exc)
+            raise
+        except Exception as exc:
+            persist_app_error(exc)
             if os.path.exists(output_path):
                 os.remove(output_path)
+            raise
 
     def _get_preserved_client_names(self):
         """Get the list of client names that should not be anonymized."""

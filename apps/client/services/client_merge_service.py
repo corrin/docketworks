@@ -25,6 +25,7 @@ logger = logging.getLogger("xero")
 def reassign_client_fk_records(
     source: Client,
     destination: Client,
+    staff,
     *,
     logger_prefix: str = "",
 ) -> dict[str, int]:
@@ -33,9 +34,12 @@ def reassign_client_fk_records(
 
     Returns a dict of per-model rowcounts, e.g. ``{"jobs": 3, ...}``.
 
-    Job records are iterated and saved so SimpleHistory entries are generated
-    (Job is the only affected model with an audit trail). All other tables
-    use bulk ``.update()``.
+    Job records are iterated and saved so JobEvents are generated. All other
+    tables use bulk ``.update()``.
+
+    Args:
+        staff: Staff to attribute the JobEvents to. Xero-sync callers should
+            pass ``Staff.get_automation_user()``.
 
     Raises:
         ValueError: if ``destination == source`` (the service refuses this
@@ -59,7 +63,7 @@ def reassign_client_fk_records(
             jobs_moved = 0
             for job in Job.objects.filter(client=source):
                 job.client = destination
-                job.save(update_fields=["client"])
+                job.save(staff=staff, update_fields=["client"])
                 jobs_moved += 1
 
             counts = {
