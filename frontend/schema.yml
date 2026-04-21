@@ -9198,6 +9198,10 @@ components:
           nullable: true
           description: Date Xero payroll went live — reconciliation ignores data before
             this
+        weekend_timesheets_enabled:
+          type: boolean
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off
+            = 5-day Mon-Fri.
         mon_start:
           type: string
           format: time
@@ -9558,6 +9562,10 @@ components:
           nullable: true
           description: Date Xero payroll went live — reconciliation ignores data before
             this
+        weekend_timesheets_enabled:
+          type: boolean
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off
+            = 5-day Mon-Fri.
         mon_start:
           type: string
           format: time
@@ -14312,6 +14320,10 @@ components:
           nullable: true
           description: Date Xero payroll went live — reconciliation ignores data before
             this
+        weekend_timesheets_enabled:
+          type: boolean
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off
+            = 5-day Mon-Fri.
         mon_start:
           type: string
           format: time
