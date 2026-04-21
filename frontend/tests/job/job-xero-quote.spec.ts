@@ -151,8 +151,6 @@ test.describe('job xero quote', () => {
     authenticatedPage: page,
     sharedEditJobUrl,
   }) => {
-    test.skip(true, 'to be refined')
-
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
 
     await page.goto(sharedEditJobUrl)
@@ -192,7 +190,6 @@ test.describe('job xero quote', () => {
         { timeout: 120000 },
       )
 
-      await page.pause()
       await page.getByRole('button', { name: 'Send Total Only' }).click()
       const response = await responsePromise
       if (!response.ok()) {
