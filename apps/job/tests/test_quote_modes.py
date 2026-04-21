@@ -155,6 +155,7 @@ class TestQuoteModeController(BaseTestCase):
         self.job = Job.objects.create(
             name="Test Job",
             client=self.client_obj,
+            staff=self.test_staff,
         )
 
     @patch("apps.job.services.quote_mode_controller.LLMService")
@@ -324,6 +325,7 @@ class TestSheetTenthsIntegration(BaseTestCase):
         self.job = Job.objects.create(
             name="Sheet Tenths Test Job",
             client=self.client_obj,
+            staff=self.test_staff,
         )
 
     @patch("apps.job.services.chat_service.ChatService.generate_mode_response")

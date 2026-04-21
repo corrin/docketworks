@@ -40,14 +40,18 @@ def _make_client():
     )
 
 
-def _make_job(client, name="Test Job", status="approved", min_people=1, max_people=1):
-    return Job.objects.create(
+def _make_job(
+    client, staff, name="Test Job", status="approved", min_people=1, max_people=1
+):
+    job = Job(
         client=client,
         name=name,
         status=status,
         min_people=min_people,
         max_people=max_people,
     )
+    job.save(staff=staff)
+    return job
 
 
 def _set_summary_hours(cost_set, hours):
@@ -67,7 +71,7 @@ class TestHoursComputation(BaseTestCase):
 
     def test_estimate_hours_used_when_present(self):
         """Job with estimate hours schedules; remaining = estimate - actual."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 10.0)
 
         run = run_workshop_schedule()
@@ -79,7 +83,7 @@ class TestHoursComputation(BaseTestCase):
 
     def test_quote_fallback_when_estimate_zero(self):
         """Job with zero estimate but valid quote schedules using quote hours."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 0.0)
         _set_summary_hours(job.latest_quote, 8.0)
 
@@ -90,7 +94,7 @@ class TestHoursComputation(BaseTestCase):
 
     def test_no_hours_unscheduled(self):
         """Job with no hours in estimate or quote is unscheduled."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         # Both estimate and quote have 0 hours by default
 
         run = run_workshop_schedule()
@@ -106,7 +110,7 @@ class TestHoursComputation(BaseTestCase):
         """Job where actual >= estimate is unscheduled (not actively allocated)."""
         from apps.workflow.models import XeroPayItem
 
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 5.0)
 
         # Add actual time lines totalling 5 hours so nothing remains
@@ -148,7 +152,7 @@ class TestStaffFiltering(BaseTestCase):
         office_staff = _make_staff("office", is_workshop=False)
         workshop_staff = _make_staff("shop")
 
-        job = _make_job(self.client_obj, min_people=1, max_people=1)
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -164,7 +168,7 @@ class TestStaffFiltering(BaseTestCase):
         """min_people > available staff count causes unscheduled with correct reason."""
         _make_staff("solo")  # only 1 workshop staff
 
-        job = _make_job(self.client_obj, min_people=5, max_people=5)
+        job = _make_job(self.client_obj, self.test_staff, min_people=5, max_people=5)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -188,7 +192,7 @@ class TestPeopleAssignment(BaseTestCase):
         _make_staff("w1")
         _make_staff("w2")
 
-        job = _make_job(self.client_obj, min_people=1, max_people=1)
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -210,7 +214,7 @@ class TestPeopleAssignment(BaseTestCase):
         _make_staff("w2")
         _make_staff("w3")
 
-        job = _make_job(self.client_obj, min_people=2, max_people=3)
+        job = _make_job(self.client_obj, self.test_staff, min_people=2, max_people=3)
         _set_summary_hours(job.latest_estimate, 16.0)
 
         run = run_workshop_schedule()
@@ -239,7 +243,7 @@ class TestAllocationBlocks(BaseTestCase):
 
     def test_anticipated_staff_populated(self):
         """Scheduled job has AllocationBlock records linking staff to the job."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -249,7 +253,7 @@ class TestAllocationBlocks(BaseTestCase):
 
     def test_allocation_blocks_persisted(self):
         """AllocationBlock records exist after a scheduler run."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -266,7 +270,7 @@ class TestDateCalculations(BaseTestCase):
 
     def test_start_date_is_first_allocation_day(self):
         """anticipated_start_date equals the earliest AllocationBlock date."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -281,7 +285,7 @@ class TestDateCalculations(BaseTestCase):
 
     def test_end_date_is_last_allocation_day(self):
         """anticipated_end_date equals the latest AllocationBlock date."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -296,7 +300,7 @@ class TestDateCalculations(BaseTestCase):
 
     def test_multi_day_job_carries_over(self):
         """Job with more hours than one day spans multiple working days."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         # 1 worker @ 8h/day, 24h of work needs at least 3 days
         _set_summary_hours(job.latest_estimate, 24.0)
 
@@ -308,7 +312,7 @@ class TestDateCalculations(BaseTestCase):
 
     def test_scheduled_job_has_both_dates(self):
         """Every scheduled projection has non-null start and end dates."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run = run_workshop_schedule()
@@ -330,16 +334,16 @@ class TestPriorityAndCapacity(BaseTestCase):
         """Higher priority job starts no later than lower priority job."""
         _make_staff("w1")
 
-        low_job = _make_job(self.client_obj, name="Low Priority")
-        high_job = _make_job(self.client_obj, name="High Priority")
+        low_job = _make_job(self.client_obj, self.test_staff, name="Low Priority")
+        high_job = _make_job(self.client_obj, self.test_staff, name="High Priority")
         _set_summary_hours(low_job.latest_estimate, 8.0)
         _set_summary_hours(high_job.latest_estimate, 8.0)
 
         # Set high_job to higher priority
         low_job.priority = 100.0
-        low_job.save()
+        low_job.save(staff=self.test_staff)
         high_job.priority = 200.0
-        high_job.save()
+        high_job.save(staff=self.test_staff)
 
         run = run_workshop_schedule()
 
@@ -356,17 +360,17 @@ class TestPriorityAndCapacity(BaseTestCase):
         """High-priority job consuming capacity delays lower-priority job actual work."""
         _make_staff("w1")  # single worker, 8h/day
 
-        high_job = _make_job(self.client_obj, name="High")
-        low_job = _make_job(self.client_obj, name="Low")
+        high_job = _make_job(self.client_obj, self.test_staff, name="High")
+        low_job = _make_job(self.client_obj, self.test_staff, name="Low")
 
         # High-priority job consumes more than one day
         _set_summary_hours(high_job.latest_estimate, 16.0)
         _set_summary_hours(low_job.latest_estimate, 8.0)
 
         high_job.priority = 500.0
-        high_job.save()
+        high_job.save(staff=self.test_staff)
         low_job.priority = 100.0
-        low_job.save()
+        low_job.save(staff=self.test_staff)
 
         run = run_workshop_schedule()
 
@@ -404,7 +408,7 @@ class TestJobModelUnchanged(BaseTestCase):
 
     def test_output_not_written_to_job(self):
         """After a run, Job model has no anticipated_start_date field."""
-        job = _make_job(self.client_obj)
+        job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)
 
         run_workshop_schedule()

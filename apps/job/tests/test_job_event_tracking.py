@@ -111,6 +111,38 @@ class JobEventTrackingTest(BaseTestCase):
         event = JobEvent.objects.filter(job=self.job).order_by("-timestamp").first()
         self.assertEqual(event.event_type, "quote_accepted")
 
+    def test_status_transition_to_completed_persists_completed_at(self):
+        self.assertIsNone(self.job.completed_at)
+
+        self.job.status = "recently_completed"
+        self.job.save(staff=self.user)
+
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.status, "recently_completed")
+        self.assertIsNotNone(self.job.completed_at)
+
+    def test_status_revert_clears_completed_at(self):
+        self.job.status = "recently_completed"
+        self.job.save(staff=self.user)
+        self.job.refresh_from_db()
+        self.assertIsNotNone(self.job.completed_at)
+
+        self.job.status = "in_progress"
+        self.job.save(staff=self.user)
+
+        self.job.refresh_from_db()
+        self.assertIsNone(self.job.completed_at)
+
+    def test_status_change_with_update_fields_persists_completed_at(self):
+        self.assertIsNone(self.job.completed_at)
+
+        self.job.status = "recently_completed"
+        self.job.save(staff=self.user, update_fields=["status", "updated_at"])
+
+        self.job.refresh_from_db()
+        self.assertEqual(self.job.status, "recently_completed")
+        self.assertIsNotNone(self.job.completed_at)
+
 
 class QuerySetGuardTest(BaseTestCase):
     """Verify that .update() on tracked fields is blocked."""

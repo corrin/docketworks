@@ -109,6 +109,7 @@ class QuotingToolTests(BaseTestCase):
             description="Test job description",
             client=self.client_obj,
             status="quoting",
+            staff=self.test_staff,
         )
 
         self.tool = QuotingTool()
@@ -320,6 +321,7 @@ class MCPToolIntegrationTests(BaseTestCase):
             name="Integration Test Job",
             client=self.client_obj,
             status="quoting",
+            staff=self.test_staff,
         )
 
     def test_tool_parameter_validation(self):

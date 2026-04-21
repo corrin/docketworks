@@ -44,6 +44,24 @@ class JobQuerySet(models.QuerySet):
     fields, use .untracked_update().
     """
 
+    def create(self, **kwargs):
+        """Create a Job, routing through save(staff=...) like every other path.
+
+        Job.save() requires staff, so Manager.create()'s default implementation
+        (which calls save() with no kwargs) would always raise. This override
+        pops the staff kwarg and threads it through.
+        """
+        if "staff" not in kwargs:
+            raise TypeError(
+                "Job.objects.create() requires staff=... "
+                "(routes through Job.save(staff=...))"
+            )
+        staff = kwargs.pop("staff")
+        obj = self.model(**kwargs)
+        self._for_write = True
+        obj.save(staff=staff, using=self.db)
+        return obj
+
     def update(self, **kwargs):
         tracked = set(kwargs.keys()) - Job.UNTRACKED_FIELDS
         if tracked:
@@ -625,16 +643,38 @@ class Job(models.Model):
                 # to prevent duplicate event creation between model and service layers
 
         else:
-            # Persist first, then create events atomically against the committed row.
-            # A failure in _create_change_events rolls the save back.
+            # Order matters:
+            #   1. Detect diff against the original row.
+            #   2. Apply side effects (may mutate self, e.g. completed_at).
+            #   3. Extend update_fields so side-effect mutations reach the DB.
+            #   4. Persist, then write the event atomically against the row.
+            (
+                changes_before,
+                changes_after,
+                detail_changes,
+                event_types,
+            ) = self._detect_field_changes(original_job, update_fields=update_fields)
+
+            if changes_before:
+                side_effect_fields = self._apply_change_side_effects(
+                    changes_before, changes_after
+                )
+                if side_effect_fields and kwargs.get("update_fields") is not None:
+                    kwargs["update_fields"] = list(
+                        set(kwargs["update_fields"]) | side_effect_fields
+                    )
+
             with transaction.atomic():
                 super(Job, self).save(*args, **kwargs)
-                self._create_change_events(
-                    original_job,
-                    staff,
-                    update_fields=update_fields,
-                    **enrichment,
-                )
+                if changes_before:
+                    self._record_change_event(
+                        changes_before,
+                        changes_after,
+                        detail_changes,
+                        event_types,
+                        staff,
+                        enrichment,
+                    )
 
     # ── Field change tracking ──────────────────────────────────────────
     #
@@ -642,10 +682,8 @@ class Job(models.Model):
     # Fields with custom description logic have handlers in _FIELD_HANDLERS.
     # Any tracked field without a handler gets a generic "X changed" event.
 
-    def _create_change_events(
-        self, original_job, staff, update_fields=None, **enrichment
-    ):
-        """Detect all field changes and create a single JobEvent.
+    def _detect_field_changes(self, original_job, update_fields=None):
+        """Return (changes_before, changes_after, detail_changes, event_types).
 
         When update_fields is passed to save(), only those fields are considered —
         in-memory mutations on other fields weren't persisted, so emitting events
@@ -698,13 +736,18 @@ class Job(models.Model):
                 )
                 event_types.append("job_updated")
 
-        if not changes_before:
-            return  # No tracked changes
+        return changes_before, changes_after, detail_changes, event_types
 
-        # Apply side effects (e.g. completed_at on status change)
-        self._apply_change_side_effects(changes_before, changes_after)
-
-        # Determine event type
+    def _record_change_event(
+        self,
+        changes_before,
+        changes_after,
+        detail_changes,
+        event_types,
+        staff,
+        enrichment,
+    ):
+        """Create the single JobEvent for a batch of detected field changes."""
         event_type = enrichment.pop("event_type_override", None)
         if not event_type:
             event_type = self._infer_event_type(event_types, changes_after)
@@ -723,7 +766,12 @@ class Job(models.Model):
         )
 
     def _apply_change_side_effects(self, changes_before, changes_after):
-        """Handle non-event side effects of field changes."""
+        """Mutate self for non-event side effects and return the fields touched.
+
+        Returned set is used to extend `update_fields` so the mutations reach
+        the DB when the caller restricted which fields to save.
+        """
+        mutated = set()
         if "status" in changes_after:
             new_status = changes_after["status"]
             # Set completed_at on first transition to a completed status
@@ -732,9 +780,14 @@ class Job(models.Model):
                 and not self.completed_at
             ):
                 self.completed_at = timezone.now()
+                mutated.add("completed_at")
             # Clear completed_at if moved back to a non-completed status
-            if new_status not in ("recently_completed", "archived"):
+            elif new_status not in ("recently_completed", "archived") and (
+                self.completed_at is not None
+            ):
                 self.completed_at = None
+                mutated.add("completed_at")
+        return mutated
 
     @staticmethod
     def _infer_event_type(event_types, changes_after):

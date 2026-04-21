@@ -51,6 +51,7 @@ class JobsAPIViewFilterTests(BaseTestCase):
             client=self.test_client,
             status=status,
             pricing_methodology=pricing_methodology,
+            staff=self.test_staff,
         )
         if completed_at is not None:
             # completed_at is auto-set only on status *changes*, not on initial

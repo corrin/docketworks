@@ -30,11 +30,12 @@ def _make_staff(email_suffix):
     )
 
 
-def _make_job(client, name="API Test Job", hours=8.0):
+def _make_job(client, staff, name="API Test Job", hours=8.0):
     job = Job.objects.create(
         client=client,
         name=name,
         status="approved",
+        staff=staff,
     )
     summary = job.latest_estimate.summary or {}
     summary["hours"] = hours
@@ -67,7 +68,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
 
     def test_get_returns_expected_shape(self):
         """GET returns 200 with days, jobs, and unscheduled_jobs keys."""
-        _make_job(self.client_obj)
+        _make_job(self.client_obj, self.test_staff)
         run_workshop_schedule()
 
         response = self.api_client.get(self.url)
@@ -79,7 +80,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
 
     def test_scheduled_job_has_dates(self):
         """Scheduled jobs include anticipated_start_date and anticipated_end_date."""
-        _make_job(self.client_obj)
+        _make_job(self.client_obj, self.test_staff)
         run_workshop_schedule()
 
         response = self.api_client.get(self.url)
@@ -92,7 +93,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
 
     def test_scheduled_job_has_people_fields(self):
         """Scheduled jobs include min_people, max_people, and assigned_staff."""
-        _make_job(self.client_obj)
+        _make_job(self.client_obj, self.test_staff)
         run_workshop_schedule()
 
         response = self.api_client.get(self.url)
@@ -110,6 +111,7 @@ class WorkshopScheduleGetTests(BaseAPITestCase):
             client=self.client_obj,
             name="No Hours Job",
             status="approved",
+            staff=self.test_staff,
         )
         run_workshop_schedule()
 
@@ -145,7 +147,7 @@ class WorkshopScheduleRecalculateTests(BaseAPITestCase):
 
     def test_post_recalculate_returns_same_shape(self):
         """POST to recalculate returns 200 with days, jobs, unscheduled_jobs."""
-        _make_job(self.client_obj)
+        _make_job(self.client_obj, self.test_staff)
 
         response = self.api_client.post(self.url)
         self.assertEqual(response.status_code, 200)

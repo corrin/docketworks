@@ -38,6 +38,7 @@ class EventDeduplicationTest(BaseTestCase):
             client=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
     def test_model_prevents_duplicate_manual_events(self):

@@ -32,6 +32,7 @@ class JobQuoteChatModelTests(BaseTestCase):
             description="Test job description",
             client=self.client,
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
     def test_message_id_uniqueness(self):

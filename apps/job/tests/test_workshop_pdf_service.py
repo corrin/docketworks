@@ -351,6 +351,7 @@ class DeliveryDocketPDFTests(BaseTestCase):
             client=self.client_obj,
             name="Test Delivery Job",
             description="Deliver some steel",
+            staff=self.test_staff,
         )
         # create_delivery_docket_pdf doesn't need workshop hours,
         # but add a minimal estimate so the job is well-formed

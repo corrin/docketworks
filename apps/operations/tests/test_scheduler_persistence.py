@@ -30,11 +30,12 @@ def _make_staff(email_suffix):
     )
 
 
-def _make_job(client, name="Persist Test Job"):
+def _make_job(client, staff, name="Persist Test Job"):
     job = Job.objects.create(
         client=client,
         name=name,
         status="approved",
+        staff=staff,
     )
     # Set estimate hours so the job gets scheduled
     summary = job.latest_estimate.summary or {}
@@ -53,7 +54,7 @@ class TestSchedulerRunRecord(BaseTestCase):
             xero_last_modified=timezone.now(),
         )
         _make_staff("p1")
-        _make_job(self.client_obj)
+        _make_job(self.client_obj, self.test_staff)
 
     def test_successful_run_creates_scheduler_run_record(self):
         """A successful run creates exactly one SchedulerRun record."""
@@ -80,7 +81,7 @@ class TestFailedRunPreservesData(BaseTestCase):
             xero_last_modified=timezone.now(),
         )
         _make_staff("p2")
-        _make_job(self.client_obj)
+        _make_job(self.client_obj, self.test_staff)
 
     def test_failed_run_preserves_last_successful(self):
         """After a failed run, the previously successful SchedulerRun still exists."""
@@ -137,11 +138,11 @@ class TestLatestForecastReadsNewestRun(BaseTestCase):
 
     def test_latest_forecast_from_latest_successful_run(self):
         """Two successful runs exist; the API reads data from the newer run."""
-        job1 = _make_job(self.client_obj, name="Job One")
+        job1 = _make_job(self.client_obj, self.test_staff, name="Job One")
         run_workshop_schedule()
 
         # Create a second job and run again
-        job2 = _make_job(self.client_obj, name="Job Two")
+        job2 = _make_job(self.client_obj, self.test_staff, name="Job Two")
         second_run = run_workshop_schedule()
 
         # The second run is newer and should be returned by the view

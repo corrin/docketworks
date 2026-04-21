@@ -25,11 +25,13 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
 
     def _create_job(self, pricing_methodology="time_materials"):
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
-        return Job.objects.create(
+        job = Job(
             client=self.client_obj,
             name="Test Job",
             pricing_methodology=pricing_methodology,
         )
+        job.save(staff=self.test_staff)
+        return job
 
     def _add_revenue_line(self, cost_set, revenue):
         """Add a CostLine with the given revenue to an existing CostSet."""
@@ -68,7 +70,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
         self._create_invoice(job, Decimal("1000.00"))
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertTrue(job.fully_invoiced)
@@ -79,7 +81,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
         self._create_invoice(job, Decimal("1200.00"))
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertTrue(job.fully_invoiced)
@@ -90,7 +92,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
         self._create_invoice(job, Decimal("500.00"))
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
@@ -104,7 +106,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         self._add_revenue_line(job.latest_quote, Decimal("1000.00"))
         self._create_invoice(job, Decimal("1000.00"))
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertTrue(job.fully_invoiced)
@@ -118,7 +120,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         # Invoiced matches actual (800) but is less than quote (1200)
         self._create_invoice(job, Decimal("800.00"))
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
@@ -129,11 +131,11 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
         # Clear the auto-created latest_quote
         job.latest_quote = None
-        job.save(update_fields=["latest_quote"])
+        job.save(staff=self.test_staff, update_fields=["latest_quote"])
 
         self._create_invoice(job, Decimal("1000.00"))
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertTrue(job.fully_invoiced)
@@ -145,7 +147,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job = self._create_job("time_materials")
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
@@ -156,7 +158,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
         self._create_invoice(job, Decimal("1000.00"), status="VOIDED")
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
@@ -167,7 +169,7 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
         self._create_invoice(job, Decimal("1000.00"), status="DELETED")
 
-        recalculate_job_invoicing_state(str(job.id))
+        recalculate_job_invoicing_state(str(job.id), self.test_staff)
 
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)

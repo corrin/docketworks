@@ -62,6 +62,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
             client=self.client,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
         self.ai_provider = AIProvider.objects.create(
@@ -111,6 +112,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
                 client=self.client,
                 status="quoting",
                 default_xero_pay_item=self.xero_pay_item,
+                staff=self.test_staff,
             )
             jobs.append(job)
 
