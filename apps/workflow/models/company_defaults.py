@@ -295,6 +295,12 @@ class CompanyDefaults(SingletonModel):
     class Meta:
         verbose_name = "Company Defaults"
         verbose_name_plural = "Company Defaults"
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(id=1),
+                name="companydefaults_singleton",
+            ),
+        ]
 
     def save(self, *args, **kwargs):
         # Check if annual_leave_loading changed - if so, recompute all staff wage_rates
