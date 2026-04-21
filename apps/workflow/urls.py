@@ -23,6 +23,7 @@ from apps.workflow.views.app_error_view import (
     AppErrorRestListView,
     AppErrorViewSet,
 )
+from apps.workflow.views.build_id_view import BuildIdAPIView
 from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
@@ -39,6 +40,7 @@ router.register("app-errors", AppErrorViewSet, basename="app-error")
 router.register("xero-pay-items", XeroPayItemViewSet, basename="xero-pay-item")
 
 urlpatterns = [
+    path("build-id/", BuildIdAPIView.as_view(), name="build_id"),
     path("enums/<str:enum_name>/", get_enum_choices, name="get_enum_choices"),
     path(
         "xero/authenticate/",

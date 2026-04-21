@@ -1035,6 +1035,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/GroupedErrorResolveResponse'
           description: ''
+  /api/build-id/:
+    get:
+      operationId: build_id_retrieve
+      description: Return the git SHA of the running backend process.
+      tags:
+        - build-id
+      security:
+        - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildId'
+          description: ''
   /api/clients/{client_id}/:
     get:
       operationId: clients_retrieve
@@ -8542,6 +8557,13 @@ components:
         - field
         - model
         - record_id
+    BuildId:
+      type: object
+      properties:
+        build_id:
+          type: string
+      required:
+        - build_id
     BusinessRuleViolation:
       type: object
       description: Details of a business rule violation.

@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 from datetime import timedelta
 from pathlib import Path
 
@@ -12,6 +13,17 @@ from apps.workflow.api.xero.constants import XERO_SCOPES as DEFAULT_XERO_SCOPES_
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env", override=False)
+
+# Git SHA of the running process. Served by /api/build-id/ so the frontend can
+# detect when a deploy has happened and force a reload. Captured at import
+# time: gunicorn restart on deploy re-imports and picks up the new SHA.
+BUILD_ID = subprocess.run(
+    ["git", "rev-parse", "HEAD"],
+    cwd=BASE_DIR,
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
 
 
 def validate_required_settings() -> None:
@@ -241,6 +253,7 @@ LOGIN_EXEMPT_URLS = [
     "accounts:token_obtain_pair",
     "accounts:token_refresh",
     "accounts:token_verify",
+    "build_id",
 ]
 
 # API path prefixes - single source of truth for middlewares

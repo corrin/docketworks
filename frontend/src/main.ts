@@ -62,4 +62,7 @@ setupPoReloadManager({
 
 // Note: Delivery receipts use the same PO reload manager as purchase orders
 
+import { startVersionCheck } from './composables/useVersionCheck'
+startVersionCheck()
+
 app.mount('#app')

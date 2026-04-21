@@ -501,6 +501,7 @@ const GroupedErrorResolveRequestRequest = z.object({
     .regex(/^[0-9a-f]{64}$/),
 })
 const GroupedErrorResolveResponse = z.object({ updated: z.number().int() })
+const BuildId = z.object({ build_id: z.string() })
 const ClientDetailResponse = z.object({
   id: z.string(),
   name: z.string(),
@@ -2981,6 +2982,7 @@ export const schemas = {
   GroupedAppErrorListResponse,
   GroupedErrorResolveRequestRequest,
   GroupedErrorResolveResponse,
+  BuildId,
   ClientDetailResponse,
   ClientErrorResponse,
   ClientJobHeader,
@@ -4013,6 +4015,14 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
       },
     ],
     response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'get',
+    path: '/api/build-id/',
+    alias: 'build_id_retrieve',
+    description: `Return the git SHA of the running backend process.`,
+    requestFormat: 'json',
+    response: z.object({ build_id: z.string() }),
   },
   {
     method: 'get',

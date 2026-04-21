@@ -11,6 +11,11 @@
 | `/app-errors/grouped/mark_resolved/` | `app_error_grouped_view.AppErrorGroupedMarkResolvedView` | `app-error-grouped-mark-resolved` | No description available |
 | `/app-errors/grouped/mark_unresolved/` | `app_error_grouped_view.AppErrorGroupedMarkUnresolvedView` | `app-error-grouped-mark-unresolved` | No description available |
 
+### Build-Id Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/build-id/` | `build_id_view.BuildIdAPIView` | `build_id` | Return the git SHA of the running backend process. |
+
 ### Company-Defaults Management
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|

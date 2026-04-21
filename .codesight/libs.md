@@ -699,6 +699,7 @@
 - `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
 - `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
+- `frontend/src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
 - `frontend/src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
 - `frontend/src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
