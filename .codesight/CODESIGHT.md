@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 92 routes | 43 models | 181 components | 358 lib files | 69 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,700 tokens. Without it, AI exploration would cost ~236,700 tokens. **Saves ~206,900 tokens per conversation.**
+> 91 routes | 43 models | 181 components | 361 lib files | 69 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,900 tokens. Without it, AI exploration would cost ~236,900 tokens. **Saves ~207,100 tokens per conversation.**
 
 ---
 
@@ -58,7 +58,6 @@
 - `ALL` `/payroll/pay-runs/` params()
 - `ALL` `/payroll/post-staff-week/` params()
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
-- `ALL` `/build-id/` params() [auth, payment, upload]
 - `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
 - `ALL` `/xero/authenticate/` params() [auth, payment, upload]
 - `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
@@ -277,13 +276,14 @@
 - timestamp: timestamp (default)
 - staff_id: integer (fk)
 - event_type: string (default)
-- description: string
+- description: string (default)
 - schema_version: integer (default)
 - change_id: uuid (nullable)
 - delta_before: json (nullable)
 - delta_after: json (nullable)
 - delta_meta: json (nullable)
 - delta_checksum: string (default)
+- detail: json (default)
 - dedup_hash: string (nullable)
 - _relations_: job: one(Job), staff: one(Staff)
 
@@ -999,7 +999,18 @@
   - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
   - function parse_xlsx_old: (path) -> list[DraftLine]
   - _...7 more_
+- `apps/job/management/commands/_history_enrichment_utils.py`
+  - function get_client_names: () -> dict
+  - function get_contact_names: () -> dict
+  - function safe_value: (value)
+  - function display_value: (field_name, raw_value) -> str
+  - function walk_history_pairs: (job_id, HistoricalJob)
+  - function get_first_history_record: (job_id, HistoricalJob)
+  - _...4 more_
 - `apps/job/management/commands/create_shop_jobs.py` — class Command
+- `apps/job/management/commands/jobevent_diagnostic.py` — class Command
+- `apps/job/management/commands/jobevent_enrich_from_history.py` — class Command
+- `apps/job/management/commands/jobevent_match_history.py` — class Command
 - `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
 - `apps/job/management/commands/test_gemini_chat.py` — class Command
 - `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
@@ -1008,7 +1019,7 @@
   - class CostSet
   - class CostLine
 - `apps/job/models/costline_validators.py` — function validate_costline_meta: (meta, Any] | None, kind) -> None, function validate_costline_ext_refs: (ext_refs, Any] | None) -> None
-- `apps/job/models/job.py` — class Job
+- `apps/job/models/job.py` — class JobQuerySet, class Job
 - `apps/job/models/job_delta_rejection.py` — class JobDeltaRejection
 - `apps/job/models/job_event.py` — class JobEvent
 - `apps/job/models/job_file.py` — class JobFile
@@ -1110,7 +1121,7 @@
   - class JobRestService
 - `apps/job/services/job_service.py`
   - function get_paid_complete_jobs: ()
-  - function archive_complete_jobs: (job_ids)
+  - function archive_complete_jobs: (job_ids, staff)
   - function get_job_total_value: (job) -> Decimal
   - function recalculate_job_invoicing_state: (job_id) -> None
   - class JobStaffService
@@ -1569,7 +1580,6 @@
 - `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
 - `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
-- `frontend/src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
 - `frontend/src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
 - `frontend/src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
@@ -2036,7 +2046,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 109 test files found
+> 110 test files found
 
 ## Covered Routes
 

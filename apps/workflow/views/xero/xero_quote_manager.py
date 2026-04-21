@@ -198,7 +198,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="quote_created",
-                    description="Quote created",
+                    detail={"xero_quote_number": result.number},
                 )
             except Exception as exc:
                 persist_app_error(exc)
@@ -253,6 +253,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 }
 
             local_quote_id = self.job.quote.id
+            quote_number = self.job.quote.number
             self.job.quote.delete()
             logger.info(
                 f"Quote {local_quote_id} deleted successfully for job {self.job.id}"
@@ -268,7 +269,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="quote_deleted",
-                    description="Quote deleted",
+                    detail={"xero_quote_number": quote_number},
                 )
             except Exception as exc:
                 persist_app_error(exc)

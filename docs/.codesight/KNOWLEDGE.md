@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 152 notes · 14 decisions · 10 open questions · 2026-02-24 → 2026-04-20
+> 155 notes · 14 decisions · 10 open questions · 2026-02-24 → 2026-04-21
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-20 (152 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-21 (155 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
 ## Key Decisions (14)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
@@ -35,7 +35,7 @@
 verification · tips · alternatives considered · what youll need · steps · what happens next · files to modify · troubleshooting · purpose · prerequisites · design · approach
 
 ## People
-@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @staticmethod · @property · @github · @bairdandwhyte · @vue · @deprecated
+@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @staticmethod · @property · @github · @bairdandwhyte · @vue
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -45,7 +45,7 @@ verification · tips · alternatives considered · what youll need · steps · w
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (152)
+## Note Index (155)
 
 ### Decision Records (12)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
@@ -91,7 +91,9 @@ verification · tips · alternatives considered · what youll need · steps · w
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (118)
+### General Notes (121)
+- `docs/plans/2026-04-21-deploy-preserve-multi-fqdn-server-name.md` — 2026-04-21 — PR #216 (merged) added a nginx config re-render step to `scripts/server/deploy.sh` so template edits reach live servers on every deploy. The re-render extracts …
+- `docs/plans/2026-04-21-merge-pr-142-jobevent.md` — 2026-04-21 — PR #142 (`feat/jobevent-structured-audit`) migrates the job audit trail from `django-simple-history`'s `HistoricalJob` to a structured `JobEvent` model with aut…
 - `docs/plans/2026-04-20-xero-merge-reassign-fks.md` — 2026-04-20 — When Xero merges client A into client B, our sync correctly sets `A.merged_into = B`, but every FK-holding record (Jobs, Invoices, Bills, CreditNotes, Quotes, P…
 - `docs/plans/2026-04-19-admin-errors-dedup-plan.md` — 2026-04-19 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-04-19-fix-xero-client-creation-500.md` — 2026-04-19 — Creating a client via `POST /clients/` returns 500. The Xero contact is created successfully, but response serialization rejects `xero_contact_id` because it co…
@@ -102,17 +104,15 @@ verification · tips · alternatives considered · what youll need · steps · w
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
 - `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
 - `docs/plans/2026-04-12-delivery-receipt-code-review.md` — 2026-04-12 — Reviewing `delivery_receipt_service.py` (431 lines) against the project's defensive programming philosophy: fail early, handle unhappy cases first, no fallbacks…
+- `docs/plans/2026-04-12-jobevent-migration-pr-design.md` — 2026-04-12 — The Job model uses both django-simple-history (`HistoricalJob`) and a custom `JobEvent` model for audit trails. HistoricalJob creates automatic snapshots on eve…
+- `docs/plans/2026-04-12-jobevent-migration-pr.md` — 2026-04-12 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-04-10-seed-invoices-to-xero.md` — 2026-04-10 — When restoring a production database to dev, Invoice records come with `xero_id` values pointing at prod's Xero tenant. The `xero_id` field is NOT NULL, so we c…
 - `docs/plans/2026-04-10-xero-account-backup-cleanup.md` — 2026-04-10 — Restoring a production backup fails at Step 5 (`loaddata`) because the backup excludes `workflow.XeroAccount` but includes line items that FK to it. A separate …
 - `docs/plans/2026-04-09-wip-report-script.md` — 2026-04-09 — A WIP (Work In Progress) report was prototyped directly in production as a CLI script. The business logic works — it calculates uninvoiced value on active jobs …
 - `docs/plans/2026-03-31-scheduler-service-per-instance.md` — 2026-03-31 — Each docketworks instance needs a running APScheduler process for Xero sync, auto-archiving, scraper jobs, etc. Currently there is no systemd service for the sc…
 - `docs/plans/2026-03-31-scheduler-service-plan.md` — 2026-03-31 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-03-29-finalize-restore-doc.md` — 2026-03-29 — The restore process is the same on dev and UAT. The restore doc should be environment-agnostic: assume venv active, .env loaded, in the project root (which is `…
-- `docs/plans/2026-03-28-debranding-and-stale-docs.md` — 2026-03-28 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
-- `frontend/docs/plans/2026-03-05-backend-requirements-process-documents.md` — 2026-03-05 — **Context:** The frontend needs these API changes to build the Process Documents UI. The ProcessDocument and ProcessDocumentEntry models already exist. Some end…
-- `frontend/docs/plans/2026-03-05-process-documents-implementation.md` — 2026-03-05 — **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-- `docs/plans/2026-03-03-process-documents-plan.md` — 2026-03-03 — **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-- _…and 98 more_
+- _…and 101 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

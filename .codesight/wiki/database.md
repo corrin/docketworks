@@ -214,13 +214,14 @@ pk: `id` (uuid) · fk: job_id, staff_id
 - `timestamp`: timestamp _(default)_
 - `staff_id`: integer _(fk)_
 - `event_type`: string _(default)_
-- `description`: string
+- `description`: string _(default)_
 - `schema_version`: integer _(default)_
 - `change_id`: uuid _(nullable)_
 - `delta_before`: json _(nullable)_
 - `delta_after`: json _(nullable)_
 - `delta_meta`: json _(nullable)_
 - `delta_checksum`: string _(default)_
+- `detail`: json _(default)_
 - `dedup_hash`: string _(nullable)_
 - _relations_: job: one(Job), staff: one(Staff)
 

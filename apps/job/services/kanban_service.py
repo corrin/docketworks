@@ -167,13 +167,14 @@ class KanbanService:
         }
 
     @staticmethod
-    def update_job_status(job_id: UUID, new_status: str) -> bool:
+    def update_job_status(job_id: UUID, new_status: str, staff=None) -> bool:
         """
         Update job status.
 
         Args:
             job_id: UUID of the job to update
             new_status: New status value
+            staff: Staff member making the change
 
         Returns:
             True if successful, False otherwise
@@ -185,7 +186,7 @@ class KanbanService:
             job = Job.objects.get(pk=job_id)
             job.status = new_status
             job.priority = Job._calculate_next_priority_for_status(new_status)
-            job.save(update_fields=["status", "priority", "updated_at"])
+            job.save(staff=staff, update_fields=["status", "priority", "updated_at"])
             return True
         except Job.DoesNotExist:
             logger.error(f"Job {job_id} not found for status update")
@@ -294,6 +295,7 @@ class KanbanService:
         before_id: Optional[str] = None,
         after_id: Optional[str] = None,
         new_status: Optional[str] = None,
+        staff=None,
     ) -> bool:
         """
         Reorder a job within or between columns.
@@ -354,7 +356,7 @@ class KanbanService:
             )
 
         update_fields.append("updated_at")
-        job.save(update_fields=update_fields)
+        job.save(staff=staff, update_fields=update_fields)
         logger.info(f"Job {job.job_number} reordering completed successfully")
         return True
 

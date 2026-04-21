@@ -11,7 +11,6 @@ Handles:
 import logging
 
 from django.db import transaction
-from django.utils import timezone
 
 from apps.job.models import Job, JobEvent
 from apps.process.models import Procedure
@@ -62,11 +61,10 @@ class ProcedureService:
             JobEvent.objects.create(
                 job=job,
                 event_type="jsa_generated",
-                description=f"JSA generated: {jsa.title}",
-                delta_meta={
+                detail={
+                    "jsa_title": jsa.title,
                     "jsa_id": str(jsa.id),
                     "google_doc_url": doc_result.edit_url,
-                    "generated_at": timezone.now().isoformat(),
                 },
             )
 

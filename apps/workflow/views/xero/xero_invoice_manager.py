@@ -239,7 +239,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="invoice_created",
-                    description=f"Invoice {invoice.number} created",
+                    detail={"xero_invoice_number": invoice.number},
                 )
             except Exception as exc:
                 persist_app_error(exc)
@@ -290,6 +290,8 @@ class XeroInvoiceManager(XeroDocumentManager):
                     "status": result.status_code or 400,
                 }
 
+            invoice_to_delete = Invoice.objects.filter(xero_id=xero_id).first()
+            invoice_number = invoice_to_delete.number if invoice_to_delete else None
             deleted_count = Invoice.objects.filter(xero_id=xero_id).delete()[0]
             logger.info(
                 f"Invoice {xero_id} deleted and {deleted_count} local record(s) removed."
@@ -303,7 +305,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="invoice_deleted",
-                    description="Invoice deleted",
+                    detail={"xero_invoice_number": invoice_number},
                 )
             except Exception as exc:
                 persist_app_error(exc)
