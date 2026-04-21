@@ -1,9 +1,9 @@
 # Knowledge Map — docketworks
-> 155 notes · 14 decisions · 10 open questions · 2026-02-24 → 2026-04-21
+> 156 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-21
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-21 (155 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-21 (156 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
-## Key Decisions (14)
+## Key Decisions (15)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
 - Two layers. An **identity layer** (non-blocking) that reads either cookies (always) or, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, a short-lived HS256 bearer signed with `DEV_JWT_SECRET` — on failure it does nothing, remaining anonymous. A **global gate** (blocking) that runs on every request: if not authenticated and the path is not in `AUTH_ANON_ALLOWLIST`, return `401 JSON` for `/api/**` or `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
 - GET endpoints return an `ETag` header derived from `updated_at` (plus the primary key for delivery-receipt endpoints). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs — add event, accept quote, process delivery receipt) require `If-Match` with the latest ETag. Missing header → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so the comparison and the write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS is configured to expose `ETag` and allow `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
@@ -17,6 +17,7 @@
 - Commit codesight output to git and regenerate it via pre-commit. Two hooks in `.pre-commit-config.yaml`: one runs `npx codesight --wiki` and stages `.codesight/`; the other runs `npx codesight --mode knowledge -o docs/.codesight` and stages `docs/.codesight/`. Always use `--wiki` (makes it the default via `codesight.config.json`) because the CLAUDE.md flow reads targeted ~200–300-token articles, not the monolithic `CODESIGHT.md`. Drop the separate `frontend/.codesight/` scan — the root scan already picks up 181 frontend components, so a second scan duplicates work and creates two sources of truth; gitignore `frontend/.codesight/` to prevent accidental commit. `.codesightignore` excludes generated files (`frontend/schema.yml`, `frontend/src/api/generated/`), build artifacts, and `docs/.codesight/` (which has its own scan).
 - Strategy pattern, registry-resolved at request time: `apps/workflow/accounting/provider.py` defines `AccountingProvider` (Protocol) covering auth, contacts, documents, sync-pull, and optional capability flags (`supports_projects`, `supports_payroll`). `apps/workflow/accounting/registry.py` exposes `get_provider()`, which reads `settings.ACCOUNTING_BACKEND` (default `"xero"`) and returns the active instance. `apps/workflow/accounting/types.py` defines provider-agnostic payload dataclasses (`InvoicePayload`, `QuotePayload`, `POPayload`, `DocumentResult`) so `xero_python` types stay inside the Xero provider. Keep all existing `xero_*` model fields — they have data and migrations; MYOB installations simply leave them null. Add `CompanyDefaults.accounting_provider` to track which backend is active. Phase the rollout: (1) interface + thin Xero wrapper over existing code, (2) document managers build generic payloads, (3) client service calls `get_provider()`, (4) sync layer becomes provider-agnostic, (5) build MYOB provider.
 - What we chose, stated as an imperative. One paragraph.
+- [2026-04-20] hold onto the old HTML
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
 ## Open Questions (10)
@@ -35,7 +36,7 @@
 verification · tips · alternatives considered · what youll need · steps · what happens next · files to modify · troubleshooting · purpose · prerequisites · design · approach
 
 ## People
-@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @staticmethod · @property · @github · @bairdandwhyte · @vue
+@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @api_view · @permission_classes · @staticmethod · @property · @github
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -45,7 +46,7 @@ verification · tips · alternatives considered · what youll need · steps · w
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (155)
+## Note Index (156)
 
 ### Decision Records (12)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
@@ -91,9 +92,10 @@ verification · tips · alternatives considered · what youll need · steps · w
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (121)
-- `docs/plans/2026-04-21-deploy-preserve-multi-fqdn-server-name.md` — 2026-04-21 — PR #216 (merged) added a nginx config re-render step to `scripts/server/deploy.sh` so template edits reach live servers on every deploy. The re-render extracts …
+### General Notes (122)
+- `docs/plans/2026-04-21-jobevent-staff-required.md` — 2026-04-21 — PR #218 introduces `Job.save(staff=user)` auto-audit. Copilot review surfaced four callsites that pass no staff (model logs ERROR and proceeds with `staff=None`…
 - `docs/plans/2026-04-21-merge-pr-142-jobevent.md` — 2026-04-21 — PR #142 (`feat/jobevent-structured-audit`) migrates the job audit trail from `django-simple-history`'s `HistoricalJob` to a structured `JobEvent` model with aut…
+- `docs/plans/2026-04-20-detect-new-app-version.md` — 2026-04-20 — After a deploy, users with open tabs continue running the old JS against the new API. Breaking schema changes then surface as Zod parse errors until the user do…
 - `docs/plans/2026-04-20-xero-merge-reassign-fks.md` — 2026-04-20 — When Xero merges client A into client B, our sync correctly sets `A.merged_into = B`, but every FK-holding record (Jobs, Invoices, Bills, CreditNotes, Quotes, P…
 - `docs/plans/2026-04-19-admin-errors-dedup-plan.md` — 2026-04-19 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-04-19-fix-xero-client-creation-500.md` — 2026-04-19 — Creating a client via `POST /clients/` returns 500. The Xero contact is created successfully, but response serialization rejects `xero_contact_id` because it co…
@@ -111,8 +113,7 @@ verification · tips · alternatives considered · what youll need · steps · w
 - `docs/plans/2026-04-09-wip-report-script.md` — 2026-04-09 — A WIP (Work In Progress) report was prototyped directly in production as a CLI script. The business logic works — it calculates uninvoiced value on active jobs …
 - `docs/plans/2026-03-31-scheduler-service-per-instance.md` — 2026-03-31 — Each docketworks instance needs a running APScheduler process for Xero sync, auto-archiving, scraper jobs, etc. Currently there is no systemd service for the sc…
 - `docs/plans/2026-03-31-scheduler-service-plan.md` — 2026-03-31 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
-- `docs/plans/2026-03-29-finalize-restore-doc.md` — 2026-03-29 — The restore process is the same on dev and UAT. The restore doc should be environment-agnostic: assume venv active, .env loaded, in the project root (which is `…
-- _…and 101 more_
+- _…and 102 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

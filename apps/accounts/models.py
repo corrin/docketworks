@@ -216,6 +216,31 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def is_staff_manager(self) -> bool:
         return self.groups.filter(name="StaffManager").exists() or self.is_superuser
 
+    @classmethod
+    def get_automation_user(cls) -> "Staff":
+        """Return the senior admin to attribute automation-triggered actions to.
+
+        Used when a save is initiated by a background job, webhook, data
+        migration, or management command — anywhere a specific human staff
+        member isn't on the call stack. Picks the oldest still-active
+        superuser on the install; raises if none exists.
+        """
+        user = (
+            cls.objects.filter(is_superuser=True)
+            .filter(
+                models.Q(date_left__isnull=True)
+                | models.Q(date_left__gt=timezone.now().date())
+            )
+            .order_by("date_joined")
+            .first()
+        )
+        if user is None:
+            raise RuntimeError(
+                "No active superuser exists; cannot attribute automation event. "
+                "Promote a Staff to superuser before running this operation."
+            )
+        return user
+
     @property
     def is_currently_active(self) -> bool:
         """Check if staff member is currently active"""
