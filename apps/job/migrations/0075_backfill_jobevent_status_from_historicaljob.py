@@ -104,6 +104,7 @@ def backfill_events_from_history(apps, schema_editor):
                 description="Job created (backfilled from history)",
                 timestamp=first.history_date,
                 delta_after=initial_delta,
+                staff_id=first.history_user_id,
             )
             created_count += 1
 
@@ -158,6 +159,7 @@ def backfill_events_from_history(apps, schema_editor):
                         timestamp=rec.history_date,
                         delta_before={field: safe_old},
                         delta_after={field: safe_new},
+                        staff_id=rec.history_user_id,
                     )
                     created_count += 1
 
