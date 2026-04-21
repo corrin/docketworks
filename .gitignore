@@ -78,6 +78,7 @@ ipython_config.py
 .claude/*
 !.claude/settings.json
 !.claude/skills/
+.claude.json
 
 # Home-directory state (instance dir doubles as the service user's $HOME on servers)
 .bash_history
@@ -132,6 +133,7 @@ ipython_config.py
 .azure/
 .codex/
 .anthropic/
+.pki/
 
 # Environments
 .env
@@ -212,7 +214,10 @@ TestDropbox/
 staff_name_mapping.json
 
 # Frontend
-node_modules/
+# No trailing slash: matches directories AND symlinks (UAT/prod point frontend/node_modules
+# at a shared node_modules/ directory via symlink, which `node_modules/` with a trailing
+# slash would not match).
+node_modules
 dist-ssr/
 coverage/
 *.local
