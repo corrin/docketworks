@@ -4,7 +4,7 @@ from datetime import date, datetime
 from typing import Dict, List, Optional
 
 from django.db import models, transaction
-from django.db.models import Index, Max, Min, Q
+from django.db.models import Index, Max, Min
 from django.utils import timezone
 from simple_history.models import HistoricalRecords
 
@@ -289,14 +289,6 @@ class Job(models.Model):
         ordering = ["-priority", "-created_at"]
         indexes = [
             Index(fields=["status", "priority"], name="job_priority_status_idx"),
-            # Supports timesheet job picker: surfaces archived fixed-price jobs
-            # within a short window after archival. Partial on archived +
-            # fixed_price keeps the index tiny regardless of archive size.
-            Index(
-                fields=["completed_at"],
-                name="job_recent_archived_fp_idx",
-                condition=Q(status="archived", pricing_methodology="fixed_price"),
-            ),
         ]
 
     @classmethod
