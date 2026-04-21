@@ -21,22 +21,20 @@ class JobFileSerializer(serializers.ModelSerializer):
         return obj.size
 
     def get_download_url(self, obj: JobFile) -> str:
-        request = self.context["request"]
-        # Use the new REST endpoint: /rest/jobs/{job_id}/files/{file_id}/
-        path = reverse(
+        # Relative path so the browser resolves it against the SPA's origin and
+        # sends the host-only auth cookie. An absolute URL built from Django's
+        # Host header can point to a different origin (the upstream host behind
+        # the Vite dev proxy / nginx), which silently drops the cookie.
+        return reverse(
             "jobs:job_file_detail", kwargs={"job_id": obj.job.id, "file_id": obj.id}
         )
-        return request.build_absolute_uri(path)
 
     def get_thumbnail_url(self, obj: JobFile) -> str | None:
         if not obj.thumbnail_path:
             return None
-        request = self.context["request"]
-        # Use the new REST endpoint: /rest/jobs/{job_id}/files/{file_id}/thumbnail/
-        path = reverse(
+        return reverse(
             "jobs:job_file_thumbnail", kwargs={"job_id": obj.job.id, "file_id": obj.id}
         )
-        return request.build_absolute_uri(path)
 
 
 class UploadedFileSerializer(serializers.Serializer):
