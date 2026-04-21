@@ -11,6 +11,9 @@ function readFrontendBuildId(): string {
 
 async function checkBuild(): Promise<void> {
   const { build_id } = await api.build_id_retrieve()
+  // Backend emits this exact sentinel when SKIP_VERSION_CHECK is on.
+  // Real SHAs are 40 hex chars so this cannot collide.
+  if (build_id === 'BUILD_ID_DISABLED') return
   if (build_id === readFrontendBuildId()) return
 
   const url = new URL(window.location.href)

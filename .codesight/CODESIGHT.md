@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 92 routes | 43 models | 181 components | 362 lib files | 69 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,900 tokens. Without it, AI exploration would cost ~237,700 tokens. **Saves ~207,800 tokens per conversation.**
+> 92 routes | 43 models | 181 components | 362 lib files | 70 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,900 tokens. Without it, AI exploration would cost ~237,800 tokens. **Saves ~207,900 tokens per conversation.**
 
 ---
 
@@ -1953,6 +1953,7 @@
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
 - `SECRET_KEY` (has default) — .env.example
+- `SKIP_VERSION_CHECK` (has default) — .env.example
 - `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py
 - `STEEL_TUBE_ENABLED` (has default) — .env
 - `STEEL_TUBE_PASSWORD` (has default) — .env.example
