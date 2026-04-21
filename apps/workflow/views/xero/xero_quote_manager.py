@@ -108,7 +108,9 @@ class XeroQuoteManager(XeroDocumentManager):
 
             return [
                 DocumentLineItem(
-                    description=sanitize_for_xero(self.job.description),
+                    description=sanitize_for_xero(
+                        self.job.description or self.job.name
+                    ),
                     quantity=Decimal("1"),
                     unit_amount=total_amount,
                     account_code=self._get_account_code(),
