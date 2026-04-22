@@ -561,6 +561,7 @@
   - class AccessLoggingMiddleware
   - class FrontendRedirectMiddleware
   - class LoginRequiredMiddleware
+  - class E2ECacheBypassMiddleware
   - class PasswordStrengthMiddleware
 - `apps/workflow/models/ai_provider.py` — class AIProvider
 - `apps/workflow/models/app_error.py` — class AppError, class XeroError

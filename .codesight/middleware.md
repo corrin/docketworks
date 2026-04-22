@@ -8,6 +8,7 @@
 - auth — `frontend/tests/fixtures/auth.ts`
 
 ## custom
+- test_e2e_cache_bypass_middleware — `apps/workflow/tests/test_e2e_cache_bypass_middleware.py`
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
 - migrate_to_snapshot — `scripts/migrate_to_snapshot.py`

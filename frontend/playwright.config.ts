@@ -38,6 +38,9 @@ export default defineConfig({
     screenshot: 'only-on-failure',
     actionTimeout: 30000,
     navigationTimeout: 60000,
+    extraHTTPHeaders: {
+      'X-E2E-Cache-Bypass': '1',
+    },
   },
 
   // Increase test timeout to 60 seconds for operations that involve backend API calls
