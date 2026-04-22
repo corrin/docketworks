@@ -30,7 +30,8 @@ This process runs unattended on server instances with no user interaction. Any w
   scp prod-server:/tmp/prod_backup_YYYYMMDD_HHMMSS_complete.zip restore/
   cd restore && unzip prod_backup_YYYYMMDD_HHMMSS_complete.zip && cd ..
   ```
-  You should have `restore/prod_backup_YYYYMMDD_HHMMSS.json.gz` and `restore/prod_backup_YYYYMMDD_HHMMSS.schema.sql`.
+  You should have three files: `restore/prod_backup_YYYYMMDD_HHMMSS.json.gz`, `restore/prod_backup_YYYYMMDD_HHMMSS.schema.sql`, and `restore/prod_backup_YYYYMMDD_HHMMSS.migrations.json`.
+- The zip must contain `prod_backup_YYYYMMDD_HHMMSS.migrations.json`. Zips produced before 2026-04-22 predate this requirement — produce a fresh backup on prod before running this runbook.
 
 ---
 
@@ -70,35 +71,25 @@ python manage.py dbshell -- -c "\dt"
 # Should return: Did not find any relations.
 ```
 
-#### Step 3: Apply Django Migrations
+#### Step 3: Apply Migrations to Prod's Recorded State
+
+`loaddata` (Step 5) expects the schema that was live on prod when the backup was taken, not dev HEAD. The migrations snapshot shipped in the zip records prod's per-app migration state; apply it before loading data so any constraining dev-ahead migration (`NOT NULL` after a backfill, etc.) runs against real prod rows in Step 6 rather than empty tables.
 
 ```bash
-python manage.py migrate
+python scripts/migrate_to_snapshot.py restore/prod_backup_YYYYMMDD_HHMMSS.migrations.json
 ```
+
+The script computes `{app: latest_name}` from the snapshot, calls `manage.py migrate <app> <name>` for each pair, then verifies `django_migrations` matches the snapshot row-for-row. It fails loudly on any mismatch.
 
 **Check:**
 
 ```bash
 PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "\dt" | wc -l
 # Should show 50+ tables
-```
 
-**TEMPORARY HACK — REMOVE BY 2026-05-01, or immediately once the `feat/jobevent-audit` PR is deployed to prod and the next prod backup has been taken from post-0079 data.**
-
-Rewind the `job` app to before the JobEvent.staff_id backfill/NOT-NULL pair. `0078` backfills `JobEvent.staff_id` from `job_historicaljob` and deletes unattributable rows; `0079` then makes `staff_id` NOT NULL. Both need real prod rows in the table to do their work — backups taken from prod before 0078 deploys still contain `staff: null` JobEvent rows, so we load under the pre-0078 schema and migrate forward again in Step 6. Once prod is on ≥0079 and a fresh backup has been taken from there, every new backup already satisfies the constraint and these two extra lines can be deleted.
-
-```bash
-python manage.py migrate job 0077
-```
-
-**Check:**
-
-```bash
-python manage.py showmigrations job | grep -E '007[789]'
-# Expect:
-#  [X] 0077_backfill_jobevent_detail
-#  [ ] 0078_backfill_jobevent_staff_from_history
-#  [ ] 0079_alter_jobevent_staff_not_null
+python manage.py showmigrations | grep '\[X\]' | wc -l
+# Should equal row count in migrations.json:
+jq '.rows | length' restore/prod_backup_YYYYMMDD_HHMMSS.migrations.json
 ```
 
 #### Step 4: Extract JSON Backup
@@ -144,9 +135,9 @@ UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
  job_costline    | 10334
 ```
 
-#### Step 6: Re-apply Migrations That Were Rewound in Step 3
+#### Step 6: Apply Dev-Ahead Migrations
 
-Step 3 rewound `job` to `0077` so `loaddata` could insert the pre-0078 prod rows. Now run `migrate` again: `0078` will backfill `JobEvent.staff_id` from `job_historicaljob` (joining within ±1 minute of each event) and delete the small number of events that have no attributable `history_user_id`, and `0079` will reinstate `NOT NULL` on `staff_id`.
+Step 3 brought the DB up to prod's recorded migration state. Any migrations that exist locally but aren't in the snapshot (dev ahead of prod) run now, against the real prod rows loaded in Step 5. Constraining migrations — `NOT NULL` after a backfill, new unique indexes, etc. — run exactly as they did on prod.
 
 ```bash
 python manage.py migrate
@@ -157,13 +148,7 @@ python manage.py migrate
 ```bash
 python manage.py showmigrations | grep '\[ \]'
 # Expect no output.
-
-PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c \
-  "SELECT COUNT(*) FROM job_jobevent WHERE staff_id IS NULL;"
-# Expect: 0
 ```
-
-Once the `feat/jobevent-audit` PR is in prod and a post-0079 backup exists, drop the `migrate job 0077` line from Step 3 and collapse this step back to a plain "verify all migrations applied" check — the rewind/replay dance is only needed while prod backups still contain `staff: null` JobEvent rows.
 
 #### Step 7: Load Company Defaults Fixture
 

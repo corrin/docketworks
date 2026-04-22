@@ -93,6 +93,7 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
 ### General Notes (129)
+- `docs/plans/2026-04-22-backup-include-migrations-table.md` — 2026-04-22 — The current dev restore flow (`docs/restore-prod-to-nonprod.md`) wipes the DB → `migrate` to **dev's HEAD** → `loaddata` the prod JSON. That decouples schema (d…
 - `docs/plans/2026-04-22-jobevent-staff-restore-loaddata-ordering.md` — 2026-04-22 — Restoring `restore/prod_backup_20260422_070407.json` on the `feat/jobevent-audit` branch fails with:
 - `docs/plans/2026-04-22-move-weekend-flag-to-company-defaults.md` — 2026-04-22 — Weekend-mode timesheets are currently gated by two separate flags:
 - `docs/plans/2026-04-22-prod-to-dev-scrubbed-dump.md` — 2026-04-22 — Both prod and dev now run Postgres. The current prod→dev refresh path uses Django `dumpdata` with in-memory Faker anonymisation (`apps/workflow/management/comma…
@@ -112,7 +113,6 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
 - `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
 - `docs/plans/2026-04-12-delivery-receipt-code-review.md` — 2026-04-12 — Reviewing `delivery_receipt_service.py` (431 lines) against the project's defensive programming philosophy: fail early, handle unhappy cases first, no fallbacks…
-- `docs/plans/2026-04-12-jobevent-migration-pr-design.md` — 2026-04-12 — The Job model uses both django-simple-history (`HistoricalJob`) and a custom `JobEvent` model for audit trails. HistoricalJob creates automatic snapshots on eve…
 - _…and 109 more_
 
 ---

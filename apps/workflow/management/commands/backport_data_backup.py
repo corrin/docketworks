@@ -9,6 +9,7 @@ from collections import defaultdict
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
+from django.db import connection
 from faker import Faker
 
 from apps.accounts.staff_anonymization import create_staff_profile
@@ -167,8 +168,19 @@ class Command(BaseCommand):
             # Step 4: Create schema-only backup using pg_dump
             schema_path = self.create_schema_backup(backup_dir, timestamp, env_name)
 
+            # Step 4b: Snapshot django_migrations so the restore side can migrate
+            # the target DB to prod's recorded migration state before loaddata.
+            # Without this, any dev-side migration that tightens a constraint
+            # (e.g. adding NOT NULL after a backfill) forces manual rewind hacks
+            # in the restore runbook.
+            migrations_path = self.create_migrations_snapshot(
+                backup_dir, timestamp, env_name
+            )
+
             # Step 5: Create combined zip file in /tmp
-            self.create_combined_zip(output_path, schema_path, timestamp, env_name)
+            self.create_combined_zip(
+                output_path, schema_path, migrations_path, timestamp, env_name
+            )
 
         except subprocess.CalledProcessError as exc:
             self.stdout.write(self.style.ERROR(f"dumpdata failed: {exc.stderr}"))
@@ -438,14 +450,57 @@ class Command(BaseCommand):
             self.stdout.write(self.style.ERROR(f"Error during schema backup: {e}"))
             raise
 
-    def create_combined_zip(self, data_path, schema_path, timestamp, env_name):
-        """Create a combined zip file containing both data and schema backups in /tmp"""
+    def create_migrations_snapshot(self, backup_dir, timestamp, env_name):
+        """Dump django_migrations so the restore side can rebuild schema
+        to prod's recorded state before loaddata."""
+        snapshot_filename = f"{env_name}_backup_{timestamp}.migrations.json"
+        snapshot_path = os.path.join(backup_dir, snapshot_filename)
+
+        self.stdout.write(f"Creating migrations snapshot: {snapshot_path}")
+
+        try:
+            with connection.cursor() as cursor:
+                cursor.execute(
+                    "SELECT app, name, applied FROM django_migrations ORDER BY id"
+                )
+                rows = [
+                    {"app": app, "name": name, "applied": applied.isoformat()}
+                    for app, name, applied in cursor.fetchall()
+                ]
+
+            payload = {
+                "dumped_at": datetime.datetime.now(datetime.timezone.utc).isoformat(),
+                "rows": rows,
+            }
+            with open(snapshot_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, indent=2)
+
+            self.stdout.write(
+                self.style.SUCCESS(f"Migrations snapshot written: {len(rows)} rows")
+            )
+            return snapshot_path
+
+        except Exception as exc:
+            persist_app_error(exc)
+            if os.path.exists(snapshot_path):
+                os.remove(snapshot_path)
+            raise
+
+    def create_combined_zip(
+        self, data_path, schema_path, migrations_path, timestamp, env_name
+    ):
+        """Create a combined zip file containing data, schema, and migrations snapshots in /tmp"""
         # Check for failures first
         if not os.path.exists(data_path):
             raise FileNotFoundError(f"Data backup file not found: {data_path}")
 
         if not os.path.exists(schema_path):
             raise FileNotFoundError(f"Schema backup file not found: {schema_path}")
+
+        if not os.path.exists(migrations_path):
+            raise FileNotFoundError(
+                f"Migrations snapshot file not found: {migrations_path}"
+            )
 
         # Create zip file in /tmp
         zip_filename = f"{env_name}_backup_{timestamp}_complete.zip"
@@ -460,6 +515,9 @@ class Command(BaseCommand):
 
                 # Add schema backup
                 zipf.write(schema_path, os.path.basename(schema_path))
+
+                # Add migrations snapshot
+                zipf.write(migrations_path, os.path.basename(migrations_path))
 
             self.stdout.write(
                 self.style.SUCCESS(
