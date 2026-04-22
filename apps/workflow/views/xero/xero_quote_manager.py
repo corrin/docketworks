@@ -10,7 +10,6 @@ from apps.accounting.enums import QuoteStatus
 
 # Import models
 from apps.accounting.models import Quote
-from apps.accounts.models import Staff
 from apps.job.models.costing import CostSet
 from apps.workflow.accounting.types import DocumentLineItem, QuotePayload
 from apps.workflow.services.error_persistence import persist_app_error
@@ -27,13 +26,18 @@ class XeroQuoteManager(XeroDocumentManager):
     Handles Quote creation and syncing via the accounting provider.
     """
 
-    def __init__(self, client, job):
+    def __init__(self, client, job, staff):
         """
-        Initializes the quote manager. Both client and job are required for quotes.
+        Initializes the quote manager. Client, job, and staff are all required.
+
+        Args:
+            client: The client associated with the quote.
+            job: The associated job.
+            staff: The authenticated staff member performing the action.
         """
         if not client or not job:
             raise ValueError("Client and Job are required for XeroQuoteManager")
-        super().__init__(client=client, job=job)
+        super().__init__(client=client, job=job, staff=staff)
 
     def get_xero_id(self):
         return (
@@ -187,7 +191,7 @@ class XeroQuoteManager(XeroDocumentManager):
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
             self.job.save(
-                staff=Staff.get_automation_user(),
+                staff=self.staff,
                 update_fields=["updated_at"],
             )
 
@@ -265,7 +269,7 @@ class XeroQuoteManager(XeroDocumentManager):
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
             self.job.save(
-                staff=Staff.get_automation_user(),
+                staff=self.staff,
                 update_fields=["updated_at"],
             )
 

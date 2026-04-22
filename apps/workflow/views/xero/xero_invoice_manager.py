@@ -30,18 +30,25 @@ class XeroInvoiceManager(XeroDocumentManager):
     Handles invoice management via the accounting provider.
     """
 
-    def __init__(self, client: Client, job: Job, xero_invoice_id: str | None = None):
+    def __init__(
+        self,
+        client: Client,
+        job: Job,
+        staff: Staff,
+        xero_invoice_id: str | None = None,
+    ):
         """
         Initializes the invoice manager.
         Args:
             client (Client): The client associated with the document.
             job (Job): The associated job.
+            staff (Staff): The authenticated staff member performing the action.
             xero_invoice_id (str, optional): A specific Xero ID to operate on,
                                              useful for deletion of a specific invoice.
         """
         if not client or not job:
             raise ValueError("Client and Job are required for XeroInvoiceManager")
-        super().__init__(client=client, job=job)
+        super().__init__(client=client, job=job, staff=staff)
 
         if xero_invoice_id is not None:
             self._xero_id_override = str(xero_invoice_id)
@@ -220,7 +227,7 @@ class XeroInvoiceManager(XeroDocumentManager):
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
             self.job.save(
-                staff=Staff.get_automation_user(),
+                staff=self.staff,
                 update_fields=["updated_at"],
             )
 
@@ -302,7 +309,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             )
 
             self.job.save(
-                staff=Staff.get_automation_user(),
+                staff=self.staff,
                 update_fields=["updated_at"],
             )
 

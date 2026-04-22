@@ -554,6 +554,16 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": False,
         },
+        "django.request": {
+            "handlers": ["app_file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["access_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "xero": {
             "handlers": ["xero_file"],
             "level": "DEBUG",
@@ -637,7 +647,12 @@ LOGGING = {
         "apps.accounts": {
             "handlers": ["auth_file"],
             "level": "INFO",
-            "propagate": True,
+            "propagate": False,
+        },
+        "apps.workflow.authentication": {
+            "handlers": ["auth_file"],
+            "level": "INFO",
+            "propagate": False,
         },
         "auth": {
             "handlers": ["auth_file", "console"],
