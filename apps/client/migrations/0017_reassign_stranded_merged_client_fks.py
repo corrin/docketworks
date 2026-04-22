@@ -22,7 +22,7 @@ re-create the bug.
 
 import logging
 
-from django.db import migrations
+from django.db import migrations, models
 
 logger = logging.getLogger("xero")
 
@@ -96,8 +96,13 @@ def reassign_stranded_fks(apps, schema_editor):
             )
             continue
 
-        totals["jobs"] += Job.objects.filter(client=client).untracked_update(
-            client=destination
+        # Bind to the base QuerySet.update() so this works regardless of
+        # which Job manager is attached: the live JobQuerySet raises on
+        # tracked-field updates, and the historical-registry manager has no
+        # `untracked_update` escape hatch. The base method does the bulk
+        # write either way.
+        totals["jobs"] += models.QuerySet.update(
+            Job.objects.filter(client=client), client=destination
         )
         totals["invoices"] += Invoice.objects.filter(client=client).update(
             client=destination
