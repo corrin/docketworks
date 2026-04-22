@@ -96,9 +96,7 @@ def reassign_stranded_fks(apps, schema_editor):
             )
             continue
 
-        totals["jobs"] += Job.objects.filter(client=client).untracked_update(
-            client=destination
-        )
+        totals["jobs"] += Job.objects.filter(client=client).update(client=destination)
         totals["invoices"] += Invoice.objects.filter(client=client).update(
             client=destination
         )
