@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 92 routes | 43 models | 181 components | 363 lib files | 69 env vars | 9 middleware | 22% test coverage
-> **Token savings:** this file is ~30,000 tokens. Without it, AI exploration would cost ~238,200 tokens. **Saves ~208,200 tokens per conversation.**
+> 92 routes | 43 models | 181 components | 362 lib files | 68 env vars | 9 middleware | 22% test coverage
+> **Token savings:** this file is ~30,000 tokens. Without it, AI exploration would cost ~237,800 tokens. **Saves ~207,900 tokens per conversation.**
 
 ---
 
@@ -1671,7 +1671,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `frontend/src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `frontend/src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -1974,7 +1973,6 @@
 - `UAT_INSTANCE_ID` (has default) — .env
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
-- `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
 - `XERO_CLIENT_ID` (has default) — .env.example
 - `XERO_CLIENT_SECRET` (has default) — .env.example
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example

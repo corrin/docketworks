@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 181 components | 103 lib files | 14 env vars | 3 middleware | 7 events | 0% test coverage
-> **Token savings:** this file is ~11,400 tokens. Without it, AI exploration would cost ~98,700 tokens. **Saves ~87,300 tokens per conversation.**
+> 0 routes | 0 models | 181 components | 102 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
+> **Token savings:** this file is ~11,300 tokens. Without it, AI exploration would cost ~98,300 tokens. **Saves ~87,000 tokens per conversation.**
 
 ---
 
@@ -371,7 +371,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -500,7 +499,6 @@
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — tests/scripts/xero-login.ts
 - `VITE_APP_NAME` (has default) — .env
 - `VITE_UAT_URL` (has default) — .env.example
-- `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
 - `XERO_PASSWORD` (has default) — .env.example
 - `XERO_USERNAME` (has default) — .env.example
 
@@ -545,9 +543,9 @@
 - `src/services/job.service.ts` — imported by **6** files
 - `tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `src/plugins/axios.ts` — imported by **5** files
+- `src/stores/companyDefaults.ts` — imported by **4** files
 - `src/constants/timesheet.ts` — imported by **4** files
 - `src/services/costline.service.ts` — imported by **3** files
-- `src/stores/companyDefaults.ts` — imported by **3** files
 - `src/composables/useJobETags.ts` — imported by **3** files
 - `src/composables/useJobDelta.ts` — imported by **3** files
 - `src/constants/advanced-filters.ts` — imported by **3** files

@@ -6,7 +6,7 @@
 
 ## Scale
 
-181 UI components · 3 middleware layers · 14 environment variables
+181 UI components · 3 middleware layers · 13 environment variables
 
 **UI:** 181 components (vue) — see [ui.md](./ui.md)
 

@@ -12,6 +12,95 @@
         <DialogDescription> Edit company defaults for {{ sectionTitle }} </DialogDescription>
       </DialogHeader>
       <form @submit.prevent class="flex flex-col gap-4 mt-2">
+        <template v-for="field in genericFieldsForRender" :key="field.key">
+          <label class="flex items-center gap-2 text-sm font-medium">
+            <component :is="field.icon" class="w-4 h-4 text-indigo-400" />
+            <span class="w-56">{{ field.label }}</span>
+            <Checkbox
+              v-if="field.type === 'boolean'"
+              v-model="localForm[field.key] as boolean | null | undefined"
+              :data-automation-id="`SectionModal-${section}-field-${field.key}`"
+            />
+            <div v-else-if="field.type === 'date'" class="flex-1 relative">
+              <Input
+                :modelValue="formatDateTime(localForm[field.key] as string | Date | null)"
+                type="text"
+                class="h-8 text-xs cursor-pointer bg-white"
+                readonly
+                @focus="openCalendar(field.key)"
+                @click="openCalendar(field.key)"
+              />
+              <transition name="fade">
+                <div
+                  v-if="calendarField === field.key"
+                  class="absolute z-50 left-0 bottom-10 w-max min-w-[260px] bg-white border border-gray-200 rounded-lg shadow-lg p-4"
+                  @click.stop
+                >
+                  <!-- 'as any' needed: Calendar expects specific date type, getValidDate returns CalendarDateTime | null -->
+                  <Calendar
+                    :modelValue="
+                      (getValidDate(localForm[field.key] as string | Date | null) ||
+                        getValidDate(props.form[field.key] as string | Date | null)) as any
+                    "
+                    @update:modelValue="
+                      (date) => onCalendarSelect(field.key, date as CalendarDateTime | null)
+                    "
+                  />
+                  <div class="flex justify-end mt-2">
+                    <Button size="sm" variant="outline" @click="closeCalendar">Close</Button>
+                  </div>
+                </div>
+              </transition>
+            </div>
+            <div v-else-if="field.type === 'image'" class="flex-1 flex items-center gap-3">
+              <img
+                v-if="localForm[field.key + '_url']"
+                :src="localForm[field.key + '_url'] as string"
+                :alt="field.label"
+                class="h-12 w-auto rounded border border-gray-200 object-contain bg-white"
+              />
+              <span v-else class="text-xs text-gray-400 italic">No image</span>
+              <label
+                class="cursor-pointer inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition"
+              >
+                <Upload class="w-3.5 h-3.5" />
+                Upload
+                <input
+                  type="file"
+                  accept="image/*"
+                  class="hidden"
+                  @change="(e) => onLogoUpload(field.key, e)"
+                />
+              </label>
+              <button
+                v-if="localForm[field.key + '_url']"
+                type="button"
+                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-600 hover:bg-red-50 transition"
+                @click="onLogoDelete(field.key)"
+              >
+                <Trash2 class="w-3.5 h-3.5" />
+                Remove
+              </button>
+            </div>
+            <Input
+              v-else
+              v-model="localForm[field.key] as string | number | undefined"
+              :type="field.type === 'number' ? 'number' : 'text'"
+              class="flex-1 h-8 text-xs"
+              :class="[
+                { 'bg-gray-100 cursor-not-allowed': field.readOnly },
+                logFallbackInput(field),
+              ]"
+              :data-automation-id="`SectionModal-${section}-field-${field.key}`"
+              :readonly="field.readOnly"
+              :step="
+                field.key === 'time_markup' || field.key === 'materials_markup' ? 'any' : undefined
+              "
+              :min="field.key === 'time_markup' || field.key === 'materials_markup' ? 0 : undefined"
+              :max="field.key === 'time_markup' || field.key === 'materials_markup' ? 1 : undefined"
+            />
+          </label>
+        </template>
         <template v-if="isWorkingHours">
           <div v-for="day in workingDays" :key="day.key" class="working-hours-day-wrapper">
             <div class="working-hours-day-label">
@@ -40,102 +129,6 @@
               </label>
             </div>
           </div>
-        </template>
-        <template v-else>
-          <template v-for="field in sectionFields" :key="field.key">
-            <label class="flex items-center gap-2 text-sm font-medium">
-              <component :is="field.icon" class="w-4 h-4 text-indigo-400" />
-              <span class="w-36">{{ field.label }}</span>
-              <Checkbox
-                v-if="field.type === 'boolean'"
-                v-model="localForm[field.key] as boolean | null | undefined"
-              />
-              <div v-else-if="field.type === 'date'" class="flex-1 relative">
-                <Input
-                  :modelValue="formatDateTime(localForm[field.key] as string | Date | null)"
-                  type="text"
-                  class="h-8 text-xs cursor-pointer bg-white"
-                  readonly
-                  @focus="openCalendar(field.key)"
-                  @click="openCalendar(field.key)"
-                />
-                <transition name="fade">
-                  <div
-                    v-if="calendarField === field.key"
-                    class="absolute z-50 left-0 bottom-10 w-max min-w-[260px] bg-white border border-gray-200 rounded-lg shadow-lg p-4"
-                    @click.stop
-                  >
-                    <!-- 'as any' needed: Calendar expects specific date type, getValidDate returns CalendarDateTime | null -->
-                    <Calendar
-                      :modelValue="
-                        (getValidDate(localForm[field.key] as string | Date | null) ||
-                          getValidDate(props.form[field.key] as string | Date | null)) as any
-                      "
-                      @update:modelValue="
-                        (date) => onCalendarSelect(field.key, date as CalendarDateTime | null)
-                      "
-                    />
-                    <div class="flex justify-end mt-2">
-                      <Button size="sm" variant="outline" @click="closeCalendar">Close</Button>
-                    </div>
-                  </div>
-                </transition>
-              </div>
-              <div v-else-if="field.type === 'image'" class="flex-1 flex items-center gap-3">
-                <img
-                  v-if="localForm[field.key + '_url']"
-                  :src="localForm[field.key + '_url'] as string"
-                  :alt="field.label"
-                  class="h-12 w-auto rounded border border-gray-200 object-contain bg-white"
-                />
-                <span v-else class="text-xs text-gray-400 italic">No image</span>
-                <label
-                  class="cursor-pointer inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition"
-                >
-                  <Upload class="w-3.5 h-3.5" />
-                  Upload
-                  <input
-                    type="file"
-                    accept="image/*"
-                    class="hidden"
-                    @change="(e) => onLogoUpload(field.key, e)"
-                  />
-                </label>
-                <button
-                  v-if="localForm[field.key + '_url']"
-                  type="button"
-                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-600 hover:bg-red-50 transition"
-                  @click="onLogoDelete(field.key)"
-                >
-                  <Trash2 class="w-3.5 h-3.5" />
-                  Remove
-                </button>
-              </div>
-              <Input
-                v-else
-                v-model="localForm[field.key] as string | number | undefined"
-                :type="field.type === 'number' ? 'number' : 'text'"
-                class="flex-1 h-8 text-xs"
-                :class="[
-                  { 'bg-gray-100 cursor-not-allowed': field.readOnly },
-                  logFallbackInput(field),
-                ]"
-                :data-automation-id="`SectionModal-${section}-field-${field.key}`"
-                :readonly="field.readOnly"
-                :step="
-                  field.key === 'time_markup' || field.key === 'materials_markup'
-                    ? 'any'
-                    : undefined
-                "
-                :min="
-                  field.key === 'time_markup' || field.key === 'materials_markup' ? 0 : undefined
-                "
-                :max="
-                  field.key === 'time_markup' || field.key === 'materials_markup' ? 1 : undefined
-                "
-              />
-            </label>
-          </template>
         </template>
         <p v-if="error" class="text-red-600 text-xs mt-1">{{ error }}</p>
 
@@ -384,6 +377,16 @@ const workingDays = [
   { key: 'thursday', label: 'Thursday', startKey: 'thu_start', endKey: 'thu_end' },
   { key: 'friday', label: 'Friday', startKey: 'fri_start', endKey: 'fri_end' },
 ]
+
+// Time-picker keys for the working_hours section are rendered by the
+// hand-rolled start/end block below; every other field in the section
+// falls back to schema-driven rendering above.
+const workingHoursTimeKeys = new Set(workingDays.flatMap((d) => [d.startKey, d.endKey]))
+
+const genericFieldsForRender = computed(() => {
+  if (!isWorkingHours.value) return sectionFields.value
+  return sectionFields.value.filter((f) => !workingHoursTimeKeys.has(f.key))
+})
 </script>
 
 <style scoped>

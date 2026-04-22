@@ -4,9 +4,6 @@ E2E_TEST_PASSWORD=__E2E_TEST_PASSWORD__
 
 VITE_UAT_URL=https://__CLIENT__-uat.__DOMAIN__
 
-# Weekend timesheets feature flag
-VITE_WEEKEND_TIMESHEETS_ENABLED=false
-
 # Xero login credentials (for automated OAuth flow during restore)
 XERO_USERNAME=__XERO_USERNAME__
 XERO_PASSWORD="__XERO_PASSWORD__"

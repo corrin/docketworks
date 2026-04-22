@@ -61,7 +61,6 @@
 - `UAT_INSTANCE_ID` (has default) — .env
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
-- `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
 - `XERO_CLIENT_ID` (has default) — .env.example
 - `XERO_CLIENT_SECRET` (has default) — .env.example
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example

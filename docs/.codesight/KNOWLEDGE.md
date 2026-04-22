@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 163 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-22
+> 165 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-22
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-22 (163 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-22 (165 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
 ## Key Decisions (15)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
@@ -40,13 +40,13 @@ verification · tips · alternatives considered · what youll need · files to m
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
+- `docs/restore-prod-to-nonprod.md` — **3** incoming references — Restore Production to Non-Production
 - `docs/client_onboarding.md` — **2** incoming references — Client Onboarding
 - `docs/development_session.md` — **2** incoming references — Development Session Startup
-- `docs/restore-prod-to-nonprod.md` — **2** incoming references — Restore Production to Non-Production
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (163)
+## Note Index (165)
 
 ### Decision Records (12)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
@@ -92,10 +92,11 @@ verification · tips · alternatives considered · what youll need · files to m
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (129)
+### General Notes (131)
 - `docs/plans/2026-04-22-backup-include-migrations-table.md` — 2026-04-22 — The current dev restore flow (`docs/restore-prod-to-nonprod.md`) wipes the DB → `migrate` to **dev's HEAD** → `loaddata` the prod JSON. That decouples schema (d…
 - `docs/plans/2026-04-22-jobevent-staff-restore-loaddata-ordering.md` — 2026-04-22 — Restoring `restore/prod_backup_20260422_070407.json` on the `feat/jobevent-audit` branch fails with:
 - `docs/plans/2026-04-22-move-weekend-flag-to-company-defaults.md` — 2026-04-22 — Weekend-mode timesheets are currently gated by two separate flags:
+- `docs/plans/2026-04-22-prod-deploy-jobevent-audit.md` — 2026-04-22 — Small, self-contained change to `apps/workflow/management/commands/backport_data_backup.py` so every `backport_data_backup` run writes a third file into the zip…
 - `docs/plans/2026-04-22-prod-to-dev-scrubbed-dump.md` — 2026-04-22 — Both prod and dev now run Postgres. The current prod→dev refresh path uses Django `dumpdata` with in-memory Faker anonymisation (`apps/workflow/management/comma…
 - `docs/plans/2026-04-22-watch-git-head-autoreload.md` — 2026-04-22 — E2E tests on `feat/jobevent-audit` enter an infinite redirect loop on `/login`, timing out at `frontend/tests/fixtures/auth.ts:30` waiting for `#username`.
 - `docs/plans/2026-04-21-automation-user.md` — 2026-04-21 — `Staff.get_automation_user()` (commit 357504a8) currently returns the **oldest still-active superuser** as the attribution target for automation-triggered write…
@@ -112,8 +113,7 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
 - `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
-- `docs/plans/2026-04-12-delivery-receipt-code-review.md` — 2026-04-12 — Reviewing `delivery_receipt_service.py` (431 lines) against the project's defensive programming philosophy: fail early, handle unhappy cases first, no fallbacks…
-- _…and 109 more_
+- _…and 111 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

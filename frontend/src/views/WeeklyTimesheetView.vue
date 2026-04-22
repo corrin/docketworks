@@ -454,12 +454,10 @@ function calculateDefaultWeek(payRuns: PayRunListItem[]): Date {
   return normalizeToWeekStart(new Date())
 }
 
-// Use timesheet store for weekend functionality
+// Use timesheet store for weekend functionality — `weekendEnabled` is a computed
+// on the store derived from CompanyDefaults.weekend_timesheets_enabled.
 const timesheetStore = useTimesheetStore()
-const weekendEnabled = computed(() => {
-  timesheetStore.initializeFeatureFlags()
-  return import.meta.env.VITE_WEEKEND_TIMESHEETS_ENABLED === 'true'
-})
+const weekendEnabled = computed(() => timesheetStore.weekendEnabled)
 
 const visibleDayIndexes = computed<number[]>(() => {
   if (!weeklyData.value?.week_days) return []

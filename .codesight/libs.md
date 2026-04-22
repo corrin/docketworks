@@ -800,7 +800,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `frontend/src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `frontend/src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
