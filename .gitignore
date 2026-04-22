@@ -134,6 +134,7 @@ ipython_config.py
 .codex/
 .anthropic/
 .pki/
+backups/
 
 # Environments
 .env
