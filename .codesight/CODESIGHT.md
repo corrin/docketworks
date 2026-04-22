@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 92 routes | 43 models | 181 components | 362 lib files | 70 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,900 tokens. Without it, AI exploration would cost ~237,800 tokens. **Saves ~207,900 tokens per conversation.**
+> 92 routes | 43 models | 181 components | 362 lib files | 69 env vars | 8 middleware | 22% test coverage
+> **Token savings:** this file is ~29,900 tokens. Without it, AI exploration would cost ~237,700 tokens. **Saves ~207,800 tokens per conversation.**
 
 ---
 
@@ -1968,7 +1968,6 @@
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
 - `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
-- `WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
 - `XERO_CLIENT_ID` (has default) — .env.example
 - `XERO_CLIENT_SECRET` (has default) — .env.example
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example
