@@ -921,6 +921,10 @@ const SettingsSection = z.object({
   fields: z.array(SettingsField),
 })
 const CompanyDefaultsSchema = z.object({ sections: z.array(SettingsSection) })
+const DisableCacheResponse = z.object({
+  disabled_until: z.string().datetime({ offset: true }),
+})
+const EnableCacheResponse = z.object({ enabled: z.boolean() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),
@@ -3014,6 +3018,8 @@ export const schemas = {
   SettingsField,
   SettingsSection,
   CompanyDefaultsSchema,
+  DisableCacheResponse,
+  EnableCacheResponse,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
   PatchedCostLineCreateUpdateRequest,
@@ -4766,6 +4772,22 @@ POST: Upload a logo image to a specified field.
 DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
     response: CompanyDefaults,
+  },
+  {
+    method: 'post',
+    path: '/api/disable_cache/',
+    alias: 'disable_cache_create',
+    requestFormat: 'json',
+    response: z.object({
+      disabled_until: z.string().datetime({ offset: true }),
+    }),
+  },
+  {
+    method: 'post',
+    path: '/api/enable_cache/',
+    alias: 'enable_cache_create',
+    requestFormat: 'json',
+    response: z.object({ enabled: z.boolean() }),
   },
   {
     method: 'get',

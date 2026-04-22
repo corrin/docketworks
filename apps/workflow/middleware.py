@@ -310,18 +310,20 @@ class LoginRequiredMiddleware:
 
 
 class E2ECacheBypassMiddleware:
-    # Playwright sends X-E2E-Cache-Bypass: 1 on every request via extraHTTPHeaders.
-    # gunicorn workers each have their own LocMemCache, so a PATCH invalidates
-    # cache on one worker while a follow-up GET on another returns a stale
-    # CompanyDefaults singleton. Clearing the cache key on the handling worker
-    # before the view runs makes get_solo() re-read the DB for that request.
+    # gunicorn workers each have their own LocMemCache, so a PATCH to a
+    # singleton invalidates cache on one worker while a follow-up GET on
+    # another returns stale data. While CacheState.is_disabled() reports
+    # true (set via POST /api/disable_cache/?resume_after=<sec>, cleared via
+    # POST /api/enable_cache/), this middleware clears the CompanyDefaults
+    # cache key on the handling worker before every request so get_solo()
+    # re-reads the DB.
     def __init__(self, get_response: Callable[[HttpRequest], HttpResponse]) -> None:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
-        if request.headers.get("X-E2E-Cache-Bypass") == "1":
-            from apps.workflow.models import CompanyDefaults
+        from apps.workflow.models import CacheState, CompanyDefaults
 
+        if CacheState.is_disabled():
             CompanyDefaults.clear_cache()
         return self.get_response(request)
 

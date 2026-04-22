@@ -1,11 +1,14 @@
+from datetime import timedelta
+
 from django.core.cache import caches
-from django.test import RequestFactory, SimpleTestCase
+from django.test import RequestFactory, TestCase
+from django.utils import timezone
 
 from apps.workflow.middleware import E2ECacheBypassMiddleware
-from apps.workflow.models import CompanyDefaults
+from apps.workflow.models import CacheState, CompanyDefaults
 
 
-class E2ECacheBypassMiddlewareTests(SimpleTestCase):
+class E2ECacheBypassMiddlewareTests(TestCase):
     def setUp(self):
         self.factory = RequestFactory()
         self.cache = caches["default"]
@@ -13,25 +16,30 @@ class E2ECacheBypassMiddlewareTests(SimpleTestCase):
         self.cache.delete(self.cache_key)
         self.middleware = E2ECacheBypassMiddleware(lambda request: "dummy response")
 
-    def test_header_present_clears_cache(self):
+    def test_cache_disabled_clears_solo_cache(self):
+        CacheState.objects.update_or_create(
+            pk=1,
+            defaults={"disabled_until": timezone.now() + timedelta(hours=1)},
+        )
         self.cache.set(self.cache_key, "sentinel", 300)
-        request = self.factory.get("/", HTTP_X_E2E_CACHE_BYPASS="1")
-        self.middleware(request)
+        self.middleware(self.factory.get("/"))
         self.assertIsNone(self.cache.get(self.cache_key))
 
-    def test_header_absent_leaves_cache_alone(self):
+    def test_cache_not_disabled_leaves_solo_cache_alone(self):
+        CacheState.objects.update_or_create(pk=1, defaults={"disabled_until": None})
         self.cache.set(self.cache_key, "sentinel", 300)
-        request = self.factory.get("/")
-        self.middleware(request)
+        self.middleware(self.factory.get("/"))
         self.assertEqual(self.cache.get(self.cache_key), "sentinel")
 
-    def test_header_wrong_value_leaves_cache_alone(self):
+    def test_expired_disable_treated_as_enabled(self):
+        CacheState.objects.update_or_create(
+            pk=1,
+            defaults={"disabled_until": timezone.now() - timedelta(seconds=1)},
+        )
         self.cache.set(self.cache_key, "sentinel", 300)
-        request = self.factory.get("/", HTTP_X_E2E_CACHE_BYPASS="0")
-        self.middleware(request)
+        self.middleware(self.factory.get("/"))
         self.assertEqual(self.cache.get(self.cache_key), "sentinel")
 
     def test_response_passed_through(self):
-        request = self.factory.get("/")
-        response = self.middleware(request)
+        response = self.middleware(self.factory.get("/"))
         self.assertEqual(response, "dummy response")

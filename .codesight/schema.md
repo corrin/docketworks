@@ -461,6 +461,10 @@
 - reference_id: string
 - kind: string
 
+### CacheState
+- id: integer (pk, default)
+- disabled_until: timestamp (nullable)
+
 ### ServiceAPIKey
 - id: uuid (pk, default)
 - name: string
