@@ -393,7 +393,7 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
-        manager = XeroInvoiceManager(client=job.client, job=job)
+        manager = XeroInvoiceManager(client=job.client, job=job, staff=request.user)
         result_data = manager.create_document()
 
         if result_data.get("success"):
@@ -627,7 +627,7 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
-        manager = XeroQuoteManager(client=job.client, job=job)
+        manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
         result_data = manager.create_document(breakdown=breakdown)
 
         if result_data.get("success"):
@@ -700,7 +700,10 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         job = Job.objects.get(id=job_id)
         invoice = Invoice.objects.get(xero_id=xero_invoice_id, job=job)
         manager = XeroInvoiceManager(
-            client=job.client, job=job, xero_invoice_id=invoice.xero_id
+            client=job.client,
+            job=job,
+            staff=request.user,
+            xero_invoice_id=invoice.xero_id,
         )
         result_data: dict = manager.delete_document()
 
@@ -758,7 +761,7 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
-        manager = XeroQuoteManager(client=job.client, job=job)
+        manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
         result_data: dict = manager.delete_document()
 
         if result_data.get("success"):

@@ -2,6 +2,7 @@
 import logging
 from abc import ABC, abstractmethod
 
+from apps.accounts.models import Staff
 from apps.client.models import Client
 
 # Import models used in type hints or logic
@@ -20,20 +21,27 @@ class XeroDocumentManager(ABC):
 
     job: Job | None  # Job is optional now
     client: Client
+    staff: Staff
 
-    def __init__(self, client, job=None):
+    def __init__(self, client, staff: Staff, job=None):
         """
         Initializes the creator.
 
         Args:
             client (Client): The client or supplier associated with the document.
+            staff (Staff): The authenticated staff member performing the action.
+                           Used to attribute any Job audit events emitted by
+                           create/delete operations.
             job (Job, optional): The associated job. Defaults to None.
                                  Required for document types like Invoice/Quote.
                                  Not directly used for PurchaseOrder at this level.
         """
         if client is None:
             raise ValueError("Client cannot be None for XeroDocumentManager")
+        if staff is None:
+            raise ValueError("Staff cannot be None for XeroDocumentManager")
         self.client = client
+        self.staff = staff
         self.job = job  # Optional job association
         self.provider = get_provider()
 

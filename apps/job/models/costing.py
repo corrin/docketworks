@@ -290,12 +290,11 @@ class CostLine(models.Model):
         cost_set.summary = current_summary  # Preserves revisions[]
         cost_set.save()
 
-        # Update job.updated_at to ensure ETag changes when cost data changes
-        # This prevents 304 Not Modified responses when quotes/costs are modified
-        from apps.accounts.models import Staff
-
-        cost_set.job.save(
-            staff=Staff.get_automation_user(), update_fields=["updated_at"]
+        # Bump job.updated_at via QuerySet.update() so the ETag invalidates
+        # without routing through Job.save() — this is a cascade side-effect
+        # of a CostLine write, not an attributable action.
+        cost_set.job.__class__.objects.filter(pk=cost_set.job.pk).update(
+            updated_at=timezone.now()
         )
 
     def save(self, *args, **kwargs):
