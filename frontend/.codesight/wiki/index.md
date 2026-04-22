@@ -1,6 +1,6 @@
 # frontend-jobs-manager — Wiki
 
-_Generated 2026-04-21 — re-run `npx codesight --wiki` if the codebase has changed._
+_Generated 2026-04-22 — re-run `npx codesight --wiki` if the codebase has changed._
 
 Structural map compiled from source code via AST. No LLM — deterministic, 200ms.
 
@@ -16,7 +16,7 @@ Structural map compiled from source code via AST. No LLM — deterministic, 200m
 - Routes: **0**
 - Models: **0**
 - Components: **181**
-- Env vars: **7** required, **7** with defaults
+- Env vars: **7** required, **6** with defaults
 
 ## How to Use
 
@@ -42,4 +42,4 @@ These exist in your codebase but are **not** reflected in wiki articles:
 When in doubt, search the source. The wiki is a starting point, not a complete inventory.
 
 ---
-_Last compiled: 2026-04-21 · 3 articles · [codesight](https://github.com/Houseofmvps/codesight)_
+_Last compiled: 2026-04-22 · 3 articles · [codesight](https://github.com/Houseofmvps/codesight)_

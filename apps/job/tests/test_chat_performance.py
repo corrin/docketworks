@@ -4,6 +4,9 @@ Tests for chat database query optimization and bulk operations.
 
 from unittest.mock import Mock, patch
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
+
 from apps.client.models import Client
 from apps.job.models import Job, JobQuoteChat
 from apps.job.services.chat_service import ChatService
@@ -93,13 +96,20 @@ class ChatQueryOptimizationTests(BaseTestCase):
             mock_llm.completion.return_value = mock_response
             mock_get_llm.return_value = mock_llm
 
-            with self.assertNumQueries(
-                7
-            ):  # Job, CompanyDefaults, Client, History, Insert, Savepoint x2
+            # Upper bound: Job, CompanyDefaults, Client, History, Insert, Savepoint x2.
+            # CompanyDefaults is usually cached by SOLO_CACHE after setUp() primes
+            # it, so the observed count is typically 6 — but 7 is also acceptable
+            # if the cache isn't warm.
+            with CaptureQueriesContext(connection) as ctx:
                 result = self.service.generate_ai_response(
                     str(self.job.id), "Test message"
                 )
                 self.assertIsNotNone(result)
+            self.assertLessEqual(
+                len(ctx.captured_queries),
+                7,
+                f"Expected <=7 queries, got {len(ctx.captured_queries)}",
+            )
 
     def test_bulk_message_creation(self):
         """Test bulk database message creation"""

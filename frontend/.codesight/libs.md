@@ -176,7 +176,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData

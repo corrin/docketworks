@@ -800,7 +800,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `frontend/src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `frontend/src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -966,6 +965,13 @@
   - function main: ()
   - class URLDocumentationGenerator
 - `scripts/geocode_addresses.py` — function build_freetext_address: (address) -> str, function main: () -> None
+- `scripts/migrate_to_snapshot.py`
+  - function load_snapshot: (path)
+  - function latest_per_app: (rows)
+  - function apply_target: (app, name)
+  - function read_current_state: ()
+  - function verify_matches_snapshot: (rows)
+  - function main: ()
 - `scripts/move_time_between_jobs.py` — function main: ()
 - `scripts/payroll_reconciliation.py`
   - function get_monday: (d) -> date

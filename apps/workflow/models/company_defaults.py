@@ -138,6 +138,12 @@ class CompanyDefaults(SingletonModel):
         help_text="Date Xero payroll went live — reconciliation ignores data before this",
     )
 
+    # Whether to show Sat/Sun columns in timesheet views (admin-togglable)
+    weekend_timesheets_enabled = models.BooleanField(
+        default=False,
+        help_text="Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.",
+    )
+
     # Default working hours (Mon-Fri, 7am - 3pm)
     mon_start = models.TimeField(default="07:00")
     mon_end = models.TimeField(default="15:00")

@@ -5,7 +5,6 @@ Provides endpoints for the Vue.js frontend to interact with timesheet data.
 
 import json
 import logging
-import os
 import uuid as uuid_module
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -261,7 +260,7 @@ class TimesheetResponseMixin:
                 start_date = today - timedelta(days=today.weekday())
 
             # Check weekend feature flag
-            weekend_enabled = self._is_weekend_enabled()
+            weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
 
             weekly_data = WeeklyTimesheetService.get_weekly_overview(start_date)
 
@@ -289,10 +288,6 @@ class TimesheetResponseMixin:
                 exc=exc,
                 staff_only_details=True,
             )
-
-    def _is_weekend_enabled(self):
-        """Check if weekend timesheet functionality is enabled"""
-        return os.getenv("WEEKEND_TIMESHEETS_ENABLED", "false").lower() == "true"
 
 
 class WeeklyTimesheetAPIView(TimesheetResponseMixin, TimesheetBaseView):

@@ -6,7 +6,6 @@ Following SRP principles and clean architecture
 """
 
 import logging
-import os
 import traceback
 import uuid
 from datetime import date
@@ -18,6 +17,7 @@ from django.db.models.fields.json import KeyTextTransform
 from apps.accounts.models import Staff
 from apps.accounts.utils import get_excluded_staff
 from apps.job.models.costing import CostLine
+from apps.workflow.models import CompanyDefaults
 
 logger = logging.getLogger(__name__)
 
@@ -84,7 +84,7 @@ class DailyTimesheetService:
             scheduled_hours_for_date = staff.get_scheduled_hours(target_date)
 
             # Check if weekend functionality is enabled
-            weekend_enabled = cls._is_weekend_enabled()
+            weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
             is_weekend = target_date.weekday() >= 5
 
             # Skip staff with no working hours for this specific day
@@ -183,7 +183,8 @@ class DailyTimesheetService:
     @classmethod
     def _get_scheduled_hours(cls, staff: Staff, target_date: date) -> Decimal:
         """Get scheduled hours for staff on given date"""
-        if not cls._is_weekend_enabled() and target_date.weekday() >= 5:
+        weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
+        if not weekend_enabled and target_date.weekday() >= 5:
             return Decimal("0.0")
         return Decimal(str(staff.get_scheduled_hours(target_date)))
 
@@ -192,7 +193,7 @@ class DailyTimesheetService:
         cls, actual_hours: Decimal, scheduled_hours: Decimal, cost_lines
     ) -> str:
         """Determine status based on hours and entries"""
-        weekend_enabled = cls._is_weekend_enabled()
+        weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
 
         if scheduled_hours == 0:
             if weekend_enabled and actual_hours > 0:
@@ -341,8 +342,3 @@ class DailyTimesheetService:
         if total == 0:
             return 0.0
         return float((part / total) * 100)
-
-    @classmethod
-    def _is_weekend_enabled(cls) -> bool:
-        """Check if weekend timesheet functionality is enabled"""
-        return os.getenv("WEEKEND_TIMESHEETS_ENABLED", "false").lower() == "true"

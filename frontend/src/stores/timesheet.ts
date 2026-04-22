@@ -6,7 +6,7 @@ import { debugLog } from '@/utils/debug'
 import { toLocalDateString } from '@/utils/dateUtils'
 import type { z } from 'zod'
 import { toast } from 'vue-sonner'
-import { FeatureFlagsService } from '@/services/feature-flags.service'
+import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import { validateFields } from '@/utils/contractValidation'
 import { formatHoursDisplay } from '@/utils/string-formatting'
 type CostLineMeta = Record<string, unknown> & {
@@ -39,9 +39,17 @@ export const useTimesheetStore = defineStore('timesheet', () => {
   const attachedJobs = ref<Job[]>([])
   const error = ref<string | null>(null)
 
-  // Weekend timesheets feature flag
-  const weekendEnabled = ref(false)
-  const weekDays = ref<string[]>(['monday', 'tuesday', 'wednesday', 'thursday', 'friday'])
+  // Weekend timesheets flag sourced from CompanyDefaults.weekend_timesheets_enabled.
+  // Computed so the store stays reactive to admin-form edits without explicit re-init.
+  const companyDefaultsStore = useCompanyDefaultsStore()
+  const weekendEnabled = computed(
+    () => companyDefaultsStore.companyDefaults?.weekend_timesheets_enabled ?? false,
+  )
+  const weekDays = computed<string[]>(() =>
+    weekendEnabled.value
+      ? ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+      : ['monday', 'tuesday', 'wednesday', 'thursday', 'friday'],
+  )
 
   const currentStaff = computed(
     () => staff.value.find((s) => s.id === selectedStaffId.value) || null,
@@ -236,52 +244,18 @@ export const useTimesheetStore = defineStore('timesheet', () => {
   }
 
   async function initialize() {
-    await Promise.all([
-      loadStaff(),
-      loadJobs(),
-      loadXeroPayItems(),
-      loadCompanyDefaults(),
-      initializeFeatureFlags(),
-    ])
+    await Promise.all([loadStaff(), loadJobs(), loadXeroPayItems(), loadCompanyDefaults()])
 
     if (staff.value.length > 0 && !selectedStaffId.value) {
       selectedStaffId.value = staff.value[0].id
     }
   }
 
-  function initializeFeatureFlags() {
-    try {
-      weekendEnabled.value = FeatureFlagsService.isWeekendTimesheetsEnabled()
-      updateWeekConfiguration()
-      debugLog(`Weekend timesheets initialized: ${weekendEnabled.value ? 'ENABLED' : 'DISABLED'}`)
-    } catch (error) {
-      console.error('Failed to initialize weekend feature flags, defaulting to disabled:', error)
-      weekendEnabled.value = false
-      updateWeekConfiguration()
-    }
-  }
-
-  function updateWeekConfiguration() {
-    if (weekendEnabled.value) {
-      weekDays.value = [
-        'monday',
-        'tuesday',
-        'wednesday',
-        'thursday',
-        'friday',
-        'saturday',
-        'sunday',
-      ]
-    } else {
-      weekDays.value = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday']
-    }
-  }
-
   async function loadCompanyDefaults() {
-    try {
-      await api.company_defaults_retrieve()
-    } catch (err) {
-      debugLog('Error loading company defaults:', err)
+    // Ensure the shared companyDefaults store is populated so `weekendEnabled`
+    // and `weekDays` (computed above) reflect the current CompanyDefaults row.
+    if (!companyDefaultsStore.isLoaded) {
+      await companyDefaultsStore.loadCompanyDefaults()
     }
   }
 
@@ -624,8 +598,6 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     deleteLine,
 
     initialize,
-    initializeFeatureFlags,
-    updateWeekConfiguration,
     loadStaff,
     loadJobs,
     loadXeroPayItems,

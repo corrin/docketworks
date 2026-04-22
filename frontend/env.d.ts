@@ -25,7 +25,6 @@ declare module 'dompurify' {
 }
 
 interface ImportMetaEnv {
-  readonly VITE_WEEKEND_TIMESHEETS_ENABLED: string
   readonly VITE_UAT_URL?: string
 }
 

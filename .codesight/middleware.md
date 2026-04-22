@@ -10,6 +10,7 @@
 ## custom
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
+- migrate_to_snapshot — `scripts/migrate_to_snapshot.py`
 
 ## logging
 - generate_url_docs — `scripts/generate_url_docs.py`

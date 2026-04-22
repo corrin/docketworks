@@ -15,10 +15,10 @@ This process runs unattended on server instances with no user interaction. Any w
 ## CRITICAL ORDER ENFORCEMENT
 
 **NEVER run steps out of order. The following steps MUST be completed before ANY testing:**
-1. Steps 1-14: Basic restore and setup
-2. Step 15: **XERO OAUTH CONNECTION** (CANNOT BE SKIPPED)
-3. Steps 16-20: Xero configuration
-4. Steps 21-23: Testing ONLY AFTER Xero is connected
+1. Steps 1-13: Basic restore and setup
+2. Step 14: **XERO OAUTH CONNECTION** (CANNOT BE SKIPPED)
+3. Steps 15-19: Xero configuration
+4. Steps 20-22: Testing ONLY AFTER Xero is connected
 
 ## Prerequisites
 
@@ -30,7 +30,7 @@ This process runs unattended on server instances with no user interaction. Any w
   scp prod-server:/tmp/prod_backup_YYYYMMDD_HHMMSS_complete.zip restore/
   cd restore && unzip prod_backup_YYYYMMDD_HHMMSS_complete.zip && cd ..
   ```
-  You should have `restore/prod_backup_YYYYMMDD_HHMMSS.json.gz` and `restore/prod_backup_YYYYMMDD_HHMMSS.schema.sql`.
+  You should have `restore/prod_backup_YYYYMMDD_HHMMSS.json.gz` and `restore/prod_backup_YYYYMMDD_HHMMSS.schema.sql`. Newer backups also include `prod_backup_YYYYMMDD_HHMMSS.migrations.json`; it is not used by the default flow.
 
 ---
 
@@ -81,6 +81,9 @@ python manage.py migrate
 ```bash
 PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "\dt" | wc -l
 # Should show 50+ tables
+
+python manage.py showmigrations | grep '\[ \]'
+# Expect no output.
 ```
 
 #### Step 4: Extract JSON Backup
@@ -126,17 +129,7 @@ UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
  job_costline    | 10334
 ```
 
-#### Step 6: Verify Django Migrations
-
-Migrations were already applied in Step 3. Verify they're all applied:
-
-```bash
-python manage.py showmigrations | grep '\[ \]'
-```
-
-**Expected:** No output (all migrations applied). If any show `[ ]`, run `python manage.py migrate`.
-
-#### Step 7: Load Company Defaults Fixture
+#### Step 6: Load Company Defaults Fixture
 
 This replaces your real company name with a demo/dummy value
 
@@ -152,7 +145,7 @@ python scripts/restore_checks/check_company_defaults.py
 
 **Expected output:** `Company defaults loaded: Demo Company`
 
-#### Step 8: Reload AI Providers
+#### Step 7: Reload AI Providers
 
 The DB reset wiped the AI provider rows. Reload from the fixture generated during instance creation:
 
@@ -168,7 +161,7 @@ python scripts/restore_checks/check_ai_providers.py
 
 **Expected output:** Each provider shows a response or "API key valid".
 
-#### Step 9: Verify Specific Data
+#### Step 8: Verify Specific Data
 
 ```bash
 PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "
@@ -181,7 +174,7 @@ LIMIT 5;
 
 **Check:** Should show actual job records with realistic data.
 
-#### Step 10: Test Django ORM
+#### Step 9: Test Django ORM
 
 ```bash
 python scripts/restore_checks/check_django_orm.py
@@ -197,7 +190,7 @@ Sample job: [any real job name] (#XXXXX)
 Contact: [any real contact name]
 ```
 
-#### Step 11: Set Up Development Logins
+#### Step 10: Set Up Development Logins
 
 ```bash
 python scripts/setup_dev_logins.py
@@ -224,7 +217,7 @@ Is superuser: True
 - Admin: `defaultadmin@example.com` / `Default-admin-password`
 - All other staff: their email / `Default-staff-password`
 
-#### Step 12: Create Dummy Files for JobFile Instances
+#### Step 11: Create Dummy Files for JobFile Instances
 
 ```bash
 python scripts/recreate_jobfiles.py
@@ -244,7 +237,7 @@ Dummy files created: ~3000
 Missing files: 0
 ```
 
-#### Step 13: Fix Shop Client Name
+#### Step 12: Fix Shop Client Name
 
 ```bash
 python scripts/restore_checks/fix_shop_client.py
@@ -258,7 +251,7 @@ python scripts/restore_checks/check_shop_client.py
 
 **Expected output:** `Shop client: Demo Company Shop`
 
-#### Step 14: Verify Test Client
+#### Step 13: Verify Test Client
 
 ```bash
 python scripts/restore_checks/check_test_client.py
@@ -266,7 +259,7 @@ python scripts/restore_checks/check_test_client.py
 
 **Expected output:** `Test client already exists: ABC Carpet Cleaning TEST IGNORE ...` or `Created test client: ...`
 
-#### Step 15: Connect to Xero OAuth
+#### Step 14: Connect to Xero OAuth
 
 **Dev only:** Before this step, start ngrok, the backend, and the frontend — see [development_session.md](development_session.md).
 
@@ -285,7 +278,7 @@ python scripts/restore_checks/check_xero_token.py
 
 **Expected output:** `Xero OAuth token found.`
 
-#### Step 16: Configure Xero Connection
+#### Step 15: Configure Xero Connection
 
 ```bash
 python manage.py xero --setup
@@ -307,7 +300,7 @@ Payroll Calendar: Weekly Testing ([calendar-uuid])
 Xero setup complete.
 ```
 
-**Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Step 7).
+**Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Step 6).
 
 If the payroll calendar is missing (e.g. after a Xero demo org reset), re-run with:
 
@@ -315,7 +308,7 @@ If the payroll calendar is missing (e.g. after a Xero demo org reset), re-run wi
 python manage.py xero --setup --create-missing-xero-items
 ```
 
-#### Step 17: Sync Pay Items from Xero
+#### Step 16: Sync Pay Items from Xero
 
 ```bash
 python manage.py xero --configure-payroll
@@ -323,7 +316,7 @@ python manage.py xero --configure-payroll
 
 **Expected output:** `✓ XeroPayItem sync completed!`
 
-#### Step 18: Seed Database to Xero
+#### Step 17: Seed Database to Xero
 
 **WARNING:** This step takes 10+ minutes. Run in background.
 
@@ -366,7 +359,7 @@ Stock items synced to Xero: ~440
 Staff linked to Xero Payroll: ~15
 ```
 
-#### Step 19: Sync Xero
+#### Step 18: Sync Xero
 
 ```bash
 python manage.py start_xero_sync
@@ -374,7 +367,7 @@ python manage.py start_xero_sync
 
 **Expected output:** Error and warning free sync between local and Xero data.
 
-#### Step 20a (Dev): Start Background Scheduler
+#### Step 19a (Dev): Start Background Scheduler
 
 The scheduler is a separate process that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. In a separate terminal (it blocks forever):
 
@@ -382,7 +375,7 @@ The scheduler is a separate process that keeps Xero tokens refreshed, runs hourl
 python manage.py run_scheduler
 ```
 
-#### Step 20b (Server): Verify Background Scheduler
+#### Step 19b (Server): Verify Background Scheduler
 
 On server instances the scheduler is already running as a systemd service (`scheduler-<instance>`), installed by `instance.sh create`. Verify:
 
@@ -392,7 +385,7 @@ sudo systemctl status scheduler-<instance>
 
 Must show `active (running)`. The "registered jobs" lines in Django startup logs are just declarations -- they do not mean jobs are executing.
 
-#### Step 21: Test Serializers
+#### Step 20: Test Serializers
 
 ```bash
 python scripts/restore_checks/test_serializers.py --verbose
@@ -400,7 +393,7 @@ python scripts/restore_checks/test_serializers.py --verbose
 
 **Expected:** `ALL SERIALIZERS PASSED!` or specific failure details if issues found.
 
-#### Step 22: Test Kanban HTTP API
+#### Step 21: Test Kanban HTTP API
 
 ```bash
 python scripts/restore_checks/test_kanban_api.py
@@ -412,7 +405,7 @@ python scripts/restore_checks/test_kanban_api.py
 API working: 174 active jobs, 23 archived
 ```
 
-#### Step 23: Run Playwright Tests
+#### Step 22: Run Playwright Tests
 
 ```bash
 cd frontend && npx playwright test
@@ -432,6 +425,18 @@ rm -rf restore/
 
 **Symptoms:** Permission denied errors
 **Solution:** Ensure PostgreSQL is running and you have sudo access: `sudo -u postgres psql -c "\l"`
+
+### `loaddata` fails with `NOT NULL` violation on `job_jobevent.staff_id`
+
+**Symptoms:** Step 5 fails part-way through with `IntegrityError: null value in column "staff_id" of relation "job_jobevent" violates not-null constraint`.
+
+**Solution:** The backup was taken before the `feat/jobevent-audit` branch (migrations `job.0078`/`0079`) reached prod, so the JSON contains `JobEvent` rows with `staff_id=null`. See [restore-workaround-jobevent-staff-null.md](restore-workaround-jobevent-staff-null.md) for the rewind-and-replay recipe. Once a post-0079 backup has been produced on prod, the default flow works unchanged and that workaround doc can be deleted.
+
+### `loaddata` fails with `UndefinedColumn` on a CompanyDefaults or JobEvent field
+
+**Symptoms:** Step 5 fails immediately with `psycopg.errors.UndefinedColumn: column "<name>" of relation "<table>" does not exist`.
+
+**Cause:** The local branch has added a column that's not yet on prod, and Step 3's `migrate` was run against an earlier checkout of the tree. Rerun Step 3 on the current branch and retry Step 5.
 
 ## File Locations
 

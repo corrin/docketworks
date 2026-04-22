@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 92 routes | 43 models | 181 components | 362 lib files | 70 env vars | 8 middleware | 22% test coverage
-> **Token savings:** this file is ~29,900 tokens. Without it, AI exploration would cost ~237,800 tokens. **Saves ~207,900 tokens per conversation.**
+> 92 routes | 43 models | 181 components | 362 lib files | 68 env vars | 9 middleware | 22% test coverage
+> **Token savings:** this file is ~30,000 tokens. Without it, AI exploration would cost ~237,800 tokens. **Saves ~207,900 tokens per conversation.**
 
 ---
 
@@ -1671,7 +1671,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `frontend/src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `frontend/src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -1837,6 +1836,13 @@
   - function main: ()
   - class URLDocumentationGenerator
 - `scripts/geocode_addresses.py` — function build_freetext_address: (address) -> str, function main: () -> None
+- `scripts/migrate_to_snapshot.py`
+  - function load_snapshot: (path)
+  - function latest_per_app: (rows)
+  - function apply_target: (app, name)
+  - function read_current_state: ()
+  - function verify_matches_snapshot: (rows)
+  - function main: ()
 - `scripts/move_time_between_jobs.py` — function main: ()
 - `scripts/payroll_reconciliation.py`
   - function get_monday: (d) -> date
@@ -1967,8 +1973,6 @@
 - `UAT_INSTANCE_ID` (has default) — .env
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
-- `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
-- `WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
 - `XERO_CLIENT_ID` (has default) — .env.example
 - `XERO_CLIENT_SECRET` (has default) — .env.example
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example
@@ -2000,6 +2004,7 @@
 ## custom
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
+- migrate_to_snapshot — `scripts/migrate_to_snapshot.py`
 
 ## logging
 - generate_url_docs — `scripts/generate_url_docs.py`

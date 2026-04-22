@@ -14,9 +14,9 @@
 - `src/services/job.service.ts` — imported by **6** files
 - `tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `src/plugins/axios.ts` — imported by **5** files
+- `src/stores/companyDefaults.ts` — imported by **4** files
 - `src/constants/timesheet.ts` — imported by **4** files
 - `src/services/costline.service.ts` — imported by **3** files
-- `src/stores/companyDefaults.ts` — imported by **3** files
 - `src/composables/useJobETags.ts` — imported by **3** files
 - `src/composables/useJobDelta.ts` — imported by **3** files
 - `src/constants/advanced-filters.ts` — imported by **3** files

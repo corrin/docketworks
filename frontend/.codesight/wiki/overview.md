@@ -6,7 +6,7 @@
 
 ## Scale
 
-181 UI components · 3 middleware layers · 14 environment variables
+181 UI components · 3 middleware layers · 13 environment variables
 
 **UI:** 181 components (vue) — see [ui.md](./ui.md)
 
@@ -32,4 +32,4 @@ Changes to these files have the widest blast radius across the codebase:
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `tests/scripts/xero-login.ts`
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-21_
+_Back to [index.md](./index.md) · Generated 2026-04-22_

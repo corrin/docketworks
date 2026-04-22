@@ -706,6 +706,12 @@ CACHES = {
     }
 }
 
+# django-solo: cache SingletonModel.get_solo() results (e.g. CompanyDefaults).
+# LocMemCache is per-worker, so admin edits to CompanyDefaults take up to
+# SOLO_CACHE_TIMEOUT seconds to propagate across all gunicorn workers.
+SOLO_CACHE = "default"
+SOLO_CACHE_TIMEOUT = 300
+
 # Password reset timeout
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 
