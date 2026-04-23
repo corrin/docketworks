@@ -10,7 +10,7 @@ Build a full `Sales Pipeline Report` that answers one primary question: is enoug
 - Conversion Funnel
 - Trend
 
-Use existing report patterns for API/view wiring and existing `JobEvent`, `Job`, and CostSet summary data for metrics. Do not expand scope to rework event storage now; isolate transition parsing in one service layer so it can be swapped to structured JobEvents when the separate PR lands.
+Use existing report patterns for API/view wiring. Metrics read from structured `JobEvent` records (event_type + detail/delta_after), `Job`, and CostSet summary data. No description text matching — the structured-JobEvent migration has landed, so transitions are looked up directly by `event_type` and raw field values in `delta_after`/`delta_before`.
 
 ## Key Changes
 
@@ -45,28 +45,29 @@ Implement explicit, stable rules for each section:
 
 - Scoreboard:
   - `approved_hours_total` = hours from jobs whose first qualifying transition into `approved` or `in_progress` occurs within the period
+  - a qualifying transition is the earliest `JobEvent` per job where `event_type="status_changed"` and `delta_after.status in ("approved", "in_progress")`, or `event_type="quote_accepted"`
   - prefer `latest_quote.summary["hours"]`; if absent, use `latest_estimate.summary["hours"]`
-  - direct jobs are jobs counted here without a quote-sent transition
+  - direct jobs are jobs counted here with no prior `status_changed` event into `awaiting_approval` and no prior `quote_accepted` event before the qualifying transition
   - count each job at most once per reporting period
 
 - Pipeline Snapshot:
   - snapshot as of `end_date`, for jobs historically in `draft` or `awaiting_approval` at that cutoff
-  - derive stage membership from historical job state as of `end_date`, not current `job.status`
+  - derive stage membership by replaying `JobEvent` rows with `event_type="status_changed"` (using `delta_after.status` / `delta_before.status`) starting from the `job_created` event's `delta_after.status` — not from current `job.status`
   - draft hours/value come from `latest_estimate.summary`
   - awaiting-approval hours/value come from `latest_quote.summary`
-  - days in stage come from the most recent status-change event that moved the job into that stage before `end_date`
+  - days in stage come from the most recent `status_changed` event (by timestamp) whose `delta_after.status` matches the resolved stage, on or before `end_date`
 
 - Velocity:
-  - draft to quote-sent = `created_at` to first transition into `awaiting_approval`
-  - quote-sent to resolved = first `awaiting_approval` to first `approved` or `job_rejected`
-  - created to approved = `created_at` to first qualifying approval transition
+  - draft to quote-sent = `created_at` to the first `status_changed` event with `delta_after.status="awaiting_approval"`
+  - quote-sent to resolved = that event to the first subsequent `status_changed` with `delta_after.status="approved"` OR the first `job_rejected` / `quote_accepted` event
+  - created to approved = `created_at` to first `status_changed` with `delta_after.status="approved"` or first `quote_accepted` event
   - report median, p80, and sample size only
 
 - Conversion Funnel:
-  - based on jobs created in the reporting period
+  - based on jobs created in the reporting period (`job_created` event timestamp within range)
   - compute both job counts and hours
   - quote-stage hours use quote summary; draft/direct-only hours use estimate summary
-  - accepted/rejected/waiting/direct/still-draft categories must be mutually exclusive
+  - accepted/rejected/waiting/direct/still-draft categories must be mutually exclusive and resolved from the ordered `JobEvent` stream as of `end_date`
 
 - Trend:
   - weekly buckets over the lookback window
@@ -75,23 +76,29 @@ Implement explicit, stable rules for each section:
 
 ### Transition/event handling
 
-For now, keep transition detection simple and compatible with the current schema:
+Read transitions directly from structured `JobEvent` fields — no description parsing.
 
-- use `JobEvent` with `event_type="status_changed"` and current description text matching
-- centralize all matching/parsing in one helper module or private service methods
-- document the exact strings treated as:
-  - quote sent
-  - approved
-  - in progress
-  - rejected
-- dedupe by job and metric-specific "first qualifying event" rules
-- add a note in the plan and code that this helper is temporary and should be replaced by structured event fields once that PR merges
+Event types the service cares about:
+
+- `status_changed` — use `delta_after.status` / `delta_before.status` (raw status keys from `Job.JOB_STATUS_CHOICES`: `draft`, `awaiting_approval`, `approved`, `in_progress`, `recently_completed`, `archived`, etc.)
+- `quote_accepted` — emitted when `quote_acceptance_date` is set; treat as an approval transition for velocity and scoreboard
+- `job_rejected` — emitted when `rejected_flag` becomes true and status moves to `archived`
+- `job_created` — carries `delta_after.status` as the initial status key and `detail.initial_status` as the display label; use the raw key
+
+All events have `delta_after` populated with raw field keys/values for fresh writes and for historical rows backfilled by migrations 0075 and 0077. Where `delta_after` is unexpectedly missing on a pre-migration row, exclude that job from the affected metric and emit a warning (do not fall back to description parsing).
+
+Dedupe rules:
+
+- for each job and each metric, take the earliest qualifying event (by timestamp)
+- a job that moves `approved` → `in_progress` within the same period counts as one qualifying transition (the earlier of the two)
+- a job that re-enters a stage does not double-count within a single reporting period
 
 For historical state:
 
-- derive as-of stage membership from job history / status transition history at `end_date`
+- replay the `JobEvent` stream for the job up to `end_date` to resolve as-of stage membership
+- starting point is the `job_created` event's `delta_after.status`; apply each `status_changed` in timestamp order
 - do not use live `job.status` for historical snapshots or historical weekly trend points
-- if historical state cannot be resolved for a job, exclude it from the affected section and emit a warning
+- if a job has no `job_created` event and no initial `delta_after.status` to anchor replay, exclude it from the affected section and emit a warning
 
 ### Unhappy-path and data-quality handling
 
@@ -123,8 +130,8 @@ Avoid five separate ad hoc query implementations. Structure the service around r
 
 - query/validate working-day inputs
 - fetch target from `CompanyDefaults`
-- fetch/categorize relevant `JobEvents`
-- resolve historical stage membership as of a cutoff date
+- fetch relevant `JobEvent` rows filtered by `event_type` and (where useful) `delta_after` JSON lookups
+- resolve historical stage membership as of a cutoff date by replaying the per-job event stream
 - resolve job hours/value from quote/estimate summaries
 - compute working days using existing accounting working-day logic
 - build warnings consistently across sections
@@ -174,17 +181,17 @@ Add automated tests at the service layer first, then a smaller set of API tests.
 Service-level tests should cover:
 
 - request period logic with omitted `end_date` defaulting to today
-- transition parsing and dedupe rules
-- job approved then moved to `in_progress` in the same period counts once
-- direct-approved jobs appear in approved-hours totals and direct bucket
+- qualifying-event resolution: `status_changed` with `delta_after.status="approved"`, `quote_accepted`, and `job_rejected` each feed the right metrics
+- dedupe: job approved then moved to `in_progress` in the same period counts once
+- direct-approved jobs (no prior `awaiting_approval` transition, no `quote_accepted`) appear in approved-hours totals and the direct bucket
 - funnel categorization is mutually exclusive
-- historical snapshot stage membership is resolved as of `end_date`, not from current live status
-- days-in-stage uses the most recent transition into the stage before `end_date`
+- historical snapshot stage membership is resolved by replaying `JobEvent` up to `end_date`, not from current live status
+- days-in-stage uses the most recent `status_changed` event into the stage on or before `end_date`
 - velocity median, p80, and sample size are correct from known fixture data
 - weekly trend points and rolling average are derived from the same underlying weekly series
 - working-days divisor matches existing accounting working-day logic
 - missing quote/estimate summary excludes only affected rows and emits warnings
-- missing/malformed `JobEvent` history excludes affected rows from velocity, funnel, or snapshot and emits warnings
+- a job with no `job_created` event (or no usable `delta_after.status` anchor) is excluded from snapshot/velocity/funnel with a warning, not silently text-parsed
 - changing `CompanyDefaults.daily_approved_hours_target` changes scoreboard target output
 
 API tests should cover:
@@ -209,7 +216,7 @@ Manual validation must cover:
 
 ## Assumptions
 
-- The separate structured-JobEvent PR will land soon, so this report may temporarily rely on description matching, but that logic must be isolated for easy replacement.
+- Structured `JobEvent` is already merged (PRs #218, #220). All live and historical events have `event_type`, `detail`, and `delta_after`/`delta_before` populated for the fields this report needs; description text matching is not used.
 - `latest_quote.summary` and `latest_estimate.summary` are acceptable v1 sources for pipeline hours/value when present.
 - Historical snapshot hours/value in v1 use the latest attached quote/estimate as a practical proxy; this should be accurate for most jobs but can drift after later revisions.
 - `daily_approved_hours_target` belongs in `CompanyDefaults` as shared business configuration.
