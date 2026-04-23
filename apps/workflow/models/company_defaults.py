@@ -297,6 +297,13 @@ class CompanyDefaults(SingletonModel):
         verbose_name="Daily GP (amber)",
         help_text="Daily gross profit above which the day is amber",
     )
+    daily_approved_hours_target = models.DecimalField(
+        max_digits=5,
+        decimal_places=2,
+        default=0,
+        verbose_name="Daily approved hours target",
+        help_text="Target daily hours of newly-approved work flowing into the shop, used by the Sales Pipeline scoreboard",
+    )
 
     class Meta:
         verbose_name = "Company Defaults"

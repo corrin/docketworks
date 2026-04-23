@@ -11,6 +11,7 @@
 - `ALL` `/reports/staff-performance-summary/` params()
 - `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
 - `ALL` `/reports/rdti-spend/` params()
+- `ALL` `/reports/sales-pipeline/` params()
 - `ALL` `/reports/wip/` params()
 - `ALL` `/staff/all/` params() [auth]
 - `ALL` `/staff/rates/<uuid:staff_id>/` params(staff_id) [auth]

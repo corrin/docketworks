@@ -47,6 +47,14 @@
   - class RDTISpendJobDetailSerializer
   - class RDTISpendTotalsSerializer
   - class RDTISpendResponseSerializer
+- `apps/accounting/serializers/sales_pipeline_serializers.py`
+  - class SalesPipelineQuerySerializer
+  - class SalesPipelinePeriodSerializer
+  - class SalesPipelineScoreboardSerializer
+  - class SalesPipelineSnapshotJobSerializer
+  - class SalesPipelineStageBucketSerializer
+  - class SalesPipelineSnapshotSerializer
+  - _...10 more_
 - `apps/accounting/serializers/wip_serializers.py`
   - class WIPQuerySerializer
   - class WIPJobSerializer
@@ -59,6 +67,7 @@
   - class StaffPerformanceService
 - `apps/accounting/services/payroll_reconciliation_service.py` — class PayrollReconciliationService
 - `apps/accounting/services/rdti_spend_service.py` — class RDTISpendService
+- `apps/accounting/services/sales_pipeline_service.py` — class SalesPipelineService
 - `apps/accounting/services/wip_service.py` — class WIPService
 - `apps/accounts/apps.py` — class AccountsConfig
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command

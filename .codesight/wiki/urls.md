@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Urls subsystem handles **86 routes** and touches: auth, cache, payment.
+The Urls subsystem handles **87 routes** and touches: auth, cache, payment.
 
 ## Routes
 
@@ -27,6 +27,8 @@ The Urls subsystem handles **86 routes** and touches: auth, cache, payment.
 - `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
   `apps/accounting/urls.py`
 - `ALL` `/reports/rdti-spend/`
+  `apps/accounting/urls.py`
+- `ALL` `/reports/sales-pipeline/`
   `apps/accounting/urls.py`
 - `ALL` `/reports/wip/`
   `apps/accounting/urls.py`

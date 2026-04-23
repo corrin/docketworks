@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 365 lib files | 69 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,400 tokens. **Saves ~210,200 tokens per conversation.**
+> 95 routes | 44 models | 181 components | 365 lib files | 68 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,300 tokens. Without it, AI exploration would cost ~240,800 tokens. **Saves ~210,500 tokens per conversation.**
 
 ---
 
@@ -20,6 +20,7 @@
 - `ALL` `/reports/staff-performance-summary/` params()
 - `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
 - `ALL` `/reports/rdti-spend/` params()
+- `ALL` `/reports/sales-pipeline/` params()
 - `ALL` `/reports/wip/` params()
 - `ALL` `/staff/all/` params() [auth]
 - `ALL` `/staff/rates/<uuid:staff_id>/` params(staff_id) [auth]
@@ -924,6 +925,14 @@
   - class RDTISpendJobDetailSerializer
   - class RDTISpendTotalsSerializer
   - class RDTISpendResponseSerializer
+- `apps/accounting/serializers/sales_pipeline_serializers.py`
+  - class SalesPipelineQuerySerializer
+  - class SalesPipelinePeriodSerializer
+  - class SalesPipelineScoreboardSerializer
+  - class SalesPipelineSnapshotJobSerializer
+  - class SalesPipelineStageBucketSerializer
+  - class SalesPipelineSnapshotSerializer
+  - _...10 more_
 - `apps/accounting/serializers/wip_serializers.py`
   - class WIPQuerySerializer
   - class WIPJobSerializer
@@ -936,10 +945,12 @@
   - class StaffPerformanceService
 - `apps/accounting/services/payroll_reconciliation_service.py` — class PayrollReconciliationService
 - `apps/accounting/services/rdti_spend_service.py` — class RDTISpendService
+- `apps/accounting/services/sales_pipeline_service.py` — class SalesPipelineService
 - `apps/accounting/services/wip_service.py` — class WIPService
 - `apps/accounts/apps.py` — class AccountsConfig
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
-- `apps/accounts/models.py` — class StaffManager, class Staff
+- `apps/accounts/managers.py` — class StaffManager
+- `apps/accounts/models.py` — class Staff
 - `apps/accounts/permissions.py` — class IsStaff, class CanManageTimesheets
 - `apps/accounts/serializers.py`
   - class EmptySerializer
@@ -1105,7 +1116,7 @@
 - `apps/job/services/chat_service.py` — class ChatService
 - `apps/job/services/data_integrity_service.py` — class DataIntegrityService
 - `apps/job/services/data_quality_report.py` — class ArchivedJobsComplianceService
-- `apps/job/services/delivery_docket_service.py` — function generate_delivery_docket: (job, staff) -> tuple[BytesIO, JobFile]
+- `apps/job/services/delivery_docket_service.py` — function generate_delivery_docket: (job) -> tuple[BytesIO, JobFile]
 - `apps/job/services/delta_checksum.py`
   - function compute_job_delta_checksum: (job_id, field_values, object], fields) -> str
   - function normalise_value: (value) -> str
@@ -1468,7 +1479,6 @@
   - class XeroPayItemSerializer
   - class AIProviderCreateUpdateSerializer
   - _...23 more_
-- `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
   - function list_grouped_xero_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
@@ -1502,7 +1512,6 @@
   - function process_webhook_event: (event, Any]) -> None
   - function process_webhook_queue: () -> None
   - class XeroWebhookView
-- `conftest.py` — function django_db_setup: (django_db_blocker)
 - `docketworks/settings.py` — function validate_required_settings: () -> None
 - `frontend/src/api/client.ts`
   - function setupETagManager: (manager) => void
@@ -1878,7 +1887,6 @@
   - function push_clients_to_xero: (clients, dry_run)
   - function main: ()
 - `scripts/recreate_jobfiles.py` — function create_dummy_file: (filepath, job_name, job_number, filename), function main: ()
-- `scripts/regen_golden_pdfs.py` — function main: () -> None
 - `scripts/restore_checks/test_kanban_api.py` — function test_kanban_api: () -> bool
 - `scripts/restore_checks/test_serializers.py` — function main: (), class SerializerTester
 - `scripts/setup_demo_payroll.py` — function main: ()
@@ -1968,7 +1976,6 @@
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
-- `SCRUB_DB_NAME` (has default) — .env.example
 - `SECRET_KEY` (has default) — .env.example
 - `SKIP_VERSION_CHECK` (has default) — .env.example
 - `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py
@@ -2027,16 +2034,16 @@
 
 ## Most Imported Files (change these carefully)
 
-- `frontend/tests/fixtures/auth.ts` — imported by **29** files
 - `frontend/src/api/generated/api.ts` — imported by **27** files
-- `frontend/tests/fixtures/helpers.ts` — imported by **21** files
+- `frontend/tests/fixtures/auth.ts` — imported by **27** files
+- `frontend/tests/fixtures/helpers.ts` — imported by **19** files
 - `frontend/src/utils/debug.ts` — imported by **14** files
 - `/apps.py` — imported by **9** files
 - `frontend/src/api/client.ts` — imported by **7** files
 - `frontend/src/utils/dateUtils.ts` — imported by **6** files
 - `/enums.py` — imported by **5** files
+- `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `frontend/src/stores/jobs.ts` — imported by **5** files
-- `frontend/tests/scripts/db-backup-utils.ts` — imported by **4** files
 - `/utils.py` — imported by **3** files
 - `/models.py` — imported by **3** files
 - `/xero_helpers.py` — imported by **3** files
@@ -2050,23 +2057,23 @@
 
 ## Import Map (who imports what)
 
-- `frontend/tests/fixtures/auth.ts` ← `frontend/tests/company-defaults.spec.ts`, `frontend/tests/example.spec.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/create-job.spec.ts` +24 more
 - `frontend/src/api/generated/api.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAddEmptyCostLine.ts`, `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCostLineAutosave.ts` +22 more
-- `frontend/tests/fixtures/helpers.ts` ← `frontend/tests/fixtures/auth.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/job-attachments.spec.ts`, `frontend/tests/job/job-header.spec.ts` +16 more
+- `frontend/tests/fixtures/auth.ts` ← `frontend/tests/company-defaults.spec.ts`, `frontend/tests/example.spec.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/create-job.spec.ts` +22 more
+- `frontend/tests/fixtures/helpers.ts` ← `frontend/tests/fixtures/auth.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/job-attachments.spec.ts`, `frontend/tests/job/job-header.spec.ts` +14 more
 - `frontend/src/utils/debug.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobAutosave.ts`, `frontend/src/composables/useOptimizedDragAndDrop.ts` +9 more
 - `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/process/__init__.py` +4 more
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
 - `frontend/src/utils/dateUtils.ts` ← `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/services/timesheet.service.ts`, `frontend/tests/staff/staff-wage-loading.spec.ts`, `frontend/tests/timesheet/create-timesheet-entry.spec.ts` +1 more
 - `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`
+- `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/global-teardown.ts`, `frontend/tests/scripts/xero-login.ts`
 - `frontend/src/stores/jobs.ts` ← `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobHeaderAutosave.ts`, `frontend/src/composables/useOptimizedKanban.ts`, `frontend/src/composables/useTimesheetEntryCalculations.ts`, `frontend/src/main.ts`
-- `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/xero-login.ts`
 
 ---
 
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 119 test files found
+> 116 test files found
 
 ## Covered Routes
 
