@@ -10,6 +10,8 @@ from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from zoneinfo import ZoneInfo
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounting.services import SalesPipelineService
@@ -329,6 +331,84 @@ class SnapshotTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         self.assertAlmostEqual(rep["pipeline_snapshot"]["draft"]["hours_total"], 2.5)
         self.assertAlmostEqual(
             rep["pipeline_snapshot"]["awaiting_approval"]["hours_total"], 4.5
+        )
+
+    def test_narrowed_fetch_preserves_historical_replay(self):
+        """A job created long before the reporting window whose transitions
+        leave it in a pipeline stage at ``end_date`` must still surface in
+        the snapshot. Tier 1 narrows the fetch window to save work, so this
+        guards against regressing historical replay for those jobs.
+
+        See ``docs/plans/now-the-performance-concerns-stateful-taco.md``.
+        """
+        job = self._make_job(
+            name="LongHistory",
+            client=self.client_obj,
+            created_dt=_nz_dt(date(2023, 1, 15)),
+        )
+        self._attach_quote(job, hours=9.0, rev=1800.0)
+        # Transition to awaiting_approval three years before the window.
+        self._add_status_change(
+            job,
+            old="draft",
+            new="awaiting_approval",
+            at=_nz_dt(date(2023, 6, 20)),
+        )
+        # Nothing else happens. Historical state as of 2026-04-30 must still
+        # be awaiting_approval, derivable only by fetching the 2023 event.
+        start = date(2026, 4, 1)
+        end = date(2026, 4, 30)
+
+        rep = SalesPipelineService.get_report(start, end, 4, 4)
+        bucket = rep["pipeline_snapshot"]["awaiting_approval"]
+        self.assertEqual(bucket["count"], 1)
+        self.assertAlmostEqual(bucket["hours_total"], 9.0)
+
+    def test_narrowed_fetch_applies_lower_bound_for_in_window_query(self):
+        """The main events query must carry a ``timestamp >=`` filter so we
+        aren't hauling years of history for a short report window. The
+        pre-window query that backfills pipeline-stage jobs is allowed to
+        run unbounded below."""
+        # A job entirely outside the reporting window. With narrowing, its
+        # events should arrive via the pipeline-stage pre-window backfill
+        # (single queryset), not the in-window queryset.
+        outside_job = self._make_job(
+            name="Outside",
+            client=self.client_obj,
+            created_dt=_nz_dt(date(2022, 3, 1)),
+        )
+        self._attach_estimate(outside_job, hours=2.0)
+        self._add_status_change(
+            outside_job,
+            old="draft",
+            new="awaiting_approval",
+            at=_nz_dt(date(2022, 8, 1)),
+        )
+        self._add_status_change(
+            outside_job,
+            old="awaiting_approval",
+            new="archived",
+            at=_nz_dt(date(2022, 12, 1)),
+        )
+
+        start = date(2026, 4, 1)
+        end = date(2026, 4, 30)
+
+        with CaptureQueriesContext(connection) as ctx:
+            SalesPipelineService.get_report(start, end, 4, 4)
+
+        jobevent_selects = [
+            q["sql"]
+            for q in ctx.captured_queries
+            if '"job_jobevent"' in q["sql"]
+            and q["sql"].lstrip().upper().startswith("SELECT")
+        ]
+        self.assertTrue(jobevent_selects, "expected JobEvent SELECTs")
+        has_lower_bound = any('"timestamp" >=' in q for q in jobevent_selects)
+        self.assertTrue(
+            has_lower_bound,
+            "no JobEvent SELECT carried a timestamp >= lower bound — "
+            "fetch narrowing regressed. Queries:\n" + "\n".join(jobevent_selects),
         )
 
     def test_missing_creation_anchor_excludes_and_warns(self):
