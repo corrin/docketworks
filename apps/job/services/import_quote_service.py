@@ -237,7 +237,7 @@ def preview_quote_import_from_drafts(
 
 
 def import_quote_from_drafts(
-    job: Job, draft_lines: List[DraftLine]
+    job: Job, draft_lines: List[DraftLine], staff
 ) -> QuoteImportResult:
     """
     Import a quote from a list of DraftLine objects.
@@ -251,6 +251,7 @@ def import_quote_from_drafts(
     Args:
         job: Job instance to import the quote for
         draft_lines: List of DraftLine objects from spreadsheet parsing
+        staff: Staff attributed to the resulting job update
 
     Returns:
         QuoteImportResult with operation details
@@ -370,7 +371,7 @@ def import_quote_from_drafts(
 
             # Step 6: Update job's latest_quote pointer to maintain consistency
             # This ensures the pointer stays in sync with the database
-            job.set_latest("quote", new_cost_set)
+            job.set_latest("quote", new_cost_set, staff)
 
             logger.info(
                 f"Successfully imported quote for job {job.id} - "
@@ -388,7 +389,7 @@ def import_quote_from_drafts(
 
 
 def import_quote_from_file(
-    job: Job, file_path: str, skip_validation: bool = False
+    job: Job, file_path: str, staff, skip_validation: bool = False
 ) -> QuoteImportResult:
     """
     Import a quote from an Excel spreadsheet file.
@@ -396,6 +397,7 @@ def import_quote_from_file(
     Args:
         job: Job instance to import the quote for
         file_path: Path to the Excel spreadsheet
+        staff: Staff attributed to the resulting job update
         skip_validation: Whether to skip pre-import validation
 
     Returns:
@@ -441,7 +443,7 @@ def import_quote_from_file(
                 success=False, error_message="No valid lines found in spreadsheet"
             )
         # Step 2: Import the quote using the draft lines helper
-        import_result = import_quote_from_drafts(job, draft_lines)
+        import_result = import_quote_from_drafts(job, draft_lines, staff)
 
         # Combine validation report with import result
         import_result.validation_report = validation_report

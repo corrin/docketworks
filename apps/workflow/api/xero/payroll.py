@@ -913,6 +913,11 @@ def get_earnings_rates() -> List[Dict[str, Any]]:
                         "rate_type": rate.rate_type,
                         "type_of_units": rate.type_of_units,
                         "multiplier": multiplier,
+                        "expense_account_id": (
+                            str(rate.expense_account_id)
+                            if rate.expense_account_id
+                            else None
+                        ),
                     }
                 )
 

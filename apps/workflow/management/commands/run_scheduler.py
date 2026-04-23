@@ -21,6 +21,9 @@ class Command(BaseCommand):
         job_app = apps.get_app_config("job")
         job_app._register_job_jobs()
 
+        operations_app = apps.get_app_config("operations")
+        operations_app._register_operations_jobs()
+
         try:
             scheduler = get_scheduler()
             scheduler.start()

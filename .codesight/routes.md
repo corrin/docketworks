@@ -36,6 +36,8 @@
 - `ALL` `/jobs/fetch-by-column/<str:column_id>/` params(column_id)
 - `ALL` `/jobs/status-values/` params()
 - `ALL` `/jobs/advanced-search/` params()
+- `ALL` `/workshop-schedule/` params()
+- `ALL` `/workshop-schedule/recalculate/` params()
 - `ALL` `/` ✓
 - `ALL` `/extract-supplier-price-list/` params()
 - `ALL` `/daily/<str:target_date>/` params(target_date)
@@ -47,30 +49,39 @@
 - `ALL` `/payroll/pay-runs/` params()
 - `ALL` `/payroll/post-staff-week/` params()
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
-- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
-- `ALL` `/xero/authenticate/` params() [auth, payment, upload]
-- `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
-- `ALL` `/xero/disconnect/` params() [auth, payment, upload]
-- `ALL` `/xero/sync-stream/` params() [auth, payment, upload]
-- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/sync-info/` params() [auth, payment, upload]
-- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
-- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
-- `ALL` `/xero/sync/` params() [auth, payment, upload]
-- `ALL` `/xero/webhook/` params() [auth, payment, upload]
-- `ALL` `/xero/ping/` params() [auth, payment, upload]
-- `ALL` `/app-errors/` params() [auth, payment, upload]
-- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
-- `ALL` `/rest/app-errors/` params() [auth, payment, upload]
-- `ALL` `/xero-errors/` params() [auth, payment, upload]
-- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
-- `ALL` `/company-defaults/` params() [auth, payment, upload]
-- `ALL` `/company-defaults/upload-logo/` params() [auth, payment, upload]
-- `ALL` `/company-defaults/schema/` params() [auth, payment, upload]
-- `ALL` `/workflow/` params() [auth, payment, upload]
+- `ALL` `/build-id/` params() [auth, cache, payment, upload]
+- `ALL` `/disable_cache/` params() [auth, cache, payment, upload]
+- `ALL` `/enable_cache/` params() [auth, cache, payment, upload]
+- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, cache, payment, upload]
+- `ALL` `/xero/authenticate/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/oauth/callback/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/disconnect/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/sync-stream/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/sync-info/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
+- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
+- `ALL` `/xero/sync/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/webhook/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/ping/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/grouped/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/grouped/mark_resolved/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/grouped/mark_unresolved/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
+- `ALL` `/rest/app-errors/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/grouped/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_resolved/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_unresolved/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
+- `ALL` `/company-defaults/` params() [auth, cache, payment, upload]
+- `ALL` `/company-defaults/upload-logo/` params() [auth, cache, payment, upload]
+- `ALL` `/company-defaults/schema/` params() [auth, cache, payment, upload]
+- `ALL` `/workflow/` params() [auth, cache, payment, upload]
 - `ALL` `/api/` params() ✓
 - `ALL` `/api/job/` params()
 - `ALL` `/api/accounts/` params()
@@ -80,5 +91,6 @@
 - `ALL` `/api/purchasing/` params()
 - `ALL` `/api/accounting/` params()
 - `ALL` `/api/process/` params()
+- `ALL` `/api/operations/` params()
 - `ALL` `/api/schema/` params()
 - `ALL` `/api/docs` params()

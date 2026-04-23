@@ -74,7 +74,10 @@
   - class StaffCreateSerializer
   - _...4 more_
 - `apps/accounts/staff_anonymization.py` — function generate_email: (profile, last_name) -> str, function create_staff_profile: () -> dict
-- `apps/accounts/utils.py` — function get_excluded_staff: (apps_registry, *, target_date) -> List[str], function is_valid_uuid: (val) -> bool
+- `apps/accounts/utils.py`
+  - function get_excluded_staff: (apps_registry, *, target_date) -> List[str]
+  - function get_staff_from_nickname: (name, *, include_inactive)
+  - function is_valid_uuid: (val) -> bool
 - `apps/client/apps.py` — class ClientConfig
 - `apps/client/management/commands/merge_clients.py` — class Command
 - `apps/client/models.py`
@@ -90,6 +93,7 @@
   - class StandardErrorSerializer
   - class ClientListResponseSerializer
   - _...13 more_
+- `apps/client/services/client_merge_service.py` — function reassign_client_fk_records: (source, destination, staff, *, logger_prefix) -> dict[str, int]
 - `apps/client/services/client_rest_service.py` — class ClientRestService
 - `apps/client/services/geocoding_service.py`
   - function get_api_key: () -> str
@@ -125,7 +129,18 @@
   - function validate_totals: (df, lines, total_minutes, labour_col, materials_markup, pricing_df)
   - function parse_xlsx_old: (path) -> list[DraftLine]
   - _...7 more_
+- `apps/job/management/commands/_history_enrichment_utils.py`
+  - function get_client_names: () -> dict
+  - function get_contact_names: () -> dict
+  - function safe_value: (value)
+  - function display_value: (field_name, raw_value) -> str
+  - function walk_history_pairs: (job_id, HistoricalJob)
+  - function get_first_history_record: (job_id, HistoricalJob)
+  - _...4 more_
 - `apps/job/management/commands/create_shop_jobs.py` — class Command
+- `apps/job/management/commands/jobevent_diagnostic.py` — class Command
+- `apps/job/management/commands/jobevent_enrich_from_history.py` — class Command
+- `apps/job/management/commands/jobevent_match_history.py` — class Command
 - `apps/job/management/commands/set_paid_flag_jobs.py` — class Command
 - `apps/job/management/commands/test_gemini_chat.py` — class Command
 - `apps/job/mixins.py` — class JobLookupMixin, class JobNumberLookupMixin
@@ -134,7 +149,7 @@
   - class CostSet
   - class CostLine
 - `apps/job/models/costline_validators.py` — function validate_costline_meta: (meta, Any] | None, kind) -> None, function validate_costline_ext_refs: (ext_refs, Any] | None) -> None
-- `apps/job/models/job.py` — class Job
+- `apps/job/models/job.py` — class JobQuerySet, class Job
 - `apps/job/models/job_delta_rejection.py` — class JobDeltaRejection
 - `apps/job/models/job_event.py` — class JobEvent
 - `apps/job/models/job_file.py` — class JobFile
@@ -191,7 +206,7 @@
   - class XeroInvoiceSerializer
   - class CompanyDefaultsJobDetailSerializer
   - class JobSerializer
-  - _...50 more_
+  - _...54 more_
 - `apps/job/serializers/kanban_serializer.py`
   - class JobReorderSerializer
   - class JobStatusUpdateSerializer
@@ -224,8 +239,8 @@
   - function serialize_validation_report: (validation_report) -> Optional[Dict[str, Any]]
   - function serialize_draft_lines: (draft_lines) -> List[Dict[str, Any]]
   - function preview_quote_import_from_drafts: (job, draft_lines) -> Dict[str, Any]
-  - function import_quote_from_drafts: (job, draft_lines) -> QuoteImportResult
-  - function import_quote_from_file: (job, file_path, skip_validation) -> QuoteImportResult
+  - function import_quote_from_drafts: (job, draft_lines, staff) -> QuoteImportResult
+  - function import_quote_from_file: (job, file_path, staff, skip_validation) -> QuoteImportResult
   - function preview_quote_import: (job, file_path) -> Dict[str, Any]
   - _...2 more_
 - `apps/job/services/job_profitability_report.py` — class JobProfitabilityReportService
@@ -236,9 +251,9 @@
   - class JobRestService
 - `apps/job/services/job_service.py`
   - function get_paid_complete_jobs: ()
-  - function archive_complete_jobs: (job_ids)
+  - function archive_complete_jobs: (job_ids, staff)
   - function get_job_total_value: (job) -> Decimal
-  - function recalculate_job_invoicing_state: (job_id) -> None
+  - function recalculate_job_invoicing_state: (job_id, staff) -> None
   - class JobStaffService
 - `apps/job/services/kanban_categorization_service.py` — class KanbanColumn, class KanbanCategorizationService
 - `apps/job/services/kanban_service.py` — class KanbanService
@@ -249,7 +264,7 @@
 - `apps/job/services/quote_sync_service.py`
   - function link_quote_sheet: (job, template_url) -> QuoteSpreadsheet
   - function preview_quote: (job)
-  - function apply_quote: (job)
+  - function apply_quote: (job, staff)
 - `apps/job/services/workshop_pdf_service.py`
   - function format_hours_display: (hours) -> str
   - function get_workshop_hours: (job) -> float
@@ -260,6 +275,22 @@
   - _...17 more_
 - `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
 - `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
+- `apps/operations/apps.py` — class OperationsConfig
+- `apps/operations/models/allocation_block.py` — class AllocationBlock
+- `apps/operations/models/job_projection.py` — class UnscheduledReason, class JobProjection
+- `apps/operations/models/scheduler_run.py` — class SchedulerRun
+- `apps/operations/scheduler_jobs.py` — function recompute_workshop_schedule: () -> None
+- `apps/operations/serializers/workshop_schedule_serializer.py`
+  - class DaySerializer
+  - class AssignedStaffSerializer
+  - class ScheduledJobSerializer
+  - class UnscheduledJobSerializer
+  - class WorkshopScheduleResponseSerializer
+  - class WorkshopScheduleQuerySerializer
+- `apps/operations/services/scheduler_service.py`
+  - function run_workshop_schedule: () -> SchedulerRun
+  - class JobScheduleState
+  - class UnschedulableJob
 - `apps/process/apps.py` — class ProcessConfig
 - `apps/process/management/commands/import_dropbox_hs_documents.py` — class Command
 - `apps/process/models/form.py` — class Form
@@ -307,7 +338,7 @@
   - class AllocationDeletionError
   - class DeletionResult
   - class AllocationService
-- `apps/purchasing/services/delivery_receipt_service.py` — function process_delivery_receipt: (purchase_order_id, line_allocations, *, expected_etag) -> PurchaseOrder, class DeliveryReceiptValidationError
+- `apps/purchasing/services/delivery_receipt_service.py` — function process_delivery_receipt: (purchase_order_id, line_allocations, staff, *, expected_etag) -> PurchaseOrder, class DeliveryReceiptValidationError
 - `apps/purchasing/services/purchase_order_email_service.py` — function create_purchase_order_email: (purchase_order) -> dict
 - `apps/purchasing/services/purchase_order_pdf_service.py` — function create_purchase_order_pdf: (purchase_order), class PurchaseOrderPDFGenerator
 - `apps/purchasing/services/purchasing_rest_service.py` — class PurchasingRestService
@@ -530,9 +561,11 @@
   - class AccessLoggingMiddleware
   - class FrontendRedirectMiddleware
   - class LoginRequiredMiddleware
+  - class E2ECacheBypassMiddleware
   - class PasswordStrengthMiddleware
 - `apps/workflow/models/ai_provider.py` — class AIProvider
 - `apps/workflow/models/app_error.py` — class AppError, class XeroError
+- `apps/workflow/models/cache_state.py` — class CacheState
 - `apps/workflow/models/company_defaults.py` — class CompanyDefaults
 - `apps/workflow/models/service_api_key.py` — class ServiceAPIKey
 - `apps/workflow/models/settings_metadata.py`
@@ -558,7 +591,15 @@
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
   - class AIProviderCreateUpdateSerializer
-  - _...19 more_
+  - _...23 more_
+- `apps/workflow/services/error_grouping.py`
+  - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
+  - function list_grouped_xero_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
+  - function mark_app_error_group_resolved: (message, staff) -> int
+  - function mark_app_error_group_unresolved: (message, staff) -> int
+  - function mark_xero_error_group_resolved: (message, staff) -> int
+  - function mark_xero_error_group_unresolved: (message, staff) -> int
+  - _...4 more_
 - `apps/workflow/services/error_persistence.py`
   - function extract_request_context: (request) -> Dict[str, Any]
   - function extract_job_context: (job)
@@ -671,6 +712,7 @@
 - `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
 - `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
+- `frontend/src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
 - `frontend/src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
 - `frontend/src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
@@ -690,7 +732,8 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
-- `frontend/src/composables/useXeroAuth.ts` — function useXeroAuth: () => void
+- `frontend/src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
+- `frontend/src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `frontend/src/constants/job-status.ts`
   - function getStatusChoice: (key) => StatusChoice | undefined
   - function getStatusLabel: (key) => string
@@ -759,7 +802,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `frontend/src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `frontend/src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -814,6 +856,7 @@
 - `frontend/src/utils/csrf.ts` — function getCookie: (name) => string | null, function getCsrfToken: () => string | null
 - `frontend/src/utils/dateUtils.ts`
   - function toLocalDateString: (date) => void
+  - function getLatestWeekdayDate: (date) => void
   - function toDateValue: (date) => DateValue | undefined
   - function fromDateValue: (dateValue) => Date | null
 - `frontend/src/utils/debug.ts` — function debugLog: (...args) => void, const isDebugEnabled
@@ -870,6 +913,13 @@
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
 - `manage.py` — function main: () -> None
+- `restore/extracted/home/corrin/backport_data_backup.py` — class Command
+- `restore/extracted/usr/local/bin/cleanup_backups.py`
+  - function find_timestamped_dirs: (root)
+  - function find_daily_sql_backups: (root)
+  - function compute_keep_set: (pairs, now)
+  - function delete_items: (root, pairs, keep, dry_run)
+  - function main: ()
 - `scripts/analyze_client_contacts.py`
   - function analyze_empty_names: (verbose) -> None
   - function analyze_duplicates: (verbose) -> None
@@ -877,11 +927,11 @@
 - `scripts/cleanup_backups.py`
   - function parse_arguments: ()
   - function list_backup_dirs: (root)
-  - function validate_entries: (root, entries)
-  - function parse_timestamps: (entries)
-  - function compute_keep_set: (pairs, now)
-  - function delete_and_purge: (root, pairs, keep, dry_run)
-  - _...2 more_
+  - function classify: (name)
+  - function parse_ts_dir_pairs: (entries)
+  - function compute_ts_dir_keep: (pairs, now)
+  - function compute_predeploy_keep: (entries, now)
+  - _...4 more_
 - `scripts/create_master_template.py`
   - function get_drive_service: ()
   - function find_or_create_templates_folder: (service)
@@ -917,6 +967,13 @@
   - function main: ()
   - class URLDocumentationGenerator
 - `scripts/geocode_addresses.py` — function build_freetext_address: (address) -> str, function main: () -> None
+- `scripts/migrate_to_snapshot.py`
+  - function load_snapshot: (path)
+  - function latest_per_app: (rows)
+  - function apply_target: (app, name)
+  - function read_current_state: ()
+  - function verify_matches_snapshot: (rows)
+  - function main: ()
 - `scripts/move_time_between_jobs.py` — function main: ()
 - `scripts/payroll_reconciliation.py`
   - function get_monday: (d) -> date

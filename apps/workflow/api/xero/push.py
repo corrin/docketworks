@@ -154,9 +154,13 @@ def sync_job_to_xero(job):
             time.sleep(SLEEP_TIME)
 
             # Save the project ID back to our job
+            automation_user = Staff.get_automation_user()
             job.xero_project_id = response.project_id
             job.xero_last_synced = timezone.now()
-            job.save(update_fields=["xero_project_id", "xero_last_synced"])
+            job.save(
+                staff=automation_user,
+                update_fields=["xero_project_id", "xero_last_synced"],
+            )
 
             logger.info(
                 f"Created Job {job.job_number} in Xero with project ID {job.xero_project_id}"
@@ -168,7 +172,7 @@ def sync_job_to_xero(job):
             time.sleep(SLEEP_TIME)
 
             job.xero_default_task_id = default_task.task_id
-            job.save(update_fields=["xero_default_task_id"])
+            job.save(staff=automation_user, update_fields=["xero_default_task_id"])
 
             logger.info(
                 f"Created default Labor task for Job {job.job_number} with task ID {job.xero_default_task_id}"
@@ -450,31 +454,29 @@ def get_all_xero_contacts():
 
 
 def create_client_contact_in_xero(client):
-    """Create a single client as Xero contact"""
+    """Create a single client as Xero contact. Returns xero_contact_id on success, raises on failure."""
     if not client.validate_for_xero():
-        logger.warning(f"Client {client.id} failed Xero validation")
-        return False
+        raise ValueError(f"Client {client.id} failed Xero validation")
 
     accounting_api = AccountingApi(api_client)
     contact_data = client.get_client_for_xero()
 
     if not contact_data:
-        logger.warning(f"Client {client.id} failed to generate Xero data")
-        return False
+        raise ValueError(f"Client {client.id} failed to generate Xero data")
 
-    try:
-        response = accounting_api.create_contacts(
-            get_tenant_id(), contacts={"contacts": [contact_data]}
+    response = accounting_api.create_contacts(
+        get_tenant_id(), contacts={"contacts": [contact_data]}
+    )
+    time.sleep(SLEEP_TIME)
+
+    if not response or not response.contacts:
+        raise ValueError(
+            f"Xero API returned empty response when creating contact for client {client.id}"
         )
-        time.sleep(SLEEP_TIME)
 
-        client.xero_contact_id = response.contacts[0].contact_id
-        client.save(update_fields=["xero_contact_id"])
-        return True
-
-    except Exception as e:
-        logger.error(f"Error creating client {client.name} in Xero: {e}")
-        return False
+    client.xero_contact_id = str(response.contacts[0].contact_id)
+    client.save(update_fields=["xero_contact_id"])
+    return client.xero_contact_id
 
 
 def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):

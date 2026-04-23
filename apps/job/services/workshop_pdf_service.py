@@ -10,7 +10,7 @@ from bs4 import BeautifulSoup, NavigableString
 from django.conf import settings
 from django.utils import timezone
 from PIL import Image, ImageFile
-from PyPDF2 import PdfWriter
+from pypdf import PdfWriter
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet

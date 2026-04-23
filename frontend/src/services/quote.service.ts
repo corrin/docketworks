@@ -21,11 +21,11 @@ class QuoteService {
   }
 
   async previewQuote(jobId: string): Promise<PreviewQuoteResponse> {
-    return api.job_jobs_quote_preview_create({}, { params: { id: jobId } })
+    return api.job_jobs_quote_preview_create(undefined, { params: { id: jobId } })
   }
 
   async applyQuote(jobId: string): Promise<ApplyQuoteResponse> {
-    return api.job_jobs_quote_apply_create({ success: true }, { params: { id: jobId } })
+    return api.job_jobs_quote_apply_create(undefined, { params: { id: jobId } })
   }
 
   hasLinkedSheet(job: Job): boolean {

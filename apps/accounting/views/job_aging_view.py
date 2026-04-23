@@ -1,6 +1,7 @@
 from logging import getLogger
 from typing import Any, Type
 
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -43,6 +44,17 @@ class JobAgingAPIView(APIView):
             return JobAgingResponseSerializer
         return JobAgingQuerySerializer
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="include_archived",
+                type=bool,
+                required=False,
+                description="Whether to include archived jobs. Defaults to False.",
+            ),
+        ],
+        responses={200: JobAgingResponseSerializer, 400: StandardErrorSerializer},
+    )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         """
         Get job aging data.

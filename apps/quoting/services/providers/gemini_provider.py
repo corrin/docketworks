@@ -8,7 +8,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from google import genai
 from google.genai import types
-from PyPDF2 import PdfReader, PdfWriter
+from pypdf import PdfReader, PdfWriter
 
 from apps.workflow.models import CompanyDefaults
 

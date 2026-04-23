@@ -1,4 +1,4 @@
-import api from '@/plugins/axios'
+import { api } from '@/api/client'
 import type {
   SalesForecastReportResponse,
   SalesForecastMonthDetailResponse,
@@ -6,16 +6,12 @@ import type {
 
 export const salesForecastReportService = {
   async getSalesForecast(): Promise<SalesForecastReportResponse> {
-    const response = await api.get<SalesForecastReportResponse>(
-      '/api/accounting/reports/sales-forecast/',
-    )
-    return response.data
+    return (await api.sales_forecast_list()) as SalesForecastReportResponse
   },
 
   async getMonthDetail(month: string): Promise<SalesForecastMonthDetailResponse> {
-    const response = await api.get<SalesForecastMonthDetailResponse>(
-      `/api/accounting/reports/sales-forecast/${month}/`,
-    )
-    return response.data
+    return (await api.sales_forecast_month_detail({
+      params: { month },
+    })) as SalesForecastMonthDetailResponse
   },
 }

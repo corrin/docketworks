@@ -44,6 +44,7 @@
 - address: string (nullable)
 - is_account_customer: boolean (default)
 - is_supplier: boolean (default)
+- allow_jobs: boolean (default)
 - xero_last_modified: timestamp
 - raw_json: json (nullable)
 - primary_contact_name: string (nullable)
@@ -139,6 +140,8 @@
 - latest_quote_id: integer (fk)
 - latest_actual_id: integer (fk)
 - priority: float (default)
+- min_people: integer (default)
+- max_people: integer (default)
 - xero_project_id: string (unique, nullable)
 - xero_default_task_id: string (nullable)
 - xero_last_modified: timestamp (nullable)
@@ -157,7 +160,10 @@
 - checksum: string
 - request_etag: string
 - request_ip: string (nullable)
-- _relations_: job: one(Job), staff: one(Staff)
+- resolved: boolean (default)
+- resolved_by_id: integer (fk)
+- resolved_timestamp: timestamp (nullable)
+- _relations_: job: one(Job), staff: one(Staff), resolved_by: one(Staff)
 
 ### JobEvent
 - id: uuid (pk, default)
@@ -165,13 +171,14 @@
 - timestamp: timestamp (default)
 - staff_id: integer (fk)
 - event_type: string (default)
-- description: string
+- description: string (default)
 - schema_version: integer (default)
 - change_id: uuid (nullable)
 - delta_before: json (nullable)
 - delta_after: json (nullable)
 - delta_meta: json (nullable)
 - delta_checksum: string (default)
+- detail: json (default)
 - dedup_hash: string (nullable)
 - _relations_: job: one(Job), staff: one(Staff)
 
@@ -203,6 +210,37 @@
 - tab: string (nullable, default)
 - job_id: integer (fk)
 - _relations_: job: one(Job)
+
+### AllocationBlock
+- id: uuid (pk, default)
+- scheduler_run_id: integer (fk)
+- job_id: integer (fk)
+- staff_id: integer (fk)
+- allocation_date: date
+- allocated_hours: float
+- sequence: integer (default)
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job), staff: one(Staff)
+
+### JobProjection
+- id: uuid (pk, default)
+- scheduler_run_id: integer (fk)
+- job_id: integer (fk)
+- anticipated_start_date: date (nullable)
+- anticipated_end_date: date (nullable)
+- remaining_hours: float
+- is_late: boolean (default)
+- is_unscheduled: boolean (default)
+- unscheduled_reason: string (nullable)
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job)
+
+### SchedulerRun
+- id: uuid (pk, default)
+- ran_at: timestamp (default)
+- algorithm_version: string (default)
+- succeeded: boolean (default)
+- failure_reason: string (nullable)
+- job_count: integer (default)
+- unscheduled_count: integer (default)
 
 ### Form
 - id: uuid (pk, default)
@@ -422,6 +460,10 @@
 - entity: string
 - reference_id: string
 - kind: string
+
+### CacheState
+- id: integer (pk, default)
+- disabled_until: timestamp (nullable)
 
 ### ServiceAPIKey
 - id: uuid (pk, default)

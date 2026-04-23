@@ -13,7 +13,7 @@ from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
 from django.utils import timezone
 from PIL import Image
-from PyPDF2 import PdfReader
+from pypdf import PdfReader
 
 from apps.client.models import Client
 from apps.job.models import Job
@@ -351,6 +351,7 @@ class DeliveryDocketPDFTests(BaseTestCase):
             client=self.client_obj,
             name="Test Delivery Job",
             description="Deliver some steel",
+            staff=self.test_staff,
         )
         # create_delivery_docket_pdf doesn't need workshop hours,
         # but add a minimal estimate so the job is well-formed

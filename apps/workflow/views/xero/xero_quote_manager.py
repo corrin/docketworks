@@ -26,13 +26,18 @@ class XeroQuoteManager(XeroDocumentManager):
     Handles Quote creation and syncing via the accounting provider.
     """
 
-    def __init__(self, client, job):
+    def __init__(self, client, job, staff):
         """
-        Initializes the quote manager. Both client and job are required for quotes.
+        Initializes the quote manager. Client, job, and staff are all required.
+
+        Args:
+            client: The client associated with the quote.
+            job: The associated job.
+            staff: The authenticated staff member performing the action.
         """
         if not client or not job:
             raise ValueError("Client and Job are required for XeroQuoteManager")
-        super().__init__(client=client, job=job)
+        super().__init__(client=client, job=job, staff=staff)
 
     def get_xero_id(self):
         return (
@@ -108,7 +113,9 @@ class XeroQuoteManager(XeroDocumentManager):
 
             return [
                 DocumentLineItem(
-                    description=sanitize_for_xero(self.job.description),
+                    description=sanitize_for_xero(
+                        self.job.description or self.job.name
+                    ),
                     quantity=Decimal("1"),
                     unit_amount=total_amount,
                     account_code=self._get_account_code(),
@@ -183,7 +190,10 @@ class XeroQuoteManager(XeroDocumentManager):
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=self.staff,
+                update_fields=["updated_at"],
+            )
 
             logger.info(f"Quote {quote.id} created successfully for job {self.job.id}")
 
@@ -196,7 +206,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="quote_created",
-                    description="Quote created",
+                    detail={"xero_quote_number": result.number},
                 )
             except Exception as exc:
                 persist_app_error(exc)
@@ -251,13 +261,17 @@ class XeroQuoteManager(XeroDocumentManager):
                 }
 
             local_quote_id = self.job.quote.id
+            quote_number = self.job.quote.number
             self.job.quote.delete()
             logger.info(
                 f"Quote {local_quote_id} deleted successfully for job {self.job.id}"
             )
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
-            self.job.save(update_fields=["updated_at"])
+            self.job.save(
+                staff=self.staff,
+                update_fields=["updated_at"],
+            )
 
             # Create a job event for quote deletion
             from apps.job.models import JobEvent
@@ -266,7 +280,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 JobEvent.objects.create(
                     job=self.job,
                     event_type="quote_deleted",
-                    description="Quote deleted",
+                    detail={"xero_quote_number": quote_number},
                 )
             except Exception as exc:
                 persist_app_error(exc)

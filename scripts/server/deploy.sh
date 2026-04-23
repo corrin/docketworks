@@ -2,11 +2,17 @@
 set -euo pipefail
 
 # Deploy one or all instances.
-# Usage: deploy.sh <name>       — deploy a single instance
-#        deploy.sh --all        — deploy all instances
+# Usage: deploy.sh <name> [--no-backup] [--allow-dirty]
+#        deploy.sh --all  [--no-backup] [--allow-dirty]
+#
+# Flags:
+#   --no-backup     Skip the pre-deploy pg_dump. Default: take a backup.
+#   --allow-dirty   Proceed even if an instance's working tree has uncommitted
+#                   changes. Default: abort (a dirty tree makes the hash we
+#                   stamp on the backup a lie about what code will restore).
 #
 # Steps:
-#   1. Git pull per-instance code
+#   1. Per-instance: clean-tree check, pg_dump, git pull
 #   2. Update shared deps (poetry install, npm install)
 #   3. Per-instance: npm run build, migrate, restart
 
@@ -18,14 +24,35 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
-if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 <instance-name|--all>"
+USAGE="Usage: $0 <instance-name> [--no-backup] [--allow-dirty]
+       $0 --all          [--no-backup] [--allow-dirty]"
+
+if ! parsed=$(getopt -o '' --long all,no-backup,allow-dirty -n "$(basename "$0")" -- "$@"); then
+    echo "$USAGE" >&2
     exit 1
 fi
+eval set -- "$parsed"
+
+DO_BACKUP=1
+ALLOW_DIRTY=0
+DEPLOY_ALL=0
+while true; do
+    case "$1" in
+        --no-backup)   DO_BACKUP=0;   shift ;;
+        --allow-dirty) ALLOW_DIRTY=1; shift ;;
+        --all)         DEPLOY_ALL=1;  shift ;;
+        --)            shift; break ;;
+    esac
+done
 
 # --- Determine which instances to deploy ---
 TARGETS=()
-if [[ "$1" == "--all" ]]; then
+if [[ $DEPLOY_ALL -eq 1 ]]; then
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Cannot pass an instance name together with --all" >&2
+        echo "$USAGE" >&2
+        exit 1
+    fi
     for instance_dir in "$INSTANCES_DIR"/*/; do
         [[ -d "$instance_dir" ]] || continue
         if [[ -f "$instance_dir/.env" && -d "$instance_dir/.git" ]]; then
@@ -33,22 +60,26 @@ if [[ "$1" == "--all" ]]; then
         fi
     done
     if [[ ${#TARGETS[@]} -eq 0 ]]; then
-        echo "ERROR: No instances found in $INSTANCES_DIR"
+        echo "ERROR: No instances found in $INSTANCES_DIR" >&2
         exit 1
     fi
 else
+    if [[ $# -ne 1 ]]; then
+        echo "$USAGE" >&2
+        exit 1
+    fi
     TARGETS=("$1")
     local_dir="$INSTANCES_DIR/$1"
     if [[ ! -d "$local_dir" ]]; then
-        echo "ERROR: Instance directory $local_dir does not exist."
+        echo "ERROR: Instance directory $local_dir does not exist." >&2
         exit 1
     fi
     if [[ ! -f "$local_dir/.env" ]]; then
-        echo "ERROR: No .env file found at $local_dir/.env"
+        echo "ERROR: No .env file found at $local_dir/.env" >&2
         exit 1
     fi
     if [[ ! -d "$local_dir/.git" ]]; then
-        echo "ERROR: No git repo found at $local_dir"
+        echo "ERROR: No git repo found at $local_dir" >&2
         exit 1
     fi
 fi
@@ -61,13 +92,43 @@ log "=========================================="
 log "Pulling latest from GitHub into local repo..."
 sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 
-# --- Pull latest code for all target instances (from local repo) ---
+# --- Per-instance prepare: clean-tree check, pre-deploy backup, git pull ---
 for instance in "${TARGETS[@]}"; do
     inst_dir="$INSTANCES_DIR/$instance"
-    instance_user="dw-$instance"
+    inst_user="$(instance_user "$instance")"
+
+    # Clean-tree check. A dirty tree means the commit hash we'd stamp on
+    # the backup doesn't fully describe the code that produced the data,
+    # so a later `git checkout <hash>` would silently drop the uncommitted
+    # bit. UAT/prod instances should never be dirty; dirty = something
+    # needs investigation.
+    tree_dirty=0
+    if ! sudo -u "$inst_user" git -C "$inst_dir" diff --quiet --ignore-submodules HEAD --; then
+        tree_dirty=1
+    elif [[ -n "$(sudo -u "$inst_user" git -C "$inst_dir" status --porcelain)" ]]; then
+        tree_dirty=1
+    fi
+    if [[ $tree_dirty -eq 1 ]]; then
+        if [[ $ALLOW_DIRTY -eq 1 ]]; then
+            log "WARNING: $instance has a dirty working tree (--allow-dirty set, proceeding)"
+        else
+            log "ERROR: $instance has a dirty working tree. Refusing to deploy."
+            log "  Investigate with: sudo -u $inst_user git -C $inst_dir status"
+            log "  To override: re-run with --allow-dirty"
+            exit 1
+        fi
+    fi
+
+    if [[ $DO_BACKUP -eq 1 ]]; then
+        log "Backing up DB for $instance (pre-deploy)..."
+        "$SCRIPT_DIR/../predeploy_backup.sh" "$instance"
+    else
+        log "Skipping pre-deploy backup for $instance (--no-backup)"
+    fi
+
     log "Pulling latest code for $instance..."
-    sudo -u "$instance_user" git -C "$inst_dir" fetch origin
-    sudo -u "$instance_user" git -C "$inst_dir" pull --ff-only
+    sudo -u "$inst_user" git -C "$inst_dir" fetch origin
+    sudo -u "$inst_user" git -C "$inst_dir" pull --ff-only
 done
 
 # --- Update shared Python dependencies (from local repo) ---
@@ -94,13 +155,13 @@ sudo -u docketworks bash -c "
 FAILED_INSTANCES=()
 for instance in "${TARGETS[@]}"; do
     instance_dir="$INSTANCES_DIR/$instance"
-    instance_user="dw-$instance"
+    inst_user="$(instance_user "$instance")"
 
     log "--- Processing instance: $instance ---"
 
     # Build frontend
     log "  Building frontend..."
-    sudo -u "$instance_user" bash -c "
+    sudo -u "$inst_user" bash -c "
         cd '$instance_dir/frontend'
         npm run build
     "
@@ -119,7 +180,45 @@ for instance in "${TARGETS[@]}"; do
         log "  Restarting gunicorn-$instance"
         systemctl restart "gunicorn-$instance"
     fi
+
+    # Re-render nginx config from template. The rendered config is written once
+    # at instance creation (instance.sh), so template edits only reach live
+    # servers if we re-render on each deploy. FQDN and cert domain are pulled
+    # back out of the existing rendered config — we need whatever was true at
+    # creation time, and parsing the live config is the one source of truth
+    # we know matches the cert actually in use.
+    existing_conf="/etc/nginx/sites-available/docketworks-$instance"
+    if [[ ! -f "$existing_conf" ]]; then
+        log "  ERROR: No existing nginx config at $existing_conf. Run instance.sh first."
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+    # Keep internal spaces so multi-name server_name directives survive re-rendering.
+    FQDN=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | awk '{$1=$1; print}')
+    CERT_DOMAIN=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1)
+    if [[ -z "$FQDN" || -z "$CERT_DOMAIN" ]]; then
+        log "  ERROR: Could not extract FQDN/CERT_DOMAIN from $existing_conf"
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+    log "  Re-rendering nginx config (FQDN=$FQDN, CERT_DOMAIN=$CERT_DOMAIN)"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__FQDN__|$FQDN|g" \
+        -e "s|__CERT_DOMAIN__|$CERT_DOMAIN|g" \
+        "$SCRIPT_DIR/templates/nginx-instance.conf.template" \
+        > "$existing_conf"
 done
+
+# --- Reload nginx once if any configs were rewritten ---
+if nginx -t 2>&1; then
+    log "Reloading nginx..."
+    systemctl reload nginx
+else
+    log "ERROR: nginx -t failed. Configs written but NOT reloaded."
+    log "  Fix the config error and run: systemctl reload nginx"
+    exit 1
+fi
 
 # --- Summary ---
 log "=========================================="

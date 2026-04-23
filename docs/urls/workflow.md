@@ -7,12 +7,30 @@
 |-------------|------|------|-------------|
 | `/app-errors/` | `app_error_view.AppErrorListAPIView` | `app-error-list` | API view for listing application errors. |
 | `/app-errors/<uuid:pk>/` | `app_error_view.AppErrorDetailAPIView` | `app-error-detail` | API view for retrieving a single application error. |
+| `/app-errors/grouped/` | `app_error_grouped_view.AppErrorGroupedListView` | `app-error-grouped-list` | No description available |
+| `/app-errors/grouped/mark_resolved/` | `app_error_grouped_view.AppErrorGroupedMarkResolvedView` | `app-error-grouped-mark-resolved` | No description available |
+| `/app-errors/grouped/mark_unresolved/` | `app_error_grouped_view.AppErrorGroupedMarkUnresolvedView` | `app-error-grouped-mark-unresolved` | No description available |
+
+### Build-Id Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/build-id/` | `build_id_view.BuildIdAPIView` | `build_id` | Return the git SHA of the running backend process. |
 
 ### Company-Defaults Management
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/company-defaults/schema/` | `company_defaults_schema_api.CompanyDefaultsSchemaAPIView` | `api_company_defaults_schema` | API endpoint that returns field metadata for CompanyDefaults. |
 | `/company-defaults/upload-logo/` | `company_defaults_logo_api.CompanyDefaultsLogoAPIView` | `api_company_defaults_upload_logo` | API view for uploading and deleting company logo images. |
+
+### Disable_Cache Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/disable_cache/` | `cache_control_api.DisableCacheAPIView` | `disable_cache` | No description available |
+
+### Enable_Cache Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/enable_cache/` | `cache_control_api.EnableCacheAPIView` | `enable_cache` | No description available |
 
 ### Reports
 | URL Pattern | View | Name | Description |
@@ -52,3 +70,10 @@
 | `/xero/sync-stream/` | `xero_view.stream_xero_sync` | `stream_xero_sync` | HTTP endpoint to serve an EventSource stream of Xero sync events. |
 | `/xero/sync/` | `xero_view.start_xero_sync` | `synchronise_xero_data` | View function to start a Xero sync as a background task. |
 | `/xero/webhook/` | `XeroWebhookView` | `xero_webhook` | Handle incoming Xero webhook notifications. |
+
+### Xero-Errors Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/xero-errors/grouped/` | `app_error_grouped_view.XeroErrorGroupedListView` | `xero-error-grouped-list` | No description available |
+| `/xero-errors/grouped/mark_resolved/` | `app_error_grouped_view.XeroErrorGroupedMarkResolvedView` | `xero-error-grouped-mark-resolved` | No description available |
+| `/xero-errors/grouped/mark_unresolved/` | `app_error_grouped_view.XeroErrorGroupedMarkUnresolvedView` | `xero-error-grouped-mark-unresolved` | No description available |

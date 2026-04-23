@@ -355,4 +355,10 @@ router.beforeEach(async (to, _from, next) => {
   next()
 })
 
+router.afterEach((to) => {
+  if (to.query.xero_error) {
+    toast.error(`Xero sign-in was not completed: ${to.query.xero_error}`)
+  }
+})
+
 export default router

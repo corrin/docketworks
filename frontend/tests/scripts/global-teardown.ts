@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import * as fs from 'fs'
 import os from 'os'
 import AdmZip from 'adm-zip'
-import { getBackupsDir, getDbConfig, runPsql, syncSequences } from './db-backup-utils'
+import { getBackendEnv, getDbConfig, runPsql, syncSequences } from './db-backup-utils'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -144,16 +144,21 @@ function collectAndAppendTimings() {
 function restoreDatabase() {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
-  const backupDir = getBackupsDir()
-  const latestBackupPath = path.join(backupDir, '.latest_backup')
 
-  if (!fs.existsSync(latestBackupPath)) {
-    console.warn('[db] No backup found. Skipping restore.')
+  if (!fs.existsSync(LOCK_FILE)) {
+    console.warn('[db] No lock file found. Skipping restore.')
     return
   }
 
-  const backupFile = fs.readFileSync(latestBackupPath, 'utf8').trim()
-  if (!backupFile || !fs.existsSync(backupFile)) {
+  const lockContents = fs.readFileSync(LOCK_FILE, 'utf8')
+  const backupFile = lockContents.split('\n')[1]?.trim()
+  if (!backupFile) {
+    console.warn(
+      '[db] Setup did not complete a backup (no backup path in lock file). Skipping restore.',
+    )
+    return
+  }
+  if (!fs.existsSync(backupFile)) {
     console.warn(`[db] Backup file not found: ${backupFile}. Skipping restore.`)
     return
   }
@@ -217,7 +222,48 @@ function restoreDatabase() {
   console.log('[db] Syncing sequences...')
   syncSequences(dbConfig)
 
+  // Backup has served its purpose — delete it.
+  fs.unlinkSync(backupFile)
+
   console.log('[db] Database restored successfully.')
+}
+
+async function enableServerCache(): Promise<void> {
+  const appDomain = getBackendEnv().APP_DOMAIN
+  if (!appDomain) {
+    throw new Error('APP_DOMAIN must be set in backend .env')
+  }
+  const frontendUrl = `https://${appDomain}`
+
+  const username = process.env.E2E_TEST_USERNAME
+  const password = process.env.E2E_TEST_PASSWORD
+  if (!username || !password) {
+    throw new Error('E2E_TEST_USERNAME and E2E_TEST_PASSWORD must be set in .env')
+  }
+
+  const loginResponse = await fetch(`${frontendUrl}/api/accounts/token/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!loginResponse.ok) {
+    throw new Error(`Login failed with status ${loginResponse.status}`)
+  }
+  const setCookies = loginResponse.headers.getSetCookie()
+  const accessCookie = setCookies.find((c) => c.startsWith('access_token='))
+  if (!accessCookie) {
+    throw new Error('No access_token cookie in login response')
+  }
+  const cookieValue = accessCookie.split(';')[0]
+
+  const response = await fetch(`${frontendUrl}/api/enable_cache/`, {
+    method: 'POST',
+    headers: { Cookie: cookieValue },
+  })
+  if (!response.ok) {
+    throw new Error(`enable_cache failed with status ${response.status}`)
+  }
+  console.log('[cache] Server cache re-enabled.')
 }
 
 export default async function globalTeardown() {
@@ -225,6 +271,14 @@ export default async function globalTeardown() {
     collectAndAppendTimings()
   } catch (e) {
     console.error('Failed to collect timing data:', e)
+  }
+
+  try {
+    await enableServerCache()
+  } catch (e) {
+    // Don't let a failed re-enable block the rest of teardown — the
+    // server-side resume_after timer is the safety net.
+    console.error('Failed to re-enable server cache:', e)
   }
 
   restoreDatabase()

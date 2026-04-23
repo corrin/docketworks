@@ -23,8 +23,26 @@ interface DisplayErrorRow {
   raw: RawErrorRecord
 }
 
-const props = defineProps<{ error: DisplayErrorRow | null }>()
-const emit = defineEmits(['close'])
+interface GroupMeta {
+  occurrenceCount: number
+  firstSeen: string
+  lastSeen: string
+  keyField: 'message' | 'reason'
+  keyValue: string
+  fingerprint: string
+  resolved: boolean
+  tab: 'xero' | 'system' | 'job'
+}
+
+const props = defineProps<{
+  error: DisplayErrorRow | null
+  groupMeta?: GroupMeta | null
+}>()
+const emit = defineEmits<{
+  (e: 'close'): void
+  (e: 'resolve', payload: { fingerprint: string; tab: GroupMeta['tab'] }): void
+  (e: 'unresolve', payload: { fingerprint: string; tab: GroupMeta['tab'] }): void
+}>()
 
 const recordMeta = computed(() => {
   if (!props.error) return []
@@ -79,6 +97,21 @@ const errorTypeLabel = computed(() => {
       <DialogHeader>
         <DialogTitle>{{ errorTypeLabel || 'Error Details' }}</DialogTitle>
       </DialogHeader>
+      <div v-if="props.groupMeta" class="border rounded-md p-3 space-y-1 bg-muted/30">
+        <div class="flex items-center gap-2">
+          <span
+            class="inline-flex items-center rounded-full bg-primary/10 px-2 py-0.5 text-xs font-semibold"
+          >
+            ×{{ props.groupMeta.occurrenceCount }} occurrences
+          </span>
+        </div>
+        <div class="text-xs text-muted-foreground">
+          First seen: {{ new Date(props.groupMeta.firstSeen).toLocaleString() }}
+        </div>
+        <div class="text-xs text-muted-foreground">
+          Last seen: {{ new Date(props.groupMeta.lastSeen).toLocaleString() }}
+        </div>
+      </div>
       <div v-if="props.error" class="space-y-3">
         <div class="text-sm text-muted-foreground">
           {{ new Date(props.error.occurredAt).toLocaleString() }}
@@ -100,7 +133,31 @@ const errorTypeLabel = computed(() => {
           >{{ rawPayload }}</pre
         >
       </div>
-      <div class="flex justify-end">
+      <div class="flex justify-end gap-2">
+        <Button
+          v-if="props.groupMeta && !props.groupMeta.resolved"
+          variant="default"
+          @click="
+            emit('resolve', {
+              fingerprint: props.groupMeta.fingerprint,
+              tab: props.groupMeta.tab,
+            })
+          "
+        >
+          Resolve group
+        </Button>
+        <Button
+          v-if="props.groupMeta && props.groupMeta.resolved"
+          variant="default"
+          @click="
+            emit('unresolve', {
+              fingerprint: props.groupMeta.fingerprint,
+              tab: props.groupMeta.tab,
+            })
+          "
+        >
+          Unresolve group
+        </Button>
         <Button variant="outline" @click="emit('close')">Close</Button>
       </div>
     </DialogContent>

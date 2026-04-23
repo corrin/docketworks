@@ -42,12 +42,12 @@
 - `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
 - `LOG_DIR` **required** — docketworks/settings.py
 - `MEDIA_ROOT` **required** — docketworks/settings.py
-- `MODE` **required** — frontend/src/utils/debug.ts
 - `NGROK_AUTH_TOKEN` (has default) — .env.example
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
 - `SECRET_KEY` (has default) — .env.example
+- `SKIP_VERSION_CHECK` (has default) — .env.example
 - `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py
 - `STEEL_TUBE_ENABLED` (has default) — .env
 - `STEEL_TUBE_PASSWORD` (has default) — .env.example
@@ -61,8 +61,6 @@
 - `UAT_INSTANCE_ID` (has default) — .env
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
-- `VITE_WEEKEND_TIMESHEETS_ENABLED` (has default) — frontend/.env.example
-- `WEEKEND_TIMESHEETS_ENABLED` (has default) — .env.example
 - `XERO_CLIENT_ID` (has default) — .env.example
 - `XERO_CLIENT_SECRET` (has default) — .env.example
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example

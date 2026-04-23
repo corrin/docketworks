@@ -333,6 +333,7 @@ const Staff = z.object({
   xero_user_id: z.string().max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
+  is_workshop_staff: z.boolean().optional(),
   is_superuser: z.boolean().optional(),
   password_needs_reset: z.boolean().optional(),
   hours_mon: z.number().gt(-100).lt(100).optional(),
@@ -359,6 +360,7 @@ const StaffCreateRequest = z.object({
   xero_user_id: z.string().max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
+  is_workshop_staff: z.boolean().optional(),
   is_superuser: z.boolean().optional(),
   password_needs_reset: z.boolean().optional(),
   hours_mon: z.number().gt(-100).lt(100).optional(),
@@ -385,6 +387,7 @@ const StaffRequest = z.object({
   xero_user_id: z.string().max(255).nullish(),
   date_left: z.string().nullish(),
   is_office_staff: z.boolean().optional(),
+  is_workshop_staff: z.boolean().optional(),
   is_superuser: z.boolean().optional(),
   password_needs_reset: z.boolean().optional(),
   hours_mon: z.number().gt(-100).lt(100).optional(),
@@ -409,6 +412,7 @@ const PatchedStaffRequest = z
     xero_user_id: z.string().max(255).nullable(),
     date_left: z.string().nullable(),
     is_office_staff: z.boolean(),
+    is_workshop_staff: z.boolean(),
     is_superuser: z.boolean(),
     password_needs_reset: z.boolean(),
     hours_mon: z.number().gt(-100).lt(100),
@@ -430,6 +434,8 @@ const KanbanStaff = z.object({
   last_name: z.string().max(30),
   icon_url: z.string().nullable(),
   display_name: z.string(),
+  is_office_staff: z.boolean(),
+  is_workshop_staff: z.boolean(),
 })
 const StaffRatesResponse = z.object({
   base_wage_rate: z.number(),
@@ -472,6 +478,30 @@ const PaginatedAppErrorList = z.object({
   previous: z.string().url().nullish(),
   results: z.array(AppError),
 })
+const GroupedAppError = z.object({
+  fingerprint: z.string(),
+  message: z.string(),
+  occurrence_count: z.number().int(),
+  first_seen: z.string().datetime({ offset: true }),
+  last_seen: z.string().datetime({ offset: true }),
+  severity: z.number().int().nullable(),
+  app: z.string().nullable(),
+  latest_id: z.string().uuid(),
+})
+const GroupedAppErrorListResponse = z.object({
+  count: z.number().int(),
+  next: z.string().nullish(),
+  previous: z.string().nullish(),
+  results: z.array(GroupedAppError),
+})
+const GroupedErrorResolveRequestRequest = z.object({
+  fingerprint: z
+    .string()
+    .min(1)
+    .regex(/^[0-9a-f]{64}$/),
+})
+const GroupedErrorResolveResponse = z.object({ updated: z.number().int() })
+const BuildId = z.object({ build_id: z.string() })
 const ClientDetailResponse = z.object({
   id: z.string(),
   name: z.string(),
@@ -480,6 +510,7 @@ const ClientDetailResponse = z.object({
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),
+  allow_jobs: z.boolean(),
   xero_contact_id: z.string(),
   xero_tenant_id: z.string(),
   primary_contact_name: z.string(),
@@ -515,6 +546,8 @@ const ClientJobHeader = z.object({
   quote_acceptance_date: z.string().datetime({ offset: true }).nullable(),
   paid: z.boolean(),
   rejected_flag: z.boolean(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
 })
 const ClientJobsResponse = z.object({ results: z.array(ClientJobHeader) })
 const ClientUpdateRequest = z
@@ -524,6 +557,7 @@ const ClientUpdateRequest = z
     phone: z.string().max(50),
     address: z.string(),
     is_account_customer: z.boolean(),
+    allow_jobs: z.boolean(),
   })
   .partial()
 const ClientUpdateResponse = z.object({
@@ -538,6 +572,7 @@ const PatchedClientUpdateRequest = z
     phone: z.string().max(50),
     address: z.string(),
     is_account_customer: z.boolean(),
+    allow_jobs: z.boolean(),
   })
   .partial()
 const ClientNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
@@ -580,6 +615,7 @@ const ClientCreateRequest = z.object({
   phone: z.string().max(50).nullish(),
   address: z.string().nullish(),
   is_account_customer: z.boolean().optional().default(true),
+  allow_jobs: z.boolean().optional().default(true),
 })
 const ClientSearchResult = z.object({
   id: z.string(),
@@ -589,6 +625,7 @@ const ClientSearchResult = z.object({
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),
+  allow_jobs: z.boolean(),
   xero_contact_id: z.string(),
   last_invoice_date: z.string().datetime({ offset: true }).nullable(),
   total_spend: z.string(),
@@ -710,6 +747,7 @@ const CompanyDefaults = z.object({
   xero_payroll_calendar_name: z.string().max(100).optional(),
   xero_payroll_calendar_id: z.string().uuid().nullish(),
   xero_payroll_start_date: z.string().nullish(),
+  weekend_timesheets_enabled: z.boolean().optional(),
   mon_start: z.string().optional(),
   mon_end: z.string().optional(),
   tue_start: z.string().optional(),
@@ -772,6 +810,7 @@ const CompanyDefaultsRequest = z
     xero_payroll_calendar_name: z.string().min(1).max(100),
     xero_payroll_calendar_id: z.string().uuid().nullable(),
     xero_payroll_start_date: z.string().nullable(),
+    weekend_timesheets_enabled: z.boolean(),
     mon_start: z.string(),
     mon_end: z.string(),
     tue_start: z.string(),
@@ -833,6 +872,7 @@ const PatchedCompanyDefaultsRequest = z
     xero_payroll_calendar_name: z.string().min(1).max(100),
     xero_payroll_calendar_id: z.string().uuid().nullable(),
     xero_payroll_start_date: z.string().nullable(),
+    weekend_timesheets_enabled: z.boolean(),
     mon_start: z.string(),
     mon_end: z.string(),
     tue_start: z.string(),
@@ -881,6 +921,10 @@ const SettingsSection = z.object({
   fields: z.array(SettingsField),
 })
 const CompanyDefaultsSchema = z.object({ sections: z.array(SettingsSection) })
+const DisableCacheResponse = z.object({
+  disabled_until: z.string().datetime({ offset: true }),
+})
+const EnableCacheResponse = z.object({ enabled: z.boolean() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),
@@ -1018,7 +1062,12 @@ const PaginatedCompleteJobList = z.object({
   results: z.array(CompleteJob),
 })
 const ArchiveJobsRequest = z.object({ ids: z.array(z.string().min(1)) })
-const ArchiveJobs = z.object({ ids: z.array(z.string()) })
+const ArchiveJobsResponse = z.object({
+  success: z.boolean(),
+  message: z.string().optional(),
+  error: z.string().optional(),
+  errors: z.array(z.string()).optional(),
+})
 const JobCreateRequest = z.object({
   name: z.string().min(1).max(255),
   client_id: z.string().uuid(),
@@ -1152,6 +1201,8 @@ const Job = z.object({
   rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
   default_xero_pay_item_id: z.string().uuid().nullish(),
   default_xero_pay_item_name: z.string().nullable(),
+  min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobEvent = z.object({
   id: z.string().uuid(),
@@ -1165,6 +1216,7 @@ const JobEvent = z.object({
   delta_after: z.unknown().nullable(),
   delta_meta: z.unknown().nullable(),
   delta_checksum: z.string(),
+  detail: z.unknown(),
   can_undo: z.boolean(),
   undo_description: z.string().nullable(),
 })
@@ -1353,6 +1405,8 @@ const JobHeaderResponse = z.object({
   paid: z.boolean().optional(),
   rejected_flag: z.boolean().optional(),
   rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
+  min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobInvoicesResponse = z.object({ invoices: z.array(Invoice) })
 const JobQuoteChatHistoryResponse = z.object({
@@ -1474,6 +1528,8 @@ const JobSummary = z.object({
   rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
   default_xero_pay_item_id: z.string().uuid().nullish(),
   default_xero_pay_item_name: z.string().nullable(),
+  min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobSummaryData = z.object({
   job: JobSummary,
@@ -1515,26 +1571,6 @@ const JobUndoRequest = z.object({
   undo_change_id: z.string().uuid().nullish(),
 })
 const JobStatusUpdateRequest = z.object({ status: z.string().min(1) })
-const DraftLineRequest = z.object({
-  kind: z.string().min(1),
-  desc: z.string().min(1),
-  quantity: z.number().gt(-100000000).lt(100000000),
-  unit_cost: z.number().gt(-100000000).lt(100000000),
-  unit_rev: z.number().gt(-100000000).lt(100000000),
-  total_cost: z.number().gt(-100000000).lt(100000000),
-  total_rev: z.number().gt(-100000000).lt(100000000),
-})
-const QuoteChangesRequest = z.object({
-  additions: z.array(DraftLineRequest),
-  updates: z.array(DraftLineRequest),
-  deletions: z.array(DraftLineRequest),
-})
-const ApplyQuoteResponseRequest = z.object({
-  success: z.boolean(),
-  draft_lines: z.array(DraftLineRequest).optional(),
-  changes: QuoteChangesRequest.optional(),
-  error: z.string().min(1).optional(),
-})
 const DraftLine = z.object({
   kind: z.string(),
   desc: z.string(),
@@ -1556,33 +1592,17 @@ const ApplyQuoteResponse = z.object({
   changes: QuoteChanges.optional(),
   error: z.string().optional(),
 })
-const LinkQuoteSheetRequest = z.object({ template_url: z.string().url() }).partial()
-const LinkQuoteSheet = z.object({ template_url: z.string().url() }).partial()
-const ValidationReportRequest = z
-  .object({
-    warnings: z.array(z.string().min(1)),
-    errors: z.array(z.string().min(1)),
-  })
-  .partial()
-const DiffPreviewRequest = z.object({
-  additions_count: z.number().int(),
-  updates_count: z.number().int(),
-  deletions_count: z.number().int(),
-  total_changes: z.number().int(),
-  next_revision: z.number().int().optional(),
-  current_revision: z.number().int().nullish(),
+const ApplyQuoteErrorResponse = z.object({
+  success: z.boolean().optional().default(false),
+  error: z.string(),
 })
-const PreviewQuoteResponseRequest = z
-  .object({
-    success: z.boolean(),
-    draft_lines: z.array(DraftLineRequest),
-    changes: QuoteChangesRequest,
-    message: z.string().min(1),
-    can_proceed: z.boolean().default(false),
-    validation_report: ValidationReportRequest.nullable(),
-    diff_preview: DiffPreviewRequest.nullable(),
-  })
-  .partial()
+const QuoteSyncErrorResponse = z.object({ error: z.string() })
+const LinkQuoteSheetRequest = z.object({ template_url: z.string().url() }).partial()
+const LinkQuoteSheetResponse = z.object({
+  sheet_url: z.string().url(),
+  sheet_id: z.string(),
+  job_id: z.string(),
+})
 const ValidationReport = z
   .object({ warnings: z.array(z.string()), errors: z.array(z.string()) })
   .partial()
@@ -1632,6 +1652,8 @@ const KanbanJob = z.object({
   over_budget: z.boolean(),
   quote_revenue: z.number(),
   time_and_materials_revenue: z.number(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
 })
 const AdvancedSearchResponse = z
   .object({
@@ -1641,6 +1663,29 @@ const AdvancedSearchResponse = z
     error: z.string(),
   })
   .partial()
+const GroupedJobDeltaRejection = z.object({
+  fingerprint: z.string(),
+  reason: z.string(),
+  occurrence_count: z.number().int(),
+  first_seen: z.string().datetime({ offset: true }),
+  last_seen: z.string().datetime({ offset: true }),
+  latest_id: z.string().uuid(),
+})
+const GroupedJobDeltaRejectionListResponse = z.object({
+  count: z.number().int(),
+  next: z.string().nullish(),
+  previous: z.string().nullish(),
+  results: z.array(GroupedJobDeltaRejection),
+})
+const GroupedJobDeltaRejectionResolveRequestRequest = z.object({
+  fingerprint: z
+    .string()
+    .min(1)
+    .regex(/^[0-9a-f]{64}$/),
+})
+const GroupedJobDeltaRejectionResolveResponse = z.object({
+  updated: z.number().int(),
+})
 const FetchAllJobsResponse = z
   .object({
     success: z.boolean().default(true),
@@ -1672,6 +1717,8 @@ const KanbanColumnJob = z.object({
   over_budget: z.boolean(),
   quote_revenue: z.number(),
   time_and_materials_revenue: z.number(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
   badge_label: z.string(),
   badge_color: z.string(),
 })
@@ -1933,6 +1980,42 @@ const PatchedWorkshopTimesheetEntryUpdateRequest = z
     wage_rate_multiplier: z.number().gte(0).lt(100),
   })
   .partial()
+const Day = z.object({
+  date: z.string(),
+  total_capacity_hours: z.number(),
+  allocated_hours: z.number(),
+  utilisation_pct: z.number(),
+})
+const AssignedStaff = z.object({ id: z.string().uuid(), name: z.string() })
+const ScheduledJob = z.object({
+  id: z.string().uuid(),
+  job_number: z.number().int(),
+  name: z.string(),
+  client_name: z.string(),
+  remaining_hours: z.number(),
+  delivery_date: z.string().nullable(),
+  anticipated_start_date: z.string().nullable(),
+  anticipated_end_date: z.string().nullable(),
+  is_late: z.boolean(),
+  min_people: z.number().int(),
+  max_people: z.number().int(),
+  assigned_staff: z.array(AssignedStaff),
+  anticipated_staff: z.array(AssignedStaff),
+})
+const UnscheduledJob = z.object({
+  id: z.string().uuid(),
+  job_number: z.number().int(),
+  name: z.string(),
+  client_name: z.string(),
+  delivery_date: z.string().nullable(),
+  remaining_hours: z.number(),
+  reason: z.string(),
+})
+const WorkshopScheduleResponse = z.object({
+  days: z.array(Day),
+  jobs: z.array(ScheduledJob),
+  unscheduled_jobs: z.array(UnscheduledJob),
+})
 const CategoriesResponse = z.object({
   procedures: z.array(z.string()),
   forms: z.array(z.string()),
@@ -2650,12 +2733,6 @@ const CreatePayRunResponse = z.object({
   payment_date: z.string(),
   xero_url: z.string(),
 })
-const PayRunSyncResponseRequest = z.object({
-  synced: z.boolean(),
-  fetched: z.number().int(),
-  created: z.number().int(),
-  updated: z.number().int(),
-})
 const PayRunSyncResponse = z.object({
   synced: z.boolean(),
   fetched: z.number().int(),
@@ -2909,6 +2986,11 @@ export const schemas = {
   TokenVerifyRequest,
   AppError,
   PaginatedAppErrorList,
+  GroupedAppError,
+  GroupedAppErrorListResponse,
+  GroupedErrorResolveRequestRequest,
+  GroupedErrorResolveResponse,
+  BuildId,
   ClientDetailResponse,
   ClientErrorResponse,
   ClientJobHeader,
@@ -2936,6 +3018,8 @@ export const schemas = {
   SettingsField,
   SettingsSection,
   CompanyDefaultsSchema,
+  DisableCacheResponse,
+  EnableCacheResponse,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
   PatchedCostLineCreateUpdateRequest,
@@ -2957,7 +3041,7 @@ export const schemas = {
   CompleteJob,
   PaginatedCompleteJobList,
   ArchiveJobsRequest,
-  ArchiveJobs,
+  ArchiveJobsResponse,
   JobCreateRequest,
   JobCreateResponse,
   JobRestErrorResponse,
@@ -3033,23 +3117,23 @@ export const schemas = {
   JobTimelineResponse,
   JobUndoRequest,
   JobStatusUpdateRequest,
-  DraftLineRequest,
-  QuoteChangesRequest,
-  ApplyQuoteResponseRequest,
   DraftLine,
   QuoteChanges,
   ApplyQuoteResponse,
+  ApplyQuoteErrorResponse,
+  QuoteSyncErrorResponse,
   LinkQuoteSheetRequest,
-  LinkQuoteSheet,
-  ValidationReportRequest,
-  DiffPreviewRequest,
-  PreviewQuoteResponseRequest,
+  LinkQuoteSheetResponse,
   ValidationReport,
   DiffPreview,
   PreviewQuoteResponse,
   KanbanJobPerson,
   KanbanJob,
   AdvancedSearchResponse,
+  GroupedJobDeltaRejection,
+  GroupedJobDeltaRejectionListResponse,
+  GroupedJobDeltaRejectionResolveRequestRequest,
+  GroupedJobDeltaRejectionResolveResponse,
   FetchAllJobsResponse,
   KanbanColumnJob,
   FetchJobsByColumnResponse,
@@ -3084,6 +3168,11 @@ export const schemas = {
   WorkshopTimesheetListResponse,
   WorkshopTimesheetEntryRequestRequest,
   PatchedWorkshopTimesheetEntryUpdateRequest,
+  Day,
+  AssignedStaff,
+  ScheduledJob,
+  UnscheduledJob,
+  WorkshopScheduleResponse,
   CategoriesResponse,
   FormDocumentTypeEnum,
   FormStatusEnum,
@@ -3179,7 +3268,6 @@ export const schemas = {
   PayRunListResponse,
   CreatePayRunRequest,
   CreatePayRunResponse,
-  PayRunSyncResponseRequest,
   PayRunSyncResponse,
   PostWeekToXeroRequest,
   ModernStaff,
@@ -3257,7 +3345,23 @@ Query Parameters:
 Returns:
     JSON response with job aging data structure`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'include_archived',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+    ],
     response: JobAgingResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({
+          error: z.string(),
+          details: z.unknown().optional(),
+        }),
+      },
+    ],
   },
   {
     method: 'get',
@@ -3265,6 +3369,38 @@ Returns:
     alias: 'accounting_reports_job_movement_retrieve',
     description: `Handle GET request for job movement metrics.`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'baseline_days',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'compare_end_date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'compare_start_date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
+        name: 'include_details',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: z.object({}).partial().passthrough(),
   },
   {
@@ -3337,6 +3473,28 @@ Returns:
     path: '/api/accounting/reports/profit-and-loss/',
     alias: 'accounting_reports_profit_and_loss_retrieve',
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'compare',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
+        name: 'period_type',
+        type: 'Query',
+        schema: z.enum(['month', 'year']).optional(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: z.object({}).partial().passthrough(),
   },
   {
@@ -3449,6 +3607,18 @@ Returns:
     alias: 'accounting_reports_staff_performance_summary_retrieve',
     description: `API endpoint for staff performance summary (all staff)`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: StaffPerformanceResponse,
   },
   {
@@ -3459,9 +3629,19 @@ Returns:
     requestFormat: 'json',
     parameters: [
       {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
         name: 'staff_id',
         type: 'Path',
         schema: z.string().uuid(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
       },
     ],
     response: StaffPerformanceResponse,
@@ -3479,7 +3659,28 @@ Query Parameters:
 Returns:
     JSON response with WIP data, archived jobs, and summary.`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'method',
+        type: 'Query',
+        schema: z.enum(['cost', 'revenue']).optional(),
+      },
+    ],
     response: WIPResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({
+          error: z.string(),
+          details: z.unknown().optional(),
+        }),
+      },
+    ],
   },
   {
     method: 'post',
@@ -3779,6 +3980,59 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
       },
     ],
     response: AppError,
+  },
+  {
+    method: 'get',
+    path: '/api/app-errors/grouped/',
+    alias: 'app_errors_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedAppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/app-errors/grouped/mark_resolved/',
+    alias: 'app_errors_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/app-errors/grouped/mark_unresolved/',
+    alias: 'app_errors_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'get',
+    path: '/api/build-id/',
+    alias: 'build_id_retrieve',
+    description: `Return the git SHA of the running backend process.`,
+    requestFormat: 'json',
+    response: z.object({ build_id: z.string() }),
   },
   {
     method: 'get',
@@ -4520,6 +4774,22 @@ DELETE: Clear a logo field and remove the file from disk.`,
     response: CompanyDefaults,
   },
   {
+    method: 'post',
+    path: '/api/disable_cache/',
+    alias: 'disable_cache_create',
+    requestFormat: 'json',
+    response: z.object({
+      disabled_until: z.string().datetime({ offset: true }),
+    }),
+  },
+  {
+    method: 'post',
+    path: '/api/enable_cache/',
+    alias: 'enable_cache_create',
+    requestFormat: 'json',
+    response: z.object({ enabled: z.boolean() }),
+  },
+  {
     method: 'get',
     path: '/api/job/company_defaults/',
     alias: 'job_company_defaults_retrieve',
@@ -4715,7 +4985,17 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
         schema: ArchiveJobsRequest,
       },
     ],
-    response: ArchiveJobs,
+    response: ArchiveJobsResponse,
+    errors: [
+      {
+        status: 400,
+        schema: ArchiveJobsResponse,
+      },
+      {
+        status: 500,
+        schema: ArchiveJobsResponse,
+      },
+    ],
   },
   {
     method: 'post',
@@ -4775,17 +5055,26 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/apply/`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'body',
-        type: 'Body',
-        schema: ApplyQuoteResponseRequest,
-      },
-      {
         name: 'id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
     response: ApplyQuoteResponse,
+    errors: [
+      {
+        status: 400,
+        schema: ApplyQuoteErrorResponse,
+      },
+      {
+        status: 404,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 500,
+        schema: z.object({ error: z.string() }),
+      },
+    ],
   },
   {
     method: 'post',
@@ -4807,7 +5096,21 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/link/`,
         schema: z.string().uuid(),
       },
     ],
-    response: z.object({ template_url: z.string().url() }).partial(),
+    response: LinkQuoteSheetResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 404,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 500,
+        schema: z.object({ error: z.string() }),
+      },
+    ],
   },
   {
     method: 'post',
@@ -4819,17 +5122,26 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'body',
-        type: 'Body',
-        schema: PreviewQuoteResponseRequest,
-      },
-      {
         name: 'id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
     response: PreviewQuoteResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 404,
+        schema: z.object({ error: z.string() }),
+      },
+      {
+        status: 500,
+        schema: z.object({ error: z.string() }),
+      },
+    ],
   },
   {
     method: 'get',
@@ -5852,6 +6164,51 @@ Expected JSON:
   },
   {
     method: 'get',
+    path: '/api/job/jobs/delta-rejections/grouped/',
+    alias: 'job_jobs_delta_rejections_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedJobDeltaRejectionListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/job/jobs/delta-rejections/grouped/mark_resolved/',
+    alias: 'job_jobs_delta_rejections_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/job/jobs/delta-rejections/grouped/mark_unresolved/',
+    alias: 'job_jobs_delta_rejections_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'get',
     path: '/api/job/jobs/fetch-all/',
     alias: 'job_jobs_fetch_all_retrieve',
     description: `Fetch all jobs for Kanban board - API endpoint.`,
@@ -6191,6 +6548,13 @@ POST: Processes selected jobs for month-end archiving and status updates`,
     alias: 'job_workshop_timesheets_destroy',
     description: `Delete a timesheet entry belonging to the staff member.`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'entry_id',
+        type: 'Query',
+        schema: z.string(),
+      },
+    ],
     response: z.void(),
     errors: [
       {
@@ -6210,6 +6574,36 @@ POST: Processes selected jobs for month-end archiving and status updates`,
         schema: z.object({}).partial().passthrough(),
       },
     ],
+  },
+  {
+    method: 'get',
+    path: '/api/operations/workshop-schedule/',
+    alias: 'operations_workshop_schedule_retrieve',
+    description: `GET /api/operations/workshop-schedule/`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'day_horizon',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+    ],
+    response: WorkshopScheduleResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/operations/workshop-schedule/recalculate/',
+    alias: 'operations_workshop_schedule_recalculate_create',
+    description: `POST /api/operations/workshop-schedule/recalculate/`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'day_horizon',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+    ],
+    response: WorkshopScheduleResponse,
   },
   {
     method: 'get',
@@ -7626,13 +8020,6 @@ Returns:
     alias: 'timesheets_payroll_pay_runs_refresh_create',
     description: `Synchronize local pay run cache with Xero.`,
     requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PayRunSyncResponseRequest,
-      },
-    ],
     response: PayRunSyncResponse,
     errors: [
       {
@@ -8093,6 +8480,51 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
       },
     ],
     response: XeroError,
+  },
+  {
+    method: 'get',
+    path: '/api/xero-errors/grouped/',
+    alias: 'xero_errors_grouped_retrieve',
+    requestFormat: 'json',
+    response: GroupedAppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/xero-errors/grouped/mark_resolved/',
+    alias: 'xero_errors_grouped_mark_resolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
+  },
+  {
+    method: 'post',
+    path: '/api/xero-errors/grouped/mark_unresolved/',
+    alias: 'xero_errors_grouped_mark_unresolved_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({
+          fingerprint: z
+            .string()
+            .min(1)
+            .regex(/^[0-9a-f]{64}$/),
+        }),
+      },
+    ],
+    response: z.object({ updated: z.number().int() }),
   },
   {
     method: 'post',

@@ -25,13 +25,22 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 ## Server Setup (One-Time)
 
 ```bash
+# UAT (wildcard cert via Dreamhost DNS):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   <DREAMHOST_API_KEY> \
+    --google-maps-key <GOOGLE_MAPS_API_KEY>
+
+# Prod (no wildcard; DNS lives elsewhere):
+sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key <GOOGLE_MAPS_API_KEY>
+
+# Re-run (reads any saved keys from disk):
 sudo ./scripts/server/server-setup.sh
 ```
 
 Installs everything: Python 3.12, Node 22, MariaDB, Nginx, Certbot, Poetry, Claude Code CLI. Creates the `docketworks` system user, clones the repo, builds the shared venv and node_modules, obtains the wildcard SSL cert.
 
-Prompts interactively for:
-1. Dreamhost API key (for SSL)
+Required keys (passed once on first run, then cached):
+1. Dreamhost API key (for the Let's Encrypt DNS-01 challenge — UAT only)
 2. Google Maps API key (for address validation)
 
 The Maps API key is stored in `/opt/docketworks/shared.env` and appended to every instance's `.env`. Email and GCP credentials are configured per-instance (see below).

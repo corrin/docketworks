@@ -1,17 +1,10 @@
 import { test, expect } from '../fixtures/auth'
+import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
  * Performance test for timesheet entry page.
  * Measures page load time and network request timing.
  */
-
-function getWeekdayDate(): string {
-  const date = new Date()
-  const day = date.getDay()
-  if (day === 6) date.setDate(date.getDate() - 1)
-  if (day === 0) date.setDate(date.getDate() - 2)
-  return date.toISOString().split('T')[0]
-}
 
 test.describe('timesheet entry performance', () => {
   test('measure page load time and network requests', async ({ authenticatedPage: page }) => {
@@ -46,7 +39,7 @@ test.describe('timesheet entry performance', () => {
     })
 
     // Navigate to daily timesheet first
-    const weekday = getWeekdayDate()
+    const weekday = getLatestWeekdayDate()
     await page.goto(`/timesheets/daily?date=${weekday}`)
     await page.waitForLoadState('networkidle')
 
@@ -157,7 +150,7 @@ test.describe('timesheet entry performance', () => {
       }
     })
 
-    const weekday = getWeekdayDate()
+    const weekday = getLatestWeekdayDate()
     await page.goto(`/timesheets/daily?date=${weekday}`)
     await page.waitForLoadState('networkidle')
 

@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Auth subsystem handles **6 routes** and touches: auth, payment.
+The Auth subsystem handles **6 routes** and touches: auth, cache, payment.
 
 ## Routes
 
@@ -16,7 +16,7 @@ The Auth subsystem handles **6 routes** and touches: auth, payment.
   `apps/accounts/urls.py`
 - `ALL` `/payroll/pay-runs/refresh`
   `apps/timesheet/urls.py`
-- `ALL` `/xero/oauth/callback/` [auth, payment, upload]
+- `ALL` `/xero/oauth/callback/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
 
 ## Middleware

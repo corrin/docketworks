@@ -10,6 +10,7 @@ Provides functionality to:
 
 import logging
 
+from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -40,14 +41,17 @@ class LinkQuoteSheetAPIView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsOfficeStaff]
-    serializer_class = LinkQuoteSheetResponseSerializer
 
-    def get_serializer_class(self):
-        """Return the appropriate serializer class based on the request method"""
-        if self.request.method == "POST":
-            return LinkQuoteSheetSerializer
-        return LinkQuoteSheetResponseSerializer
-
+    @extend_schema(
+        summary="Link a job to a Google Sheets quote template",
+        request=LinkQuoteSheetSerializer,
+        responses={
+            200: LinkQuoteSheetResponseSerializer,
+            400: QuoteSyncErrorResponseSerializer,
+            404: QuoteSyncErrorResponseSerializer,
+            500: QuoteSyncErrorResponseSerializer,
+        },
+    )
     def post(self, request: Request, pk: str) -> Response:
         try:
             logger.info(f"Starting link quote sheet process for job {pk}")
@@ -116,8 +120,17 @@ class PreviewQuoteAPIView(APIView):
     """
 
     permission_classes = [IsAuthenticated]
-    serializer_class = PreviewQuoteResponseSerializer
 
+    @extend_schema(
+        summary="Preview quote import from linked Google Sheet",
+        request=None,
+        responses={
+            200: PreviewQuoteResponseSerializer,
+            400: QuoteSyncErrorResponseSerializer,
+            404: QuoteSyncErrorResponseSerializer,
+            500: QuoteSyncErrorResponseSerializer,
+        },
+    )
     def post(self, request: Request, pk: str) -> Response:
         try:
             # Get job
@@ -161,12 +174,17 @@ class ApplyQuoteAPIView(APIView):
     """
 
     permission_classes = [IsAuthenticated, IsOfficeStaff]
-    serializer_class = ApplyQuoteResponseSerializer
 
-    def get_serializer_class(self):
-        """Return the appropriate serializer class based on success/error"""
-        return ApplyQuoteResponseSerializer
-
+    @extend_schema(
+        summary="Apply quote import from linked Google Sheet",
+        request=None,
+        responses={
+            200: ApplyQuoteResponseSerializer,
+            400: ApplyQuoteErrorResponseSerializer,
+            404: QuoteSyncErrorResponseSerializer,
+            500: QuoteSyncErrorResponseSerializer,
+        },
+    )
     def post(self, request: Request, pk: str) -> Response:
         try:
             # Get job
@@ -179,7 +197,7 @@ class ApplyQuoteAPIView(APIView):
                 return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
 
             # Apply quote
-            result = quote_sync_service.apply_quote(job)
+            result = quote_sync_service.apply_quote(job, request.user)
 
             if result.success:
                 # Serialize the cost set if available
@@ -256,8 +274,8 @@ class ApplyQuoteAPIView(APIView):
 
         except RuntimeError as e:
             logger.error(f"Error applying quote for job {pk}: {str(e)}")
-            error_response = {"error": str(e)}
-            error_serializer = QuoteSyncErrorResponseSerializer(data=error_response)
+            error_response = {"success": False, "error": str(e)}
+            error_serializer = ApplyQuoteErrorResponseSerializer(data=error_response)
             error_serializer.is_valid(raise_exception=True)
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:

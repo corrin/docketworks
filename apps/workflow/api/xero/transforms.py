@@ -270,9 +270,10 @@ def transform_invoice(xero_invoice, xero_id):
 
     # Recalculate job state if invoice is linked to a job
     if invoice.job:
+        from apps.accounts.models import Staff
         from apps.job.services.job_service import recalculate_job_invoicing_state
 
-        recalculate_job_invoicing_state(invoice.job.id)
+        recalculate_job_invoicing_state(invoice.job.id, Staff.get_automation_user())
 
     return invoice, _build_sync_status(created, changed_fields)
 
@@ -893,15 +894,35 @@ def sync_clients(xero_contacts):
         set_client_fields(client, new_from_xero=created)
         clients.append(client)
 
-    # Resolve merges
+    # Resolve merges and move stranded FK records onto the terminal client.
+    from apps.client.services.client_merge_service import reassign_client_fk_records
+
     for client in clients:
         if client.xero_merged_into_id and not client.merged_into:
             merged_into = Client.objects.filter(
                 xero_contact_id=client.xero_merged_into_id
             ).first()
-            if merged_into:
-                client.merged_into = merged_into
-                client.save()
+            if not merged_into:
+                logger.warning(
+                    "Deferred merge: client %s points at unsynced "
+                    "xero_contact_id=%s; reassignment will retry next sync",
+                    client.id,
+                    client.xero_merged_into_id,
+                )
+                continue
+            client.merged_into = merged_into
+            client.allow_jobs = False
+            client.save()
+            destination = client.get_final_client()
+            if destination.id != client.id:
+                from apps.accounts.models import Staff
+
+                reassign_client_fk_records(
+                    client,
+                    destination,
+                    Staff.get_automation_user(),
+                    logger_prefix="[batch-sync] ",
+                )
 
     return clients
 

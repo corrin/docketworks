@@ -2,8 +2,6 @@ server {
     server_name __FQDN__;
     client_max_body_size 20M;
 
-    location = /favicon.ico { access_log off; log_not_found off; }
-
     # Django backend — API only (no Django admin is registered)
     location /api/ {
         proxy_pass http://unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock;
@@ -27,6 +25,14 @@ server {
     location /manual/ {
         alias /opt/docketworks/instances/__INSTANCE__/frontend/dist-manual/;
         try_files $uri $uri/ /manual/index.html;
+    }
+
+    # SPA entry point — never cache, otherwise a hard reload fetches a stale
+    # HTML that still references the previous build's hashed /assets/*.
+    # index.html is the only pointer to a specific build.
+    location = /index.html {
+        root /opt/docketworks/instances/__INSTANCE__/frontend/dist;
+        add_header Cache-Control "no-store" always;
     }
 
     # Vue.js frontend — everything else (per-instance build)

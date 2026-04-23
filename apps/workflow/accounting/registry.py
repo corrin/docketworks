@@ -18,7 +18,7 @@ _providers: dict[str, type[AccountingProvider]] = {}
 def register_provider(name: str, provider_class: type[AccountingProvider]) -> None:
     """Register an accounting provider implementation."""
     _providers[name] = provider_class
-    logger.info("Registered accounting provider: %s", name)
+    logger.debug("Registered accounting provider: %s", name)
 
 
 def get_provider() -> AccountingProvider:

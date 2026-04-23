@@ -44,7 +44,6 @@
             @mousedown.prevent="selectClient(client)"
           >
             <div class="font-medium text-gray-900">{{ client.name }}</div>
-            <div v-if="client.email" class="text-sm text-gray-500">{{ client.email }}</div>
           </div>
 
           <div

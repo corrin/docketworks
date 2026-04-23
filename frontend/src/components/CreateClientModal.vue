@@ -118,6 +118,16 @@
           </label>
         </div>
 
+        <div class="flex items-center">
+          <input
+            id="allowJobs"
+            v-model="formData.allow_jobs"
+            type="checkbox"
+            class="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+          />
+          <label for="allowJobs" class="ml-2 block text-sm text-gray-700"> Allow for jobs </label>
+        </div>
+
         <DialogFooter class="gap-2">
           <Button type="button" variant="outline" @click="handleCancel" :disabled="isLoading">
             Cancel
@@ -191,6 +201,7 @@ type ClientFormPayload = {
   phone?: ClientUpdateInput['phone']
   address?: ClientUpdateInput['address']
   is_account_customer: NonNullable<ClientCreateInput['is_account_customer']>
+  allow_jobs: NonNullable<ClientCreateInput['allow_jobs']>
 }
 
 interface Props {
@@ -204,6 +215,7 @@ interface Props {
     phone: string
     address: string
     is_account_customer: boolean
+    allow_jobs: boolean
   }
 }
 
@@ -217,6 +229,7 @@ const props = withDefaults(defineProps<Props>(), {
     phone: '',
     address: '',
     is_account_customer: false,
+    allow_jobs: true,
   }),
 })
 
@@ -231,6 +244,7 @@ const formData = reactive<ClientFormPayload>({
   phone: '',
   address: '',
   is_account_customer: false,
+  allow_jobs: true,
 })
 
 const isLoading = ref(false)
@@ -437,6 +451,7 @@ const resetForm = () => {
     phone: '',
     address: '',
     is_account_customer: false,
+    allow_jobs: true,
   })
 
   console.log('📋 formData after reset:', formData)
@@ -468,6 +483,7 @@ watch(
           phone: props.clientData.phone,
           address: props.clientData.address,
           is_account_customer: props.clientData.is_account_customer,
+          allow_jobs: props.clientData.allow_jobs,
         })
         console.log('📋 Form after pre-population:', formData)
       } else if (props.initialName) {

@@ -4,6 +4,7 @@ from django.apps import AppConfig
 from django.conf import settings
 from django.core.checks import Error, register
 from django.db import models
+from django.utils.autoreload import autoreload_started
 
 from apps.workflow.scheduler import get_scheduler
 
@@ -15,6 +16,15 @@ from apps.workflow.scheduler_jobs import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _watch_git_head(sender, **kwargs) -> None:
+    # `.git/logs/HEAD` is appended on every HEAD-moving op (commit, checkout,
+    # reset, merge, rebase). Watching it makes runserver re-import settings so
+    # BUILD_ID stays in sync with the frontend's per-request read of HEAD.
+    git_log = settings.BASE_DIR / ".git" / "logs" / "HEAD"
+    if git_log.exists():
+        sender.extra_files.add(git_log)
 
 
 @register()
@@ -53,6 +63,8 @@ class WorkflowConfig(AppConfig):
 
     def ready(self) -> None:
         self._register_accounting_providers()
+        if settings.DEBUG and not settings.SKIP_VERSION_CHECK:
+            autoreload_started.connect(_watch_git_head)
 
         if settings.RUN_SCHEDULER:
             self._register_xero_jobs()

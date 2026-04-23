@@ -7,8 +7,11 @@ All business logic for Client REST operations should be implemented here.
 
 import logging
 from decimal import Decimal
-from typing import Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List
 from uuid import UUID
+
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
 
 from django.db import transaction
 from django.db.models import DecimalField, Max, Sum, Value
@@ -439,7 +442,7 @@ class ClientRestService:
 
     @staticmethod
     def update_job_contact(
-        job_id: UUID, contact_data: Dict[str, Any]
+        job_id: UUID, contact_data: Dict[str, Any], user: "Staff"
     ) -> Dict[str, Any]:
         """
         Updates the contact person for a specific job.
@@ -447,6 +450,7 @@ class ClientRestService:
         Args:
             job_id: Job UUID
             contact_data: Contact data to update
+            user: Staff performing the update
 
         Returns:
             Dict with updated contact information
@@ -479,7 +483,7 @@ class ClientRestService:
 
             # Update job's contact
             job.contact = contact
-            job.save()
+            job.save(staff=user)
 
             logger.info(
                 f"Contact {contact_id} assigned to job {job_id}",
@@ -522,8 +526,9 @@ class ClientRestService:
 
         return (
             Client.objects.filter(
-                name__icontains=query
-            )  # Case insensitive substring search
+                name__icontains=query,
+                allow_jobs=True,
+            )  # Case insensitive substring search, job-eligible only
             .annotate(
                 last_invoice_date=Max("invoice__date"),
                 total_spend=Coalesce(
@@ -543,6 +548,8 @@ class ClientRestService:
                 "phone",
                 "address",
                 "is_account_customer",
+                "is_supplier",
+                "allow_jobs",
                 "xero_contact_id",
             )
             .order_by("name")[:limit]
@@ -569,6 +576,7 @@ class ClientRestService:
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
+            "allow_jobs": client.allow_jobs,
             "xero_contact_id": client.xero_contact_id or "",
             "last_invoice_date": date_to_datetime(last_invoice_date),
             "total_spend": f"${total_spend:,.2f}",
@@ -594,6 +602,7 @@ class ClientRestService:
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
+            "allow_jobs": client.allow_jobs,
             "xero_contact_id": client.xero_contact_id or "",
             "xero_tenant_id": client.xero_tenant_id or "",
             "primary_contact_name": client.primary_contact_name or "",
@@ -635,18 +644,15 @@ class ClientRestService:
                 phone=client_data.get("phone") or "",
                 address=client_data.get("address") or "",
                 is_account_customer=client_data.get("is_account_customer", True),
+                xero_last_modified=timezone.now(),
             )
 
-        # Push to accounting provider
+        # Push to accounting provider (persists xero_contact_id on the client object)
         result = provider.create_contact(client)
         if not result.success:
             raise ValueError(
                 f"Failed to create client in {provider.provider_name}: {result.error}"
             )
-
-        # Save external ID from the accounting provider
-        client.xero_contact_id = result.external_id
-        client.save(update_fields=["xero_contact_id"])
 
         logger.info(
             f"Client {client.id} created locally and in {provider.provider_name}",
@@ -680,9 +686,20 @@ class ClientRestService:
             client.is_account_customer = data.get(
                 "is_account_customer", client.is_account_customer
             )
+            if "allow_jobs" in data:
+                client.allow_jobs = data["allow_jobs"]
             client.xero_last_modified = timezone.now()
             client.save()
 
+        # FIXME: `allow_jobs` is a local-only field (not synced to Xero) but
+        # toggling it still routes through this method, which unconditionally
+        # bumps `xero_last_modified` and pushes to Xero below. That wastes
+        # Xero API quota and -- more concerning -- can fool the next sync
+        # into thinking local state is newer than remote, potentially
+        # clobbering a genuine Xero-side change. Fix: either split into a
+        # local-only `_update_client_locally` path for flags like
+        # `allow_jobs`, or detect when `data` contains only local-only keys
+        # and skip the push + timestamp bump.
         # Push updated client to accounting provider
         result = provider.update_contact(client)
         if not result.success:
@@ -753,6 +770,8 @@ class ClientRestService:
                     "quote_acceptance_date": job.quote_acceptance_date,
                     "paid": job.paid,
                     "rejected_flag": job.rejected_flag,
+                    "min_people": job.min_people,
+                    "max_people": job.max_people,
                 }
                 for job in jobs
             ]

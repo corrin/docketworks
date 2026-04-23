@@ -262,7 +262,7 @@ class PurchasingRestService:
         line.received_quantity = line.quantity
 
         line.save()
-        job.save()
+        Job.objects.filter(pk=job.pk).untracked_update(updated_at=timezone.now())
 
     @staticmethod
     def _process_field(po: PurchaseOrder, field: Any, data: dict[str, Any]) -> None:

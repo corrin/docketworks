@@ -4,6 +4,9 @@ set -euo pipefail
 # Usage: rollback_release.sh <instance> <backup_timestamp>
 # Example: rollback_release.sh msm 20250130_221922
 
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+source "$SCRIPT_DIR/server/common.sh"
+
 if [[ $# -lt 2 ]]; then
   echo "Usage: $0 <instance> <backup_timestamp>"
   echo "Example: $0 msm 20250130_221922"
@@ -13,7 +16,7 @@ fi
 INSTANCE="$1"
 BACKUP_TIMESTAMP="$2"
 INSTANCE_DIR="/opt/docketworks/instances/$INSTANCE"
-INSTANCE_USER="dw-$INSTANCE"
+INSTANCE_USER="$(instance_user "$INSTANCE")"
 BACKUP_DIR="$INSTANCE_DIR/backups"
 DATE_DIR="$BACKUP_DIR/$BACKUP_TIMESTAMP"
 CODE_BACKUP="$DATE_DIR/code_${BACKUP_TIMESTAMP}.tgz"

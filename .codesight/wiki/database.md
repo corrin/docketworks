@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Schema shapes and field types extracted via AST. Read the actual schema source files before writing migrations or query logic.
 
-**django** — 40 models
+**django** — 44 models
 
 ### Invoice
 
@@ -66,6 +66,7 @@ pk: `id` (uuid) · fk: merged_into_id
 - `address`: string _(nullable)_
 - `is_account_customer`: boolean _(default)_
 - `is_supplier`: boolean _(default)_
+- `allow_jobs`: boolean _(default)_
 - `xero_last_modified`: timestamp
 - `raw_json`: json _(nullable)_
 - `primary_contact_name`: string _(nullable)_
@@ -176,6 +177,8 @@ pk: `id` (uuid) · fk: client_id, contact_id, created_by_id, latest_estimate_id,
 - `latest_quote_id`: integer _(fk)_
 - `latest_actual_id`: integer _(fk)_
 - `priority`: float _(default)_
+- `min_people`: integer _(default)_
+- `max_people`: integer _(default)_
 - `xero_project_id`: string _(unique, nullable)_
 - `xero_default_task_id`: string _(nullable)_
 - `xero_last_modified`: timestamp _(nullable)_
@@ -185,7 +188,7 @@ pk: `id` (uuid) · fk: client_id, contact_id, created_by_id, latest_estimate_id,
 
 ### JobDeltaRejection
 
-pk: `id` (uuid) · fk: job_id, staff_id
+pk: `id` (uuid) · fk: job_id, staff_id, resolved_by_id
 
 - `id`: uuid _(pk, default)_
 - `job_id`: integer _(fk)_
@@ -197,7 +200,10 @@ pk: `id` (uuid) · fk: job_id, staff_id
 - `checksum`: string
 - `request_etag`: string
 - `request_ip`: string _(nullable)_
-- _relations_: job: one(Job), staff: one(Staff)
+- `resolved`: boolean _(default)_
+- `resolved_by_id`: integer _(fk)_
+- `resolved_timestamp`: timestamp _(nullable)_
+- _relations_: job: one(Job), staff: one(Staff), resolved_by: one(Staff)
 
 ### JobEvent
 
@@ -208,13 +214,14 @@ pk: `id` (uuid) · fk: job_id, staff_id
 - `timestamp`: timestamp _(default)_
 - `staff_id`: integer _(fk)_
 - `event_type`: string _(default)_
-- `description`: string
+- `description`: string _(default)_
 - `schema_version`: integer _(default)_
 - `change_id`: uuid _(nullable)_
 - `delta_before`: json _(nullable)_
 - `delta_after`: json _(nullable)_
 - `delta_meta`: json _(nullable)_
 - `delta_checksum`: string _(default)_
+- `detail`: json _(default)_
 - `dedup_hash`: string _(nullable)_
 - _relations_: job: one(Job), staff: one(Staff)
 
@@ -255,6 +262,46 @@ pk: `id` (uuid) · fk: job_id
 - `tab`: string _(nullable, default)_
 - `job_id`: integer _(fk)_
 - _relations_: job: one(Job)
+
+### AllocationBlock
+
+pk: `id` (uuid) · fk: scheduler_run_id, job_id, staff_id
+
+- `id`: uuid _(pk, default)_
+- `scheduler_run_id`: integer _(fk)_
+- `job_id`: integer _(fk)_
+- `staff_id`: integer _(fk)_
+- `allocation_date`: date
+- `allocated_hours`: float
+- `sequence`: integer _(default)_
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job), staff: one(Staff)
+
+### JobProjection
+
+pk: `id` (uuid) · fk: scheduler_run_id, job_id
+
+- `id`: uuid _(pk, default)_
+- `scheduler_run_id`: integer _(fk)_
+- `job_id`: integer _(fk)_
+- `anticipated_start_date`: date _(nullable)_
+- `anticipated_end_date`: date _(nullable)_
+- `remaining_hours`: float
+- `is_late`: boolean _(default)_
+- `is_unscheduled`: boolean _(default)_
+- `unscheduled_reason`: string _(nullable)_
+- _relations_: scheduler_run: one(SchedulerRun), job: one(Job)
+
+### SchedulerRun
+
+pk: `id` (uuid)
+
+- `id`: uuid _(pk, default)_
+- `ran_at`: timestamp _(default)_
+- `algorithm_version`: string _(default)_
+- `succeeded`: boolean _(default)_
+- `failure_reason`: string _(nullable)_
+- `job_count`: integer _(default)_
+- `unscheduled_count`: integer _(default)_
 
 ### Form
 
@@ -515,6 +562,13 @@ pk: `id` (uuid) · fk: resolved_by_id
 - `entity`: string
 - `reference_id`: string
 - `kind`: string
+
+### CacheState
+
+pk: `id` (integer)
+
+- `id`: integer _(pk, default)_
+- `disabled_until`: timestamp _(nullable)_
 
 ### ServiceAPIKey
 

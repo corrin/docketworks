@@ -21,6 +21,7 @@
                   {{ client.is_account_customer ? 'Account Customer' : 'Cash Customer' }}
                 </Badge>
                 <Badge v-if="client.is_supplier" variant="outline"> Supplier </Badge>
+                <Badge v-if="!client.allow_jobs" variant="destructive"> Jobs Blocked </Badge>
                 <Badge
                   v-if="client.xero_contact_id"
                   variant="outline"
@@ -206,6 +207,25 @@
                   {{ client.is_supplier ? 'Yes' : 'No' }}
                 </Badge>
               </div>
+              <div class="py-2 border-b">
+                <div class="flex justify-between items-center">
+                  <div>
+                    <span class="text-gray-600">Allow Jobs</span>
+                    <p class="text-xs text-gray-500 mt-0.5">
+                      When disabled, this client cannot be selected when creating jobs.
+                    </p>
+                  </div>
+                  <Switch
+                    :checked="client.allow_jobs"
+                    :disabled="isSavingAllowJobs"
+                    aria-label="Allow jobs for this client"
+                    @update:checked="onAllowJobsToggle"
+                  />
+                </div>
+                <p v-if="allowJobsBlockedReason" class="mt-2 text-xs text-amber-700">
+                  {{ allowJobsBlockedReason }}
+                </p>
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -277,6 +297,7 @@ import AppLayout from '@/components/AppLayout.vue'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   ArrowLeft,
@@ -290,6 +311,7 @@ import {
   UserCircle,
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
+import { api } from '@/api/client'
 
 interface Props {
   id: string
@@ -303,6 +325,7 @@ const clientStore = useClientStore()
 const activeTab = ref('details')
 const isLoading = ref(false)
 const error = ref<string | null>(null)
+const isSavingAllowJobs = ref(false)
 
 // Computed
 const client = computed(() => {
@@ -324,6 +347,49 @@ const relatedJobs = computed(() => {
  */
 const isJobQuoted = (job: (typeof relatedJobs.value)[0]): boolean => {
   return job.has_quote_in_xero || job.is_fixed_price
+}
+
+/**
+ * Explain why allow_jobs is likely blocked by upstream Xero state.
+ * Shown as informational text — the admin may still override the toggle manually.
+ */
+const allowJobsBlockedReason = computed<string | null>(() => {
+  const current = client.value
+  if (!current) return null
+  if (current.merged_into) {
+    return 'Blocked because this contact was merged into another client in Xero.'
+  }
+  if (current.xero_archived) {
+    return 'Blocked because this contact is archived in Xero.'
+  }
+  return null
+})
+
+async function onAllowJobsToggle(nextValue: boolean) {
+  const current = client.value
+  if (!current) return
+
+  isSavingAllowJobs.value = true
+  try {
+    const result = await api.clients_update_update(
+      { allow_jobs: nextValue },
+      { params: { client_id: props.id } },
+    )
+    if (!result.success || !result.client) {
+      throw new Error(result.message || 'Failed to update client')
+    }
+    clientStore.detailedClients = {
+      ...clientStore.detailedClients,
+      [props.id]: result.client,
+    }
+    toast.success(nextValue ? 'Client can now be used for jobs' : 'Client blocked from new jobs')
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to update client'
+    console.error('Error updating allow_jobs:', err)
+    toast.error(message)
+  } finally {
+    isSavingAllowJobs.value = false
+  }
 }
 
 // Methods

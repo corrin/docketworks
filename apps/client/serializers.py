@@ -110,6 +110,7 @@ class ClientSearchResultSerializer(serializers.Serializer):
     address = serializers.CharField(allow_blank=True)
     is_account_customer = serializers.BooleanField()
     is_supplier = serializers.BooleanField()
+    allow_jobs = serializers.BooleanField()
     xero_contact_id = serializers.CharField(allow_blank=True)
     last_invoice_date = serializers.DateTimeField(allow_null=True)
     total_spend = serializers.CharField()
@@ -135,6 +136,7 @@ class ClientCreateSerializer(serializers.Serializer):
     )
     address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     is_account_customer = serializers.BooleanField(default=True)
+    allow_jobs = serializers.BooleanField(default=True)
 
 
 class ClientCreateResponseSerializer(serializers.Serializer):
@@ -171,6 +173,7 @@ class ClientDetailResponseSerializer(serializers.Serializer):
     address = serializers.CharField(allow_blank=True)
     is_account_customer = serializers.BooleanField()
     is_supplier = serializers.BooleanField()
+    allow_jobs = serializers.BooleanField()
     xero_contact_id = serializers.CharField(allow_blank=True)
     xero_tenant_id = serializers.CharField(allow_blank=True)
     primary_contact_name = serializers.CharField(allow_blank=True)
@@ -196,6 +199,7 @@ class ClientUpdateSerializer(serializers.Serializer):
     phone = serializers.CharField(max_length=50, required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
     is_account_customer = serializers.BooleanField(required=False)
+    allow_jobs = serializers.BooleanField(required=False)
 
 
 class ClientUpdateResponseSerializer(serializers.Serializer):
@@ -238,6 +242,8 @@ class ClientJobHeaderSerializer(serializers.Serializer):
     quote_acceptance_date = serializers.DateTimeField(allow_null=True)
     paid = serializers.BooleanField()
     rejected_flag = serializers.BooleanField()
+    min_people = serializers.IntegerField()
+    max_people = serializers.IntegerField()
 
 
 class ClientJobsResponseSerializer(serializers.Serializer):

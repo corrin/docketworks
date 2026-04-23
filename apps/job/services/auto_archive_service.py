@@ -8,7 +8,8 @@ from typing import List
 from django.db import transaction
 from django.utils import timezone
 
-from apps.job.models import Job, JobEvent
+from apps.accounts.models import Staff
+from apps.job.models import Job
 
 logger = logging.getLogger(__name__)
 
@@ -76,26 +77,11 @@ class AutoArchiveService:
             archived_jobs.append(job)
 
         if not dry_run and archived_jobs:
+            automation_user = Staff.get_automation_user()
             with transaction.atomic():
                 for job in archived_jobs:
                     job.status = "archived"
-                    job.save(update_fields=["status", "updated_at"])
-
-                    if job.rejected_flag:
-                        reason = "rejected"
-                    else:
-                        reason = "paid"
-
-                    JobEvent.objects.create(
-                        job=job,
-                        event_type="status_changed",
-                        description=(
-                            f"Auto-archived: job was recently completed, {reason}, "
-                            f"and 6+ days old."
-                        ),
-                        staff=None,
-                    )
-
+                    job.save(staff=automation_user)
                     logger.info(f"Job {job.job_number} ({job.name}) auto-archived")
 
         end_time = timezone.now()

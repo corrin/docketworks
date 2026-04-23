@@ -1,0 +1,38 @@
+name: "docketworks CodeQL config"
+
+# Docketworks is an internal business-ops app. All users are authenticated
+# employees of the installation's business; there is no public API surface.
+# Our threat model is insider-account compromise, supply-chain, and code
+# review gaps -- not log exfiltration or clear-text PII storage heuristics.
+#
+# Two CodeQL queries fire heuristically on variable names like
+# `credit_notes`, `invoices`, `total_spend` whenever those appear in a log
+# format string. They were designed for systems where logs might be read by
+# untrusted parties or where any "financial-looking" identifier implies PII.
+# Neither applies here: logs are internal telemetry that operators read when
+# diagnosing prod incidents; we consider them secure. Keeping these queries
+# enabled buries real findings (path-injection, XSS, SQL injection, SSRF)
+# under a steady stream of false positives and trains us to ignore CodeQL.
+#
+# Every other CodeQL query stays on. If we ever genuinely log a credential
+# or store a secret in clear text, that's a code review concern -- we don't
+# rely on name-based heuristics to catch it.
+#
+# `js/file-access-to-http` fires on frontend/tests/scripts/ (E2E setup and
+# teardown) because those scripts read our own .env for APP_DOMAIN and test
+# credentials and then make fetch() calls to our own backend. The rule is
+# designed to catch user-uploaded file content being exfiltrated over HTTP;
+# here the "file data" is operator-owned config pointing at our own hosts.
+# Previously dismissed twice as false positive with a comment promising to
+# exclude the rule here -- this is that exclusion.
+
+queries:
+  - uses: security-and-quality
+
+query-filters:
+  - exclude:
+      id: py/clear-text-logging-sensitive-data
+  - exclude:
+      id: py/clear-text-storage-sensitive-data
+  - exclude:
+      id: js/file-access-to-http

@@ -7,6 +7,7 @@ from typing import List
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounts.models import Staff
 from apps.job.models import Job
 
 logger = logging.getLogger(__name__)
@@ -87,10 +88,11 @@ class PaidFlagService:
                 jobs_to_update.append(job)
 
         if not dry_run and jobs_to_update:
+            automation_user = Staff.get_automation_user()
             with transaction.atomic():
                 for job in jobs_to_update:
                     job.paid = True
-                    job.save(update_fields=["paid", "updated_at"])
+                    job.save(staff=automation_user)
                     logger.info(f"Job {job.job_number} ({job.name}) marked as paid")
 
         end_time = timezone.now()

@@ -40,6 +40,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install poetry pre-commit
+          poetry self add poetry-plugin-export
           poetry config virtualenvs.in-project true
           poetry install --with dev
           cd frontend && npm ci

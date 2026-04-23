@@ -49,11 +49,12 @@ if [[ "$MODE" == "production" ]]; then
     MARIA_SOURCE_DB="$2"
     INSTANCE_DIR="/opt/docketworks/instances/$INSTANCE"
     ENV_FILE="$INSTANCE_DIR/.env"
-    CODE_DIR="$INSTANCE_DIR/code"
-    SERVICE="gunicorn-$INSTANCE"
+    CODE_DIR="$INSTANCE_DIR"
+    SERVICES=("gunicorn-$INSTANCE" "scheduler-$INSTANCE")
     SHARED_VENV="/opt/docketworks/.venv"
-    INSTANCE_USER="dw-$INSTANCE"
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+    source "$SCRIPT_DIR/server/common.sh"
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
     DUMP_FILE="/tmp/dw_${INSTANCE}_dump.json"
     MYSQL_COUNTS="/tmp/dw_${INSTANCE}_mysql_counts.txt"
     PG_COUNTS="/tmp/dw_${INSTANCE}_pg_counts.txt"
@@ -67,13 +68,9 @@ if [[ "$MODE" == "production" ]]; then
     # Read database config from .env (PostgreSQL target)
     set -a; source "$ENV_FILE"; set +a
 
-    if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
-        echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
-        exit 1
-    fi
-
-    PG_DB="$DB_NAME"
-    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$DB_NAME"
+    # In production, Step 2 copies the source MariaDB into a MariaDB named $DB_NAME
+    # so later migration commands can target it with the Postgres env shape.
+    MARIA_DB="$DB_NAME"
 
     # dw_run: execute as instance user with venv and env
     # Optional first arg: env var overrides (detected by containing "=")
@@ -91,7 +88,7 @@ set -a; source '$ENV_FILE'; set +a
 cd '$CODE_DIR'
 $env_prefix $(printf '%q ' "$@")
 DWEOF
-        chmod +x "$tmpscript"
+        chmod 755 "$tmpscript"
         sudo -u "$INSTANCE_USER" bash "$tmpscript"
         local rc=$?
         rm -f "$tmpscript"
@@ -114,19 +111,12 @@ else
     # Read database config from .env
     set -a; source "$ENV_FILE"; set +a
 
-    if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
-        echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
-        exit 1
-    fi
-
     MARIA_DB=jobs_manager_prod
-    PG_DB="$DB_NAME"
     DUMP_FILE=/tmp/dw_mysql_to_pg.json
     MYSQL_COUNTS=/tmp/dw_mysql_counts.txt
     PG_COUNTS=/tmp/dw_pg_counts.txt
     SQL_DUMP="$PROJECT_DIR/restore/jobs_manager_backup_20260327.sql"
     LOGFILE="$PROJECT_DIR/logs/mysql_to_postgres_dryrun_$(date +%Y%m%d_%H%M%S).log"
-    MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$MARIA_DB"
 
     # dw_run: passthrough with optional env var overrides
     dw_run() {
@@ -142,6 +132,15 @@ else
         fi
     }
 fi
+
+# --- Shared configuration (both modes) ---
+if [[ -z "${DB_NAME:-}" || -z "${DB_USER:-}" || -z "${DB_PASSWORD:-}" ]]; then
+    echo "ERROR: DB_NAME, DB_USER, and DB_PASSWORD must be set in $ENV_FILE"
+    exit 1
+fi
+
+PG_DB="$DB_NAME"
+MARIA_ENV="DB_ENGINE=django.db.backends.mysql DB_NAME=$MARIA_DB DB_HOST=127.0.0.1 DB_PORT=3306"
 
 # --- Logging ---
 mkdir -p "$(dirname "$LOGFILE")"
@@ -274,8 +273,8 @@ fi
 # ==========================================================================
 
 if [[ "$MODE" == "production" ]]; then
-    log "Step 1: Stopping $SERVICE..."
-    systemctl stop "$SERVICE"
+    log "Step 1: Stopping ${SERVICES[*]}..."
+    systemctl stop "${SERVICES[@]}"
 
     log "Step 2: Copy MariaDB $MARIA_SOURCE_DB → $DB_NAME"
     echo "  Creating MariaDB database $DB_NAME and copying data..."
@@ -337,11 +336,18 @@ log "Core Step 4: Running Django migrate on PostgreSQL..."
 dw_run python manage.py migrate --no-input || check_fail "PostgreSQL migration failed"
 check_ok "All migrations applied to PostgreSQL"
 
-# --- Truncate auto-generated content types ---
-log "Core Step 5: Truncating auto-generated content types..."
+# --- Clear post-migrate rows that collide with loaddata ---
+# Post-migrate, only these tables contain rows (besides django_migrations):
+#   workflow_xeropayitem — 7 seeds from migration 0187; loaddata brings the
+#     real Xero-synced records (post-0207 dedup), which collide on
+#     UniqueConstraint(name, uses_leave_api).
+#   django_site — Django's default example.com Site; loaddata reinstates the
+#     real one.
+# django_content_type is empty post-migrate on this setup, so no truncate needed.
+log "Core Step 5: Clearing post-migrate seed rows before loaddata..."
 PGPASSWORD="$DB_PASSWORD" psql -h 127.0.0.1 -U "$DB_USER" "$PG_DB" \
-    -c "TRUNCATE django_content_type CASCADE;"
-check_ok "Content types truncated"
+    -c "TRUNCATE workflow_xeropayitem, django_site RESTART IDENTITY CASCADE;"
+check_ok "Seed rows cleared"
 
 # --- Load data into PostgreSQL ---
 log "Core Step 6: Loading data into PostgreSQL (this takes several minutes)..."
@@ -379,8 +385,8 @@ pause "Core migration complete"
 
 if [[ "$MODE" == "production" ]]; then
     # --- Restart application ---
-    log "Restarting $SERVICE..."
-    systemctl start "$SERVICE"
+    log "Restarting ${SERVICES[*]}..."
+    systemctl start "${SERVICES[@]}"
 
     echo ""
     echo "=========================================================================="

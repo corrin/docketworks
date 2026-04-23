@@ -483,7 +483,7 @@ import { ref, computed, onMounted } from 'vue'
 import { TrendingUp, Download, RefreshCw, AlertCircle } from 'lucide-vue-next'
 import AppLayout from '@/components/AppLayout.vue'
 import { Button } from '@/components/ui/button'
-import axios from '@/plugins/axios'
+import { api } from '@/api/client'
 import { formatCurrency, exportToCsv } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
 import { toast } from 'vue-sonner'
@@ -670,26 +670,18 @@ const loadData = async () => {
   error.value = null
 
   try {
-    const params = new URLSearchParams()
-    params.append('start_date', filters.value.startDate)
-    params.append('end_date', filters.value.endDate)
-    if (filters.value.minValue != null) {
-      params.append('min_value', String(filters.value.minValue))
-    }
-    if (filters.value.maxValue != null) {
-      params.append('max_value', String(filters.value.maxValue))
-    }
-    if (filters.value.pricingType) {
-      params.append('pricing_type', filters.value.pricingType)
-    }
+    const response = (await api.job_profitability_report({
+      queries: {
+        start_date: filters.value.startDate,
+        end_date: filters.value.endDate,
+        ...(filters.value.minValue != null && { min_value: String(filters.value.minValue) }),
+        ...(filters.value.maxValue != null && { max_value: String(filters.value.maxValue) }),
+        ...(filters.value.pricingType && { pricing_type: filters.value.pricingType }),
+      },
+    })) as unknown as { jobs: JobProfitability[]; summary: ProfitabilitySummary }
 
-    const response = await axios.get<{
-      jobs: JobProfitability[]
-      summary: ProfitabilitySummary
-    }>(`/api/job/reports/job-profitability/?${params.toString()}`)
-
-    jobs.value = response.data.jobs
-    summary.value = response.data.summary
+    jobs.value = response.jobs
+    summary.value = response.summary
   } catch (err) {
     error.value = err instanceof Error ? err.message : 'Failed to load profitability data'
     jobs.value = []

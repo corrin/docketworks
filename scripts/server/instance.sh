@@ -7,10 +7,10 @@ set -euo pipefail
 #        instance.sh destroy <client> <env>
 #        instance.sh list
 #
-# Naming convention: dw_<client>_<env>
-#   Instance name: <client>-<env>  (e.g., msm-uat)
-#   Database:      dw_<client>_<env> (e.g., dw_msm_uat)
-#   OS user:       dw-<client>-<env> (e.g., dw-msm-uat)
+# Naming convention:
+#   Instance name: <client>-<env>     (e.g., msm-uat)     — directory, systemd unit suffix
+#   Database:      dw_<client>_<env>  (e.g., dw_msm_uat)
+#   OS user:       dw_<client>_<env>  (e.g., dw_msm_uat)  — same string as the DB role
 #   URL:           <client>-<env>.docketworks.site
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -92,13 +92,23 @@ do_create() {
 
     local SEED=false
     local CUSTOM_FQDN=""
-    while [[ $# -gt 0 ]]; do
+    local parsed
+    if ! parsed=$(getopt -o '' --long seed,fqdn: -n "$(basename "$0") create" -- "$@"); then
+        echo "Usage: $(basename "$0") create <client> <env> [--seed] [--fqdn <hostname>]" >&2
+        exit 1
+    fi
+    eval set -- "$parsed"
+    while true; do
         case "$1" in
-            --seed)  SEED=true; shift ;;
-            --fqdn)  CUSTOM_FQDN="$2"; shift 2 ;;
-            *)       echo "Unknown option: $1"; exit 1 ;;
+            --seed) SEED=true;        shift ;;
+            --fqdn) CUSTOM_FQDN="$2"; shift 2 ;;
+            --)     shift; break ;;
         esac
     done
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Unexpected arguments to 'create': $*" >&2
+        exit 1
+    fi
 
     # --- Read instance credentials file ---
     local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
@@ -149,7 +159,8 @@ do_create() {
     fi
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-    local INSTANCE_USER="dw-$INSTANCE"
+    local INSTANCE_USER
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
 
@@ -173,10 +184,13 @@ do_create() {
     fi
 
     # --- Set disk quota for instance user ---
+    # quotaon -p exits 0 whether quotas are on or off; parse its output instead.
+    # Format: "user quota on <mount> (<device>) is on|off"
     if command -v setquota &>/dev/null; then
-        local QUOTA_MOUNT
+        local QUOTA_MOUNT QUOTA_STATUS
         QUOTA_MOUNT="$(df --output=target "$INSTANCES_DIR" | tail -1)"
-        if quotaon -p "$QUOTA_MOUNT" &>/dev/null; then
+        QUOTA_STATUS="$(quotaon -pu "$QUOTA_MOUNT" 2>/dev/null || true)"
+        if [[ "$QUOTA_STATUS" == *"is on"* ]]; then
             log "Setting disk quota for $INSTANCE_USER: soft=$QUOTA_SOFT hard=$QUOTA_HARD"
             setquota -u "$INSTANCE_USER" "$QUOTA_SOFT" "$QUOTA_HARD" 0 0 "$QUOTA_MOUNT"
         else
@@ -190,9 +204,9 @@ do_create() {
     # --- Create instance directory structure ---
     # Instance dir is 750 with group www-data so nginx can traverse to
     # mediafiles, frontend/dist, and gunicorn.sock.
-    # .env and logs stay owner-only (dw-<name>:dw-<name>, 600/700).
-    # Instance users have NO supplementary groups, so dw-acme cannot
-    # traverse dw-msm's dir (not owner, not in www-data).
+    # .env and logs stay owner-only (dw_<client>_<env>:dw_<client>_<env>, 600/700).
+    # Instance users have NO supplementary groups, so dw_acme_uat cannot
+    # traverse dw_msm_uat's dir (not owner, not in www-data).
     # Derive FQDN and cert domain
     local FQDN CERT_DOMAIN
     if [[ -n "$CUSTOM_FQDN" ]]; then
@@ -256,6 +270,7 @@ BASH_PROFILE
         sed \
             -e "s|__INSTANCE__|$INSTANCE|g" \
             -e "s|__DOMAIN__|$DOMAIN|g" \
+            -e "s|__FQDN__|$FQDN|g" \
             -e "s|__DB_NAME__|$DB_NAME|g" \
             -e "s|__DB_USER__|$DB_USER|g" \
             -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
@@ -376,6 +391,11 @@ EOSQL
     log "Loading AI providers..."
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/workflow/fixtures/ai_providers.json
 
+    # Remove the fixture after loading — keys live in the DB now, and the
+    # file is a loaddata time-bomb (restore-prod-to-nonprod runs loaddata on
+    # it, which would overwrite real DB keys with whatever is on disk).
+    rm -f "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
+
     # --- Create initial admin user ---
     log "Creating initial admin user..."
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py
@@ -390,6 +410,7 @@ EOSQL
     log "Installing systemd service gunicorn-$INSTANCE..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
         "$TEMPLATE_DIR/gunicorn-instance.service.template" \
         > "/etc/systemd/system/gunicorn-$INSTANCE.service"
     systemctl daemon-reload
@@ -399,6 +420,7 @@ EOSQL
     log "Installing systemd service scheduler-$INSTANCE..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
         "$TEMPLATE_DIR/scheduler-instance.service.template" \
         > "/etc/systemd/system/scheduler-$INSTANCE.service"
     systemctl daemon-reload
@@ -445,7 +467,8 @@ do_destroy() {
     parse_client_env "$@"
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-    local INSTANCE_USER="dw-$INSTANCE"
+    local INSTANCE_USER
+    INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
 

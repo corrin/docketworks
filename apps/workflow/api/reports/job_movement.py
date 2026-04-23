@@ -13,7 +13,7 @@ from datetime import datetime, timedelta
 
 from django.utils import timezone
 from drf_spectacular.types import OpenApiTypes
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -300,7 +300,47 @@ class JobMovementMetricsView(APIView):
             },
         }
 
-    @extend_schema(responses={200: OpenApiTypes.OBJECT})
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="start_date",
+                type=str,
+                required=True,
+                description="Start date (YYYY-MM-DD)",
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=str,
+                required=True,
+                description="End date (YYYY-MM-DD)",
+            ),
+            OpenApiParameter(
+                name="compare_start_date",
+                type=str,
+                required=False,
+                description="Comparison period start date (YYYY-MM-DD)",
+            ),
+            OpenApiParameter(
+                name="compare_end_date",
+                type=str,
+                required=False,
+                description="Comparison period end date (YYYY-MM-DD)",
+            ),
+            OpenApiParameter(
+                name="baseline_days",
+                type=int,
+                required=False,
+                description="Number of days to calculate baseline averages over",
+            ),
+            OpenApiParameter(
+                name="include_details",
+                type=bool,
+                required=False,
+                description="Include job listings with IDs. Defaults to false.",
+            ),
+        ],
+        responses={200: OpenApiTypes.OBJECT},
+    )
     def get(self, request):
         """
         Handle GET request for job movement metrics.

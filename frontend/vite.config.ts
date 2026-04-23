@@ -1,3 +1,4 @@
+import { execSync } from 'node:child_process'
 import fs from 'node:fs'
 import path from 'node:path'
 import tailwindcss from '@tailwindcss/vite'
@@ -17,6 +18,14 @@ function readBackendAppDomain(): string {
   return match[1].trim().replace(/^["']|["']$/g, '')
 }
 
+function readBuildId(): string {
+  return execSync('git rev-parse HEAD', {
+    cwd: path.resolve(__dirname, '..'),
+  })
+    .toString()
+    .trim()
+}
+
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const appDomain = readBackendAppDomain()
@@ -27,7 +36,23 @@ export default defineConfig(({ mode }) => {
   const tunnelHost = env.DEV_TUNNEL_HOST || ''
 
   return {
-    plugins: [vue(), tailwindcss()],
+    plugins: [
+      vue(),
+      tailwindcss(),
+      {
+        name: 'inject-build-id',
+        transformIndexHtml: {
+          order: 'pre',
+          handler: () => [
+            {
+              tag: 'meta',
+              attrs: { name: 'build-id', content: readBuildId() },
+              injectTo: 'head',
+            },
+          ],
+        },
+      },
+    ],
     resolve: {
       dedupe: ['vue'],
       alias: {

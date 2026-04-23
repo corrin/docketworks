@@ -86,6 +86,7 @@
 - `src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
 - `src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
+- `src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
 - `src/composables/useWorkshopJob.ts` — function useWorkshopJob: (jobId) => void, type SpeedQuality
 - `src/composables/useWorkshopJobBudgets.ts` — function useWorkshopJobBudgets: (selectedJobIds) => void, type JobBudgetMeta
@@ -105,7 +106,8 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
-- `src/composables/useXeroAuth.ts` — function useXeroAuth: () => void
+- `src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
+- `src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `src/constants/job-status.ts`
   - function getStatusChoice: (key) => StatusChoice | undefined
   - function getStatusLabel: (key) => string
@@ -174,7 +176,6 @@
   - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
   - type DjangoJob
   - _...1 more_
-- `src/services/feature-flags.service.ts` — class FeatureFlagsService, const featureFlags
 - `src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -229,6 +230,7 @@
 - `src/utils/csrf.ts` — function getCookie: (name) => string | null, function getCsrfToken: () => string | null
 - `src/utils/dateUtils.ts`
   - function toLocalDateString: (date) => void
+  - function getLatestWeekdayDate: (date) => void
   - function toDateValue: (date) => DateValue | undefined
   - function fromDateValue: (dateValue) => Date | null
 - `src/utils/debug.ts` — function debugLog: (...args) => void, const isDebugEnabled

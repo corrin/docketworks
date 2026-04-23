@@ -54,6 +54,12 @@ paths:
 
         Returns:
             JSON response with job aging data structure
+      parameters:
+        - in: query
+          name: include_archived
+          schema:
+            type: boolean
+          description: Whether to include archived jobs. Defaults to False.
       tags:
         - accounting
       security:
@@ -65,10 +71,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobAgingResponse'
           description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+          description: ''
   /api/accounting/reports/job-movement/:
     get:
       operationId: accounting_reports_job_movement_retrieve
       description: Handle GET request for job movement metrics.
+      parameters:
+        - in: query
+          name: baseline_days
+          schema:
+            type: integer
+          description: Number of days to calculate baseline averages over
+        - in: query
+          name: compare_end_date
+          schema:
+            type: string
+          description: Comparison period end date (YYYY-MM-DD)
+        - in: query
+          name: compare_start_date
+          schema:
+            type: string
+          description: Comparison period start date (YYYY-MM-DD)
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: End date (YYYY-MM-DD)
+          required: true
+        - in: query
+          name: include_details
+          schema:
+            type: boolean
+          description: Include job listings with IDs. Defaults to false.
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Start date (YYYY-MM-DD)
+          required: true
       tags:
         - accounting
       security:
@@ -166,6 +211,32 @@ paths:
   /api/accounting/reports/profit-and-loss/:
     get:
       operationId: accounting_reports_profit_and_loss_retrieve
+      parameters:
+        - in: query
+          name: compare
+          schema:
+            type: integer
+          description: Number of comparison periods to include. Defaults to 0.
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: Period end date (YYYY-MM-DD)
+          required: true
+        - in: query
+          name: period_type
+          schema:
+            type: string
+            enum:
+              - month
+              - year
+          description: Period type for comparison. Defaults to 'month'.
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Period start date (YYYY-MM-DD)
+          required: true
       tags:
         - accounting
       security:
@@ -350,6 +421,19 @@ paths:
     get:
       operationId: accounting_reports_staff_performance_summary_retrieve
       description: API endpoint for staff performance summary (all staff)
+      parameters:
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: End date (YYYY-MM-DD)
+          required: true
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Start date (YYYY-MM-DD)
+          required: true
       tags:
         - accounting
       security:
@@ -366,11 +450,23 @@ paths:
       operationId: accounting_reports_staff_performance_retrieve
       description: API endpoint for individual staff performance detail
       parameters:
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: End date (YYYY-MM-DD)
+          required: true
         - in: path
           name: staff_id
           schema:
             type: string
             format: uuid
+          required: true
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Start date (YYYY-MM-DD)
           required: true
       tags:
         - accounting
@@ -395,6 +491,20 @@ paths:
 
         Returns:
             JSON response with WIP data, archived jobs, and summary.
+      parameters:
+        - in: query
+          name: date
+          schema:
+            type: string
+          description: Report date in YYYY-MM-DD format. Defaults to today.
+        - in: query
+          name: method
+          schema:
+            type: string
+            enum:
+              - cost
+              - revenue
+          description: Valuation method. Defaults to 'revenue'.
       tags:
         - accounting
       security:
@@ -405,6 +515,12 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/WIPResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
           description: ''
   /api/accounts/logout/:
     post:
@@ -852,6 +968,87 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AppError'
+          description: ''
+  /api/app-errors/grouped/:
+    get:
+      operationId: app_errors_grouped_retrieve
+      tags:
+        - app-errors
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedAppErrorListResponse'
+          description: ''
+  /api/app-errors/grouped/mark_resolved/:
+    post:
+      operationId: app_errors_grouped_mark_resolved_create
+      tags:
+        - app-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
+          description: ''
+  /api/app-errors/grouped/mark_unresolved/:
+    post:
+      operationId: app_errors_grouped_mark_unresolved_create
+      tags:
+        - app-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
+          description: ''
+  /api/build-id/:
+    get:
+      operationId: build_id_retrieve
+      description: Return the git SHA of the running backend process.
+      tags:
+        - build-id
+      security:
+        - {}
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BuildId'
           description: ''
   /api/clients/{client_id}/:
     get:
@@ -1937,6 +2134,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyDefaults'
           description: ''
+  /api/disable_cache/:
+    post:
+      operationId: disable_cache_create
+      tags:
+        - disable_cache
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisableCacheResponse'
+          description: ''
+  /api/enable_cache/:
+    post:
+      operationId: enable_cache_create
+      tags:
+        - enable_cache
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnableCacheResponse'
+          description: ''
   /api/job/company_defaults/:
     get:
       operationId: job_company_defaults_retrieve
@@ -2214,6 +2439,7 @@ paths:
     post:
       operationId: job_job_completed_archive_create
       description: API Endpoint to set 'paid' flag as True in the received jobs
+      summary: Archive completed and paid jobs
       tags:
         - job
       requestBody:
@@ -2235,7 +2461,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ArchiveJobs'
+                $ref: '#/components/schemas/ArchiveJobsResponse'
+          description: ''
+        '207':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveJobsResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveJobsResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ArchiveJobsResponse'
           description: ''
   /api/job/jobs/:
     post:
@@ -3649,6 +3893,7 @@ paths:
         Apply quote import from linked Google Sheet.
 
         POST /job/rest/jobs/<uuid:pk>/quote/apply/
+      summary: Apply quote import from linked Google Sheet
       parameters:
         - in: path
           name: id
@@ -3658,18 +3903,6 @@ paths:
           required: true
       tags:
         - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ApplyQuoteResponseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/ApplyQuoteResponseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/ApplyQuoteResponseRequest'
-        required: true
       security:
         - cookieAuth: []
       responses:
@@ -3679,6 +3912,24 @@ paths:
               schema:
                 $ref: '#/components/schemas/ApplyQuoteResponse'
           description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplyQuoteErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
   /api/job/jobs/{id}/quote/link/:
     post:
       operationId: job_jobs_quote_link_create
@@ -3686,6 +3937,7 @@ paths:
         Link a job to a Google Sheets quote template.
 
         POST /job/rest/jobs/<uuid:pk>/quote/link/
+      summary: Link a job to a Google Sheets quote template
       parameters:
         - in: path
           name: id
@@ -3713,7 +3965,25 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/LinkQuoteSheet'
+                $ref: '#/components/schemas/LinkQuoteSheetResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
           description: ''
   /api/job/jobs/{id}/quote/preview/:
     post:
@@ -3722,6 +3992,7 @@ paths:
         Preview quote import from linked Google Sheet.
 
         POST /job/rest/jobs/<uuid:pk>/quote/preview/
+      summary: Preview quote import from linked Google Sheet
       parameters:
         - in: path
           name: id
@@ -3731,17 +4002,6 @@ paths:
           required: true
       tags:
         - job
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PreviewQuoteResponseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PreviewQuoteResponseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PreviewQuoteResponseRequest'
       security:
         - cookieAuth: []
       responses:
@@ -3750,6 +4010,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PreviewQuoteResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteSyncErrorResponse'
           description: ''
   /api/job/jobs/advanced-search/:
     get:
@@ -3870,6 +4148,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/:
+    get:
+      operationId: job_jobs_delta_rejections_grouped_retrieve
+      tags:
+        - Jobs
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionListResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/mark_resolved/:
+    post:
+      operationId: job_jobs_delta_rejections_grouped_mark_resolved_create
+      tags:
+        - Jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveResponse'
+          description: ''
+  /api/job/jobs/delta-rejections/grouped/mark_unresolved/:
+    post:
+      operationId: job_jobs_delta_rejections_grouped_mark_unresolved_create
+      tags:
+        - Jobs
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedJobDeltaRejectionResolveResponse'
           description: ''
   /api/job/jobs/fetch-all/:
     get:
@@ -4385,6 +4729,13 @@ paths:
     delete:
       operationId: job_workshop_timesheets_destroy
       description: Delete a timesheet entry belonging to the staff member.
+      parameters:
+        - in: query
+          name: entry_id
+          schema:
+            type: string
+          description: UUID of the timesheet entry to delete.
+          required: true
       tags:
         - job
       security:
@@ -4419,6 +4770,48 @@ paths:
               schema:
                 type: object
                 additionalProperties: {}
+          description: ''
+  /api/operations/workshop-schedule/:
+    get:
+      operationId: operations_workshop_schedule_retrieve
+      description: GET /api/operations/workshop-schedule/
+      parameters:
+        - in: query
+          name: day_horizon
+          schema:
+            type: integer
+          description: Number of days to include in the response (default 14, max 365)
+      tags:
+        - operations
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopScheduleResponse'
+          description: ''
+  /api/operations/workshop-schedule/recalculate/:
+    post:
+      operationId: operations_workshop_schedule_recalculate_create
+      description: POST /api/operations/workshop-schedule/recalculate/
+      parameters:
+        - in: query
+          name: day_horizon
+          schema:
+            type: integer
+          description: Number of days to include in the response (default 14, max 365)
+      tags:
+        - operations
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WorkshopScheduleResponse'
           description: ''
   /api/process/categories/:
     get:
@@ -6525,18 +6918,6 @@ paths:
       summary: Refresh cached pay runs from Xero
       tags:
         - timesheets
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PayRunSyncResponseRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PayRunSyncResponseRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PayRunSyncResponseRequest'
-        required: true
       security:
         - cookieAuth: []
       responses:
@@ -7188,6 +7569,72 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/XeroError'
+          description: ''
+  /api/xero-errors/grouped/:
+    get:
+      operationId: xero_errors_grouped_retrieve
+      tags:
+        - xero-errors
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedAppErrorListResponse'
+          description: ''
+  /api/xero-errors/grouped/mark_resolved/:
+    post:
+      operationId: xero_errors_grouped_mark_resolved_create
+      tags:
+        - xero-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
+          description: ''
+  /api/xero-errors/grouped/mark_unresolved/:
+    post:
+      operationId: xero_errors_grouped_mark_unresolved_create
+      tags:
+        - xero-errors
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/GroupedErrorResolveRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GroupedErrorResolveResponse'
           description: ''
   /api/xero/create_invoice/{job_id}:
     post:
@@ -7906,6 +8353,17 @@ components:
           nullable: true
       required:
         - message
+    ApplyQuoteErrorResponse:
+      type: object
+      description: Serializer for apply quote error response.
+      properties:
+        success:
+          type: boolean
+          default: false
+        error:
+          type: string
+      required:
+        - error
     ApplyQuoteResponse:
       type: object
       description: Serializer for apply quote response.
@@ -7926,34 +8384,6 @@ components:
           type: string
       required:
         - success
-    ApplyQuoteResponseRequest:
-      type: object
-      description: Serializer for apply quote response.
-      properties:
-        success:
-          type: boolean
-        draft_lines:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        changes:
-          $ref: '#/components/schemas/QuoteChangesRequest'
-        error:
-          type: string
-          minLength: 1
-      required:
-        - success
-    ArchiveJobs:
-      type: object
-      description: Serialiser for job archiving request
-      properties:
-        ids:
-          type: array
-          items:
-            type: string
-          description: List of job IDs to archive
-      required:
-        - ids
     ArchiveJobsRequest:
       type: object
       description: Serialiser for job archiving request
@@ -7966,6 +8396,23 @@ components:
           description: List of job IDs to archive
       required:
         - ids
+    ArchiveJobsResponse:
+      type: object
+      description: Serialiser for job archiving response
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        error:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+          description: List of specific errors
+      required:
+        - success
     ArchivedJobIssue:
       type: object
       description: Details of a non-compliant archived job.
@@ -8066,6 +8513,17 @@ components:
           type: string
       required:
         - success
+    AssignedStaff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+      required:
+        - id
+        - name
     BlankEnum:
       enum:
         - ''
@@ -8127,6 +8585,13 @@ components:
         - field
         - model
         - record_id
+    BuildId:
+      type: object
+      properties:
+        build_id:
+          type: string
+      required:
+        - build_id
     BusinessRuleViolation:
       type: object
       description: Details of a business rule violation.
@@ -8300,6 +8765,9 @@ components:
         is_account_customer:
           type: boolean
           default: true
+        allow_jobs:
+          type: boolean
+          default: true
       required:
         - name
     ClientCreateResponse:
@@ -8333,6 +8801,8 @@ components:
         is_account_customer:
           type: boolean
         is_supplier:
+          type: boolean
+        allow_jobs:
           type: boolean
         xero_contact_id:
           type: string
@@ -8377,6 +8847,7 @@ components:
           type: string
       required:
         - address
+        - allow_jobs
         - django_created_at
         - django_updated_at
         - email
@@ -8460,6 +8931,10 @@ components:
           type: boolean
         rejected_flag:
           type: boolean
+        min_people:
+          type: integer
+        max_people:
+          type: integer
       required:
         - client
         - fully_invoiced
@@ -8467,6 +8942,8 @@ components:
         - is_fixed_price
         - job_id
         - job_number
+        - max_people
+        - min_people
         - name
         - paid
         - pricing_methodology
@@ -8537,6 +9014,8 @@ components:
           type: boolean
         is_supplier:
           type: boolean
+        allow_jobs:
+          type: boolean
         xero_contact_id:
           type: string
         last_invoice_date:
@@ -8547,6 +9026,7 @@ components:
           type: string
       required:
         - address
+        - allow_jobs
         - email
         - id
         - is_account_customer
@@ -8573,6 +9053,8 @@ components:
         address:
           type: string
         is_account_customer:
+          type: boolean
+        allow_jobs:
           type: boolean
     ClientUpdateResponse:
       type: object
@@ -8744,6 +9226,10 @@ components:
           nullable: true
           description: Date Xero payroll went live — reconciliation ignores data before
             this
+        weekend_timesheets_enabled:
+          type: boolean
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off
+            = 5-day Mon-Fri.
         mon_start:
           type: string
           format: time
@@ -9104,6 +9590,10 @@ components:
           nullable: true
           description: Date Xero payroll went live — reconciliation ignores data before
             this
+        weekend_timesheets_enabled:
+          type: boolean
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off
+            = 5-day Mon-Fri.
         mon_start:
           type: string
           format: time
@@ -9511,74 +10001,6 @@ components:
         * `time` - Time
         * `material` - Material
         * `adjust` - Adjustment
-    CostLineRequest:
-      type: object
-      description: Serializer for CostLine model - read-only with basic depth
-      properties:
-        kind:
-          $ref: '#/components/schemas/CostLineKindEnum'
-        desc:
-          type: string
-          description: Description of this cost line
-          maxLength: 255
-        quantity:
-          type: number
-          format: double
-          maximum: 10000000
-          minimum: -10000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_cost:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_rev:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        ext_refs:
-          description: External references (e.g., time entry IDs, material IDs)
-        meta:
-          description: Additional metadata - structure varies by kind (see class docstring)
-        accounting_date:
-          type: string
-          format: date
-          description: The date this cost should be attributed to for accounting purposes
-        xero_time_id:
-          type: string
-          nullable: true
-          maxLength: 255
-        xero_expense_id:
-          type: string
-          nullable: true
-          maxLength: 255
-        xero_last_modified:
-          type: string
-          format: date-time
-          nullable: true
-        xero_last_synced:
-          type: string
-          format: date-time
-          nullable: true
-        approved:
-          type: boolean
-          description: Indicates whether this line is approved or not by an office
-            staff (when the line is created by a workshop worker)
-        xero_pay_item:
-          type: string
-          format: uuid
-          nullable: true
-          description: The Xero pay item for this time entry (leave type, earnings
-            rate, etc.)
-      required:
-        - accounting_date
-        - kind
     CostSet:
       type: object
       description: Serializer for CostSet model - includes nested cost lines
@@ -9907,6 +10329,26 @@ components:
         - total_broken_json_refs
         - total_business_rule_violations
         - total_issues
+    Day:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        total_capacity_hours:
+          type: number
+          format: double
+        allocated_hours:
+          type: number
+          format: double
+        utilisation_pct:
+          type: number
+          format: double
+      required:
+        - allocated_hours
+        - date
+        - total_capacity_hours
+        - utilisation_pct
     DeliveryReceiptAllocationRequest:
       type: object
       description: Serializer for individual allocation within a delivery receipt
@@ -10004,28 +10446,14 @@ components:
         - deletions_count
         - total_changes
         - updates_count
-    DiffPreviewRequest:
+    DisableCacheResponse:
       type: object
-      description: Serializer for a summary of changes in a quote sync.
       properties:
-        additions_count:
-          type: integer
-        updates_count:
-          type: integer
-        deletions_count:
-          type: integer
-        total_changes:
-          type: integer
-        next_revision:
-          type: integer
-        current_revision:
-          type: integer
-          nullable: true
+        disabled_until:
+          type: string
+          format: date-time
       required:
-        - additions_count
-        - deletions_count
-        - total_changes
-        - updates_count
+        - disabled_until
     DjangoJob:
       type: object
       properties:
@@ -10171,59 +10599,13 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
-    DraftLineRequest:
+    EnableCacheResponse:
       type: object
-      description: Serializer for draft line data.
       properties:
-        kind:
-          type: string
-          minLength: 1
-        desc:
-          type: string
-          minLength: 1
-        quantity:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_cost:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        unit_rev:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        total_cost:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        total_rev:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
+        enabled:
+          type: boolean
       required:
-        - desc
-        - kind
-        - quantity
-        - total_cost
-        - total_rev
-        - unit_cost
-        - unit_rev
+        - enabled
     FetchAllJobsResponse:
       type: object
       description: Serializer for fetch_all_jobs response.
@@ -10600,6 +10982,156 @@ components:
             type: string
       required:
         - hazards
+    GroupedAppError:
+      type: object
+      description: Serializer for a single grouped AppError/XeroError row.
+      properties:
+        fingerprint:
+          type: string
+        message:
+          type: string
+        occurrence_count:
+          type: integer
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        severity:
+          type: integer
+          nullable: true
+        app:
+          type: string
+          nullable: true
+        latest_id:
+          type: string
+          format: uuid
+      required:
+        - app
+        - fingerprint
+        - first_seen
+        - last_seen
+        - latest_id
+        - message
+        - occurrence_count
+        - severity
+    GroupedAppErrorListResponse:
+      type: object
+      description: Paginated response wrapper for grouped AppError/XeroError listings.
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupedAppError'
+      required:
+        - count
+        - results
+    GroupedErrorResolveRequestRequest:
+      type: object
+      description: |-
+        Request body for grouped resolve/unresolve endpoints.
+
+        Identifies the group by the SHA-256 fingerprint of the message (matches
+        the `fingerprint` field returned in the grouped listing). The server
+        iterates the unresolved rows, computes each message's hash, and cascades
+        the resolve across every row whose hash matches.
+
+        Using a fingerprint (not the message string) avoids client-side
+        whitespace mangling: the frontend's global axios interceptor calls
+        trimStringsDeep on outbound payloads, which would strip trailing
+        whitespace and prevent a later exact match.
+      properties:
+        fingerprint:
+          type: string
+          minLength: 1
+          pattern: ^[0-9a-f]{64}$
+      required:
+        - fingerprint
+    GroupedErrorResolveResponse:
+      type: object
+      description: Response body for grouped resolve/unresolve endpoints.
+      properties:
+        updated:
+          type: integer
+      required:
+        - updated
+    GroupedJobDeltaRejection:
+      type: object
+      description: Serializer for a single grouped JobDeltaRejection row.
+      properties:
+        fingerprint:
+          type: string
+        reason:
+          type: string
+        occurrence_count:
+          type: integer
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+        latest_id:
+          type: string
+          format: uuid
+      required:
+        - fingerprint
+        - first_seen
+        - last_seen
+        - latest_id
+        - occurrence_count
+        - reason
+    GroupedJobDeltaRejectionListResponse:
+      type: object
+      description: Paginated response for grouped delta rejections.
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/GroupedJobDeltaRejection'
+      required:
+        - count
+        - results
+    GroupedJobDeltaRejectionResolveRequestRequest:
+      type: object
+      description: |-
+        Request body for grouped resolve/unresolve actions on delta rejections.
+
+        Identifies the group by the SHA-256 fingerprint of the reason (matches
+        the `fingerprint` field returned in the grouped listing). See
+        GroupedErrorResolveRequestSerializer for the rationale.
+      properties:
+        fingerprint:
+          type: string
+          minLength: 1
+          pattern: ^[0-9a-f]{64}$
+      required:
+        - fingerprint
+    GroupedJobDeltaRejectionResolveResponse:
+      type: object
+      description: Response body for grouped resolve/unresolve actions on delta rejections.
+      properties:
+        updated:
+          type: integer
+      required:
+        - updated
     ImproveDocumentRequestRequest:
       type: object
       properties:
@@ -10896,6 +11428,18 @@ components:
           type: string
           readOnly: true
           nullable: true
+        min_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Minimum number of workshop staff required to work on this job
+            simultaneously
+        max_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Maximum number of workshop staff that can work on this job
+            simultaneously
       required:
         - charge_out_rate
         - client_name
@@ -11393,6 +11937,8 @@ components:
         description:
           type: string
           readOnly: true
+          description: Human-readable description generated from structured detail
+            data
         timestamp:
           type: string
           format: date-time
@@ -11424,6 +11970,9 @@ components:
         delta_checksum:
           type: string
           readOnly: true
+        detail:
+          readOnly: true
+          description: Structured audit data for this event. Keys vary by event_type.
         can_undo:
           type: boolean
           description: Whether this event can be undone
@@ -11442,6 +11991,7 @@ components:
         - delta_checksum
         - delta_meta
         - description
+        - detail
         - event_type
         - id
         - schema_version
@@ -11780,6 +12330,18 @@ components:
             - $ref: '#/components/schemas/RdtiTypeEnum'
             - $ref: '#/components/schemas/BlankEnum'
             - $ref: '#/components/schemas/NullEnum'
+        min_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Minimum number of workshop staff required to work on this job
+            simultaneously
+        max_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Maximum number of workshop staff that can work on this job
+            simultaneously
       required:
         - client_id
         - client_name
@@ -12360,6 +12922,18 @@ components:
           type: string
           readOnly: true
           nullable: true
+        min_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Minimum number of workshop staff required to work on this job
+            simultaneously
+        max_people:
+          type: integer
+          maximum: 2147483647
+          minimum: -2147483648
+          description: Maximum number of workshop staff that can work on this job
+            simultaneously
       required:
         - charge_out_rate
         - client_name
@@ -12845,6 +13419,10 @@ components:
         time_and_materials_revenue:
           type: number
           format: double
+        min_people:
+          type: integer
+        max_people:
+          type: integer
         badge_label:
           type: string
         badge_color:
@@ -12861,6 +13439,8 @@ components:
         - fully_invoiced
         - id
         - job_number
+        - max_people
+        - min_people
         - name
         - over_budget
         - paid
@@ -12943,6 +13523,10 @@ components:
         time_and_materials_revenue:
           type: number
           format: double
+        min_people:
+          type: integer
+        max_people:
+          type: integer
       required:
         - client_name
         - contact_person
@@ -12953,6 +13537,8 @@ components:
         - fully_invoiced
         - id
         - job_number
+        - max_people
+        - min_people
         - name
         - over_budget
         - paid
@@ -13002,11 +13588,19 @@ components:
         display_name:
           type: string
           readOnly: true
+        is_office_staff:
+          type: boolean
+          readOnly: true
+        is_workshop_staff:
+          type: boolean
+          readOnly: true
       required:
         - display_name
         - first_name
         - icon_url
         - id
+        - is_office_staff
+        - is_workshop_staff
         - last_name
     KanbanSuccessResponse:
       type: object
@@ -13019,13 +13613,6 @@ components:
           type: string
       required:
         - message
-    LinkQuoteSheet:
-      type: object
-      description: Serializer for link quote sheet request data.
-      properties:
-        template_url:
-          type: string
-          format: uri
     LinkQuoteSheetRequest:
       type: object
       description: Serializer for link quote sheet request data.
@@ -13033,6 +13620,21 @@ components:
         template_url:
           type: string
           format: uri
+    LinkQuoteSheetResponse:
+      type: object
+      description: Serializer for link quote sheet response.
+      properties:
+        sheet_url:
+          type: string
+          format: uri
+        sheet_id:
+          type: string
+        job_id:
+          type: string
+      required:
+        - job_id
+        - sheet_id
+        - sheet_url
     MetalTypeEnum:
       enum:
         - stainless_steel
@@ -13604,6 +14206,8 @@ components:
           type: string
         is_account_customer:
           type: boolean
+        allow_jobs:
+          type: boolean
     PatchedCompanyDefaultsRequest:
       type: object
       properties:
@@ -13759,6 +14363,10 @@ components:
           nullable: true
           description: Date Xero payroll went live — reconciliation ignores data before
             this
+        weekend_timesheets_enabled:
+          type: boolean
+          description: Show Saturday and Sunday in timesheet views (7-day week). Off
+            = 5-day Mon-Fri.
         mon_start:
           type: string
           format: time
@@ -14163,6 +14771,8 @@ components:
           description: Date staff member left employment (null for current employees)
         is_office_staff:
           type: boolean
+        is_workshop_staff:
+          type: boolean
         is_superuser:
           type: boolean
           title: Superuser status
@@ -14510,26 +15120,6 @@ components:
         - fetched
         - synced
         - updated
-    PayRunSyncResponseRequest:
-      type: object
-      description: Response payload after refreshing cached pay runs.
-      properties:
-        synced:
-          type: boolean
-        fetched:
-          type: integer
-          description: Number of pay runs fetched from Xero
-        created:
-          type: integer
-          description: Number of new pay runs created locally
-        updated:
-          type: integer
-          description: Number of existing pay runs updated
-      required:
-        - created
-        - fetched
-        - synced
-        - updated
     PayrollDateRangeResponse:
       type: object
       description: Response for the pay-period date alignment endpoint.
@@ -14822,32 +15412,6 @@ components:
         diff_preview:
           allOf:
             - $ref: '#/components/schemas/DiffPreview'
-          nullable: true
-    PreviewQuoteResponseRequest:
-      type: object
-      description: Serializer for preview quote response.
-      properties:
-        success:
-          type: boolean
-        draft_lines:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        changes:
-          $ref: '#/components/schemas/QuoteChangesRequest'
-        message:
-          type: string
-          minLength: 1
-        can_proceed:
-          type: boolean
-          default: false
-        validation_report:
-          allOf:
-            - $ref: '#/components/schemas/ValidationReportRequest'
-          nullable: true
-        diff_preview:
-          allOf:
-            - $ref: '#/components/schemas/DiffPreviewRequest'
           nullable: true
     PricingMethodologyEnum:
       enum:
@@ -15910,26 +16474,6 @@ components:
         - additions
         - deletions
         - updates
-    QuoteChangesRequest:
-      type: object
-      description: Serializer for quote changes data.
-      properties:
-        additions:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        updates:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-        deletions:
-          type: array
-          items:
-            $ref: '#/components/schemas/DraftLineRequest'
-      required:
-        - additions
-        - deletions
-        - updates
     QuoteImportStatusResponse:
       type: object
       description: Serializer for quote import status response
@@ -16063,6 +16607,14 @@ components:
         * `ACCEPTED` - Accepted
         * `INVOICED` - Invoiced
         * `DELETED` - Deleted
+    QuoteSyncErrorResponse:
+      type: object
+      description: Serializer for quote sync error responses.
+      properties:
+        error:
+          type: string
+      required:
+        - error
     RDTISpendCategorySummary:
       type: object
       description: Summary data for a single RDTI classification category.
@@ -16222,6 +16774,61 @@ components:
       required:
         - description
         - title
+    ScheduledJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_number:
+          type: integer
+        name:
+          type: string
+        client_name:
+          type: string
+        remaining_hours:
+          type: number
+          format: double
+        delivery_date:
+          type: string
+          format: date
+          nullable: true
+        anticipated_start_date:
+          type: string
+          format: date
+          nullable: true
+        anticipated_end_date:
+          type: string
+          format: date
+          nullable: true
+        is_late:
+          type: boolean
+        min_people:
+          type: integer
+        max_people:
+          type: integer
+        assigned_staff:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedStaff'
+        anticipated_staff:
+          type: array
+          items:
+            $ref: '#/components/schemas/AssignedStaff'
+      required:
+        - anticipated_end_date
+        - anticipated_staff
+        - anticipated_start_date
+        - assigned_staff
+        - client_name
+        - delivery_date
+        - id
+        - is_late
+        - job_number
+        - max_people
+        - min_people
+        - name
+        - remaining_hours
     SettingsField:
       type: object
       description: Serializer for individual field metadata.
@@ -16339,6 +16946,8 @@ components:
           nullable: true
           description: Date staff member left employment (null for current employees)
         is_office_staff:
+          type: boolean
+        is_workshop_staff:
           type: boolean
         is_superuser:
           type: boolean
@@ -16487,6 +17096,8 @@ components:
           nullable: true
           description: Date staff member left employment (null for current employees)
         is_office_staff:
+          type: boolean
+        is_workshop_staff:
           type: boolean
         is_superuser:
           type: boolean
@@ -16902,6 +17513,8 @@ components:
           nullable: true
           description: Date staff member left employment (null for current employees)
         is_office_staff:
+          type: boolean
+        is_workshop_staff:
           type: boolean
         is_superuser:
           type: boolean
@@ -17816,6 +18429,35 @@ components:
           minLength: 1
       required:
         - token
+    UnscheduledJob:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        job_number:
+          type: integer
+        name:
+          type: string
+        client_name:
+          type: string
+        delivery_date:
+          type: string
+          format: date
+          nullable: true
+        remaining_hours:
+          type: number
+          format: double
+        reason:
+          type: string
+      required:
+        - client_name
+        - delivery_date
+        - id
+        - job_number
+        - name
+        - reason
+        - remaining_hours
     UploadedFile:
       type: object
       description: Serializer for file upload response.
@@ -17893,20 +18535,6 @@ components:
           type: array
           items:
             type: string
-    ValidationReportRequest:
-      type: object
-      description: Serializer for validation report data.
-      properties:
-        warnings:
-          type: array
-          items:
-            type: string
-            minLength: 1
-        errors:
-          type: array
-          items:
-            type: string
-            minLength: 1
     WIPJob:
       type: object
       description: A single job row in the WIP report.
@@ -18428,6 +19056,25 @@ components:
         message:
           type: string
           description: Error message if applicable
+    WorkshopScheduleResponse:
+      type: object
+      properties:
+        days:
+          type: array
+          items:
+            $ref: '#/components/schemas/Day'
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledJob'
+        unscheduled_jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/UnscheduledJob'
+      required:
+        - days
+        - jobs
+        - unscheduled_jobs
     WorkshopTimesheetEntry:
       type: object
       description: Serializer used to expose simplified workshop timesheet entries.

@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 # Google API scopes
 SCOPES = [
     "https://www.googleapis.com/auth/drive",
-    "https://www.googleapis.com/auth/spreadsheets.readonly",
+    "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/documents",
 ]
 
@@ -37,35 +37,46 @@ CREDS: Optional[service_account.Credentials] = None
 
 def _get_credentials() -> service_account.Credentials:
     """
-    Get Google API credentials from service account file.
+    Get Google API credentials from service account file, impersonating
+    CompanyDefaults.company_email via Google Workspace domain-wide delegation.
 
     Returns:
-        service_account.Credentials: Authenticated credentials
+        service_account.Credentials: Authenticated credentials with subject set.
 
     Raises:
-        RuntimeError: If credentials file not found or invalid
+        RuntimeError: If credentials file or CompanyDefaults.company_email is
+            not configured.
     """
+    from apps.workflow.models import CompanyDefaults
+
     global CREDS
 
     if CREDS is None:
-        try:
-            key_file = os.getenv("GCP_CREDENTIALS")
-            if not key_file:
-                raise RuntimeError("GCP_CREDENTIALS environment variable not set")
+        key_file = os.getenv("GCP_CREDENTIALS")
+        if not key_file:
+            raise RuntimeError("GCP_CREDENTIALS environment variable not set")
 
-            if not os.path.exists(key_file):
-                raise RuntimeError(
-                    f"Google service account key file not found: {key_file}"
-                )
+        if not os.path.exists(key_file):
+            raise RuntimeError(f"Google service account key file not found: {key_file}")
 
-            CREDS = service_account.Credentials.from_service_account_file(
-                key_file, scopes=SCOPES
-            )  # type: ignore[no-untyped-call]
+        company_email = CompanyDefaults.get_solo().company_email
+        if not company_email:
+            raise RuntimeError(
+                "CompanyDefaults.company_email is not set. "
+                "Google Workspace domain-wide delegation needs a user to "
+                "impersonate — populate CompanyDefaults.company_email in Settings."
+            )
 
-            logger.info(f"Google API credentials loaded from {key_file}")
+        CREDS = service_account.Credentials.from_service_account_file(
+            key_file, scopes=SCOPES
+        ).with_subject(  # type: ignore[no-untyped-call]
+            company_email
+        )
 
-        except Exception as e:
-            raise RuntimeError(f"Failed to load Google API credentials: {str(e)}")
+        logger.info(
+            f"Google API credentials loaded from {key_file} "
+            f"(impersonating {company_email})"
+        )
 
     assert CREDS is not None  # Should be set in the if block above
     return CREDS

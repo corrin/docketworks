@@ -1,7 +1,7 @@
 # Test Coverage
 
-> **35%** of routes and models are covered by tests
-> 99 test files found
+> **22%** of routes and models are covered by tests
+> 113 test files found
 
 ## Covered Routes
 
@@ -12,13 +12,9 @@
 ## Covered Models
 
 - Invoice
-- InvoiceLineItem
-- BillLineItem
-- CreditNoteLineItem
 - Quote
 - Client
 - ClientContact
-- SupplierPickupAddress
 - CostSet
 - CostLine
 - Job
@@ -26,28 +22,20 @@
 - JobEvent
 - JobFile
 - JobQuoteChat
-- QuoteSpreadsheet
+- AllocationBlock
+- JobProjection
+- SchedulerRun
 - Form
 - FormEntry
 - Procedure
 - PurchaseOrder
-- PurchaseOrderLine
-- PurchaseOrderSupplierQuote
 - Stock
-- PurchaseOrderEvent
 - SupplierProduct
 - SupplierPriceList
 - ScrapeJob
-- ProductParsingMapping
 - AIProvider
 - AppError
 - XeroError
-- ServiceAPIKey
-- XeroAccount
-- XeroJournal
-- XeroJournalLineItem
+- CacheState
 - XeroPayItem
-- XeroPayRun
-- XeroPaySlip
-- XeroSyncCursor
 - XeroToken

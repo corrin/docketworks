@@ -8,8 +8,10 @@
 - auth — `frontend/tests/fixtures/auth.ts`
 
 ## custom
-- url_autogenerate_plan — `docs/plans/completed/url_autogenerate_plan.md`
+- test_e2e_cache_bypass_middleware — `apps/workflow/tests/test_e2e_cache_bypass_middleware.py`
+- 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
+- migrate_to_snapshot — `scripts/migrate_to_snapshot.py`
 
 ## logging
 - generate_url_docs — `scripts/generate_url_docs.py`

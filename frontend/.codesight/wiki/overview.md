@@ -6,9 +6,7 @@
 
 ## Scale
 
-61 database models · 181 UI components · 3 middleware layers · 15 environment variables
-
-**Database:** unknown, 61 models — see [database.md](./database.md)
+181 UI components · 3 middleware layers · 13 environment variables
 
 **UI:** 181 components (vue) — see [ui.md](./ui.md)
 
@@ -18,10 +16,10 @@ Changes to these files have the widest blast radius across the codebase:
 
 - `src/api/generated/api.ts` — imported by **75** files
 - `src/utils/debug.ts` — imported by **51** files
-- `src/api/client.ts` — imported by **40** files
+- `src/api/client.ts` — imported by **48** files
 - `tests/fixtures/auth.ts` — imported by **27** files
 - `tests/fixtures/helpers.ts` — imported by **19** files
-- `src/plugins/axios.ts` — imported by **14** files
+- `src/utils/dateUtils.ts` — imported by **16** files
 
 ## Required Environment Variables
 
@@ -31,8 +29,7 @@ Changes to these files have the widest blast radius across the codebase:
 - `DEBUG` — `tests/fixtures/auth.ts`
 - `DJANGO_PASSWORD` — `scripts/capture_metrics.cjs`
 - `DJANGO_USER` — `scripts/capture_metrics.cjs`
-- `MODE` — `src/utils/debug.ts`
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `tests/scripts/xero-login.ts`
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-16_
+_Back to [index.md](./index.md) · Generated 2026-04-23_

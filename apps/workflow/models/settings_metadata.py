@@ -105,6 +105,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "thu_end": "working_hours",
     "fri_start": "working_hours",
     "fri_end": "working_hours",
+    "weekend_timesheets_enabled": "working_hours",
     # Finances
     "time_markup": "finances",
     "materials_markup": "finances",

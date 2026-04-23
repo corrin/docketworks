@@ -38,6 +38,7 @@ class EventDeduplicationTest(BaseTestCase):
             client=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
 
     def test_model_prevents_duplicate_manual_events(self):
@@ -46,7 +47,7 @@ class EventDeduplicationTest(BaseTestCase):
         event1 = JobEvent.objects.create(
             job=self.job,
             staff=self.user,
-            description="Test event",
+            detail={"note_text": "Test event"},
             event_type="manual_note",
         )
         self.assertIsNotNone(event1.dedup_hash)
@@ -56,7 +57,7 @@ class EventDeduplicationTest(BaseTestCase):
             JobEvent.objects.create(
                 job=self.job,
                 staff=self.user,
-                description="Test event",  # Same description
+                detail={"note_text": "Test event"},
                 event_type="manual_note",
             )
 
@@ -66,7 +67,7 @@ class EventDeduplicationTest(BaseTestCase):
         event1, created1 = JobEvent.create_safe(
             job=self.job,
             staff=self.user,
-            description="Test event",
+            detail={"note_text": "Test event"},
             event_type="manual_note",
         )
         self.assertTrue(created1)
@@ -75,7 +76,7 @@ class EventDeduplicationTest(BaseTestCase):
         event2, created2 = JobEvent.create_safe(
             job=self.job,
             staff=self.user,
-            description="Test event",  # Same description
+            detail={"note_text": "Test event"},
             event_type="manual_note",
         )
         self.assertFalse(created2)
@@ -99,7 +100,7 @@ class EventDeduplicationTest(BaseTestCase):
         events = JobEvent.objects.filter(
             job=self.job,
             staff=self.user,
-            description=description,
+            detail__note_text=description,
             event_type="manual_note",
         )
         self.assertEqual(events.count(), 1)
@@ -126,7 +127,7 @@ class EventDeduplicationTest(BaseTestCase):
 
         # Verify both events exist
         events = JobEvent.objects.filter(
-            job=self.job, description=description, event_type="manual_note"
+            job=self.job, detail__note_text=description, event_type="manual_note"
         )
         self.assertEqual(events.count(), 2)
 
@@ -152,7 +153,7 @@ class EventDeduplicationTest(BaseTestCase):
         event = JobEvent.objects.create(
             job=self.job,
             staff=self.user,
-            description="Test hash generation",
+            detail={"note_text": "Test hash generation"},
             event_type="manual_note",
         )
 

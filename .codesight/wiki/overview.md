@@ -6,16 +6,16 @@
 
 ## Scale
 
-82 API routes · 40 database models · 181 UI components · 8 middleware layers · 70 environment variables
+94 API routes · 44 database models · 181 UI components · 10 middleware layers · 68 environment variables
 
 ## Subsystems
 
-- **[Auth](./auth.md)** — 6 routes — touches: auth, payment, upload
-- **[Payments](./payments.md)** — 1 routes — touches: auth, payment, upload
-- **[Urls](./urls.md)** — 74 routes — touches: auth, payment, upload
+- **[Auth](./auth.md)** — 6 routes — touches: auth, cache, payment, upload
+- **[Payments](./payments.md)** — 1 routes — touches: auth, cache, payment, upload
+- **[Urls](./urls.md)** — 86 routes — touches: auth, cache, payment, upload
 - **[Infra](./infra.md)** — 1 routes
 
-**Database:** django, 40 models — see [database.md](./database.md)
+**Database:** django, 44 models — see [database.md](./database.md)
 
 **UI:** 181 components (vue) — see [ui.md](./ui.md)
 
@@ -42,9 +42,9 @@ Changes to these files have the widest blast radius across the codebase:
 - `DRY_RUN` — `scripts/copy_material_lines.py`
 - `LOG_DIR` — `docketworks/settings.py`
 - `MEDIA_ROOT` — `docketworks/settings.py`
-- `MODE` — `frontend/src/utils/debug.ts`
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `frontend/tests/scripts/xero-login.ts`
-- _...5 more_
+- `REDIS_HOST` — `docketworks/settings.py`
+- _...4 more_
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-16_
+_Back to [index.md](./index.md) · Generated 2026-04-23_

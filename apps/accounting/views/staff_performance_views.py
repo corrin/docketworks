@@ -3,6 +3,7 @@ from logging import getLogger
 from typing import Any
 
 from django.views.generic import TemplateView
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.request import Request
 from rest_framework.response import Response
@@ -47,6 +48,23 @@ class StaffPerformanceSummaryAPIView(APIView):
 
     serializer_class = StaffPerformanceResponseSerializer
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="start_date",
+                type=str,
+                required=True,
+                description="Start date (YYYY-MM-DD)",
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=str,
+                required=True,
+                description="End date (YYYY-MM-DD)",
+            ),
+        ],
+        responses={200: StaffPerformanceResponseSerializer},
+    )
     def get(self, request: Request, *args: Any, **kwargs: Any) -> Response:
         start_date_str = request.query_params.get("start_date")
         end_date_str = request.query_params.get("end_date")
@@ -131,6 +149,23 @@ class StaffPerformanceDetailAPIView(APIView):
 
     serializer_class = StaffPerformanceResponseSerializer
 
+    @extend_schema(
+        parameters=[
+            OpenApiParameter(
+                name="start_date",
+                type=str,
+                required=True,
+                description="Start date (YYYY-MM-DD)",
+            ),
+            OpenApiParameter(
+                name="end_date",
+                type=str,
+                required=True,
+                description="End date (YYYY-MM-DD)",
+            ),
+        ],
+        responses={200: StaffPerformanceResponseSerializer},
+    )
     def get(
         self, request: Request, staff_id: str, *args: Any, **kwargs: Any
     ) -> Response:

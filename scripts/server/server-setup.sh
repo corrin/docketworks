@@ -5,8 +5,8 @@ set -euo pipefail
 # Runs once on a fresh Ubuntu 24.04 server as the 'ubuntu' user.
 # Idempotent — safe to re-run.
 #
-# First run (UAT):   sudo ./server-setup.sh <dreamhost-api-key> <google-maps-api-key>
-# First run (prod):  sudo ./server-setup.sh --no-cert <google-maps-api-key>
+# First run (UAT):   sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY>
+# First run (prod):  sudo ./server-setup.sh --no-cert       --google-maps-key <KEY>
 # Re-run:            sudo ./server-setup.sh   (reads keys from files saved on first run)
 
 SETUP_LOG="/var/log/docketworks-setup.log"
@@ -35,42 +35,67 @@ fi
 DREAMHOST_KEY_FILE="/etc/letsencrypt/dreamhost-api-key.txt"
 SHARED_ENV_FILE="/opt/docketworks/shared.env"
 
+USAGE="Usage: $0 [--no-cert] [--dreamhost-key <KEY>] [--google-maps-key <KEY>]
+
+  UAT (wildcard cert):  $0 --dreamhost-key <KEY> --google-maps-key <KEY>
+  Prod (no cert):       $0 --no-cert            --google-maps-key <KEY>
+  Re-run:               $0   (reads any missing keys from files saved on first run)
+
+  --dreamhost-key:    panel.dreamhost.com → Home > API (grant dns-* permissions)
+  --google-maps-key:  GCP console → APIs & Services → Credentials
+  --no-cert:          skip Let's Encrypt wildcard cert (use for prod where DNS is elsewhere)"
+
+if ! parsed=$(getopt -o '' --long no-cert,dreamhost-key:,google-maps-key: -n "$(basename "$0")" -- "$@"); then
+    echo "$USAGE" >&2
+    exit 1
+fi
+eval set -- "$parsed"
+
 NO_CERT=false
-if [[ $# -ge 1 && "$1" == "--no-cert" ]]; then
-    NO_CERT=true
-    shift
+DREAMHOST_API_KEY=""
+GOOGLE_MAPS_API_KEY=""
+DREAMHOST_KEY_GIVEN=false
+GOOGLE_MAPS_KEY_GIVEN=false
+while true; do
+    case "$1" in
+        --no-cert)         NO_CERT=true;             shift ;;
+        --dreamhost-key)   DREAMHOST_API_KEY="$2";   DREAMHOST_KEY_GIVEN=true;   shift 2 ;;
+        --google-maps-key) GOOGLE_MAPS_API_KEY="$2"; GOOGLE_MAPS_KEY_GIVEN=true; shift 2 ;;
+        --)                shift; break ;;
+    esac
+done
+
+if [[ $# -gt 0 ]]; then
+    echo "ERROR: Unexpected positional arguments: $*" >&2
+    echo "$USAGE" >&2
+    exit 1
 fi
 
-if [[ $# -eq 2 ]]; then
-    DREAMHOST_API_KEY="$1"
-    GOOGLE_MAPS_API_KEY="$2"
-elif [[ $# -eq 1 && "$NO_CERT" == true ]]; then
-    DREAMHOST_API_KEY=""
-    GOOGLE_MAPS_API_KEY="$1"
-elif [[ $# -eq 0 ]]; then
-    # Re-run: read keys from files saved on first run
-    if [[ "$NO_CERT" == false && ! -f "$DREAMHOST_KEY_FILE" ]]; then
-        echo "ERROR: No Dreamhost API key found at $DREAMHOST_KEY_FILE"
-        echo "First run requires: $0 [--no-cert] <dreamhost-api-key> <google-maps-api-key>"
-        exit 1
-    fi
-    if [[ ! -f "$SHARED_ENV_FILE" ]]; then
-        echo "ERROR: No Google Maps API key found at $SHARED_ENV_FILE"
-        echo "First run requires: $0 [--no-cert] <dreamhost-api-key> <google-maps-api-key>"
-        exit 1
-    fi
-    [[ "$NO_CERT" == false ]] && DREAMHOST_API_KEY="$(cat "$DREAMHOST_KEY_FILE")"
-    GOOGLE_MAPS_API_KEY="$(grep GOOGLE_MAPS_API_KEY "$SHARED_ENV_FILE" | cut -d"'" -f2)"
-else
-    echo "Usage: $0 [--no-cert] [<dreamhost-api-key>] <google-maps-api-key>"
-    echo ""
-    echo "  UAT (wildcard cert):  $0 <dreamhost-api-key> <google-maps-api-key>"
-    echo "  Prod (no cert):       $0 --no-cert <google-maps-api-key>"
-    echo "  Re-run:               $0"
-    echo ""
-    echo "  dreamhost-api-key:   panel.dreamhost.com → Home > API (grant dns-* permissions)"
-    echo "  google-maps-api-key: GCP console → APIs & Services → Credentials"
+# --no-cert + --dreamhost-key are contradictory: with --no-cert there's no
+# DNS challenge to authenticate, so a Dreamhost key has no effect. Reject
+# loudly rather than silently ignore the key.
+if [[ "$NO_CERT" == true && "$DREAMHOST_KEY_GIVEN" == true ]]; then
+    echo "ERROR: --no-cert and --dreamhost-key are mutually exclusive." >&2
     exit 1
+fi
+
+# --- Resolve any keys not given on the CLI from saved files ---
+if [[ "$NO_CERT" == false && "$DREAMHOST_KEY_GIVEN" == false ]]; then
+    if [[ ! -f "$DREAMHOST_KEY_FILE" ]]; then
+        echo "ERROR: --dreamhost-key not given and no saved key at $DREAMHOST_KEY_FILE" >&2
+        echo "$USAGE" >&2
+        exit 1
+    fi
+    DREAMHOST_API_KEY="$(cat "$DREAMHOST_KEY_FILE")"
+fi
+
+if [[ "$GOOGLE_MAPS_KEY_GIVEN" == false ]]; then
+    if [[ ! -f "$SHARED_ENV_FILE" ]]; then
+        echo "ERROR: --google-maps-key not given and no saved value in $SHARED_ENV_FILE" >&2
+        echo "$USAGE" >&2
+        exit 1
+    fi
+    GOOGLE_MAPS_API_KEY="$(grep GOOGLE_MAPS_API_KEY "$SHARED_ENV_FILE" | cut -d"'" -f2)"
 fi
 
 mkdir -p "$(dirname "$SETUP_LOG")"
@@ -135,8 +160,10 @@ log "Starting and enabling PostgreSQL..."
 systemctl enable --now postgresql
 
 # Allow password auth over sockets for app users (keep peer for postgres).
-# Without this, instance users can't connect via socket because their OS
-# username (dw-msm-uat) doesn't match the DB role (dw_msm_uat).
+# Per-instance OS users share the same name as their DB role
+# (dw_<client>_<env>), so peer auth would also work for them — but the
+# shared dw_test pytest user has no matching Linux user and requires
+# password auth. Keep the setting uniform for all non-postgres roles.
 PG_HBA="$(sudo -u postgres psql -t -c 'SHOW hba_file;' | tr -d ' ')"
 if grep -q 'local.*all.*all.*peer' "$PG_HBA"; then
     log "Configuring pg_hba.conf for password auth over sockets..."

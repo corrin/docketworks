@@ -240,6 +240,8 @@ class JobSerializer(serializers.ModelSerializer):
             "rdti_type",
             "default_xero_pay_item_id",
             "default_xero_pay_item_name",
+            "min_people",
+            "max_people",
         ]
 
     def validate(self, attrs):
@@ -288,6 +290,18 @@ class JobSerializer(serializers.ModelSerializer):
         validated_data.pop("quoted", None)
         validated_data.pop("fully_invoiced", None)
 
+        # Pop enrichment kwargs for Job.save() event tracking (not model fields)
+        save_enrichment = {}
+        for key in (
+            "change_id",
+            "delta_meta",
+            "schema_version",
+            "delta_checksum",
+            "event_type_override",
+        ):
+            if key in validated_data:
+                save_enrichment[key] = validated_data.pop(key)
+
         # Handle job files data first
         files_data = validated_data.pop("files", None)
         if files_data:
@@ -334,8 +348,8 @@ class JobSerializer(serializers.ModelSerializer):
         # Get staff from context
         staff = self.context["request"].user if "request" in self.context else None
 
-        # Save the instance
-        instance.save(staff=staff)
+        # Save the instance (enrichment kwargs flow through to _create_change_events)
+        instance.save(staff=staff, **save_enrichment)
 
         # Log contact change after save if it actually changed
         if (
@@ -365,6 +379,9 @@ class JobEventSerializer(serializers.ModelSerializer):
     Includes all fields necessary for frontend to implement undo functionality.
     """
 
+    description = serializers.SerializerMethodField(
+        help_text="Human-readable description generated from structured detail data"
+    )
     staff = serializers.CharField(
         source="staff.get_display_full_name",
         read_only=True,
@@ -386,6 +403,9 @@ class JobEventSerializer(serializers.ModelSerializer):
     undo_description = serializers.SerializerMethodField(
         help_text="Human-readable description of what undoing this event would do"
     )
+
+    def get_description(self, obj) -> str:
+        return obj.build_description()
 
     def get_can_undo(self, obj) -> bool:
         """Check if this event supports undo operations."""
@@ -1186,3 +1206,40 @@ class JobUndoSerializer(serializers.Serializer):
 
     change_id = serializers.UUIDField()
     undo_change_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class GroupedJobDeltaRejectionSerializer(serializers.Serializer):
+    """Serializer for a single grouped JobDeltaRejection row."""
+
+    fingerprint = serializers.CharField()
+    reason = serializers.CharField()
+    occurrence_count = serializers.IntegerField()
+    first_seen = serializers.DateTimeField()
+    last_seen = serializers.DateTimeField()
+    latest_id = serializers.UUIDField()
+
+
+class GroupedJobDeltaRejectionListResponseSerializer(serializers.Serializer):
+    """Paginated response for grouped delta rejections."""
+
+    count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True, required=False)
+    previous = serializers.CharField(allow_null=True, required=False)
+    results = GroupedJobDeltaRejectionSerializer(many=True)
+
+
+class GroupedJobDeltaRejectionResolveRequestSerializer(serializers.Serializer):
+    """Request body for grouped resolve/unresolve actions on delta rejections.
+
+    Identifies the group by the SHA-256 fingerprint of the reason (matches
+    the `fingerprint` field returned in the grouped listing). See
+    GroupedErrorResolveRequestSerializer for the rationale.
+    """
+
+    fingerprint = serializers.RegexField(regex=r"^[0-9a-f]{64}$")
+
+
+class GroupedJobDeltaRejectionResolveResponseSerializer(serializers.Serializer):
+    """Response body for grouped resolve/unresolve actions on delta rejections."""
+
+    updated = serializers.IntegerField()

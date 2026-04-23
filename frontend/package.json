@@ -22,7 +22,6 @@
     "manual:dev": "vitepress dev manual --port 5174",
     "manual:build": "vitepress build manual",
     "manual:preview": "vitepress preview manual",
-    "manual:pdf": "vitepress-export-pdf export manual",
     "manual:screenshots": "npx tsx scripts/capture-screenshots.ts"
   },
   "dependencies": {
@@ -48,7 +47,7 @@
     "date-fns": "^4.1.0",
     "date-fns-tz": "^3.2.0",
     "dayjs": "^1.11.20",
-    "dompurify": "^3.3.3",
+    "dompurify": "^3.4.0",
     "event-source-polyfill": "^1.0.31",
     "js-cookie": "^3.0.5",
     "lodash-es": "^4.18.1",
@@ -78,17 +77,17 @@
     "@types/adm-zip": "^0.5.7",
     "@types/dompurify": "^3.2.0",
     "@types/js-cookie": "^3.0.6",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.6.0",
     "@typescript-eslint/eslint-plugin": "^8.34.1",
     "@typescript-eslint/parser": "^8.34.1",
-    "@vitejs/plugin-vue": "^6.0.5",
+    "@vitejs/plugin-vue": "^6.0.6",
     "@vue/eslint-config-prettier": "^10.2.0",
     "@vue/eslint-config-typescript": "^14.5.0",
     "@vue/test-utils": "^2.4.6",
     "@vue/tsconfig": "^0.9.0",
     "adm-zip": "^0.5.16",
     "codesight": "^1.10.0",
-    "dotenv": "^17.2.3",
+    "dotenv": "^17.4.2",
     "eslint": "^9.22.0",
     "eslint-plugin-vue": "~10.8.0",
     "happy-dom": "^20.8.9",
@@ -101,10 +100,14 @@
     "typescript": "~5.8.0",
     "vite": "^8.0.8",
     "vite-plugin-vue-devtools": "^8.1.1",
-    "vitepress": "^1.6.4",
-    "vitepress-export-pdf": "^1.0.0",
+    "vitepress": "2.0.0-alpha.17",
     "vitest": "^4.1.4",
     "vue-tsc": "^3.2.6"
+  },
+  "overrides": {
+    "basic-ftp": "^5.3.0",
+    "brace-expansion@1": "^1.1.14",
+    "brace-expansion@2": "^2.0.3"
   },
   "lint-staged": {
     "*.{js,ts,vue}": [

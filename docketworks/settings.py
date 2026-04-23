@@ -1,5 +1,6 @@
 import logging
 import os
+import subprocess
 from datetime import timedelta
 from pathlib import Path
 
@@ -11,7 +12,18 @@ from apps.workflow.api.xero.constants import XERO_SCOPES as DEFAULT_XERO_SCOPES_
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
-load_dotenv(BASE_DIR / ".env", override=True)
+load_dotenv(BASE_DIR / ".env", override=False)
+
+# Git SHA of the running process. Served by /api/build-id/ so the frontend can
+# detect when a deploy has happened and force a reload. Captured at import
+# time: gunicorn restart on deploy re-imports and picks up the new SHA.
+BUILD_ID = subprocess.run(
+    ["git", "rev-parse", "HEAD"],
+    cwd=BASE_DIR,
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
 
 
 def validate_required_settings() -> None:
@@ -22,6 +34,7 @@ def validate_required_settings() -> None:
         "SECRET_KEY",
         "DEBUG",
         "DEBUG_PAYLOAD",
+        "SKIP_VERSION_CHECK",
         "DJANGO_ENV",
         "ALLOWED_HOSTS",
         "DJANGO_SITE_DOMAIN",
@@ -76,6 +89,10 @@ DEBUG = os.getenv("DEBUG", "False").lower() == "true"
 
 # Enable detailed payload logging for debugging
 DEBUG_PAYLOAD = os.getenv("DEBUG_PAYLOAD").lower() == "true"
+
+# Disable the build-id / version-check feature. When True, /api/build-id/
+# returns an empty build_id sentinel and the frontend skips its reload check.
+SKIP_VERSION_CHECK = os.getenv("SKIP_VERSION_CHECK").lower() == "true"
 
 # Job delta soft fail setting - controls whether checksum mismatches are logged but not raised
 JOB_DELTA_SOFT_FAIL = os.getenv("JOB_DELTA_SOFT_FAIL", "True").strip() == "True"
@@ -140,6 +157,7 @@ INSTALLED_APPS = [
     "apps.client.apps.ClientConfig",
     "apps.purchasing.apps.PurchasingConfig",
     "apps.process.apps.ProcessConfig",
+    "apps.operations.apps.OperationsConfig",
     "channels",
     "mcp_server",
     "drf_spectacular",
@@ -156,6 +174,7 @@ MIDDLEWARE = [
     "apps.workflow.middleware.FrontendRedirectMiddleware",
     "apps.workflow.middleware.AccessLoggingMiddleware",
     "apps.workflow.middleware.LoginRequiredMiddleware",
+    "apps.workflow.middleware.E2ECacheBypassMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "simple_history.middleware.HistoryRequestMiddleware",
@@ -240,6 +259,7 @@ LOGIN_EXEMPT_URLS = [
     "accounts:token_obtain_pair",
     "accounts:token_refresh",
     "accounts:token_verify",
+    "build_id",
 ]
 
 # API path prefixes - single source of truth for middlewares
@@ -535,6 +555,16 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": False,
         },
+        "django.request": {
+            "handlers": ["app_file"],
+            "level": "WARNING",
+            "propagate": False,
+        },
+        "django.server": {
+            "handlers": ["access_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
         "xero": {
             "handlers": ["xero_file"],
             "level": "DEBUG",
@@ -618,7 +648,12 @@ LOGGING = {
         "apps.accounts": {
             "handlers": ["auth_file"],
             "level": "INFO",
-            "propagate": True,
+            "propagate": False,
+        },
+        "apps.workflow.authentication": {
+            "handlers": ["auth_file"],
+            "level": "INFO",
+            "propagate": False,
         },
         "auth": {
             "handlers": ["auth_file", "console"],
@@ -686,6 +721,12 @@ CACHES = {
         "LOCATION": "unique-snowflake",
     }
 }
+
+# django-solo: cache SingletonModel.get_solo() results (e.g. CompanyDefaults).
+# LocMemCache is per-worker, so admin edits to CompanyDefaults take up to
+# SOLO_CACHE_TIMEOUT seconds to propagate across all gunicorn workers.
+SOLO_CACHE = "default"
+SOLO_CACHE_TIMEOUT = 300
 
 # Password reset timeout
 PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds

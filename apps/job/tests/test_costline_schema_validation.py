@@ -27,6 +27,7 @@ class CostLineSchemaValidationTests(BaseTestCase):
             charge_out_rate=Decimal("120.00"),
             client=self.client,
             default_xero_pay_item=self.xero_pay_item,
+            staff=self.test_staff,
         )
         # Use the auto-created CostSet from Job.save()
         self.cost_set = self.job.latest_actual

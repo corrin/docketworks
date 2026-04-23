@@ -47,11 +47,15 @@ The staff training manual is built with VitePress and served at `/manual/` in pr
 ```bash
 npm run manual:dev       # Dev server on port 5174 (hot-reload)
 npm run manual:build     # Production build to dist-manual/
-npm run manual:pdf       # Export as PDF
 npm run manual:screenshots  # Capture screenshots (needs running app + .env credentials)
 ```
 
 Markdown source lives in `manual/`. Edit pages there and preview with `manual:dev`.
+
+PDF export is not wired up: the only working exporter (`vitepress-export-pdf`) is
+unmaintained and its stale `vitepress` peer range blocks upgrading vitepress past
+1.x, which is required to clear transitive `vite`/`esbuild` CVEs. The web build
+is the supported delivery; revisit if an actively-maintained exporter appears.
 
 ## Additional Documentation
 

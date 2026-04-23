@@ -592,7 +592,9 @@ class JobContactRestView(APIView):
                 )
 
             contact_data = input_serializer.validated_data
-            updated_contact = ClientRestService.update_job_contact(job_id, contact_data)
+            updated_contact = ClientRestService.update_job_contact(
+                job_id, contact_data, request.user
+            )
             serializer = JobContactResponseSerializer(data=updated_contact)
             serializer.is_valid(raise_exception=True)
             return Response(serializer.data)

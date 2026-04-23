@@ -380,3 +380,48 @@ class CompanyDefaultsSchemaSerializer(serializers.Serializer):
     """Serializer for the complete schema response."""
 
     sections = SettingsSectionSerializer(many=True)
+
+
+class GroupedAppErrorSerializer(serializers.Serializer):
+    """Serializer for a single grouped AppError/XeroError row."""
+
+    fingerprint = serializers.CharField()
+    message = serializers.CharField()
+    occurrence_count = serializers.IntegerField()
+    first_seen = serializers.DateTimeField()
+    last_seen = serializers.DateTimeField()
+    severity = serializers.IntegerField(allow_null=True)
+    app = serializers.CharField(allow_null=True)
+    latest_id = serializers.UUIDField()
+
+
+class GroupedAppErrorListResponseSerializer(serializers.Serializer):
+    """Paginated response wrapper for grouped AppError/XeroError listings."""
+
+    count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True, required=False)
+    previous = serializers.CharField(allow_null=True, required=False)
+    results = GroupedAppErrorSerializer(many=True)
+
+
+class GroupedErrorResolveRequestSerializer(serializers.Serializer):
+    """Request body for grouped resolve/unresolve endpoints.
+
+    Identifies the group by the SHA-256 fingerprint of the message (matches
+    the `fingerprint` field returned in the grouped listing). The server
+    iterates the unresolved rows, computes each message's hash, and cascades
+    the resolve across every row whose hash matches.
+
+    Using a fingerprint (not the message string) avoids client-side
+    whitespace mangling: the frontend's global axios interceptor calls
+    trimStringsDeep on outbound payloads, which would strip trailing
+    whitespace and prevent a later exact match.
+    """
+
+    fingerprint = serializers.RegexField(regex=r"^[0-9a-f]{64}$")
+
+
+class GroupedErrorResolveResponseSerializer(serializers.Serializer):
+    """Response body for grouped resolve/unresolve endpoints."""
+
+    updated = serializers.IntegerField()

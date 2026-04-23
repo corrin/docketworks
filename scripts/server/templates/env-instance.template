@@ -2,7 +2,7 @@
 DEBUG=False
 SECRET_KEY=__SECRET_KEY__
 DJANGO_ENV=production_like
-ALLOWED_HOSTS=__INSTANCE__.__DOMAIN__
+ALLOWED_HOSTS=__FQDN__
 
 # Database Configuration (PostgreSQL — local Unix socket)
 DB_NAME=__DB_NAME__
@@ -12,12 +12,12 @@ DB_HOST=/var/run/postgresql
 DB_PORT=
 
 # Used by settings.py for both CORS and CSRF trusted origins (single-origin)
-CORS_ALLOWED_ORIGINS=https://__INSTANCE__.__DOMAIN__
+CORS_ALLOWED_ORIGINS=https://__FQDN__
 
 # App domain configuration
-APP_DOMAIN=__INSTANCE__.__DOMAIN__
-DJANGO_SITE_DOMAIN=__INSTANCE__.__DOMAIN__
-FRONT_END_URL=https://__INSTANCE__.__DOMAIN__
+APP_DOMAIN=__FQDN__
+DJANGO_SITE_DOMAIN=__FQDN__
+FRONT_END_URL=https://__FQDN__
 
 # JWT Configuration
 ENABLE_JWT_AUTH=True
@@ -25,7 +25,7 @@ ENABLE_JWT_AUTH=True
 # Xero Integration
 XERO_CLIENT_ID=__XERO_CLIENT_ID__
 XERO_CLIENT_SECRET=__XERO_CLIENT_SECRET__
-XERO_REDIRECT_URI=https://__INSTANCE__.__DOMAIN__/api/xero/oauth/callback/
+XERO_REDIRECT_URI=https://__FQDN__/api/xero/oauth/callback/
 XERO_SYNC_PROJECTS=False
 XERO_DEFAULT_USER_ID=__XERO_DEFAULT_USER_ID__
 XERO_WEBHOOK_KEY=__XERO_WEBHOOK_KEY__
@@ -37,8 +37,8 @@ EMAIL_USE_TLS=True
 EMAIL_HOST_USER=__EMAIL_HOST_USER__
 EMAIL_HOST_PASSWORD="__EMAIL_HOST_PASSWORD__"
 DEFAULT_FROM_EMAIL=__EMAIL_HOST_USER__
-DJANGO_ADMINS=__DJANGO_ADMINS__
-EMAIL_BCC=__EMAIL_BCC__
+DJANGO_ADMINS="__DJANGO_ADMINS__"
+EMAIL_BCC="__EMAIL_BCC__"
 
 # GOOGLE_MAPS_API_KEY appended from shared.env
 
@@ -53,7 +53,6 @@ MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
 LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs
 
 # Feature flags
-WEEKEND_TIMESHEETS_ENABLED=True
 DEBUG_PAYLOAD=False
 JOB_DELTA_SOFT_FAIL=True
 DJANGO_RUN_SCHEDULER=true

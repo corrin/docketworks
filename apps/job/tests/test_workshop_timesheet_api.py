@@ -25,6 +25,7 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
             name="Workshop Timesheet Test Job",
             charge_out_rate=Decimal("120.00"),
             client=self.test_client,
+            staff=self.test_staff,
         )
         self.staff = Staff.objects.create_user(
             email="workshop-user@example.com",
@@ -99,9 +100,7 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
         entry = self._create_entry()
         self.client.force_authenticate(user=self.staff)
         resp = self.client.delete(
-            self.url,
-            {"entry_id": entry["id"]},
-            format="json",
+            f"{self.url}?entry_id={entry['id']}",
         )
         self.assertEqual(resp.status_code, 204)
         self.assertFalse(CostLine.objects.filter(id=entry["id"]).exists())

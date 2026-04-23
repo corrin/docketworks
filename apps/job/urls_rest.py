@@ -10,6 +10,11 @@ from apps.job.views.job_costline_views import (
     CostLineDeleteView,
     CostLineUpdateView,
 )
+from apps.job.views.job_delta_rejection_grouped_view import (
+    JobDeltaRejectionGroupedListView,
+    JobDeltaRejectionGroupedMarkResolvedView,
+    JobDeltaRejectionGroupedMarkUnresolvedView,
+)
 from apps.job.views.job_file_detail_view import JobFileDetailView
 from apps.job.views.job_file_thumbnail_view import JobFileThumbnailView
 from apps.job.views.job_files_collection_view import JobFilesCollectionView
@@ -91,6 +96,21 @@ rest_urlpatterns = [
         "jobs/<uuid:job_id>/delta-rejections/",
         JobDeltaRejectionListRestView.as_view(),
         name="job_delta_rejections_rest",
+    ),
+    path(
+        "jobs/delta-rejections/grouped/",
+        JobDeltaRejectionGroupedListView.as_view(),
+        name="jobs-delta-rejections-grouped",
+    ),
+    path(
+        "jobs/delta-rejections/grouped/mark_resolved/",
+        JobDeltaRejectionGroupedMarkResolvedView.as_view(),
+        name="jobs-delta-rejections-grouped-mark-resolved",
+    ),
+    path(
+        "jobs/delta-rejections/grouped/mark_unresolved/",
+        JobDeltaRejectionGroupedMarkUnresolvedView.as_view(),
+        name="jobs-delta-rejections-grouped-mark-unresolved",
     ),
     path(
         "jobs/delta-rejections/",
