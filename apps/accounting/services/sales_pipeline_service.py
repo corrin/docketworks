@@ -14,12 +14,13 @@ import logging
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
+from itertools import chain
 from statistics import median
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
 
 import holidays
-from django.db.models import QuerySet
+from django.db.models.fields.json import KeyTextTransform
 
 from apps.job.models import Job
 from apps.job.models.job_event import JobEvent
@@ -57,6 +58,22 @@ WARNING_SAMPLE_CAP = 10
 WARN_MISSING_HOURS = "missing_hours_summary"
 WARN_MISSING_CREATION_ANCHOR = "missing_creation_anchor"
 
+# Minimum event fields the builders touch. Added to ``.only(...)`` so we don't
+# transfer description/detail/schema_version bytes the service never reads.
+_EVENT_FIELDS = (
+    "id",
+    "job_id",
+    "timestamp",
+    "event_type",
+    "delta_after",
+    "delta_before",
+)
+
+# If a single report pulls more than this many rows, log a warning — silent
+# O(n²) regressions should be visible. See
+# docs/plans/now-the-performance-concerns-stateful-taco.md Tier 2/3 triggers.
+EVENT_FETCH_WARNING_THRESHOLD = 50_000
+
 
 class SalesPipelineService:
     """Builds the Sales Pipeline Report."""
@@ -73,7 +90,7 @@ class SalesPipelineService:
         warnings_state: dict[tuple[str, str], dict[str, Any]] = {}
         target = cls._load_company_target()
 
-        events_by_job = cls._fetch_events(end_date)
+        events_by_job = cls._fetch_events(start_date, end_date, trend_weeks)
         jobs_by_id = cls._fetch_jobs(events_by_job.keys())
 
         scoreboard = cls._build_scoreboard(
@@ -117,18 +134,113 @@ class SalesPipelineService:
     def _load_company_target() -> Decimal:
         return CompanyDefaults.get_solo().daily_approved_hours_target
 
-    @staticmethod
-    def _fetch_events(end_date: date) -> dict[Any, list[JobEvent]]:
-        end_dt = datetime.combine(end_date, time.max, tzinfo=NZ_TZ)
-        events: QuerySet[JobEvent] = JobEvent.objects.filter(
-            event_type__in=RELEVANT_EVENT_TYPES,
-            timestamp__lte=end_dt,
-            job__isnull=False,
-        ).order_by("timestamp")
+    @classmethod
+    def _fetch_events(
+        cls,
+        start_date: date,
+        end_date: date,
+        trend_weeks: int,
+    ) -> dict[Any, list[JobEvent]]:
+        """Return ``{job_id: [events sorted by timestamp]}`` for every job
+        whose events might contribute to any section of the report.
+
+        Splits the old single unbounded fetch into two narrower queries:
+
+        1. Events in ``[fetch_start_dt, end_dt]`` for all jobs — covers
+           scoreboard, velocity, funnel, and trend, plus any snapshot job
+           whose history is entirely inside the window.
+        2. Full pre-window history for jobs whose historical status at
+           ``end_dt`` is a pipeline stage (draft / awaiting_approval) — these
+           are the only jobs where snapshot replay needs events older than
+           the window.
+
+        See ``docs/plans/now-the-performance-concerns-stateful-taco.md`` —
+        Tier 1.
+        """
+        end_dt = cls._end_of_local_day(end_date)
+        fetch_start_dt = cls._compute_fetch_start_dt(start_date, end_date, trend_weeks)
+
+        in_window_qs = (
+            JobEvent.objects.filter(
+                event_type__in=RELEVANT_EVENT_TYPES,
+                timestamp__gte=fetch_start_dt,
+                timestamp__lte=end_dt,
+                job__isnull=False,
+            )
+            .only(*_EVENT_FIELDS)
+            .order_by("timestamp")
+        )
+
+        candidate_job_ids = cls._pipeline_stage_job_ids_as_of(end_dt)
+        if candidate_job_ids:
+            pre_window_qs: Iterable[JobEvent] = (
+                JobEvent.objects.filter(
+                    event_type__in=RELEVANT_EVENT_TYPES,
+                    timestamp__lt=fetch_start_dt,
+                    job_id__in=candidate_job_ids,
+                )
+                .only(*_EVENT_FIELDS)
+                .order_by("timestamp")
+            )
+        else:
+            pre_window_qs = ()
+
         grouped: dict[Any, list[JobEvent]] = defaultdict(list)
-        for evt in events:
+        total = 0
+        for evt in chain(pre_window_qs, in_window_qs):
             grouped[evt.job_id].append(evt)
+            total += 1
+        # The two querysets overlap at the fetch-start boundary — each list is
+        # internally sorted but the concatenation is not. Re-sort per job.
+        for events in grouped.values():
+            events.sort(key=lambda e: e.timestamp)
+
+        if total > EVENT_FETCH_WARNING_THRESHOLD:
+            logger.warning(
+                "SalesPipelineService fetched %d JobEvent rows — approaching "
+                "the scale where Tier 2 SQL aggregation pays off. See "
+                "docs/plans/now-the-performance-concerns-stateful-taco.md",
+                total,
+            )
+
         return grouped
+
+    @classmethod
+    def _compute_fetch_start_dt(
+        cls, start_date: date, end_date: date, trend_weeks: int
+    ) -> datetime:
+        """Earliest NZ-local datetime any non-snapshot section touches.
+
+        Snapshot may need events predating this — those are picked up via the
+        pipeline-stage candidate query in ``_fetch_events``.
+        """
+        end_week_start = cls._week_start(end_date)
+        trend_start_date = end_week_start - timedelta(weeks=trend_weeks - 1)
+        narrow_start = min(start_date, trend_start_date)
+        return datetime.combine(narrow_start, time.min, tzinfo=NZ_TZ)
+
+    @staticmethod
+    def _pipeline_stage_job_ids_as_of(end_dt: datetime) -> list[Any]:
+        """Jobs whose latest ``delta_after.status`` at ``end_dt`` is a
+        pipeline stage. These are the only jobs whose snapshot replay needs
+        pre-window events fetched.
+        """
+        latest_per_job = (
+            JobEvent.objects.filter(
+                event_type__in=RELEVANT_EVENT_TYPES,
+                timestamp__lte=end_dt,
+                job__isnull=False,
+            )
+            .annotate(latest_status=KeyTextTransform("status", "delta_after"))
+            .order_by("job_id", "-timestamp")
+            .distinct("job_id")
+            .values("job_id", "latest_status")
+        )
+        return [
+            row["job_id"]
+            for row in latest_per_job
+            if row["latest_status"] in PIPELINE_STATUSES
+        ]
 
     @staticmethod
     def _fetch_jobs(job_ids: Iterable[Any]) -> dict[Any, Job]:
