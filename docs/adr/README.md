@@ -30,3 +30,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0011 | Codesight pre-commit wiki-mode integration        |
 | 0012 | Accounting provider strategy pattern              |
 | 0013 | Error message clarity wins over information hiding |
+| 0014 | Explicit `else` branches on non-trivial `if`       |
