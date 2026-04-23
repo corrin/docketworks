@@ -417,6 +417,59 @@ paths:
                   error:
                     type: string
           description: ''
+  /api/accounting/reports/sales-pipeline/:
+    get:
+      operationId: accounting_reports_sales_pipeline_retrieve
+      description: |-
+        Sales Pipeline Report — answers whether enough approved work is flowing
+        into the shop, and where the bottleneck is. See
+        ``docs/plans/2026-04-16-sales-pipeline-report.md``.
+      parameters:
+        - in: query
+          name: end_date
+          schema:
+            type: string
+          description: Inclusive ISO-8601 end of reporting period (NZ-local). Defaults
+            to today.
+        - in: query
+          name: rolling_window_weeks
+          schema:
+            type: integer
+          description: Window size for the trend rolling average. Default 4.
+        - in: query
+          name: start_date
+          schema:
+            type: string
+          description: Inclusive ISO-8601 start of reporting period (NZ-local).
+          required: true
+        - in: query
+          name: trend_weeks
+          schema:
+            type: integer
+          description: Number of weekly buckets in the trend. Default 13.
+      tags:
+        - accounting
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SalesPipelineResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StandardError'
+          description: ''
   /api/accounting/reports/staff-performance-summary/:
     get:
       operationId: accounting_reports_staff_performance_summary_retrieve
@@ -9403,6 +9456,15 @@ components:
           exclusiveMinimum: true
           title: Daily GP (amber)
           description: Daily gross profit above which the day is amber
+        daily_approved_hours_target:
+          type: number
+          format: double
+          maximum: 1000
+          minimum: -1000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Target daily hours of newly-approved work flowing into the
+            shop, used by the Sales Pipeline scoreboard
       required:
         - company_name
         - created_at
@@ -9760,6 +9822,15 @@ components:
           exclusiveMinimum: true
           title: Daily GP (amber)
           description: Daily gross profit above which the day is amber
+        daily_approved_hours_target:
+          type: number
+          format: double
+          maximum: 1000
+          minimum: -1000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Target daily hours of newly-approved work flowing into the
+            shop, used by the Sales Pipeline scoreboard
     CompanyDefaultsSchema:
       type: object
       description: Serializer for the complete schema response.
@@ -14533,6 +14604,15 @@ components:
           exclusiveMinimum: true
           title: Daily GP (amber)
           description: Daily gross profit above which the day is amber
+        daily_approved_hours_target:
+          type: number
+          format: double
+          maximum: 1000
+          minimum: -1000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Target daily hours of newly-approved work flowing into the
+            shop, used by the Sales Pipeline scoreboard
     PatchedCostLineCreateUpdateRequest:
       type: object
       description: Serializer for CostLine creation and updates - full write capabilities
@@ -16774,6 +16854,306 @@ components:
       required:
         - description
         - title
+    SalesPipelineFunnel:
+      type: object
+      properties:
+        accepted:
+          $ref: '#/components/schemas/SalesPipelineFunnelBucket'
+        rejected:
+          $ref: '#/components/schemas/SalesPipelineFunnelBucket'
+        waiting:
+          $ref: '#/components/schemas/SalesPipelineFunnelBucket'
+        direct:
+          $ref: '#/components/schemas/SalesPipelineFunnelBucket'
+        still_draft:
+          $ref: '#/components/schemas/SalesPipelineFunnelBucket'
+      required:
+        - accepted
+        - direct
+        - rejected
+        - still_draft
+        - waiting
+    SalesPipelineFunnelBucket:
+      type: object
+      properties:
+        count:
+          type: integer
+        hours:
+          type: number
+          format: double
+      required:
+        - count
+        - hours
+    SalesPipelinePeriod:
+      type: object
+      properties:
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        rolling_window_weeks:
+          type: integer
+        trend_weeks:
+          type: integer
+        daily_approved_hours_target:
+          type: number
+          format: double
+      required:
+        - daily_approved_hours_target
+        - end_date
+        - rolling_window_weeks
+        - start_date
+        - trend_weeks
+    SalesPipelineResponse:
+      type: object
+      description: Top-level response for the Sales Pipeline Report.
+      properties:
+        period:
+          $ref: '#/components/schemas/SalesPipelinePeriod'
+        scoreboard:
+          $ref: '#/components/schemas/SalesPipelineScoreboard'
+        pipeline_snapshot:
+          $ref: '#/components/schemas/SalesPipelineSnapshot'
+        velocity:
+          $ref: '#/components/schemas/SalesPipelineVelocity'
+        conversion_funnel:
+          $ref: '#/components/schemas/SalesPipelineFunnel'
+        trend:
+          $ref: '#/components/schemas/SalesPipelineTrend'
+        warnings:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesPipelineWarning'
+      required:
+        - conversion_funnel
+        - period
+        - pipeline_snapshot
+        - scoreboard
+        - trend
+        - velocity
+        - warnings
+    SalesPipelineRollingPoint:
+      type: object
+      properties:
+        week_start:
+          type: string
+          format: date
+        rolling_avg_approved_hours:
+          type: number
+          format: double
+      required:
+        - rolling_avg_approved_hours
+        - week_start
+    SalesPipelineScoreboard:
+      type: object
+      properties:
+        approved_hours_total:
+          type: number
+          format: double
+        approved_jobs_count:
+          type: integer
+        direct_hours:
+          type: number
+          format: double
+        direct_jobs_count:
+          type: integer
+        working_days:
+          type: integer
+        target_hours_for_period:
+          type: number
+          format: double
+        pace_vs_target:
+          type: number
+          format: double
+          nullable: true
+      required:
+        - approved_hours_total
+        - approved_jobs_count
+        - direct_hours
+        - direct_jobs_count
+        - pace_vs_target
+        - target_hours_for_period
+        - working_days
+    SalesPipelineSnapshot:
+      type: object
+      properties:
+        as_of:
+          type: string
+          format: date
+        draft:
+          $ref: '#/components/schemas/SalesPipelineStageBucket'
+        awaiting_approval:
+          $ref: '#/components/schemas/SalesPipelineStageBucket'
+      required:
+        - as_of
+        - awaiting_approval
+        - draft
+    SalesPipelineSnapshotJob:
+      type: object
+      properties:
+        id:
+          type: string
+        job_number:
+          type: integer
+        name:
+          type: string
+        client_name:
+          type: string
+        hours:
+          type: number
+          format: double
+        value:
+          type: number
+          format: double
+        days_in_stage:
+          type: integer
+      required:
+        - client_name
+        - days_in_stage
+        - hours
+        - id
+        - job_number
+        - name
+        - value
+    SalesPipelineStageBucket:
+      type: object
+      properties:
+        count:
+          type: integer
+        hours_total:
+          type: number
+          format: double
+        value_total:
+          type: number
+          format: double
+        avg_days_in_stage:
+          type: number
+          format: double
+        jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesPipelineSnapshotJob'
+      required:
+        - avg_days_in_stage
+        - count
+        - hours_total
+        - jobs
+        - value_total
+    SalesPipelineTrend:
+      type: object
+      properties:
+        weeks:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesPipelineTrendWeek'
+        rolling_average:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesPipelineRollingPoint'
+      required:
+        - rolling_average
+        - weeks
+    SalesPipelineTrendWeek:
+      type: object
+      properties:
+        week_start:
+          type: string
+          format: date
+        week_end:
+          type: string
+          format: date
+        approved_hours:
+          type: number
+          format: double
+        approved_hours_per_working_day:
+          type: number
+          format: double
+        acceptance_rate_by_hours:
+          type: number
+          format: double
+          nullable: true
+        pipeline_hours_at_week_end:
+          type: number
+          format: double
+        median_velocity_days:
+          type: number
+          format: double
+          nullable: true
+        working_days:
+          type: integer
+      required:
+        - acceptance_rate_by_hours
+        - approved_hours
+        - approved_hours_per_working_day
+        - median_velocity_days
+        - pipeline_hours_at_week_end
+        - week_end
+        - week_start
+        - working_days
+    SalesPipelineVelocity:
+      type: object
+      properties:
+        draft_to_quote_sent:
+          $ref: '#/components/schemas/SalesPipelineVelocityMetric'
+        quote_sent_to_resolved:
+          $ref: '#/components/schemas/SalesPipelineVelocityMetric'
+        created_to_approved:
+          $ref: '#/components/schemas/SalesPipelineVelocityMetric'
+      required:
+        - created_to_approved
+        - draft_to_quote_sent
+        - quote_sent_to_resolved
+    SalesPipelineVelocityMetric:
+      type: object
+      properties:
+        median_days:
+          type: number
+          format: double
+          nullable: true
+        p80_days:
+          type: number
+          format: double
+          nullable: true
+        sample_size:
+          type: integer
+      required:
+        - median_days
+        - p80_days
+        - sample_size
+    SalesPipelineWarning:
+      type: object
+      properties:
+        code:
+          type: string
+        section:
+          type: string
+        count:
+          type: integer
+        sample_jobs:
+          type: array
+          items:
+            $ref: '#/components/schemas/SalesPipelineWarningSampleJob'
+      required:
+        - code
+        - count
+        - sample_jobs
+        - section
+    SalesPipelineWarningSampleJob:
+      type: object
+      properties:
+        id:
+          type: string
+        job_number:
+          type: integer
+          nullable: true
+        name:
+          type: string
+      required:
+        - id
+        - job_number
+        - name
     ScheduledJob:
       type: object
       properties:

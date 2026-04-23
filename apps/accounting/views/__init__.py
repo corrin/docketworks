@@ -8,6 +8,7 @@ from .sales_forecast_view import (
     SalesForecastMonthDetailAPIView,
     SalesForecastTemplateView,
 )
+from .sales_pipeline_view import SalesPipelineAPIView
 from .staff_performance_views import (
     StaffPerformanceDetailAPIView,
     StaffPerformanceSummaryAPIView,
@@ -23,6 +24,7 @@ __all__ = [
     "SalesForecastAPIView",
     "SalesForecastMonthDetailAPIView",
     "SalesForecastTemplateView",
+    "SalesPipelineAPIView",
     "StaffPerformanceDetailAPIView",
     "StaffPerformanceSummaryAPIView",
     "StaffPerformanceTemplateView",
