@@ -14,7 +14,6 @@ import logging
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
-from itertools import chain
 from statistics import median
 from typing import Any, Iterable
 from zoneinfo import ZoneInfo
@@ -144,15 +143,20 @@ class SalesPipelineService:
         """Return ``{job_id: [events sorted by timestamp]}`` for every job
         whose events might contribute to any section of the report.
 
-        Splits the old single unbounded fetch into two narrower queries:
+        Narrows the old unbounded fetch in two stages:
 
-        1. Events in ``[fetch_start_dt, end_dt]`` for all jobs — covers
-           scoreboard, velocity, funnel, and trend, plus any snapshot job
-           whose history is entirely inside the window.
-        2. Full pre-window history for jobs whose historical status at
-           ``end_dt`` is a pipeline stage (draft / awaiting_approval) — these
-           are the only jobs where snapshot replay needs events older than
-           the window.
+        1. Identify the **relevant job set** — jobs that either had at least
+           one event in ``[fetch_start_dt, end_dt]`` (they show up in
+           scoreboard / velocity / funnel / trend), OR whose historical
+           status at ``end_dt`` was a pipeline stage (they show up in
+           snapshot). Everything else — archived jobs with no recent
+           activity — is excluded.
+        2. Fetch the full history (``timestamp <= end_dt``) for that set.
+           Pre-window events stay available for velocity's
+           created-to-approved delta, scoreboard's prior-awaiting check,
+           funnel's creation anchor, and snapshot's replay — all of which
+           still need events older than the reporting window on jobs that
+           are active in it.
 
         See ``docs/plans/now-the-performance-concerns-stateful-taco.md`` —
         Tier 1.
@@ -160,40 +164,25 @@ class SalesPipelineService:
         end_dt = cls._end_of_local_day(end_date)
         fetch_start_dt = cls._compute_fetch_start_dt(start_date, end_date, trend_weeks)
 
-        in_window_qs = (
+        relevant_job_ids = cls._relevant_job_ids(fetch_start_dt, end_dt)
+        if not relevant_job_ids:
+            return {}
+
+        events_qs = (
             JobEvent.objects.filter(
                 event_type__in=RELEVANT_EVENT_TYPES,
-                timestamp__gte=fetch_start_dt,
                 timestamp__lte=end_dt,
-                job__isnull=False,
+                job_id__in=relevant_job_ids,
             )
             .only(*_EVENT_FIELDS)
             .order_by("timestamp")
         )
 
-        candidate_job_ids = cls._pipeline_stage_job_ids_as_of(end_dt)
-        if candidate_job_ids:
-            pre_window_qs: Iterable[JobEvent] = (
-                JobEvent.objects.filter(
-                    event_type__in=RELEVANT_EVENT_TYPES,
-                    timestamp__lt=fetch_start_dt,
-                    job_id__in=candidate_job_ids,
-                )
-                .only(*_EVENT_FIELDS)
-                .order_by("timestamp")
-            )
-        else:
-            pre_window_qs = ()
-
         grouped: dict[Any, list[JobEvent]] = defaultdict(list)
         total = 0
-        for evt in chain(pre_window_qs, in_window_qs):
+        for evt in events_qs:
             grouped[evt.job_id].append(evt)
             total += 1
-        # The two querysets overlap at the fetch-start boundary — each list is
-        # internally sorted but the concatenation is not. Re-sort per job.
-        for events in grouped.values():
-            events.sort(key=lambda e: e.timestamp)
 
         if total > EVENT_FETCH_WARNING_THRESHOLD:
             logger.warning(
@@ -204,6 +193,30 @@ class SalesPipelineService:
             )
 
         return grouped
+
+    @classmethod
+    def _relevant_job_ids(cls, fetch_start_dt: datetime, end_dt: datetime) -> list[Any]:
+        """Jobs whose history the report still needs.
+
+        Union of:
+        - jobs with any relevant event in ``[fetch_start_dt, end_dt]`` (they
+          contribute to at least one time-windowed section),
+        - jobs whose historical status at ``end_dt`` is a pipeline stage
+          (they contribute to the snapshot even if no event happened inside
+          the reporting window).
+        """
+        in_window_ids = set(
+            JobEvent.objects.filter(
+                event_type__in=RELEVANT_EVENT_TYPES,
+                timestamp__gte=fetch_start_dt,
+                timestamp__lte=end_dt,
+                job__isnull=False,
+            )
+            .values_list("job_id", flat=True)
+            .distinct()
+        )
+        pipeline_ids = set(cls._pipeline_stage_job_ids_as_of(end_dt))
+        return list(in_window_ids | pipeline_ids)
 
     @classmethod
     def _compute_fetch_start_dt(
