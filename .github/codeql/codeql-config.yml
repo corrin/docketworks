@@ -17,6 +17,14 @@ name: "docketworks CodeQL config"
 # Every other CodeQL query stays on. If we ever genuinely log a credential
 # or store a secret in clear text, that's a code review concern -- we don't
 # rely on name-based heuristics to catch it.
+#
+# `js/file-access-to-http` fires on frontend/tests/scripts/ (E2E setup and
+# teardown) because those scripts read our own .env for APP_DOMAIN and test
+# credentials and then make fetch() calls to our own backend. The rule is
+# designed to catch user-uploaded file content being exfiltrated over HTTP;
+# here the "file data" is operator-owned config pointing at our own hosts.
+# Previously dismissed twice as false positive with a comment promising to
+# exclude the rule here -- this is that exclusion.
 
 queries:
   - uses: security-and-quality
@@ -26,3 +34,5 @@ query-filters:
       id: py/clear-text-logging-sensitive-data
   - exclude:
       id: py/clear-text-storage-sensitive-data
+  - exclude:
+      id: js/file-access-to-http

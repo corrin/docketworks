@@ -561,9 +561,11 @@
   - class AccessLoggingMiddleware
   - class FrontendRedirectMiddleware
   - class LoginRequiredMiddleware
+  - class E2ECacheBypassMiddleware
   - class PasswordStrengthMiddleware
 - `apps/workflow/models/ai_provider.py` — class AIProvider
 - `apps/workflow/models/app_error.py` — class AppError, class XeroError
+- `apps/workflow/models/cache_state.py` — class CacheState
 - `apps/workflow/models/company_defaults.py` — class CompanyDefaults
 - `apps/workflow/models/service_api_key.py` — class ServiceAPIKey
 - `apps/workflow/models/settings_metadata.py`

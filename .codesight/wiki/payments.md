@@ -2,11 +2,11 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Payments subsystem handles **1 routes** and touches: auth, payment.
+The Payments subsystem handles **1 routes** and touches: auth, cache, payment.
 
 ## Routes
 
-- `ALL` `/xero/webhook/` [auth, payment, upload]
+- `ALL` `/xero/webhook/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
 
 ## Source Files

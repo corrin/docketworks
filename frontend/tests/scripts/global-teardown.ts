@@ -4,7 +4,7 @@ import { fileURLToPath } from 'url'
 import * as fs from 'fs'
 import os from 'os'
 import AdmZip from 'adm-zip'
-import { getDbConfig, runPsql, syncSequences } from './db-backup-utils'
+import { getBackendEnv, getDbConfig, runPsql, syncSequences } from './db-backup-utils'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -228,11 +228,57 @@ function restoreDatabase() {
   console.log('[db] Database restored successfully.')
 }
 
+async function enableServerCache(): Promise<void> {
+  const appDomain = getBackendEnv().APP_DOMAIN
+  if (!appDomain) {
+    throw new Error('APP_DOMAIN must be set in backend .env')
+  }
+  const frontendUrl = `https://${appDomain}`
+
+  const username = process.env.E2E_TEST_USERNAME
+  const password = process.env.E2E_TEST_PASSWORD
+  if (!username || !password) {
+    throw new Error('E2E_TEST_USERNAME and E2E_TEST_PASSWORD must be set in .env')
+  }
+
+  const loginResponse = await fetch(`${frontendUrl}/api/accounts/token/`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  })
+  if (!loginResponse.ok) {
+    throw new Error(`Login failed with status ${loginResponse.status}`)
+  }
+  const setCookies = loginResponse.headers.getSetCookie()
+  const accessCookie = setCookies.find((c) => c.startsWith('access_token='))
+  if (!accessCookie) {
+    throw new Error('No access_token cookie in login response')
+  }
+  const cookieValue = accessCookie.split(';')[0]
+
+  const response = await fetch(`${frontendUrl}/api/enable_cache/`, {
+    method: 'POST',
+    headers: { Cookie: cookieValue },
+  })
+  if (!response.ok) {
+    throw new Error(`enable_cache failed with status ${response.status}`)
+  }
+  console.log('[cache] Server cache re-enabled.')
+}
+
 export default async function globalTeardown() {
   try {
     collectAndAppendTimings()
   } catch (e) {
     console.error('Failed to collect timing data:', e)
+  }
+
+  try {
+    await enableServerCache()
+  } catch (e) {
+    // Don't let a failed re-enable block the rest of teardown — the
+    // server-side resume_after timer is the safety net.
+    console.error('Failed to re-enable server cache:', e)
   }
 
   restoreDatabase()

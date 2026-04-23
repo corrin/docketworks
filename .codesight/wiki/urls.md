@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Route list and file locations extracted via AST. Read the source files listed below before implementing or modifying this subsystem.
 
-The Urls subsystem handles **84 routes** and touches: auth, payment.
+The Urls subsystem handles **86 routes** and touches: auth, cache, payment.
 
 ## Routes
 
@@ -92,63 +92,67 @@ The Urls subsystem handles **84 routes** and touches: auth, payment.
   `apps/timesheet/urls.py`
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
   `apps/timesheet/urls.py`
-- `ALL` `/build-id/` [auth, payment, upload]
+- `ALL` `/build-id/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
+- `ALL` `/disable_cache/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/authenticate/` [auth, payment, upload]
+- `ALL` `/enable_cache/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/disconnect/` [auth, payment, upload]
+- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/sync-stream/` [auth, payment, upload]
+- `ALL` `/xero/authenticate/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/disconnect/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/sync-stream/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/sync-info/` [auth, payment, upload]
+- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/sync-info/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/sync/` [auth, payment, upload]
+- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero/ping/` [auth, payment, upload]
+- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/app-errors/grouped/` [auth, payment, upload]
+- `ALL` `/xero/sync/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/app-errors/grouped/mark_resolved/` [auth, payment, upload]
+- `ALL` `/xero/ping/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/app-errors/grouped/mark_unresolved/` [auth, payment, upload]
+- `ALL` `/app-errors/grouped/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/app-errors/` [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_resolved/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_unresolved/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/rest/app-errors/` [auth, payment, upload]
+- `ALL` `/app-errors/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero-errors/grouped/` [auth, payment, upload]
+- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero-errors/grouped/mark_resolved/` [auth, payment, upload]
+- `ALL` `/rest/app-errors/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero-errors/grouped/mark_unresolved/` [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero-errors/` [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_resolved/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_unresolved/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/company-defaults/` [auth, payment, upload]
+- `ALL` `/xero-errors/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/company-defaults/upload-logo/` [auth, payment, upload]
+- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/company-defaults/schema/` [auth, payment, upload]
+- `ALL` `/company-defaults/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
-- `ALL` `/workflow/` [auth, payment, upload]
+- `ALL` `/company-defaults/upload-logo/` [auth, cache, payment, upload]
+  `apps/workflow/urls.py`
+- `ALL` `/company-defaults/schema/` [auth, cache, payment, upload]
+  `apps/workflow/urls.py`
+- `ALL` `/workflow/` [auth, cache, payment, upload]
   `apps/workflow/urls.py`
 - `ALL` `/api/`
   `docketworks/urls.py`

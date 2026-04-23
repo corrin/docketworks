@@ -2134,6 +2134,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyDefaults'
           description: ''
+  /api/disable_cache/:
+    post:
+      operationId: disable_cache_create
+      tags:
+        - disable_cache
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DisableCacheResponse'
+          description: ''
+  /api/enable_cache/:
+    post:
+      operationId: enable_cache_create
+      tags:
+        - enable_cache
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EnableCacheResponse'
+          description: ''
   /api/job/company_defaults/:
     get:
       operationId: job_company_defaults_retrieve
@@ -10418,6 +10446,14 @@ components:
         - deletions_count
         - total_changes
         - updates_count
+    DisableCacheResponse:
+      type: object
+      properties:
+        disabled_until:
+          type: string
+          format: date-time
+      required:
+        - disabled_until
     DjangoJob:
       type: object
       properties:
@@ -10563,6 +10599,13 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
+    EnableCacheResponse:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+      required:
+        - enabled
     FetchAllJobsResponse:
       type: object
       description: Serializer for fetch_all_jobs response.

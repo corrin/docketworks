@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 92 routes | 43 models | 181 components | 362 lib files | 68 env vars | 9 middleware | 22% test coverage
-> **Token savings:** this file is ~30,000 tokens. Without it, AI exploration would cost ~237,800 tokens. **Saves ~207,900 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 363 lib files | 68 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,100 tokens. Without it, AI exploration would cost ~239,800 tokens. **Saves ~209,600 tokens per conversation.**
 
 ---
 
@@ -58,37 +58,39 @@
 - `ALL` `/payroll/pay-runs/` params()
 - `ALL` `/payroll/post-staff-week/` params()
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
-- `ALL` `/build-id/` params() [auth, payment, upload]
-- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
-- `ALL` `/xero/authenticate/` params() [auth, payment, upload]
-- `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
-- `ALL` `/xero/disconnect/` params() [auth, payment, upload]
-- `ALL` `/xero/sync-stream/` params() [auth, payment, upload]
-- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
-- `ALL` `/xero/sync-info/` params() [auth, payment, upload]
-- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
-- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
-- `ALL` `/xero/sync/` params() [auth, payment, upload]
-- `ALL` `/xero/webhook/` params() [auth, payment, upload]
-- `ALL` `/xero/ping/` params() [auth, payment, upload]
-- `ALL` `/app-errors/grouped/` params() [auth, payment, upload]
-- `ALL` `/app-errors/grouped/mark_resolved/` params() [auth, payment, upload]
-- `ALL` `/app-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
-- `ALL` `/app-errors/` params() [auth, payment, upload]
-- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
-- `ALL` `/rest/app-errors/` params() [auth, payment, upload]
-- `ALL` `/xero-errors/grouped/` params() [auth, payment, upload]
-- `ALL` `/xero-errors/grouped/mark_resolved/` params() [auth, payment, upload]
-- `ALL` `/xero-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
-- `ALL` `/xero-errors/` params() [auth, payment, upload]
-- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
-- `ALL` `/company-defaults/` params() [auth, payment, upload]
-- `ALL` `/company-defaults/upload-logo/` params() [auth, payment, upload]
-- `ALL` `/company-defaults/schema/` params() [auth, payment, upload]
-- `ALL` `/workflow/` params() [auth, payment, upload]
+- `ALL` `/build-id/` params() [auth, cache, payment, upload]
+- `ALL` `/disable_cache/` params() [auth, cache, payment, upload]
+- `ALL` `/enable_cache/` params() [auth, cache, payment, upload]
+- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, cache, payment, upload]
+- `ALL` `/xero/authenticate/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/oauth/callback/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/disconnect/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/sync-stream/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
+- `ALL` `/xero/sync-info/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
+- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
+- `ALL` `/xero/sync/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/webhook/` params() [auth, cache, payment, upload]
+- `ALL` `/xero/ping/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/grouped/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/grouped/mark_resolved/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/grouped/mark_unresolved/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/` params() [auth, cache, payment, upload]
+- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
+- `ALL` `/rest/app-errors/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/grouped/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_resolved/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_unresolved/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/` params() [auth, cache, payment, upload]
+- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
+- `ALL` `/company-defaults/` params() [auth, cache, payment, upload]
+- `ALL` `/company-defaults/upload-logo/` params() [auth, cache, payment, upload]
+- `ALL` `/company-defaults/schema/` params() [auth, cache, payment, upload]
+- `ALL` `/workflow/` params() [auth, cache, payment, upload]
 - `ALL` `/api/` params() ✓
 - `ALL` `/api/job/` params()
 - `ALL` `/api/accounts/` params()
@@ -566,6 +568,10 @@
 - entity: string
 - reference_id: string
 - kind: string
+
+### CacheState
+- id: integer (pk, default)
+- disabled_until: timestamp (nullable)
 
 ### ServiceAPIKey
 - id: uuid (pk, default)
@@ -1432,9 +1438,11 @@
   - class AccessLoggingMiddleware
   - class FrontendRedirectMiddleware
   - class LoginRequiredMiddleware
+  - class E2ECacheBypassMiddleware
   - class PasswordStrengthMiddleware
 - `apps/workflow/models/ai_provider.py` — class AIProvider
 - `apps/workflow/models/app_error.py` — class AppError, class XeroError
+- `apps/workflow/models/cache_state.py` — class CacheState
 - `apps/workflow/models/company_defaults.py` — class CompanyDefaults
 - `apps/workflow/models/service_api_key.py` — class ServiceAPIKey
 - `apps/workflow/models/settings_metadata.py`
@@ -2002,6 +2010,7 @@
 - auth — `frontend/tests/fixtures/auth.ts`
 
 ## custom
+- test_e2e_cache_bypass_middleware — `apps/workflow/tests/test_e2e_cache_bypass_middleware.py`
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
 - migrate_to_snapshot — `scripts/migrate_to_snapshot.py`
@@ -2054,7 +2063,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 112 test files found
+> 113 test files found
 
 ## Covered Routes
 
@@ -2089,6 +2098,7 @@
 - AIProvider
 - AppError
 - XeroError
+- CacheState
 - XeroPayItem
 - XeroToken
 

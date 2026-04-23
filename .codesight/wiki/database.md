@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Schema shapes and field types extracted via AST. Read the actual schema source files before writing migrations or query logic.
 
-**django** — 43 models
+**django** — 44 models
 
 ### Invoice
 
@@ -562,6 +562,13 @@ pk: `id` (uuid) · fk: resolved_by_id
 - `entity`: string
 - `reference_id`: string
 - `kind`: string
+
+### CacheState
+
+pk: `id` (integer)
+
+- `id`: integer _(pk, default)_
+- `disabled_until`: timestamp _(nullable)_
 
 ### ServiceAPIKey
 
