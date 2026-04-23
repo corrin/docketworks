@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 363 lib files | 68 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,100 tokens. Without it, AI exploration would cost ~239,800 tokens. **Saves ~209,600 tokens per conversation.**
+> 95 routes | 44 models | 181 components | 365 lib files | 68 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,300 tokens. Without it, AI exploration would cost ~240,800 tokens. **Saves ~210,500 tokens per conversation.**
 
 ---
 
@@ -20,6 +20,7 @@
 - `ALL` `/reports/staff-performance-summary/` params()
 - `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
 - `ALL` `/reports/rdti-spend/` params()
+- `ALL` `/reports/sales-pipeline/` params()
 - `ALL` `/reports/wip/` params()
 - `ALL` `/staff/all/` params() [auth]
 - `ALL` `/staff/rates/<uuid:staff_id>/` params(staff_id) [auth]
@@ -924,6 +925,14 @@
   - class RDTISpendJobDetailSerializer
   - class RDTISpendTotalsSerializer
   - class RDTISpendResponseSerializer
+- `apps/accounting/serializers/sales_pipeline_serializers.py`
+  - class SalesPipelineQuerySerializer
+  - class SalesPipelinePeriodSerializer
+  - class SalesPipelineScoreboardSerializer
+  - class SalesPipelineSnapshotJobSerializer
+  - class SalesPipelineStageBucketSerializer
+  - class SalesPipelineSnapshotSerializer
+  - _...10 more_
 - `apps/accounting/serializers/wip_serializers.py`
   - class WIPQuerySerializer
   - class WIPJobSerializer
@@ -936,6 +945,7 @@
   - class StaffPerformanceService
 - `apps/accounting/services/payroll_reconciliation_service.py` — class PayrollReconciliationService
 - `apps/accounting/services/rdti_spend_service.py` — class RDTISpendService
+- `apps/accounting/services/sales_pipeline_service.py` — class SalesPipelineService
 - `apps/accounting/services/wip_service.py` — class WIPService
 - `apps/accounts/apps.py` — class AccountsConfig
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
@@ -2063,7 +2073,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 113 test files found
+> 116 test files found
 
 ## Covered Routes
 

@@ -91,6 +91,7 @@ ADJUSTMENT entries (kind='adjust'):
 - Validate required input data upfront - crash if missing
 - No default values or fallbacks that mask configuration/data problems
 - Trust the data model - don't work around broken data with exception handling
+- **Prefer explicit `else` branches on non-trivial `if`s.** Even a commented noop (`else: pass  # handled by guard above`) is clearer than silent fallthrough. If the branch represents an unexpected state the current code can't handle, the else should `persist_app_error(exc); raise`. Trivial early-return guards are exempt. See `docs/adr/0014-explicit-else-branches.md`.
 
 **MANDATORY ERROR PERSISTENCE**
 Every exception handler must call `persist_app_error(exc)` - errors stored permanently in database, never lost to log rotation.

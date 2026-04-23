@@ -1,9 +1,9 @@
 # Knowledge Map — docketworks
-> 166 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-22
+> 170 notes · 17 decisions · 10 open questions · 2026-02-24 → 2026-04-22
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-22 (166 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-22 (170 notes). Key topics: verification, alternatives considered, tips, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
-## Key Decisions (15)
+## Key Decisions (17)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
 - Two layers. An **identity layer** (non-blocking) that reads either cookies (always) or, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, a short-lived HS256 bearer signed with `DEV_JWT_SECRET` — on failure it does nothing, remaining anonymous. A **global gate** (blocking) that runs on every request: if not authenticated and the path is not in `AUTH_ANON_ALLOWLIST`, return `401 JSON` for `/api/**` or `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
 - GET endpoints return an `ETag` header derived from `updated_at` (plus the primary key for delivery-receipt endpoints). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs — add event, accept quote, process delivery receipt) require `If-Match` with the latest ETag. Missing header → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so the comparison and the write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS is configured to expose `ETag` and allow `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
@@ -16,6 +16,8 @@
 - One script: `scripts/deploy.sh`, invoked both by the CD pipeline and by a systemd startup service. It runs as the application user, with `sudo` configured via sudoers for the specific `systemctl restart` commands it needs — no user switching, no root-level orchestration. Environment is detected by hostname (`msm` → PROD, `uat-scheduler` → SCHEDULER, `uat`/`uat-frontend` → UAT) rather than by inspecting paths. The script is idempotent so the same code path handles "fresh deploy from CD" and "machine just booted, catch up to `main`." CD runs against both machines with `continue-on-error: true` on the frontend/backend target so a cold second machine doesn't fail the pipeline — the startup service will catch up when the machine comes online.
 - Commit codesight output to git and regenerate it via pre-commit. Two hooks in `.pre-commit-config.yaml`: one runs `npx codesight --wiki` and stages `.codesight/`; the other runs `npx codesight --mode knowledge -o docs/.codesight` and stages `docs/.codesight/`. Always use `--wiki` (makes it the default via `codesight.config.json`) because the CLAUDE.md flow reads targeted ~200–300-token articles, not the monolithic `CODESIGHT.md`. Drop the separate `frontend/.codesight/` scan — the root scan already picks up 181 frontend components, so a second scan duplicates work and creates two sources of truth; gitignore `frontend/.codesight/` to prevent accidental commit. `.codesightignore` excludes generated files (`frontend/schema.yml`, `frontend/src/api/generated/`), build artifacts, and `docs/.codesight/` (which has its own scan).
 - Strategy pattern, registry-resolved at request time: `apps/workflow/accounting/provider.py` defines `AccountingProvider` (Protocol) covering auth, contacts, documents, sync-pull, and optional capability flags (`supports_projects`, `supports_payroll`). `apps/workflow/accounting/registry.py` exposes `get_provider()`, which reads `settings.ACCOUNTING_BACKEND` (default `"xero"`) and returns the active instance. `apps/workflow/accounting/types.py` defines provider-agnostic payload dataclasses (`InvoicePayload`, `QuotePayload`, `POPayload`, `DocumentResult`) so `xero_python` types stay inside the Xero provider. Keep all existing `xero_*` model fields — they have data and migrations; MYOB installations simply leave them null. Add `CompanyDefaults.accounting_provider` to track which backend is active. Phase the rollout: (1) interface + thin Xero wrapper over existing code, (2) document managers build generic payloads, (3) client service calls `get_provider()`, (4) sync layer becomes provider-agnostic, (5) build MYOB provider.
+- Return the underlying exception message in API error responses. Do not mask or generalise exception text for information-hiding reasons. Continue to include the persisted `AppError.id` as `details.error_id` so any response can be cross-referenced with structured logs and the DB row.
+- For `if` statements with non-trivial control flow, include an explicit `else` branch. The `else` body can be:
 - What we chose, stated as an imperative. One paragraph.
 - [2026-04-20] hold onto the old HTML
 - /usr/local/lib/nodemodules/ VS your user account using ~/
@@ -33,7 +35,7 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · tips · alternatives considered · what youll need · files to modify · steps · what happens next · approach · critical files · troubleshooting · purpose · prerequisites
+verification · alternatives considered · tips · what youll need · files to modify · steps · what happens next · approach · critical files · troubleshooting · purpose · prerequisites
 
 ## People
 @login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @api_view · @permission_classes · @staticmethod · @property · @github
@@ -46,9 +48,9 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (166)
+## Note Index (170)
 
-### Decision Records (12)
+### Decision Records (14)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
 - `docs/adr/0002-auth-gate-global-allowlist.md` — A blocking middleware gate rejects any request that is neither authenticated nor on the `AUTH_ANON_ALLOWLIST`; identity comes from cookies in all envs and, in D…
 - `docs/adr/0003-etag-optimistic-concurrency.md` — Every Job and PO mutation requires an `If-Match` header carrying the latest ETag; the server rejects mismatches with `412` and missing headers with `428`, atomi…
@@ -60,6 +62,8 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/adr/0010-single-deploy-script.md` — One `scripts/deploy.sh` handles PROD, UAT, and SCHEDULER via hostname detection; CD runs it against both UAT machines in parallel with `continue-on-error`, and …
 - `docs/adr/0011-codesight-precommit-wiki.md` — Commit `.codesight/` and `docs/.codesight/` to git and regenerate both on pre-commit via `--wiki` and `--mode knowledge` so AI-assistant context never drifts fr…
 - `docs/adr/0012-accounting-provider-strategy.md` — Introduce an `AccountingProvider` protocol with per-backend implementations (Xero today, MYOB next) resolved at request time via `get_provider()` — runtime poly…
+- `docs/adr/0013-error-message-clarity-over-info-hiding.md` — Internal-tool error responses include the underlying exception message verbatim so the user on the other end can act on it; we rely on authenticated-session log…
+- `docs/adr/0014-explicit-else-branches.md` — `if` statements in non-trivial code paths should have an explicit `else` branch, even when the else body is a no-op or a comment. Makes the state machine legibl…
 - `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 
 ### Specs & PRDs (17)
@@ -92,7 +96,7 @@ verification · tips · alternatives considered · what youll need · files to m
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (132)
+### General Notes (134)
 - `docs/plans/2026-04-22-backup-include-migrations-table.md` — 2026-04-22 — The current dev restore flow (`docs/restore-prod-to-nonprod.md`) wipes the DB → `migrate` to **dev's HEAD** → `loaddata` the prod JSON. That decouples schema (d…
 - `docs/plans/2026-04-22-jobevent-staff-restore-loaddata-ordering.md` — 2026-04-22 — Restoring `restore/prod_backup_20260422_070407.json` on the `feat/jobevent-audit` branch fails with:
 - `docs/plans/2026-04-22-move-weekend-flag-to-company-defaults.md` — 2026-04-22 — Weekend-mode timesheets are currently gated by two separate flags:
@@ -113,7 +117,7 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
 - `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
-- _…and 112 more_
+- _…and 114 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
