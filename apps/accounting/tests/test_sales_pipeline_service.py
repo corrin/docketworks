@@ -466,6 +466,58 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # p80 over [5, 10, 20] (n=3, idx round(0.8*2)=2) = 20
         self.assertAlmostEqual(v["p80_days"], 20.0)
 
+    def test_pre_window_creation_resolved_for_in_window_approval(self):
+        """A job created long before the reporting window but approved
+        inside it must have its (pre-window) creation event fetched — the
+        Tier 1 fetch-narrowing regressed this until the relevant-jobs
+        union was added. Job's current status is in_progress/archived,
+        so it's NOT a pipeline-stage candidate; inclusion must come via
+        the in-window activity set instead.
+        """
+        job = self._make_job(
+            name="OldCreatedNowArchived",
+            client=self.client_obj,
+            created_dt=_nz_dt(date(2024, 1, 15)),
+        )
+        self._attach_quote(job, hours=4.0)
+        # Approved in-period, then archived after the report window — the
+        # live status is archived, which previously caused my narrowing to
+        # drop this job's pre-window job_created event.
+        self._add_status_change(
+            job,
+            old="draft",
+            new="awaiting_approval",
+            at=_nz_dt(date(2024, 3, 1)),
+        )
+        self._add_status_change(
+            job,
+            old="awaiting_approval",
+            new="approved",
+            at=_nz_dt(date(2026, 2, 10)),
+        )
+        self._add_status_change(
+            job,
+            old="approved",
+            new="archived",
+            at=_nz_dt(date(2026, 3, 20)),
+        )
+
+        rep = SalesPipelineService.get_report(date(2026, 2, 1), date(2026, 2, 28), 4, 4)
+        # Scoreboard counts the approval, not a missing-hours warning.
+        self.assertEqual(rep["scoreboard"]["approved_jobs_count"], 1)
+        # Velocity created_to_approved gets the full 2-year delta.
+        sample_size = rep["velocity"]["created_to_approved"]["sample_size"]
+        self.assertEqual(sample_size, 1)
+        # Not a false 'direct' — the job had a prior awaiting_approval.
+        self.assertEqual(rep["scoreboard"]["direct_jobs_count"], 0)
+        # No spurious missing-anchor warnings for this job.
+        missing_anchor_codes = {
+            w["section"]
+            for w in rep["warnings"]
+            if w["code"] == "missing_creation_anchor"
+        }
+        self.assertEqual(missing_anchor_codes, set())
+
     def test_missing_creation_anchor_excludes_and_warns(self):
         """A velocity-relevant event in-period on a job missing its
         job_created anchor must produce a warning, not silent exclusion."""
