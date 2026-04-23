@@ -224,7 +224,6 @@ coverage/
 *.local
 *.tsbuildinfo
 pnpm-lock.yaml
-frontend/tests/backups/
 test-results/
 frontend/test-results/
 frontend/playwright-report/
