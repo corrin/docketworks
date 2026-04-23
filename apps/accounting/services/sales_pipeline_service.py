@@ -82,7 +82,9 @@ class SalesPipelineService:
         snapshot = cls._build_snapshot(
             events_by_job, jobs_by_id, end_date, warnings_state
         )
-        velocity = cls._build_velocity(events_by_job, start_date, end_date)
+        velocity = cls._build_velocity(
+            events_by_job, jobs_by_id, start_date, end_date, warnings_state
+        )
         funnel = cls._build_funnel(
             events_by_job, jobs_by_id, start_date, end_date, warnings_state
         )
@@ -539,8 +541,10 @@ class SalesPipelineService:
     def _build_velocity(
         cls,
         events_by_job: dict[Any, list[JobEvent]],
+        jobs_by_id: dict[Any, Job],
         start_date: date,
         end_date: date,
+        warnings: dict[tuple[str, str], dict[str, Any]],
     ) -> dict[str, Any]:
         period_start, period_end = cls._local_day_bounds(start_date, end_date)
 
@@ -548,7 +552,7 @@ class SalesPipelineService:
         quote_to_resolved: list[float] = []
         created_to_approved: list[float] = []
 
-        for events in events_by_job.values():
+        for job_id, events in events_by_job.items():
             creation = cls._earliest_event_of_type(events, EVT_JOB_CREATED)
             first_to_awaiting = cls._earliest_status_change_to(
                 events, "awaiting_approval"
@@ -558,6 +562,31 @@ class SalesPipelineService:
                 events, EVT_QUOTE_ACCEPTED
             )
             first_rejected = cls._earliest_event_of_type(events, EVT_JOB_REJECTED)
+
+            # Per the plan: a job with no job_created anchor or no usable
+            # delta_after.status is excluded from velocity with a warning —
+            # only warn for jobs that would otherwise have contributed
+            # (i.e. have at least one velocity-relevant event in-period).
+            relevant_in_period = any(
+                e and period_start <= e.timestamp <= period_end
+                for e in (
+                    first_to_awaiting,
+                    first_approved,
+                    first_quote_accepted,
+                    first_rejected,
+                )
+            )
+            anchor_status = (
+                (creation.delta_after or {}).get("status") if creation else None
+            )
+            if relevant_in_period and (creation is None or anchor_status is None):
+                cls._add_warning(
+                    warnings,
+                    WARN_MISSING_CREATION_ANCHOR,
+                    "velocity",
+                    jobs_by_id.get(job_id),
+                )
+                continue
 
             if (
                 creation
@@ -626,7 +655,23 @@ class SalesPipelineService:
 
         for job_id, events in events_by_job.items():
             creation = cls._earliest_event_of_type(events, EVT_JOB_CREATED)
-            if creation is None:
+            anchor_status = (
+                (creation.delta_after or {}).get("status") if creation else None
+            )
+            if creation is None or anchor_status is None:
+                # Per the plan: jobs with no job_created anchor are excluded
+                # with a warning rather than silently dropped. Only warn for
+                # jobs whose (fallback) creation timestamp falls in-period so
+                # we don't flood warnings for pre-existing jobs that weren't
+                # created during the reporting window.
+                fallback_ts = events[0].timestamp if events else None
+                if fallback_ts and period_start <= fallback_ts <= period_end:
+                    cls._add_warning(
+                        warnings,
+                        WARN_MISSING_CREATION_ANCHOR,
+                        "conversion_funnel",
+                        jobs_by_id.get(job_id),
+                    )
                 continue
             if not (period_start <= creation.timestamp <= period_end):
                 continue

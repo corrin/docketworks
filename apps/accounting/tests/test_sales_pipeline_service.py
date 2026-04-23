@@ -386,6 +386,36 @@ class VelocityTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # p80 over [5, 10, 20] (n=3, idx round(0.8*2)=2) = 20
         self.assertAlmostEqual(v["p80_days"], 20.0)
 
+    def test_missing_creation_anchor_excludes_and_warns(self):
+        """A velocity-relevant event in-period on a job missing its
+        job_created anchor must produce a warning, not silent exclusion."""
+        job = self._make_job(
+            name="VelAnchorless",
+            client=self.client_obj,
+            created_dt=_nz_dt(date(2026, 2, 1)),
+        )
+        self._attach_quote(job, hours=1.0)
+        JobEvent.objects.filter(job=job, event_type="job_created").delete()
+        self._add_status_change(
+            job,
+            old="draft",
+            new="awaiting_approval",
+            at=_nz_dt(date(2026, 2, 5)),
+        )
+        self._add_status_change(
+            job,
+            old="awaiting_approval",
+            new="approved",
+            at=_nz_dt(date(2026, 2, 10)),
+        )
+
+        rep = SalesPipelineService.get_report(
+            date(2026, 2, 1), date(2026, 2, 28), 4, 13
+        )
+        self.assertEqual(rep["velocity"]["created_to_approved"]["sample_size"], 0)
+        codes = {(w["code"], w["section"]) for w in rep["warnings"]}
+        self.assertIn(("missing_creation_anchor", "velocity"), codes)
+
 
 class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
     def setUp(self) -> None:
@@ -455,6 +485,31 @@ class FunnelTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         # Mutual exclusivity check
         total = sum(f[k]["count"] for k in f)
         self.assertEqual(total, 5)
+
+    def test_missing_creation_anchor_excludes_and_warns(self):
+        """A job with events in the reporting period but no usable
+        job_created anchor must produce a funnel warning rather than
+        being silently dropped."""
+        job = self._make_job(
+            name="FunnelAnchorless",
+            client=self.client_obj,
+            created_dt=_nz_dt(date(2026, 3, 5)),
+        )
+        self._attach_quote(job, hours=3.0)
+        JobEvent.objects.filter(job=job, event_type="job_created").delete()
+        self._add_status_change(
+            job,
+            old="draft",
+            new="awaiting_approval",
+            at=_nz_dt(date(2026, 3, 10)),
+        )
+
+        rep = SalesPipelineService.get_report(self.start, self.end, 4, 13)
+        # All five funnel buckets should be zero — this job can't be placed.
+        f = rep["conversion_funnel"]
+        self.assertEqual(sum(f[k]["count"] for k in f), 0)
+        codes = {(w["code"], w["section"]) for w in rep["warnings"]}
+        self.assertIn(("missing_creation_anchor", "conversion_funnel"), codes)
 
 
 class TrendTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
