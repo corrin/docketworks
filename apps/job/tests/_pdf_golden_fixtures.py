@@ -140,7 +140,7 @@ def build_golden_job(test_staff: Staff) -> Job:
     job_folder.mkdir(parents=True, exist_ok=True)
     attachment_dest = job_folder / "docketworks_logo.png"
     shutil.copyfile(LOGO_ATTACHMENT_SOURCE, attachment_dest)
-    os.chmod(attachment_dest, 0o664)
+    os.chmod(attachment_dest, 0o600)
 
     JobFile.objects.create(
         job=job,
