@@ -94,7 +94,7 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
 ### General Notes (134)
-- `docs/plans/2026-04-25-delivery-docket-staff-fk.md` — 2026-04-25 — **Filename note:** The plan-mode harness pre-assigned `we-have-a-bug-jolly-codd.md`,
+- `docs/plans/2026-04-25-delivery-docket-staff-fk.md` — 2026-04-25 ← 1 refs — **Filename note:** The plan-mode harness pre-assigned `we-have-a-bug-jolly-codd.md`,
 - `docs/plans/2026-04-22-backup-include-migrations-table.md` — 2026-04-22 — The current dev restore flow (`docs/restore-prod-to-nonprod.md`) wipes the DB → `migrate` to **dev's HEAD** → `loaddata` the prod JSON. That decouples schema (d…
 - `docs/plans/2026-04-22-jobevent-staff-restore-loaddata-ordering.md` — 2026-04-22 — Restoring `restore/prod_backup_20260422_070407.json` on the `feat/jobevent-audit` branch fails with:
 - `docs/plans/2026-04-22-move-weekend-flag-to-company-defaults.md` — 2026-04-22 — Weekend-mode timesheets are currently gated by two separate flags:
