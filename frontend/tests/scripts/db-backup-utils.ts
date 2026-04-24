@@ -5,7 +5,7 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-type DbConfig = {
+export type DbConfig = {
   host: string
   port: string
   database: string
@@ -134,6 +134,66 @@ export function syncSequences(_dbConfig: DbConfig): void {
     const stderr = result.stderr?.toString() || ''
     throw new Error(`sync_sequences failed (exit code ${result.status}): ${stderr}`)
   }
+}
+
+export type IntegrityCheckResult = {
+  ok: boolean
+  issues: string[]
+}
+
+/**
+ * Verify the DB is structurally sane after a restore.
+ * READ-ONLY — four cheap queries. Catches the class of silent damage
+ * psql partial-restore leaves behind (duplicated singletons, missing
+ * PKs). Callers must treat a non-ok result as "restore failed" and
+ * preserve the backup.
+ */
+export function runIntegrityCheck(
+  dbConfig: DbConfig,
+  expectedMigrationCount: number | null,
+): IntegrityCheckResult {
+  const issues: string[] = []
+
+  const singletons = ['workflow_cachestate', 'workflow_companydefaults']
+  for (const t of singletons) {
+    const count = parseInt(runPsql(dbConfig, `SELECT COUNT(*) FROM ${t}`), 10)
+    if (count !== 1) {
+      issues.push(`${t} has ${count} rows (expected 1 for a singleton)`)
+    }
+  }
+
+  const tablesMissingPk = runPsql(
+    dbConfig,
+    `SELECT t.table_name FROM information_schema.tables t
+     LEFT JOIN information_schema.table_constraints c
+       ON c.table_name = t.table_name AND c.table_schema = t.table_schema
+          AND c.constraint_type = 'PRIMARY KEY'
+     WHERE t.table_schema = 'public' AND t.table_type = 'BASE TABLE'
+       AND c.constraint_name IS NULL
+     ORDER BY t.table_name`,
+  )
+    .split('\n')
+    .map((s) => s.trim())
+    .filter(Boolean)
+  if (tablesMissingPk.length > 0) {
+    issues.push(`tables missing PRIMARY KEY: ${tablesMissingPk.join(', ')}`)
+  }
+
+  if (expectedMigrationCount !== null) {
+    const actual = parseInt(runPsql(dbConfig, `SELECT COUNT(*) FROM django_migrations`), 10)
+    if (actual !== expectedMigrationCount) {
+      issues.push(`django_migrations count is ${actual} (expected ${expectedMigrationCount})`)
+    }
+  }
+
+  // Smoke query — confirms auth_user is queryable.
+  try {
+    runPsql(dbConfig, `SELECT 1 FROM auth_user LIMIT 1`)
+  } catch (e) {
+    issues.push(`auth_user smoke query failed: ${(e as Error).message}`)
+  }
+
+  return { ok: issues.length === 0, issues }
 }
 
 export type SafetyCheckResult = {

@@ -134,9 +134,24 @@ export default async function globalSetup() {
   const backupFile = path.join(backupDir, `backup_${formatTimestamp(new Date())}.sql`)
   const outputFd = fs.openSync(backupFile, 'w')
 
+  // --clean + --if-exists produce a dump whose DROP statements are safe to
+  // replay into a populated schema (IF EXISTS suppresses "object does not
+  // exist" errors). Paired with ON_ERROR_STOP + --single-transaction on
+  // restore, any real failure aborts the whole transaction so the DB is
+  // either fully restored or untouched — never partial.
   const result = spawnSync(
     'pg_dump',
-    ['--clean', '-h', dbConfig.host, '-p', dbConfig.port, '-U', dbConfig.user, dbConfig.database],
+    [
+      '--clean',
+      '--if-exists',
+      '-h',
+      dbConfig.host,
+      '-p',
+      dbConfig.port,
+      '-U',
+      dbConfig.user,
+      dbConfig.database,
+    ],
     {
       stdio: ['ignore', outputFd, 'inherit'],
       env: { ...process.env, PGPASSWORD: dbConfig.password },
