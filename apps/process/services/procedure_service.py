@@ -12,6 +12,7 @@ import logging
 
 from django.db import transaction
 
+from apps.accounts.models import Staff
 from apps.job.models import Job, JobEvent
 from apps.process.models import Procedure
 from apps.process.services.google_docs_service import GoogleDocsService
@@ -34,8 +35,12 @@ class ProcedureService:
         self.docs_service = GoogleDocsService()
 
     @transaction.atomic
-    def generate_jsa(self, job: Job) -> Procedure:
-        """Generate a new JSA for a job using AI and create Google Doc."""
+    def generate_jsa(self, job: Job, staff: Staff) -> Procedure:
+        """Generate a new JSA for a job using AI and create Google Doc.
+
+        ``staff`` is recorded on the emitted JobEvent for audit attribution
+        (required since migration 0079 made ``JobEvent.staff`` NOT NULL).
+        """
         logger.info(f"Generating JSA for job {job.job_number}: {job.name}")
 
         try:
@@ -60,6 +65,7 @@ class ProcedureService:
 
             JobEvent.objects.create(
                 job=job,
+                staff=staff,
                 event_type="jsa_generated",
                 detail={
                     "jsa_title": jsa.title,

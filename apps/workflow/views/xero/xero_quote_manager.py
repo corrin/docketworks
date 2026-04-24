@@ -205,6 +205,7 @@ class XeroQuoteManager(XeroDocumentManager):
             try:
                 JobEvent.objects.create(
                     job=self.job,
+                    staff=self.staff,
                     event_type="quote_created",
                     detail={"xero_quote_number": result.number},
                 )
@@ -279,6 +280,7 @@ class XeroQuoteManager(XeroDocumentManager):
             try:
                 JobEvent.objects.create(
                     job=self.job,
+                    staff=self.staff,
                     event_type="quote_deleted",
                     detail={"xero_quote_number": quote_number},
                 )

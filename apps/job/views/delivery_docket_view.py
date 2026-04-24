@@ -44,7 +44,7 @@ class DeliveryDocketView(APIView):
             job = get_object_or_404(Job, pk=job_id)
 
             # Generate the delivery docket PDF and save it
-            pdf_buffer, job_file = generate_delivery_docket(job)
+            pdf_buffer, job_file = generate_delivery_docket(job, staff=request.user)
 
             # Return the PDF for download/printing
             response = FileResponse(

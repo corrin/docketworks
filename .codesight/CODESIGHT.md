@@ -1106,7 +1106,7 @@
 - `apps/job/services/chat_service.py` — class ChatService
 - `apps/job/services/data_integrity_service.py` — class DataIntegrityService
 - `apps/job/services/data_quality_report.py` — class ArchivedJobsComplianceService
-- `apps/job/services/delivery_docket_service.py` — function generate_delivery_docket: (job) -> tuple[BytesIO, JobFile]
+- `apps/job/services/delivery_docket_service.py` — function generate_delivery_docket: (job, staff) -> tuple[BytesIO, JobFile]
 - `apps/job/services/delta_checksum.py`
   - function compute_job_delta_checksum: (job_id, field_values, object], fields) -> str
   - function normalise_value: (value) -> str
