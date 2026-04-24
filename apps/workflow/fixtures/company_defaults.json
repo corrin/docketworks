@@ -47,7 +47,9 @@
       "kpi_daily_gp_amber": "0.00",
       "annual_leave_loading": "8.00",
       "financial_year_start_month": 4,
-      "xero_payroll_calendar_name": "Weekly Testing"
+      "xero_payroll_calendar_name": "Weekly Testing",
+      "logo": "app_images/docketworks_logo.png",
+      "logo_wide": "app_images/docketworks_logo_wide.png"
     }
   }
 ]

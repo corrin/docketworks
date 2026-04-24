@@ -44,7 +44,8 @@ share/python-wheels/
 *.log.?
 local_settings.py
 db.sqlite3
-mediafiles/
+mediafiles/*
+!mediafiles/app_images/
 
 # Flask
 instance/
@@ -186,6 +187,9 @@ logs/restore_log_*.txt
 # For images
 **/*.png
 **/*.jpg
+# DocketWorks branding shipped with the app — referenced by the company_defaults
+# fixture as ``app_images/...`` (resolved under MEDIA_ROOT = mediafiles/)
+!mediafiles/app_images/**
 django-integrations-*.json
 *.pdf
 .DS_Store
