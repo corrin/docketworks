@@ -17,8 +17,8 @@ Changes to these files have the widest blast radius across the codebase:
 - `src/api/generated/api.ts` — imported by **75** files
 - `src/utils/debug.ts` — imported by **51** files
 - `src/api/client.ts` — imported by **48** files
-- `tests/fixtures/auth.ts` — imported by **28** files
-- `tests/fixtures/helpers.ts` — imported by **20** files
+- `tests/fixtures/auth.ts` — imported by **29** files
+- `tests/fixtures/helpers.ts` — imported by **21** files
 - `src/utils/dateUtils.ts` — imported by **16** files
 
 ## Required Environment Variables

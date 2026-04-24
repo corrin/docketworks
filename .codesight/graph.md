@@ -2,9 +2,9 @@
 
 ## Most Imported Files (change these carefully)
 
-- `frontend/tests/fixtures/auth.ts` — imported by **28** files
+- `frontend/tests/fixtures/auth.ts` — imported by **29** files
 - `frontend/src/api/generated/api.ts` — imported by **27** files
-- `frontend/tests/fixtures/helpers.ts` — imported by **20** files
+- `frontend/tests/fixtures/helpers.ts` — imported by **21** files
 - `frontend/src/utils/debug.ts` — imported by **14** files
 - `/apps.py` — imported by **9** files
 - `frontend/src/api/client.ts` — imported by **7** files
@@ -25,9 +25,9 @@
 
 ## Import Map (who imports what)
 
-- `frontend/tests/fixtures/auth.ts` ← `frontend/tests/company-defaults.spec.ts`, `frontend/tests/example.spec.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/create-job.spec.ts` +23 more
+- `frontend/tests/fixtures/auth.ts` ← `frontend/tests/company-defaults.spec.ts`, `frontend/tests/example.spec.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/create-job.spec.ts` +24 more
 - `frontend/src/api/generated/api.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAddEmptyCostLine.ts`, `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCostLineAutosave.ts` +22 more
-- `frontend/tests/fixtures/helpers.ts` ← `frontend/tests/fixtures/auth.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/job-attachments.spec.ts`, `frontend/tests/job/job-header.spec.ts` +15 more
+- `frontend/tests/fixtures/helpers.ts` ← `frontend/tests/fixtures/auth.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/job-attachments.spec.ts`, `frontend/tests/job/job-header.spec.ts` +16 more
 - `frontend/src/utils/debug.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobAutosave.ts`, `frontend/src/composables/useOptimizedDragAndDrop.ts` +9 more
 - `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/process/__init__.py` +4 more
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
