@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 363 lib files | 68 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,100 tokens. Without it, AI exploration would cost ~239,800 tokens. **Saves ~209,600 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 364 lib files | 68 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,000 tokens. **Saves ~209,900 tokens per conversation.**
 
 ---
 
@@ -1877,6 +1877,7 @@
   - function push_clients_to_xero: (clients, dry_run)
   - function main: ()
 - `scripts/recreate_jobfiles.py` — function create_dummy_file: (filepath, job_name, job_number, filename), function main: ()
+- `scripts/regen_golden_pdfs.py` — function main: () -> None
 - `scripts/restore_checks/test_kanban_api.py` — function test_kanban_api: () -> bool
 - `scripts/restore_checks/test_serializers.py` — function main: (), class SerializerTester
 - `scripts/setup_demo_payroll.py` — function main: ()
@@ -2063,7 +2064,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 115 test files found
+> 117 test files found
 
 ## Covered Routes
 

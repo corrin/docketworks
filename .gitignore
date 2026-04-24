@@ -192,6 +192,9 @@ logs/restore_log_*.txt
 !mediafiles/app_images/**
 django-integrations-*.json
 *.pdf
+# Golden-PDF regression fixtures — byte-identical baselines checked into
+# git so apps/job/tests/test_pdf_goldens.py can catch rendering drift.
+!apps/job/tests/fixtures/*.pdf
 .DS_Store
 *.csv
 steel_and_tube*

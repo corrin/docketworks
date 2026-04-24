@@ -1000,6 +1000,7 @@
   - function push_clients_to_xero: (clients, dry_run)
   - function main: ()
 - `scripts/recreate_jobfiles.py` — function create_dummy_file: (filepath, job_name, job_number, filename), function main: ()
+- `scripts/regen_golden_pdfs.py` — function main: () -> None
 - `scripts/restore_checks/test_kanban_api.py` — function test_kanban_api: () -> bool
 - `scripts/restore_checks/test_serializers.py` — function main: (), class SerializerTester
 - `scripts/setup_demo_payroll.py` — function main: ()
