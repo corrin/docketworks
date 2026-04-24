@@ -46,6 +46,7 @@
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
+- `SCRUB_DB_NAME` (has default) — .env.example
 - `SECRET_KEY` (has default) — .env.example
 - `SKIP_VERSION_CHECK` (has default) — .env.example
 - `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py

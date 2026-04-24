@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 364 lib files | 68 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,100 tokens. Without it, AI exploration would cost ~240,000 tokens. **Saves ~209,900 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 364 lib files | 69 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,200 tokens. **Saves ~210,000 tokens per conversation.**
 
 ---
 
@@ -1967,6 +1967,7 @@
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
+- `SCRUB_DB_NAME` (has default) — .env.example
 - `SECRET_KEY` (has default) — .env.example
 - `SKIP_VERSION_CHECK` (has default) — .env.example
 - `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py
@@ -2064,7 +2065,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 118 test files found
+> 119 test files found
 
 ## Covered Routes
 
