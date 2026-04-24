@@ -114,7 +114,7 @@ merging path in `create_workshop_pdf`.
 
 ## Determinism mechanism
 
-`setUp()` installs three scopes, each with `addCleanup`:
+`setUp()` installs two scopes, each with `addCleanup`:
 
 1. **Time:** `self._freezer = freeze_time(FROZEN_NOW); self._freezer.start()`.
    Covers `Job.created_at` (auto_now_add), the renderer's
@@ -122,13 +122,16 @@ merging path in `create_workshop_pdf`.
    "Delivery Date:"), and the delivery-docket filename timestamp.
 2. **ReportLab:** `rl_config.invariant = 1`. Suppresses `/CreationDate`,
    `/ModDate`, and the time-seeded `/ID` array in the PDF trailer.
-3. **Disk writes:** `override_settings(DROPBOX_WORKFLOW_FOLDER=tmp)` pointing
-   at a `tempfile.mkdtemp()` cleaned up in teardown. The delivery-docket
-   service writes a physical copy of the PDF to disk; without this override
-   it would touch the real workflow folder.
 
-Production code changes: none. All three knobs live only for the duration of
+Production code changes: none. Both knobs live only for the duration of
 `PDFGoldenTests.setUp` → `tearDown`.
+
+The delivery-docket service writes a copy of the PDF to
+`DROPBOX_WORKFLOW_FOLDER/Job-1001/...` as a side effect. That's fine — time
+is frozen, so the filename is stable across runs and each invocation
+overwrites the same single file rather than accumulating. No tmp-dir
+override needed for the golden test (the semantic test in
+`test_delivery_docket_service.py` still uses its own tmp-dir override).
 
 ## Committed assets
 
