@@ -92,6 +92,7 @@ google-auth-stubs = "^0.3.0"
 debugpy = "^1.8.19"
 pytest-django = "^4.12.0"
 python-docx = "^1.2.0"
+freezegun = "^1.5.5"
 
 [build-system]
 requires = ["poetry-core"]
