@@ -247,12 +247,14 @@
           </div>
           <div class="flex items-center gap-2">
             <button
+              data-automation-id="JobView-print-workshop-pdf"
               class="inline-flex items-center justify-center h-9 px-3 rounded-md bg-gray-100 text-gray-700 border border-gray-300 text-sm font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
               @click="printJob"
             >
               <Printer class="w-4 h-4 mr-1" /> Print
             </button>
             <button
+              data-automation-id="JobView-print-delivery-docket"
               class="inline-flex items-center justify-center h-9 px-3 rounded-md bg-gray-100 text-gray-700 border border-gray-300 text-sm font-medium hover:bg-gray-200 focus:outline-none focus:ring-2 focus:ring-gray-500"
               @click="printDeliveryDocket"
             >

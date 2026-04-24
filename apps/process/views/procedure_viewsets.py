@@ -322,7 +322,7 @@ class JSAGenerateView(APIView):
         job = get_object_or_404(Job, pk=job_id)
         from apps.process.services.procedure_service import ProcedureService
 
-        jsa = ProcedureService().generate_jsa(job)
+        jsa = ProcedureService().generate_jsa(job, staff=request.user)
         return Response(
             ProcedureDetailSerializer(jsa).data, status=status.HTTP_201_CREATED
         )

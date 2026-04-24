@@ -5,14 +5,10 @@ Test cases are based on real job notes from the database to ensure the
 conversion handles actual Quill editor output correctly.
 """
 
-import os
 from decimal import Decimal
-from io import BytesIO
 
-from django.core.files.uploadedfile import SimpleUploadedFile
 from django.test import SimpleTestCase
 from django.utils import timezone
-from PIL import Image
 from pypdf import PdfReader
 
 from apps.client.models import Client
@@ -24,7 +20,6 @@ from apps.job.services.workshop_pdf_service import (
     format_hours_display,
 )
 from apps.testing import BaseTestCase
-from apps.workflow.models import CompanyDefaults
 
 
 class FormatHoursDisplayTests(SimpleTestCase):
@@ -318,31 +313,10 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
         self.assertIn("TextMore text", result)
 
 
-def _create_test_image(width=500, height=100):
-    """Create a minimal PNG image for testing."""
-    img = Image.new("RGB", (width, height), color="navy")
-    buf = BytesIO()
-    img.save(buf, format="PNG")
-    buf.seek(0)
-    return buf
-
-
 class DeliveryDocketPDFTests(BaseTestCase):
     """Tests for delivery docket PDF generation."""
 
     def setUp(self):
-        # Upload a test logo_wide to CompanyDefaults
-        company = CompanyDefaults.get_solo()
-        img_buf = _create_test_image()
-        company.logo_wide.save(
-            "test_logo_wide.png",
-            SimpleUploadedFile(
-                "test_logo_wide.png", img_buf.read(), content_type="image/png"
-            ),
-            save=True,
-        )
-        self._logo_path = company.logo_wide.path
-
         self.client_obj = Client.objects.create(
             name="Test Client",
             xero_last_modified=timezone.now(),
@@ -366,11 +340,6 @@ class DeliveryDocketPDFTests(BaseTestCase):
                 unit_rev=Decimal("105.00"),
                 accounting_date=timezone.now().date(),
             )
-
-    def tearDown(self):
-        # Clean up the uploaded test image
-        if os.path.exists(self._logo_path):
-            os.remove(self._logo_path)
 
     def test_delivery_docket_is_exactly_two_pages(self):
         """Delivery docket should be exactly 2 pages: company copy + customer copy."""

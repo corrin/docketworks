@@ -249,6 +249,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             try:
                 JobEvent.objects.create(
                     job=self.job,
+                    staff=self.staff,
                     event_type="invoice_created",
                     detail={"xero_invoice_number": invoice.number},
                 )
@@ -318,6 +319,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             try:
                 JobEvent.objects.create(
                     job=self.job,
+                    staff=self.staff,
                     event_type="invoice_deleted",
                     detail={"xero_invoice_number": invoice_number},
                 )

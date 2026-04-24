@@ -131,7 +131,10 @@ UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
 
 #### Step 6: Load Company Defaults Fixture
 
-This replaces your real company name with a demo/dummy value
+This replaces your real company name and logos with the shipped DocketWorks
+demo values. The fixture references logos at `app_images/...` under
+`MEDIA_ROOT`; the PNGs are committed in `mediafiles/app_images/` and resolve
+directly, no copy step.
 
 ```bash
 python manage.py loaddata apps/workflow/fixtures/company_defaults.json
@@ -143,7 +146,12 @@ python manage.py loaddata apps/workflow/fixtures/company_defaults.json
 python scripts/restore_checks/check_company_defaults.py
 ```
 
-**Expected output:** `Company defaults loaded: Demo Company`
+**Expected output:**
+
+```
+Company defaults loaded: Demo Company
+logo_wide: app_images/docketworks_logo_wide.png
+```
 
 #### Step 7: Reload AI Providers
 

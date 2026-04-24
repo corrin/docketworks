@@ -7,6 +7,7 @@ from io import BytesIO
 from django.conf import settings
 from django.utils import timezone
 
+from apps.accounts.models import Staff
 from apps.job.models import Job, JobEvent, JobFile
 from apps.job.services.workshop_pdf_service import create_delivery_docket_pdf
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -15,7 +16,7 @@ from apps.workflow.services.error_persistence import persist_and_raise
 logger = logging.getLogger(__name__)
 
 
-def generate_delivery_docket(job: Job) -> tuple[BytesIO, JobFile]:
+def generate_delivery_docket(job: Job, staff: Staff) -> tuple[BytesIO, JobFile]:
     """
     Generate a delivery docket PDF for a job and save it as a JobFile.
 
@@ -25,6 +26,9 @@ def generate_delivery_docket(job: Job) -> tuple[BytesIO, JobFile]:
 
     Args:
         job: The Job instance to generate the delivery docket for
+        staff: The Staff who triggered the print — recorded on the JobEvent
+            for audit attribution. Required since migration 0079 made
+            JobEvent.staff NOT NULL.
 
     Returns:
         tuple containing:
@@ -77,6 +81,7 @@ def generate_delivery_docket(job: Job) -> tuple[BytesIO, JobFile]:
         # Create JobEvent to track generation
         JobEvent.objects.create(
             job=job,
+            staff=staff,
             event_type="delivery_docket_generated",
             detail={
                 "filename": filename,

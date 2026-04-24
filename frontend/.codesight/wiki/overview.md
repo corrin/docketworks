@@ -17,8 +17,8 @@ Changes to these files have the widest blast radius across the codebase:
 - `src/api/generated/api.ts` — imported by **75** files
 - `src/utils/debug.ts` — imported by **51** files
 - `src/api/client.ts` — imported by **48** files
-- `tests/fixtures/auth.ts` — imported by **27** files
-- `tests/fixtures/helpers.ts` — imported by **19** files
+- `tests/fixtures/auth.ts` — imported by **29** files
+- `tests/fixtures/helpers.ts` — imported by **21** files
 - `src/utils/dateUtils.ts` — imported by **16** files
 
 ## Required Environment Variables
@@ -32,4 +32,4 @@ Changes to these files have the widest blast radius across the codebase:
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `tests/scripts/xero-login.ts`
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-23_
+_Back to [index.md](./index.md) · Generated 2026-04-24_
