@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 364 lib files | 69 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,200 tokens. **Saves ~210,000 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 365 lib files | 69 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,400 tokens. **Saves ~210,300 tokens per conversation.**
 
 ---
 
@@ -1469,6 +1469,7 @@
   - class XeroPayItemSerializer
   - class AIProviderCreateUpdateSerializer
   - _...23 more_
+- `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
   - function list_grouped_xero_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
@@ -2065,7 +2066,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 119 test files found
+> 121 test files found
 
 ## Covered Routes
 

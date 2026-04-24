@@ -5,6 +5,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
+        from .db_scrubber import scrub
         from .error_grouping import (
             list_grouped_app_errors,
             list_grouped_xero_errors,
@@ -53,6 +54,7 @@ __all__ = [
     "persist_xero_error",
     "quick_completion",
     "quick_json_completion",
+    "scrub",
     "to_decimal",
     "validate_required_fields",
 ]
