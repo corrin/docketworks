@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 166 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-22
+> 169 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-25
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-22 (166 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-25 (169 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
 ## Key Decisions (15)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
@@ -33,7 +33,7 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · tips · alternatives considered · what youll need · files to modify · steps · what happens next · approach · critical files · troubleshooting · purpose · prerequisites
+verification · tips · alternatives considered · what youll need · files to modify · steps · what happens next · critical files · approach · troubleshooting · purpose · prerequisites
 
 ## People
 @login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @api_view · @permission_classes · @staticmethod · @property · @github
@@ -46,7 +46,7 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (166)
+## Note Index (169)
 
 ### Decision Records (12)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
@@ -62,7 +62,8 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/adr/0012-accounting-provider-strategy.md` — Introduce an `AccountingProvider` protocol with per-backend implementations (Xero today, MYOB next) resolved at request time via `get_provider()` — runtime poly…
 - `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 
-### Specs & PRDs (17)
+### Specs & PRDs (18)
+- `docs/plans/2026-04-25-pdf-golden-tests-design.md` — 2026-04-25 — Design spec for byte-identical regression tests covering the two user-facing
 - `docs/plans/2026-04-19-admin-errors-dedup-design.md` — 2026-04-19 — **Status:** Design — awaiting user review
 - `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
 - `docs/plans/2026-03-03-process-documents-design.md` — 2026-03-03 — Replace the Dropbox `Health & Safety` folder with an in-app document management system. Rename `SafetyDocument` to `ProcessDocument` to reflect broader scope. M…
@@ -92,7 +93,8 @@ verification · tips · alternatives considered · what youll need · files to m
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (132)
+### General Notes (134)
+- `docs/plans/2026-04-25-delivery-docket-staff-fk.md` — 2026-04-25 — **Filename note:** The plan-mode harness pre-assigned `we-have-a-bug-jolly-codd.md`,
 - `docs/plans/2026-04-22-backup-include-migrations-table.md` — 2026-04-22 — The current dev restore flow (`docs/restore-prod-to-nonprod.md`) wipes the DB → `migrate` to **dev's HEAD** → `loaddata` the prod JSON. That decouples schema (d…
 - `docs/plans/2026-04-22-jobevent-staff-restore-loaddata-ordering.md` — 2026-04-22 — Restoring `restore/prod_backup_20260422_070407.json` on the `feat/jobevent-audit` branch fails with:
 - `docs/plans/2026-04-22-move-weekend-flag-to-company-defaults.md` — 2026-04-22 — Weekend-mode timesheets are currently gated by two separate flags:
@@ -112,8 +114,7 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/plans/2026-04-18-linux-user-underscore-naming.md` — 2026-04-18 — **Goal:** Make per-instance OS user names match the DB role names (both `dw_<client>_<env>`) instead of diverging (`dw-<client>-<env>` vs `dw_<client>_<env>`).
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
-- `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
-- _…and 112 more_
+- _…and 114 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

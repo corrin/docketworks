@@ -534,8 +534,8 @@
 - `src/api/generated/api.ts` — imported by **75** files
 - `src/utils/debug.ts` — imported by **51** files
 - `src/api/client.ts` — imported by **48** files
-- `tests/fixtures/auth.ts` — imported by **27** files
-- `tests/fixtures/helpers.ts` — imported by **19** files
+- `tests/fixtures/auth.ts` — imported by **28** files
+- `tests/fixtures/helpers.ts` — imported by **20** files
 - `src/utils/dateUtils.ts` — imported by **16** files
 - `src/utils/string-formatting.ts` — imported by **14** files
 - `src/stores/auth.ts` — imported by **7** files
@@ -557,8 +557,8 @@
 - `src/api/generated/api.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useActiveJob.ts`, `src/composables/useAddEmptyCostLine.ts` +70 more
 - `src/utils/debug.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useAppLayout.ts`, `src/composables/useCamera.ts` +46 more
 - `src/api/client.ts` ← `src/composables/useClientLookup.ts`, `src/composables/useContactManagement.ts`, `src/composables/useErrorApi.ts`, `src/composables/useJobEvents.ts`, `src/composables/useJobFinancials.ts` +43 more
-- `tests/fixtures/auth.ts` ← `tests/company-defaults.spec.ts`, `tests/example.spec.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/create-job.spec.ts` +22 more
-- `tests/fixtures/helpers.ts` ← `tests/fixtures/auth.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/job-attachments.spec.ts`, `tests/job/job-header.spec.ts` +14 more
+- `tests/fixtures/auth.ts` ← `tests/company-defaults.spec.ts`, `tests/example.spec.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/create-job.spec.ts` +23 more
+- `tests/fixtures/helpers.ts` ← `tests/fixtures/auth.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/job-attachments.spec.ts`, `tests/job/job-header.spec.ts` +15 more
 - `src/utils/dateUtils.ts` ← `src/composables/useAddMaterialCostLine.ts`, `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useFinancialYear.ts`, `src/composables/useStaffApi.ts`, `src/composables/useTimesheetEntryGrid.ts` +11 more
 - `src/utils/string-formatting.ts` ← `src/composables/usePurchaseOrderGrid.ts`, `src/composables/useTimesheetEntryGrid.ts`, `src/composables/useWorkshopCalendarSync.ts`, `src/composables/useWorkshopJob.ts`, `src/composables/useWorkshopTimesheetTimeUtils.ts` +9 more
 - `src/stores/auth.ts` ← `src/composables/useAppLayout.ts`, `src/composables/useDashboard.ts`, `src/composables/useJobHeaderAutosave.ts`, `src/composables/useLogin.ts`, `src/plugins/axios.ts` +2 more
@@ -570,7 +570,7 @@
 # Test Coverage
 
 > **0%** of routes and models are covered by tests
-> 46 test files found
+> 47 test files found
 
 ---
 
