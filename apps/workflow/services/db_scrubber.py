@@ -19,7 +19,14 @@ from django.conf import settings
 from django.db import transaction
 from faker import Faker
 
-from apps.accounting.models import Bill, CreditNote, Invoice
+from apps.accounting.models import (
+    Bill,
+    BillLineItem,
+    CreditNote,
+    CreditNoteLineItem,
+    Invoice,
+    Quote,
+)
 from apps.accounts.models import Staff
 from apps.accounts.staff_anonymization import create_staff_profile
 from apps.client.models import Client, ClientContact
@@ -181,6 +188,22 @@ def _scrub_accounting_contacts() -> None:
                 row.save(using=SCRUB_ALIAS, update_fields=["raw_json"])
 
 
+def _delete_unlinked_accounting() -> None:
+    """Mirror legacy _filter_unlinked_accounting_records exactly.
+
+    - All Bill / BillLineItem / CreditNote / CreditNoteLineItem rows: dropped.
+    - Invoice without job FK: dropped (FK cascade removes its line items).
+    - Quote without job FK: dropped.
+    """
+    BillLineItem.objects.using(SCRUB_ALIAS).all().delete()
+    Bill.objects.using(SCRUB_ALIAS).all().delete()
+    CreditNoteLineItem.objects.using(SCRUB_ALIAS).all().delete()
+    CreditNote.objects.using(SCRUB_ALIAS).all().delete()
+
+    Invoice.objects.using(SCRUB_ALIAS).filter(job__isnull=True).delete()
+    Quote.objects.using(SCRUB_ALIAS).filter(job__isnull=True).delete()
+
+
 def scrub() -> None:
     """Reproduce the legacy command's PII handling on the scrub DB.
 
@@ -193,6 +216,7 @@ def scrub() -> None:
             _scrub_staff()
             _scrub_clients()
             _scrub_accounting_contacts()
+            _delete_unlinked_accounting()
     except Exception as exc:
         persist_app_error(exc)
         raise

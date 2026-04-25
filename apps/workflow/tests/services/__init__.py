@@ -6,6 +6,7 @@ try:
 
     if apps.ready:
         from .test_db_scrubber import (
+            DeleteUnlinkedAccountingTests,
             ScrubAccountingContactsTests,
             ScrubClientsTests,
             ScrubSafetyGateTests,
@@ -16,6 +17,7 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "DeleteUnlinkedAccountingTests",
     "ScrubAccountingContactsTests",
     "ScrubClientsTests",
     "ScrubSafetyGateTests",

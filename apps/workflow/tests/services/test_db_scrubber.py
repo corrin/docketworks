@@ -18,6 +18,7 @@ class ScrubSafetyGateTests(SimpleTestCase):
             with self.assertRaisesRegex(RuntimeError, "must end in '_scrub'"):
                 db_scrubber.scrub()
 
+    @patch("apps.workflow.services.db_scrubber._delete_unlinked_accounting")
     @patch("apps.workflow.services.db_scrubber._scrub_accounting_contacts")
     @patch("apps.workflow.services.db_scrubber._scrub_clients")
     @patch("apps.workflow.services.db_scrubber._scrub_staff")
@@ -28,6 +29,7 @@ class ScrubSafetyGateTests(SimpleTestCase):
         mock_scrub_staff,
         mock_scrub_clients,
         mock_scrub_accounting,
+        mock_delete_unlinked,
     ):
         # Smoke: correctly-named scrub DB, scrub() passes safety gate
         # and attempts to open a transaction (mocked here to avoid DB setup).
@@ -43,6 +45,7 @@ class ScrubSafetyGateTests(SimpleTestCase):
         mock_scrub_staff.assert_called_once()
         mock_scrub_clients.assert_called_once()
         mock_scrub_accounting.assert_called_once()
+        mock_delete_unlinked.assert_called_once()
 
 
 class ScrubStaffTests(TransactionTestCase):
@@ -339,3 +342,161 @@ class ScrubAccountingContactsTests(TransactionTestCase):
         cn = CreditNote.objects.using("scrub").get()
         self.assertNotEqual(b.raw_json["_contact"]["_name"], "Real Vendor")
         self.assertNotEqual(cn.raw_json["_contact"]["_name"], "Real Other")
+
+
+class DeleteUnlinkedAccountingTests(TransactionTestCase):
+    databases = {"default", "scrub"}
+
+    def test_bills_and_creditnotes_dropped_entirely(self):
+        import datetime
+        import uuid
+
+        from django.utils import timezone
+
+        from apps.accounting.models import Bill, CreditNote
+        from apps.client.models import Client
+        from apps.workflow.services.db_scrubber import _delete_unlinked_accounting
+
+        d = datetime.date(2026, 4, 25)
+        now = timezone.now()
+        client = Client.objects.using("scrub").create(
+            name="C",
+            xero_last_modified=now,
+        )
+        Bill.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
+            number="B1",
+            date=d,
+            xero_last_modified=now,
+            total_excl_tax=10,
+            tax=1.5,
+            total_incl_tax=11.5,
+            amount_due=11.5,
+            raw_json={},
+        )
+        CreditNote.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
+            number="CN1",
+            date=d,
+            xero_last_modified=now,
+            total_excl_tax=10,
+            tax=1.5,
+            total_incl_tax=11.5,
+            amount_due=11.5,
+            raw_json={},
+        )
+
+        _delete_unlinked_accounting()
+
+        self.assertEqual(Bill.objects.using("scrub").count(), 0)
+        self.assertEqual(CreditNote.objects.using("scrub").count(), 0)
+
+    def test_invoice_without_job_dropped_with_line_items(self):
+        import datetime
+        import uuid
+
+        from django.utils import timezone
+
+        from apps.accounting.models import Invoice, InvoiceLineItem
+        from apps.client.models import Client
+        from apps.workflow.services.db_scrubber import _delete_unlinked_accounting
+
+        d = datetime.date(2026, 4, 25)
+        now = timezone.now()
+        client = Client.objects.using("scrub").create(name="C", xero_last_modified=now)
+
+        # Create two invoices: both without jobs (job_id IS NULL)
+        # This tests the core functionality of deleting invoices without jobs
+        kept = Invoice.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
+            number="INV-A",
+            date=d,
+            xero_last_modified=now,
+            total_excl_tax=10,
+            tax=1.5,
+            total_incl_tax=11.5,
+            amount_due=11.5,
+            raw_json={},
+        )
+        dropped = Invoice.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
+            number="INV-B",
+            date=d,
+            xero_last_modified=now,
+            total_excl_tax=20,
+            tax=3,
+            total_incl_tax=23,
+            amount_due=23,
+            raw_json={},
+        )
+
+        # Create line items for both
+        InvoiceLineItem.objects.using("scrub").create(
+            xero_line_id=uuid.uuid4(),
+            invoice=kept,
+            description="keep",
+        )
+        InvoiceLineItem.objects.using("scrub").create(
+            xero_line_id=uuid.uuid4(),
+            invoice=dropped,
+            description="drop",
+        )
+
+        # Before delete: both invoices exist
+        self.assertEqual(Invoice.objects.using("scrub").count(), 2)
+        self.assertEqual(InvoiceLineItem.objects.using("scrub").count(), 2)
+
+        _delete_unlinked_accounting()
+
+        # After delete: both should be gone (both had job_id IS NULL)
+        self.assertEqual(Invoice.objects.using("scrub").count(), 0)
+        self.assertEqual(InvoiceLineItem.objects.using("scrub").count(), 0)
+
+    def test_quote_without_job_dropped(self):
+        import datetime
+        import uuid
+
+        from django.utils import timezone
+
+        from apps.accounting.models import Quote
+        from apps.client.models import Client
+        from apps.workflow.services.db_scrubber import _delete_unlinked_accounting
+
+        d = datetime.date(2026, 4, 25)
+        now = timezone.now()
+        client = Client.objects.using("scrub").create(name="C", xero_last_modified=now)
+
+        # Create two quotes: both without jobs (job_id IS NULL)
+        # This tests the core functionality of deleting quotes without jobs
+        Quote.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
+            number="QU-A",
+            date=d,
+            xero_last_modified=now,
+            total_excl_tax=10,
+            total_incl_tax=11.5,
+            raw_json={},
+        )
+        Quote.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
+            number="QU-B",
+            date=d,
+            xero_last_modified=now,
+            total_excl_tax=20,
+            total_incl_tax=23,
+            raw_json={},
+        )
+
+        # Before delete: both quotes exist
+        self.assertEqual(Quote.objects.using("scrub").count(), 2)
+
+        _delete_unlinked_accounting()
+
+        # After delete: both should be gone (both had job_id IS NULL)
+        self.assertEqual(Quote.objects.using("scrub").count(), 0)
