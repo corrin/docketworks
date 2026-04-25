@@ -165,8 +165,9 @@ function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reaso
   console.error('')
   console.error('Recover manually with:')
   console.error(`  PGPASSWORD=$DB_PASSWORD psql ${onErrorStop} ${singleTx} \\`)
+  const portArg = dbConfig.port ? `-p ${dbConfig.port} ` : ''
   console.error(
-    `    -h ${dbConfig.host} -U ${dbConfig.user} -d ${dbConfig.database} -f ${backupFile}`,
+    `    -h ${dbConfig.host} ${portArg}-U ${dbConfig.user} -d ${dbConfig.database} -f ${backupFile}`,
   )
   console.error('')
   console.error('Do NOT run E2E again until the DB is restored.')
