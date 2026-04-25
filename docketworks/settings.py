@@ -406,6 +406,11 @@ DATABASES = {
     # temporary copy of prod restored via pg_restore. The db_scrubber service
     # anonymises in place here before re-dumping. Name MUST end in "_scrub"
     # — hard-checked by db_scrubber to prevent accidental scrubbing of prod.
+    #
+    # TEST.MIRROR: in the Django test runner, the scrub alias shares the
+    # default test DB. Avoids running every migration twice (and dodges data
+    # migrations like workflow.0125 that bypass the historical registry).
+    # In production the two are separate physical databases.
     "scrub": {
         "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
         "NAME": os.getenv("SCRUB_DB_NAME"),
@@ -413,6 +418,7 @@ DATABASES = {
         "PASSWORD": os.getenv("DB_PASSWORD"),
         "HOST": os.getenv("DB_HOST", "127.0.0.1"),
         "PORT": os.getenv("DB_PORT", ""),
+        "TEST": {"MIRROR": "default"},
     },
 }
 

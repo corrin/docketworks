@@ -31,7 +31,14 @@ class ScrubSafetyGateTests(SimpleTestCase):
     ):
         # Smoke: correctly-named scrub DB, scrub() passes safety gate
         # and attempts to open a transaction (mocked here to avoid DB setup).
-        db_scrubber.scrub()
+        # Must explicitly override the NAME because TEST.MIRROR rewrites the
+        # scrub alias to the default test DB at runtime, which doesn't end
+        # in "_scrub".
+        good = dict(settings.DATABASES)
+        good["scrub"] = dict(good["scrub"])
+        good["scrub"]["NAME"] = "dw_test_scrub"
+        with override_settings(DATABASES=good):
+            db_scrubber.scrub()
         mock_transaction.atomic.assert_called_once_with(using="scrub")
         mock_scrub_staff.assert_called_once()
         mock_scrub_clients.assert_called_once()
@@ -230,12 +237,28 @@ class ScrubAccountingContactsTests(TransactionTestCase):
     databases = {"default", "scrub"}
 
     def test_only_contact_name_and_email_in_raw_json_changed(self):
+        import datetime
+        import uuid
+
+        from django.utils import timezone
+
         from apps.accounting.models import Invoice, InvoiceLineItem
+        from apps.client.models import Client
         from apps.workflow.services.db_scrubber import _scrub_accounting_contacts
 
+        client = Client.objects.using("scrub").create(
+            name="Test Client", xero_last_modified=timezone.now()
+        )
         inv = Invoice.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
             number="INV-001",
+            date=datetime.date(2026, 4, 25),
+            xero_last_modified=timezone.now(),
             total_excl_tax=100,
+            tax=15,
+            total_incl_tax=115,
+            amount_due=115,
             raw_json={
                 "_contact": {
                     "_name": "Real Customer Ltd",
@@ -267,19 +290,44 @@ class ScrubAccountingContactsTests(TransactionTestCase):
         self.assertEqual(li.description, "real line about client project")
 
     def test_bill_and_creditnote_contact_paths_also_scrubbed(self):
+        import datetime
+        import uuid
+
+        from django.utils import timezone
+
         from apps.accounting.models import Bill, CreditNote
+        from apps.client.models import Client
         from apps.workflow.services.db_scrubber import _scrub_accounting_contacts
 
+        d = datetime.date(2026, 4, 25)
+        now = timezone.now()
+        client = Client.objects.using("scrub").create(
+            name="Test Client", xero_last_modified=now
+        )
         Bill.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
             number="BILL-1",
+            date=d,
+            xero_last_modified=now,
             total_excl_tax=10,
+            tax=1.5,
+            total_incl_tax=11.5,
+            amount_due=11.5,
             raw_json={
                 "_contact": {"_name": "Real Vendor", "_email_address": "v@real.co"}
             },
         )
         CreditNote.objects.using("scrub").create(
+            xero_id=uuid.uuid4(),
+            client=client,
             number="CN-1",
+            date=d,
+            xero_last_modified=now,
             total_excl_tax=20,
+            tax=3,
+            total_incl_tax=23,
+            amount_due=23,
             raw_json={
                 "_contact": {"_name": "Real Other", "_email_address": "o@real.co"}
             },
