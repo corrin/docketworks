@@ -18,7 +18,7 @@ The scrubbed dump is produced on prod by `manage.py backport_data_backup` and li
 
 3. **Restore the dump**
    ```bash
-   pg_restore --no-owner --no-privileges --exit-on-error \
+   PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error \
      -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
      ./restore/scrubbed_prod_<ts>.dump
    ```
