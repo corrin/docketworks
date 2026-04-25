@@ -18,11 +18,16 @@ class ScrubSafetyGateTests(SimpleTestCase):
             with self.assertRaisesRegex(RuntimeError, "must end in '_scrub'"):
                 db_scrubber.scrub()
 
+    @patch("apps.workflow.services.db_scrubber._scrub_accounting_contacts")
     @patch("apps.workflow.services.db_scrubber._scrub_clients")
     @patch("apps.workflow.services.db_scrubber._scrub_staff")
     @patch("apps.workflow.services.db_scrubber.transaction")
     def test_scrub_runs_on_correctly_named_alias(
-        self, mock_transaction, mock_scrub_staff, mock_scrub_clients
+        self,
+        mock_transaction,
+        mock_scrub_staff,
+        mock_scrub_clients,
+        mock_scrub_accounting,
     ):
         # Smoke: correctly-named scrub DB, scrub() passes safety gate
         # and attempts to open a transaction (mocked here to avoid DB setup).
@@ -30,6 +35,7 @@ class ScrubSafetyGateTests(SimpleTestCase):
         mock_transaction.atomic.assert_called_once_with(using="scrub")
         mock_scrub_staff.assert_called_once()
         mock_scrub_clients.assert_called_once()
+        mock_scrub_accounting.assert_called_once()
 
 
 class ScrubStaffTests(TransactionTestCase):
@@ -218,3 +224,70 @@ class ScrubClientsTests(TransactionTestCase):
         # Today's PII_CONFIG does NOT include position/notes.
         self.assertEqual(cc.position, "Manager")
         self.assertEqual(cc.notes, "real note about real person")
+
+
+class ScrubAccountingContactsTests(TransactionTestCase):
+    databases = {"default", "scrub"}
+
+    def test_only_contact_name_and_email_in_raw_json_changed(self):
+        from apps.accounting.models import Invoice, InvoiceLineItem
+        from apps.workflow.services.db_scrubber import _scrub_accounting_contacts
+
+        inv = Invoice.objects.using("scrub").create(
+            number="INV-001",
+            total_excl_tax=100,
+            raw_json={
+                "_contact": {
+                    "_name": "Real Customer Ltd",
+                    "_email_address": "ar@realcustomer.co.nz",
+                    "_phone": "+64 9 876",  # NOT in PII_CONFIG, must survive
+                },
+                "_invoice_number": "INV-001",  # NOT in PII_CONFIG, must survive
+            },
+        )
+        InvoiceLineItem.objects.using("scrub").create(
+            invoice=inv, description="real line about client project"
+        )
+
+        _scrub_accounting_contacts()
+
+        inv.refresh_from_db(using="scrub")
+        self.assertNotEqual(inv.raw_json["_contact"]["_name"], "Real Customer Ltd")
+        self.assertNotEqual(
+            inv.raw_json["_contact"]["_email_address"], "ar@realcustomer.co.nz"
+        )
+        # Untouched paths survive verbatim.
+        self.assertEqual(inv.raw_json["_contact"]["_phone"], "+64 9 876")
+        self.assertEqual(inv.raw_json["_invoice_number"], "INV-001")
+        # Amounts untouched.
+        self.assertEqual(inv.total_excl_tax, 100)
+
+        # Line item descriptions are NOT in today's PII_CONFIG → must survive.
+        li = InvoiceLineItem.objects.using("scrub").get()
+        self.assertEqual(li.description, "real line about client project")
+
+    def test_bill_and_creditnote_contact_paths_also_scrubbed(self):
+        from apps.accounting.models import Bill, CreditNote
+        from apps.workflow.services.db_scrubber import _scrub_accounting_contacts
+
+        Bill.objects.using("scrub").create(
+            number="BILL-1",
+            total_excl_tax=10,
+            raw_json={
+                "_contact": {"_name": "Real Vendor", "_email_address": "v@real.co"}
+            },
+        )
+        CreditNote.objects.using("scrub").create(
+            number="CN-1",
+            total_excl_tax=20,
+            raw_json={
+                "_contact": {"_name": "Real Other", "_email_address": "o@real.co"}
+            },
+        )
+
+        _scrub_accounting_contacts()
+
+        b = Bill.objects.using("scrub").get()
+        cn = CreditNote.objects.using("scrub").get()
+        self.assertNotEqual(b.raw_json["_contact"]["_name"], "Real Vendor")
+        self.assertNotEqual(cn.raw_json["_contact"]["_name"], "Real Other")

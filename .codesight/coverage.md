@@ -1,6 +1,6 @@
 # Test Coverage
 
-> **22%** of routes and models are covered by tests
+> **23%** of routes and models are covered by tests
 > 121 test files found
 
 ## Covered Routes
@@ -12,6 +12,7 @@
 ## Covered Models
 
 - Invoice
+- InvoiceLineItem
 - Quote
 - Client
 - ClientContact

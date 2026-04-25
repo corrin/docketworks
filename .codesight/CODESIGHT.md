@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 365 lib files | 69 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,400 tokens. **Saves ~210,300 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 365 lib files | 69 env vars | 10 middleware | 23% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,400 tokens. **Saves ~210,200 tokens per conversation.**
 
 ---
 
@@ -2065,7 +2065,7 @@
 
 # Test Coverage
 
-> **22%** of routes and models are covered by tests
+> **23%** of routes and models are covered by tests
 > 121 test files found
 
 ## Covered Routes
@@ -2077,6 +2077,7 @@
 ## Covered Models
 
 - Invoice
+- InvoiceLineItem
 - Quote
 - Client
 - ClientContact

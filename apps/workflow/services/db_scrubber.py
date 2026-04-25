@@ -19,6 +19,7 @@ from django.conf import settings
 from django.db import transaction
 from faker import Faker
 
+from apps.accounting.models import Bill, CreditNote, Invoice
 from apps.accounts.models import Staff
 from apps.accounts.staff_anonymization import create_staff_profile
 from apps.client.models import Client, ClientContact
@@ -154,6 +155,32 @@ def _scrub_clients() -> None:
         )
 
 
+def _scrub_accounting_contacts() -> None:
+    """Mirror legacy PII_CONFIG entries for invoice/bill/creditnote.
+
+    Only `raw_json._contact._name` and `raw_json._contact._email_address`
+    are touched — every other path in raw_json (and every other field on
+    the model) is left untouched.
+    """
+    fake = Faker()
+    for model in (Invoice, Bill, CreditNote):
+        for row in model.objects.using(SCRUB_ALIAS).all():
+            rj = row.raw_json or {}
+            contact = rj.get("_contact")
+            if not isinstance(contact, dict):
+                continue
+            changed = False
+            if "_name" in contact:
+                contact["_name"] = fake.company()
+                changed = True
+            if "_email_address" in contact:
+                contact["_email_address"] = fake.email()
+                changed = True
+            if changed:
+                row.raw_json = rj
+                row.save(using=SCRUB_ALIAS, update_fields=["raw_json"])
+
+
 def scrub() -> None:
     """Reproduce the legacy command's PII handling on the scrub DB.
 
@@ -165,6 +192,7 @@ def scrub() -> None:
             # Per-step helpers added by subsequent tasks.
             _scrub_staff()
             _scrub_clients()
+            _scrub_accounting_contacts()
     except Exception as exc:
         persist_app_error(exc)
         raise
