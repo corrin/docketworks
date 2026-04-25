@@ -61,12 +61,13 @@ class Command(BaseCommand):
             )
 
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        env_name = "dev" if settings.DEBUG else "prod"
         backup_dir = os.path.join(settings.BASE_DIR, "restore")
         os.makedirs(backup_dir, exist_ok=True)
 
         raw_dump = f"/tmp/raw_{ts}.dump"
-        scrubbed_dump = os.path.join(backup_dir, f"scrubbed_{env_name}_{ts}.dump")
+        scrubbed_dump = os.path.join(
+            backup_dir, f"scrubbed_{default_db['NAME']}_{ts}.dump"
+        )
 
         env = os.environ.copy()
         env["PGPASSWORD"] = default_db["PASSWORD"]
