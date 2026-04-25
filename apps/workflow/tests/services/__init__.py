@@ -5,11 +5,12 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .test_db_scrubber import ScrubSafetyGateTests
+        from .test_db_scrubber import ScrubSafetyGateTests, ScrubStaffTests
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
 
 __all__ = [
     "ScrubSafetyGateTests",
+    "ScrubStaffTests",
 ]

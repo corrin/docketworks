@@ -18,9 +18,12 @@ at prod.
 from django.conf import settings
 from django.db import transaction
 
+from apps.accounts.models import Staff
+from apps.accounts.staff_anonymization import create_staff_profile
 from apps.workflow.services.error_persistence import persist_app_error
 
 SCRUB_ALIAS = "scrub"
+_GENERATE_ATTEMPTS = 100
 
 
 def _assert_scrub_alias_is_safe() -> None:
@@ -29,6 +32,34 @@ def _assert_scrub_alias_is_safe() -> None:
         raise RuntimeError(
             f"SCRUB_DB_NAME ({name!r}) must end in '_scrub'. "
             "Refusing to run scrubber against anything else."
+        )
+
+
+def _scrub_staff() -> None:
+    """Mirror legacy _anonymize_staff: coherent profiles, unique emails.
+
+    Touches first_name, last_name, preferred_name, email only — matches the
+    legacy behaviour. xero_user_id and password are intentionally left alone.
+    """
+    used_emails: set[str] = set()
+    for staff in Staff.objects.using(SCRUB_ALIAS).all():
+        for _ in range(_GENERATE_ATTEMPTS):
+            profile = create_staff_profile()
+            if profile["email"] not in used_emails:
+                break
+        else:
+            raise RuntimeError(
+                f"Could not generate unique staff email after "
+                f"{_GENERATE_ATTEMPTS} attempts; {len(used_emails)} in use."
+            )
+        used_emails.add(profile["email"])
+        staff.email = profile["email"]
+        staff.first_name = profile["first_name"]
+        staff.last_name = profile["last_name"]
+        staff.preferred_name = profile["preferred_name"]
+        staff.save(
+            using=SCRUB_ALIAS,
+            update_fields=["email", "first_name", "last_name", "preferred_name"],
         )
 
 
@@ -41,7 +72,7 @@ def scrub() -> None:
     try:
         with transaction.atomic(using=SCRUB_ALIAS):
             # Per-step helpers added by subsequent tasks.
-            pass
+            _scrub_staff()
     except Exception as exc:
         persist_app_error(exc)
         raise
