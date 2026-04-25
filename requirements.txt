@@ -71,7 +71,7 @@ google-generativeai==0.8.6 ; python_version >= "3.12" and python_version < "4.0"
 googleapis-common-protos==1.73.0 ; python_version >= "3.12" and python_version < "4.0"
 grpc-stubs==1.53.0.6 ; python_version >= "3.12" and python_version < "4.0"
 grpcio-status==1.71.2 ; python_version >= "3.12" and python_version < "4.0"
-grpcio==1.78.0 ; python_version >= "3.12" and python_version < "4.0"
+grpcio==1.80.0 ; python_version >= "3.12" and python_version < "4.0"
 gunicorn==25.3.0 ; python_version >= "3.12" and python_version < "4.0"
 h11==0.16.0 ; python_version >= "3.12" and python_version < "4.0"
 hf-xet==1.4.2 ; python_version >= "3.12" and python_version < "4.0" and (platform_machine == "x86_64" or platform_machine == "amd64" or platform_machine == "AMD64" or platform_machine == "arm64" or platform_machine == "aarch64")
