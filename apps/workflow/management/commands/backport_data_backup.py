@@ -40,6 +40,26 @@ class Command(BaseCommand):
                 model_filter=options.get("model_filter"),
             )
 
+        default_db = settings.DATABASES["default"]
+        scrub_db = settings.DATABASES["scrub"]
+
+        # Hard safety gate — must come BEFORE any psql/pg_dump/pg_restore call
+        # so a misconfigured SCRUB_DB_NAME can never reach a destructive
+        # DROP SCHEMA. db_scrubber.scrub() repeats this check; both layers
+        # exist deliberately.
+        scrub_name = scrub_db.get("NAME") or ""
+        if not scrub_name.endswith("_scrub"):
+            raise RuntimeError(
+                f"SCRUB_DB_NAME ({scrub_name!r}) must end in '_scrub'. "
+                "Refusing to run — a destructive DROP SCHEMA on a non-scrub DB "
+                "would wipe production."
+            )
+        if scrub_name == default_db.get("NAME"):
+            raise RuntimeError(
+                f"SCRUB_DB_NAME ({scrub_name!r}) is the same as DB_NAME — "
+                "refusing to run."
+            )
+
         ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
         env_name = "dev" if settings.DEBUG else "prod"
         backup_dir = os.path.join(settings.BASE_DIR, "restore")
@@ -48,8 +68,6 @@ class Command(BaseCommand):
         raw_dump = f"/tmp/raw_{ts}.dump"
         scrubbed_dump = os.path.join(backup_dir, f"scrubbed_{env_name}_{ts}.dump")
 
-        default_db = settings.DATABASES["default"]
-        scrub_db = settings.DATABASES["scrub"]
         env = os.environ.copy()
         env["PGPASSWORD"] = default_db["PASSWORD"]
 

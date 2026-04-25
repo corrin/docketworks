@@ -1,7 +1,7 @@
 # Test Coverage
 
-> **24%** of routes and models are covered by tests
-> 121 test files found
+> **22%** of routes and models are covered by tests
+> 118 test files found
 
 ## Covered Routes
 
@@ -12,7 +12,6 @@
 ## Covered Models
 
 - Invoice
-- InvoiceLineItem
 - Quote
 - Client
 - ClientContact
@@ -38,6 +37,5 @@
 - AppError
 - XeroError
 - CacheState
-- ServiceAPIKey
 - XeroPayItem
 - XeroToken
