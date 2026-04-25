@@ -18,6 +18,7 @@ class ScrubSafetyGateTests(SimpleTestCase):
             with self.assertRaisesRegex(RuntimeError, "must end in '_scrub'"):
                 db_scrubber.scrub()
 
+    @patch("apps.workflow.services.db_scrubber._truncate_excluded_tables")
     @patch("apps.workflow.services.db_scrubber._delete_unlinked_accounting")
     @patch("apps.workflow.services.db_scrubber._scrub_accounting_contacts")
     @patch("apps.workflow.services.db_scrubber._scrub_clients")
@@ -30,6 +31,7 @@ class ScrubSafetyGateTests(SimpleTestCase):
         mock_scrub_clients,
         mock_scrub_accounting,
         mock_delete_unlinked,
+        mock_truncate,
     ):
         # Smoke: correctly-named scrub DB, scrub() passes safety gate
         # and attempts to open a transaction (mocked here to avoid DB setup).
@@ -46,6 +48,7 @@ class ScrubSafetyGateTests(SimpleTestCase):
         mock_scrub_clients.assert_called_once()
         mock_scrub_accounting.assert_called_once()
         mock_delete_unlinked.assert_called_once()
+        mock_truncate.assert_called_once()
 
 
 class ScrubStaffTests(TransactionTestCase):
@@ -500,3 +503,71 @@ class DeleteUnlinkedAccountingTests(TransactionTestCase):
 
         # After delete: both should be gone (both had job_id IS NULL)
         self.assertEqual(Quote.objects.using("scrub").count(), 0)
+
+
+class TruncateExcludedTablesTests(TransactionTestCase):
+    databases = {"default", "scrub"}
+
+    def test_secrets_emptied(self):
+        from django.utils import timezone
+
+        from apps.workflow.models import ServiceAPIKey, XeroToken
+        from apps.workflow.services.db_scrubber import _truncate_excluded_tables
+
+        XeroToken.objects.using("scrub").create(
+            tenant_id="t",
+            token_type="Bearer",
+            access_token="secret",
+            refresh_token="secret",
+            expires_at=timezone.now(),
+        )
+        ServiceAPIKey.objects.using("scrub").create(name="gemini")
+        _truncate_excluded_tables()
+        self.assertEqual(XeroToken.objects.using("scrub").count(), 0)
+        self.assertEqual(ServiceAPIKey.objects.using("scrub").count(), 0)
+
+    def test_pay_items_emptied(self):
+        from apps.workflow.models import XeroPayItem
+        from apps.workflow.services.db_scrubber import _truncate_excluded_tables
+
+        XeroPayItem.objects.using("scrub").create(name="Wages", uses_leave_api=False)
+        _truncate_excluded_tables()
+        self.assertEqual(XeroPayItem.objects.using("scrub").count(), 0)
+
+    def test_debug_tables_emptied(self):
+        from django.db import connections
+
+        from apps.workflow.models import AppError, XeroError
+        from apps.workflow.services.db_scrubber import _truncate_excluded_tables
+
+        AppError.objects.using("scrub").create(message="boom")
+        XeroError.objects.using("scrub").create(
+            message="xero boom", entity="Contact", reference_id="123", kind="error"
+        )
+        _truncate_excluded_tables()
+        # Use raw SQL like test_simplehistory_tables_emptied to verify truncate worked
+        with connections["scrub"].cursor() as cur:
+            for table in ("workflow_xeroerror", "workflow_apperror"):
+                cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+                self.assertEqual(
+                    cur.fetchone()[0], 0, msg=f"{table} should be empty after truncate"
+                )
+
+    def test_simplehistory_tables_emptied(self):
+        from django.db import connections
+
+        from apps.workflow.services.db_scrubber import _truncate_excluded_tables
+
+        _truncate_excluded_tables()
+        with connections["scrub"].cursor() as cur:
+            for table in (
+                "accounts_historicalstaff",
+                "job_historicaljob",
+                "process_historicalform",
+                "process_historicalformentry",
+                "process_historicalprocedure",
+            ):
+                cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+                self.assertEqual(
+                    cur.fetchone()[0], 0, msg=f"{table} should be empty after truncate"
+                )

@@ -204,6 +204,36 @@ def _delete_unlinked_accounting() -> None:
     Quote.objects.using(SCRUB_ALIAS).filter(job__isnull=True).delete()
 
 
+# Mirrors legacy EXCLUDE_MODELS, MINUS framework tables (contenttypes/auth/
+# sessions/sites). Framework tables stay because pg_dump-restored FKs from
+# accounts_staff_user_permissions etc. depend on them and TRUNCATE CASCADE
+# would wipe those user-permission rows.
+_EXCLUDED_TABLES = (
+    # In joined-table inheritance, child tables have FKs back to parent.
+    # TRUNCATE parent WITH CASCADE will cascade to children. Do NOT include
+    # child tables — workflow_xeroerror will be cascaded from workflow_apperror.
+    "workflow_xerotoken",
+    "workflow_serviceapikey",
+    "workflow_xeropayitem",
+    "django_apscheduler_djangojob",
+    "django_apscheduler_djangojobexecution",
+    "accounts_historicalstaff",
+    "job_historicaljob",
+    "process_historicalform",
+    "process_historicalformentry",
+    "process_historicalprocedure",
+)
+
+
+def _truncate_excluded_tables() -> None:
+    """Mirror legacy EXCLUDE_MODELS by emptying these tables in the scrub DB."""
+    from django.db import connections
+
+    with connections[SCRUB_ALIAS].cursor() as cur:
+        for table in _EXCLUDED_TABLES:
+            cur.execute(f'TRUNCATE TABLE "{table}" RESTART IDENTITY CASCADE')
+
+
 def scrub() -> None:
     """Reproduce the legacy command's PII handling on the scrub DB.
 
@@ -217,6 +247,7 @@ def scrub() -> None:
             _scrub_clients()
             _scrub_accounting_contacts()
             _delete_unlinked_accounting()
+            _truncate_excluded_tables()
     except Exception as exc:
         persist_app_error(exc)
         raise

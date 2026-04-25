@@ -11,6 +11,7 @@ try:
             ScrubClientsTests,
             ScrubSafetyGateTests,
             ScrubStaffTests,
+            TruncateExcludedTablesTests,
         )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -22,4 +23,5 @@ __all__ = [
     "ScrubClientsTests",
     "ScrubSafetyGateTests",
     "ScrubStaffTests",
+    "TruncateExcludedTablesTests",
 ]
