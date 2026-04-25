@@ -212,6 +212,7 @@ _EXCLUDED_TABLES = (
     # In joined-table inheritance, child tables have FKs back to parent.
     # TRUNCATE parent WITH CASCADE will cascade to children. Do NOT include
     # child tables — workflow_xeroerror will be cascaded from workflow_apperror.
+    "workflow_apperror",  # Parent; CASCADE will delete xeroerror children
     "workflow_xerotoken",
     "workflow_serviceapikey",
     "workflow_xeropayitem",
