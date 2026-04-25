@@ -14,12 +14,16 @@ REMOTE = "gdrive:dw_backups"
 #              (consumed by rollback_release.sh); retention is 24h+daily+monthly.
 #   predeploy: flat predeploy_<ts>_<hash>.sql.gz files produced by
 #              predeploy_backup.sh; retention is 30 days.
+#   scrubbed:  flat scrubbed_<env>_<ts>.dump files produced by
+#              `manage.py backport_data_backup`; retention is 30 days.
 # Any other entry (daily_*.sql.gz, monthly_*.sql.gz from backup_db.sh, etc.)
 # is left completely untouched — not a deletion candidate, not a keep target.
 TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
+SCRUBBED_RE = re.compile(r"^scrubbed_[a-z]+_(\d{8}_\d{6})\.dump$")
 
 PREDEPLOY_RETENTION_DAYS = 30
+SCRUBBED_RETENTION_DAYS = 30
 
 
 def parse_arguments():
@@ -50,6 +54,8 @@ def classify(name):
         return "ts_dir"
     if PREDEPLOY_RE.match(name):
         return "predeploy"
+    if SCRUBBED_RE.match(name):
+        return "scrubbed"
     return "other"
 
 
@@ -96,6 +102,18 @@ def compute_predeploy_keep(entries, now):
     keep = set()
     for name in entries:
         m = PREDEPLOY_RE.match(name)
+        ts = datetime.strptime(m.group(1), "%Y%m%d_%H%M%S")
+        if ts >= cutoff:
+            keep.add(name)
+    return keep
+
+
+def compute_scrubbed_keep(entries, now):
+    """Keep scrubbed_*.dump files whose timestamp is within the retention window."""
+    cutoff = now - timedelta(days=SCRUBBED_RETENTION_DAYS)
+    keep = set()
+    for name in entries:
+        m = SCRUBBED_RE.match(name)
         ts = datetime.strptime(m.group(1), "%Y%m%d_%H%M%S")
         if ts >= cutoff:
             keep.add(name)
@@ -156,6 +174,7 @@ def main():
 
     ts_dir_entries = []
     predeploy_entries = []
+    scrubbed_entries = []
     other_entries = []
     for name in entries:
         kind = classify(name)
@@ -163,6 +182,8 @@ def main():
             ts_dir_entries.append(name)
         elif kind == "predeploy":
             predeploy_entries.append(name)
+        elif kind == "scrubbed":
+            scrubbed_entries.append(name)
         else:
             other_entries.append(name)
 
@@ -171,12 +192,14 @@ def main():
     ts_dir_pairs = parse_ts_dir_pairs(ts_dir_entries)
     ts_dir_keep = compute_ts_dir_keep(ts_dir_pairs, now)
     predeploy_keep = compute_predeploy_keep(predeploy_entries, now)
+    scrubbed_keep = compute_scrubbed_keep(scrubbed_entries, now)
 
-    managed = set(ts_dir_entries) | set(predeploy_entries)
-    to_delete = sorted(managed - ts_dir_keep - predeploy_keep)
+    managed = set(ts_dir_entries) | set(predeploy_entries) | set(scrubbed_entries)
+    to_delete = sorted(managed - ts_dir_keep - predeploy_keep - scrubbed_keep)
 
     print("Keeping (ts_dir):", sorted(ts_dir_keep))
     print("Keeping (predeploy):", sorted(predeploy_keep))
+    print("Keeping (scrubbed):", sorted(scrubbed_keep))
     if other_entries:
         print("Leaving untouched (unmanaged pattern):", sorted(other_entries))
 

@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
 > 167 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-25
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-25 (167 notes). Key topics: verification, tips, alternatives considered, steps. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-25 (167 notes). Key topics: verification, steps, tips, alternatives considered. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
 ## Key Decisions (15)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
@@ -33,7 +33,7 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · tips · alternatives considered · steps · what youll need · files to modify · what happens next · approach · critical files · troubleshooting · purpose · prerequisites
+verification · steps · tips · alternatives considered · what youll need · files to modify · what happens next · approach · critical files · troubleshooting · purpose · prerequisites
 
 ## People
 @login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @api_view · @permission_classes · @real · @realcustomer · @mock

@@ -10,6 +10,7 @@ DB_USER=__DB_USER__
 DB_PASSWORD=__DB_PASSWORD__
 DB_HOST=/var/run/postgresql
 DB_PORT=
+SCRUB_DB_NAME=__SCRUB_DB_NAME__
 
 # Used by settings.py for both CORS and CSRF trusted origins (single-origin)
 CORS_ALLOWED_ORIGINS=https://__FQDN__
