@@ -208,6 +208,12 @@ def _delete_unlinked_accounting() -> None:
 # sessions/sites). Framework tables stay because pg_dump-restored FKs from
 # accounts_staff_user_permissions etc. depend on them and TRUNCATE CASCADE
 # would wipe those user-permission rows.
+# NB: workflow_xeropayitem is deliberately NOT in this list, even though the
+# legacy flow excludes it from dumpdata. TRUNCATE ... CASCADE in Postgres
+# bypasses Django's on_delete=PROTECT and follows FKs blindly — wiping
+# xeropayitem would cascade through Job.default_xero_pay_item and
+# CostLine.xero_pay_item and erase every Job and CostLine in the dump.
+# Pay item names aren't PII; letting prod's set through is harmless.
 _EXCLUDED_TABLES = (
     # In joined-table inheritance, child tables have FKs back to parent.
     # TRUNCATE parent WITH CASCADE will cascade to children. Do NOT include
@@ -215,7 +221,6 @@ _EXCLUDED_TABLES = (
     "workflow_apperror",  # Parent; CASCADE will delete xeroerror children
     "workflow_xerotoken",
     "workflow_serviceapikey",
-    "workflow_xeropayitem",
     "django_apscheduler_djangojob",
     "django_apscheduler_djangojobexecution",
     "accounts_historicalstaff",
