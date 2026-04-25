@@ -2,13 +2,13 @@
 
 Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
 
-The scrubbed dump is produced on prod by `manage.py backport_data_backup` and lives at `gdrive:dw_backups/scrubbed_<env>_<ts>.dump`.
+The scrubbed dump is produced on prod by `manage.py backport_data_backup` and lives at `gdrive:dw_backups/scrubbed_<DB_NAME>_<ts>.dump`.
 
 ## Steps
 
 1. **Fetch the dump**
    ```bash
-   rclone copy gdrive:dw_backups/scrubbed_prod_<ts>.dump ./restore/
+   rclone copy gdrive:dw_backups/scrubbed_<DB_NAME>_<ts>.dump ./restore/
    ```
 
 2. **Reset the target DB**
@@ -20,7 +20,7 @@ The scrubbed dump is produced on prod by `manage.py backport_data_backup` and li
    ```bash
    PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error \
      -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
-     ./restore/scrubbed_prod_<ts>.dump
+     ./restore/scrubbed_<DB_NAME>_<ts>.dump
    ```
 
 4. **Apply any dev-side migrations prod hasn't seen**
