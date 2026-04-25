@@ -6,6 +6,7 @@
 - `ALLOWED_HOSTS` (has default) — .env.example
 - `APP_DOMAIN` (has default) — .env.example
 - `APP_URL` **required** — frontend/scripts/capture_metrics.cjs
+- `BACKPORT_RCLONE_TARGET` **required** — apps/workflow/management/commands/backport_data_backup.py
 - `BASE_URL` **required** — frontend/src/router/index.ts
 - `CI` **required** — frontend/playwright.config.ts
 - `CORS_ALLOWED_ORIGINS` (has default) — .env.example
