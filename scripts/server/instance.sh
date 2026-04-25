@@ -163,6 +163,7 @@ do_create() {
     INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
+    local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
 
     log "=========================================="
     log "Creating docketworks instance: $INSTANCE"
@@ -274,6 +275,7 @@ BASH_PROFILE
             -e "s|__DB_NAME__|$DB_NAME|g" \
             -e "s|__DB_USER__|$DB_USER|g" \
             -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
+            -e "s|__SCRUB_DB_NAME__|$SCRUB_DB_NAME|g" \
             -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
             -e "s|__BEARER_SECRET__|$BEARER_SECRET|g" \
             -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
@@ -305,7 +307,7 @@ BASH_PROFILE
     DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$DB_PASSWORD")"
     # Escape single quotes for safe SQL interpolation
     local SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
-    log "Ensuring database $DB_NAME and user $DB_USER exist..."
+    log "Ensuring databases $DB_NAME and $SCRUB_DB_NAME and user $DB_USER exist..."
     sudo -u postgres psql <<EOSQL
 DO \$\$
 BEGIN
@@ -319,6 +321,9 @@ END
 SELECT 'CREATE DATABASE "$DB_NAME" OWNER "$DB_USER"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
+SELECT 'CREATE DATABASE "$SCRUB_DB_NAME" OWNER "$DB_USER"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$SCRUB_DB_NAME')\gexec
+GRANT ALL PRIVILEGES ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
 EOSQL
 
     # --- Clone repo directly into instance dir (instance dir = git checkout) ---
@@ -471,6 +476,7 @@ do_destroy() {
     INSTANCE_USER="$(instance_user "$INSTANCE")"
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
+    local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
 
     echo "=== Destroying instance: $INSTANCE ==="
     echo ""
@@ -519,9 +525,10 @@ do_destroy() {
         nginx -t && systemctl reload nginx
     fi
 
-    # --- Drop database and user ---
-    echo "=== Dropping database and user ==="
+    # --- Drop databases and user ---
+    echo "=== Dropping databases and user ==="
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";" || true
+    sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$SCRUB_DB_NAME\";" || true
     sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";" || true
 
     # --- Remove files ---

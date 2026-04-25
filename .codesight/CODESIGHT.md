@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 364 lib files | 68 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,100 tokens. Without it, AI exploration would cost ~240,000 tokens. **Saves ~209,900 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 365 lib files | 70 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,600 tokens. **Saves ~210,400 tokens per conversation.**
 
 ---
 
@@ -1469,6 +1469,7 @@
   - class XeroPayItemSerializer
   - class AIProviderCreateUpdateSerializer
   - _...23 more_
+- `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
   - function list_grouped_xero_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
@@ -1808,7 +1809,7 @@
   - function parse_ts_dir_pairs: (entries)
   - function compute_ts_dir_keep: (pairs, now)
   - function compute_predeploy_keep: (entries, now)
-  - _...4 more_
+  - _...5 more_
 - `scripts/create_master_template.py`
   - function get_drive_service: ()
   - function find_or_create_templates_folder: (service)
@@ -1927,6 +1928,7 @@
 - `ALLOWED_HOSTS` (has default) — .env.example
 - `APP_DOMAIN` (has default) — .env.example
 - `APP_URL` **required** — frontend/scripts/capture_metrics.cjs
+- `BACKPORT_RCLONE_TARGET` **required** — apps/workflow/management/commands/backport_data_backup.py
 - `BASE_URL` **required** — frontend/src/router/index.ts
 - `CI` **required** — frontend/playwright.config.ts
 - `CORS_ALLOWED_ORIGINS` (has default) — .env.example
@@ -1967,6 +1969,7 @@
 - `PLAYWRIGHT_BROWSER_CHANNEL` **required** — frontend/tests/scripts/xero-login.ts
 - `REDIS_HOST` **required** — docketworks/settings.py
 - `REDIS_PORT` **required** — docketworks/settings.py
+- `SCRUB_DB_NAME` (has default) — .env.example
 - `SECRET_KEY` (has default) — .env.example
 - `SKIP_VERSION_CHECK` (has default) — .env.example
 - `SOURCE_JOB_ID` **required** — scripts/copy_material_lines.py

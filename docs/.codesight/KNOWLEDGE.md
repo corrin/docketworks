@@ -1,9 +1,9 @@
 # Knowledge Map — docketworks
-> 169 notes · 16 decisions · 10 open questions · 2026-02-24 → 2026-04-22
+> 168 notes · 15 decisions · 10 open questions · 2026-02-24 → 2026-04-25
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-22 (169 notes). Key topics: verification, tips, alternatives considered, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-25 (168 notes). Key topics: verification, steps, tips, alternatives considered. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
-## Key Decisions (16)
+## Key Decisions (15)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
 - Two layers. An **identity layer** (non-blocking) that reads either cookies (always) or, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, a short-lived HS256 bearer signed with `DEV_JWT_SECRET` — on failure it does nothing, remaining anonymous. A **global gate** (blocking) that runs on every request: if not authenticated and the path is not in `AUTH_ANON_ALLOWLIST`, return `401 JSON` for `/api/**` or `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
 - GET endpoints return an `ETag` header derived from `updated_at` (plus the primary key for delivery-receipt endpoints). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs — add event, accept quote, process delivery receipt) require `If-Match` with the latest ETag. Missing header → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so the comparison and the write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS is configured to expose `ETag` and allow `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
@@ -18,7 +18,6 @@
 - Strategy pattern, registry-resolved at request time: `apps/workflow/accounting/provider.py` defines `AccountingProvider` (Protocol) covering auth, contacts, documents, sync-pull, and optional capability flags (`supports_projects`, `supports_payroll`). `apps/workflow/accounting/registry.py` exposes `get_provider()`, which reads `settings.ACCOUNTING_BACKEND` (default `"xero"`) and returns the active instance. `apps/workflow/accounting/types.py` defines provider-agnostic payload dataclasses (`InvoicePayload`, `QuotePayload`, `POPayload`, `DocumentResult`) so `xero_python` types stay inside the Xero provider. Keep all existing `xero_*` model fields — they have data and migrations; MYOB installations simply leave them null. Add `CompanyDefaults.accounting_provider` to track which backend is active. Phase the rollout: (1) interface + thin Xero wrapper over existing code, (2) document managers build generic payloads, (3) client service calls `get_provider()`, (4) sync layer becomes provider-agnostic, (5) build MYOB provider.
 - What we chose, stated as an imperative. One paragraph.
 - [2026-04-20] hold onto the old HTML
-- act, three layers are available, in increasing depth
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
 ## Open Questions (10)
@@ -34,10 +33,10 @@
 - 1. Which active jobs are likely to miss their promised date?
 
 ## Recurring Themes
-verification · tips · alternatives considered · what youll need · files to modify · steps · what happens next · critical files · approach · troubleshooting · purpose · prerequisites
+verification · steps · tips · alternatives considered · what youll need · files to modify · what happens next · approach · critical files · troubleshooting · purpose · prerequisites
 
 ## People
-@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @api_view · @permission_classes · @staticmethod · @property · @github
+@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @api_view · @permission_classes · @real · @realcustomer · @mock
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -47,7 +46,7 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (169)
+## Note Index (168)
 
 ### Decision Records (12)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
@@ -93,7 +92,8 @@ verification · tips · alternatives considered · what youll need · files to m
 ### Backlogs (1)
 - `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
 
-### General Notes (135)
+### General Notes (134)
+- `docs/plans/2026-04-25-pg-dump-backport-refresh-plan.md` — 2026-04-25 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
 - `docs/plans/2026-04-22-backup-include-migrations-table.md` — 2026-04-22 — The current dev restore flow (`docs/restore-prod-to-nonprod.md`) wipes the DB → `migrate` to **dev's HEAD** → `loaddata` the prod JSON. That decouples schema (d…
 - `docs/plans/2026-04-22-jobevent-staff-restore-loaddata-ordering.md` — 2026-04-22 — Restoring `restore/prod_backup_20260422_070407.json` on the `feat/jobevent-audit` branch fails with:
 - `docs/plans/2026-04-22-move-weekend-flag-to-company-defaults.md` — 2026-04-22 — Weekend-mode timesheets are currently gated by two separate flags:
@@ -111,10 +111,9 @@ verification · tips · alternatives considered · what youll need · files to m
 - `docs/plans/2026-04-19-predeploy-backup.md` — 2026-04-19 — `scripts/server/deploy.sh` currently does: pull central repo → per-instance `git pull` → shared deps → per-instance build + migrate + restart. There is no safet…
 - `docs/plans/2026-04-18-extend-schema-explicit-request-body.md` — 2026-04-18 — Naming note: file should be renamed to `2026-04-18-remove-response-serializer-class-from-apiviews.md` (project convention is `YYYY-MM-DD-description.md`). Plan-…
 - `docs/plans/2026-04-18-linux-user-underscore-naming.md` — 2026-04-18 — **Goal:** Make per-instance OS user names match the DB role names (both `dw_<client>_<env>`) instead of diverging (`dw-<client>-<env>` vs `dw_<client>_<env>`).
-- `docs/plans/2026-04-16-sales-pipeline-report-execution.md` — 2026-04-16 — The requirements plan already exists at `docs/plans/2026-04-16-sales-pipeline-report.md` and is the source of truth for behaviour, metrics, and acceptance crite…
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
-- _…and 115 more_
+- _…and 114 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

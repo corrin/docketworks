@@ -401,6 +401,20 @@ DATABASES = {
         "HOST": os.getenv("DB_HOST", "127.0.0.1"),
         "PORT": os.getenv("DB_PORT", ""),
     },
+    # Second DB alias used ONLY by manage.py backport_data_backup on prod.
+    # Points at a sibling scrubbing DB (dw_<client>_scrub) that holds a
+    # temporary copy of prod restored via pg_restore. The db_scrubber service
+    # anonymises in place here before re-dumping. Name MUST end in "_scrub"
+    # — hard-checked by both the management command and db_scrubber to
+    # prevent accidental scrubbing of prod.
+    "scrub": {
+        "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
+        "NAME": os.getenv("SCRUB_DB_NAME"),
+        "USER": os.getenv("DB_USER"),
+        "PASSWORD": os.getenv("DB_PASSWORD"),
+        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
+        "PORT": os.getenv("DB_PORT", ""),
+    },
 }
 
 # Test runner configuration

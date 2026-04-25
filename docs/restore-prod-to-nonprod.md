@@ -1,6 +1,69 @@
 # Restore Production to Non-Production
 
-Restore a production backup to any non-production environment (dev or server instance). This guide is environment-agnostic: assume venv active, .env loaded, in the project root. All paths are relative.
+Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
+
+The scrubbed dump is produced on prod by `manage.py backport_data_backup` and lives at `gdrive:dw_backups/scrubbed_<DB_NAME>_<ts>.dump`.
+
+## Steps
+
+1. **Fetch the dump**
+   ```bash
+   rclone copy gdrive:dw_backups/scrubbed_<DB_NAME>_<ts>.dump ./restore/
+   ```
+
+2. **Reset the target DB**
+   ```bash
+   python manage.py dbshell -- -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+   ```
+
+3. **Restore the dump**
+   ```bash
+   PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error \
+     -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+     ./restore/scrubbed_<DB_NAME>_<ts>.dump
+   ```
+
+4. **Apply any dev-side migrations prod hasn't seen**
+
+   `django_migrations` came across in the dump, so this only runs migrations that exist locally beyond prod's state.
+   ```bash
+   python manage.py migrate
+   ```
+
+5. **Reload dev-only fixtures**
+
+   Company defaults (shipped demo branding) and AI provider rows are excluded from prod scrubbing.
+   ```bash
+   python manage.py loaddata apps/workflow/fixtures/company_defaults.json
+   python manage.py loaddata apps/workflow/fixtures/ai_providers.json
+   ```
+
+6. **Re-authenticate Xero**
+   ```bash
+   cd frontend && npx tsx tests/scripts/xero-login.ts && cd ..
+   python manage.py xero --setup
+   python manage.py xero --configure-payroll
+   ```
+
+7. **Run the post-restore validators**
+   ```bash
+   python scripts/setup_dev_logins.py
+   for s in scripts/restore_checks/check_*.py; do python "$s"; done
+   ```
+
+Optional (dev): `python scripts/recreate_jobfiles.py` to materialise dummy files for JobFile records.
+
+## First-time setup (existing instances only)
+
+New instances pick up the scrub DB automatically via `scripts/server/instance.sh`. Existing instances provisioned before this change need a one-off `instance.sh create` re-run (idempotent — adds the scrub DB, skips anything that already exists).
+
+---
+
+# Appendix: Legacy JSON path (deprecated)
+
+> Deprecated — retained for one release cycle while the pg_dump flow beds in.
+
+The 23-step process below is the historical `dumpdata`/`loaddata` flow. Do not use it for new restores. It remains here for reference only.
 
 CRITICAL: audit
 
@@ -18,7 +81,7 @@ This process runs unattended on server instances with no user interaction. Any w
 1. Steps 1-13: Basic restore and setup
 2. Step 14: **XERO OAUTH CONNECTION** (CANNOT BE SKIPPED)
 3. Steps 15-19: Xero configuration
-4. Steps 20-22: Testing ONLY AFTER Xero is connected
+4. Steps 20-23: Testing ONLY AFTER Xero is connected
 
 ## Prerequisites
 
@@ -413,7 +476,34 @@ python scripts/restore_checks/test_kanban_api.py
 API working: 174 active jobs, 23 archived
 ```
 
-#### Step 22: Run Playwright Tests
+#### Step 22: Snapshot Verified Database
+
+The DB is now in a known-good state: loaded from prod, migrated, fixtures applied, Xero synced, serializers and Kanban API verified. Capture this state as a baseline so the Playwright run (Step 23) — or any later test run — can be recovered from it without re-running this entire runbook.
+
+```bash
+mkdir -p backups
+TS=$(date +%Y%m%d_%H%M%S)
+OUT="backups/post_restore_${TS}.sql.gz"
+
+# Atomic write: dump to .tmp, rename on success. pipefail ensures pg_dump
+# failure propagates even though gzip would succeed on empty stdin.
+set -o pipefail
+PGPASSWORD="$DB_PASSWORD" pg_dump -h localhost -U "$DB_USER" "$DB_NAME" \
+  | gzip > "$OUT.tmp"
+mv "$OUT.tmp" "$OUT"
+set +o pipefail
+
+echo "Baseline snapshot: $OUT"
+```
+
+**Check:**
+
+```bash
+ls -lh backups/post_restore_*.sql.gz | tail -1
+# Should show a file >= 5 MB (gzipped full dump).
+```
+
+#### Step 23: Run Playwright Tests
 
 ```bash
 cd frontend && npx playwright test
@@ -445,6 +535,24 @@ rm -rf restore/
 **Symptoms:** Step 5 fails immediately with `psycopg.errors.UndefinedColumn: column "<name>" of relation "<table>" does not exist`.
 
 **Cause:** The local branch has added a column that's not yet on prod, and Step 3's `migrate` was run against an earlier checkout of the tree. Rerun Step 3 on the current branch and retry Step 5.
+
+### E2E Restore Failed / DB Reflects Test Mutations
+
+**Symptoms:** `global-teardown.ts` printed the "E2E TEARDOWN FAILED TO RESTORE DATABASE" banner, or the dev DB contains rows created by Playwright tests.
+
+**Solution:** Restore from the Step 22 baseline snapshot. Pick the newest file in `backups/`:
+
+```bash
+LATEST=$(ls -t backups/post_restore_*.sql.gz | head -1)
+echo "Restoring from: $LATEST"
+
+python manage.py dbshell -- -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
+gunzip -c "$LATEST" | PGPASSWORD="$DB_PASSWORD" psql \
+  -v ON_ERROR_STOP=1 --single-transaction \
+  -h localhost -U "$DB_USER" -d "$DB_NAME"
+```
+
+`--single-transaction` + `ON_ERROR_STOP=1` mirrors the atomic restore contract used by `global-teardown.ts`: any failure rolls back, leaving the empty schema rather than a half-loaded DB. If restore succeeds, sanity-check with `python scripts/restore_checks/check_django_orm.py`.
 
 ## File Locations
 
