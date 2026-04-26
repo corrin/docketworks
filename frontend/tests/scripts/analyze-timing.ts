@@ -125,7 +125,7 @@ function formatMs(ms: number): string {
 
 // Main
 const args = process.argv.slice(2)
-const inputFile = args[0] || 'test-results/timing-aggregate.csv'
+const inputFile = args[0] || 'test-history/timing-aggregate.csv'
 
 if (!fs.existsSync(inputFile)) {
   console.error(`File not found: ${inputFile}`)

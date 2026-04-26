@@ -30,6 +30,12 @@ export default defineConfig({
   reporter: [
     ['html', { open: 'never' }], // Don't auto-open report (blocks process)
     ['list', { printSteps: true }], // Show steps and console output
+    // Custom reporter — appends per-test wall durations of passing tests
+    // to test-history/ so we can reason about timeouts from real history.
+    // Must run as a reporter (not in globalTeardown) because reporter onEnd
+    // fires after all results are collected, while globalTeardown runs
+    // earlier in Playwright's lifecycle.
+    ['./tests/scripts/history-reporter.ts'],
   ],
 
   use: {
