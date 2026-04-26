@@ -29,6 +29,16 @@ function csvCell(value: string): string {
   return `"${value.replace(/"/g, '""')}"`
 }
 
+function appendCsv(filePath: string, header: string, body: string): void {
+  const fd = fs.openSync(filePath, 'a')
+  try {
+    const needsHeader = fs.fstatSync(fd).size === 0
+    fs.writeSync(fd, needsHeader ? header + body : body)
+  } finally {
+    fs.closeSync(fd)
+  }
+}
+
 function extractActions(
   traceZipPath: string,
   testName: string,
@@ -142,14 +152,19 @@ export default class HistoryReporter implements Reporter {
         [runId, runDate, csvCell(r.file), csvCell(r.testPath), Math.round(r.durationMs)].join(','),
       )
       .join('\n')
-    const runsNeedsHeader = !fs.existsSync(testRunsFile)
-    fs.appendFileSync(testRunsFile, (runsNeedsHeader ? runsHeader : '') + runsRows + '\n')
+    appendCsv(testRunsFile, runsHeader, runsRows + '\n')
 
     // Per-action data for deep dives, passing tests only.
     let actionRows: string[] = []
     for (const run of passed) {
-      if (!run.tracePath || !fs.existsSync(run.tracePath)) continue
-      for (const a of extractActions(run.tracePath, run.testPath)) {
+      if (!run.tracePath) continue
+      let actions: ReturnType<typeof extractActions>
+      try {
+        actions = extractActions(run.tracePath, run.testPath)
+      } catch {
+        continue
+      }
+      for (const a of actions) {
         actionRows.push(
           [
             runId,
@@ -167,11 +182,7 @@ export default class HistoryReporter implements Reporter {
 
     if (actionRows.length > 0) {
       const actionsHeader = 'run_id,run_date,test_name,type,action,selector,duration_ms,error\n'
-      const actionsNeedsHeader = !fs.existsSync(actionsFile)
-      fs.appendFileSync(
-        actionsFile,
-        (actionsNeedsHeader ? actionsHeader : '') + actionRows.join('\n') + '\n',
-      )
+      appendCsv(actionsFile, actionsHeader, actionRows.join('\n') + '\n')
     }
 
     console.log(
