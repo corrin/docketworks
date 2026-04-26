@@ -26,12 +26,6 @@ class Command(BaseCommand):
         )
         parser.add_argument("--sample-size", type=int, default=50)
         parser.add_argument("--model-filter", type=str)
-        parser.add_argument(
-            "--rclone-target",
-            type=str,
-            default=os.getenv("BACKPORT_RCLONE_TARGET", "gdrive:dw_backups"),
-            help="rclone target for the scrubbed dump",
-        )
 
     def handle(self, *args, **options):
         if options.get("analyze_fields"):
@@ -161,11 +155,6 @@ class Command(BaseCommand):
             )
 
             os.remove(raw_dump)
-
-            self.stdout.write(
-                f"rclone copy {scrubbed_dump} -> {options['rclone_target']}"
-            )
-            self._run(["rclone", "copy", scrubbed_dump, options["rclone_target"]])
 
             self.stdout.write(
                 self.style.SUCCESS(f"Scrubbed dump written: {scrubbed_dump}")

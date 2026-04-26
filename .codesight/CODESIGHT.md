@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 365 lib files | 70 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,600 tokens. **Saves ~210,300 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 365 lib files | 69 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,400 tokens. **Saves ~210,200 tokens per conversation.**
 
 ---
 
@@ -1809,7 +1809,7 @@
   - function parse_ts_dir_pairs: (entries)
   - function compute_ts_dir_keep: (pairs, now)
   - function compute_predeploy_keep: (entries, now)
-  - _...5 more_
+  - _...4 more_
 - `scripts/create_master_template.py`
   - function get_drive_service: ()
   - function find_or_create_templates_folder: (service)
@@ -1928,7 +1928,6 @@
 - `ALLOWED_HOSTS` (has default) — .env.example
 - `APP_DOMAIN` (has default) — .env.example
 - `APP_URL` **required** — frontend/scripts/capture_metrics.cjs
-- `BACKPORT_RCLONE_TARGET` **required** — apps/workflow/management/commands/backport_data_backup.py
 - `BASE_URL` **required** — frontend/src/router/index.ts
 - `CI` **required** — frontend/playwright.config.ts
 - `CORS_ALLOWED_ORIGINS` (has default) — .env.example
