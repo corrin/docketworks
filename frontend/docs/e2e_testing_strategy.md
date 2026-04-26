@@ -1,9 +1,9 @@
-# E2E Testing Strategy
+# E2E Testing
 
-What this doc covers: the **decisions** behind the E2E suite — fidelity
-choices, isolation model, and the policies that aren't visible from
-reading the code. Day-to-day mechanics (commands, file layout, scripts)
-live in `package.json`, `playwright.config.ts`, and the
+What this doc covers: the **decisions and policies** behind the E2E
+suite — fidelity choices, isolation model, where it runs and when.
+Day-to-day mechanics (commands, file layout, scripts) live in
+`package.json`, `playwright.config.ts`, and the
 `frontend/tests/scripts/` source.
 
 ## Fidelity choices
@@ -12,9 +12,8 @@ The suite hits real services rather than mocks. The cost (API credits,
 SMTP traffic) is accepted because mocked integrations have repeatedly
 hidden real-world breakage.
 
-- **Xero** — real Xero **demo company**. Tests create/delete invoices,
-  quotes, POs against the demo org. Never run against a customer's real
-  Xero org.
+- **Xero** — real Xero **demo company** in dev/UAT. Tests
+  create/delete invoices, quotes, POs against the demo org.
 - **AI providers** (Claude / Gemini / Mistral) — real API calls. Tests
   consume credits.
 - **Email** — real SMTP to a test recipient. Catches template/auth
@@ -39,9 +38,19 @@ Wall-clock durations of every passing test are appended to
 of truth for setting timeouts — read it before raising or lowering a
 test-level timeout.
 
-## Production E2E
+## Where and when it runs
 
-Not currently wired up. If/when it is, the hard requirement is that
-**no Xero operations touch the real org** — Xero in prod is real
-accounting data and tests must be tagged/grep-skipped before they're
-allowed to run there.
+The Playwright `baseURL` is built from `APP_DOMAIN` in the backend
+`.env`, so the suite follows whichever hostname the backend is pointed
+at — the same `npm run test:e2e` works against any environment by
+swapping `APP_DOMAIN`.
+
+| Environment    | Cadence                  | Xero behaviour                                                                                                                        |
+| -------------- | ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------- |
+| **Dev**        | Ad-hoc during dev        | Real demo company, full suite                                                                                                         |
+| **UAT**        | Every release            | Real demo company, full suite                                                                                                         |
+| **Production** | Every release (manually) | **No Xero writes** — operator runs the suite carefully and skips/avoids Xero-touching tests by hand. There is no automated guard yet. |
+
+The prod-Xero-skip being manual is a known gap — the long-term answer
+is tagging Xero-touching tests and grep-skipping them in a prod-
+specific command, but that's not built yet.
