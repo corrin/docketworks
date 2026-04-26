@@ -53,7 +53,10 @@ export function getFrontendDir(): string {
 }
 
 export function getBackupsDir(): string {
-  return path.join(__dirname, '..', 'backups')
+  // <repoRoot>/restore/e2e — co-located with other DB restore artifacts.
+  // Kept out of frontend/tests/ so codesight's coverage detector doesn't
+  // try to join 400+ MB SQL dumps as "test files" (overflows V8's string cap).
+  return path.join(__dirname, '..', '..', '..', 'restore', 'e2e')
 }
 
 /**
@@ -186,11 +189,11 @@ export function runIntegrityCheck(
     }
   }
 
-  // Smoke query — confirms auth_user is queryable.
+  // Smoke query — confirms accounts_staff (custom user model) is queryable.
   try {
-    runPsql(dbConfig, `SELECT 1 FROM auth_user LIMIT 1`)
+    runPsql(dbConfig, `SELECT 1 FROM accounts_staff LIMIT 1`)
   } catch (e) {
-    issues.push(`auth_user smoke query failed: ${(e as Error).message}`)
+    issues.push(`accounts_staff smoke query failed: ${(e as Error).message}`)
   }
 
   return { ok: issues.length === 0, issues }

@@ -233,6 +233,7 @@ coverage/
 pnpm-lock.yaml
 test-results/
 frontend/test-results/
+frontend/test-history/
 frontend/playwright-report/
 frontend/manual/.vitepress/cache/
 frontend/manual/.vitepress/dist/

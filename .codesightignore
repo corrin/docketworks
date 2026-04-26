@@ -14,6 +14,9 @@ node_modules/
 playwright-report
 test-results
 
+# Per-test wall durations and per-action data accumulated across E2E runs.
+frontend/test-history/
+
 # Django migrations (misdetected as middleware)
 migrations
 

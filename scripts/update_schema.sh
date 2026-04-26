@@ -1,9 +1,9 @@
 #!/bin/bash
 # Regenerate the OpenAPI schema from the backend and rebuild the frontend API client.
-# Run from the repo root.
+# Run from any directory.
 set -e
 
 cd "$(git rev-parse --show-toplevel)"
-poetry run python manage.py spectacular --format openapi > frontend/schema.yml
+scripts/regen_openapi_schema.sh
 cd frontend
-npm run update-schema
+npm run gen:api

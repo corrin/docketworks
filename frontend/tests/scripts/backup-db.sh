@@ -5,7 +5,7 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FRONTEND_DIR="$SCRIPT_DIR/../.."
-BACKUP_DIR="$SCRIPT_DIR/../backups"
+BACKUP_DIR="$SCRIPT_DIR/../../../restore/e2e"
 
 # Backend .env is always one level up from frontend/
 BACKEND_ENV_PATH="$FRONTEND_DIR/../.env"

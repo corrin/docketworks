@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 181 components | 102 lib files | 13 env vars | 3 middleware | 0% test coverage
-> **Token savings:** this file is ~11,100 tokens. Without it, AI exploration would cost ~96,900 tokens. **Saves ~85,800 tokens per conversation.**
+> 0 routes | 0 models | 181 components | 102 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
+> **Token savings:** this file is ~11,300 tokens. Without it, AI exploration would cost ~98,300 tokens. **Saves ~87,000 tokens per conversation.**
 
 ---
 
@@ -567,10 +567,22 @@
 
 ---
 
+# Events & Queues
+
+- `uncaughtException` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
+- `mode` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
+- `readOnly` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
+- `lineNumbers` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
+- `lineWrapping` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
+- `placeholder` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
+- `change` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
+
+---
+
 # Test Coverage
 
 > **0%** of routes and models are covered by tests
-> 48 test files found
+> 49 test files found
 
 ---
 
