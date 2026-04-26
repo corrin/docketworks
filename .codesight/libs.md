@@ -625,6 +625,7 @@
   - function process_webhook_event: (event, Any]) -> None
   - function process_webhook_queue: () -> None
   - class XeroWebhookView
+- `conftest.py` — function django_db_setup: (django_db_blocker)
 - `docketworks/settings.py` — function validate_required_settings: () -> None
 - `frontend/src/api/client.ts`
   - function setupETagManager: (manager) => void

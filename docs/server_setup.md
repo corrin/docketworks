@@ -104,14 +104,28 @@ sudo scripts/server/instance.sh create <client> <env> --seed
    sudo -u dw-<name> git clone git@github.com:corrin/docketworks.git /opt/docketworks/instances/<name>
    ```
 
-2. **Create PostgreSQL database**
+2. **Create PostgreSQL databases and roles**
+
+   Two roles per instance: the app role owns the live and scrub DBs; a
+   separate test role owns only the pre-provisioned test DB and has no
+   CREATEDB, so a misconfigured pytest run cannot reach the app DB.
+
    ```bash
    sudo -u postgres psql <<SQL
    CREATE ROLE "dw_<name>" WITH LOGIN PASSWORD '<password>';
+   CREATE ROLE "dw_<name>_test" WITH LOGIN PASSWORD '<test_password>';
    CREATE DATABASE "dw_<name>" OWNER "dw_<name>";
+   CREATE DATABASE "dw_<name>_scrub" OWNER "dw_<name>";
+   CREATE DATABASE "test_dw_<name>" OWNER "dw_<name>_test";
    GRANT ALL PRIVILEGES ON DATABASE "dw_<name>" TO "dw_<name>";
+   GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_scrub" TO "dw_<name>";
+   GRANT ALL PRIVILEGES ON DATABASE "test_dw_<name>" TO "dw_<name>_test";
    SQL
    ```
+
+   Pytest never needs CREATEDB: `conftest.py` resets the public schema in
+   `test_dw_<name>` (the test role owns the DB) and re-runs migrations on
+   every session.
 
 3. **Generate `.env`** from `scripts/server/templates/env-instance.template`
    - Replace all `__PLACEHOLDER__` values
@@ -157,6 +171,35 @@ sudo scripts/server/instance.sh create <client> <env> --seed
    sudo ln -sf /etc/nginx/sites-available/docketworks-<name> /etc/nginx/sites-enabled/
    sudo nginx -t && sudo systemctl reload nginx
    ```
+
+### Migrating an instance created before per-tenant test roles
+
+Instances provisioned before the per-tenant test role landed used a
+cluster-wide `dw_test` role with `CREATEDB`. To migrate an existing
+instance (one-shot, as a Postgres superuser):
+
+```bash
+TEST_PWD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+sudo -u postgres psql <<SQL
+CREATE ROLE "dw_<name>_test" WITH LOGIN PASSWORD '$TEST_PWD';
+CREATE DATABASE "test_dw_<name>" OWNER "dw_<name>_test";
+GRANT ALL PRIVILEGES ON DATABASE "test_dw_<name>" TO "dw_<name>_test";
+SQL
+sudo -u dw_<name> vi /opt/docketworks/instances/<name>/.env
+# Add:
+#   TEST_DB_USER=dw_<name>_test
+#   TEST_DB_PASSWORD=<value of $TEST_PWD>
+```
+
+Once every instance has been migrated, drop the now-unused shared role:
+
+```bash
+sudo -u postgres psql <<'SQL'
+SELECT * FROM pg_database
+ WHERE datdba = (SELECT oid FROM pg_roles WHERE rolname = 'dw_test');  -- expect 0 rows
+DROP ROLE dw_test;
+SQL
+```
 
 ---
 

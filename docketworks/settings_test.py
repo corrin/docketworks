@@ -1,8 +1,10 @@
 """
-Test settings — uses dw_test user which has CREATEDB privilege.
+Test settings — connects pytest as the per-instance test role.
 
-The main DB user is tenant-isolated and cannot create databases.
-This file overrides just the DB credentials for the test runner.
+Each tenant has a separate role (dw_<instance>_test) that owns only the
+pre-provisioned test_dw_<instance> database — no CREATEDB, no access to
+the app DB. This file just swaps the DB credentials; conftest.py at the
+repo root handles schema reset and migrations.
 """
 
 import os
