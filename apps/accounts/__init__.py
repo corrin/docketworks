@@ -7,8 +7,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .managers import StaffManager
-        from .models import Staff
+        from .models import Staff, StaffManager
         from .permissions import CanManageTimesheets, IsStaff
         from .serializers import (
             BaseStaffSerializer,

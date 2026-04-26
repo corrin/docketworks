@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 365 lib files | 70 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,600 tokens. **Saves ~210,400 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 364 lib files | 70 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,300 tokens. **Saves ~210,100 tokens per conversation.**
 
 ---
 
@@ -939,8 +939,7 @@
 - `apps/accounting/services/wip_service.py` — class WIPService
 - `apps/accounts/apps.py` — class AccountsConfig
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
-- `apps/accounts/managers.py` — class StaffManager
-- `apps/accounts/models.py` — class Staff
+- `apps/accounts/models.py` — class StaffManager, class Staff
 - `apps/accounts/permissions.py` — class IsStaff, class CanManageTimesheets
 - `apps/accounts/serializers.py`
   - class EmptySerializer

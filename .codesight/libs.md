@@ -62,8 +62,7 @@
 - `apps/accounting/services/wip_service.py` — class WIPService
 - `apps/accounts/apps.py` — class AccountsConfig
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
-- `apps/accounts/managers.py` — class StaffManager
-- `apps/accounts/models.py` — class Staff
+- `apps/accounts/models.py` — class StaffManager, class Staff
 - `apps/accounts/permissions.py` — class IsStaff, class CanManageTimesheets
 - `apps/accounts/serializers.py`
   - class EmptySerializer
