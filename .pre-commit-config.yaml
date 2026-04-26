@@ -121,7 +121,7 @@ repos:
 
       - id: update-frontend-schema
         name: Update frontend OpenAPI schema
-        entry: bash -c 'poetry run python manage.py spectacular --format openapi > frontend/schema.yml && cd frontend && npx prettier --write schema.yml && cd .. && git add frontend/schema.yml'
+        entry: bash -c 'scripts/regen_openapi_schema.sh && git add frontend/schema.yml'
         language: system
         pass_filenames: false
         always_run: true
