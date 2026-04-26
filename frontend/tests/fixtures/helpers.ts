@@ -61,6 +61,12 @@ export function enableNetworkLogging(
       return
     }
 
+    // Generated-PDF endpoints stream multi-hundred-KB binaries by design;
+    // the wire-size guard is meant to catch missing-filter bugs on JSON
+    // listings, not flag legitimate document downloads.
+    const isGeneratedPdfEndpoint =
+      url.includes('/delivery-docket/') || url.includes('/workshop-pdf/')
+
     try {
       const request = response.request()
       const method = request.method()
@@ -92,7 +98,7 @@ export function enableNetworkLogging(
       appendFileSync(networkCsvPath, row + '\n')
 
       // Assert on wire size (compressed transfer) - catch bugs like missing filters
-      if (wireSizeKB > maxResponseKB) {
+      if (wireSizeKB > maxResponseKB && !isGeneratedPdfEndpoint) {
         throw new Error(
           `API response too large on wire: ${method} ${shortUrl} transferred ${wireSizeKB.toFixed(1)}KB ` +
             `(decompressed: ${contentSizeKB.toFixed(1)}KB, max wire: ${maxResponseKB}KB). ` +
