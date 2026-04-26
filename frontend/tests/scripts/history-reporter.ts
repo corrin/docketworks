@@ -6,12 +6,17 @@ import AdmZip from 'adm-zip'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-interface PassedTest {
+type CompletedStatus = 'passed' | 'failed' | 'timedOut' | 'interrupted'
+
+interface CompletedTest {
   file: string
   testPath: string
   durationMs: number
+  status: CompletedStatus
   tracePath?: string
 }
+
+const TEST_RUNS_HEADER = 'run_id,run_date,test_file,test_path,duration_ms,status\n'
 
 interface TraceEntry {
   type: string
@@ -115,20 +120,35 @@ export default class HistoryReporter implements Reporter {
     const testRunsFile = path.join(historyDir, 'test-runs.csv')
     const actionsFile = path.join(historyDir, 'timing-aggregate.csv')
 
-    const passed: PassedTest[] = []
+    // History only captures pass durations and flake/timeout failures. A
+    // test that fails fast (<2s) is almost always infra — server killed,
+    // ECONNREFUSED, etc. — not a real flake, so we drop it.
+    const FLAKE_MIN_DURATION_MS = 2000
+    const completed: CompletedTest[] = []
     const walk = (s: Suite): void => {
       for (const t of s.tests) {
         const result = t.results[t.results.length - 1]
-        if (result?.status !== 'passed') continue
+        if (!result) continue
+        if (result.status === 'passed') {
+          // always recorded
+        } else if (
+          (result.status === 'failed' || result.status === 'timedOut') &&
+          result.duration >= FLAKE_MIN_DURATION_MS
+        ) {
+          // real flake/timeout
+        } else {
+          continue
+        }
         // titlePath: ['', projectName, file, ...describes, testTitle]
         const parts = t.titlePath()
         const file = parts[2] || ''
         const testPath = parts.slice(3).join(' > ')
         const trace = result.attachments.find((a) => a.name === 'trace')
-        passed.push({
+        completed.push({
           file,
           testPath,
           durationMs: result.duration,
+          status: result.status,
           tracePath: trace?.path,
         })
       }
@@ -136,8 +156,8 @@ export default class HistoryReporter implements Reporter {
     }
     walk(this.rootSuite)
 
-    if (passed.length === 0) {
-      console.log('[history] No passing tests in this run; nothing to append.')
+    if (completed.length === 0) {
+      console.log('[history] No completed tests in this run; nothing to append.')
       return
     }
 
@@ -145,18 +165,27 @@ export default class HistoryReporter implements Reporter {
     const runId = Math.random().toString(36).substring(2, 10)
     const runDate = new Date().toISOString()
 
-    // Per-test summary — primary artifact for setting timeouts.
-    const runsHeader = 'run_id,run_date,test_file,test_path,duration_ms\n'
-    const runsRows = passed
+    // Per-test summary — primary artifact for setting timeouts and spotting
+    // flakes. Status distinguishes pass/fail/timeout/interrupted; duration_ms
+    // is wall-clock to completion (or the failure point).
+    const runsRows = completed
       .map((r) =>
-        [runId, runDate, csvCell(r.file), csvCell(r.testPath), Math.round(r.durationMs)].join(','),
+        [
+          runId,
+          runDate,
+          csvCell(r.file),
+          csvCell(r.testPath),
+          Math.round(r.durationMs),
+          r.status,
+        ].join(','),
       )
       .join('\n')
-    appendCsv(testRunsFile, runsHeader, runsRows + '\n')
+    appendCsv(testRunsFile, TEST_RUNS_HEADER, runsRows + '\n')
 
-    // Per-action data for deep dives, passing tests only.
+    // Per-action data for deep dives — every test we have a trace for, pass
+    // or fail, so failure traces are queryable too.
     let actionRows: string[] = []
-    for (const run of passed) {
+    for (const run of completed) {
       if (!run.tracePath) continue
       let actions: ReturnType<typeof extractActions>
       try {
@@ -185,8 +214,10 @@ export default class HistoryReporter implements Reporter {
       appendCsv(actionsFile, actionsHeader, actionRows.join('\n') + '\n')
     }
 
+    const passCount = completed.filter((c) => c.status === 'passed').length
+    const failCount = completed.length - passCount
     console.log(
-      `[history] Run ${runId}: ${passed.length} passing tests, ` +
+      `[history] Run ${runId}: ${passCount} passing, ${failCount} non-passing tests, ` +
         `${actionRows.length} actions -> ${historyDir}/`,
     )
   }
