@@ -214,6 +214,12 @@ gcp-credentials.json
 gunicorn.sock
 *.zip
 
+# Per-instance FQDN override written by instance-provisioning; read by get_fqdn()
+.fqdn
+
+# Per-instance Maestral (Dropbox sync) virtualenv
+maestral-venv/
+
 # AI provider keys (copy from .example and add real keys)
 apps/workflow/fixtures/ai_providers.json
 apps/workflow/fixtures/ai_providers_uat.json
