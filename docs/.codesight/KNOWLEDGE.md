@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 107 notes · 14 decisions · 10 open questions · 2026-02-24 → 2026-03-05
+> 102 notes · 14 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-03-05 (107 notes). Key topics: tips, alternatives considered, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 102 notes. Key topics: tips, alternatives considered, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
 ## Key Decisions (14)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
@@ -35,7 +35,7 @@
 tips · alternatives considered · steps · what youll need · what happens next · troubleshooting · prerequisites · purpose · development workflow · license · step 1 prepare credentials · step 2 create instance
 
 ## People
-@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @click · @row · @fill
+@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -45,7 +45,7 @@ tips · alternatives considered · steps · what youll need · what happens next
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (107)
+## Note Index (102)
 
 ### Decision Records (12)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
@@ -61,8 +61,7 @@ tips · alternatives considered · steps · what youll need · what happens next
 - `docs/adr/0012-accounting-provider-strategy.md` — Introduce an `AccountingProvider` protocol with per-backend implementations (Xero today, MYOB next) resolved at request time via `get_provider()` — runtime poly…
 - `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 
-### Specs & PRDs (8)
-- `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
+### Specs & PRDs (7)
 - `docs/production-mysql-to-postgres-migration.md` ← 1 refs — Every command and its key output must be logged, same as the backup-restore process.
 - `docs/test_plans/client_contact_management_test_plan.md` — This test plan covers the new client contact management system that replaces Xero contact syncing with local contact storage.
 - `frontend/docs/ZODIOS_REFACTOR_GUIDE.md` — **COMPLETE MIGRATION** from raw Axios + handwritten interfaces to Zodios API client
@@ -78,10 +77,7 @@ tips · alternatives considered · steps · what youll need · what happens next
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (84)
-- `frontend/docs/plans/2026-03-05-backend-requirements-process-documents.md` — 2026-03-05 — **Context:** The frontend needs these API changes to build the Process Documents UI. The ProcessDocument and ProcessDocumentEntry models already exist. Some end…
-- `frontend/docs/plans/2026-03-05-process-documents-implementation.md` — 2026-03-05 — **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
-- `frontend/docs/plans/2026-02-24-payroll-reconciliation-design.md` — 2026-02-24 — **For Claude:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task.
+### General Notes (80)
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
 - `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
@@ -99,7 +95,10 @@ tips · alternatives considered · steps · what youll need · what happens next
 - `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
 - `docs/test_pdfs/price_lists/1.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
 - `docs/test_pdfs/price_lists/2.md` — Effective 1st April 2025 (All Prices Excl. GST)
-- _…and 64 more_
+- `docs/test_pdfs/price_lists/3.md` — **Attention:** Craig/Nigel
+- `docs/test_pdfs/price_lists/4.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
+- `docs/trello.md` — Quick reference for the board this project tracks work on. The board and column layout change rarely; IDs are stable across sessions. If the MCP reports anythin…
+- _…and 60 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
