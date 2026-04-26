@@ -11,6 +11,10 @@ DB_PASSWORD=__DB_PASSWORD__
 DB_HOST=/var/run/postgresql
 DB_PORT=
 SCRUB_DB_NAME=__SCRUB_DB_NAME__
+# Pytest connects as a separate role that owns only the pre-provisioned
+# test_dw_<instance> database — no CREATEDB and no access to the app DB.
+TEST_DB_USER=__TEST_DB_USER__
+TEST_DB_PASSWORD=__TEST_DB_PASSWORD__
 
 # Used by settings.py for both CORS and CSRF trusted origins (single-origin)
 CORS_ALLOWED_ORIGINS=https://__FQDN__

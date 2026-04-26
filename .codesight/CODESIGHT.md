@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 364 lib files | 70 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,300 tokens. **Saves ~210,100 tokens per conversation.**
+> 94 routes | 44 models | 181 components | 365 lib files | 70 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,600 tokens. **Saves ~210,300 tokens per conversation.**
 
 ---
 
@@ -1502,6 +1502,7 @@
   - function process_webhook_event: (event, Any]) -> None
   - function process_webhook_queue: () -> None
   - class XeroWebhookView
+- `conftest.py` — function django_db_setup: (django_db_blocker)
 - `docketworks/settings.py` — function validate_required_settings: () -> None
 - `frontend/src/api/client.ts`
   - function setupETagManager: (manager) => void

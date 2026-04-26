@@ -164,6 +164,8 @@ do_create() {
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
     local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
+    local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
+    local TEST_DB_NAME="test_dw_${CLIENT}_${ENV}"
 
     log "=========================================="
     log "Creating docketworks instance: $INSTANCE"
@@ -249,8 +251,9 @@ BASH_PROFILE
     if [[ -f "$INSTANCE_DIR/.env" ]]; then
         log ".env already exists — skipping (credentials preserved)."
     else
-        local DB_PASSWORD SECRET_KEY BEARER_SECRET
+        local DB_PASSWORD TEST_DB_PASSWORD SECRET_KEY BEARER_SECRET
         DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
+        TEST_DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
         SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
         BEARER_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
 
@@ -276,6 +279,8 @@ BASH_PROFILE
             -e "s|__DB_USER__|$DB_USER|g" \
             -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
             -e "s|__SCRUB_DB_NAME__|$SCRUB_DB_NAME|g" \
+            -e "s|__TEST_DB_USER__|$TEST_DB_USER|g" \
+            -e "s|__TEST_DB_PASSWORD__|$TEST_DB_PASSWORD|g" \
             -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
             -e "s|__BEARER_SECRET__|$BEARER_SECRET|g" \
             -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
@@ -302,12 +307,27 @@ BASH_PROFILE
         chmod 600 "$INSTANCE_DIR/.env"
     fi
 
-    # --- Ensure database and DB user exist (always, even if .env was preserved) ---
-    local DB_PASSWORD
+    # --- Ensure databases and DB users exist (always, even if .env was preserved) ---
+    # Two roles per tenant, each owning only its own DB(s):
+    #   $DB_USER      → $DB_NAME (app), $SCRUB_DB_NAME (backport scrubber)
+    #   $TEST_DB_USER → $TEST_DB_NAME (pytest)
+    # Test role has no CREATEDB; the test DB is pre-provisioned here so pytest
+    # never needs cluster-level privileges. Keeping it separate from $DB_USER
+    # means a misconfigured pytest run cannot reach the app DB.
+    local DB_PASSWORD TEST_DB_PASSWORD
     DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$DB_PASSWORD")"
+    TEST_DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$TEST_DB_PASSWORD")"
+    if [[ -z "$TEST_DB_PASSWORD" ]]; then
+        echo "ERROR: TEST_DB_PASSWORD missing from $INSTANCE_DIR/.env" >&2
+        echo "  This instance was created before per-tenant test roles were added." >&2
+        echo "  Run the one-off migration first:" >&2
+        echo "    sudo scripts/server/migrate-test-role.sh $INSTANCE" >&2
+        exit 1
+    fi
     # Escape single quotes for safe SQL interpolation
     local SQL_PASSWORD="${DB_PASSWORD//\'/\'\'}"
-    log "Ensuring databases $DB_NAME and $SCRUB_DB_NAME and user $DB_USER exist..."
+    local SQL_TEST_PASSWORD="${TEST_DB_PASSWORD//\'/\'\'}"
+    log "Ensuring databases $DB_NAME, $SCRUB_DB_NAME, $TEST_DB_NAME and roles $DB_USER, $TEST_DB_USER exist..."
     sudo -u postgres psql <<EOSQL
 DO \$\$
 BEGIN
@@ -315,6 +335,11 @@ BEGIN
         CREATE ROLE "$DB_USER" WITH LOGIN PASSWORD '$SQL_PASSWORD';
     ELSE
         ALTER ROLE "$DB_USER" WITH PASSWORD '$SQL_PASSWORD';
+    END IF;
+    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = '$TEST_DB_USER') THEN
+        CREATE ROLE "$TEST_DB_USER" WITH LOGIN PASSWORD '$SQL_TEST_PASSWORD';
+    ELSE
+        ALTER ROLE "$TEST_DB_USER" WITH PASSWORD '$SQL_TEST_PASSWORD';
     END IF;
 END
 \$\$;
@@ -324,6 +349,9 @@ GRANT ALL PRIVILEGES ON DATABASE "$DB_NAME" TO "$DB_USER";
 SELECT 'CREATE DATABASE "$SCRUB_DB_NAME" OWNER "$DB_USER"'
 WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$SCRUB_DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$SCRUB_DB_NAME" TO "$DB_USER";
+SELECT 'CREATE DATABASE "$TEST_DB_NAME" OWNER "$TEST_DB_USER"'
+WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$TEST_DB_NAME')\gexec
+GRANT ALL PRIVILEGES ON DATABASE "$TEST_DB_NAME" TO "$TEST_DB_USER";
 EOSQL
 
     # --- Clone repo directly into instance dir (instance dir = git checkout) ---
@@ -477,12 +505,18 @@ do_destroy() {
     local DB_NAME="dw_${CLIENT}_${ENV}"
     local DB_USER="dw_${CLIENT}_${ENV}"
     local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
+    local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
+    local TEST_DB_NAME="test_dw_${CLIENT}_${ENV}"
 
     echo "=== Destroying instance: $INSTANCE ==="
     echo ""
     echo "  This will permanently delete:"
     echo "    - Directory: $INSTANCE_DIR"
     echo "    - Database:  $DB_NAME"
+    echo "    - Database:  $SCRUB_DB_NAME"
+    echo "    - Database:  $TEST_DB_NAME"
+    echo "    - DB role:   $DB_USER"
+    echo "    - DB role:   $TEST_DB_USER"
     echo "    - User:      $INSTANCE_USER"
     echo "    - Service:   gunicorn-$INSTANCE"
     echo "    - Service:   scheduler-$INSTANCE"
@@ -525,11 +559,13 @@ do_destroy() {
         nginx -t && systemctl reload nginx
     fi
 
-    # --- Drop databases and user ---
-    echo "=== Dropping databases and user ==="
+    # --- Drop databases and users ---
+    echo "=== Dropping databases and users ==="
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$DB_NAME\";" || true
     sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$SCRUB_DB_NAME\";" || true
+    sudo -u postgres psql -c "DROP DATABASE IF EXISTS \"$TEST_DB_NAME\";" || true
     sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$DB_USER\";" || true
+    sudo -u postgres psql -c "DROP ROLE IF EXISTS \"$TEST_DB_USER\";" || true
 
     # --- Remove files ---
     if [[ -d "$INSTANCE_DIR" ]]; then

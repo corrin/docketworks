@@ -161,9 +161,9 @@ systemctl enable --now postgresql
 
 # Allow password auth over sockets for app users (keep peer for postgres).
 # Per-instance OS users share the same name as their DB role
-# (dw_<client>_<env>), so peer auth would also work for them — but the
-# shared dw_test pytest user has no matching Linux user and requires
-# password auth. Keep the setting uniform for all non-postgres roles.
+# (dw_<client>_<env>), so peer auth works for them — but per-instance
+# pytest roles (dw_<client>_<env>_test) have no matching Linux user and
+# require password auth. Keep the setting uniform for all non-postgres roles.
 PG_HBA="$(sudo -u postgres psql -t -c 'SHOW hba_file;' | tr -d ' ')"
 if grep -q 'local.*all.*all.*peer' "$PG_HBA"; then
     log "Configuring pg_hba.conf for password auth over sockets..."
@@ -171,21 +171,8 @@ if grep -q 'local.*all.*all.*peer' "$PG_HBA"; then
     systemctl reload postgresql
 fi
 
-# --- Shared test runner user (used by all tenants for pytest) ---
-
-log "Ensuring shared test DB user 'dw_test'..."
-sudo -u postgres psql <<'EOSQL'
-DO $$
-BEGIN
-    IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'dw_test') THEN
-        CREATE ROLE dw_test WITH LOGIN PASSWORD 'dw_test' CREATEDB;
-    ELSE
-        ALTER ROLE dw_test WITH PASSWORD 'dw_test' CREATEDB;
-    END IF;
-END
-$$;
-EOSQL
-log "  Test DB user ready."
+# Test DB roles and DBs are provisioned per-instance by instance.sh — no
+# cluster-wide test role exists. See scripts/server/instance.sh do_create.
 
 # --- Nginx ---
 
