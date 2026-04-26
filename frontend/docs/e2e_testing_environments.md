@@ -206,7 +206,7 @@ test('view KPI report', { tag: '@readonly' }, async ({ page }) => {
 
 ### Backup Storage
 
-`tests/backups/` (not committed to git)
+`<repoRoot>/restore/e2e/` (not committed to git)
 
 - Keeps last 5 backups
 - Older backups auto-deleted
@@ -381,7 +381,7 @@ jobs:
 ### "Database restore failed"
 
 - Check PostgreSQL credentials in `.env.test`
-- Ensure backup file exists in `tests/backups/`
+- Ensure backup file exists in `<repoRoot>/restore/e2e/`
 - Verify PostgreSQL user has restore permissions
 
 ### "Tests fail in production but pass in dev"

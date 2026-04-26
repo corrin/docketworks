@@ -624,18 +624,18 @@ set -e
 source .env.test
 
 # Create backups directory
-mkdir -p tests/backups
+mkdir -p ../restore/e2e
 
 # Generate timestamp
 TIMESTAMP=$(date +%Y%m%d_%H%M%S)
 
 # Backup database
-pg_dump -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_NAME > tests/backups/backup_$TIMESTAMP.sql
+pg_dump -h $DB_HOST -P $DB_PORT -u $DB_USER -p$DB_PASSWORD $DB_NAME > ../restore/e2e/backup_$TIMESTAMP.sql
 
 # Keep only last 5 backups
-ls -t tests/backups/backup_*.sql | tail -n +6 | xargs rm -f
+ls -t ../restore/e2e/backup_*.sql | tail -n +6 | xargs rm -f
 
-echo "Database backed up to tests/backups/backup_$TIMESTAMP.sql"
+echo "Database backed up to ../restore/e2e/backup_$TIMESTAMP.sql"
 ```
 
 ### Restore Script (`tests/scripts/restore-db.sh`)
@@ -648,7 +648,7 @@ set -e
 source .env.test
 
 # Find latest backup
-LATEST_BACKUP=$(ls -t tests/backups/backup_*.sql | head -n 1)
+LATEST_BACKUP=$(ls -t ../restore/e2e/backup_*.sql | head -n 1)
 
 if [ -z "$LATEST_BACKUP" ]; then
   echo "No backup found! Skipping restore."
