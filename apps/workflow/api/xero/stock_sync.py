@@ -192,34 +192,7 @@ def sync_stock_to_xero(
         ).first()
     )
 
-    item_data = {
-        "Code": stock_item.item_code,
-        "Name": (stock_item.description or "")[:50],
-        "Description": stock_item.description,
-        "IsTrackedAsInventory": True,
-        "QuantityOnHand": float(stock_item.quantity),
-    }
-
-    if purchase_account and stock_item.unit_cost is not None:
-        item_data["PurchaseDetails"] = {
-            "UnitPrice": float(stock_item.unit_cost),
-            "AccountCode": purchase_account.account_code,
-        }
-    else:
-        logger.warning(
-            f"Missing purchase account or unit_cost for stock {stock_item.id}"
-        )
-
-    if stock_item.unit_revenue and stock_item.unit_revenue > 0 and sales_account:
-        item_data["SalesDetails"] = {
-            "UnitPrice": float(stock_item.unit_revenue),
-            "AccountCode": sales_account.account_code,
-        }
-    else:
-        logger.warning(
-            f"Missing sales account or unit_revenue for stock {stock_item.id}: "
-            f"unit_revenue={stock_item.unit_revenue}, sales_account={sales_account}"
-        )
+    item_data = _build_stock_item_payload(stock_item, purchase_account, sales_account)
 
     logger.info(f"Sending item data to Xero: {item_data}")
 
@@ -340,9 +313,48 @@ def sync_stock_to_xero(
         return False
 
 
+def _build_stock_item_payload(
+    stock_item: Stock, purchase_account: Any, sales_account: Any
+) -> Dict[str, Any]:
+    """Build a Xero items payload dict from a Stock instance."""
+    item_data: Dict[str, Any] = {
+        "Code": stock_item.item_code,
+        "Name": (stock_item.description or "")[:50],
+        "Description": stock_item.description,
+        "IsTrackedAsInventory": True,
+        "QuantityOnHand": float(stock_item.quantity),
+    }
+
+    if purchase_account and stock_item.unit_cost is not None:
+        item_data["PurchaseDetails"] = {
+            "UnitPrice": float(stock_item.unit_cost),
+            "AccountCode": purchase_account.account_code,
+        }
+    else:
+        logger.warning(
+            f"Missing purchase account or unit_cost for stock {stock_item.id}"
+        )
+
+    if stock_item.unit_revenue and stock_item.unit_revenue > 0 and sales_account:
+        item_data["SalesDetails"] = {
+            "UnitPrice": float(stock_item.unit_revenue),
+            "AccountCode": sales_account.account_code,
+        }
+    else:
+        logger.warning(
+            f"Missing sales account or unit_revenue for stock {stock_item.id}: "
+            f"unit_revenue={stock_item.unit_revenue}, sales_account={sales_account}"
+        )
+
+    return item_data
+
+
 def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
     """
     Sync all local stock items that don't have xero_id to Xero.
+
+    Creates are batched (up to 50 per Xero API call). Updates remain per-item
+    since Xero's update_item endpoint is keyed by ItemID and has no batch form.
 
     Args:
         limit: Optional limit on number of items to sync
@@ -352,7 +364,6 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
     """
     logger.info("Starting sync of local stock items to Xero")
 
-    # Get stock items that need syncing (no xero_id and active)
     queryset = Stock.objects.filter(xero_id__isnull=True, is_active=True).order_by(
         "date"
     )
@@ -363,40 +374,158 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
     total_items = queryset.count()
     synced_count = 0
     failed_count = 0
-    failed_items = []
+    failed_items: list = []
 
     logger.info(f"Found {total_items} stock items to sync to Xero")
 
-    # Fetch all Xero items once for efficient lookup
     api = AccountingApi(api_client)
     tenant_id = get_tenant_id()
     xero_items_lookup = fetch_all_xero_items(api, tenant_id)
 
+    purchase_account = (
+        XeroAccount.objects.filter(account_code="300").first()
+        or XeroAccount.objects.filter(
+            account_type__in=["EXPENSE", "DIRECTCOSTS"]
+        ).first()
+    )
+    sales_account = (
+        XeroAccount.objects.filter(account_code="200").first()
+        or XeroAccount.objects.filter(
+            account_type__in=["REVENUE", "OTHERINCOME"]
+        ).first()
+    )
+
+    # First pass: validate, generate codes, link existing-by-Code, partition into
+    # create vs update queues. This is DB-only — no Xero API calls.
+    items_to_create: list = []  # list of (stock_item, payload)
+    items_to_update: list = []  # list of (stock_item, payload) — linked by Code
+
     for stock_item in queryset:
-        try:
-            if sync_stock_to_xero(stock_item, xero_items_lookup):
-                synced_count += 1
-                logger.info(f"Successfully synced stock item {stock_item.id}")
-            else:
+        if not validate_stock_for_xero(stock_item):
+            failed_count += 1
+            failed_items.append(
+                {
+                    "id": str(stock_item.id),
+                    "description": stock_item.description,
+                    "reason": "Validation failed",
+                }
+            )
+            continue
+
+        if not (stock_item.item_code and stock_item.item_code.strip()):
+            stock_item.item_code = generate_item_code(stock_item)
+            stock_item.save(update_fields=["item_code"])
+            logger.info(
+                f"Generated item_code '{stock_item.item_code}' for stock {stock_item.id}"
+            )
+
+        payload = _build_stock_item_payload(stock_item, purchase_account, sales_account)
+
+        existing = get_xero_item_by_code_from_lookup(
+            stock_item.item_code, xero_items_lookup
+        )
+        if existing:
+            if not _ensure_unique_xero_link(
+                stock_item,
+                xero_item_id=existing.item_id,
+                item_code=stock_item.item_code,
+                operation="sync_all_local_stock_to_xero_link",
+            ):
                 failed_count += 1
                 failed_items.append(
                     {
                         "id": str(stock_item.id),
                         "description": stock_item.description,
-                        "reason": "Validation failed or API error",
+                        "reason": "Duplicate Code linkage refused",
                     }
                 )
-                logger.warning(f"Failed to sync stock item {stock_item.id}")
+                continue
+
+            stock_item.xero_id = existing.item_id
+            stock_item.xero_last_modified = timezone.now()
+            stock_item.xero_last_synced = timezone.now()
+            stock_item.save(
+                update_fields=["xero_id", "xero_last_modified", "xero_last_synced"]
+            )
+            logger.info(
+                f"Linked local stock {stock_item.id} to existing Xero item "
+                f"{stock_item.xero_id} by Code"
+            )
+            items_to_update.append((stock_item, payload))
+        else:
+            items_to_create.append((stock_item, payload))
+
+    # Batch creates: ceil(N/50) API calls instead of N.
+    batch_size = 50
+    for i in range(0, len(items_to_create), batch_size):
+        batch = items_to_create[i : i + batch_size]
+        items_payload = [data for _, data in batch]
+        item_by_code = {data["Code"]: stock for stock, data in batch}
+
+        logger.info(
+            f"Creating batch of {len(items_payload)} stock items in Xero "
+            f"(batch {i // batch_size + 1})"
+        )
+        try:
+            resp = api.create_items(tenant_id, items={"Items": items_payload})
+            time.sleep(SLEEP_TIME)
+        except Exception as e:
+            logger.error(
+                f"Failed to create batch of {len(items_payload)} stock items: {e}"
+            )
+            for stock_item, _ in batch:
+                failed_count += 1
+                failed_items.append(
+                    {
+                        "id": str(stock_item.id),
+                        "description": stock_item.description,
+                        "reason": f"Batch create failed: {e}",
+                    }
+                )
+            continue
+
+        created = getattr(resp, "items", None) or getattr(resp, "Items", None) or []
+        for created_item in created:
+            code = getattr(created_item, "code", None)
+            stock_item = item_by_code.get(code)
+            if stock_item is None:
+                logger.warning(
+                    f"Could not map created Xero item with code '{code}' back to local stock"
+                )
+                continue
+            stock_item.xero_id = created_item.item_id
+            stock_item.xero_last_modified = timezone.now()
+            stock_item.xero_last_synced = timezone.now()
+            stock_item.save(
+                update_fields=["xero_id", "xero_last_modified", "xero_last_synced"]
+            )
+            synced_count += 1
+            logger.info(
+                f"Created stock item {stock_item.id} in Xero with ID {stock_item.xero_id}"
+            )
+
+    # Per-item updates for items linked by Code (Xero update_item has no batch form).
+    for stock_item, payload in items_to_update:
+        payload["ItemID"] = stock_item.xero_id
+        try:
+            api.update_item(
+                tenant_id, item_id=stock_item.xero_id, items={"Items": [payload]}
+            )
+            time.sleep(SLEEP_TIME)
+            stock_item.xero_last_synced = timezone.now()
+            stock_item.save(update_fields=["xero_last_synced"])
+            synced_count += 1
+            logger.info(f"Updated stock item {stock_item.id} in Xero")
         except Exception as e:
             failed_count += 1
             failed_items.append(
                 {
                     "id": str(stock_item.id),
                     "description": stock_item.description,
-                    "reason": str(e),
+                    "reason": f"Update failed: {e}",
                 }
             )
-            logger.error(f"Exception syncing stock item {stock_item.id}: {str(e)}")
+            logger.error(f"Failed to update stock item {stock_item.id}: {e}")
 
     # Clamp success_rate to 0-100 range for valid progress bar display
     raw_rate = (synced_count / total_items * 100) if total_items > 0 else 0
