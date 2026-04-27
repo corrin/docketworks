@@ -10,6 +10,7 @@ from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.operations.models import AllocationBlock, JobProjection, SchedulerRun
 from apps.operations.models.job_projection import UnscheduledReason
+from apps.operations.services.capacity import booked_hours_by_staff_date
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +24,8 @@ class JobScheduleState:
 
     job: Job
     remaining_hours: float
+    original_remaining_hours: float
+    assigned_staff_pks: frozenset = frozenset()
     start_date: Optional[date] = None
     end_date: Optional[date] = None
 
@@ -127,7 +130,14 @@ def _classify_jobs(
             )
             continue
 
-        schedulable.append(JobScheduleState(job=job, remaining_hours=remaining_hours))
+        schedulable.append(
+            JobScheduleState(
+                job=job,
+                remaining_hours=remaining_hours,
+                original_remaining_hours=remaining_hours,
+                assigned_staff_pks=frozenset(p.pk for p in job.people.all()),
+            )
+        )
 
     return schedulable, unschedulable
 
@@ -136,6 +146,7 @@ def _simulate(
     schedulable: List[JobScheduleState],
     all_staff: List[Staff],
     today: date,
+    efficiency_factor: float,
 ) -> List[AllocationBlock]:
     """
     Day-by-day greedy scheduling simulation.
@@ -148,18 +159,26 @@ def _simulate(
 
     active_jobs = list(schedulable)  # copy — we pop completed jobs out
 
+    horizon_end = today + timedelta(days=SCHEDULE_HORIZON_DAYS - 1)
+    booked_hours = booked_hours_by_staff_date(today, horizon_end)
+
     for day_offset in range(SCHEDULE_HORIZON_DAYS):
         if not active_jobs:
             break
 
         current_date = today + timedelta(days=day_offset)
 
-        # Build per-staff remaining capacity for today
+        # Build per-staff schedulable capacity for today: clock hours minus
+        # any time already booked (worked or leave), scaled by the efficiency
+        # factor so estimates expressed in productive hours match.
         staff_capacity: Dict[int, float] = {}
         for staff_member in all_staff:
-            daily_hours = staff_member.get_scheduled_hours(current_date)
-            if daily_hours > 0:
-                staff_capacity[staff_member.pk] = daily_hours
+            nominal = staff_member.get_scheduled_hours(current_date)
+            already_booked = booked_hours.get((str(staff_member.pk), current_date), 0.0)
+            clock_remaining = max(0.0, nominal - already_booked)
+            available = clock_remaining * efficiency_factor
+            if available > 0:
+                staff_capacity[staff_member.pk] = available
 
         available_staff = [s for s in all_staff if s.pk in staff_capacity]
 
@@ -177,16 +196,20 @@ def _simulate(
                 still_active.append(state)
                 continue
 
-            # Pick the workers with most remaining capacity today
-            eligible = sorted(
-                available_staff,
+            # Prefer staff explicitly assigned to this job; fill remaining
+            # slots from the rest of the available pool. Within each tier,
+            # pick the workers with most remaining capacity today.
+            preferred = sorted(
+                (s for s in available_staff if s.pk in state.assigned_staff_pks),
                 key=lambda s: staff_capacity[s.pk],
                 reverse=True,
             )
-            assigned = eligible[:workers_to_assign]
-
-            if state.start_date is None:
-                state.start_date = current_date
+            others = sorted(
+                (s for s in available_staff if s.pk not in state.assigned_staff_pks),
+                key=lambda s: staff_capacity[s.pk],
+                reverse=True,
+            )
+            assigned = (preferred + others)[:workers_to_assign]
 
             hours_allocated_today = 0.0
             for worker in assigned:
@@ -212,8 +235,16 @@ def _simulate(
                 staff_capacity[worker.pk] -= worker_hours
                 hours_allocated_today += worker_hours
 
+            # Only mark the job as having "started" / "moved" today if some
+            # work actually got allocated. A day where every chosen worker
+            # had drained capacity (e.g. consumed by a higher-priority job)
+            # must not count toward start_date or end_date.
+            if hours_allocated_today > 0:
+                if state.start_date is None:
+                    state.start_date = current_date
+                state.end_date = current_date
+
             state.remaining_hours -= hours_allocated_today
-            state.end_date = current_date
 
             if state.remaining_hours <= 0:
                 state.remaining_hours = 0.0
@@ -233,19 +264,37 @@ def _persist_results(
     blocks: List[AllocationBlock],
 ) -> SchedulerRun:
     """Create SchedulerRun, JobProjection, and AllocationBlock records."""
-    timezone.now().date()
-
     total_jobs = len(schedulable) + len(unschedulable)
+    not_reached_count = sum(1 for s in schedulable if s.start_date is None)
     scheduler_run = SchedulerRun.objects.create(
         algorithm_version=ALGORITHM_VERSION,
         succeeded=True,
         job_count=total_jobs,
-        unscheduled_count=len(unschedulable),
+        unscheduled_count=len(unschedulable) + not_reached_count,
     )
 
     projections: List[JobProjection] = []
 
     for state in schedulable:
+        if state.start_date is None:
+            # Job was schedulable in principle but the simulator never managed
+            # to allocate any work within the horizon (higher-priority jobs
+            # consumed every available hour). Mark as unscheduled so the
+            # frontend doesn't try to render it on the calendar.
+            projections.append(
+                JobProjection(
+                    scheduler_run=scheduler_run,
+                    job=state.job,
+                    anticipated_start_date=None,
+                    anticipated_end_date=None,
+                    remaining_hours=state.original_remaining_hours,
+                    is_late=False,
+                    is_unscheduled=True,
+                    unscheduled_reason=UnscheduledReason.NOT_REACHED_IN_HORIZON,
+                )
+            )
+            continue
+
         is_late = False
         if state.job.delivery_date and state.end_date:
             is_late = state.end_date > state.job.delivery_date
@@ -256,7 +305,7 @@ def _persist_results(
                 job=state.job,
                 anticipated_start_date=state.start_date,
                 anticipated_end_date=state.end_date,
-                remaining_hours=state.remaining_hours,
+                remaining_hours=state.original_remaining_hours,
                 is_late=is_late,
                 is_unscheduled=False,
             )
@@ -294,12 +343,14 @@ def run_workshop_schedule() -> SchedulerRun:
     Returns the SchedulerRun record.
     Raises on failure — caller must handle via persist_app_error.
     """
-    today = timezone.now().date()
+    from apps.workflow.models.company_defaults import CompanyDefaults
+
+    today = timezone.localdate()
 
     jobs = list(
         Job.objects.filter(status__in=["approved", "in_progress"])
         .select_related("latest_estimate", "latest_quote", "latest_actual")
-        .prefetch_related("latest_actual__cost_lines")
+        .prefetch_related("latest_actual__cost_lines", "people")
     )
 
     all_staff = _gather_workshop_staff(today)
@@ -309,7 +360,8 @@ def run_workshop_schedule() -> SchedulerRun:
     # Sort schedulable jobs descending by priority
     schedulable.sort(key=lambda s: s.job.priority, reverse=True)
 
-    blocks = _simulate(schedulable, all_staff, today)
+    efficiency_factor = float(CompanyDefaults.get_solo().workshop_efficiency_factor)
+    blocks = _simulate(schedulable, all_staff, today, efficiency_factor)
 
     scheduler_run = _persist_results(schedulable, unschedulable, blocks)
 

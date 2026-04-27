@@ -5,6 +5,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
+        from .capacity import booked_hours_by_staff_date
         from .scheduler_service import (
             JobScheduleState,
             UnschedulableJob,
@@ -17,5 +18,6 @@ except (ImportError, RuntimeError):
 __all__ = [
     "JobScheduleState",
     "UnschedulableJob",
+    "booked_hours_by_staff_date",
     "run_workshop_schedule",
 ]

@@ -172,6 +172,7 @@
 - **WorkshopJobView** [client] — `src/views/WorkshopJobView.vue`
 - **WorkshopKanbanView** [client] — `src/views/WorkshopKanbanView.vue`
 - **WorkshopMyTimeView** [client] — `src/views/WorkshopMyTimeView.vue`
+- **WorkshopScheduleView** [client] — `src/views/WorkshopScheduleView.vue`
 - **WorkshopView** [client] — `src/views/WorkshopView.vue`
 - **XeroView** [client] — `src/views/XeroView.vue`
 - **CreateFromQuoteView** [client] — `src/views/purchasing/CreateFromQuoteView.vue`

@@ -19,6 +19,10 @@ class UnscheduledReason(models.TextChoices):
         "invalid_staffing_constraints",
         "Invalid staffing constraints (max_people < min_people)",
     )
+    NOT_REACHED_IN_HORIZON = (
+        "not_reached_in_horizon",
+        "Higher-priority jobs consumed all capacity within the schedule horizon",
+    )
 
 
 class JobProjection(models.Model):

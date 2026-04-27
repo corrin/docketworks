@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**182 components** (vue)
+**183 components** (vue)
 
 ## Client Components
 
@@ -178,6 +178,7 @@
 - **WorkshopJobView** — `src/views/WorkshopJobView.vue`
 - **WorkshopKanbanView** — `src/views/WorkshopKanbanView.vue`
 - **WorkshopMyTimeView** — `src/views/WorkshopMyTimeView.vue`
+- **WorkshopScheduleView** — `src/views/WorkshopScheduleView.vue`
 - **WorkshopView** — `src/views/WorkshopView.vue`
 - **XeroView** — `src/views/XeroView.vue`
 - **CreateFromQuoteView** — `src/views/purchasing/CreateFromQuoteView.vue`

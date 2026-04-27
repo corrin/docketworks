@@ -70,7 +70,7 @@ class TestHoursComputation(BaseTestCase):
         _make_staff("worker1")
 
     def test_estimate_hours_used_when_present(self):
-        """Job with estimate hours schedules; remaining = estimate - actual."""
+        """Job with estimate hours schedules; remaining = estimate - actual at run time."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 10.0)
 
@@ -78,8 +78,9 @@ class TestHoursComputation(BaseTestCase):
 
         proj = JobProjection.objects.get(scheduler_run=run, job=job)
         self.assertFalse(proj.is_unscheduled)
-        # remaining = 10 hours (no actual)
-        self.assertAlmostEqual(proj.remaining_hours, 0.0, delta=0.1)
+        # remaining_hours is the at-run-time value (10h estimate, no actual),
+        # not the post-simulation residual.
+        self.assertAlmostEqual(proj.remaining_hours, 10.0, delta=0.1)
 
     def test_quote_fallback_when_estimate_zero(self):
         """Job with zero estimate but valid quote schedules using quote hours."""
@@ -91,6 +92,22 @@ class TestHoursComputation(BaseTestCase):
 
         proj = JobProjection.objects.get(scheduler_run=run, job=job)
         self.assertFalse(proj.is_unscheduled)
+        self.assertAlmostEqual(proj.remaining_hours, 8.0, delta=0.1)
+
+    def test_remaining_hours_is_at_run_time_not_post_simulation(self):
+        """Multi-day jobs persist the at-run-time remaining hours, not the
+        post-simulation residual. The frontend needs to display 'X hours of work
+        left' — once the simulation has consumed the work, that value is 0,
+        which would defeat the contract."""
+        job = _make_job(self.client_obj, self.test_staff)
+        # 24h of work for one worker @ 8h/day spans three days.
+        _set_summary_hours(job.latest_estimate, 24.0)
+
+        run = run_workshop_schedule()
+
+        proj = JobProjection.objects.get(scheduler_run=run, job=job)
+        self.assertFalse(proj.is_unscheduled)
+        self.assertAlmostEqual(proj.remaining_hours, 24.0, delta=0.1)
 
     def test_no_hours_unscheduled(self):
         """Job with no hours in estimate or quote is unscheduled."""
@@ -234,6 +251,400 @@ class TestPeopleAssignment(BaseTestCase):
         self.assertGreaterEqual(len(first_day_staff), 2)
 
 
+class TestAssignedStaffPreference(BaseTestCase):
+    """Tests that explicitly-assigned staff are preferred when available."""
+
+    def setUp(self):
+        self.client_obj = _make_client()
+
+    def test_assigned_available_staff_chosen_over_others(self):
+        """When a job has assigned staff and they're available, they get the work."""
+        # Three workers — without assignment, the scheduler picks by capacity
+        # which would tie and fall back to insertion order.
+        w1 = _make_staff("w1")
+        _make_staff("w2")
+        _make_staff("w3")
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        _set_summary_hours(job.latest_estimate, 8.0)
+        job.people.add(w1)
+
+        run = run_workshop_schedule()
+
+        blocks = AllocationBlock.objects.filter(scheduler_run=run, job=job)
+        self.assertTrue(blocks.exists())
+        staff_ids = set(blocks.values_list("staff_id", flat=True))
+        self.assertEqual(staff_ids, {w1.id})
+
+    def test_assigned_staff_preferred_even_with_lower_capacity(self):
+        """Assigned worker is picked over a non-assigned worker with more
+        remaining capacity (capacity sort would otherwise win)."""
+        # Big-capacity worker is unassigned; small-capacity worker is assigned.
+        big = _make_staff("big", hours=8.0)
+        small = _make_staff("small", hours=4.0)
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        _set_summary_hours(job.latest_estimate, 4.0)
+        job.people.add(small)
+
+        run = run_workshop_schedule()
+
+        blocks = AllocationBlock.objects.filter(scheduler_run=run, job=job)
+        self.assertTrue(blocks.exists())
+        staff_ids = set(blocks.values_list("staff_id", flat=True))
+        self.assertIn(small.id, staff_ids)
+        self.assertNotIn(big.id, staff_ids)
+
+    def test_remaining_slots_filled_from_unassigned_pool(self):
+        """If max_people exceeds the number of assigned staff, remaining slots
+        are filled from the unassigned pool."""
+        w1 = _make_staff("w1")
+        w2 = _make_staff("w2")
+        w3 = _make_staff("w3")
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=2, max_people=2)
+        _set_summary_hours(job.latest_estimate, 16.0)
+        # Only one person assigned but the job needs two
+        job.people.add(w1)
+
+        run = run_workshop_schedule()
+
+        blocks = AllocationBlock.objects.filter(scheduler_run=run, job=job)
+        self.assertTrue(blocks.exists())
+        first_date = blocks.order_by("allocation_date").first().allocation_date
+        first_day_staff = set(
+            blocks.filter(allocation_date=first_date).values_list("staff_id", flat=True)
+        )
+        self.assertIn(w1.id, first_day_staff)
+        # Second slot must be one of the others
+        self.assertTrue({w2.id, w3.id} & first_day_staff)
+
+    def test_unavailable_assigned_staff_falls_back_to_others(self):
+        """If the assigned worker has no capacity today, the scheduler still
+        picks an available worker rather than skipping the job."""
+        # Assigned worker doesn't work any day (no scheduled hours)
+        unavailable = Staff.objects.create_user(
+            email="staff-unavailable@test.example",
+            password="testpass",
+            first_name="Unavailable",
+            last_name="Worker",
+            is_workshop_staff=True,
+            hours_mon=Decimal("0"),
+            hours_tue=Decimal("0"),
+            hours_wed=Decimal("0"),
+            hours_thu=Decimal("0"),
+            hours_fri=Decimal("0"),
+            hours_sat=Decimal("0"),
+            hours_sun=Decimal("0"),
+        )
+        backup = _make_staff("backup")
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        _set_summary_hours(job.latest_estimate, 8.0)
+        job.people.add(unavailable)
+
+        run = run_workshop_schedule()
+
+        blocks = AllocationBlock.objects.filter(scheduler_run=run, job=job)
+        self.assertTrue(blocks.exists())
+        staff_ids = set(blocks.values_list("staff_id", flat=True))
+        self.assertEqual(staff_ids, {backup.id})
+
+
+class TestBookedTimeReducesCapacity(BaseTestCase):
+    """Tests that pre-existing time CostLines (worked time, leave) reduce a
+    staff member's available capacity for the day."""
+
+    def setUp(self):
+        from apps.workflow.models.company_defaults import CompanyDefaults
+
+        self.client_obj = _make_client()
+        # Disable the efficiency factor so this class can assert on raw
+        # clock-hour math. The factor itself is covered by TestEfficiencyFactor.
+        cd = CompanyDefaults.get_solo()
+        cd.workshop_efficiency_factor = Decimal("1.000")
+        cd.save()
+
+    def _make_special_leave_job(self):
+        """Create a leave-style job with an actual CostSet for booking time
+        against (matches how create_leave_entries.py models leave)."""
+        leave_job = Job(
+            client=self.client_obj,
+            name="Annual Leave",
+            status="special",
+            min_people=1,
+            max_people=1,
+        )
+        leave_job.save(staff=self.test_staff)
+        return leave_job
+
+    def _book_time(self, staff, on_date, hours, cost_set):
+        from apps.workflow.models import XeroPayItem
+
+        pay_item = XeroPayItem.objects.get(name="Ordinary Time")
+        CostLine.objects.create(
+            cost_set=cost_set,
+            kind="time",
+            desc=f"booking - {staff.email}",
+            quantity=Decimal(str(hours)),
+            unit_cost=Decimal("0.00"),
+            unit_rev=Decimal("0.00"),
+            accounting_date=on_date,
+            xero_pay_item=pay_item,
+            meta={
+                "staff_id": str(staff.id),
+                "date": on_date.isoformat(),
+                "is_billable": False,
+                "wage_rate_multiplier": 1.0,
+            },
+        )
+
+    def test_full_day_leave_blocks_allocation(self):
+        """A full-day leave entry on day D removes that worker from day D."""
+        on_leave = _make_staff("on_leave")
+        backup = _make_staff("backup")
+
+        leave_job = self._make_special_leave_job()
+        # Book 8h leave for `on_leave` on every working day this week so the
+        # simulator can never pick a day that's free.
+        from datetime import timedelta as _td
+
+        today = date.today()
+        for offset in range(7):
+            d = today + _td(days=offset)
+            if d.weekday() < 5:
+                self._book_time(on_leave, d, 8.0, leave_job.latest_actual)
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        _set_summary_hours(job.latest_estimate, 8.0)
+
+        run = run_workshop_schedule()
+
+        blocks = AllocationBlock.objects.filter(scheduler_run=run, job=job)
+        self.assertTrue(blocks.exists())
+        staff_ids = set(blocks.values_list("staff_id", flat=True))
+        self.assertNotIn(on_leave.id, staff_ids)
+        self.assertIn(backup.id, staff_ids)
+
+    def test_partial_day_booking_reduces_capacity(self):
+        """Pre-booking 4h leaves only the remaining 4h available that day."""
+        worker = _make_staff("part")
+        leave_job = self._make_special_leave_job()
+        today = date.today()
+        # If today is a weekend, the test-staff weekday hours are 0 anyway —
+        # advance to next weekday to keep the assertion meaningful.
+        while today.weekday() >= 5:
+            from datetime import timedelta as _td
+
+            today = today + _td(days=1)
+        self._book_time(worker, today, 4.0, leave_job.latest_actual)
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        # 12h of work — with 4h capacity today + 8h tomorrow it still fits in
+        # two days (day 1 contributes only 4h, not 8h).
+        _set_summary_hours(job.latest_estimate, 12.0)
+
+        run = run_workshop_schedule()
+
+        first_day_total = sum(
+            float(b.allocated_hours)
+            for b in AllocationBlock.objects.filter(
+                scheduler_run=run, job=job, staff=worker, allocation_date=today
+            )
+        )
+        # Capacity reduced from 8h to 4h
+        self.assertAlmostEqual(first_day_total, 4.0, delta=0.01)
+
+    def test_estimate_or_quote_costlines_do_not_reduce_capacity(self):
+        """CostLines on estimate/quote CostSets are hypothetical and must not
+        reduce real capacity."""
+        worker = _make_staff("solo")
+
+        # Put a fake "time" line on the worker's estimate cost set for an
+        # unrelated job — this should NOT block them.
+        unrelated = _make_job(
+            self.client_obj,
+            self.test_staff,
+            name="Unrelated",
+            min_people=1,
+            max_people=1,
+        )
+        from apps.workflow.models import XeroPayItem
+
+        pay_item = XeroPayItem.objects.get(name="Ordinary Time")
+        today = date.today()
+        while today.weekday() >= 5:
+            from datetime import timedelta as _td
+
+            today = today + _td(days=1)
+        CostLine.objects.create(
+            cost_set=unrelated.latest_estimate,  # estimate, not actual
+            kind="time",
+            desc="hypothetical",
+            quantity=Decimal("8.000"),
+            unit_cost=Decimal("0.00"),
+            unit_rev=Decimal("0.00"),
+            accounting_date=today,
+            xero_pay_item=pay_item,
+            meta={"staff_id": str(worker.id), "date": today.isoformat()},
+        )
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        _set_summary_hours(job.latest_estimate, 8.0)
+
+        run = run_workshop_schedule()
+
+        blocks = AllocationBlock.objects.filter(
+            scheduler_run=run, job=job, staff=worker, allocation_date=today
+        )
+        # Worker still has full capacity — gets the 8h day-one allocation
+        total = sum(float(b.allocated_hours) for b in blocks)
+        self.assertAlmostEqual(total, 8.0, delta=0.01)
+
+
+class TestStartDateOnlyOnRealWork(BaseTestCase):
+    """Regression: a job's start_date must reflect when work is actually
+    allocated, not the first day the simulator considered it. With the bug,
+    low-priority jobs whose chosen workers had drained capacity got
+    start_date=today + zero AllocationBlocks."""
+
+    def setUp(self):
+        from apps.workflow.models.company_defaults import CompanyDefaults
+
+        self.client_obj = _make_client()
+        cd = CompanyDefaults.get_solo()
+        cd.workshop_efficiency_factor = Decimal("1.000")
+        cd.save()
+
+    def test_low_priority_job_does_not_start_on_capacity_starved_day(self):
+        """One worker, two jobs needing one person each. High-priority job
+        consumes the day's capacity. Low-priority job must NOT have its
+        start_date set to the same day — it can't have started yet."""
+        _make_staff("solo")
+
+        high = _make_job(self.client_obj, self.test_staff, name="High")
+        low = _make_job(self.client_obj, self.test_staff, name="Low")
+        # High priority needs all 8h today.
+        _set_summary_hours(high.latest_estimate, 8.0)
+        _set_summary_hours(low.latest_estimate, 8.0)
+
+        high.priority = 500.0
+        high.save(staff=self.test_staff)
+        low.priority = 100.0
+        low.save(staff=self.test_staff)
+
+        run = run_workshop_schedule()
+
+        high_proj = JobProjection.objects.get(scheduler_run=run, job=high)
+        low_proj = JobProjection.objects.get(scheduler_run=run, job=low)
+
+        # High runs today, low must run on a later day.
+        self.assertGreater(
+            low_proj.anticipated_start_date, high_proj.anticipated_start_date
+        )
+
+        # And there must be at least one AllocationBlock on the low job's
+        # start_date, otherwise the start_date is a phantom.
+        first_blocks = AllocationBlock.objects.filter(
+            scheduler_run=run, job=low, allocation_date=low_proj.anticipated_start_date
+        )
+        self.assertTrue(first_blocks.exists())
+
+    def test_unreachable_job_marked_unscheduled(self):
+        """A schedulable job whose simulation never lands any work in the
+        horizon is recorded as unscheduled with NOT_REACHED_IN_HORIZON."""
+        # One worker, one always-busy high-priority job that never finishes,
+        # plus a low-priority one that won't get a turn.
+        _make_staff("solo")
+
+        big = _make_job(self.client_obj, self.test_staff, name="Big")
+        # Big enough to fill 180 days × 8h = 1440h; we only need to outlast
+        # the horizon to starve `low` indefinitely.
+        _set_summary_hours(big.latest_estimate, 5000.0)
+
+        low = _make_job(self.client_obj, self.test_staff, name="Low")
+        _set_summary_hours(low.latest_estimate, 8.0)
+
+        big.priority = 1000.0
+        big.save(staff=self.test_staff)
+        low.priority = 1.0
+        low.save(staff=self.test_staff)
+
+        run = run_workshop_schedule()
+
+        low_proj = JobProjection.objects.get(scheduler_run=run, job=low)
+        self.assertTrue(low_proj.is_unscheduled)
+        self.assertEqual(
+            low_proj.unscheduled_reason,
+            UnscheduledReason.NOT_REACHED_IN_HORIZON,
+        )
+        self.assertIsNone(low_proj.anticipated_start_date)
+        self.assertIsNone(low_proj.anticipated_end_date)
+
+
+class TestEfficiencyFactor(BaseTestCase):
+    """Tests that CompanyDefaults.workshop_efficiency_factor scales daily
+    schedulable capacity."""
+
+    def setUp(self):
+        self.client_obj = _make_client()
+
+    def _set_efficiency(self, value):
+        from apps.workflow.models.company_defaults import CompanyDefaults
+
+        cd = CompanyDefaults.get_solo()
+        cd.workshop_efficiency_factor = Decimal(str(value))
+        cd.save()
+
+    def test_factor_scales_daily_allocation(self):
+        """At 0.75, an 8h-shift worker delivers 6h on day one of an 8h job."""
+        worker = _make_staff("w")
+        self._set_efficiency("0.750")
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        _set_summary_hours(job.latest_estimate, 8.0)
+
+        run = run_workshop_schedule()
+
+        first_date = (
+            AllocationBlock.objects.filter(scheduler_run=run, job=job)
+            .order_by("allocation_date")
+            .first()
+            .allocation_date
+        )
+        first_day_total = sum(
+            float(b.allocated_hours)
+            for b in AllocationBlock.objects.filter(
+                scheduler_run=run, job=job, staff=worker, allocation_date=first_date
+            )
+        )
+        self.assertAlmostEqual(first_day_total, 6.0, delta=0.01)
+
+    def test_factor_one_means_full_capacity(self):
+        """Setting efficiency to 1.0 restores nominal clock-hour capacity."""
+        worker = _make_staff("w")
+        self._set_efficiency("1.000")
+
+        job = _make_job(self.client_obj, self.test_staff, min_people=1, max_people=1)
+        _set_summary_hours(job.latest_estimate, 8.0)
+
+        run = run_workshop_schedule()
+
+        first_date = (
+            AllocationBlock.objects.filter(scheduler_run=run, job=job)
+            .order_by("allocation_date")
+            .first()
+            .allocation_date
+        )
+        first_day_total = sum(
+            float(b.allocated_hours)
+            for b in AllocationBlock.objects.filter(
+                scheduler_run=run, job=job, staff=worker, allocation_date=first_date
+            )
+        )
+        self.assertAlmostEqual(first_day_total, 8.0, delta=0.01)
+
+
 class TestAllocationBlocks(BaseTestCase):
     """Tests for AllocationBlock creation and content."""
 
@@ -267,6 +678,23 @@ class TestDateCalculations(BaseTestCase):
     def setUp(self):
         self.client_obj = _make_client()
         _make_staff("worker1")
+
+    def test_today_uses_local_timezone_not_utc(self):
+        """The scheduler must anchor 'today' on the project's local timezone
+        (Pacific/Auckland). Using timezone.now().date() returns the UTC date,
+        so for half the day in NZ the schedule shows yesterday as today."""
+        from django.utils import timezone
+
+        job = _make_job(self.client_obj, self.test_staff)
+        _set_summary_hours(job.latest_estimate, 1.0)
+
+        run_workshop_schedule()
+
+        earliest_block = (
+            AllocationBlock.objects.filter(job=job).order_by("allocation_date").first()
+        )
+        self.assertIsNotNone(earliest_block)
+        self.assertGreaterEqual(earliest_block.allocation_date, timezone.localdate())
 
     def test_start_date_is_first_allocation_day(self):
         """anticipated_start_date equals the earliest AllocationBlock date."""
