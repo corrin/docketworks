@@ -4,7 +4,7 @@ When a consumer finds data shaped differently from the model's contract, restore
 
 - **Status:** Accepted
 - **Date:** 2026-04-27
-- **PR(s):** #TBD — fix(job): backfill JobEvent.delta_after on legacy status/created rows
+- **PR(s):** [#247](https://github.com/corrin/docketworks/pull/247) — fix(job): backfill JobEvent.delta_after on legacy status/created rows
 
 ## Context
 
@@ -24,4 +24,4 @@ When a consumer's invariant is violated by stored data, fix the data. In order o
 
 - **Positive:** the canonical field stays canonical; consumers remain simple and reviewable; data-quality bugs surface as migrations or emission fixes (visible in git history) rather than as ever-growing reader complexity; CLAUDE.md's fail-early stance becomes operationally complete.
 - **Negative / costs:** data migrations carry their own risk and have to be dry-run + verified before applying; some "incorrect data" categories are genuinely unrecoverable (e.g., transitions that were never emitted because a `.update()` bypassed `Job.save()`), so this ADR commits us to the harder fix — auditing emission sites — rather than synthesising fake events.
-- **Follow-ups:** the JobEvent silent-archive (3 jobs) and silent in_progress→completed transitions (~170 in 2025) flagged in PR #TBD are exactly this case — they require an emission-side audit, not a backfill, and that work is owned separately under this ADR's umbrella.
+- **Follow-ups:** the JobEvent silent-archive (3 jobs) and silent in_progress→completed transitions (~170 in 2025) flagged in PR #247 are exactly this case — they require an emission-side audit, not a backfill, and that work is owned separately under this ADR's umbrella.
