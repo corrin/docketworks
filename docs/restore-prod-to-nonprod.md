@@ -1,105 +1,42 @@
 # Restore Production to Non-Production
 
-Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
+Restore a production backup to any non-production environment (dev or server instance). This guide is environment-agnostic: assume venv active, `.env` loaded, in the project root. All paths are relative.
 
-The scrubbed dump is produced on prod by `manage.py backport_data_backup` and lives on the prod host at `restore/scrubbed_<DB_NAME>_<ts>.dump` under the project's `BASE_DIR`.
+The scrubbed dump is produced on prod by `manage.py backport_data_backup` and lives on the prod host at `restore/scrubbed_<DB_NAME>_<ts>.dump` under the project's `BASE_DIR`. Raw prod data never lands on disk on either host — `backport_data_backup` pipes `pg_dump` directly into a temp `_scrub` database, scrubs in place, then re-dumps the scrubbed copy.
 
-## Steps
+## CRITICAL: Audit
 
-1. **Fetch the dump from prod**
-   ```bash
-   scp prod-host:/path/to/docketworks/restore/scrubbed_<DB_NAME>_<ts>.dump ./restore/
-   ```
-
-2. **Reset the target DB**
-   ```bash
-   python manage.py dbshell -- -c "DROP SCHEMA public CASCADE; CREATE SCHEMA public;"
-   ```
-
-3. **Restore the dump**
-   ```bash
-   PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error \
-     -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
-     ./restore/scrubbed_<DB_NAME>_<ts>.dump
-   ```
-
-4. **Apply any dev-side migrations prod hasn't seen**
-
-   `django_migrations` came across in the dump, so this only runs migrations that exist locally beyond prod's state.
-   ```bash
-   python manage.py migrate
-   ```
-
-5. **Reload dev-only fixtures**
-
-   Company defaults (shipped demo branding) and AI provider rows are excluded from prod scrubbing.
-   ```bash
-   python manage.py loaddata apps/workflow/fixtures/company_defaults.json
-   python manage.py loaddata apps/workflow/fixtures/ai_providers.json
-   ```
-
-6. **Re-authenticate Xero**
-   ```bash
-   cd frontend && npx tsx tests/scripts/xero-login.ts && cd ..
-   python manage.py xero --setup
-   python manage.py xero --configure-payroll
-   ```
-
-7. **Run the post-restore validators**
-   ```bash
-   python scripts/setup_dev_logins.py
-   for s in scripts/restore_checks/check_*.py; do python "$s"; done
-   ```
-
-Optional (dev): `python scripts/recreate_jobfiles.py` to materialise dummy files for JobFile records.
-
-## First-time setup (existing instances only)
-
-New instances pick up the scrub DB automatically via `scripts/server/instance.sh`. Existing instances provisioned before this change need a one-off `instance.sh create` re-run (idempotent — adds the scrub DB, skips anything that already exists).
-
----
-
-# Appendix: Legacy JSON path (deprecated)
-
-> Deprecated — retained for one release cycle while the pg_dump flow beds in.
-
-The 23-step process below is the historical `dumpdata`/`loaddata` flow. Do not use it for new restores. It remains here for reference only.
-
-CRITICAL: audit
-
-The finished application will be audited against a log file you must write as you follow the steps. Every command you run and its key output must be added to this log.
-
-e.g. `logs/restore_log_prod_backup_20260109_211941_complete.log`
+**Everything typed into this terminal is audited for legal compliance.** Every command and its output is reviewed against this runbook, in order. Skipping steps, running them out of order, or working around errors instead of stopping are violations the audit catches.
 
 ## CRITICAL: No Workarounds
 
-This process runs unattended on server instances with no user interaction. Any workaround you apply will fail silently in automated runs. If anything goes wrong, STOP and fix the underlying problem.
+This process runs unattended on server instances with no user interaction. Any workaround you apply will fail silently in automated runs. If anything goes wrong, STOP and fix the underlying problem — do not skip the failing step, do not run subsequent steps, do not "patch and continue."
 
-## CRITICAL ORDER ENFORCEMENT
-
-**NEVER run steps out of order. The following steps MUST be completed before ANY testing:**
-1. Steps 1-13: Basic restore and setup
-2. Step 14: **XERO OAUTH CONNECTION** (CANNOT BE SKIPPED)
-3. Steps 15-19: Xero configuration
-4. Steps 20-23: Testing ONLY AFTER Xero is connected
+Sections must run in the order written. The Connect to Xero OAuth section is a hard gate — every later section assumes Xero is connected.
 
 ## Prerequisites
 
-- `.env` configured with `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and all other required variables
-- A production backup zip in `restore/`, extracted:
+- `.env` configured with `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and all other required variables.
+- The scrubbed dump fetched from prod into `restore/`:
   ```bash
-  # On production: python manage.py backport_data_backup
-  # Then transfer and extract:
-  scp prod-server:/tmp/prod_backup_YYYYMMDD_HHMMSS_complete.zip restore/
-  cd restore && unzip prod_backup_YYYYMMDD_HHMMSS_complete.zip && cd ..
+  scp prod-server:/path/to/docketworks/restore/scrubbed_<DB_NAME>_<ts>.dump restore/
   ```
-  You should have `restore/prod_backup_YYYYMMDD_HHMMSS.json.gz` and `restore/prod_backup_YYYYMMDD_HHMMSS.schema.sql`. Newer backups also include `prod_backup_YYYYMMDD_HHMMSS.migrations.json`; it is not used by the default flow.
+- Scheduler stopped. The scheduler ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Background Scheduler section restarts it.
+  - Dev: kill the `run_scheduler` process in its terminal.
+  - Server: `sudo systemctl stop scheduler-<instance>`
 
 ---
 
-#### Step 1: Verify Environment Configuration
+#### Verify Environment Configuration
 
-**Check:**
+**Check venv is active** (every bare `python` below depends on this):
+
+```bash
+python -c "import django; print(f'django {django.__version__} from {django.__file__}')" \
+  || { echo "venv not active — run: source .venv/bin/activate"; exit 1; }
+```
+
+**Check `.env` is loaded:**
 
 ```bash
 grep -E "^(DB_NAME|DB_USER|DB_PASSWORD)=" .env
@@ -118,7 +55,7 @@ DB_PASSWORD=your_password
 
 Note: If you're using Claude or similar, you need to specify these explicitly on all subsequent command lines rather than use environment variables.
 
-#### Step 2: Reset Database
+#### Reset Database
 
 Drop all tables by dropping and recreating the public schema:
 
@@ -133,39 +70,14 @@ python manage.py dbshell -- -c "\dt"
 # Should return: Did not find any relations.
 ```
 
-#### Step 3: Apply Django Migrations
+#### Restore the Dump
+
+The scrubbed dump carries schema, data, and `django_migrations` together. `pg_restore` rebuilds all three in one shot.
 
 ```bash
-python manage.py migrate
-```
-
-**Check:**
-
-```bash
-PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "\dt" | wc -l
-# Should show 50+ tables
-
-python manage.py showmigrations | grep '\[ \]'
-# Expect no output.
-```
-
-#### Step 4: Extract JSON Backup
-
-```bash
-gunzip restore/prod_backup_YYYYMMDD_HHMMSS.json.gz
-```
-
-**Check:**
-
-```bash
-ls -la restore/prod_backup_YYYYMMDD_HHMMSS.json
-# Should show large file (typically 50-200MB)
-```
-
-#### Step 5: Load Production Data
-
-```bash
-python manage.py loaddata restore/prod_backup_YYYYMMDD_HHMMSS.json
+PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error \
+  -h "$DB_HOST" -U "$DB_USER" -d "$DB_NAME" \
+  ./restore/scrubbed_<DB_NAME>_<ts>.dump
 ```
 
 **Check:**
@@ -192,60 +104,7 @@ UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
  job_costline    | 10334
 ```
 
-#### Step 6: Load Company Defaults Fixture
-
-This replaces your real company name and logos with the shipped DocketWorks
-demo values. The fixture references logos at `app_images/...` under
-`MEDIA_ROOT`; the PNGs are committed in `mediafiles/app_images/` and resolve
-directly, no copy step.
-
-```bash
-python manage.py loaddata apps/workflow/fixtures/company_defaults.json
-```
-
-**Check:**
-
-```bash
-python scripts/restore_checks/check_company_defaults.py
-```
-
-**Expected output:**
-
-```
-Company defaults loaded: Demo Company
-logo_wide: app_images/docketworks_logo_wide.png
-```
-
-#### Step 7: Reload AI Providers
-
-The DB reset wiped the AI provider rows. Reload from the fixture generated during instance creation:
-
-```bash
-python manage.py loaddata apps/workflow/fixtures/ai_providers.json
-```
-
-**Check (validates API keys actually work):**
-
-```bash
-python scripts/restore_checks/check_ai_providers.py
-```
-
-**Expected output:** Each provider shows a response or "API key valid".
-
-#### Step 8: Verify Specific Data
-
-```bash
-PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "
-SELECT id, name, job_number, status
-FROM job_job
-WHERE name LIKE '%test%' OR name LIKE '%sample%'
-LIMIT 5;
-"
-```
-
-**Check:** Should show actual job records with realistic data.
-
-#### Step 9: Test Django ORM
+Then smoke-test the Django ORM against the restored data — fail fast here rather than letting a broken ORM surface later in the validator loop:
 
 ```bash
 python scripts/restore_checks/check_django_orm.py
@@ -261,7 +120,41 @@ Sample job: [any real job name] (#XXXXX)
 Contact: [any real contact name]
 ```
 
-#### Step 10: Set Up Development Logins
+#### Apply Django Migrations
+
+`django_migrations` rode along in the dump, so this only runs migrations the dev branch has beyond prod's state. On a fresh prod-aligned checkout it's a no-op.
+
+```bash
+python manage.py migrate
+```
+
+**Check:**
+
+```bash
+python manage.py showmigrations | grep '\[ \]'
+# Expect no output.
+```
+
+#### Load Company Defaults Fixture
+
+This replaces your real company name and logos with the shipped DocketWorks
+demo values. The fixture references logos at `app_images/...` under
+`MEDIA_ROOT`; the PNGs are committed in `mediafiles/app_images/` and resolve
+directly, no copy step.
+
+```bash
+python manage.py loaddata apps/workflow/fixtures/company_defaults.json
+```
+
+#### Reload AI Providers
+
+The DB reset wiped the AI provider rows. Reload from the fixture generated during instance creation:
+
+```bash
+python manage.py loaddata apps/workflow/fixtures/ai_providers.json
+```
+
+#### Set Up Development Logins
 
 ```bash
 python scripts/setup_dev_logins.py
@@ -269,87 +162,44 @@ python scripts/setup_dev_logins.py
 
 Creates a default admin user and resets all staff passwords to defaults.
 
-**Check:**
-
-```bash
-python scripts/restore_checks/check_admin_user.py
-```
-
-**Expected output:**
-
-```
-User exists: defaultadmin@example.com
-Is active: True
-Is office staff: True
-Is superuser: True
-```
-
 **Login credentials after restore:**
 - Admin: `defaultadmin@example.com` / `Default-admin-password`
 - All other staff: their email / `Default-staff-password`
 
-#### Step 11: Create Dummy Files for JobFile Instances
+#### Create Dummy Files for JobFile Instances
 
 ```bash
 python scripts/recreate_jobfiles.py
 ```
 
-**Check:**
-
-```bash
-python scripts/restore_checks/check_jobfiles.py
-```
-
-**Expected output:**
-
-```
-Total JobFile records with file_path: ~3000
-Dummy files created: ~3000
-Missing files: 0
-```
-
-#### Step 12: Fix Shop Client Name
+#### Fix Shop Client Name
 
 ```bash
 python scripts/restore_checks/fix_shop_client.py
 ```
 
-**Check:**
+#### Create Test Client
+
+Creates the test client named per `CompanyDefaults.test_client_name` (e.g. `ABC Carpet Cleaning TEST IGNORE`) if it isn't already there. Idempotent. Required by Seed Database to Xero, which crashes if the client is missing.
 
 ```bash
-python scripts/restore_checks/check_shop_client.py
+python scripts/fix_test_client.py
 ```
 
-**Expected output:** `Shop client: Demo Company Shop`
+**Expected output:** `Test client already exists: …` or `Created test client: …`.
 
-#### Step 13: Verify Test Client
-
-```bash
-python scripts/restore_checks/check_test_client.py
-```
-
-**Expected output:** `Test client already exists: ABC Carpet Cleaning TEST IGNORE ...` or `Created test client: ...`
-
-#### Step 14: Connect to Xero OAuth
+#### Connect to Xero OAuth
 
 **Dev only:** Before this step, start ngrok, the backend, and the frontend — see [development_session.md](development_session.md).
 
 ```bash
-cd frontend && npx tsx tests/scripts/xero-login.ts && cd ..
+(cd frontend && npx tsx tests/scripts/xero-login.ts)
 ```
 
 **What this does:**
 This script automates the Xero OAuth login flow using Playwright. It navigates to the frontend, logs in with the default admin credentials, and completes the Xero OAuth authorization.
 
-**Check:**
-
-```bash
-python scripts/restore_checks/check_xero_token.py
-```
-
-**Expected output:** `Xero OAuth token found.`
-
-#### Step 15: Configure Xero Connection
+#### Configure Xero Connection
 
 ```bash
 python manage.py xero --setup
@@ -371,7 +221,7 @@ Payroll Calendar: Weekly Testing ([calendar-uuid])
 Xero setup complete.
 ```
 
-**Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Step 6).
+**Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Load Company Defaults).
 
 If the payroll calendar is missing (e.g. after a Xero demo org reset), re-run with:
 
@@ -379,7 +229,7 @@ If the payroll calendar is missing (e.g. after a Xero demo org reset), re-run wi
 python manage.py xero --setup --create-missing-xero-items
 ```
 
-#### Step 16: Sync Pay Items from Xero
+#### Sync Pay Items from Xero
 
 ```bash
 python manage.py xero --configure-payroll
@@ -387,7 +237,7 @@ python manage.py xero --configure-payroll
 
 **Expected output:** `✓ XeroPayItem sync completed!`
 
-#### Step 17: Seed Database to Xero
+#### Seed Database to Xero
 
 **WARNING:** This step takes 10+ minutes. Run in background.
 
@@ -415,22 +265,7 @@ tail -f logs/seed_xero_output.log
 # Press Ctrl+C to stop watching
 ```
 
-**Check completion:**
-
-```bash
-python scripts/restore_checks/check_xero_seed.py
-```
-
-**Expected output:**
-
-```
-Clients linked to Xero: ~550
-Jobs linked to Xero: 0
-Stock items synced to Xero: ~440
-Staff linked to Xero Payroll: ~15
-```
-
-#### Step 18: Sync Xero
+#### Sync Xero
 
 ```bash
 python manage.py start_xero_sync
@@ -438,7 +273,7 @@ python manage.py start_xero_sync
 
 **Expected output:** Error and warning free sync between local and Xero data.
 
-#### Step 19a (Dev): Start Background Scheduler
+#### Start Background Scheduler (Dev)
 
 The scheduler is a separate process that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. In a separate terminal (it blocks forever):
 
@@ -446,7 +281,7 @@ The scheduler is a separate process that keeps Xero tokens refreshed, runs hourl
 python manage.py run_scheduler
 ```
 
-#### Step 19b (Server): Verify Background Scheduler
+#### Verify Background Scheduler (Server)
 
 On server instances the scheduler is already running as a systemd service (`scheduler-<instance>`), installed by `instance.sh create`. Verify:
 
@@ -454,9 +289,19 @@ On server instances the scheduler is already running as a systemd service (`sche
 sudo systemctl status scheduler-<instance>
 ```
 
-Must show `active (running)`. The "registered jobs" lines in Django startup logs are just declarations -- they do not mean jobs are executing.
+Must show `active (running)`. The "registered jobs" lines in Django startup logs are just declarations — they do not mean jobs are executing.
 
-#### Step 20: Test Serializers
+#### Run All Validators
+
+```bash
+for s in scripts/restore_checks/check_*.py; do python "$s"; done
+```
+
+**Expected output:** Each script prints its own success line and exits zero. Covers: Django ORM (`check_django_orm.py`), admin user (`check_admin_user.py`), company defaults (`check_company_defaults.py`), AI providers (`check_ai_providers.py`), JobFiles (`check_jobfiles.py`), shop client (`check_shop_client.py`), test client (`check_test_client.py`), Xero token (`check_xero_token.py`), Xero accounts (`check_xero_accounts.py`), Xero seed (`check_xero_seed.py`).
+
+Any non-zero exit means the upstream mutation step that should have produced that state silently failed — fix the underlying problem, do not re-run just the failing check.
+
+#### Test Serializers
 
 ```bash
 python scripts/restore_checks/test_serializers.py --verbose
@@ -464,7 +309,7 @@ python scripts/restore_checks/test_serializers.py --verbose
 
 **Expected:** `ALL SERIALIZERS PASSED!` or specific failure details if issues found.
 
-#### Step 21: Test Kanban HTTP API
+#### Test Kanban HTTP API
 
 ```bash
 python scripts/restore_checks/test_kanban_api.py
@@ -476,9 +321,9 @@ python scripts/restore_checks/test_kanban_api.py
 API working: 174 active jobs, 23 archived
 ```
 
-#### Step 22: Snapshot Verified Database
+#### Snapshot Verified Database
 
-The DB is now in a known-good state: loaded from prod, migrated, fixtures applied, Xero synced, serializers and Kanban API verified. Capture this state as a baseline so the Playwright run (Step 23) — or any later test run — can be recovered from it without re-running this entire runbook.
+The DB is now in a known-good state: loaded from prod, migrated, fixtures applied, Xero synced, validators and smoke tests green. Capture this state as a baseline so the Playwright run — or any later test run — can be recovered from it without re-running this entire runbook.
 
 ```bash
 mkdir -p backups
@@ -503,7 +348,7 @@ ls -lh backups/post_restore_*.sql.gz | tail -1
 # Should show a file >= 5 MB (gzipped full dump).
 ```
 
-#### Step 23: Run Playwright Tests
+#### Run Playwright Tests
 
 ```bash
 cd frontend && npx playwright test
@@ -524,23 +369,11 @@ rm -rf restore/
 **Symptoms:** Permission denied errors
 **Solution:** Ensure PostgreSQL is running and you have sudo access: `sudo -u postgres psql -c "\l"`
 
-### `loaddata` fails with `NOT NULL` violation on `job_jobevent.staff_id`
-
-**Symptoms:** Step 5 fails part-way through with `IntegrityError: null value in column "staff_id" of relation "job_jobevent" violates not-null constraint`.
-
-**Solution:** The backup was taken before the `feat/jobevent-audit` branch (migrations `job.0078`/`0079`) reached prod, so the JSON contains `JobEvent` rows with `staff_id=null`. See [restore-workaround-jobevent-staff-null.md](restore-workaround-jobevent-staff-null.md) for the rewind-and-replay recipe. Once a post-0079 backup has been produced on prod, the default flow works unchanged and that workaround doc can be deleted.
-
-### `loaddata` fails with `UndefinedColumn` on a CompanyDefaults or JobEvent field
-
-**Symptoms:** Step 5 fails immediately with `psycopg.errors.UndefinedColumn: column "<name>" of relation "<table>" does not exist`.
-
-**Cause:** The local branch has added a column that's not yet on prod, and Step 3's `migrate` was run against an earlier checkout of the tree. Rerun Step 3 on the current branch and retry Step 5.
-
 ### E2E Restore Failed / DB Reflects Test Mutations
 
 **Symptoms:** `global-teardown.ts` printed the "E2E TEARDOWN FAILED TO RESTORE DATABASE" banner, or the dev DB contains rows created by Playwright tests.
 
-**Solution:** Restore from the Step 22 baseline snapshot. Pick the newest file in `backups/`:
+**Solution:** Restore from the baseline snapshot. Pick the newest file in `backups/`:
 
 ```bash
 LATEST=$(ls -t backups/post_restore_*.sql.gz | head -1)
@@ -556,7 +389,10 @@ gunzip -c "$LATEST" | PGPASSWORD="$DB_PASSWORD" psql \
 
 ## File Locations
 
-- **Combined backup:** `/tmp/prod_backup_YYYYMMDD_HHMMSS_complete.zip` (created by backup command)
-- **Production schema:** `prod_backup_YYYYMMDD_HHMMSS.schema.sql` (inside zip, for reference only)
-- **Production data:** `prod_backup_YYYYMMDD_HHMMSS.json.gz` (inside zip)
-- **Restore directory:** `restore/`
+- **Scrubbed dump (consumer-side):** `restore/scrubbed_<DB_NAME>_<ts>.dump`
+- **Scrubbed dump (producer-side, on prod):** `<BASE_DIR>/restore/scrubbed_<DB_NAME>_<ts>.dump`
+- **Baseline snapshot:** `backups/post_restore_<TS>.sql.gz`
+
+## First-time setup (existing instances only)
+
+New instances pick up the scrub DB automatically via `scripts/server/instance.sh`. Existing instances provisioned before this change need a one-off `instance.sh create` re-run (idempotent — adds the scrub DB, skips anything that already exists).
