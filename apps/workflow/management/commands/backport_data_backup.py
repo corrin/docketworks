@@ -26,12 +26,6 @@ class Command(BaseCommand):
         )
         parser.add_argument("--sample-size", type=int, default=50)
         parser.add_argument("--model-filter", type=str)
-        parser.add_argument(
-            "--rclone-target",
-            type=str,
-            default=os.getenv("BACKPORT_RCLONE_TARGET", "gdrive:dw_backups"),
-            help="rclone target for the scrubbed dump",
-        )
 
     def handle(self, *args, **options):
         if options.get("analyze_fields"):
@@ -64,7 +58,6 @@ class Command(BaseCommand):
         backup_dir = os.path.join(settings.BASE_DIR, "restore")
         os.makedirs(backup_dir, exist_ok=True)
 
-        raw_dump = f"/tmp/raw_{ts}.dump"
         scrubbed_dump = os.path.join(
             backup_dir, f"scrubbed_{default_db['NAME']}_{ts}.dump"
         )
@@ -73,23 +66,6 @@ class Command(BaseCommand):
         env["PGPASSWORD"] = default_db["PASSWORD"]
 
         try:
-            self.stdout.write(f"pg_dump {default_db['NAME']} -> {raw_dump}")
-            self._run(
-                [
-                    "pg_dump",
-                    "-Fc",
-                    "-h",
-                    default_db["HOST"],
-                    "-U",
-                    default_db["USER"],
-                    "-d",
-                    default_db["NAME"],
-                    "-f",
-                    raw_dump,
-                ],
-                env=env,
-            )
-
             self.stdout.write(f"drop/recreate public schema on {scrub_db['NAME']}")
             self._run(
                 [
@@ -106,8 +82,21 @@ class Command(BaseCommand):
                 env=env,
             )
 
-            self.stdout.write(f"pg_restore -> {scrub_db['NAME']}")
-            self._run(
+            # Pipe pg_dump → pg_restore so raw prod data never lands on disk.
+            self.stdout.write(
+                f"pg_dump {default_db['NAME']} | pg_restore -> {scrub_db['NAME']}"
+            )
+            self._run_pipe(
+                [
+                    "pg_dump",
+                    "-Fc",
+                    "-h",
+                    default_db["HOST"],
+                    "-U",
+                    default_db["USER"],
+                    "-d",
+                    default_db["NAME"],
+                ],
                 [
                     "pg_restore",
                     "--no-owner",
@@ -119,7 +108,6 @@ class Command(BaseCommand):
                     scrub_db["USER"],
                     "-d",
                     scrub_db["NAME"],
-                    raw_dump,
                 ],
                 env=env,
             )
@@ -160,25 +148,29 @@ class Command(BaseCommand):
                 env=env,
             )
 
-            os.remove(raw_dump)
-
-            self.stdout.write(
-                f"rclone copy {scrubbed_dump} -> {options['rclone_target']}"
-            )
-            self._run(["rclone", "copy", scrubbed_dump, options["rclone_target"]])
-
             self.stdout.write(
                 self.style.SUCCESS(f"Scrubbed dump written: {scrubbed_dump}")
             )
         except Exception as exc:
             persist_app_error(exc)
-            # Raw dump may contain unscrubbed PII — ensure it's gone on any failure.
-            if os.path.exists(raw_dump):
-                os.remove(raw_dump)
             raise
 
     def _run(self, cmd, env=None):
         subprocess.run(cmd, check=True, env=env, capture_output=True, text=True)
+
+    def _run_pipe(self, cmd_a, cmd_b, env=None):
+        """Run cmd_a's stdout into cmd_b's stdin; raise if either exits non-zero."""
+        proc_a = subprocess.Popen(cmd_a, stdout=subprocess.PIPE, env=env)
+        try:
+            proc_b = subprocess.Popen(cmd_b, stdin=proc_a.stdout, env=env)
+            proc_a.stdout.close()  # let proc_a see SIGPIPE if proc_b exits
+            proc_b.wait()
+        finally:
+            proc_a.wait()
+        if proc_a.returncode:
+            raise subprocess.CalledProcessError(proc_a.returncode, cmd_a)
+        if proc_b.returncode:
+            raise subprocess.CalledProcessError(proc_b.returncode, cmd_b)
 
     def analyze_fields(self, sample_size, model_filter):
         """Show field samples to help identify PII"""

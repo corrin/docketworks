@@ -2,13 +2,13 @@
 
 Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
 
-The scrubbed dump is produced on prod by `manage.py backport_data_backup` and lives at `gdrive:dw_backups/scrubbed_<DB_NAME>_<ts>.dump`.
+The scrubbed dump is produced on prod by `manage.py backport_data_backup` and lives on the prod host at `restore/scrubbed_<DB_NAME>_<ts>.dump` under the project's `BASE_DIR`.
 
 ## Steps
 
-1. **Fetch the dump**
+1. **Fetch the dump from prod**
    ```bash
-   rclone copy gdrive:dw_backups/scrubbed_<DB_NAME>_<ts>.dump ./restore/
+   scp prod-host:/path/to/docketworks/restore/scrubbed_<DB_NAME>_<ts>.dump ./restore/
    ```
 
 2. **Reset the target DB**
