@@ -57,6 +57,9 @@ instance/
 # Sphinx documentation
 docs/_build/
 
+# Planning artefacts (Claude Code plan-mode files; local-only)
+docs/plans/
+
 # PyBuilder
 target/
 

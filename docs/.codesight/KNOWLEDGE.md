@@ -1,9 +1,9 @@
 # Knowledge Map — docketworks
-> 103 notes · 14 decisions · 10 open questions
+> 104 notes · 15 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base has 103 notes. Key topics: tips, alternatives considered, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 104 notes. Key topics: alternatives considered, tips, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
-## Key Decisions (14)
+## Key Decisions (15)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
 - Two layers. An **identity layer** (non-blocking) that reads either cookies (always) or, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, a short-lived HS256 bearer signed with `DEV_JWT_SECRET` — on failure it does nothing, remaining anonymous. A **global gate** (blocking) that runs on every request: if not authenticated and the path is not in `AUTH_ANON_ALLOWLIST`, return `401 JSON` for `/api/**` or `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
 - GET endpoints return an `ETag` header derived from `updated_at` (plus the primary key for delivery-receipt endpoints). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs — add event, accept quote, process delivery receipt) require `If-Match` with the latest ETag. Missing header → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so the comparison and the write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS is configured to expose `ETag` and allow `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
@@ -16,10 +16,12 @@
 - One script: `scripts/deploy.sh`, invoked both by the CD pipeline and by a systemd startup service. It runs as the application user, with `sudo` configured via sudoers for the specific `systemctl restart` commands it needs — no user switching, no root-level orchestration. Environment is detected by hostname (`msm` → PROD, `uat-scheduler` → SCHEDULER, `uat`/`uat-frontend` → UAT) rather than by inspecting paths. The script is idempotent so the same code path handles "fresh deploy from CD" and "machine just booted, catch up to `main`." CD runs against both machines with `continue-on-error: true` on the frontend/backend target so a cold second machine doesn't fail the pipeline — the startup service will catch up when the machine comes online.
 - Commit codesight output to git and regenerate it via pre-commit. Two hooks in `.pre-commit-config.yaml`: one runs `npx codesight --wiki` and stages `.codesight/`; the other runs `npx codesight --mode knowledge -o docs/.codesight` and stages `docs/.codesight/`. Always use `--wiki` (makes it the default via `codesight.config.json`) because the CLAUDE.md flow reads targeted ~200–300-token articles, not the monolithic `CODESIGHT.md`. Drop the separate `frontend/.codesight/` scan — the root scan already picks up 181 frontend components, so a second scan duplicates work and creates two sources of truth; gitignore `frontend/.codesight/` to prevent accidental commit. `.codesightignore` excludes generated files (`frontend/schema.yml`, `frontend/src/api/generated/`), build artifacts, and `docs/.codesight/` (which has its own scan).
 - Strategy pattern, registry-resolved at request time: `apps/workflow/accounting/provider.py` defines `AccountingProvider` (Protocol) covering auth, contacts, documents, sync-pull, and optional capability flags (`supports_projects`, `supports_payroll`). `apps/workflow/accounting/registry.py` exposes `get_provider()`, which reads `settings.ACCOUNTING_BACKEND` (default `"xero"`) and returns the active instance. `apps/workflow/accounting/types.py` defines provider-agnostic payload dataclasses (`InvoicePayload`, `QuotePayload`, `POPayload`, `DocumentResult`) so `xero_python` types stay inside the Xero provider. Keep all existing `xero_*` model fields — they have data and migrations; MYOB installations simply leave them null. Add `CompanyDefaults.accounting_provider` to track which backend is active. Phase the rollout: (1) interface + thin Xero wrapper over existing code, (2) document managers build generic payloads, (3) client service calls `get_provider()`, (4) sync layer becomes provider-agnostic, (5) build MYOB provider.
+- When a consumer's invariant is violated by stored data, fix the data. In order of preference: (1) data migration that reconstructs the canonical field from another in-row source already populated by an earlier migration, (2) emission-side patch that closes the path producing wrong data going forward, (3) both. The consumer stays strict — no `COALESCE`, no `or detail.changes…`, no schema relaxation, no "tolerant" reads. If the data cannot be reconstructed (the source is genuinely lost), escalate — raise, alert, leave the row visibly broken — rather than silently degrade. Document the unrecoverable subset as out of scope and treat its existence as a separate emission-audit task, not as a reason to relax the contract.
 - What we chose, stated as an imperative. One paragraph.
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
 ## Open Questions (10)
+- when we discover data that *is* malformed, what do we do? The temptation is always to make the consumer tolerant ("just
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
@@ -29,10 +31,9 @@
 - Textarea selector issue? `.locator('textarea').first()` not finding the right element?
 - Maybe the first edited field doesn't trigger autosave?
 - Maybe quantity needs blur event but we Tab away too fast?
-- Review the [KPI Report](/management/run-reports) for the week -- are we tracking to target?
 
 ## Recurring Themes
-tips · alternatives considered · steps · what youll need · what happens next · troubleshooting · prerequisites · purpose · development workflow · license · step 1 prepare credentials · step 2 create instance
+alternatives considered · tips · steps · what youll need · what happens next · troubleshooting · prerequisites · purpose · development workflow · license · step 1 prepare credentials · step 2 create instance
 
 ## People
 @login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
@@ -45,9 +46,9 @@ tips · alternatives considered · steps · what youll need · what happens next
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (103)
+## Note Index (104)
 
-### Decision Records (12)
+### Decision Records (13)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
 - `docs/adr/0002-auth-gate-global-allowlist.md` — A blocking middleware gate rejects any request that is neither authenticated nor on the `AUTH_ANON_ALLOWLIST`; identity comes from cookies in all envs and, in D…
 - `docs/adr/0003-etag-optimistic-concurrency.md` — Every Job and PO mutation requires an `If-Match` header carrying the latest ETag; the server rejects mismatches with `412` and missing headers with `428`, atomi…
@@ -59,6 +60,7 @@ tips · alternatives considered · steps · what youll need · what happens next
 - `docs/adr/0010-single-deploy-script.md` — One `scripts/deploy.sh` handles PROD, UAT, and SCHEDULER via hostname detection; CD runs it against both UAT machines in parallel with `continue-on-error`, and …
 - `docs/adr/0011-codesight-precommit-wiki.md` — Commit `.codesight/` and `docs/.codesight/` to git and regenerate both on pre-commit via `--wiki` and `--mode knowledge` so AI-assistant context never drifts fr…
 - `docs/adr/0012-accounting-provider-strategy.md` — Introduce an `AccountingProvider` protocol with per-backend implementations (Xero today, MYOB next) resolved at request time via `get_provider()` — runtime poly…
+- `docs/adr/0013-fix-data-not-fallback.md` — When a consumer finds data shaped differently from the model's contract, restore the contract by repairing the data (migration, emission fix, or both) — never b…
 - `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 
 ### Specs & PRDs (7)
@@ -90,6 +92,7 @@ tips · alternatives considered · steps · what youll need · what happens next
 - `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
 - `docs/msm-cutover.md` — Move MSM production from the old server (`/home/django_user`, MariaDB, `192.168.1.17`) to the new
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
+- `docs/plans/steady-sleeping-waffle.md` — `SalesPipelineService` reads `JobEvent.delta_after.status` to derive status
 - `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
 - `docs/restore-workaround-jobevent-staff-null.md` ← 1 refs — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
 - `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
@@ -97,7 +100,6 @@ tips · alternatives considered · steps · what youll need · what happens next
 - `docs/test_pdfs/price_lists/2.md` — Effective 1st April 2025 (All Prices Excl. GST)
 - `docs/test_pdfs/price_lists/3.md` — **Attention:** Craig/Nigel
 - `docs/test_pdfs/price_lists/4.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
-- `docs/trello.md` — Quick reference for the board this project tracks work on. The board and column layout change rarely; IDs are stable across sessions. If the MCP reports anythin…
 - _…and 61 more_
 
 ---
