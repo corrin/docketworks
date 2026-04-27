@@ -7,6 +7,7 @@ from apps.accounting.views.sales_forecast_view import (
     SalesForecastAPIView,
     SalesForecastMonthDetailAPIView,
 )
+from apps.accounting.views.sales_pipeline_view import SalesPipelineAPIView
 from apps.accounting.views.staff_performance_views import (
     StaffPerformanceDetailAPIView,
     StaffPerformanceSummaryAPIView,
@@ -76,6 +77,11 @@ urlpatterns = [
         "reports/rdti-spend/",
         RDTISpendAPIView.as_view(),
         name="api_rdti_spend",
+    ),
+    path(
+        "reports/sales-pipeline/",
+        SalesPipelineAPIView.as_view(),
+        name="api_sales_pipeline",
     ),
     path(
         "reports/wip/",

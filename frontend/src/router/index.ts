@@ -239,6 +239,12 @@ const router = createRouter({
       meta: { requiresAuth: true, title: 'Sales Forecast Report - DocketWorks' },
     },
     {
+      path: '/reports/sales-pipeline',
+      name: 'sales-pipeline-report',
+      component: () => import('@/views/SalesPipelineReportView.vue'),
+      meta: { requiresAuth: true, title: 'Sales Pipeline Report - DocketWorks', allowScroll: true },
+    },
+    {
       path: '/reports/profit-and-loss',
       name: 'profit-loss-report',
       component: () => import('@/views/ProfitLossReportView.vue'),

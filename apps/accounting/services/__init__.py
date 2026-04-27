@@ -8,6 +8,7 @@ try:
         from .core import JobAgingService, KPIService, StaffPerformanceService
         from .payroll_reconciliation_service import PayrollReconciliationService
         from .rdti_spend_service import RDTISpendService
+        from .sales_pipeline_service import SalesPipelineService
         from .wip_service import WIPService
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -18,6 +19,7 @@ __all__ = [
     "KPIService",
     "PayrollReconciliationService",
     "RDTISpendService",
+    "SalesPipelineService",
     "StaffPerformanceService",
     "WIPService",
 ]

@@ -163,6 +163,7 @@
 - **QuotingChatView** [client] — `frontend/src/views/QuotingChatView.vue`
 - **RDTISpendReportView** [client] — `frontend/src/views/RDTISpendReportView.vue`
 - **SalesForecastReportView** [client] — `frontend/src/views/SalesForecastReportView.vue`
+- **SalesPipelineReportView** [client] — props: actualHPerDay — `frontend/src/views/SalesPipelineReportView.vue`
 - **StaffPerformanceReportView** [client] — `frontend/src/views/StaffPerformanceReportView.vue`
 - **SwpListView** [client] — `frontend/src/views/SwpListView.vue`
 - **TimesheetEntryView** [client] — `frontend/src/views/TimesheetEntryView.vue`

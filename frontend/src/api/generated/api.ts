@@ -227,6 +227,125 @@ const RDTISpendResponse = z.object({
   jobs: z.array(RDTISpendJobDetail),
   totals: RDTISpendTotals,
 })
+const SalesPipelinePeriod = z.object({
+  start_date: z.string(),
+  end_date: z.string(),
+  rolling_window_weeks: z.number().int(),
+  trend_weeks: z.number().int(),
+  daily_approved_hours_target: z.number(),
+})
+const SalesPipelineSizeBucket = z.object({
+  count: z.number().int(),
+  hours: z.number(),
+  hours_per_working_day: z.number().nullable(),
+  share_of_hours: z.number().nullable(),
+})
+const SalesPipelineSizeBuckets = z.object({
+  small: SalesPipelineSizeBucket,
+  medium: SalesPipelineSizeBucket,
+  large: SalesPipelineSizeBucket,
+})
+const SalesPipelineFunnelPath = z.object({
+  count: z.number().int(),
+  hours: z.number(),
+  hours_per_working_day: z.number().nullable(),
+})
+const SalesPipelineFunnelPaths = z.object({
+  instant: SalesPipelineFunnelPath,
+  estimating: SalesPipelineFunnelPath,
+})
+const SalesPipelineScoreboard = z.object({
+  approved_hours_total: z.number(),
+  approved_hours_per_working_day: z.number().nullable(),
+  approved_jobs_count: z.number().int(),
+  direct_hours: z.number(),
+  direct_jobs_count: z.number().int(),
+  working_days: z.number().int(),
+  target_hours_for_period: z.number(),
+  pace_vs_target: z.number().nullable(),
+  by_size_bucket: SalesPipelineSizeBuckets,
+  by_funnel_path: SalesPipelineFunnelPaths,
+})
+const SalesPipelineSnapshotJob = z.object({
+  id: z.string(),
+  job_number: z.number().int(),
+  name: z.string(),
+  client_name: z.string(),
+  hours: z.number(),
+  value: z.number(),
+  days_in_stage: z.number().int(),
+})
+const SalesPipelineStageBucket = z.object({
+  count: z.number().int(),
+  hours_total: z.number(),
+  value_total: z.number(),
+  avg_days_in_stage: z.number(),
+  jobs: z.array(SalesPipelineSnapshotJob),
+})
+const SalesPipelineSnapshot = z.object({
+  as_of: z.string(),
+  draft: SalesPipelineStageBucket,
+  awaiting_approval: SalesPipelineStageBucket,
+})
+const SalesPipelineVelocityMetric = z.object({
+  median_days: z.number().nullable(),
+  p80_days: z.number().nullable(),
+  sample_size: z.number().int(),
+})
+const SalesPipelineVelocity = z.object({
+  draft_to_quote_sent: SalesPipelineVelocityMetric,
+  quote_sent_to_resolved: SalesPipelineVelocityMetric,
+  created_to_approved: SalesPipelineVelocityMetric,
+})
+const SalesPipelineFunnelBucket = z.object({
+  count: z.number().int(),
+  hours: z.number(),
+})
+const SalesPipelineFunnel = z.object({
+  accepted: SalesPipelineFunnelBucket,
+  rejected: SalesPipelineFunnelBucket,
+  waiting: SalesPipelineFunnelBucket,
+  direct: SalesPipelineFunnelBucket,
+  still_draft: SalesPipelineFunnelBucket,
+})
+const SalesPipelineTrendWeek = z.object({
+  week_start: z.string(),
+  week_end: z.string(),
+  approved_hours: z.number(),
+  approved_hours_per_working_day: z.number(),
+  acceptance_rate_by_hours: z.number().nullable(),
+  pipeline_hours_at_week_end: z.number(),
+  median_velocity_days: z.number().nullable(),
+  working_days: z.number().int(),
+})
+const SalesPipelineRollingPoint = z.object({
+  week_start: z.string(),
+  rolling_avg_approved_hours: z.number(),
+})
+const SalesPipelineTrend = z.object({
+  weeks: z.array(SalesPipelineTrendWeek),
+  rolling_average: z.array(SalesPipelineRollingPoint),
+})
+const SalesPipelineWarningSampleJob = z.object({
+  id: z.string(),
+  job_number: z.number().int().nullable(),
+  name: z.string(),
+})
+const SalesPipelineWarning = z.object({
+  code: z.string(),
+  section: z.string(),
+  count: z.number().int(),
+  sample_jobs: z.array(SalesPipelineWarningSampleJob),
+})
+const SalesPipelineResponse = z.object({
+  period: SalesPipelinePeriod,
+  scoreboard: SalesPipelineScoreboard,
+  pipeline_snapshot: SalesPipelineSnapshot,
+  velocity: SalesPipelineVelocity,
+  conversion_funnel: SalesPipelineFunnel,
+  trend: SalesPipelineTrend,
+  warnings: z.array(SalesPipelineWarning),
+})
 const StaffPerformanceTeamAverages = z.object({
   billable_percentage: z.number(),
   revenue_per_hour: z.number(),
@@ -780,6 +899,7 @@ const CompanyDefaults = z.object({
   kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
   kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
+  daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
 })
 const CompanyDefaultsRequest = z
   .object({
@@ -841,6 +961,7 @@ const CompanyDefaultsRequest = z
     kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000),
     kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000),
     kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000),
+    daily_approved_hours_target: z.number().gt(-1000).lt(1000),
   })
   .partial()
 const PatchedCompanyDefaultsRequest = z
@@ -903,6 +1024,7 @@ const PatchedCompanyDefaultsRequest = z
     kpi_job_gp_target_percentage: z.number().gt(-1000).lt(1000),
     kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000),
     kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000),
+    daily_approved_hours_target: z.number().gt(-1000).lt(1000),
   })
   .partial()
 const SettingsField = z.object({
@@ -2962,6 +3084,25 @@ export const schemas = {
   RDTISpendJobDetail,
   RDTISpendTotals,
   RDTISpendResponse,
+  SalesPipelinePeriod,
+  SalesPipelineSizeBucket,
+  SalesPipelineSizeBuckets,
+  SalesPipelineFunnelPath,
+  SalesPipelineFunnelPaths,
+  SalesPipelineScoreboard,
+  SalesPipelineSnapshotJob,
+  SalesPipelineStageBucket,
+  SalesPipelineSnapshot,
+  SalesPipelineVelocityMetric,
+  SalesPipelineVelocity,
+  SalesPipelineFunnelBucket,
+  SalesPipelineFunnel,
+  SalesPipelineTrendWeek,
+  SalesPipelineRollingPoint,
+  SalesPipelineTrend,
+  SalesPipelineWarningSampleJob,
+  SalesPipelineWarning,
+  SalesPipelineResponse,
   StaffPerformanceTeamAverages,
   StaffPerformanceJobBreakdown,
   StaffPerformanceStaffData,
@@ -3598,6 +3739,54 @@ Returns:
       {
         status: 400,
         schema: z.object({ error: z.string() }).partial(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/api/accounting/reports/sales-pipeline/',
+    alias: 'accounting_reports_sales_pipeline_retrieve',
+    description: `Sales Pipeline Report — answers whether enough approved work is flowing
+into the shop, and where the bottleneck is. See
+&#x60;&#x60;docs/plans/2026-04-16-sales-pipeline-report.md&#x60;&#x60;.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'end_date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'rolling_window_weeks',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'start_date',
+        type: 'Query',
+        schema: z.string(),
+      },
+      {
+        name: 'trend_weeks',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+    ],
+    response: SalesPipelineResponse,
+    errors: [
+      {
+        status: 400,
+        schema: z.object({
+          error: z.string(),
+          details: z.unknown().optional(),
+        }),
+      },
+      {
+        status: 500,
+        schema: z.object({
+          error: z.string(),
+          details: z.unknown().optional(),
+        }),
       },
     ],
   },

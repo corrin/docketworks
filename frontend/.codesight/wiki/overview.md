@@ -6,17 +6,17 @@
 
 ## Scale
 
-181 UI components · 3 middleware layers · 13 environment variables
+182 UI components · 3 middleware layers · 13 environment variables
 
-**UI:** 181 components (vue) — see [ui.md](./ui.md)
+**UI:** 182 components (vue) — see [ui.md](./ui.md)
 
 ## High-Impact Files
 
 Changes to these files have the widest blast radius across the codebase:
 
-- `src/api/generated/api.ts` — imported by **75** files
-- `src/utils/debug.ts` — imported by **51** files
-- `src/api/client.ts` — imported by **48** files
+- `src/api/generated/api.ts` — imported by **76** files
+- `src/utils/debug.ts` — imported by **52** files
+- `src/api/client.ts` — imported by **49** files
 - `tests/fixtures/auth.ts` — imported by **29** files
 - `tests/fixtures/helpers.ts` — imported by **21** files
 - `src/utils/dateUtils.ts` — imported by **16** files

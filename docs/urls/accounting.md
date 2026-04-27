@@ -10,6 +10,7 @@
 | `/reports/rdti-spend/` | `rdti_spend_view.RDTISpendAPIView` | `accounting:api_rdti_spend` | API endpoint for the RDTI spend report. |
 | `/reports/sales-forecast/` | `sales_forecast_view.SalesForecastAPIView` | `accounting:api_sales_forecast` | API Endpoint to compare monthly sales between Xero and Job Manager. |
 | `/reports/sales-forecast/<str:month>/` | `sales_forecast_view.SalesForecastMonthDetailAPIView` | `accounting:api_sales_forecast_month_detail` | API Endpoint to drill down into a specific month's sales data. |
+| `/reports/sales-pipeline/` | `sales_pipeline_view.SalesPipelineAPIView` | `accounting:api_sales_pipeline` | Sales Pipeline Report — answers whether enough approved work is flowing |
 | `/reports/staff-performance-summary/` | `staff_performance_views.StaffPerformanceSummaryAPIView` | `accounting:api_staff_performance_summary` | API endpoint for staff performance summary (all staff) |
 | `/reports/staff-performance/<uuid:staff_id>/` | `staff_performance_views.StaffPerformanceDetailAPIView` | `accounting:api_staff_performance_detail` | API endpoint for individual staff performance detail |
 | `/reports/wip/` | `wip_view.WIPReportAPIView` | `accounting:api_wip_report` | API endpoint for Work In Progress report. |

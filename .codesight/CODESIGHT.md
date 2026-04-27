@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 44 models | 181 components | 365 lib files | 69 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,200 tokens. Without it, AI exploration would cost ~240,400 tokens. **Saves ~210,200 tokens per conversation.**
+> 95 routes | 44 models | 182 components | 367 lib files | 69 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,400 tokens. Without it, AI exploration would cost ~241,800 tokens. **Saves ~211,400 tokens per conversation.**
 
 ---
 
@@ -20,6 +20,7 @@
 - `ALL` `/reports/staff-performance-summary/` params()
 - `ALL` `/reports/staff-performance/<uuid:staff_id>/` params(staff_id)
 - `ALL` `/reports/rdti-spend/` params()
+- `ALL` `/reports/sales-pipeline/` params()
 - `ALL` `/reports/wip/` params()
 - `ALL` `/staff/all/` params() [auth]
 - `ALL` `/staff/rates/<uuid:staff_id>/` params(staff_id) [auth]
@@ -854,6 +855,7 @@
 - **QuotingChatView** [client] — `frontend/src/views/QuotingChatView.vue`
 - **RDTISpendReportView** [client] — `frontend/src/views/RDTISpendReportView.vue`
 - **SalesForecastReportView** [client] — `frontend/src/views/SalesForecastReportView.vue`
+- **SalesPipelineReportView** [client] — props: actualHPerDay — `frontend/src/views/SalesPipelineReportView.vue`
 - **StaffPerformanceReportView** [client] — `frontend/src/views/StaffPerformanceReportView.vue`
 - **SwpListView** [client] — `frontend/src/views/SwpListView.vue`
 - **TimesheetEntryView** [client] — `frontend/src/views/TimesheetEntryView.vue`
@@ -924,6 +926,14 @@
   - class RDTISpendJobDetailSerializer
   - class RDTISpendTotalsSerializer
   - class RDTISpendResponseSerializer
+- `apps/accounting/serializers/sales_pipeline_serializers.py`
+  - class SalesPipelineQuerySerializer
+  - class SalesPipelinePeriodSerializer
+  - class SalesPipelineSizeBucketSerializer
+  - class SalesPipelineSizeBucketsSerializer
+  - class SalesPipelineFunnelPathSerializer
+  - class SalesPipelineFunnelPathsSerializer
+  - _...14 more_
 - `apps/accounting/serializers/wip_serializers.py`
   - class WIPQuerySerializer
   - class WIPJobSerializer
@@ -936,6 +946,7 @@
   - class StaffPerformanceService
 - `apps/accounting/services/payroll_reconciliation_service.py` — class PayrollReconciliationService
 - `apps/accounting/services/rdti_spend_service.py` — class RDTISpendService
+- `apps/accounting/services/sales_pipeline_service.py` — class SalesPipelineService
 - `apps/accounting/services/wip_service.py` — class WIPService
 - `apps/accounts/apps.py` — class AccountsConfig
 - `apps/accounts/management/commands/flag_weak_passwords.py` — class Command
@@ -2066,7 +2077,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 119 test files found
+> 122 test files found
 
 ## Covered Routes
 
