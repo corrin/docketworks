@@ -295,6 +295,7 @@
   - class UnscheduledJobSerializer
   - class WorkshopScheduleResponseSerializer
   - class WorkshopScheduleQuerySerializer
+- `apps/operations/services/capacity.py` — function booked_hours_by_staff_date: (start_date, end_date) -> Dict[Tuple[str, date], float]
 - `apps/operations/services/scheduler_service.py`
   - function run_workshop_schedule: () -> SchedulerRun
   - class JobScheduleState

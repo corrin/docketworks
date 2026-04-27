@@ -23,7 +23,7 @@ class OperationsConfig(AppConfig):
         scheduler.add_job(
             recompute_workshop_schedule,
             trigger="interval",
-            hours=4,
+            hours=1,
             id="recompute_workshop_schedule",
             max_instances=1,
             replace_existing=True,

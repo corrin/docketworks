@@ -6,7 +6,7 @@
 - `frontend/src/api/generated/api.ts` — imported by **27** files
 - `frontend/tests/fixtures/helpers.ts` — imported by **21** files
 - `frontend/src/utils/debug.ts` — imported by **14** files
-- `/apps.py` — imported by **9** files
+- `/apps.py` — imported by **10** files
 - `frontend/src/api/client.ts` — imported by **7** files
 - `frontend/src/utils/dateUtils.ts` — imported by **6** files
 - `/enums.py` — imported by **5** files
@@ -29,7 +29,7 @@
 - `frontend/src/api/generated/api.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAddEmptyCostLine.ts`, `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCostLineAutosave.ts` +22 more
 - `frontend/tests/fixtures/helpers.ts` ← `frontend/tests/fixtures/auth.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/job-attachments.spec.ts`, `frontend/tests/job/job-header.spec.ts` +16 more
 - `frontend/src/utils/debug.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobAutosave.ts`, `frontend/src/composables/useOptimizedDragAndDrop.ts` +9 more
-- `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/process/__init__.py` +4 more
+- `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/operations/__init__.py` +5 more
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
 - `frontend/src/utils/dateUtils.ts` ← `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/services/timesheet.service.ts`, `frontend/tests/staff/staff-wage-loading.spec.ts`, `frontend/tests/timesheet/create-timesheet-entry.spec.ts` +1 more
 - `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`

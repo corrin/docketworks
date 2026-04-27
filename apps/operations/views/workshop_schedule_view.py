@@ -18,6 +18,8 @@ from apps.operations.serializers.workshop_schedule_serializer import (
     WorkshopScheduleQuerySerializer,
     WorkshopScheduleResponseSerializer,
 )
+from apps.operations.services.capacity import booked_hours_by_staff_date
+from apps.workflow.models.company_defaults import CompanyDefaults
 from apps.workflow.services.error_persistence import (
     extract_request_context,
     persist_app_error,
@@ -85,7 +87,7 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
                 }
             )
 
-    today = timezone.now().date()
+    today = timezone.localdate()
 
     distinct_dates = (
         AllocationBlock.objects.filter(scheduler_run=latest_run)
@@ -110,11 +112,23 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
         .values_list("allocation_date", "total")
     )
 
-    days = []
-    for day_date in distinct_dates:
-        total_capacity = sum(
-            s.get_scheduled_hours(day_date) for s in all_workshop_staff
+    distinct_dates_list = list(distinct_dates)
+    if distinct_dates_list:
+        booked_hours = booked_hours_by_staff_date(
+            distinct_dates_list[0], distinct_dates_list[-1]
         )
+    else:
+        booked_hours = {}
+
+    efficiency_factor = float(CompanyDefaults.get_solo().workshop_efficiency_factor)
+
+    days = []
+    for day_date in distinct_dates_list:
+        total_capacity = 0.0
+        for s in all_workshop_staff:
+            nominal = s.get_scheduled_hours(day_date)
+            already_booked = booked_hours.get((str(s.pk), day_date), 0.0)
+            total_capacity += max(0.0, nominal - already_booked) * efficiency_factor
         allocated = float(allocated_by_date.get(day_date, 0.0) or 0.0)
         utilisation_pct = (
             (allocated / total_capacity * 100) if total_capacity > 0 else 0.0

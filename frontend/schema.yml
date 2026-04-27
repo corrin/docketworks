@@ -9182,6 +9182,17 @@ components:
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
             (8.00 = 8%)
+        workshop_efficiency_factor:
+          type: number
+          format: double
+          maximum: 10
+          minimum: -10
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Fraction of clocked workshop hours that count as schedulable
+            productive output (e.g. 0.750 = 75%). Accounts for breaks, tool changes,
+            idle time. Applied to per-day capacity in the workshop scheduler after
+            subtracting booked time/leave.
         financial_year_start_month:
           type: integer
           maximum: 2147483647
@@ -9552,6 +9563,17 @@ components:
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
             (8.00 = 8%)
+        workshop_efficiency_factor:
+          type: number
+          format: double
+          maximum: 10
+          minimum: -10
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Fraction of clocked workshop hours that count as schedulable
+            productive output (e.g. 0.750 = 75%). Accounts for breaks, tool changes,
+            idle time. Applied to per-day capacity in the workshop scheduler after
+            subtracting booked time/leave.
         financial_year_start_month:
           type: integer
           maximum: 2147483647
@@ -14334,6 +14356,17 @@ components:
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
             (8.00 = 8%)
+        workshop_efficiency_factor:
+          type: number
+          format: double
+          maximum: 10
+          minimum: -10
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Fraction of clocked workshop hours that count as schedulable
+            productive output (e.g. 0.750 = 75%). Accounts for breaks, tool changes,
+            idle time. Applied to per-day capacity in the workshop scheduler after
+            subtracting booked time/leave.
         financial_year_start_month:
           type: integer
           maximum: 2147483647

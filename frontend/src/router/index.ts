@@ -34,6 +34,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/schedule',
+      name: 'workshop-schedule',
+      component: () => import('@/views/WorkshopScheduleView.vue'),
+      meta: {
+        requiresAuth: true,
+        title: 'Workshop Schedule - DocketWorks',
+      },
+    },
+    {
       path: '/jobs/create',
       name: 'job-create',
       component: () => import('@/views/JobCreateView.vue'),

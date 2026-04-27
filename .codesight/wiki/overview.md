@@ -6,7 +6,7 @@
 
 ## Scale
 
-95 API routes · 44 database models · 182 UI components · 10 middleware layers · 69 environment variables
+95 API routes · 44 database models · 183 UI components · 10 middleware layers · 69 environment variables
 
 ## Subsystems
 
@@ -17,7 +17,7 @@
 
 **Database:** django, 44 models — see [database.md](./database.md)
 
-**UI:** 182 components (vue) — see [ui.md](./ui.md)
+**UI:** 183 components (vue) — see [ui.md](./ui.md)
 
 ## High-Impact Files
 
@@ -27,7 +27,7 @@ Changes to these files have the widest blast radius across the codebase:
 - `frontend/src/api/generated/api.ts` — imported by **27** files
 - `frontend/tests/fixtures/helpers.ts` — imported by **21** files
 - `frontend/src/utils/debug.ts` — imported by **14** files
-- `/apps.py` — imported by **9** files
+- `/apps.py` — imported by **10** files
 - `frontend/src/api/client.ts` — imported by **7** files
 
 ## Required Environment Variables

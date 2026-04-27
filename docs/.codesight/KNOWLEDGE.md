@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 108 notes · 17 decisions · 10 open questions
+> 112 notes · 17 decisions · 10 open questions · 2026-04-16 → 2026-04-28
 
-> **AI Primer:** This knowledge base has 108 notes. Key topics: alternatives considered, tips, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-04-16 to 2026-04-28 (112 notes). Key topics: alternatives considered, tips, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
 ## Key Decisions (17)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
@@ -28,14 +28,14 @@
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
 - is enough approved work flowing into the shop, and if not, where is the bottleneck? The report must be reproducible hist
-- | Number | Preempts |
-- process.env.MSM_FRONTEND_URL ??
-- Timing issue? Page not fully rendered when we search?
-- Selector issue? `data-automation-id^="cost-line-row-"` not matching?
-- Textarea selector issue? `.locator('textarea').first()` not finding the right element?
+- when is each job expected to start?
+- when is each job expected to finish?
+- where are jobs overlapping in time?
+- which jobs are late?
+- how does work actually flow across the upcoming days?
 
 ## Recurring Themes
-alternatives considered · tips · steps · what youll need · what happens next · troubleshooting · prerequisites · purpose · frontend · development workflow · license · step 1 prepare credentials
+alternatives considered · tips · steps · what youll need · what happens next · purpose · troubleshooting · prerequisites · acceptance criteria · notes for the implementer · out of scope · frontend
 
 ## People
 @login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
@@ -48,7 +48,7 @@ alternatives considered · tips · steps · what youll need · what happens next
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (108)
+## Note Index (112)
 
 ### Decision Records (15)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
@@ -86,8 +86,12 @@ alternatives considered · tips · steps · what youll need · what happens next
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (82)
+### General Notes (86)
+- `docs/plans/2026-04-28-leave-entries-csv-input.md` — 2026-04-28 — **Trello:** https://trello.com/c/UsstYu5I
+- `docs/plans/2026-04-28-utc-localdate-sweep.md` — 2026-04-28 — Eliminate a class of subtle "off by one day" bugs caused by calling `.date()` on
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
+- `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
+- `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
 - `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
@@ -103,11 +107,7 @@ alternatives considered · tips · steps · what youll need · what happens next
 - `docs/plans/now-the-performance-concerns-stateful-taco.md` — Two Copilot review comments on #162 flagged the Sales Pipeline service as having hot paths that do Python-side work which could move to SQL:
 - `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
 - `docs/restore-workaround-jobevent-staff-null.md` ← 1 refs — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
-- `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
-- `docs/test_pdfs/price_lists/1.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
-- `docs/test_pdfs/price_lists/2.md` — Effective 1st April 2025 (All Prices Excl. GST)
-- `docs/test_pdfs/price_lists/3.md` — **Attention:** Craig/Nigel
-- _…and 62 more_
+- _…and 66 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

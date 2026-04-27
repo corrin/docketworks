@@ -21,6 +21,14 @@
 
           <router-link
             v-if="userInfo.is_office_staff"
+            to="/schedule"
+            class="flex items-center text-gray-700 hover:text-blue-600 transition-colors text-sm font-medium"
+          >
+            <CalendarRange class="w-4 h-4 mr-1" /> Schedule
+          </router-link>
+
+          <router-link
+            v-if="userInfo.is_office_staff"
             to="/jobs/create"
             class="flex items-center text-gray-700 hover:text-blue-600 transition-colors text-sm font-medium"
             data-automation-id="AppNavbar-create-job"
@@ -452,6 +460,14 @@
               </router-link>
               <router-link
                 v-if="isOfficeStaff"
+                to="/schedule"
+                class="flex items-center px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
+                @click="closeMobileMenu"
+              >
+                <CalendarRange class="w-4 h-4 mr-2" /> Schedule
+              </router-link>
+              <router-link
+                v-if="isOfficeStaff"
                 to="/jobs/create"
                 class="flex items-center px-3 py-2 text-gray-700 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-all"
                 data-automation-id="AppNavbar-create-job-mobile"
@@ -867,6 +883,7 @@ import {
   Menu,
   X,
   Calendar,
+  CalendarRange,
   PlusCircle,
   BarChart3,
   Search,

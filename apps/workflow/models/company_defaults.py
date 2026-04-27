@@ -26,6 +26,17 @@ class CompanyDefaults(SingletonModel):
         default=8.00,
         help_text="Percentage added to base_wage_rate to get costing wage_rate (8.00 = 8%)",
     )
+    workshop_efficiency_factor = models.DecimalField(
+        max_digits=4,
+        decimal_places=3,
+        default=Decimal("0.750"),
+        help_text=(
+            "Fraction of clocked workshop hours that count as schedulable "
+            "productive output (e.g. 0.750 = 75%). Accounts for breaks, "
+            "tool changes, idle time. Applied to per-day capacity in the "
+            "workshop scheduler after subtracting booked time/leave."
+        ),
+    )
     financial_year_start_month = models.IntegerField(
         default=4,
         help_text="Month the financial year starts (1=January, 4=April, 7=July, etc.)",
