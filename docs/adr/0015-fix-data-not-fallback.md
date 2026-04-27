@@ -1,4 +1,4 @@
-# 0013 — Fix incorrect data; do not add read-side fallbacks
+# 0015 — Fix incorrect data; do not add read-side fallbacks
 
 When a consumer finds data shaped differently from the model's contract, restore the contract by repairing the data (migration, emission fix, or both) — never by softening the consumer.
 

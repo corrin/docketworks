@@ -31,3 +31,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0012 | Accounting provider strategy pattern              |
 | 0013 | Error message clarity wins over information hiding |
 | 0014 | Explicit `else` branches on non-trivial `if`       |
+| 0015 | Fix incorrect data; do not add read-side fallbacks |

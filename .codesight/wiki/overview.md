@@ -6,7 +6,7 @@
 
 ## Scale
 
-95 API routes · 44 database models · 181 UI components · 10 middleware layers · 68 environment variables
+95 API routes · 44 database models · 181 UI components · 10 middleware layers · 69 environment variables
 
 ## Subsystems
 
@@ -23,9 +23,9 @@
 
 Changes to these files have the widest blast radius across the codebase:
 
+- `frontend/tests/fixtures/auth.ts` — imported by **29** files
 - `frontend/src/api/generated/api.ts` — imported by **27** files
-- `frontend/tests/fixtures/auth.ts` — imported by **27** files
-- `frontend/tests/fixtures/helpers.ts` — imported by **19** files
+- `frontend/tests/fixtures/helpers.ts` — imported by **21** files
 - `frontend/src/utils/debug.ts` — imported by **14** files
 - `/apps.py` — imported by **9** files
 - `frontend/src/api/client.ts` — imported by **7** files
@@ -47,4 +47,4 @@ Changes to these files have the widest blast radius across the codebase:
 - _...4 more_
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-04-23_
+_Back to [index.md](./index.md) · Generated 2026-04-27_

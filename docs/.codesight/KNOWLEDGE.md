@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 170 notes · 17 decisions · 10 open questions · 2026-02-24 → 2026-04-22
+> 108 notes · 17 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base spans 2026-02-24 to 2026-04-22 (170 notes). Key topics: verification, alternatives considered, tips, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 108 notes. Key topics: alternatives considered, tips, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
 ## Key Decisions (17)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
@@ -18,27 +18,27 @@
 - Strategy pattern, registry-resolved at request time: `apps/workflow/accounting/provider.py` defines `AccountingProvider` (Protocol) covering auth, contacts, documents, sync-pull, and optional capability flags (`supports_projects`, `supports_payroll`). `apps/workflow/accounting/registry.py` exposes `get_provider()`, which reads `settings.ACCOUNTING_BACKEND` (default `"xero"`) and returns the active instance. `apps/workflow/accounting/types.py` defines provider-agnostic payload dataclasses (`InvoicePayload`, `QuotePayload`, `POPayload`, `DocumentResult`) so `xero_python` types stay inside the Xero provider. Keep all existing `xero_*` model fields — they have data and migrations; MYOB installations simply leave them null. Add `CompanyDefaults.accounting_provider` to track which backend is active. Phase the rollout: (1) interface + thin Xero wrapper over existing code, (2) document managers build generic payloads, (3) client service calls `get_provider()`, (4) sync layer becomes provider-agnostic, (5) build MYOB provider.
 - Return the underlying exception message in API error responses. Do not mask or generalise exception text for information-hiding reasons. Continue to include the persisted `AppError.id` as `details.error_id` so any response can be cross-referenced with structured logs and the DB row.
 - For `if` statements with non-trivial control flow, include an explicit `else` branch. The `else` body can be:
+- When a consumer's invariant is violated by stored data, fix the data. In order of preference: (1) data migration that reconstructs the canonical field from another in-row source already populated by an earlier migration, (2) emission-side patch that closes the path producing wrong data going forward, (3) both. The consumer stays strict — no `COALESCE`, no `or detail.changes…`, no schema relaxation, no "tolerant" reads. If the data cannot be reconstructed (the source is genuinely lost), escalate — raise, alert, leave the row visibly broken — rather than silently degrade. Document the unrecoverable subset as out of scope and treat its existence as a separate emission-audit task, not as a reason to relax the contract.
 - What we chose, stated as an imperative. One paragraph.
-- [2026-04-20] hold onto the old HTML
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
 ## Open Questions (10)
+- when we discover data that *is* malformed, what do we do? The temptation is always to make the consumer tolerant ("just
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
 - is enough approved work flowing into the shop, and if not, where is the bottleneck? The report must be reproducible hist
-- when is each job expected to start?
-- when is each job expected to finish?
-- where are jobs overlapping in time?
-- which jobs are late?
-- how does work actually flow across the upcoming days?
-- 1. Which active jobs are likely to miss their promised date?
+- process.env.MSM_FRONTEND_URL ??
+- Timing issue? Page not fully rendered when we search?
+- Selector issue? `data-automation-id^="cost-line-row-"` not matching?
+- Textarea selector issue? `.locator('textarea').first()` not finding the right element?
+- Maybe the first edited field doesn't trigger autosave?
 
 ## Recurring Themes
-verification · alternatives considered · tips · what youll need · files to modify · steps · what happens next · approach · critical files · troubleshooting · purpose · prerequisites
+alternatives considered · tips · steps · what youll need · what happens next · troubleshooting · prerequisites · purpose · frontend · development workflow · license · step 1 prepare credentials
 
 ## People
-@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @transaction · @pytest · @patch · @anthropic · @classmethod · @rowClick · @resolve · @unresolve · @update · @close · @api_view · @permission_classes · @staticmethod · @property · @github
+@login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -48,9 +48,9 @@ verification · alternatives considered · tips · what youll need · files to m
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (170)
+## Note Index (108)
 
-### Decision Records (14)
+### Decision Records (15)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
 - `docs/adr/0002-auth-gate-global-allowlist.md` — A blocking middleware gate rejects any request that is neither authenticated nor on the `AUTH_ANON_ALLOWLIST`; identity comes from cookies in all envs and, in D…
 - `docs/adr/0003-etag-optimistic-concurrency.md` — Every Job and PO mutation requires an `If-Match` header carrying the latest ETag; the server rejects mismatches with `412` and missing headers with `428`, atomi…
@@ -64,60 +64,47 @@ verification · alternatives considered · tips · what youll need · files to m
 - `docs/adr/0012-accounting-provider-strategy.md` — Introduce an `AccountingProvider` protocol with per-backend implementations (Xero today, MYOB next) resolved at request time via `get_provider()` — runtime poly…
 - `docs/adr/0013-error-message-clarity-over-info-hiding.md` — Internal-tool error responses include the underlying exception message verbatim so the user on the other end can act on it; we rely on authenticated-session log…
 - `docs/adr/0014-explicit-else-branches.md` — `if` statements in non-trivial code paths should have an explicit `else` branch, even when the else body is a no-op or a comment. Makes the state machine legibl…
+- `docs/adr/0015-fix-data-not-fallback.md` — When a consumer finds data shaped differently from the model's contract, restore the contract by repairing the data (migration, emission fix, or both) — never b…
 - `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 
-### Specs & PRDs (17)
-- `docs/plans/2026-04-19-admin-errors-dedup-design.md` — 2026-04-19 — **Status:** Design — awaiting user review
-- `frontend/docs/plans/2026-03-05-process-documents-frontend-design.md` — 2026-03-05 — Two user-facing experiences built on one backend model:
-- `docs/plans/2026-03-03-process-documents-design.md` — 2026-03-03 — Replace the Dropbox `Health & Safety` folder with an in-app document management system. Rename `SafetyDocument` to `ProcessDocument` to reflect broader scope. M…
-- `docs/plans/2026-03-03-process-documents-frontend-spec.md` — 2026-03-03 — The backend `SafetyDocument` model has been renamed to `ProcessDocument` with expanded functionality. The frontend needs a new **Process Documents** section tha…
-- `docs/plans/CHAT_TESTING_README.md` — Comprehensive testing framework for the chat functionality in the DocketWorks system.
-- `docs/plans/chatbot-fix.md` — The frontend now uploads files to jobs and stores file IDs in chat message metadata. The backend needs to extract file IDs from chat history and include those f…
-- `docs/plans/jsa-swp-api.md` — This document describes the backend API for AI-powered Job Safety Analysis (JSA) and Safe Work Procedure (SWP) generation and editing.
-- `docs/plans/single-origin-dev.md` — Eliminate the need for two ngrok tunnels in development by adding a Vite dev server proxy. All API and admin requests go through Vite's proxy to Django, making …
-- `docs/plans/xero_jm_reconciliation.md` — Create three API endpoints for reconciling DocketWorks data against Xero accounting data:
+### Specs & PRDs (7)
 - `docs/production-mysql-to-postgres-migration.md` ← 1 refs — Every command and its key output must be logged, same as the backup-restore process.
 - `docs/test_plans/client_contact_management_test_plan.md` — This test plan covers the new client contact management system that replaces Xero contact syncing with local contact storage.
 - `frontend/docs/ZODIOS_REFACTOR_GUIDE.md` — **COMPLETE MIGRATION** from raw Axios + handwritten interfaces to Zodios API client
 - `frontend/docs/done/e2e_testing_implementation_plan.md` — This document outlines the implementation plan for adding end-to-end (E2E) regression testing with automated screenshot generation to the Vue + Django workflow …
-- `frontend/docs/e2e_testing_strategy.md` — This document outlines the comprehensive end-to-end testing strategy for the DocketWorks application, organized by feature area with both targeted tests and a c…
 - `frontend/docs/jobview-delta-control-guide.md` — The backend now requires every `PUT /job-rest/jobs/{job_id}` or `PATCH /job-rest/jobs/{job_id}` call to submit a fully self-contained delta envelope. This docum…
 - `frontend/docs/xero-payroll-ui-requirements.md` — **For:** Frontend Vue.js Implementation
 - `restore/extracted/usr/local/nvm/ROADMAP.md` — This is a list of the primary features planned for `nvm`:
 
-### Meeting Notes (3)
+### Meeting Notes (2)
 - `docs/adr/0007-xero-payroll-sync.md` — Split a week's `CostLine` time entries into work / other-leave / annual-or-sick / unpaid buckets and post each through the right Xero surface (Timesheets API or…
-- `docs/plans/xero-projects-sync-plan.md` — This document outlines the plan to synchronize job data between Morris Sheetmetal's job management system and Xero Projects API.
 - `frontend/manual/enquiries/new-customer-call.md` — **When to use:** A new or existing customer calls asking about work they need done.
 
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### Backlogs (1)
-- `docs/plans/xero-projects-tickets.md` — **NEVER mark tickets as DONE (✅) unless ALL sub-tasks are actually completed and working.**
-
-### General Notes (134)
-- `docs/plans/2026-04-22-backup-include-migrations-table.md` — 2026-04-22 — The current dev restore flow (`docs/restore-prod-to-nonprod.md`) wipes the DB → `migrate` to **dev's HEAD** → `loaddata` the prod JSON. That decouples schema (d…
-- `docs/plans/2026-04-22-jobevent-staff-restore-loaddata-ordering.md` — 2026-04-22 — Restoring `restore/prod_backup_20260422_070407.json` on the `feat/jobevent-audit` branch fails with:
-- `docs/plans/2026-04-22-move-weekend-flag-to-company-defaults.md` — 2026-04-22 — Weekend-mode timesheets are currently gated by two separate flags:
-- `docs/plans/2026-04-22-prod-deploy-jobevent-audit.md` — 2026-04-22 — Small, self-contained change to `apps/workflow/management/commands/backport_data_backup.py` so every `backport_data_backup` run writes a third file into the zip…
-- `docs/plans/2026-04-22-prod-to-dev-scrubbed-dump.md` — 2026-04-22 — Both prod and dev now run Postgres. The current prod→dev refresh path uses Django `dumpdata` with in-memory Faker anonymisation (`apps/workflow/management/comma…
-- `docs/plans/2026-04-22-watch-git-head-autoreload.md` — 2026-04-22 — E2E tests on `feat/jobevent-audit` enter an infinite redirect loop on `/login`, timing out at `frontend/tests/fixtures/auth.ts:30` waiting for `#username`.
-- `docs/plans/2026-04-21-automation-user.md` — 2026-04-21 — `Staff.get_automation_user()` (commit 357504a8) currently returns the **oldest still-active superuser** as the attribution target for automation-triggered write…
-- `docs/plans/2026-04-21-jobevent-staff-migration-ordering.md` — 2026-04-21 — The approved plan at `docs/plans/2026-04-21-jobevent-staff-required.md` is still the source of truth. This file exists to capture one correction the user made m…
-- `docs/plans/2026-04-21-jobevent-staff-required.md` — 2026-04-21 — PR #218 introduces `Job.save(staff=user)` auto-audit. Copilot review surfaced four callsites that pass no staff (model logs ERROR and proceeds with `staff=None`…
-- `docs/plans/2026-04-21-merge-pr-142-jobevent.md` — 2026-04-21 — PR #142 (`feat/jobevent-structured-audit`) migrates the job audit trail from `django-simple-history`'s `HistoricalJob` to a structured `JobEvent` model with aut…
-- `docs/plans/2026-04-20-detect-new-app-version.md` — 2026-04-20 — After a deploy, users with open tabs continue running the old JS against the new API. Breaking schema changes then surface as Zod parse errors until the user do…
-- `docs/plans/2026-04-20-xero-merge-reassign-fks.md` — 2026-04-20 — When Xero merges client A into client B, our sync correctly sets `A.merged_into = B`, but every FK-holding record (Jobs, Invoices, Bills, CreditNotes, Quotes, P…
-- `docs/plans/2026-04-19-admin-errors-dedup-plan.md` — 2026-04-19 — **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan tas…
-- `docs/plans/2026-04-19-fix-xero-client-creation-500.md` — 2026-04-19 — Creating a client via `POST /clients/` returns 500. The Xero contact is created successfully, but response serialization rejects `xero_contact_id` because it co…
-- `docs/plans/2026-04-19-predeploy-backup.md` — 2026-04-19 — `scripts/server/deploy.sh` currently does: pull central repo → per-instance `git pull` → shared deps → per-instance build + migrate + restart. There is no safet…
-- `docs/plans/2026-04-18-extend-schema-explicit-request-body.md` — 2026-04-18 — Naming note: file should be renamed to `2026-04-18-remove-response-serializer-class-from-apiviews.md` (project convention is `YYYY-MM-DD-description.md`). Plan-…
-- `docs/plans/2026-04-18-linux-user-underscore-naming.md` — 2026-04-18 — **Goal:** Make per-instance OS user names match the DB role names (both `dw_<client>_<env>`) instead of diverging (`dw-<client>-<env>` vs `dw_<client>_<env>`).
+### General Notes (83)
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
-- `docs/plans/2026-04-16-workshop-schedule-frontend.md` — 2026-04-16 — Build a **calendar-first** Workshop Schedule screen that helps office staff make quick operational
-- `docs/plans/2026-04-16-workshop-schedule.md` — 2026-04-16 — Build the backend for an **operations** scheduling feature that helps office staff answer three
-- _…and 114 more_
+- `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
+- `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
+- `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
+- `docs/adr/README.md` — Short records capturing *why* we chose an approach — the problem, the decision, alternatives ruled out, consequences. Mechanics ("what changed") live in the lin…
+- `docs/architecture.md` ← 1 refs — DocketWorks is a Django-based web application that digitizes paper-based workflows from quote generation to job completion and invoicing for businesses that do …
+- `docs/client_onboarding.md` ← 2 refs — Everything needed to take a new client from signed contract to running instance. This is the handoff document for the onboarding specialist.
+- `docs/development_session.md` ← 2 refs — Steps to start a development session. For first-time setup, see [initial_install.md](initial_install.md).
+- `docs/initial_install.md` ← 5 refs — Dev machine setup. One-off steps that persist across restores.
+- `docs/instance-setup-demo.md` ← 1 refs — Onboard a prospect for a paid trial of DocketWorks. Uses dummy staff but the prospect's real rates, markups, and configuration. Connects to Xero Demo Company.
+- `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
+- `docs/msm-cutover.md` — Move MSM production from the old server (`/home/django_user`, MariaDB, `192.168.1.17`) to the new
+- `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
+- `docs/plans/now-the-performance-concerns-stateful-taco.md` — Two Copilot review comments on #162 flagged the Sales Pipeline service as having hot paths that do Python-side work which could move to SQL:
+- `docs/plans/steady-sleeping-waffle.md` — `SalesPipelineService` reads `JobEvent.delta_after.status` to derive status
+- `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
+- `docs/restore-workaround-jobevent-staff-null.md` ← 1 refs — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
+- `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
+- `docs/test_pdfs/price_lists/1.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
+- `docs/test_pdfs/price_lists/2.md` — Effective 1st April 2025 (All Prices Excl. GST)
+- _…and 63 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
