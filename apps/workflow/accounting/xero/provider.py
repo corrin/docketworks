@@ -281,17 +281,16 @@ class XeroAccountingProvider:
             return self._make_error_result(exc)
 
     def delete_quote(self, external_id: str) -> DocumentResult:
-        from datetime import date
-
         from xero_python.accounting.models import Contact, Quote
 
         try:
             api, tenant_id = self._get_api()
+            existing = api.get_quote(tenant_id, external_id).quotes[0]
             xero_quote = Quote(
                 quote_id=external_id,
                 status="DELETED",
-                contact=Contact(contact_id="placeholder"),
-                date=date.today().isoformat(),
+                contact=Contact(contact_id=existing.contact.contact_id),
+                date=existing.date,
             )
             api.update_or_create_quotes(
                 tenant_id,
