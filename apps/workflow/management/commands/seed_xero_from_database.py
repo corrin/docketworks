@@ -122,6 +122,12 @@ class Command(BaseCommand):
             else:
                 self.stdout.write("Skipping Projects (XERO_SYNC_PROJECTS is disabled)")
 
+        # Sync payroll employees (run before invoices/quotes/stock so payroll
+        # is in place before any financial transactions are seeded)
+        if "employees" in entities_to_sync:
+            self.stdout.write("Syncing Payroll Employees...")
+            employees_result = self.process_employees(dry_run)
+
         # Sync invoices (requires contacts to be seeded first)
         if "invoices" in entities_to_sync:
             self.stdout.write("Syncing Invoices...")
@@ -137,16 +143,16 @@ class Command(BaseCommand):
             self.stdout.write("Syncing Stock Items...")
             stock_processed = self.process_stock_items(dry_run)
 
-        # Sync payroll employees
-        if "employees" in entities_to_sync:
-            self.stdout.write("Syncing Payroll Employees...")
-            employees_result = self.process_employees(dry_run)
-
         # Summary
         self.stdout.write("COMPLETED")
         self.stdout.write(f"Accounts processed: {accounts_processed}")
         self.stdout.write(f"Contacts processed: {contacts_processed}")
         self.stdout.write(f"Projects processed: {projects_processed}")
+        self.stdout.write(
+            f"Employees linked: {employees_result['linked']}, "
+            f"created: {employees_result['created']}, "
+            f"already linked: {employees_result['already_linked']}"
+        )
         self.stdout.write(
             f"Invoices: {invoices_result['created']} created, "
             f"{invoices_result['orphans_deleted']} orphans deleted"
@@ -156,11 +162,6 @@ class Command(BaseCommand):
             f"{quotes_result['orphans_deleted']} orphans deleted"
         )
         self.stdout.write(f"Stock items processed: {stock_processed}")
-        self.stdout.write(
-            f"Employees linked: {employees_result['linked']}, "
-            f"created: {employees_result['created']}, "
-            f"already linked: {employees_result['already_linked']}"
-        )
 
         if dry_run:
             self.stdout.write("Dry run complete - no changes made")
@@ -408,6 +409,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {len(existing_invoices)} existing invoices in Xero")
 
         linked = 0
+        invoices_to_create = []
         for inv in invoices_to_seed:
             existing_id = existing_invoices.get(inv.number)
             if existing_id:
@@ -422,10 +424,11 @@ class Command(BaseCommand):
                     f"  ↳ Linked existing: {inv.number} ({inv.client.name})"
                 )
             else:
-                self._seed_single_invoice(inv, xero_api, xero_tenant_id)
-                result["created"] += 1
-                self.stdout.write(f"  • Seeded: {inv.number} ({inv.client.name})")
-                time.sleep(1)  # Rate limiting
+                invoices_to_create.append(inv)
+
+        result["created"] = self._batch_create_invoices(
+            invoices_to_create, xero_api, xero_tenant_id
+        )
 
         self.stdout.write(
             f"Invoices Summary: {result['created']} created, "
@@ -434,8 +437,8 @@ class Command(BaseCommand):
         )
         return result
 
-    def _seed_single_invoice(self, invoice, xero_api, xero_tenant_id):
-        """Create a single invoice in dev Xero from stored local data."""
+    def _build_invoice_payload(self, invoice):
+        """Build a single Xero invoice payload dict from a local Invoice."""
         account_code = XeroAccount.objects.get(account_name="Sales").account_code
 
         contact = XeroContact(
@@ -443,7 +446,6 @@ class Command(BaseCommand):
             name=invoice.client.name,
         )
 
-        # Build line items from stored InvoiceLineItem records
         line_items = []
         for li in invoice.line_items.all():
             quantity = Decimal(str(li.quantity or 1))
@@ -472,7 +474,6 @@ class Command(BaseCommand):
                 )
             )
 
-        # If no line items stored, create a single line from invoice totals
         if not line_items:
             description = f"Job: {invoice.job.job_number}"
             if invoice.job.description:
@@ -498,29 +499,65 @@ class Command(BaseCommand):
             invoice_number=invoice.number,
         )
 
-        # Add reference from job order_number if available
         if hasattr(invoice.job, "order_number") and invoice.job.order_number:
             xero_invoice.reference = invoice.job.order_number
 
-        payload = convert_to_pascal_case(clean_payload(xero_invoice.to_dict()))
-        api_payload = {"Invoices": [payload]}
+        return convert_to_pascal_case(clean_payload(xero_invoice.to_dict()))
 
-        response, http_status, _ = xero_api.create_invoices(
-            xero_tenant_id, invoices=api_payload, _return_http_data_only=False
-        )
+    def _batch_create_invoices(
+        self, invoices_to_create, xero_api, xero_tenant_id, batch_size=50
+    ):
+        """Create invoices in Xero in batches; map response back by invoice_number."""
+        if not invoices_to_create:
+            return 0
 
-        if not response or not response.invoices:
-            raise ValueError(f"Empty response from Xero for invoice {invoice.number}")
+        created = 0
+        invoice_by_number = {inv.number: inv for inv in invoices_to_create}
 
-        new_xero_id = response.invoices[0].invoice_id
-        if not new_xero_id:
-            raise ValueError(f"Xero response missing invoice_id for {invoice.number}")
+        for i in range(0, len(invoices_to_create), batch_size):
+            batch = invoices_to_create[i : i + batch_size]
+            payloads = [self._build_invoice_payload(inv) for inv in batch]
+            api_payload = {"Invoices": payloads}
 
-        # Update local record with dev Xero ID
-        invoice.xero_id = new_xero_id
-        invoice.xero_tenant_id = xero_tenant_id
-        invoice.xero_last_synced = None  # Will be set on next sync
-        invoice.save(update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"])
+            self.stdout.write(
+                f"  • Sending batch of {len(payloads)} invoices "
+                f"(batch {i // batch_size + 1})"
+            )
+            response, _, _ = xero_api.create_invoices(
+                xero_tenant_id, invoices=api_payload, _return_http_data_only=False
+            )
+
+            if not response or not response.invoices:
+                raise ValueError(
+                    f"Empty response from Xero for invoice batch {i // batch_size + 1}"
+                )
+
+            time.sleep(1)
+
+            for created_inv in response.invoices:
+                local_inv = invoice_by_number.get(created_inv.invoice_number)
+                if local_inv is None:
+                    self.stdout.write(
+                        f"  ! Could not map Xero invoice {created_inv.invoice_number} "
+                        f"back to local record"
+                    )
+                    continue
+                if not created_inv.invoice_id:
+                    raise ValueError(
+                        f"Xero response missing invoice_id for {local_inv.number}"
+                    )
+                local_inv.xero_id = created_inv.invoice_id
+                local_inv.xero_tenant_id = xero_tenant_id
+                local_inv.xero_last_synced = None
+                local_inv.save(
+                    update_fields=["xero_id", "xero_tenant_id", "xero_last_synced"]
+                )
+                created += 1
+                self.stdout.write(
+                    f"    ↳ Seeded: {local_inv.number} ({local_inv.client.name})"
+                )
+
+        return created
 
     @staticmethod
     def _get_invoice_line_unit_amount(quantity, line_amount_excl_tax, unit_price):
@@ -604,6 +641,7 @@ class Command(BaseCommand):
         self.stdout.write(f"Found {len(existing_quotes)} existing quotes in Xero")
 
         linked = 0
+        quotes_to_create = []
         for q in quotes_to_seed:
             existing_id = existing_quotes.get(q.number)
             if existing_id:
@@ -613,10 +651,11 @@ class Command(BaseCommand):
                 linked += 1
                 self.stdout.write(f"  ↳ Linked existing: {q.number} ({q.client.name})")
             else:
-                self._seed_single_quote(q, xero_api, xero_tenant_id)
-                result["created"] += 1
-                self.stdout.write(f"  - Seeded: {q.number} ({q.client.name})")
-                time.sleep(1)  # Rate limiting
+                quotes_to_create.append(q)
+
+        result["created"] = self._batch_create_quotes(
+            quotes_to_create, xero_api, xero_tenant_id
+        )
 
         self.stdout.write(
             f"Quotes Summary: {result['created']} created, "
@@ -625,8 +664,8 @@ class Command(BaseCommand):
         )
         return result
 
-    def _seed_single_quote(self, quote, xero_api, xero_tenant_id):
-        """Create a single quote in dev Xero from stored local data."""
+    def _build_quote_payload(self, quote):
+        """Build a single Xero quote payload dict from a local Quote."""
         account_code = XeroAccount.objects.get(account_name="Sales").account_code
 
         contact = XeroContact(
@@ -634,7 +673,6 @@ class Command(BaseCommand):
             name=quote.client.name,
         )
 
-        # Quotes have no stored line items — create single line from totals
         description = f"Job: {quote.job.job_number}"
         if quote.job.description:
             description += f" - {sanitize_for_xero(quote.job.description)}"
@@ -661,24 +699,59 @@ class Command(BaseCommand):
         if hasattr(quote.job, "order_number") and quote.job.order_number:
             xero_quote.reference = quote.job.order_number
 
-        payload = convert_to_pascal_case(clean_payload(xero_quote.to_dict()))
-        api_payload = {"Quotes": [payload]}
+        return convert_to_pascal_case(clean_payload(xero_quote.to_dict()))
 
-        response, http_status, _ = xero_api.create_quotes(
-            xero_tenant_id, quotes=api_payload, _return_http_data_only=False
-        )
+    def _batch_create_quotes(
+        self, quotes_to_create, xero_api, xero_tenant_id, batch_size=50
+    ):
+        """Create quotes in Xero in batches; map response back by quote_number."""
+        if not quotes_to_create:
+            return 0
 
-        if not response or not response.quotes:
-            raise ValueError(f"Empty response from Xero for quote {quote.number}")
+        created = 0
+        quote_by_number = {q.number: q for q in quotes_to_create}
 
-        new_xero_id = response.quotes[0].quote_id
-        if not new_xero_id:
-            raise ValueError(f"Xero response missing quote_id for {quote.number}")
+        for i in range(0, len(quotes_to_create), batch_size):
+            batch = quotes_to_create[i : i + batch_size]
+            payloads = [self._build_quote_payload(q) for q in batch]
+            api_payload = {"Quotes": payloads}
 
-        # Update local record with dev Xero ID
-        quote.xero_id = new_xero_id
-        quote.xero_tenant_id = xero_tenant_id
-        quote.save(update_fields=["xero_id", "xero_tenant_id"])
+            self.stdout.write(
+                f"  - Sending batch of {len(payloads)} quotes "
+                f"(batch {i // batch_size + 1})"
+            )
+            response, _, _ = xero_api.create_quotes(
+                xero_tenant_id, quotes=api_payload, _return_http_data_only=False
+            )
+
+            if not response or not response.quotes:
+                raise ValueError(
+                    f"Empty response from Xero for quote batch {i // batch_size + 1}"
+                )
+
+            time.sleep(1)
+
+            for created_q in response.quotes:
+                local_q = quote_by_number.get(created_q.quote_number)
+                if local_q is None:
+                    self.stdout.write(
+                        f"  ! Could not map Xero quote {created_q.quote_number} "
+                        f"back to local record"
+                    )
+                    continue
+                if not created_q.quote_id:
+                    raise ValueError(
+                        f"Xero response missing quote_id for {local_q.number}"
+                    )
+                local_q.xero_id = created_q.quote_id
+                local_q.xero_tenant_id = xero_tenant_id
+                local_q.save(update_fields=["xero_id", "xero_tenant_id"])
+                created += 1
+                self.stdout.write(
+                    f"    ↳ Seeded: {local_q.number} ({local_q.client.name})"
+                )
+
+        return created
 
     def process_stock_items(self, dry_run):
         """Phase 4: Sync stock items to Xero inventory."""
