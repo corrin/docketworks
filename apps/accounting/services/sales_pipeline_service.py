@@ -11,6 +11,7 @@ already populated structured fields for live and historical events.
 """
 
 import logging
+import math
 from collections import defaultdict
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
@@ -48,6 +49,27 @@ RELEVANT_EVENT_TYPES: tuple[str, ...] = (
     EVT_JOB_REJECTED,
     EVT_JOB_CREATED,
 )
+
+# Job-size buckets used by the scoreboard's by_size_bucket field.
+# Answers the report question: "Where is the gap — big, medium, or small jobs?"
+# — i.e. how the approved hours are distributed across small / medium / large
+# jobs by hours, not dollars (the user's explicit constraint).
+# Half-open intervals: lower inclusive, upper exclusive. A job with exactly 8h
+# falls into 'medium'; one with exactly 40h falls into 'large'.
+SIZE_BUCKETS: tuple[tuple[str, float, float], ...] = (
+    ("small", 0.0, 8.0),
+    ("medium", 8.0, 40.0),
+    ("large", 40.0, math.inf),
+)
+
+# Threshold splitting "instant" approvals (walk-ins / repeat customers — said
+# yes within an hour of job creation) from "estimating" approvals (anything
+# that took longer, regardless of whether it went through a formal quote).
+# Answers the report question: "Is the gap in our instant work or our quoted
+# work?" — these two paths have different failure modes and different fixes.
+INSTANT_APPROVAL_THRESHOLD = timedelta(hours=1)
+FUNNEL_PATH_INSTANT = "instant"
+FUNNEL_PATH_ESTIMATING = "estimating"
 
 # Cap on how many sample job records each warning bucket carries back to the
 # client. The full count is always reported.
@@ -514,6 +536,18 @@ class SalesPipelineService:
         approved_jobs_count = 0
         direct_hours = 0.0
         direct_jobs_count = 0
+        # by_size_bucket — answers "Where is the gap — big, medium, or small jobs?".
+        # Counts and hours of approved jobs grouped by hours-per-job using SIZE_BUCKETS.
+        by_size_bucket: dict[str, dict[str, float]] = {
+            label: {"count": 0, "hours": 0.0} for label, _, _ in SIZE_BUCKETS
+        }
+        # by_funnel_path — answers "Is the gap in our instant work or our quoted
+        # work?". Splits approved jobs by time-from-creation-to-approval against
+        # INSTANT_APPROVAL_THRESHOLD. Different failure modes, different fixes.
+        by_funnel_path: dict[str, dict[str, float]] = {
+            FUNNEL_PATH_INSTANT: {"count": 0, "hours": 0.0},
+            FUNNEL_PATH_ESTIMATING: {"count": 0, "hours": 0.0},
+        }
 
         for job_id, events in events_by_job.items():
             qe = cls._qualifying_approval_event(events, period_start, period_end)
@@ -528,6 +562,26 @@ class SalesPipelineService:
                 continue
             approved_hours_total += hours
             approved_jobs_count += 1
+
+            bucket_label = cls._size_bucket_for(hours)
+            by_size_bucket[bucket_label]["count"] += 1
+            by_size_bucket[bucket_label]["hours"] += hours
+
+            # Classify by funnel path. Instant = approval landed within
+            # INSTANT_APPROVAL_THRESHOLD of job_created. If creation event is
+            # missing (defensive — should not happen post-PR-#247 backfill),
+            # treat as 'estimating' — that's the conservative bucket: we'd
+            # rather underreport "instant" than overreport it.
+            creation = cls._earliest_event_of_type(events, EVT_JOB_CREATED)
+            if (
+                creation
+                and (qe.timestamp - creation.timestamp) <= INSTANT_APPROVAL_THRESHOLD
+            ):
+                path_label = FUNNEL_PATH_INSTANT
+            else:
+                path_label = FUNNEL_PATH_ESTIMATING
+            by_funnel_path[path_label]["count"] += 1
+            by_funnel_path[path_label]["hours"] += hours
 
             had_prior_awaiting = cls._had_event_before(
                 events,
@@ -545,16 +599,60 @@ class SalesPipelineService:
         working_days = cls._working_days_between(start_date, end_date)
         target_hours = float(target) * working_days
         pace = (approved_hours_total / target_hours) if target_hours > 0 else None
+        # Pre-computed per-working-day rate. Answers "Are we selling enough?"
+        # in the unit the user reads ("h/day"), so the frontend never has to
+        # divide approved_hours_total by working_days at render time.
+        approved_hours_per_working_day = (
+            (approved_hours_total / working_days) if working_days > 0 else None
+        )
+
+        # Add share_of_hours per bucket so the frontend renders %s without
+        # dividing. None when there are no approved hours in the window.
+        for bucket in by_size_bucket.values():
+            bucket["share_of_hours"] = (
+                (bucket["hours"] / approved_hours_total)
+                if approved_hours_total > 0
+                else None
+            )
+        for path in by_funnel_path.values():
+            path["hours_per_working_day"] = (
+                (path["hours"] / working_days) if working_days > 0 else None
+            )
+
+        # Pre-compute h/day per size bucket too — same reason: frontend should
+        # not divide. Also hour-totals stay in the response for completeness
+        # (e.g. tests, audits) but the UI reads the per-day field.
+        for bucket in by_size_bucket.values():
+            bucket["hours_per_working_day"] = (
+                (bucket["hours"] / working_days) if working_days > 0 else None
+            )
 
         return {
             "approved_hours_total": approved_hours_total,
+            "approved_hours_per_working_day": approved_hours_per_working_day,
             "approved_jobs_count": approved_jobs_count,
             "direct_hours": direct_hours,
             "direct_jobs_count": direct_jobs_count,
             "working_days": working_days,
             "target_hours_for_period": target_hours,
             "pace_vs_target": pace,
+            "by_size_bucket": by_size_bucket,
+            "by_funnel_path": by_funnel_path,
         }
+
+    @staticmethod
+    def _size_bucket_for(hours: float) -> str:
+        """Return the SIZE_BUCKETS label for a job of ``hours`` hours.
+
+        Answers "Big or small?" classification at the per-job level so the
+        scoreboard can roll the answer up across all approved jobs in window.
+        """
+        for label, low, high in SIZE_BUCKETS:
+            if low <= hours < high:
+                return label
+        # Final bucket has math.inf as its upper bound, so this is unreachable
+        # for any finite, non-negative hours value.
+        return SIZE_BUCKETS[-1][0]
 
     # ─── Section: Pipeline Snapshot ────────────────────────────────────
     @classmethod

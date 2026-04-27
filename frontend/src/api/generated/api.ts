@@ -234,14 +234,37 @@ const SalesPipelinePeriod = z.object({
   trend_weeks: z.number().int(),
   daily_approved_hours_target: z.number(),
 })
+const SalesPipelineSizeBucket = z.object({
+  count: z.number().int(),
+  hours: z.number(),
+  hours_per_working_day: z.number().nullable(),
+  share_of_hours: z.number().nullable(),
+})
+const SalesPipelineSizeBuckets = z.object({
+  small: SalesPipelineSizeBucket,
+  medium: SalesPipelineSizeBucket,
+  large: SalesPipelineSizeBucket,
+})
+const SalesPipelineFunnelPath = z.object({
+  count: z.number().int(),
+  hours: z.number(),
+  hours_per_working_day: z.number().nullable(),
+})
+const SalesPipelineFunnelPaths = z.object({
+  instant: SalesPipelineFunnelPath,
+  estimating: SalesPipelineFunnelPath,
+})
 const SalesPipelineScoreboard = z.object({
   approved_hours_total: z.number(),
+  approved_hours_per_working_day: z.number().nullable(),
   approved_jobs_count: z.number().int(),
   direct_hours: z.number(),
   direct_jobs_count: z.number().int(),
   working_days: z.number().int(),
   target_hours_for_period: z.number(),
   pace_vs_target: z.number().nullable(),
+  by_size_bucket: SalesPipelineSizeBuckets,
+  by_funnel_path: SalesPipelineFunnelPaths,
 })
 const SalesPipelineSnapshotJob = z.object({
   id: z.string(),
@@ -3062,6 +3085,10 @@ export const schemas = {
   RDTISpendTotals,
   RDTISpendResponse,
   SalesPipelinePeriod,
+  SalesPipelineSizeBucket,
+  SalesPipelineSizeBuckets,
+  SalesPipelineFunnelPath,
+  SalesPipelineFunnelPaths,
   SalesPipelineScoreboard,
   SalesPipelineSnapshotJob,
   SalesPipelineStageBucket,

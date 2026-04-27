@@ -34,14 +34,67 @@ class SalesPipelinePeriodSerializer(serializers.Serializer[Any]):
     daily_approved_hours_target = serializers.FloatField()
 
 
+class SalesPipelineSizeBucketSerializer(serializers.Serializer[Any]):
+    """One bucket of approved jobs by hours-per-job size.
+
+    Part of the answer to "Where is the gap — big, medium, or small jobs?".
+    """
+
+    count = serializers.IntegerField()
+    hours = serializers.FloatField()
+    hours_per_working_day = serializers.FloatField(allow_null=True)
+    share_of_hours = serializers.FloatField(allow_null=True)
+
+
+class SalesPipelineSizeBucketsSerializer(serializers.Serializer[Any]):
+    """Three-bucket split of approved hours: small / medium / large.
+
+    Buckets are by hours, not dollars (per user constraint).
+    """
+
+    small = SalesPipelineSizeBucketSerializer()
+    medium = SalesPipelineSizeBucketSerializer()
+    large = SalesPipelineSizeBucketSerializer()
+
+
+class SalesPipelineFunnelPathSerializer(serializers.Serializer[Any]):
+    """One funnel path's count + hours of approved jobs.
+
+    Part of the answer to "Is the gap in our instant work or our quoted work?".
+    """
+
+    count = serializers.IntegerField()
+    hours = serializers.FloatField()
+    hours_per_working_day = serializers.FloatField(allow_null=True)
+
+
+class SalesPipelineFunnelPathsSerializer(serializers.Serializer[Any]):
+    """Two-path split of approved jobs: instant vs estimating.
+
+    Instant = approval ≤1h after job_created (walk-ins, repeat customers).
+    Estimating = approval >1h after job_created (any pricing/thinking step).
+    """
+
+    instant = SalesPipelineFunnelPathSerializer()
+    estimating = SalesPipelineFunnelPathSerializer()
+
+
 class SalesPipelineScoreboardSerializer(serializers.Serializer[Any]):
     approved_hours_total = serializers.FloatField()
+    # Pre-computed h/day. The page's headline number; sales staff read this
+    # directly, never as a "total ÷ days" mental calc.
+    approved_hours_per_working_day = serializers.FloatField(allow_null=True)
     approved_jobs_count = serializers.IntegerField()
     direct_hours = serializers.FloatField()
     direct_jobs_count = serializers.IntegerField()
     working_days = serializers.IntegerField()
     target_hours_for_period = serializers.FloatField()
     pace_vs_target = serializers.FloatField(allow_null=True)
+    # Approved-hours split by job-size bucket. Powers a v1.1 size-lens filter.
+    by_size_bucket = SalesPipelineSizeBucketsSerializer()
+    # Approved-jobs split by funnel path (instant vs estimating). Feeds the
+    # APPROVED branch of the Tier-2 funnel diagram.
+    by_funnel_path = SalesPipelineFunnelPathsSerializer()
 
 
 class SalesPipelineSnapshotJobSerializer(serializers.Serializer[Any]):

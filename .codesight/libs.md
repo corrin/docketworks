@@ -50,11 +50,11 @@
 - `apps/accounting/serializers/sales_pipeline_serializers.py`
   - class SalesPipelineQuerySerializer
   - class SalesPipelinePeriodSerializer
-  - class SalesPipelineScoreboardSerializer
-  - class SalesPipelineSnapshotJobSerializer
-  - class SalesPipelineStageBucketSerializer
-  - class SalesPipelineSnapshotSerializer
-  - _...10 more_
+  - class SalesPipelineSizeBucketSerializer
+  - class SalesPipelineSizeBucketsSerializer
+  - class SalesPipelineFunnelPathSerializer
+  - class SalesPipelineFunnelPathsSerializer
+  - _...14 more_
 - `apps/accounting/serializers/wip_serializers.py`
   - class WIPQuerySerializer
   - class WIPJobSerializer

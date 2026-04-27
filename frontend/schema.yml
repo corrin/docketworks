@@ -16884,6 +16884,41 @@ components:
       required:
         - count
         - hours
+    SalesPipelineFunnelPath:
+      type: object
+      description: |-
+        One funnel path's count + hours of approved jobs.
+
+        Part of the answer to "Is the gap in our instant work or our quoted work?".
+      properties:
+        count:
+          type: integer
+        hours:
+          type: number
+          format: double
+        hours_per_working_day:
+          type: number
+          format: double
+          nullable: true
+      required:
+        - count
+        - hours
+        - hours_per_working_day
+    SalesPipelineFunnelPaths:
+      type: object
+      description: |-
+        Two-path split of approved jobs: instant vs estimating.
+
+        Instant = approval ≤1h after job_created (walk-ins, repeat customers).
+        Estimating = approval >1h after job_created (any pricing/thinking step).
+      properties:
+        instant:
+          $ref: '#/components/schemas/SalesPipelineFunnelPath'
+        estimating:
+          $ref: '#/components/schemas/SalesPipelineFunnelPath'
+      required:
+        - estimating
+        - instant
     SalesPipelinePeriod:
       type: object
       properties:
@@ -16952,6 +16987,10 @@ components:
         approved_hours_total:
           type: number
           format: double
+        approved_hours_per_working_day:
+          type: number
+          format: double
+          nullable: true
         approved_jobs_count:
           type: integer
         direct_hours:
@@ -16968,14 +17007,63 @@ components:
           type: number
           format: double
           nullable: true
+        by_size_bucket:
+          $ref: '#/components/schemas/SalesPipelineSizeBuckets'
+        by_funnel_path:
+          $ref: '#/components/schemas/SalesPipelineFunnelPaths'
       required:
+        - approved_hours_per_working_day
         - approved_hours_total
         - approved_jobs_count
+        - by_funnel_path
+        - by_size_bucket
         - direct_hours
         - direct_jobs_count
         - pace_vs_target
         - target_hours_for_period
         - working_days
+    SalesPipelineSizeBucket:
+      type: object
+      description: |-
+        One bucket of approved jobs by hours-per-job size.
+
+        Part of the answer to "Where is the gap — big, medium, or small jobs?".
+      properties:
+        count:
+          type: integer
+        hours:
+          type: number
+          format: double
+        hours_per_working_day:
+          type: number
+          format: double
+          nullable: true
+        share_of_hours:
+          type: number
+          format: double
+          nullable: true
+      required:
+        - count
+        - hours
+        - hours_per_working_day
+        - share_of_hours
+    SalesPipelineSizeBuckets:
+      type: object
+      description: |-
+        Three-bucket split of approved hours: small / medium / large.
+
+        Buckets are by hours, not dollars (per user constraint).
+      properties:
+        small:
+          $ref: '#/components/schemas/SalesPipelineSizeBucket'
+        medium:
+          $ref: '#/components/schemas/SalesPipelineSizeBucket'
+        large:
+          $ref: '#/components/schemas/SalesPipelineSizeBucket'
+      required:
+        - large
+        - medium
+        - small
     SalesPipelineSnapshot:
       type: object
       properties:

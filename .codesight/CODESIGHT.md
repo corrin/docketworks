@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 181 components | 367 lib files | 69 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,300 tokens. Without it, AI exploration would cost ~241,500 tokens. **Saves ~211,100 tokens per conversation.**
+> 95 routes | 44 models | 182 components | 367 lib files | 69 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,400 tokens. Without it, AI exploration would cost ~241,800 tokens. **Saves ~211,400 tokens per conversation.**
 
 ---
 
@@ -855,6 +855,7 @@
 - **QuotingChatView** [client] — `frontend/src/views/QuotingChatView.vue`
 - **RDTISpendReportView** [client] — `frontend/src/views/RDTISpendReportView.vue`
 - **SalesForecastReportView** [client] — `frontend/src/views/SalesForecastReportView.vue`
+- **SalesPipelineReportView** [client] — props: actualHPerDay — `frontend/src/views/SalesPipelineReportView.vue`
 - **StaffPerformanceReportView** [client] — `frontend/src/views/StaffPerformanceReportView.vue`
 - **SwpListView** [client] — `frontend/src/views/SwpListView.vue`
 - **TimesheetEntryView** [client] — `frontend/src/views/TimesheetEntryView.vue`
@@ -928,11 +929,11 @@
 - `apps/accounting/serializers/sales_pipeline_serializers.py`
   - class SalesPipelineQuerySerializer
   - class SalesPipelinePeriodSerializer
-  - class SalesPipelineScoreboardSerializer
-  - class SalesPipelineSnapshotJobSerializer
-  - class SalesPipelineStageBucketSerializer
-  - class SalesPipelineSnapshotSerializer
-  - _...10 more_
+  - class SalesPipelineSizeBucketSerializer
+  - class SalesPipelineSizeBucketsSerializer
+  - class SalesPipelineFunnelPathSerializer
+  - class SalesPipelineFunnelPathsSerializer
+  - _...14 more_
 - `apps/accounting/serializers/wip_serializers.py`
   - class WIPQuerySerializer
   - class WIPJobSerializer

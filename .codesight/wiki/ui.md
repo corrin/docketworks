@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**181 components** (vue)
+**182 components** (vue)
 
 ## Client Components
 
@@ -169,6 +169,7 @@
 - **QuotingChatView** — `frontend/src/views/QuotingChatView.vue`
 - **RDTISpendReportView** — `frontend/src/views/RDTISpendReportView.vue`
 - **SalesForecastReportView** — `frontend/src/views/SalesForecastReportView.vue`
+- **SalesPipelineReportView** — props: actualHPerDay — `frontend/src/views/SalesPipelineReportView.vue`
 - **StaffPerformanceReportView** — `frontend/src/views/StaffPerformanceReportView.vue`
 - **SwpListView** — `frontend/src/views/SwpListView.vue`
 - **TimesheetEntryView** — `frontend/src/views/TimesheetEntryView.vue`

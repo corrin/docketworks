@@ -266,6 +266,12 @@
                   <TrendingUp class="w-4 h-4 mr-2" /> Sales Forecast
                 </router-link>
                 <router-link
+                  to="/reports/sales-pipeline"
+                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                >
+                  <Activity class="w-4 h-4 mr-2" /> Sales Pipeline
+                </router-link>
+                <router-link
                   to="/reports/staff-performance"
                   class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
                 >
@@ -733,6 +739,13 @@
                         <TrendingUp class="w-4 h-4 mr-2" /> Sales Forecast
                       </router-link>
                       <router-link
+                        to="/reports/sales-pipeline"
+                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                        @click="closeMobileMenu"
+                      >
+                        <Activity class="w-4 h-4 mr-2" /> Sales Pipeline
+                      </router-link>
+                      <router-link
                         to="/reports/staff-performance"
                         class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
                         @click="closeMobileMenu"
@@ -877,6 +890,7 @@ import {
   DollarSign,
   Scale,
   FlaskConical,
+  Activity,
 } from 'lucide-vue-next'
 import { useAppLayout } from '@/composables/useAppLayout'
 import { adminPages, adminExternalLinks } from '@/config/adminPages'
