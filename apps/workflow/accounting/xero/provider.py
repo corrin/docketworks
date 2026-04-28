@@ -221,11 +221,19 @@ class XeroAccountingProvider:
             return self._make_error_result(exc)
 
     def delete_invoice(self, external_id: str) -> DocumentResult:
-        from xero_python.accounting.models import Invoice
+        from xero_python.accounting.models import Contact, Invoice
+
+        from apps.workflow.accounting.types import DocumentResult
 
         try:
             api, tenant_id = self._get_api()
-            xero_invoice = Invoice(invoice_id=external_id, status="DELETED")
+            existing = api.get_invoice(tenant_id, external_id).invoices[0]
+            xero_invoice = Invoice(
+                invoice_id=external_id,
+                status="DELETED",
+                contact=Contact(contact_id=existing.contact.contact_id),
+                date=existing.date,
+            )
             api.update_or_create_invoices(
                 tenant_id,
                 invoices={"Invoices": [self._to_xero_payload(xero_invoice)]},
@@ -281,17 +289,18 @@ class XeroAccountingProvider:
             return self._make_error_result(exc)
 
     def delete_quote(self, external_id: str) -> DocumentResult:
-        from datetime import date
-
         from xero_python.accounting.models import Contact, Quote
+
+        from apps.workflow.accounting.types import DocumentResult
 
         try:
             api, tenant_id = self._get_api()
+            existing = api.get_quote(tenant_id, external_id).quotes[0]
             xero_quote = Quote(
                 quote_id=external_id,
                 status="DELETED",
-                contact=Contact(contact_id="placeholder"),
-                date=date.today().isoformat(),
+                contact=Contact(contact_id=existing.contact.contact_id),
+                date=existing.date,
             )
             api.update_or_create_quotes(
                 tenant_id,
@@ -397,11 +406,19 @@ class XeroAccountingProvider:
             return self._make_error_result(exc)
 
     def delete_purchase_order(self, external_id: str) -> DocumentResult:
-        from xero_python.accounting.models import PurchaseOrder
+        from xero_python.accounting.models import Contact, PurchaseOrder
+
+        from apps.workflow.accounting.types import DocumentResult
 
         try:
             api, tenant_id = self._get_api()
-            xero_po = PurchaseOrder(purchase_order_id=external_id, status="DELETED")
+            existing = api.get_purchase_order(tenant_id, external_id).purchase_orders[0]
+            xero_po = PurchaseOrder(
+                purchase_order_id=external_id,
+                status="DELETED",
+                contact=Contact(contact_id=existing.contact.contact_id),
+                date=existing.date,
+            )
             api.update_or_create_purchase_orders(
                 tenant_id,
                 purchase_orders={"PurchaseOrders": [self._to_xero_payload(xero_po)]},

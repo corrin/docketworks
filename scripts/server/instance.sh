@@ -460,6 +460,22 @@ EOSQL
     systemctl enable "scheduler-$INSTANCE"
     systemctl restart "scheduler-$INSTANCE"
 
+    # --- Install sudoers drop-in ---
+    # Lets the instance user restart its own units without a password.
+    # Render to a temp file, validate with visudo, then install atomically —
+    # a malformed file in /etc/sudoers.d locks out sudo entirely.
+    log "Installing sudoers drop-in for $INSTANCE_USER..."
+    local SUDOERS_TMP
+    SUDOERS_TMP="$(mktemp)"
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
+        "$TEMPLATE_DIR/sudoers-instance.template" \
+        > "$SUDOERS_TMP"
+    visudo -cf "$SUDOERS_TMP"
+    install -m 0440 -o root -g root "$SUDOERS_TMP" "/etc/sudoers.d/$INSTANCE_USER"
+    rm -f "$SUDOERS_TMP"
+
     # --- Install Nginx server block ---
     log "Installing Nginx config for $FQDN..."
     sed \
@@ -549,6 +565,12 @@ do_destroy() {
         systemctl disable "scheduler-$INSTANCE" 2>/dev/null || true
         rm -f "/etc/systemd/system/scheduler-$INSTANCE.service"
         systemctl daemon-reload
+    fi
+
+    # --- Remove sudoers drop-in ---
+    if [[ -f "/etc/sudoers.d/$INSTANCE_USER" ]]; then
+        echo "=== Removing sudoers drop-in ==="
+        rm -f "/etc/sudoers.d/$INSTANCE_USER"
     fi
 
     # --- Remove Nginx config ---

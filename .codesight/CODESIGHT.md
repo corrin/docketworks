@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 368 lib files | 69 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,400 tokens. Without it, AI exploration would cost ~242,400 tokens. **Saves ~212,000 tokens per conversation.**
+> 95 routes | 44 models | 183 components | 369 lib files | 69 env vars | 10 middleware | 22% test coverage
+> **Token savings:** this file is ~30,500 tokens. Without it, AI exploration would cost ~242,600 tokens. **Saves ~212,200 tokens per conversation.**
 
 ---
 
@@ -1815,6 +1815,10 @@
   - function analyze_empty_names: (verbose) -> None
   - function analyze_duplicates: (verbose) -> None
   - function main: () -> None
+- `scripts/check_naive_local_dates.py`
+  - function check_file: (path) -> list[tuple[str, int, str]]
+  - function main: () -> int
+  - class NaiveLocalDateVisitor
 - `scripts/cleanup_backups.py`
   - function parse_arguments: ()
   - function list_backup_dirs: (root)
@@ -2079,7 +2083,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 122 test files found
+> 123 test files found
 
 ## Covered Routes
 

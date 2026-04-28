@@ -1,0 +1,4 @@
+# Managed by scripts/server/instance.sh — do not edit by hand.
+# Lets the instance's OS user restart its own gunicorn + scheduler units
+# without a password (used by deploy.sh and the in-app restart action).
+__INSTANCE_USER__ ALL=(root) NOPASSWD: /bin/systemctl restart gunicorn-__INSTANCE__.service, /bin/systemctl restart scheduler-__INSTANCE__.service

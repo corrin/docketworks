@@ -935,6 +935,10 @@
   - function analyze_empty_names: (verbose) -> None
   - function analyze_duplicates: (verbose) -> None
   - function main: () -> None
+- `scripts/check_naive_local_dates.py`
+  - function check_file: (path) -> list[tuple[str, int, str]]
+  - function main: () -> int
+  - class NaiveLocalDateVisitor
 - `scripts/cleanup_backups.py`
   - function parse_arguments: ()
   - function list_backup_dirs: (root)
