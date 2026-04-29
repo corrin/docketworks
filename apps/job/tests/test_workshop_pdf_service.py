@@ -338,7 +338,7 @@ class DeliveryDocketPDFTests(BaseTestCase):
                 quantity=Decimal("2.000"),
                 unit_cost=Decimal("32.00"),
                 unit_rev=Decimal("105.00"),
-                accounting_date=timezone.now().date(),
+                accounting_date=timezone.localdate(),
             )
 
     def test_delivery_docket_is_exactly_two_pages(self):

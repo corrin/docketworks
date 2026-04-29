@@ -55,15 +55,15 @@ class PurchasingRestService:
         Returns a valid date object. If value is None, empty, or invalid, returns today.
         """
         if not value:
-            return timezone.now().date()
+            return timezone.localdate()
         if isinstance(value, date):
             return value
         if isinstance(value, str):
             try:
                 return date.fromisoformat(value)
             except Exception:
-                return timezone.now().date()
-        return timezone.now().date()
+                return timezone.localdate()
+        return timezone.localdate()
 
     @staticmethod
     def _delete_lines(lines_to_delete: list[str], po: PurchaseOrder) -> None:
@@ -357,7 +357,7 @@ class PurchasingRestService:
 
         order_date = data.get("order_date")
         if not order_date:
-            order_date = timezone.now().date()
+            order_date = timezone.localdate()
         else:
             order_date = PurchasingRestService._get_valid_date(order_date)
 

@@ -105,7 +105,7 @@ def consume_stock(
                 quantity=qty,
                 unit_cost=unit_cost,
                 unit_rev=unit_rev,
-                accounting_date=timezone.now().date(),
+                accounting_date=timezone.localdate(),
                 ext_refs={"stock_id": str(item.id)},
                 meta={
                     "consumed_by": (
@@ -129,7 +129,7 @@ def consume_stock(
         line.desc = item.description
         line.unit_cost = unit_cost
         line.unit_rev = unit_rev
-        line.accounting_date = timezone.now().date()
+        line.accounting_date = timezone.localdate()
         line.ext_refs = {"stock_id": str(item.id)}
         line.meta = {
             "consumed_by": (

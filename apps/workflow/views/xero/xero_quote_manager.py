@@ -128,14 +128,14 @@ class XeroQuoteManager(XeroDocumentManager):
             raise ValueError("Job is required to build quote payload.")
 
         line_items = self.get_line_items(breakdown=breakdown)
-        now = timezone.now()
+        today = timezone.localdate()
 
         return QuotePayload(
             client_external_id=self.client.xero_contact_id,
             client_name=self.client.name,
             line_items=line_items,
-            date=now.date(),
-            expiry_date=(now + timedelta(days=30)).date(),
+            date=today,
+            expiry_date=today + timedelta(days=30),
             reference=(
                 self.job.order_number
                 if hasattr(self.job, "order_number") and self.job.order_number
@@ -178,7 +178,7 @@ class XeroQuoteManager(XeroDocumentManager):
                 xero_id=result.external_id,
                 job=self.job,
                 client=self.client,
-                date=timezone.now().date(),
+                date=timezone.localdate(),
                 status=QuoteStatus.DRAFT,
                 number=result.number,
                 total_excl_tax=Decimal(str(raw.get("sub_total", 0))),

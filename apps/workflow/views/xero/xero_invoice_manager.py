@@ -1,9 +1,10 @@
 # workflow/views/xero_invoice_manager.py
 import json
 import logging
-from datetime import timedelta
+from datetime import date
 from decimal import Decimal
 
+from dateutil.relativedelta import relativedelta
 from django.utils import timezone
 
 from apps.accounting.enums import InvoiceStatus
@@ -134,20 +135,34 @@ class XeroInvoiceManager(XeroDocumentManager):
             )
         ]
 
+    def _compute_invoice_dates(self) -> tuple[date, date]:
+        """Return ``(invoice_date, due_date)`` per the customer's payment terms.
+
+        Account customers (``Client.is_account_customer=True``) are due on
+        the 20th of the calendar month following the invoice date. Cash
+        customers are due same-day.
+        """
+        invoice_date = timezone.localdate()
+        if self.client.is_account_customer:
+            due_date = (invoice_date + relativedelta(months=1)).replace(day=20)
+        else:
+            due_date = invoice_date
+        return invoice_date, due_date
+
     def build_payload(self) -> InvoicePayload:
         """Build a provider-agnostic invoice payload from the job and client."""
         if not self.job:
             raise ValueError("Job is required to build invoice payload.")
 
         line_items = self.get_line_items()
-        now = timezone.now()
+        invoice_date, due_date = self._compute_invoice_dates()
 
         payload = InvoicePayload(
             client_external_id=self.client.xero_contact_id,
             client_name=self.client.name,
             line_items=line_items,
-            date=now.date(),
-            due_date=(now + timedelta(days=30)).date().replace(day=20),
+            date=invoice_date,
+            due_date=due_date,
             reference=(
                 self.job.order_number
                 if hasattr(self.job, "order_number") and self.job.order_number
@@ -212,8 +227,8 @@ class XeroInvoiceManager(XeroDocumentManager):
                 job=self.job,
                 client=self.client,
                 number=result.number,
-                date=timezone.now().date(),
-                due_date=(timezone.now().date() + timedelta(days=30)),
+                date=payload.date,
+                due_date=payload.due_date,
                 status=InvoiceStatus.SUBMITTED,
                 total_excl_tax=Decimal(str(raw.get("sub_total", 0))),
                 tax=Decimal(str(raw.get("total_tax", 0))),

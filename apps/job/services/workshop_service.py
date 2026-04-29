@@ -23,7 +23,7 @@ class WorkshopTimesheetService:
     def resolve_entry_date(date_param: str | None):
         """Parse an optional date query parameter for workshop timesheets."""
         if not date_param:
-            return timezone.now().date()
+            return timezone.localdate()
 
         parsed = parse_date(date_param)
         if not parsed:

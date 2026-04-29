@@ -55,7 +55,7 @@ class StaffManager(BaseUserManager["Staff"]):
 
     def currently_active(self) -> "models.QuerySet[Staff]":
         """Get currently active staff (replaces is_active=True filters)"""
-        return self.active_on_date(timezone.now().date())
+        return self.active_on_date(timezone.localdate())
 
     def active_between_dates(
         self, start_date: date, end_date: date
@@ -290,7 +290,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     @property
     def is_currently_active(self) -> bool:
         """Check if staff member is currently active"""
-        return self.date_left is None or self.date_left > timezone.now().date()
+        return self.date_left is None or self.date_left > timezone.localdate()
 
     @property
     def name(self) -> str:

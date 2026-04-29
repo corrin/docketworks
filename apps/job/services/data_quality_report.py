@@ -4,6 +4,8 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Dict, Optional
 
+from django.utils import timezone
+
 from apps.job.models import Job
 from apps.job.services.job_service import get_job_total_value
 
@@ -65,7 +67,9 @@ class ArchivedJobsComplianceService:
                                     job.client.name if job.client else "Shop Job"
                                 ),
                                 "archived_date": (
-                                    job.updated_at.date() if job.updated_at else None
+                                    timezone.localtime(job.updated_at).date()
+                                    if job.updated_at
+                                    else None
                                 ),
                                 "current_status": job.status,
                                 "issue": issue,
