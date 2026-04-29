@@ -335,18 +335,25 @@ class KanbanService:
 
         # Determine target status for priority calculation
         target_status = new_status if new_status else job.status
+        old_status = job.status
+        old_priority = job.priority
 
         # Calculate new priority
         new_priority = KanbanService.calculate_priority(
             before_prio, after_prio, target_status, staff, before_id, after_id
         )
         logger.info(
-            f"Calculated new priority for job {job.job_number}: {new_priority} (was {job.priority})"
+            f"Calculated new priority for job {job.job_number}: {new_priority} (was {old_priority})"
         )
-        job.priority = new_priority
 
-        # Update status if needed
-        old_status = job.status
+        # Capture rank/total info for the priority_changed JobEvent. Computed
+        # here (pre-save) where the column context and intent are already in
+        # hand — the model layer just attaches whatever we hand it.
+        priority_position = KanbanService._build_priority_position(
+            job, old_status, old_priority, target_status, new_priority
+        )
+
+        job.priority = new_priority
         update_fields = ["priority"]
 
         if new_status and new_status != old_status:
@@ -357,9 +364,67 @@ class KanbanService:
             )
 
         update_fields.append("updated_at")
-        job.save(staff=staff, update_fields=update_fields)
+        job.save(
+            staff=staff,
+            update_fields=update_fields,
+            priority_position=priority_position,
+        )
         logger.info(f"Job {job.job_number} reordering completed successfully")
         return True
+
+    @staticmethod
+    def _build_priority_position(
+        job, old_status: str, old_priority, new_status: str, new_priority
+    ) -> Dict[str, Any]:
+        """Snapshot rank/total in the affected column(s) for the JobEvent.
+
+        Called pre-save: `job` is still at (old_status, old_priority) in DB.
+        Ranks are 1-based with 1 = highest priority float.
+        """
+        if old_status == new_status:
+            total = Job.objects.filter(status=new_status).count()
+            old_position = (
+                Job.objects.filter(status=new_status, priority__gt=old_priority)
+                .exclude(pk=job.pk)
+                .count()
+                + 1
+            )
+            new_position = (
+                Job.objects.filter(status=new_status, priority__gt=new_priority)
+                .exclude(pk=job.pk)
+                .count()
+                + 1
+            )
+            return {
+                "old_status": old_status,
+                "new_status": new_status,
+                "old_position": old_position,
+                "new_position": new_position,
+                "old_total": total,
+                "new_total": total,
+            }
+
+        # Cross-column: self counts in old column (pre-save) and will count in
+        # new column (post-save).
+        old_total = Job.objects.filter(status=old_status).count()
+        old_position = (
+            Job.objects.filter(status=old_status, priority__gt=old_priority)
+            .exclude(pk=job.pk)
+            .count()
+            + 1
+        )
+        new_position = (
+            Job.objects.filter(status=new_status, priority__gt=new_priority).count() + 1
+        )
+        new_total = Job.objects.filter(status=new_status).count() + 1
+        return {
+            "old_status": old_status,
+            "new_status": new_status,
+            "old_position": old_position,
+            "new_position": new_position,
+            "old_total": old_total,
+            "new_total": new_total,
+        }
 
     @staticmethod
     def perform_advanced_search(filters: Dict[str, Any]) -> QuerySet[Job]:

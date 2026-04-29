@@ -559,6 +559,7 @@ class Job(models.Model):
             "schema_version",
             "delta_checksum",
             "event_type_override",
+            "priority_position",
         )
         enrichment = {k: kwargs.pop(k) for k in enrichment_keys if k in kwargs}
 
@@ -752,10 +753,15 @@ class Job(models.Model):
         if not event_type:
             event_type = self._infer_event_type(event_types, changes_after)
 
+        detail = {"changes": detail_changes}
+        priority_position = enrichment.get("priority_position")
+        if event_type == "priority_changed" and priority_position:
+            detail["position"] = priority_position
+
         JobEvent.objects.create(
             job=self,
             event_type=event_type,
-            detail={"changes": detail_changes},
+            detail=detail,
             staff=staff,
             delta_before=changes_before,
             delta_after=changes_after,
