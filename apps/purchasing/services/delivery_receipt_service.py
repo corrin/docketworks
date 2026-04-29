@@ -248,7 +248,7 @@ def _create_costline_from_allocation(
         quantity=qty,
         unit_cost=line.unit_cost,
         unit_rev=unit_revenue,
-        accounting_date=timezone.now().date(),
+        accounting_date=timezone.localdate(),
         ext_refs={
             "purchase_order_line_id": str(line.id),
             "purchase_order_id": str(purchase_order.id),

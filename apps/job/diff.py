@@ -318,7 +318,7 @@ def _create_cost_line_from_draft(
         quantity=draft.quantity,
         unit_cost=draft.unit_cost,
         unit_rev=draft.unit_rev,
-        accounting_date=timezone.now().date(),
+        accounting_date=timezone.localdate(),
         ext_refs=ext_refs,
         meta=draft.meta,
         xero_pay_item=xero_pay_item,

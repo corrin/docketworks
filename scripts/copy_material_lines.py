@@ -68,7 +68,6 @@ try:
                 logger.info("  SKIP (already exists): %s", line.desc)
                 continue
 
-            now = timezone.now()
             new_line = CostLine(
                 cost_set=target_cs,
                 kind=line.kind,
@@ -78,7 +77,7 @@ try:
                 unit_rev=line.unit_rev,
                 meta=dict(line.meta) if line.meta else {},
                 ext_refs=dict(line.ext_refs) if line.ext_refs else {},
-                accounting_date=now.date(),
+                accounting_date=timezone.localdate(),
             )
             new_line.save()
             created.append(new_line)

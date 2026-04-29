@@ -951,12 +951,12 @@ class JobAgingService:
         Returns:
             Dict containing timing data
         """
-        now = timezone.now()
-        created_date = job.created_at.date()
+        today = timezone.localdate()
+        created_date = timezone.localtime(job.created_at).date()
 
         timing_data = {
             "created_date": created_date.isoformat(),
-            "created_days_ago": (now.date() - created_date).days,
+            "created_days_ago": (today - created_date).days,
             "days_in_current_status": 0,
             "last_activity_date": None,
             "last_activity_days_ago": None,
@@ -1012,7 +1012,9 @@ class JobAgingService:
             return days_in_status
         else:
             # If no status change event, use job creation date
-            return (timezone.now().date() - job.created_at.date()).days
+            return (
+                timezone.localdate() - timezone.localtime(job.created_at).date()
+            ).days
 
     @staticmethod
     def _get_last_activity(job: Job) -> Dict[str, Any]:
@@ -1136,13 +1138,15 @@ class JobAgingService:
                 latest_activity = max(activities, key=lambda x: x["date"])
                 activity_date = latest_activity["date"]
 
-                # Handle both date and datetime objects
+                # Handle both date and datetime objects, converting aware
+                # datetimes to the project's local timezone before extracting
+                # the calendar date.
                 if hasattr(activity_date, "date"):
-                    activity_date_obj = activity_date.date()
+                    activity_date_obj = timezone.localtime(activity_date).date()
                 else:
                     activity_date_obj = activity_date
 
-                days_ago = (timezone.now().date() - activity_date_obj).days
+                days_ago = (timezone.localdate() - activity_date_obj).days
 
                 return {
                     "last_activity_date": activity_date_obj.isoformat(),

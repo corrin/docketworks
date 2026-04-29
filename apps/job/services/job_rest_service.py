@@ -369,7 +369,7 @@ class JobRestService:
                 quantity=Decimal("1.000"),
                 unit_cost=materials_cost,
                 unit_rev=estimated_materials,
-                accounting_date=timezone.now().date(),
+                accounting_date=timezone.localdate(),
             )
 
             # Create workshop time cost line
@@ -380,7 +380,7 @@ class JobRestService:
                 quantity=estimated_time,
                 unit_cost=wage_rate,
                 unit_rev=charge_out_rate,
-                accounting_date=timezone.now().date(),
+                accounting_date=timezone.localdate(),
                 xero_pay_item=ordinary_time,
             )
 
@@ -395,7 +395,7 @@ class JobRestService:
                 quantity=office_time_hours,
                 unit_cost=wage_rate,
                 unit_rev=charge_out_rate,
-                accounting_date=timezone.now().date(),
+                accounting_date=timezone.localdate(),
                 xero_pay_item=ordinary_time,
             )
 

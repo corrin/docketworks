@@ -34,6 +34,14 @@ repos:
         files: '\.py$'
         types: [python]
 
+      - id: check-naive-local-dates
+        name: Forbid timezone.now().date() — use timezone.localdate()
+        entry: poetry run python scripts/check_naive_local_dates.py
+        language: system
+        files: '^(?:apps/|docketworks/|scripts/).+\.py$|^[^/]+\.py$'
+        exclude: '.*/migrations/.*\.py$'
+        types: [python]
+
       # autoflake - uses poetry-installed version
       - id: autoflake
         name: Remove unused imports & variables
