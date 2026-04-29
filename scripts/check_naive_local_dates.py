@@ -35,7 +35,7 @@ from typing import Iterable
 
 DEFAULT_ROOTS = ["apps", "docketworks", "scripts"]
 NOQA_RE = re.compile(
-    r"#\s*noqa:\s*localdate(?P<sep>\s*$|\s+)(?P<reason>.*)$",
+    r"#\s*noqa:\s*localdate(?:\s*$|\s+(?P<reason>.+)$)",
     re.IGNORECASE,
 )
 
@@ -136,7 +136,7 @@ def _scan_noqa(lines: list[str], start: int, end: int) -> str | None:
         match = NOQA_RE.search(lines[lineno - 1])
         if not match:
             continue
-        reason = match.group("reason").strip()
+        reason = (match.group("reason") or "").strip()
         return reason if reason else "bare"
     return None
 
