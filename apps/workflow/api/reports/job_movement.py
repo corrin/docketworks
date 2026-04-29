@@ -61,7 +61,7 @@ class JobMovementMetricsView(APIView):
             event_type="status_changed",
             timestamp__gte=start_date,
             timestamp__lte=end_date,
-            description__contains="Awaiting Approval",
+            delta_after__status="awaiting_approval",
         ).select_related("job", "staff")
 
     def get_quotes_accepted(self, start_date, end_date):
@@ -76,7 +76,7 @@ class JobMovementMetricsView(APIView):
             event_type="status_changed",
             timestamp__gte=start_date,
             timestamp__lte=end_date,
-            description__contains="to 'Approved'",
+            delta_after__status="approved",
         ).select_related("job", "staff")
 
     def get_jobs_won(self, start_date, end_date):
@@ -127,7 +127,7 @@ class JobMovementMetricsView(APIView):
             event_type="status_changed",
             timestamp__gte=start_date,
             timestamp__lte=end_date,
-            description__contains="Awaiting Approval",
+            delta_after__status="awaiting_approval",
         ).values_list("job_id", flat=True)
         jobs_through_quotes.update(quote_events)
 

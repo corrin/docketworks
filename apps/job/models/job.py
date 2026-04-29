@@ -756,6 +756,12 @@ class Job(models.Model):
         detail = {"changes": detail_changes}
         priority_position = enrichment.get("priority_position")
         if event_type == "priority_changed" and priority_position:
+            # Float changed but rank didn't — drag was a no-op visually.
+            # Skip the JobEvent so we don't pollute the audit log.
+            if priority_position.get("old_position") == priority_position.get(
+                "new_position"
+            ):
+                return
             detail["position"] = priority_position
 
         JobEvent.objects.create(

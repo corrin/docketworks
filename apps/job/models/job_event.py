@@ -220,10 +220,15 @@ class JobEvent(models.Model):
                     f"to {new_label} ({_format_ordinal(new_pos)} of {new_total})"
                 )
 
+            if new_pos == old_pos:
+                # Defensive: no-op rank events should be suppressed at create
+                # time (Job._record_change_event). Render nothing if one slips
+                # through — falls through to the sentinel.
+                return ""
             status_label = _format_status(new_status or old_status)
-            direction = "increased" if new_pos < old_pos else "decreased"
             total = new_total or old_total
             in_label = f" in {status_label}" if status_label else ""
+            direction = "increased" if new_pos < old_pos else "decreased"
             return (
                 f"Priority {direction} from {_format_ordinal(old_pos)} "
                 f"to {_format_ordinal(new_pos)} of {total}{in_label}"

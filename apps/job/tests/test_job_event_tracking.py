@@ -477,6 +477,33 @@ class PriorityPositionCaptureTest(BaseTestCase):
         self.assertEqual(position["old_position"], 3)  # was at the bottom
         self.assertEqual(position["new_position"], 1)  # now at the top
 
+    def test_noop_priority_change_creates_no_event(self):
+        """When priority_position has equal old/new positions, no JobEvent is created."""
+        job = self._make_job("Solo")
+        before_count = JobEvent.objects.filter(
+            job=job, event_type="priority_changed"
+        ).count()
+
+        # Float changed; rank stayed (e.g. neighbours' gap absorbed the drag).
+        job.priority = job.priority + 0.5
+        job.save(
+            staff=self.user,
+            update_fields=["priority", "updated_at"],
+            priority_position={
+                "old_status": "in_progress",
+                "new_status": "in_progress",
+                "old_position": 1,
+                "new_position": 1,
+                "old_total": 1,
+                "new_total": 1,
+            },
+        )
+
+        after_count = JobEvent.objects.filter(
+            job=job, event_type="priority_changed"
+        ).count()
+        self.assertEqual(after_count, before_count)
+
     def test_cross_column_drag_records_old_and_new_totals(self):
         from apps.job.services.kanban_service import KanbanService
 
