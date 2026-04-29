@@ -1331,7 +1331,6 @@ const Job = z.object({
 })
 const JobEvent = z.object({
   id: z.string().uuid(),
-  description: z.string(),
   timestamp: z.string().datetime({ offset: true }),
   staff: z.string().nullable(),
   event_type: z.string(),
@@ -1342,6 +1341,7 @@ const JobEvent = z.object({
   delta_meta: z.unknown().nullable(),
   delta_checksum: z.string(),
   detail: z.unknown(),
+  description: z.string(),
   can_undo: z.boolean(),
   undo_description: z.string().nullable(),
 })

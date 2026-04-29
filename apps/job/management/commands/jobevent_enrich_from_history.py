@@ -234,7 +234,6 @@ class Command(BaseCommand):
                         )
                     ),
                 },
-                "description": "",
                 "schema_version": 0,
             }
             # Add client/contact names if available

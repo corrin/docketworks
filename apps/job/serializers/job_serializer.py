@@ -379,8 +379,9 @@ class JobEventSerializer(serializers.ModelSerializer):
     Includes all fields necessary for frontend to implement undo functionality.
     """
 
-    description = serializers.SerializerMethodField(
-        help_text="Human-readable description generated from structured detail data"
+    description = serializers.CharField(
+        read_only=True,
+        help_text="Human-readable description computed from structured detail data",
     )
     staff = serializers.CharField(
         source="staff.get_display_full_name",
@@ -403,9 +404,6 @@ class JobEventSerializer(serializers.ModelSerializer):
     undo_description = serializers.SerializerMethodField(
         help_text="Human-readable description of what undoing this event would do"
     )
-
-    def get_description(self, obj) -> str:
-        return obj.build_description()
 
     def get_can_undo(self, obj) -> bool:
         """Check if this event supports undo operations."""
