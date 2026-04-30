@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
+from apps.accounts.models import Staff
 from apps.purchasing.models import PurchaseOrder
 from apps.workflow.accounting.types import DocumentLineItem, POPayload
 from apps.workflow.services.error_persistence import persist_app_error
@@ -17,8 +18,8 @@ logger = logging.getLogger("xero")
 class XeroPurchaseOrderManager(XeroDocumentManager):
     """Xero PO sync handler using the accounting provider."""
 
-    def __init__(self, purchase_order: PurchaseOrder):
-        super().__init__(client=purchase_order.supplier, job=None)
+    def __init__(self, purchase_order: PurchaseOrder, staff: Staff):
+        super().__init__(client=purchase_order.supplier, staff=staff, job=None)
         self.purchase_order = purchase_order
 
     def can_sync_to_xero(self) -> bool:
