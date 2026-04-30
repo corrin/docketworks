@@ -31,7 +31,8 @@ def _remove_if_user_uploaded(field_file):
     try:
         os.remove(path)
     except FileNotFoundError:
-        pass
+        # File may already be absent (race condition/stale reference); treat as no-op.
+        return
 
 
 class CompanyDefaultsLogoAPIView(APIView):
