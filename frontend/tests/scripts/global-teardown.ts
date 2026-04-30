@@ -41,16 +41,10 @@ function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reaso
   console.error('================================================================')
 }
 
-function restoreDatabase() {
+function restoreDatabase(lockContents: string) {
   console.log('\n[db] Restoring database after tests...')
   const dbConfig = getDbConfig()
 
-  if (!fs.existsSync(LOCK_FILE)) {
-    console.warn('[db] No lock file found. Skipping restore.')
-    return
-  }
-
-  const lockContents = fs.readFileSync(LOCK_FILE, 'utf8')
   const backupFile = lockContents.split('\n')[1]?.trim()
   if (!backupFile) {
     console.warn(
@@ -236,11 +230,29 @@ export default async function globalTeardown() {
     console.error('Failed to re-enable server cache:', e)
   }
 
-  restoreDatabase()
-
-  if (fs.existsSync(LOCK_FILE)) {
-    fs.unlinkSync(LOCK_FILE)
+  if (!fs.existsSync(LOCK_FILE)) {
+    console.warn('[db] No lock file found. Skipping restore.')
+    return
   }
+
+  const lockContents = fs.readFileSync(LOCK_FILE, 'utf8')
+  const lockedPid = lockContents.split('\n')[0]?.trim()
+  if (lockedPid !== process.pid.toString()) {
+    // Lock predates this process — a previous run was killed before its
+    // own teardown ran. Its backup path on line 2 is NOT ours to act on;
+    // restoring from it would wipe whatever the user has done since the
+    // killed run. Leave both files in place so the user can decide.
+    console.warn(
+      `[db] Lock owned by PID ${lockedPid} (this process is ${process.pid}). ` +
+        `Stale lock from a prior run — not restoring, not deleting. ` +
+        `Inspect ${LOCK_FILE} and the backup it points to manually.`,
+    )
+    return
+  }
+
+  restoreDatabase(lockContents)
+
+  fs.unlinkSync(LOCK_FILE)
 }
 
 // Auto-run when executed directly (not imported as module)
