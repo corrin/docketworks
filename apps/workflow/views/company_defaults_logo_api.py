@@ -1,5 +1,6 @@
 import os
 
+from django.conf import settings
 from drf_spectacular.utils import extend_schema
 from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.permissions import IsAuthenticated
@@ -13,6 +14,24 @@ from apps.workflow.services.error_persistence import persist_app_error
 ALLOWED_LOGO_FIELDS = {"logo", "logo_wide"}
 ALLOWED_EXTENSIONS = {".png", ".jpg", ".jpeg", ".gif", ".webp"}
 MAX_UPLOAD_SIZE = 5 * 1024 * 1024  # 5 MB
+
+# Files outside this directory are treated as shipped/seeded assets
+# (e.g. mediafiles/app_images/) and must not be removed from disk by
+# upload/delete actions — they live in git and are the fallback baseline.
+USER_UPLOAD_DIR = os.path.realpath(os.path.join(settings.MEDIA_ROOT, "company_logos"))
+
+
+def _remove_if_user_uploaded(field_file):
+    """Remove the on-disk file only if it sits under USER_UPLOAD_DIR."""
+    if not field_file:
+        return
+    path = os.path.realpath(field_file.path)
+    if not path.startswith(USER_UPLOAD_DIR + os.sep):
+        return
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        pass
 
 
 class CompanyDefaultsLogoAPIView(APIView):
@@ -54,13 +73,7 @@ class CompanyDefaultsLogoAPIView(APIView):
         try:
             instance = CompanyDefaults.get_solo()
 
-            # Delete old file if one exists
-            old_file = getattr(instance, field_name)
-            if old_file:
-                try:
-                    os.remove(old_file.path)
-                except FileNotFoundError:
-                    pass
+            _remove_if_user_uploaded(getattr(instance, field_name))
 
             setattr(instance, field_name, file)
             instance.save()
@@ -84,14 +97,7 @@ class CompanyDefaultsLogoAPIView(APIView):
 
         try:
             instance = CompanyDefaults.get_solo()
-            field_file = getattr(instance, field_name)
-
-            if field_file:
-                try:
-                    os.remove(field_file.path)
-                except FileNotFoundError:
-                    pass
-
+            _remove_if_user_uploaded(getattr(instance, field_name))
             setattr(instance, field_name, None)
             instance.save()
         except Exception as exc:
