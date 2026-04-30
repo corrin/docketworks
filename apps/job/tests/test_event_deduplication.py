@@ -133,19 +133,25 @@ class EventDeduplicationTest(BaseTestCase):
 
     def test_automatic_events_not_affected(self):
         """Test that automatic events are not affected by deduplication."""
-        # Create multiple automatic events with same description
+        # Create multiple automatic events with the same structured detail
+        detail = {
+            "changes": [
+                {
+                    "field_name": "Status",
+                    "old_value": "Draft",
+                    "new_value": "In Progress",
+                }
+            ]
+        }
         for i in range(3):
             JobEvent.objects.create(
                 job=self.job,
                 staff=self.user,
-                description="Status changed",
+                detail=detail,
                 event_type="status_changed",
             )
 
-        # All should be created successfully
-        events = JobEvent.objects.filter(
-            job=self.job, description="Status changed", event_type="status_changed"
-        )
+        events = JobEvent.objects.filter(job=self.job, event_type="status_changed")
         self.assertEqual(events.count(), 3)
 
     def test_hash_generation(self):

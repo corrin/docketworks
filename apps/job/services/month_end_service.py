@@ -81,7 +81,9 @@ class MonthEndService:
         return {"job": job, "history": history}
 
     @staticmethod
-    def process_jobs(job_ids: List[str]) -> Tuple[List[Job], List[Tuple[str, str]]]:
+    def process_jobs(
+        job_ids: List[str], staff
+    ) -> Tuple[List[Job], List[Tuple[str, str]]]:
         processed_jobs: List[Job] = []
         error_jobs: List[Tuple[str, str]] = []
         for job_id in job_ids:
@@ -95,7 +97,7 @@ class MonthEndService:
                         rev=rev,
                         summary={"cost": 0, "rev": 0, "hours": 0},
                     )
-                    job.set_latest("actual", new_set)
+                    job.set_latest("actual", new_set, staff)
                 processed_jobs.append(job)
             except Exception as e:
                 logger.exception("Error processing job %s", job_id)

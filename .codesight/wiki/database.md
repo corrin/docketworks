@@ -214,7 +214,6 @@ pk: `id` (uuid) · fk: job_id, staff_id
 - `timestamp`: timestamp _(default)_
 - `staff_id`: integer _(fk)_
 - `event_type`: string _(default)_
-- `description`: string _(default)_
 - `schema_version`: integer _(default)_
 - `change_id`: uuid _(nullable)_
 - `delta_before`: json _(nullable)_

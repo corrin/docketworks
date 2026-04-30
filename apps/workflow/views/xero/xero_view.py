@@ -471,7 +471,9 @@ def create_xero_purchase_order(
                 ),
             },
         )
-        manager = XeroPurchaseOrderManager(purchase_order=purchase_order)
+        manager = XeroPurchaseOrderManager(
+            purchase_order=purchase_order, staff=request.user
+        )
         result_data = manager.sync_to_xero()
 
         logger.info(
@@ -819,7 +821,9 @@ def delete_xero_purchase_order(
 
     try:
         purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
-        manager = XeroPurchaseOrderManager(purchase_order=purchase_order)
+        manager = XeroPurchaseOrderManager(
+            purchase_order=purchase_order, staff=request.user
+        )
         result_data = manager.delete_document()
 
         if result_data.get("success"):

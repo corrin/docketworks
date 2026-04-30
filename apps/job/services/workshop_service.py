@@ -195,7 +195,7 @@ class WorkshopTimesheetService:
 
             cost_line.save()
             if job_changed:
-                self._update_latest_actual(target_job, target_cost_set)
+                self._update_latest_actual(target_job, target_cost_set, self.staff)
 
         return cost_line
 

@@ -280,7 +280,6 @@
 - timestamp: timestamp (default)
 - staff_id: integer (fk)
 - event_type: string (default)
-- description: string (default)
 - schema_version: integer (default)
 - change_id: uuid (nullable)
 - delta_before: json (nullable)
@@ -2083,7 +2082,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 123 test files found
+> 124 test files found
 
 ## Covered Routes
 

@@ -488,6 +488,7 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
             po = PurchasingRestService.update_purchase_order(
                 po_id,
                 serializer.validated_data,
+                staff=request.user,
                 expected_etag=if_match,
             )
 

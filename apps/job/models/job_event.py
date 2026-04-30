@@ -9,6 +9,87 @@ from django.utils.timezone import now
 from apps.accounts.models import Staff
 
 
+def _truthy(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "yes", "1"}
+    return bool(value)
+
+
+def _truncate(text, max_chars: int = 60) -> str:
+    if text is None or text == "":
+        return ""
+    text = str(text)
+    if len(text) <= max_chars:
+        return text
+    return text[: max_chars - 1].rstrip() + "…"
+
+
+def _format_ordinal(n: int) -> str:
+    if 10 <= (n % 100) <= 20:
+        suffix = "th"
+    else:
+        suffix = {1: "st", 2: "nd", 3: "rd"}.get(n % 10, "th")
+    return f"{n}{suffix}"
+
+
+def _format_status(slug: str) -> str:
+    if not slug:
+        return ""
+    # Lazy import to avoid Job ↔ JobEvent circular at module load
+    from apps.job.models.job import Job
+
+    return dict(Job.JOB_STATUS_CHOICES).get(slug, slug.replace("_", " ").title())
+
+
+def _truncate_change(label: str, old, new) -> str:
+    return f"{label} changed from '{_truncate(old)}' to '{_truncate(new)}'"
+
+
+def _quote_acceptance_descriptor(old, new) -> str:
+    if new and not old:
+        return f"Quote accepted on {new}"
+    if old and not new:
+        return "Quote acceptance cleared"
+    return f"Quote acceptance date changed from {old} to {new}"
+
+
+# Per-field descriptor: field_name (as it appears in detail.changes[].field_name)
+# → callable(old, new) → str. Fields not listed here use _default_descriptor.
+_FIELD_DESCRIPTORS = {
+    "Rejected": lambda old, new: (
+        "Job marked as rejected" if _truthy(new) else "Rejection cleared"
+    ),
+    "Complex job": lambda old, new: (
+        "Marked as complex job" if _truthy(new) else "Unmarked as complex job"
+    ),
+    "Paid": lambda old, new: ("Marked as paid" if _truthy(new) else "Marked as unpaid"),
+    "Collected": lambda old, new: (
+        "Marked as collected" if _truthy(new) else "Marked as not collected"
+    ),
+    "Quote acceptance date": _quote_acceptance_descriptor,
+    "Internal notes": lambda old, new: _truncate_change("Notes", old, new),
+    "Job description": lambda old, new: _truncate_change("Description", old, new),
+    "Notes": lambda old, new: _truncate_change("Notes", old, new),
+    "Description": lambda old, new: _truncate_change("Description", old, new),
+}
+
+
+def _default_descriptor(field_name: str, old, new) -> str:
+    return f"{field_name} changed from '{old}' to '{new}'"
+
+
+def _render_change(change: dict) -> str:
+    field = change.get("field_name", "")
+    old = change.get("old_value", "")
+    new = change.get("new_value", "")
+    descriptor = _FIELD_DESCRIPTORS.get(field)
+    if descriptor:
+        return descriptor(old, new)
+    return _default_descriptor(field, old, new)
+
+
 class JobEvent(models.Model):
     # Field-change events are created automatically by Job.save() in
     # apps/job/models/job.py. All fields are tracked unless listed in
@@ -18,7 +99,6 @@ class JobEvent(models.Model):
     # Database fields exposed via API serializers
     JOBEVENT_API_FIELDS = [
         "id",
-        "description",
         "timestamp",
         "staff",
         "event_type",
@@ -33,6 +113,7 @@ class JobEvent(models.Model):
 
     # Computed properties exposed via API serializers
     JOBEVENT_API_PROPERTIES = [
+        "description",
         "can_undo",
         "undo_description",
     ]
@@ -55,7 +136,6 @@ class JobEvent(models.Model):
     event_type = models.CharField(
         max_length=100, null=False, blank=False, default="automatic_event"
     )  # e.g., "status_change", "manual_note"
-    description = models.TextField(blank=True, default="")
     schema_version = models.PositiveSmallIntegerField(default=0)
     change_id = models.UUIDField(null=True, blank=True)
     delta_before = models.JSONField(null=True, blank=True)
@@ -80,38 +160,93 @@ class JobEvent(models.Model):
     def __str__(self) -> str:
         return f"{self.timestamp}: {self.event_type} for {self.job.name if self.job else 'Unknown Job'}"
 
+    @property
+    def description(self) -> str:
+        return self.build_description()
+
     def build_description(self) -> str:
         """Generate human-readable description from event_type + detail.
 
-        Falls back to stored description for pre-migration rows where detail is empty.
-        Returns legacy_description directly for backfilled rows that couldn't be
-        fully parsed into structured data.
+        Fallback chain:
+          1. detail.legacy_description (preserved by migration 0077 for events that
+             couldn't be parsed into structured data);
+          2. dispatch to _DESCRIPTION_BUILDERS[event_type] if registered and the
+             builder produces non-empty output;
+          3. f"({event_type})" sentinel — should not fire post-migration.
         """
-        if not self.detail:
-            return self.description
-
-        if "legacy_description" in self.detail:
-            return self.detail["legacy_description"]
+        detail = self.detail or {}
+        legacy = detail.get("legacy_description")
+        if legacy:
+            return legacy
 
         builder = self._DESCRIPTION_BUILDERS.get(self.event_type)
-        if not builder:
-            return self.description
+        if builder:
+            built = builder(detail)
+            if built:
+                return built
 
-        return builder(self.detail)
+        return f"({self.event_type})"
 
     @staticmethod
     def _build_changes_description(detail: dict) -> str:
-        """Build description from a changes list (Job.save() events)."""
         changes = detail.get("changes", [])
         if not changes:
             return ""
-        parts = []
-        for change in changes:
-            field = change["field_name"]
-            old = change["old_value"]
-            new = change["new_value"]
-            parts.append(f"{field} changed from '{old}' to '{new}'")
-        return ". ".join(parts)
+        parts = [_render_change(change) for change in changes]
+        return ". ".join(part for part in parts if part)
+
+    @staticmethod
+    def _build_priority_changed_description(detail: dict) -> str:
+        """Friendly priority change description.
+
+        With detail.position present (modern events): describe the rank move.
+        Without (legacy ~38k rows): show direction only — historical column rank
+        is unrecoverable from the float values alone.
+        """
+        position = detail.get("position") or {}
+        if position:
+            old_pos = position.get("old_position")
+            new_pos = position.get("new_position")
+            old_status = position.get("old_status")
+            new_status = position.get("new_status")
+            old_total = position.get("old_total")
+            new_total = position.get("new_total")
+
+            if old_status and new_status and old_status != new_status:
+                old_label = _format_status(old_status)
+                new_label = _format_status(new_status)
+                return (
+                    f"Moved from {old_label} ({_format_ordinal(old_pos)} of {old_total}) "
+                    f"to {new_label} ({_format_ordinal(new_pos)} of {new_total})"
+                )
+
+            if new_pos == old_pos:
+                # Defensive: no-op rank events should be suppressed at create
+                # time (Job._record_change_event). Render nothing if one slips
+                # through — falls through to the sentinel.
+                return ""
+            status_label = _format_status(new_status or old_status)
+            total = new_total or old_total
+            in_label = f" in {status_label}" if status_label else ""
+            direction = "increased" if new_pos < old_pos else "decreased"
+            return (
+                f"Priority {direction} from {_format_ordinal(old_pos)} "
+                f"to {_format_ordinal(new_pos)} of {total}{in_label}"
+            )
+
+        # Legacy fallback: direction only, from float comparison
+        changes = detail.get("changes") or []
+        if changes:
+            change = changes[0]
+            try:
+                old = float(change.get("old_value"))
+                new = float(change.get("new_value"))
+            except (TypeError, ValueError):
+                return "Priority changed"
+            if abs(new - old) < 1e-6:
+                return ""
+            return "Priority increased" if new > old else "Priority decreased"
+        return ""
 
     @staticmethod
     def _build_job_created_description(detail: dict) -> str:
@@ -177,7 +312,7 @@ class JobEvent(models.Model):
         "delivery_date_changed": _build_changes_description.__func__,
         "quote_accepted": _build_changes_description.__func__,
         "pricing_changed": _build_changes_description.__func__,
-        "priority_changed": _build_changes_description.__func__,
+        "priority_changed": _build_priority_changed_description.__func__,
         "payment_received": _build_changes_description.__func__,
         "payment_updated": _build_changes_description.__func__,
         "job_collected": _build_changes_description.__func__,
@@ -245,8 +380,8 @@ class JobEvent(models.Model):
         super().save(*args, **kwargs)
 
     def _generate_dedup_hash(self) -> str:
-        """Generate MD5 hash for deduplication."""
-        text = self.detail.get("note_text", "") if self.detail else self.description
+        """Generate MD5 hash for deduplication of manual notes."""
+        text = (self.detail or {}).get("note_text", "")
         components = [
             str(self.job_id) if self.job_id else "",
             str(self.staff_id) if self.staff_id else "",

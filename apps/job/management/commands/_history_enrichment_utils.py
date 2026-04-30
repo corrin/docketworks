@@ -277,6 +277,5 @@ def build_candidate_event(job_id, history_record, changed_fields: dict) -> dict:
         "delta_before": delta_before,
         "delta_after": delta_after,
         "detail": {"changes": detail_changes},
-        "description": "",
         "schema_version": 0,
     }
