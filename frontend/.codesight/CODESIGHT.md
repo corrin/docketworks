@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 183 components | 102 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
-> **Token savings:** this file is ~11,400 tokens. Without it, AI exploration would cost ~98,900 tokens. **Saves ~87,600 tokens per conversation.**
+> 0 routes | 0 models | 183 components | 102 lib files | 13 env vars | 3 middleware | 0% test coverage
+> **Token savings:** this file is ~11,200 tokens. Without it, AI exploration would cost ~97,600 tokens. **Saves ~86,400 tokens per conversation.**
 
 ---
 
@@ -566,18 +566,6 @@
 - `src/stores/auth.ts` ← `src/composables/useAppLayout.ts`, `src/composables/useDashboard.ts`, `src/composables/useJobHeaderAutosave.ts`, `src/composables/useLogin.ts`, `src/plugins/axios.ts` +2 more
 - `src/stores/jobs.ts` ← `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useJobFiles.ts`, `src/composables/useJobHeaderAutosave.ts`, `src/composables/useOptimizedKanban.ts`, `src/composables/useTimesheetEntryCalculations.ts` +1 more
 - `src/services/job.service.ts` ← `src/composables/useJobAttachments.ts`, `src/composables/useOptimizedKanban.ts`, `src/composables/useTimesheetEntryCalculations.ts`, `src/composables/useWorkshopJob.ts`, `src/composables/useWorkshopJobBudgets.ts` +1 more
-
----
-
-# Events & Queues
-
-- `uncaughtException` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `mode` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `readOnly` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `lineNumbers` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `lineWrapping` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `placeholder` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
-- `change` [event] — `playwright-report/trace/assets/defaultSettingsView-BEpdCv1S.js`
 
 ---
 
