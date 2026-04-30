@@ -448,7 +448,8 @@ SELECT id, job_number, name FROM workflow_job ORDER BY job_number DESC LIMIT 5;
     python scripts/restore_checks/fix_shop_client.py
     python scripts/restore_checks/check_shop_client.py
 
-    log "Dev Setup: Verify Test Client"
+    log "Dev Setup: Create Test Client (idempotent)"
+    python scripts/fix_test_client.py
     python scripts/restore_checks/check_test_client.py
 
     pause "Dev setup complete"
