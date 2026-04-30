@@ -52,35 +52,43 @@
                 </div>
               </transition>
             </div>
-            <div v-else-if="field.type === 'image'" class="flex-1 flex items-center gap-3">
-              <img
-                v-if="localForm[field.key + '_url']"
-                :src="localForm[field.key + '_url'] as string"
-                :alt="field.label"
-                class="h-12 w-auto rounded border border-gray-200 object-contain bg-white"
-              />
-              <span v-else class="text-xs text-gray-400 italic">No image</span>
-              <label
-                class="cursor-pointer inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition"
-              >
-                <Upload class="w-3.5 h-3.5" />
-                Upload
-                <input
-                  type="file"
-                  accept="image/*"
-                  class="hidden"
-                  @change="(e) => onLogoUpload(field.key, e)"
+            <div v-else-if="field.type === 'image'" class="flex-1 flex flex-col gap-1">
+              <div class="flex items-center gap-3">
+                <img
+                  v-if="localForm[field.key + '_url']"
+                  :src="localForm[field.key + '_url'] as string"
+                  :alt="field.label"
+                  class="h-12 w-auto rounded border border-gray-200 object-contain bg-white"
                 />
-              </label>
-              <button
-                v-if="localForm[field.key + '_url']"
-                type="button"
-                class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-600 hover:bg-red-50 transition"
-                @click="onLogoDelete(field.key)"
-              >
-                <Trash2 class="w-3.5 h-3.5" />
-                Remove
-              </button>
+                <span v-else class="text-xs text-gray-400 italic">No image</span>
+                <label
+                  class="cursor-pointer inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-indigo-300 text-indigo-600 hover:bg-indigo-50 transition"
+                >
+                  <Upload class="w-3.5 h-3.5" />
+                  Upload
+                  <input
+                    type="file"
+                    accept="image/*"
+                    class="hidden"
+                    @change="(e) => onLogoUpload(field.key, e)"
+                  />
+                </label>
+                <button
+                  v-if="localForm[field.key + '_url']"
+                  type="button"
+                  class="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium rounded border border-red-300 text-red-600 hover:bg-red-50 transition"
+                  @click="onLogoDelete(field.key)"
+                >
+                  <Trash2 class="w-3.5 h-3.5" />
+                  Remove
+                </button>
+              </div>
+              <p v-if="logoGuidance(field.key)" class="text-xs text-gray-500">
+                {{ logoGuidance(field.key) }}
+              </p>
+              <p v-if="logoErrors[field.key]" class="text-red-600 text-xs">
+                {{ logoErrors[field.key] }}
+              </p>
             </div>
             <Input
               v-else
@@ -195,10 +203,107 @@ function logFallbackInput(field: { key: string; type: string; label: string }) {
   return {} // Return empty object for class binding
 }
 
+// Per-field aspect-ratio validation errors for image uploads (e.g. logo, logo_wide).
+// Inline next to the file input rather than toast, since it's a per-field issue.
+const logoErrors = ref<Record<string, string>>({})
+
+// Aspect-ratio bounds (width / height) for each image field. Values outside the
+// range are rejected client-side before the POST.
+const LOGO_ASPECT_RULES: Record<
+  string,
+  { min: number; max: number; label: string; expected: string; hint: string }
+> = {
+  logo: {
+    min: 0.85,
+    max: 1.18,
+    label: 'square logo',
+    expected: 'approximately 1:1 (square)',
+    hint: 'Please upload a square image.',
+  },
+  logo_wide: {
+    min: 2.5,
+    max: 8.0,
+    label: 'wide letterhead logo',
+    expected: 'between 2.5:1 and 8:1 (wide)',
+    hint: 'Please upload a wide letterhead-style image (around 4× wider than tall).',
+  },
+}
+
+const LOGO_GUIDANCE: Record<string, string> = {
+  logo: 'Square image, roughly 1:1. Used as a compact mark.',
+  logo_wide: 'Wide letterhead image, roughly 3:1 to 6:1. Used at the top of PDFs.',
+}
+
+function logoGuidance(fieldKey: string): string {
+  return LOGO_GUIDANCE[fieldKey] ?? ''
+}
+
+function readImageDimensions(file: File): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file)
+    const img = new Image()
+    img.onload = () => {
+      const dims = { width: img.naturalWidth, height: img.naturalHeight }
+      URL.revokeObjectURL(url)
+      resolve(dims)
+    }
+    img.onerror = () => {
+      URL.revokeObjectURL(url)
+      reject(new Error('Could not read image file'))
+    }
+    img.src = url
+  })
+}
+
 async function onLogoUpload(fieldKey: string, event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
   if (!file) return
+
+  // Aspect-ratio validation: block POST when out of range.
+  const rule = LOGO_ASPECT_RULES[fieldKey]
+  if (rule) {
+    let dims: { width: number; height: number }
+    try {
+      dims = await readImageDimensions(file)
+    } catch (e) {
+      console.error('Could not read image dimensions:', e)
+      logoErrors.value = {
+        ...logoErrors.value,
+        [fieldKey]: 'Could not read image file. Please try a different image.',
+      }
+      input.value = ''
+      return
+    }
+    if (dims.height === 0) {
+      logoErrors.value = {
+        ...logoErrors.value,
+        [fieldKey]: 'Image has invalid dimensions.',
+      }
+      input.value = ''
+      return
+    }
+    const ratio = dims.width / dims.height
+    if (ratio < rule.min || ratio > rule.max) {
+      const ratioStr = ratio.toFixed(2)
+      logoErrors.value = {
+        ...logoErrors.value,
+        [fieldKey]:
+          `This image is ${ratioStr}:1 (width:height). ` +
+          `Expected ${rule.expected} for the ${rule.label} field. ` +
+          rule.hint,
+      }
+      input.value = ''
+      return
+    }
+    // Valid file: clear any previous error for this field.
+    if (logoErrors.value[fieldKey]) {
+      const next = { ...logoErrors.value }
+      delete next[fieldKey]
+      logoErrors.value = next
+    }
+  }
+
   try {
     const updated = await uploadLogo(fieldKey, file)
     localForm.value[fieldKey + '_url'] = (updated as Record<string, unknown>)[fieldKey + '_url']

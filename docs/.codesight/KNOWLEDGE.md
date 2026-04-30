@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 114 notes · 19 decisions · 10 open questions
+> 116 notes · 19 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base has 114 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 116 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
 
 ## Key Decisions (19)
 - `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
@@ -37,10 +37,10 @@
 - Maybe quantity needs blur event but we Tab away too fast?
 
 ## Recurring Themes
-problem · why · alternatives considered · tips · what youll need · steps · what happens next · verification · out of scope · troubleshooting · approach · prerequisites
+problem · why · alternatives considered · tips · what youll need · steps · what happens next · verification · out of scope · troubleshooting · approach · files to modify
 
 ## People
-@login_required · @docketworks · @shared_task · @staticmethod · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
+@login_required · @docketworks · @shared_task · @staticmethod · @open · @focus · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -50,7 +50,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (114)
+## Note Index (116)
 
 ### Decision Records (16)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException`; nested handlers re-raise unchanged instead of re-persisting.
@@ -85,7 +85,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (89)
+### General Notes (91)
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
 - `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
@@ -102,11 +102,11 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/plans/here-is-what-prod-tidy-manatee.md` — Recurring prod incident: Xero shows "disconnected", heartbeat refreshes return `400 invalid_grant: Refresh token has expired` (or `Refresh token not found`), an…
 - `docs/plans/hidden-yawning-mccarthy.md` — PR #266 introduced `apps/workflow/api/xero/active_app.py:get_active_client()` to dispatch Xero API calls to the credentials of whichever `XeroApp` row has `is_a…
 - `docs/plans/implementation-task-fluffy-hopcroft.md` — **Branch:** `feat/migrate-apscheduler-to-celery-beat` (PR #273, against `main`)
+- `docs/plans/misty-frolicking-rose.md` — A staff member without a valid Xero payroll ID **cannot record time**, so they must not appear in any timesheet view.
 - `docs/plans/mutable-waddling-scott.md` — PR #275 (`feat/celery_for_xero_sync`) moved the Xero sync loop from a
 - `docs/plans/plan-shared-redis-cache-declarative-whistle.md` — The Xero sync write/read sides now live in different processes:
-- `docs/plans/review-the-changes-from-floating-river.md` — Copilot left **7 inline comments** across two reviews on PR #275
-- `docs/plans/so-let-s-think-about-tranquil-shamir.md` — The codebase runs two parallel async layers: APScheduler (in-process, via `scheduler-$INSTANCE.service` running `manage.py run_scheduler`) for periodic jobs, an…
-- _…and 69 more_
+- `docs/plans/production-bug-report-i-peppy-pascal.md` — **Reported behaviour.** A user updated stock cost prices in Xero. The Stock rows in the local DB sync correctly (verified). When the reporter added stock item c…
+- _…and 71 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
