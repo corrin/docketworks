@@ -106,7 +106,7 @@ class MonthEndRestView(APIView):
                 )
 
             job_ids = input_serializer.validated_data["job_ids"]
-            processed, errors = MonthEndService.process_jobs(job_ids)
+            processed, errors = MonthEndService.process_jobs(job_ids, request.user)
 
             response_data = {
                 "processed": [str(job.id) for job in processed],

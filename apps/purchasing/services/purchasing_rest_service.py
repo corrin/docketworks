@@ -173,7 +173,7 @@ class PurchasingRestService:
             PurchasingRestService._create_line(line_data, line_id, po)
 
     @staticmethod
-    def _handle_automatic_allocation(line: PurchaseOrderLine, po: PurchaseOrder):
+    def _handle_automatic_allocation(line: PurchaseOrderLine, po: PurchaseOrder, staff):
         logger.info(
             f"Allocating lines automatically for PO {po.po_number}, line: {line}"
         )
@@ -245,6 +245,7 @@ class PurchasingRestService:
                 job=job,
                 qty=line.quantity,
                 retail_rate_pct=retail_rate_pct,
+                staff=staff,
             )
         except ValidationError as exc:
             logger.warning(
@@ -265,7 +266,9 @@ class PurchasingRestService:
         Job.objects.filter(pk=job.pk).untracked_update(updated_at=timezone.now())
 
     @staticmethod
-    def _process_field(po: PurchaseOrder, field: Any, data: dict[str, Any]) -> None:
+    def _process_field(
+        po: PurchaseOrder, field: Any, data: dict[str, Any], staff
+    ) -> None:
         logger.info(f"Processing field {field} for PO {po.po_number}")
         match field:
             case "status":
@@ -278,7 +281,7 @@ class PurchasingRestService:
                 # If the PO is updating its status to fully received, then automatically allocate all lines
                 logger.info("Processing lines for automatic allocation...")
                 for line in po.po_lines.filter(quantity__gt=0):
-                    PurchasingRestService._handle_automatic_allocation(line, po)
+                    PurchasingRestService._handle_automatic_allocation(line, po, staff)
 
             case _:
                 logger.info(f"Updating field {field} to {data[field]}")
@@ -404,7 +407,11 @@ class PurchasingRestService:
 
     @staticmethod
     def update_purchase_order(
-        po_id: str, data: Dict[str, Any], *, expected_etag: str | None = None
+        po_id: str,
+        data: Dict[str, Any],
+        *,
+        staff,
+        expected_etag: str | None = None,
     ) -> PurchaseOrder:
         expected_normalized = normalize_etag(expected_etag) if expected_etag else None
 
@@ -457,7 +464,7 @@ class PurchasingRestService:
 
             for field in ["reference", "expected_delivery", "status"]:
                 if field in data:
-                    PurchasingRestService._process_field(po, field, data)
+                    PurchasingRestService._process_field(po, field, data, staff)
 
             po.save()
             po.refresh_from_db()
