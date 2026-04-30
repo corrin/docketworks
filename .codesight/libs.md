@@ -279,8 +279,8 @@
   - function get_time_breakdown: (job) -> dict
   - function draw_table_with_page_breaks: (pdf, table, y_position, *, x_position, margin, available_width, on_new_page, float]]) -> float
   - function wait_until_file_ready: (file_path, max_wait)
-  - function get_image_dimensions: (image_path)
-  - _...17 more_
+  - function convert_html_to_reportlab: (html_content)
+  - _...16 more_
 - `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
 - `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
 - `apps/operations/apps.py` — class OperationsConfig

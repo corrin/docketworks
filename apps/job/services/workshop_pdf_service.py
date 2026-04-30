@@ -146,6 +146,8 @@ PAGE_WIDTH, PAGE_HEIGHT = A4
 MARGIN = 50
 CONTENT_WIDTH = PAGE_WIDTH - (2 * MARGIN)
 
+LOGO_BOX = 150
+
 styles = getSampleStyleSheet()
 
 # Palette and typography
@@ -287,17 +289,15 @@ def wait_until_file_ready(file_path, max_wait=10):
             wait_time += 1
 
 
-def get_image_dimensions(image_path):
-    """Return image dimensions in points, scaled to fit CONTENT_WIDTH."""
+def _fit_dimensions(image_path, max_width, max_height):
+    """Return (width_pt, height_pt) to draw the image inside
+    (max_width, max_height) preserving aspect ratio. The on-page footprint
+    is determined by the bounding box, not by the source pixel count."""
     wait_until_file_ready(image_path)
     with Image.open(image_path) as img:
-        img_width, img_height = img.size
-        img_width_pt, img_height_pt = img_width, img_height
-        if img_width_pt > CONTENT_WIDTH:
-            scale = CONTENT_WIDTH / img_width_pt
-            img_width_pt = CONTENT_WIDTH
-            img_height_pt *= scale
-        return img_width_pt, img_height_pt
+        w, h = img.size
+    scale = min(max_width / w, max_height / h)
+    return w * scale, h * scale
 
 
 def convert_html_to_reportlab(html_content):
@@ -513,14 +513,15 @@ def create_delivery_docket_main_document(job):
 
 
 def add_logo(pdf, y_position):
-    """Draw the logo centred at the top and return the updated y position."""
+    """Draw the square logo centred at the top and return the updated y position."""
     company = CompanyDefaults.get_solo()
-    if not company.logo_wide:
-        raise ValueError("No wide logo uploaded in Company Defaults")
-    logo = ImageReader(company.logo_wide.path)
-    x = MARGIN + (CONTENT_WIDTH - 150) / 2
-    pdf.drawImage(logo, x, y_position - 150, width=150, height=150, mask="auto")
-    return y_position - 200
+    if not company.logo:
+        raise ValueError("No logo uploaded in Company Defaults")
+    w, h = _fit_dimensions(company.logo.path, LOGO_BOX, LOGO_BOX)
+    logo = ImageReader(company.logo.path)
+    x = MARGIN + (CONTENT_WIDTH - w) / 2
+    pdf.drawImage(logo, x, y_position - h, width=w, height=h, mask="auto")
+    return y_position - h - 50
 
 
 def add_letterhead_banner(pdf, y_position):
@@ -528,16 +529,19 @@ def add_letterhead_banner(pdf, y_position):
     company = CompanyDefaults.get_solo()
     if not company.logo_wide:
         raise ValueError("No wide logo uploaded in Company Defaults")
-    img_width_pt, img_height_pt = get_image_dimensions(company.logo_wide.path)
+    with Image.open(company.logo_wide.path) as img:
+        src_w, src_h = img.size
+    img_width_pt = CONTENT_WIDTH
+    img_height_pt = src_h * (CONTENT_WIDTH / src_w)
     banner = ImageReader(company.logo_wide.path)
-    # Position banner closer to page top (25pt margin) so the logo isn't clipped
-    banner_top = PAGE_HEIGHT - 25
+    banner_top = PAGE_HEIGHT - MARGIN
     pdf.drawImage(
         banner,
         MARGIN,
         banner_top - img_height_pt,
         width=img_width_pt,
         height=img_height_pt,
+        mask="auto",
     )
 
     # Company contact details below the banner
@@ -1045,7 +1049,9 @@ def create_image_document(image_files):
             continue
 
         try:
-            width, height = get_image_dimensions(file_path)
+            width, height = _fit_dimensions(
+                file_path, CONTENT_WIDTH, PAGE_HEIGHT - 2 * MARGIN - 50
+            )
             x = MARGIN + (CONTENT_WIDTH - width) / 2
             y_position = PAGE_HEIGHT - MARGIN - 10
             pdf.drawImage(file_path, x, y_position - height, width=width, height=height)

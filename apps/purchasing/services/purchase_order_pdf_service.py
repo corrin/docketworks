@@ -1,7 +1,7 @@
 import logging
 from io import BytesIO
 
-from PIL import ImageFile
+from PIL import Image, ImageFile
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet
@@ -70,21 +70,25 @@ class PurchaseOrderPDFGenerator:
             raise
 
     def add_logo(self, y_position):
-        """Add company logo to the PDF."""
+        """Draw the wide logo across the content width as a letterhead."""
         company = CompanyDefaults.get_solo()
         if not company.logo_wide:
             raise ValueError("No wide logo uploaded in Company Defaults")
-        logo = ImageReader(company.logo_wide.path)
+        with Image.open(company.logo_wide.path) as img:
+            src_w, src_h = img.size
+        img_width_pt = CONTENT_WIDTH
+        img_height_pt = src_h * (CONTENT_WIDTH / src_w)
+        banner = ImageReader(company.logo_wide.path)
+        banner_top = PAGE_HEIGHT - MARGIN
         self.pdf.drawImage(
-            logo,
-            PAGE_WIDTH - MARGIN - 120,
-            y_position - 80,
-            width=120,
-            height=80,
-            preserveAspectRatio=True,
+            banner,
+            MARGIN,
+            banner_top - img_height_pt,
+            width=img_width_pt,
+            height=img_height_pt,
             mask="auto",
         )
-        return y_position - 90
+        return banner_top - img_height_pt - 20
 
     def add_header_info(self, y_position):
         """Add purchase order header and details to the PDF."""
