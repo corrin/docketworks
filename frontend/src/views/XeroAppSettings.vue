@@ -31,6 +31,7 @@
             <TableRow>
               <TableHead>Label</TableHead>
               <TableHead>Client ID</TableHead>
+              <TableHead>Redirect URI</TableHead>
               <TableHead class="text-center">Authorised</TableHead>
               <TableHead class="text-right">Calls left today</TableHead>
               <TableHead class="text-center">Active</TableHead>
@@ -42,6 +43,12 @@
               <TableRow v-for="row in rows" :key="row.id">
                 <TableCell class="font-medium">{{ row.label }}</TableCell>
                 <TableCell class="font-mono text-xs">{{ truncate(row.client_id) }}</TableCell>
+                <TableCell
+                  class="font-mono text-xs text-gray-600 max-w-[20rem] truncate"
+                  :title="row.redirect_uri"
+                >
+                  {{ row.redirect_uri }}
+                </TableCell>
                 <TableCell class="text-center">
                   <span v-if="row.has_tokens" class="text-green-600 font-bold">&#10003;</span>
                   <span v-else class="text-gray-400">&mdash;</span>
@@ -84,7 +91,7 @@
             </template>
             <template v-else>
               <TableRow>
-                <TableCell colspan="6" class="text-center py-10 text-gray-500">
+                <TableCell colspan="7" class="text-center py-10 text-gray-500">
                   No Xero apps configured yet.
                 </TableCell>
               </TableRow>
@@ -282,11 +289,19 @@ function truncate(value: string, max: number = 14): string {
   return `${value.slice(0, max)}…`
 }
 
+// The redirect URI Xero must be told to send the user back to. It's our
+// own server's callback URL and never varies between Xero apps on the
+// same install — pre-populating it removes a foot-gun where users would
+// otherwise leave it blank or paste a stale value.
+function defaultRedirectUri(): string {
+  return `${window.location.origin}/api/xero/oauth/callback/`
+}
+
 function resetForm(): void {
   form.label = emptyForm.label
   form.client_id = emptyForm.client_id
   form.client_secret = emptyForm.client_secret
-  form.redirect_uri = emptyForm.redirect_uri
+  form.redirect_uri = defaultRedirectUri()
   originalClientId.value = ''
   formError.value = null
 }
