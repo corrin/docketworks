@@ -266,6 +266,18 @@ sudo scripts/server/deploy.sh <name>
 
 This pulls latest code, installs dependencies, runs migrations, rebuilds frontend, and restarts Gunicorn.
 
+### Cold standby (DR mode)
+
+For a DR box that shares Xero credentials with a live primary: create with `--no-start` so scheduler/celery never auto-start (no heartbeat to Xero with shared tokens), and a `.dr-mode` marker is dropped in the instance dir. Subsequent `deploy.sh` runs see the marker and skip enable/restart of celery-worker and gunicorn — migrations, builds, and unit/nginx re-renders still run, so the standby stays current.
+
+```bash
+sudo scripts/server/instance.sh create <client> <env> --no-start
+
+# To go live (after DNS cutover):
+sudo rm /opt/docketworks/instances/<client>-<env>/.dr-mode
+sudo systemctl enable --now scheduler-<client>-<env> celery-worker-<client>-<env> gunicorn-<client>-<env>
+```
+
 ### Destroy (complete removal)
 
 ```bash
