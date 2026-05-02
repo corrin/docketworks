@@ -183,12 +183,6 @@ for instance in "${TARGETS[@]}"; do
         FAILED_INSTANCES+=("$instance")
     fi
 
-    # Restart gunicorn
-    if systemctl is-enabled "gunicorn-$instance" &>/dev/null; then
-        log "  Restarting gunicorn-$instance"
-        systemctl restart "gunicorn-$instance"
-    fi
-
     # Install the celery-worker unit on instances that pre-date this template.
     # `instance.sh` renders it for new instances; this branch one-shots existing
     # ones. After first deploy each instance has the unit and the guard skips —
@@ -203,8 +197,21 @@ for instance in "${TARGETS[@]}"; do
         systemctl daemon-reload
         systemctl enable "celery-worker-$instance"
     fi
+
+    # Restart celery-worker BEFORE gunicorn. If gunicorn restarts first it
+    # starts dispatching new task names while the worker still has stale
+    # code; the old worker silently ack-discards messages it doesn't know
+    # (Celery's default behaviour) and webhook events are lost without a
+    # trace. Worker-first means new task names are always registered before
+    # any new dispatch can land.
     log "  Restarting celery-worker-$instance"
     systemctl restart "celery-worker-$instance"
+
+    # Restart gunicorn
+    if systemctl is-enabled "gunicorn-$instance" &>/dev/null; then
+        log "  Restarting gunicorn-$instance"
+        systemctl restart "gunicorn-$instance"
+    fi
 
     # Re-render nginx config from template. The rendered config is written once
     # at instance creation (instance.sh), so template edits only reach live
