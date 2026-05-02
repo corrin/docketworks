@@ -1,28 +1,24 @@
 # 0013 — Error message clarity wins over information hiding
 
-Internal-tool error responses include the underlying exception message verbatim so the user on the other end can act on it; we rely on authenticated-session logging, not response redaction, to defend against escalation.
+Internal-tool error responses include the underlying exception message verbatim. Continue to include the persisted `AppError.id` as `details.error_id` for cross-reference.
 
-- **Status:** Accepted
-- **Date:** 2026-04-24
-- **PR(s):** #162 — Sales Pipeline Report v1
+## Problem
 
-## Context
-
-Docketworks is a single-tenant tool used exclusively by employees of the deploying business. A Copilot code review on the Sales Pipeline Report endpoint flagged that 500 responses return `str(exc)` to the caller, which can leak internal details. The same pattern exists across every existing report endpoint in `apps/accounting/views/`, so this is a codebase-wide question rather than a one-report decision.
-
-The trade-off is: opaque messages ("An error occurred — error id X") protect against an attacker learning about the stack, but they also make it harder for the employee triaging the failure to tell their colleagues what went wrong without pulling the AppError row by id. There is no external user population to defend against.
+A code review on a report endpoint flagged that 500 responses returned `str(exc)` to the caller, which can leak internal details — stack-relevant strings, table names, integration error codes. The same pattern exists across every report endpoint. The standard public-API answer is to redact the message and return only an `error_id`. But this is not a public API: every caller is an authenticated employee of the deploying business.
 
 ## Decision
 
-Return the underlying exception message in API error responses. Do not mask or generalise exception text for information-hiding reasons. Continue to include the persisted `AppError.id` as `details.error_id` so any response can be cross-referenced with structured logs and the DB row.
+Return the underlying exception message in API error responses. Do not mask or generalise exception text for information-hiding reasons. Always include `details.error_id` so any response can be cross-referenced with structured logs and the `AppError` row.
+
+## Why
+
+Every caller is a logged-in employee, every action is recorded in `AppError` plus audit trails. The threat model is "employee who wants to keep their job" — not an anonymous internet attacker. Opaque messages cost real clarity for every support interaction (the employee has to look up the row by id before they can describe the failure to a colleague). Clarity is the dominant value when the audit trail covers the security side.
 
 ## Alternatives considered
 
-- **Redact exception messages, return only `error_id`:** better for a public-internet app with untrusted callers, but costs clarity for every support interaction here — employees have to look up the `AppError` row before they can even describe the failure.
-- **Redact only for specific sensitive exception types (DB connection strings, credential errors):** plausible, but the boundary is fuzzy and tends to fail open over time; not worth the complexity for a single-tenant employee tool.
+- **Redact exception messages entirely, return only `error_id`.** Strongly defendable for any public-internet API. Rejected here: there is no untrusted caller; every triage starts with the employee pasting the error into chat, and an opaque message means a database lookup before the conversation can begin.
+- **Redact only sensitive exception types (DB connection strings, credential errors).** Defendable as a hybrid. Rejected: the boundary between "sensitive" and "not" is fuzzy and tends to fail open over time; the audit trail covers the same threat without the complexity.
 
 ## Consequences
 
-- **Positive:** API error payloads are immediately useful in screenshots and bug reports; the employee reporting the bug can paste the full message. Triage starts with context already in hand.
-- **Negative / costs:** An employee who wanted to attack the system could read the message to probe internals. Accepted risk: all requests are authenticated, all actions are logged to `AppError` + audit trails, and an employee using that path would be firing offence, not a technical exposure. The threat model is "employee who wants to keep their job," not "anonymous internet attacker."
-- **Follow-ups:** If docketworks is ever exposed to untrusted callers (a customer portal, a public read-only endpoint, etc.), revisit this ADR for that surface — this decision is scoped to the employee-authenticated API.
+Error payloads are immediately useful in screenshots and bug reports. If docketworks is ever exposed to untrusted callers (a customer portal, a public read-only endpoint), revisit this ADR for that surface — this decision is scoped to the employee-authenticated API.

@@ -1,27 +1,23 @@
 # 0002 — Auth gate: single global gate with explicit allowlist
 
-A blocking middleware gate rejects any request that is neither authenticated nor on the `AUTH_ANON_ALLOWLIST`; identity comes from cookies in all envs and, in DEV only, short-lived HS256 bearer tokens.
+A blocking middleware gate rejects any request that is neither authenticated nor on `AUTH_ANON_ALLOWLIST`. Identity comes from cookies in all envs and, in DEV only, short-lived HS256 bearer tokens.
 
-- **Status:** Accepted
-- **Date:** 2025-10-30
-- **PR(s):** Commit `f3b059f4` ("both authentication methods working") — predates GitHub PR workflow on this repo
+## Problem
 
-## Context
-
-PROD is internet-facing but almost all users are on LAN; existing cookie sessions work. DEV is short-lived with sanitised data. We want a single authentication rule across all environments — the *requirement* is identical everywhere — while allowing DEV to authenticate via short-lived JWT bearer tokens so test tooling doesn't need a login flow. Per-view decorators had been drifting: some views were unprotected by accident, others had env-conditional CSRF exemptions, and the public surface was implicit ("whatever doesn't have `@login_required`").
+With per-view decorators (`@login_required`), the public surface is implicit — "whatever doesn't have the decorator is public" — and drifts. New views ship unprotected because someone forgot the decorator. There's no single place to answer "what URLs accept anonymous traffic?" without grepping every view in the codebase. DEV separately needs token-based auth so test tooling doesn't have to drive a login flow; PROD must not.
 
 ## Decision
 
-Two layers. An **identity layer** (non-blocking) that reads either cookies (always) or, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, a short-lived HS256 bearer signed with `DEV_JWT_SECRET` — on failure it does nothing, remaining anonymous. A **global gate** (blocking) that runs on every request: if not authenticated and the path is not in `AUTH_ANON_ALLOWLIST`, return `401 JSON` for `/api/**` or `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
+Two layers. An **identity layer** (non-blocking) reads cookies always and, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, an HS256 bearer signed with `DEV_JWT_SECRET`. A **global gate** (blocking) runs on every request: not authenticated and path not in `AUTH_ANON_ALLOWLIST` → `401 JSON` for `/api/**`, `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
+
+## Why
+
+The authenticated surface lives in one file (the allowlist). Adding a public endpoint requires a deliberate list entry. PROD cannot accept a bearer because the identity layer doesn't even attempt it. DEV-only bearer means test tooling doesn't need a production-grade token-issuance system.
 
 ## Alternatives considered
 
-- **Per-view decorators (`@login_required`):** status quo that was drifting; easy for a new view to ship unprotected.
-- **Separate middleware stacks per environment:** satisfies the DEV bearer need but means PROD and DEV have measurably different auth *behaviour*, not just different identity sources — harder to reason about security invariants.
-- **Shared bearer tokens across envs:** would require production-grade token issuance and rotation for what is only a dev-tooling convenience.
+- **Per-view decorators (`@login_required`).** The Django convention. Rejected: authenticated surface is implicit and drifts; auditing it means grepping every view; new views ship unprotected when the decorator is forgotten.
 
 ## Consequences
 
-- **Positive:** one place to audit ("what is the authenticated surface?") — the allowlist. Adding a new public endpoint requires an explicit list entry. PROD can never accept a bearer because the flag controls whether the identity layer even tries.
-- **Negative / costs:** the allowlist has to be maintained; forgetting to add `/healthz` or a new public asset path surfaces as a `302` redirect rather than a useful error.
-- **Follow-ups:** if we ever move PROD to bearer, flip precedence inside the identity layer — the gate itself does not change.
+One place to audit the authenticated surface. Cost: forgetting to allowlist `/healthz` or a new public asset path surfaces as a confusing `302` redirect rather than a useful error.

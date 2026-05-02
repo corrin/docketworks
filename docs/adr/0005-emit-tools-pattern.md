@@ -1,27 +1,24 @@
 # 0005 — Emit-tool pattern for Gemini structured output
 
-Each quote-chat mode terminates by calling an `emit_<mode>_result` tool whose parameter schema *is* the mode's output schema — sidestepping Gemini's tools-vs-JSON-response-format conflict while keeping tool use during `PRICE` mode.
+Each quote-chat mode terminates by calling an `emit_<mode>_result` tool whose parameter schema *is* the mode's output schema.
 
-- **Status:** Accepted
-- **Date:** 2025-09-08
-- **PR(s):** Commit `dca154d0` — feat(quote-chat): implement emit tools pattern to fix Gemini API conflict (predates GitHub PR workflow)
+## Problem
 
-## Context
-
-The quote-chat flow has three modes: `CALC` (compute quantities), `PRICE` (search products and price), `TABLE` (format a quote table). We wanted both function-calling tools (to search product catalogues) *and* strict JSON output (so the server can validate and consume the result). Gemini rejects the combination: it will enforce `response_mime_type="application/json"` *or* accept function-calling tools, not both. `PRICE` mode needed both at once.
+Gemini will enforce `response_mime_type="application/json"` **or** accept function-calling tools — not both at once. Quote-chat's `PRICE` mode genuinely needs both: it must call catalogue tools (`search_products`, `get_pricing_for_material`, `compare_suppliers`) **and** return validated structured output. With tools-only you get freeform text the server can't trust; with JSON-only you can't search the catalogue.
 
 ## Decision
 
-Drop the JSON response-format enforcement entirely. For each mode define an "emit" tool — `emit_calc_result`, `emit_price_result`, `emit_table_result` — whose parameter schema *is* the mode's output schema. The model's terminal action is to call the emit tool with the final result; tool arguments are already JSON, already validated by Gemini against the declared schema. In `PRICE` mode the model can still call catalogue tools (`search_products`, `get_pricing_for_material`, `compare_suppliers`), and the controller loops, executing them and feeding responses back, until the model calls the emit tool or hits the retry cap.
+Drop JSON response-format enforcement. Define an emit tool per mode (`emit_calc_result`, `emit_price_result`, `emit_table_result`) whose parameter schema *is* the mode's output schema. The model's terminal action is calling the emit tool; tool arguments are already JSON, already schema-validated by Gemini. In `PRICE` mode the controller loops on catalogue tool calls until the model emits or hits the retry cap (5).
+
+## Why
+
+Tool arguments give us "JSON validated against a declared schema" without needing `response_mime_type`. The emit-tool schema is the single source of truth for mode output shape — drift between "what the model returns" and "what the server expects" is structurally impossible. Same code path works regardless of whether the model called catalogue tools first.
 
 ## Alternatives considered
 
-- **Two-pass approach:** first pass with tools to gather data, second pass with JSON enforcement and no tools to format. Doubles latency and cost, and the model can easily drop information between the two turns.
-- **Server-side assembly:** treat the model as a planner only and have the server construct JSON. Pushes most of the schema understanding into server code, defeating the point of using a model with structured output.
-- **Plain-text output + regex parsing:** fragile, no schema validation, exactly the failure mode this plan was written to avoid.
+- **Two-pass: tools-on first turn, JSON-on second turn.** Doubles latency and cost; the model frequently drops information between the two turns.
+- **Server-side assembly: model is a planner only, server constructs the JSON.** Pushes schema understanding into server code, defeating the point of using a model with structured output.
 
 ## Consequences
 
-- **Positive:** single-turn result in simple modes; PRICE mode can still use tools while producing validated structured output; the emit tool schema is the single source of truth for mode output shape.
-- **Negative / costs:** the model sometimes doesn't call the emit tool on the first turn — we retry with an explicit "call the emit tool" nudge, capped at 5 iterations. Schema drift between emit tool parameters and downstream validation must be avoided (single source of truth).
-- **Follow-ups:** if Gemini later supports tools + JSON mode simultaneously, we can revisit — but even then the emit-tool shape remains a reasonable contract.
+Single-turn result; PRICE mode keeps tools while producing validated output. The model occasionally skips the emit tool on the first try — retry with an explicit nudge, capped at 5 iterations.

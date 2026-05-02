@@ -1,28 +1,24 @@
 # 0011 — Codesight runs via pre-commit in wiki mode; output committed
 
-Commit `.codesight/` and `docs/.codesight/` to git and regenerate both on pre-commit via `--wiki` and `--mode knowledge` so AI-assistant context never drifts from the code it describes.
+Commit `.codesight/` and `docs/.codesight/` to git. Regenerate both on pre-commit via `npx codesight --wiki` and `npx codesight --mode knowledge`.
 
-- **Status:** Accepted
-- **Date:** 2026-04-10
-- **PR(s):** [#134](https://github.com/corrin/docketworks/pull/134) — fix: WIP historical state, codesight setup, env variable rename
+## Problem
 
-## Context
-
-Codesight (`npx codesight`, v1.10.0) had been installed and run manually. Three `.codesight/` directories existed — root (full scan), `frontend/.codesight/` (frontend-only), and `docs/.codesight/` (knowledge mode over markdown docs) — all untracked, no config file, no `.codesightignore`. CLAUDE.md already referenced codesight wiki articles for the orient/verify workflow, so the AI-assistant context was actively depending on output that drifted whenever code changed without a manual re-run.
+CLAUDE.md and the agent workflow read targeted ~200–300-token codesight wiki articles to orient before making changes. If those articles are untracked or stale, every assistant ingestion uses outdated context — old module names, old function signatures, old relationships. Manual regen drifts the moment someone forgets. AI guidance has to match the code, every commit, or the guidance is misinformation.
 
 ## Decision
 
-Commit codesight output to git and regenerate it via pre-commit. Two hooks in `.pre-commit-config.yaml`: one runs `npx codesight --wiki` and stages `.codesight/`; the other runs `npx codesight --mode knowledge -o docs/.codesight` and stages `docs/.codesight/`. Always use `--wiki` (makes it the default via `codesight.config.json`) because the CLAUDE.md flow reads targeted ~200–300-token articles, not the monolithic `CODESIGHT.md`. Drop the separate `frontend/.codesight/` scan — the root scan already picks up 181 frontend components, so a second scan duplicates work and creates two sources of truth; gitignore `frontend/.codesight/` to prevent accidental commit. `.codesightignore` excludes generated files (`frontend/schema.yml`, `frontend/src/api/generated/`), build artifacts, and `docs/.codesight/` (which has its own scan).
+Two pre-commit hooks in `.pre-commit-config.yaml`: one runs `npx codesight --wiki` and stages `.codesight/`; the other runs `npx codesight --mode knowledge -o docs/.codesight` and stages `docs/.codesight/`. Wiki mode is the default via `codesight.config.json`. `.codesightignore` excludes generated files (`frontend/schema.yml`, `frontend/src/api/generated/`), build artefacts, and `docs/.codesight/` (which has its own scan). Drop the separate `frontend/.codesight/` scan — the root scan already covers frontend; gitignore that path to prevent accidental commit.
+
+## Why
+
+Pre-commit is the one place where "code state" and "context derived from code state" are guaranteed to ship together. Committing the output means every developer and every CI run gets identical context with zero setup; `git diff` reveals structural changes between commits. Wiki mode produces small, selectively-loadable articles instead of a monolithic dump — a key fit for context-window-bounded assistants.
 
 ## Alternatives considered
 
-- **Pre-push hook instead of pre-commit:** too late — during development the committed `.codesight/` already diverged from the working tree, and AI assistants reading it would use stale context.
-- **`codesight --watch`:** wasteful — runs on every file save; most saves don't change structural relationships.
-- **Keep `.codesight/` untracked and rely on each developer running it:** what we had. It drifted. Assistants hit stale wiki articles.
-- **Keep all three scans (root + frontend + docs):** the root scan already covers frontend; a second frontend scan is strictly redundant except for the knowledge/markdown scan, which genuinely uses a different mode flag.
+- **`codesight --watch` in dev.** Defendable — keeps context fresh without commit-time overhead. Rejected: most file saves don't change structural relationships, so it burns CPU continuously; it also doesn't help CI or other contributors who don't run watch.
+- **Keep `.codesight/` untracked, regenerate per developer.** What we had. Rejected: drifted in practice; assistants hit stale articles; no way to detect the drift without regenerating.
 
 ## Consequences
 
-- **Positive:** committed output means every developer and CI run gets the same context with zero setup; git diff reveals structural changes between commits; wiki mode makes articles small enough for selective loading by assistants.
-- **Negative / costs:** pre-commit is slower (adds the codesight run on every commit); the output is effectively generated code that lands in the repo — reviewers see noise in diffs when module structure changes.
-- **Follow-ups:** if the frontend ever diverges enough to warrant its own scan, reinstate `frontend/.codesight/` and remove it from gitignore; the `.codesight/` wiki is the AI-assistant context surface, so breaking changes to codesight output format affect how CLAUDE.md articles render.
+Every commit ships matching context. Cost: pre-commit is slower (adds the codesight run on every commit); the output is effectively generated content that lands in git, so reviewers see noise in diffs when module structure changes.
