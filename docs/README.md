@@ -99,7 +99,6 @@ Follow these in order:
 | Document | Purpose |
 |----------|---------|
 | [production-cutover-plan.md](production-cutover-plan.md) | Migrate prod from old server (MariaDB) to new server (PostgreSQL) |
-| [production-mysql-to-postgres-migration.md](production-mysql-to-postgres-migration.md) | MySQL→PostgreSQL migration runbook |
 
 ### Auto-Generated Reference
 
