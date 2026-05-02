@@ -46,14 +46,21 @@ def _persist_unknown_task(sender=None, name=None, id=None, message=None, **_):
     try:
         from apps.workflow.services.error_persistence import persist_app_error
 
-        persist_app_error(
-            RuntimeError(f"Celery worker received unregistered task: {name}"),
-            additional_context={
-                "task_name": name,
-                "task_id": id,
-                "delivery_tag": getattr(message, "delivery_tag", None),
-            },
-        )
+        # Raise+catch so persist_app_error's traceback.format_exc() captures
+        # a real stack pointing at this signal handler. Without an active
+        # except block the persisted trace is `NoneType: None`, which defeats
+        # the point of recording it.
+        try:
+            raise RuntimeError(f"Celery worker received unregistered task: {name}")
+        except RuntimeError as exc:
+            persist_app_error(
+                exc,
+                additional_context={
+                    "task_name": name,
+                    "task_id": id,
+                    "delivery_tag": getattr(message, "delivery_tag", None),
+                },
+            )
     except Exception:
         # AppError persistence may itself fail (DB down, app registry not
         # ready). Don't crash the worker on top of an already-bad signal.

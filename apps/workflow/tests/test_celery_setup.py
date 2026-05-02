@@ -80,3 +80,14 @@ class UnknownTaskSignalTests(TestCase):
         self.assertEqual(err.data["task_name"], "apps.workflow.tasks.does_not_exist")
         self.assertEqual(err.data["task_id"], "unit-test-task-id")
         self.assertEqual(err.data["delivery_tag"], "unit-test-delivery-tag")
+        # Trace must be a real stack from inside the signal handler — not
+        # `NoneType: None`, which is what traceback.format_exc() emits when
+        # called outside an active except block.
+        trace = err.data["trace"]
+        self.assertNotIn("NoneType: None", trace)
+        self.assertIn("RuntimeError", trace)
+        self.assertIn(
+            "Celery worker received unregistered task: "
+            "apps.workflow.tasks.does_not_exist",
+            trace,
+        )

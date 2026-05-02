@@ -6,7 +6,7 @@ After=network.target redis-server.service
 User=__INSTANCE_USER__
 Group=www-data
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__
-ExecStart=/opt/docketworks/.venv/bin/celery -A docketworks worker --concurrency=4 --loglevel=info
+ExecStart=/opt/docketworks/.venv/bin/celery -A docketworks worker --concurrency=4 --loglevel=info --hostname=celery-__INSTANCE__@%%h
 EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
 Restart=always
 RestartSec=10
