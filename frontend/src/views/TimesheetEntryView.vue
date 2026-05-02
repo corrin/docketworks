@@ -1817,14 +1817,19 @@ onMounted(async () => {
 
     let validStaffId = selectedStaffId.value
 
-    if (
-      (!validStaffId || !timesheetStore.staff.find((s: Staff) => s.id === validStaffId)) &&
-      timesheetStore.staff.length > 0
-    ) {
+    if (validStaffId && !timesheetStore.staff.find((s: Staff) => s.id === validStaffId)) {
+      error.value =
+        `Staff ${validStaffId} is not available for timesheet entry. ` +
+        `They are not in the active timesheet staff list (typically because they have ` +
+        `no Xero payroll ID configured).`
+      loading.value = false
+      isInitializing.value = false
+      return
+    }
+
+    if (!validStaffId && timesheetStore.staff.length > 0) {
       validStaffId = timesheetStore.staff[0].id
-      debugLog('No valid staff from URL, using first available:', validStaffId)
-    } else if (validStaffId && timesheetStore.staff.find((s: Staff) => s.id === validStaffId)) {
-      debugLog('Using staff from URL parameters:', validStaffId)
+      debugLog('No staffId in URL, using first available:', validStaffId)
     }
 
     selectedStaffId.value = validStaffId
