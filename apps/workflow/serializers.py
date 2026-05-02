@@ -8,6 +8,7 @@ from .models import (
     AppError,
     CompanyDefaults,
     XeroAccount,
+    XeroApp,
     XeroError,
     XeroPayItem,
     XeroToken,
@@ -79,6 +80,52 @@ class XeroPayItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = XeroPayItem
         fields = "__all__"
+
+
+class XeroAppSerializer(serializers.ModelSerializer):
+    """List/detail serializer for XeroApp.
+
+    client_secret is write-only — never returned. access_token / refresh_token
+    are not surfaced at all; instead a derived has_tokens boolean indicates
+    whether the row has been authorised.
+    """
+
+    has_tokens = serializers.SerializerMethodField()
+    client_secret = serializers.CharField(write_only=True, required=False)
+
+    class Meta:
+        model = XeroApp
+        fields = (
+            "id",
+            "label",
+            "client_id",
+            "client_secret",
+            "redirect_uri",
+            "is_active",
+            "has_tokens",
+            "tenant_id",
+            "day_remaining",
+            "minute_remaining",
+            "snapshot_at",
+            "last_429_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "is_active",
+            "has_tokens",
+            "tenant_id",
+            "day_remaining",
+            "minute_remaining",
+            "snapshot_at",
+            "last_429_at",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_has_tokens(self, obj: XeroApp) -> bool:
+        return bool(obj.access_token and obj.refresh_token)
 
 
 class AIProviderCreateUpdateSerializer(serializers.ModelSerializer):

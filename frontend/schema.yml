@@ -7519,6 +7519,185 @@ paths:
               schema:
                 $ref: '#/components/schemas/AppError'
           description: ''
+  /api/workflow/xero-apps/:
+    get:
+      operationId: workflow_xero_apps_list
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/XeroApp'
+          description: ''
+    post:
+      operationId: workflow_xero_apps_create
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroApp'
+          description: ''
+  /api/workflow/xero-apps/{id}/:
+    get:
+      operationId: workflow_xero_apps_retrieve
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this xero app.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroApp'
+          description: ''
+    put:
+      operationId: workflow_xero_apps_update
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this xero app.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroApp'
+          description: ''
+    patch:
+      operationId: workflow_xero_apps_partial_update
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this xero app.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedXeroAppRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedXeroAppRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedXeroAppRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroApp'
+          description: ''
+    delete:
+      operationId: workflow_xero_apps_destroy
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this xero app.
+          required: true
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/workflow/xero-apps/{id}/activate/:
+    post:
+      operationId: workflow_xero_apps_activate_create
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this xero app.
+          required: true
+      tags:
+        - workflow
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/XeroAppRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroApp'
+          description: ''
   /api/workflow/xero-pay-items/:
     get:
       operationId: workflow_xero_pay_items_list
@@ -15169,6 +15348,31 @@ components:
           maximum: 100
           minimum: 0.0
           exclusiveMaximum: true
+    PatchedXeroAppRequest:
+      type: object
+      description: |-
+        List/detail serializer for XeroApp.
+
+        client_secret is write-only — never returned. access_token / refresh_token
+        are not surfaced at all; instead a derived has_tokens boolean indicates
+        whether the row has been authorised.
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+        client_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        client_secret:
+          type: string
+          writeOnly: true
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          maxLength: 512
     PayRunListItem:
       type: object
       description: Serializer for a pay run in the list response.
@@ -19740,6 +19944,107 @@ components:
         - total_cost
         - total_hours
         - total_revenue
+    XeroApp:
+      type: object
+      description: |-
+        List/detail serializer for XeroApp.
+
+        client_secret is write-only — never returned. access_token / refresh_token
+        are not surfaced at all; instead a derived has_tokens boolean indicates
+        whether the row has been authorised.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        label:
+          type: string
+          maxLength: 64
+        client_id:
+          type: string
+          maxLength: 128
+        redirect_uri:
+          type: string
+          maxLength: 512
+        is_active:
+          type: boolean
+          readOnly: true
+        has_tokens:
+          type: boolean
+          readOnly: true
+        tenant_id:
+          type: string
+          readOnly: true
+          nullable: true
+        day_remaining:
+          type: integer
+          readOnly: true
+          nullable: true
+        minute_remaining:
+          type: integer
+          readOnly: true
+          nullable: true
+        snapshot_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_429_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - client_id
+        - created_at
+        - day_remaining
+        - has_tokens
+        - id
+        - is_active
+        - label
+        - last_429_at
+        - minute_remaining
+        - redirect_uri
+        - snapshot_at
+        - tenant_id
+        - updated_at
+    XeroAppRequest:
+      type: object
+      description: |-
+        List/detail serializer for XeroApp.
+
+        client_secret is write-only — never returned. access_token / refresh_token
+        are not surfaced at all; instead a derived has_tokens boolean indicates
+        whether the row has been authorised.
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+        client_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        client_secret:
+          type: string
+          writeOnly: true
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          maxLength: 512
+      required:
+        - client_id
+        - label
+        - redirect_uri
     XeroDocumentErrorResponse:
       type: object
       description: Standardized serializer for a failed Xero document operation.

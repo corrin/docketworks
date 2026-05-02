@@ -2992,6 +2992,35 @@ const AppErrorRequest = z.object({
   resolved_timestamp: z.string().datetime({ offset: true }).nullish(),
   resolved_by: z.string().uuid().nullish(),
 })
+const XeroApp = z.object({
+  id: z.string().uuid(),
+  label: z.string().max(64),
+  client_id: z.string().max(128),
+  redirect_uri: z.string().max(512),
+  is_active: z.boolean(),
+  has_tokens: z.boolean(),
+  tenant_id: z.string().nullable(),
+  day_remaining: z.number().int().nullable(),
+  minute_remaining: z.number().int().nullable(),
+  snapshot_at: z.string().datetime({ offset: true }).nullable(),
+  last_429_at: z.string().datetime({ offset: true }).nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const XeroAppRequest = z.object({
+  label: z.string().min(1).max(64),
+  client_id: z.string().min(1).max(128),
+  client_secret: z.string().min(1).optional(),
+  redirect_uri: z.string().min(1).max(512),
+})
+const PatchedXeroAppRequest = z
+  .object({
+    label: z.string().min(1).max(64),
+    client_id: z.string().min(1).max(128),
+    client_secret: z.string().min(1),
+    redirect_uri: z.string().min(1).max(512),
+  })
+  .partial()
 const XeroPayItem = z.object({
   id: z.string().uuid(),
   xero_id: z.string().max(50).nullish(),
@@ -3428,6 +3457,9 @@ export const schemas = {
   PatchedAIProviderCreateUpdateRequest,
   AIProviderRequest,
   AppErrorRequest,
+  XeroApp,
+  XeroAppRequest,
+  PatchedXeroAppRequest,
   XeroPayItem,
   XeroError,
   PaginatedXeroErrorList,
@@ -8603,6 +8635,112 @@ Endpoints:
       },
     ],
     response: AppError,
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/xero-apps/',
+    alias: 'workflow_xero_apps_list',
+    requestFormat: 'json',
+    response: z.array(XeroApp),
+  },
+  {
+    method: 'post',
+    path: '/api/workflow/xero-apps/',
+    alias: 'workflow_xero_apps_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: XeroAppRequest,
+      },
+    ],
+    response: XeroApp,
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/xero-apps/:id/',
+    alias: 'workflow_xero_apps_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: XeroApp,
+  },
+  {
+    method: 'put',
+    path: '/api/workflow/xero-apps/:id/',
+    alias: 'workflow_xero_apps_update',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: XeroAppRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: XeroApp,
+  },
+  {
+    method: 'patch',
+    path: '/api/workflow/xero-apps/:id/',
+    alias: 'workflow_xero_apps_partial_update',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedXeroAppRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: XeroApp,
+  },
+  {
+    method: 'delete',
+    path: '/api/workflow/xero-apps/:id/',
+    alias: 'workflow_xero_apps_destroy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'post',
+    path: '/api/workflow/xero-apps/:id/activate/',
+    alias: 'workflow_xero_apps_activate_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: XeroAppRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: XeroApp,
   },
   {
     method: 'get',

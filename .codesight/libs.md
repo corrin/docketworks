@@ -607,8 +607,8 @@
   - class CompanyDefaultsSerializer
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
-  - class AIProviderCreateUpdateSerializer
-  - _...23 more_
+  - class XeroAppSerializer
+  - _...24 more_
 - `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
