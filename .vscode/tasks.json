@@ -1,0 +1,86 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Frontend Dev Server",
+      "type": "npm",
+      "script": "dev",
+      "path": "frontend",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "vite",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": "VITE",
+          "endsPattern": "ready in"
+        }
+      },
+      "presentation": {
+        "group": "dev",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Ngrok Tunnels",
+      "type": "shell",
+      "command": "ngrok start --config ${workspaceFolder}/ngrok.yml --all",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "ngrok",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "started tunnel"
+        }
+      },
+      "presentation": {
+        "group": "dev",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Celery Worker",
+      "type": "shell",
+      "command": "poetry run celery -A docketworks worker --concurrency=4 --loglevel=info",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "celery",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "celery@.* ready"
+        }
+      },
+      "presentation": {
+        "group": "dev",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
+      "label": "Start Dev Environment",
+      "dependsOn": ["Frontend Dev Server", "Ngrok Tunnels", "Celery Worker"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Rebuild Schema",
+      "type": "shell",
+      "command": "${workspaceFolder}/scripts/update_schema.sh",
+      "presentation": {
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    }
+  ]
+}

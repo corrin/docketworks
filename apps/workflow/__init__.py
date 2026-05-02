@@ -63,6 +63,7 @@ try:
             XeroTokenSerializer,
             XeroTriggerSyncResponseSerializer,
         )
+        from .tasks import celery_health_check
         from .utils import (
             build_xero_payroll_url,
             extract_messages,
@@ -127,6 +128,7 @@ __all__ = [
     "XeroValidationError",
     "XeroWebhookView",
     "build_xero_payroll_url",
+    "celery_health_check",
     "check_company_defaults_field_sections",
     "custom_exception_handler",
     "debug_mode",

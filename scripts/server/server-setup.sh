@@ -110,12 +110,6 @@ log "Host: $(hostname)"
 log "OS: $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2)"
 log "Arch: $(uname -m)"
 
-# --- System update ---
-
-log "Updating system packages..."
-apt update && apt upgrade -y
-log "System packages updated."
-
 # --- System packages (all unconditional installs in one pass) ---
 
 log "Installing system packages..."
@@ -173,6 +167,19 @@ fi
 
 # Test DB roles and DBs are provisioned per-instance by instance.sh — no
 # cluster-wide test role exists. See scripts/server/instance.sh do_create.
+
+# --- Redis ---
+
+# Used as the Celery broker (db 1) and the Django Channels layer (db 0).
+if dpkg -l | grep -q "ii  redis-server "; then
+    log "Redis already installed, skipping."
+else
+    log "Installing Redis..."
+    apt install -y redis-server
+fi
+log_version "redis-server" "$(redis-server --version)"
+log "Starting and enabling Redis..."
+systemctl enable --now redis-server
 
 # --- Nginx ---
 

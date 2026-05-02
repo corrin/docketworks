@@ -92,6 +92,14 @@ log "=========================================="
 log "Pulling latest from GitHub into local repo..."
 sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 
+# --- Converge system-level dependencies ---
+# server-setup.sh is idempotent: every install block is dpkg-guarded, and the
+# heavy unconditional steps (apt update, apt upgrade) have been removed. Running
+# it on every deploy means a new system dep added in any future PR (e.g. a new
+# apt package or systemd-managed service) lands on every host automatically.
+log "Converging system-level dependencies via server-setup.sh..."
+bash "$SCRIPT_DIR/server-setup.sh"
+
 # --- Per-instance prepare: clean-tree check, pre-deploy backup, git pull ---
 for instance in "${TARGETS[@]}"; do
     inst_dir="$INSTANCES_DIR/$instance"
@@ -180,6 +188,23 @@ for instance in "${TARGETS[@]}"; do
         log "  Restarting gunicorn-$instance"
         systemctl restart "gunicorn-$instance"
     fi
+
+    # Install the celery-worker unit on instances that pre-date this template.
+    # `instance.sh` renders it for new instances; this branch one-shots existing
+    # ones. After first deploy each instance has the unit and the guard skips —
+    # no per-deploy churn.
+    if [[ ! -f "/etc/systemd/system/celery-worker-$instance.service" ]]; then
+        log "  Installing celery-worker-$instance unit (one-time)"
+        sed \
+            -e "s|__INSTANCE__|$instance|g" \
+            -e "s|__INSTANCE_USER__|$inst_user|g" \
+            "$SCRIPT_DIR/templates/celery-worker-instance.service.template" \
+            > "/etc/systemd/system/celery-worker-$instance.service"
+        systemctl daemon-reload
+        systemctl enable "celery-worker-$instance"
+    fi
+    log "  Restarting celery-worker-$instance"
+    systemctl restart "celery-worker-$instance"
 
     # Re-render nginx config from template. The rendered config is written once
     # at instance creation (instance.sh), so template edits only reach live

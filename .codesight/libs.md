@@ -623,6 +623,7 @@
   - class LLMService
 - `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
+- `apps/workflow/tasks.py` — function celery_health_check: () -> str
 - `apps/workflow/utils.py`
   - function extract_messages: (request) -> List[Dict[str, Any]]
   - function is_valid_uuid: (value) -> bool

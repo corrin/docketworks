@@ -1,9 +1,9 @@
 # Knowledge Map — docketworks
-> 116 notes · 18 decisions · 10 open questions · 2026-04-16 → 2026-05-01
+> 117 notes · 19 decisions · 10 open questions · 2026-04-16 → 2026-05-01
 
-> **AI Primer:** This knowledge base spans 2026-04-16 to 2026-05-01 (116 notes). Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-04-16 to 2026-05-01 (117 notes). Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
 
-## Key Decisions (18)
+## Key Decisions (19)
 - `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
 - Two layers. An **identity layer** (non-blocking) reads cookies always and, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, an HS256 bearer signed with `DEV_JWT_SECRET`. A **global gate** (blocking) runs on every request: not authenticated and path not in `AUTH_ANON_ALLOWLIST` → `401 JSON` for `/api/**`, `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
 - GETs return an `ETag` derived from `updated_at` (plus the primary key for delivery receipts). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs) require `If-Match` with the latest ETag. Missing → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so comparison and write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS exposes `ETag` and allows `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
@@ -19,6 +19,7 @@
 - Every `except` block calls `persist_app_error(exc)`, which stores the message, traceback, request context, and a UUID id in the `AppError` table. The handler then re-raises through the two-arm dedup pattern (ADR 0001) so the same failure isn't persisted twice as it travels up the stack. Continuation without re-raise is allowed only when business logic explicitly requires it.
 - 1. If a value involves the database, business rules, or external systems → **backend**. Frontend reads it as a number or string, never recomputes it.
 - Every API call goes through the generated client at `/src/api/generated/api.ts`. Types are inferred from the schema (`z.infer<typeof schemas.X>` or generated TypeScript types). After a backend schema change, regenerate via `npm run update-schema && npm run gen:api`. Generated files are never hand-edited. Raw `fetch` and `axios` are not used. A missing endpoint is a backend request — never a frontend workaround.
+- Three rules apply to every async task:
 - The rule, stated as an imperative. One paragraph.
 - *Merge `fix/timezones` as-is. Defer the schema promotion until a concrete
 - /usr/local/lib/nodemodules/ VS your user account using ~/
@@ -36,7 +37,7 @@
 - process.env.MSM_FRONTEND_URL ??
 
 ## Recurring Themes
-problem · why · alternatives considered · tips · what youll need · steps · what happens next · verification · troubleshooting · prerequisites · purpose · critical files
+problem · why · alternatives considered · tips · what youll need · steps · what happens next · verification · troubleshooting · prerequisites · purpose · out of scope
 
 ## People
 @login_required · @docketworks · @morrissheetmetal · @msm · @shared_task · @property · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart
@@ -49,9 +50,9 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (116)
+## Note Index (117)
 
-### Decision Records (16)
+### Decision Records (17)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException`; nested handlers re-raise unchanged instead of re-persisting.
 - `docs/adr/0002-auth-gate-global-allowlist.md` — A blocking middleware gate rejects any request that is neither authenticated nor on `AUTH_ANON_ALLOWLIST`. Identity comes from cookies in all envs and, in DEV o…
 - `docs/adr/0003-etag-optimistic-concurrency.md` — Every Job and PO mutation requires an `If-Match` header carrying the latest ETag; the server rejects mismatches with `412` and missing headers with `428`, atomi…
@@ -66,6 +67,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/adr/0019-mandatory-error-persistence.md` — Every `except` block in the codebase calls `persist_app_error(exc)` — errors live in postgres, not stdout — before re-raising via the dedup pattern in ADR 0001.
 - `docs/adr/0020-frontend-backend-separation.md` — Backend owns data integrity, calculations, persistence, and external integrations. Frontend owns presentation, UI state, and ergonomics. The boundary line is th…
 - `docs/adr/0021-frontend-generated-api-client-only.md` — All frontend HTTP traffic goes through `/src/api/generated/api.ts`. Types come from the OpenAPI schema via `z.infer<typeof schemas.X>`. No raw `fetch`/`axios`, …
+- `docs/adr/0024-celery-async-task-processing.md` — Async work belongs in Celery tasks: idempotent, tenant-aware, write-side. Never in request handlers; never reached via `.delay().get()`.
 - `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 - `docs/plans/we-re-going-in-circles-sequential-gem.md` — The PR is on `origin/fix/timezones`, ready to merge. After protracted
 

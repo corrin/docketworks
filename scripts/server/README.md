@@ -22,7 +22,9 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 | Gmail address + app password | Google Account → Security → App passwords | Password resets, notifications |
 | GCP service account JSON key | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server | Google Sheets/Drive integration |
 
-## Server Setup (One-Time)
+## Server Setup
+
+`server-setup.sh` provisions all host-level dependencies. It is idempotent: every install block is dpkg-guarded, so re-running is cheap. **It is intended to run on every release** — `deploy.sh` invokes it at the start of each deploy so new system deps added in any future PR (a new apt package, a new systemd-managed service) auto-converge on every host without an operator-remembered bootstrap step. You can also run it directly on a fresh server.
 
 ```bash
 # UAT (wildcard cert via Dreamhost DNS):
@@ -37,7 +39,7 @@ sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key <GOOGLE_MAPS_A
 sudo ./scripts/server/server-setup.sh
 ```
 
-Installs everything: Python 3.12, Node 22, MariaDB, Nginx, Certbot, Poetry, Claude Code CLI. Creates the `docketworks` system user, clones the repo, builds the shared venv and node_modules, obtains the wildcard SSL cert.
+Installs everything needed by the app: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, Poetry, Claude Code CLI. Creates the `docketworks` system user, clones the repo, builds the shared venv and node_modules, obtains the wildcard SSL cert.
 
 Required keys (passed once on first run, then cached):
 1. Dreamhost API key (for the Let's Encrypt DNS-01 challenge — UAT only)
@@ -45,7 +47,7 @@ Required keys (passed once on first run, then cached):
 
 The Maps API key is stored in `/opt/docketworks/shared.env` and appended to every instance's `.env`. Email and GCP credentials are configured per-instance (see below).
 
-Idempotent — safe to re-run (skips already-completed steps).
+This script is host-level only. It does NOT touch existing instances; per-instance setup lives in `instance.sh`.
 
 ## Creating an Instance
 
@@ -104,7 +106,11 @@ sudo ./scripts/server/deploy.sh mycompany-uat
 sudo ./scripts/server/deploy.sh --all
 ```
 
-Pulls latest code from GitHub (via the local repo), updates shared Python/Node deps, then for each instance: builds frontend, runs migrate, restarts gunicorn.
+What deploy does, in order:
+1. Pull latest code from GitHub (into the shared local repo).
+2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
+3. Update shared Python/Node deps.
+4. For each instance: pre-deploy backup (unless `--no-backup`), git pull, build frontend, run migrate, restart `gunicorn-<instance>`, render+enable `celery-worker-<instance>` if its unit file is missing (one-shot for instances that pre-date the celery-worker template), restart `celery-worker-<instance>`.
 
 ## Destroying an Instance
 
@@ -177,7 +183,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | File | Description |
 |------|-------------|
 | `common.sh` | Shared constants: domain, paths, directories |
-| `server-setup.sh` | One-time server provisioning (packages, venv, SSL, shared config) |
+| `server-setup.sh` | Host-level convergence (packages, venv, SSL, shared config). Runs every deploy — see "Server Setup". |
 | `instance.sh` | Prepare config, create, destroy, or list instances |
 | `deploy.sh` | Pull updates and redeploy one or all instances |
 | `dw-run.sh` | Run a command in an instance's environment |
@@ -185,5 +191,6 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `certbot-dreamhost-cleanup.sh` | Certbot DNS-01 cleanup hook (removes TXT record) |
 | `templates/credentials-instance.template` | Template for per-instance credentials (Xero, GCP, email) |
 | `templates/env-instance.template` | Template for full .env file |
-| `templates/gunicorn-instance.service.template` | Systemd service unit template |
+| `templates/gunicorn-instance.service.template` | Systemd unit template (web) |
+| `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker) |
 | `templates/nginx-instance.conf.template` | Nginx server block template |

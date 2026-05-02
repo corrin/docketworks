@@ -386,6 +386,7 @@ CHANNEL_LAYERS = {
     },
 }
 
+
 # MCP Configuration
 DJANGO_MCP_AUTHENTICATION_CLASSES = [
     "rest_framework.authentication.SessionAuthentication",
@@ -449,6 +450,19 @@ TIME_ZONE = "Pacific/Auckland"
 USE_I18N = True
 USE_L10N = True
 USE_TZ = True
+
+# Celery configuration. Redis db 0 is used by channels; Celery uses db 1 on the
+# same instance so the broker is colocated but logically separate.
+_REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
+_REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+CELERY_BROKER_URL = f"redis://{_REDIS_HOST}:{_REDIS_PORT}/1"
+CELERY_TASK_SERIALIZER = "json"
+CELERY_ACCEPT_CONTENT = ["json"]
+CELERY_TIMEZONE = TIME_ZONE
+CELERY_ENABLE_UTC = True
+CELERY_TASK_ACKS_LATE = True
+CELERY_WORKER_PREFETCH_MULTIPLIER = 1
+CELERY_TASK_TRACK_STARTED = True
 
 # Media files (user uploads)
 MEDIA_URL = "/media/"
