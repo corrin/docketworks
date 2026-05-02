@@ -32,7 +32,7 @@
               <TableHead>Label</TableHead>
               <TableHead>Client ID</TableHead>
               <TableHead class="text-center">Authorised</TableHead>
-              <TableHead class="text-right">Day Remaining</TableHead>
+              <TableHead class="text-right">Calls left today</TableHead>
               <TableHead class="text-center">Active</TableHead>
               <TableHead class="text-right">Actions</TableHead>
             </TableRow>
@@ -47,7 +47,7 @@
                   <span v-else class="text-gray-400">&mdash;</span>
                 </TableCell>
                 <TableCell class="text-right font-mono text-sm">
-                  {{ row.day_remaining ?? '—' }} / 5000
+                  {{ row.day_remaining ?? '—' }}
                 </TableCell>
                 <TableCell class="text-center">
                   <span

@@ -10,27 +10,23 @@
           ]"
           data-testid="xero-quota-badge"
         >
-          <span class="font-semibold">{{ label }}</span>
-          <span class="font-mono">{{ dayDisplay }}</span>
+          <span>{{ dayDisplay }}</span>
           <span class="text-[10px] uppercase tracking-wide opacity-75">{{ ageDisplay }}</span>
         </span>
       </TooltipTrigger>
       <TooltipContent v-if="hasTooltipContent">
-        <div class="text-xs space-y-1">
-          <div v-if="activeApp">
-            <span class="font-semibold">{{ activeApp.label }}</span>
-          </div>
-          <div v-if="activeApp && activeApp.minute_remaining !== null">
-            Minute remaining: {{ activeApp.minute_remaining }} / 60
+        <div class="text-xs space-y-1 max-w-xs">
+          <div>
+            Xero allows a limited number of API calls in any rolling 24-hour window. As old calls
+            age out, more quota frees up — there is no fixed daily reset.
           </div>
           <div v-if="activeApp && activeApp.last_429_at">
-            Last 429: {{ formatTimestamp(activeApp.last_429_at) }}
+            Last rate-limit hit: {{ formatTimestamp(activeApp.last_429_at) }}
           </div>
-          <div v-if="activeApp && activeApp.snapshot_at">
-            Snapshot: {{ formatTimestamp(activeApp.snapshot_at) }}
+          <div v-if="activeApp && activeApp.snapshot_at" class="opacity-75">
+            Last updated: {{ formatTimestamp(activeApp.snapshot_at) }}
           </div>
-          <div v-else-if="activeApp">No quota snapshot yet.</div>
-          <div v-else>No active Xero app configured.</div>
+          <div v-else-if="activeApp" class="opacity-75">Quota count not yet reported by Xero.</div>
         </div>
       </TooltipContent>
     </Tooltip>
@@ -43,19 +39,23 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { useXeroApps } from '@/composables/useXeroApps'
 
 const STALE_AFTER_MS = 30 * 60 * 1000 // 30 minutes — matches backend quota_floor_breached window
-const DAY_QUOTA_LIMIT = 5000
 
 const { activeApp } = useXeroApps()
 
-const label = computed<string>(() => activeApp.value?.label ?? 'Xero')
-
 const dayRemaining = computed<number | null>(() => activeApp.value?.day_remaining ?? null)
 
+// Xero only sends X-DayLimit-Remaining (the count), never the ceiling — and
+// the ceiling varies by app tier (standard / partner / custom). It's also a
+// rolling 24h window with no fixed reset moment. So we show the absolute
+// count without a denominator or countdown.
 const dayDisplay = computed<string>(() => {
-  if (dayRemaining.value === null) {
-    return '—/' + DAY_QUOTA_LIMIT
+  if (!activeApp.value) {
+    return 'Xero: not connected'
   }
-  return `${dayRemaining.value}/${DAY_QUOTA_LIMIT}`
+  if (dayRemaining.value === null) {
+    return 'Xero calls left: —'
+  }
+  return `Xero calls left: ${dayRemaining.value}`
 })
 
 const colourClasses = computed<string>(() => {
