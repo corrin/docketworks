@@ -1,9 +1,9 @@
 # Knowledge Map — docketworks
-> 113 notes · 18 decisions · 10 open questions · 2026-04-16 → 2026-04-28
+> 116 notes · 20 decisions · 10 open questions · 2026-04-16 → 2026-05-01
 
-> **AI Primer:** This knowledge base spans 2026-04-16 to 2026-04-28 (113 notes). Key topics: alternatives considered, tips, steps, what youll need. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-04-16 to 2026-05-01 (116 notes). Key topics: alternatives considered, tips, what youll need, steps. Most recent decision: Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.…. 10 open questions remain.
 
-## Key Decisions (18)
+## Key Decisions (20)
 - Introduce `AlreadyLoggedException` in `apps/workflow/exceptions.py` that wraps an original exception plus the `AppError.id` it was persisted under. Every exception handler becomes a two-arm pattern: re-raise `AlreadyLoggedException` unchanged; catch anything else, persist once, wrap in `AlreadyLoggedException`, re-raise. `persist_app_error()` returns the `AppError` instance (previously returned `None`) so callers can carry the id forward. Roll out in phases: foundation (exception class + scheduler coverage) → integration layer → service layer → view layer → other entry points.
 - Two layers. An **identity layer** (non-blocking) that reads either cookies (always) or, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, a short-lived HS256 bearer signed with `DEV_JWT_SECRET` — on failure it does nothing, remaining anonymous. A **global gate** (blocking) that runs on every request: if not authenticated and the path is not in `AUTH_ANON_ALLOWLIST`, return `401 JSON` for `/api/**` or `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
 - GET endpoints return an `ETag` header derived from `updated_at` (plus the primary key for delivery-receipt endpoints). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs — add event, accept quote, process delivery receipt) require `If-Match` with the latest ETag. Missing header → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so the comparison and the write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS is configured to expose `ETag` and allow `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
@@ -19,6 +19,8 @@
 - Return the underlying exception message in API error responses. Do not mask or generalise exception text for information-hiding reasons. Continue to include the persisted `AppError.id` as `details.error_id` so any response can be cross-referenced with structured logs and the DB row.
 - For `if` statements with non-trivial control flow, include an explicit `else` branch. The `else` body can be:
 - When a consumer's invariant is violated by stored data, fix the data. In order of preference: (1) data migration that reconstructs the canonical field from another in-row source already populated by an earlier migration, (2) emission-side patch that closes the path producing wrong data going forward, (3) both. The consumer stays strict — no `COALESCE`, no `or detail.changes…`, no schema relaxation, no "tolerant" reads. If the data cannot be reconstructed (the source is genuinely lost), escalate — raise, alert, leave the row visibly broken — rather than silently degrade. Document the unrecoverable subset as out of scope and treat its existence as a separate emission-audit task, not as a reason to relax the contract.
+- When an ambiguous name is identified, rename everything: model field → migration → serializer → API field → frontend type → grid column → every consumer, end-to-end, in a dedicated rename PR. No grandfathering, no legacy allowlist, no waiting. No fallbacks to the legacy name (no `getattr(obj, 'new_name', obj.old_name)`, no serializer accepting both, no DB column kept "for safety," no aliased re-exports). The rename PR removes the old name in the same commit that adds the new one.
+- When something changes, change every caller in the same PR. Old name disappears in the same commit the new name appears. Old URL returns `404`, not a redirect. Old field is removed from the model, not kept null. Old serializer key is removed, not accepted-but-deprecated. Old SDK import path is gone, not re-exported. Tests and CI break loudly on stragglers; that's the point.
 - What we chose, stated as an imperative. One paragraph.
 - *Merge `fix/timezones` as-is. Defer the schema promotion until a concrete
 - /usr/local/lib/nodemodules/ VS your user account using ~/
@@ -29,14 +31,14 @@
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
 - is enough approved work flowing into the shop, and if not, where is the bottleneck? The report must be reproducible hist
+- Per the policy "users shouldn't have to flip everywhere", the timesheet entry grid's `Wage` column shows one number per row. Which?
+- When the staff member has `base_wage_rate = 0` (e.g. admin user, or not yet set), what should the Wage column show?
 - | Number | Preempts |
 - TZ-aware schema migration first?
 - process.env.MSM_FRONTEND_URL ??
-- Timing issue? Page not fully rendered when we search?
-- Selector issue? `data-automation-id^="cost-line-row-"` not matching?
 
 ## Recurring Themes
-alternatives considered · tips · steps · what youll need · what happens next · troubleshooting · prerequisites · purpose · verification · out of scope · frontend · development workflow
+alternatives considered · tips · what youll need · steps · what happens next · troubleshooting · prerequisites · purpose · verification · problem · out of scope · frontend
 
 ## People
 @login_required · @extend_schema · @docketworks · @morrissheetmetal · @msm · @property · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart
@@ -49,9 +51,9 @@ alternatives considered · tips · steps · what youll need · what happens next
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (113)
+## Note Index (116)
 
-### Decision Records (16)
+### Decision Records (18)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException` so nested handlers pass through without creating duplicate `AppError` rows, and force scheduler jobs …
 - `docs/adr/0002-auth-gate-global-allowlist.md` — A blocking middleware gate rejects any request that is neither authenticated nor on the `AUTH_ANON_ALLOWLIST`; identity comes from cookies in all envs and, in D…
 - `docs/adr/0003-etag-optimistic-concurrency.md` — Every Job and PO mutation requires an `If-Match` header carrying the latest ETag; the server rejects mismatches with `412` and missing headers with `428`, atomi…
@@ -66,6 +68,8 @@ alternatives considered · tips · steps · what youll need · what happens next
 - `docs/adr/0013-error-message-clarity-over-info-hiding.md` — Internal-tool error responses include the underlying exception message verbatim so the user on the other end can act on it; we rely on authenticated-session log…
 - `docs/adr/0014-explicit-else-branches.md` — `if` statements in non-trivial code paths should have an explicit `else` branch, even when the else body is a no-op or a comment. Makes the state machine legibl…
 - `docs/adr/0015-fix-data-not-fallback.md` — When a consumer finds data shaped differently from the model's contract, restore the contract by repairing the data (migration, emission fix, or both) — never b…
+- `docs/adr/0016-ambiguous-names-trigger-rename.md` — When a name is found to carry more than one meaning, rearchitect and rename every occurrence in a dedicated PR. No baseline, no allowlist, no "we'll fix it when…
+- `docs/adr/0017-zero-backwards-compatibility.md` — When a name, URL, signature, or shape changes, every caller changes in the same PR. No deprecation aliases, no dual-name field readers, no parallel old-and-new …
 - `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
 - `docs/plans/we-re-going-in-circles-sequential-gem.md` — The PR is on `origin/fix/timezones`, ready to merge. After protracted
 
@@ -88,7 +92,8 @@ alternatives considered · tips · steps · what youll need · what happens next
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (86)
+### General Notes (87)
+- `docs/plans/2026-05-01-timesheet-entry-business-rules.md` — 2026-05-01 — The E2E test `staff-wage-loading.spec.ts:97` is failing because nobody has documented what the columns on the timesheet entry screen actually *mean*. The test, …
 - `docs/plans/2026-04-28-leave-entries-csv-input.md` — 2026-04-28 — **Trello:** https://trello.com/c/UsstYu5I
 - `docs/plans/2026-04-28-utc-localdate-sweep.md` — 2026-04-28 — Eliminate a class of subtle "off by one day" bugs caused by calling `.date()` on
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
@@ -107,9 +112,8 @@ alternatives considered · tips · steps · what youll need · what happens next
 - `docs/plans/as-long-as-teh-bubbly-volcano.md` — `CompanyDefaults` has two image fields:
 - `docs/plans/now-the-performance-concerns-stateful-taco.md` — Two Copilot review comments on #162 flagged the Sales Pipeline service as having hot paths that do Python-side work which could move to SQL:
 - `docs/plans/right-let-s-start-implementing-stateful-whisper.md` — Trello card [#276](https://trello.com/c/kEfIg8fA) covers two related JobEvent description bugs spotted in prod, plus a follow-up audit comment. The agreed shape…
-- `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). Assume venv active, `.env` loaded, in the project root.
-- `docs/restore-workaround-jobevent-staff-null.md` ← 1 refs — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
-- _…and 66 more_
+- `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). This guide is environment-agnostic: assume venv active, `.env` loaded, i…
+- _…and 67 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
