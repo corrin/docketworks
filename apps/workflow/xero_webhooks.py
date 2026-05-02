@@ -1,23 +1,26 @@
-"""Xero webhook handling for real-time synchronization."""
+"""Xero webhook handling.
+
+The handler validates the signature, parses the payload, and dispatches each
+event to a Celery task — returning 200 immediately. Synchronous in-handler
+processing exceeded Xero's 5s redelivery timeout, which triggered retries
+that re-enqueued the same events and drained the day quota (Trello #291).
+Per ADR 0024, anything that calls a third-party API belongs in Celery, not
+the request path.
+"""
 
 import base64
 import hashlib
 import hmac
 import json
 import logging
-from typing import Any, Dict
 
 from django.conf import settings
-from django.core.cache import cache
 from django.http import HttpRequest, HttpResponse
-from django.utils import timezone
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
-from apps.workflow.api.xero.sync import sync_single_contact, sync_single_invoice
-from apps.workflow.models import CompanyDefaults
-from apps.workflow.services.xero_sync_service import XeroSyncService
+from apps.workflow.tasks import process_xero_webhook_event
 
 logger = logging.getLogger("xero")
 
@@ -43,53 +46,11 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
     return hmac.compare_digest(signature, expected_signature)
 
 
-def process_webhook_event(event: Dict[str, Any]) -> None:
-    """Process a single webhook event by syncing the affected resource."""
-    event_category = event.get("eventCategory")
-    resource_id = event.get("resourceId")
-    tenant_id = event.get("tenantId")
-
-    if not all([event_category, resource_id, tenant_id]):
-        logger.error(f"Invalid webhook event - missing required fields: {event}")
-        return
-
-    # Verify tenant matches our configuration
-    company_defaults = CompanyDefaults.get_solo()
-    if company_defaults.xero_tenant_id != tenant_id:
-        logger.warning(
-            f"Webhook event for wrong tenant {tenant_id}, "
-            f"expected {company_defaults.xero_tenant_id}"
-        )
-        return
-
-    # Initialize sync service
-    try:
-        sync_service = XeroSyncService(tenant_id=company_defaults.xero_tenant_id)
-    except Exception as e:
-        logger.error(f"Failed to initialize XeroSyncService: {e}")
-        return
-
-    if not sync_service.tenant_id:
-        logger.error("XeroSyncService has no tenant_id")
-        return
-
-    # Process based on category
-    if event_category == "CONTACT":
-        logger.info(f"Syncing contact {resource_id} from webhook")
-        sync_single_contact(sync_service, resource_id)
-    elif event_category == "INVOICE":
-        logger.info(f"Syncing invoice {resource_id} from webhook")
-        sync_single_invoice(sync_service, resource_id)
-    else:
-        logger.warning(f"Unknown event category: {event_category}")
-
-
 @method_decorator(csrf_exempt, name="dispatch")
 class XeroWebhookView(View):
-    """Handle incoming Xero webhook notifications."""
+    """Accept Xero webhook deliveries and dispatch each event to Celery."""
 
     def post(self, request: HttpRequest) -> HttpResponse:
-        """Process incoming webhook payload."""
         if not validate_webhook_signature(request):
             return HttpResponse("Unauthorized", status=401)
 
@@ -99,7 +60,7 @@ class XeroWebhookView(View):
             logger.error("Invalid JSON in webhook payload")
             return HttpResponse("Bad Request", status=400)
 
-        # Handle "Intent to receive" validation
+        # "Intent to receive" validation pings have no events key.
         if "events" not in payload:
             logger.info("Received intent to receive validation")
             return HttpResponse("OK", status=200)
@@ -109,42 +70,11 @@ class XeroWebhookView(View):
             logger.warning("Webhook payload contains no events")
             return HttpResponse("OK", status=200)
 
-        # Queue events for async processing
-        queue_key = "xero_webhook_queue"
-        queue = cache.get(queue_key, [])
-
         for event in events:
-            event["queued_at"] = timezone.now().isoformat()
-            queue.append(event)
-
-        cache.set(queue_key, queue, 3600)  # 1 hour expiry
-
-        # Process queue if not already processing
-        lock_key = "xero_webhook_processing_lock"
-        if cache.add(lock_key, True, 60):  # 60 second lock
-            try:
-                process_webhook_queue()
-            finally:
-                cache.delete(lock_key)
+            tenant_id = event.get("tenantId")
+            if not tenant_id:
+                logger.error("Webhook event missing tenantId: %s", event)
+                continue
+            process_xero_webhook_event.delay(tenant_id, event)
 
         return HttpResponse("OK", status=200)
-
-
-def process_webhook_queue() -> None:
-    """Process all queued webhook events."""
-    queue_key = "xero_webhook_queue"
-    queue = cache.get(queue_key, [])
-
-    if not queue:
-        return
-
-    # Clear queue before processing to avoid reprocessing
-    cache.delete(queue_key)
-
-    for event in queue:
-        try:
-            process_webhook_event(event)
-        except Exception as e:
-            logger.exception(
-                f"Error processing webhook event {event.get('resourceId')}: {e}"
-            )

@@ -69,7 +69,7 @@
 | `/xero/sync-info/` | `xero_view.get_xero_sync_info` | `xero_sync_info` | Get current sync status and last sync times for all entities in ENTITY_CONFIGS. |
 | `/xero/sync-stream/` | `xero_view.stream_xero_sync` | `stream_xero_sync` | HTTP endpoint to serve an EventSource stream of Xero sync events. |
 | `/xero/sync/` | `xero_view.start_xero_sync` | `synchronise_xero_data` | View function to start a Xero sync as a background task. |
-| `/xero/webhook/` | `XeroWebhookView` | `xero_webhook` | Handle incoming Xero webhook notifications. |
+| `/xero/webhook/` | `XeroWebhookView` | `xero_webhook` | Accept Xero webhook deliveries and dispatch each event to Celery. |
 
 ### Xero-Errors Management
 | URL Pattern | View | Name | Description |

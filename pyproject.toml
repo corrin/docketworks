@@ -199,7 +199,10 @@ per-file-ignores = [
 [tool.pytest.ini_options]
 DJANGO_SETTINGS_MODULE = "docketworks.settings_test"
 testpaths = ["apps"]
-addopts = "-q"
+addopts = "-q -m 'not broker'"
+markers = [
+    "broker: tests that require a live Redis broker and a Celery worker; opt-in with `-m broker`",
+]
 
 [tool.django-stubs]
 django_settings_module = "docketworks.settings"
