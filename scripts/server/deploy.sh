@@ -213,6 +213,23 @@ for instance in "${TARGETS[@]}"; do
         systemctl restart "gunicorn-$instance"
     fi
 
+    # Install the celery-worker unit on instances that pre-date this template.
+    # `instance.sh` renders it for new instances; this branch one-shots existing
+    # ones. After first deploy each instance has the unit and the guard skips —
+    # no per-deploy churn.
+    if [[ ! -f "/etc/systemd/system/celery-worker-$instance.service" ]]; then
+        log "  Installing celery-worker-$instance unit (one-time)"
+        sed \
+            -e "s|__INSTANCE__|$instance|g" \
+            -e "s|__INSTANCE_USER__|$inst_user|g" \
+            "$SCRIPT_DIR/templates/celery-worker-instance.service.template" \
+            > "/etc/systemd/system/celery-worker-$instance.service"
+        systemctl daemon-reload
+        systemctl enable "celery-worker-$instance"
+    fi
+    log "  Restarting celery-worker-$instance"
+    systemctl restart "celery-worker-$instance"
+
     # Re-render nginx config from template. The rendered config is written once
     # at instance creation (instance.sh), so template edits only reach live
     # servers if we re-render on each deploy. FQDN and cert domain are pulled
