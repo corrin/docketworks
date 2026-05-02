@@ -24,6 +24,6 @@
 
 ## Key Dependencies
 
-- tailwindcss: ^4.2.2
+- tailwindcss: ^4.2.4
 - vue: ^3.5.13
 - zod: ^3.25.55
