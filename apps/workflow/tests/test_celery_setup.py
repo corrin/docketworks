@@ -40,8 +40,10 @@ class CelerySetupTests(TestCase):
             celery_app.tasks,
         )
 
-    def test_health_check_eager(self) -> None:
-        """Calling the task via .delay() under TASK_ALWAYS_EAGER returns the
-        sentinel — proves the serialize → enqueue → execute pipeline."""
-        result = celery_health_check.delay()
-        self.assertEqual(result.get(timeout=5), CELERY_HEALTH_CHECK_SENTINEL)
+    def test_health_check_apply(self) -> None:
+        """Run the task synchronously via .apply() — exercises the Celery
+        machinery (registration, signature, return value) without touching
+        the broker. .apply() is broker-free regardless of eager-mode settings,
+        so this works under any DJANGO_SETTINGS_MODULE."""
+        result = celery_health_check.apply()
+        self.assertEqual(result.get(), CELERY_HEALTH_CHECK_SENTINEL)
