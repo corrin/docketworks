@@ -70,6 +70,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      # Channels uses db 0, Celery uses db 1, broker integration tests use db 15.
+      # `manage.py test` runs all tests including @pytest.mark.broker (markers
+      # only apply under pytest), so Redis must be reachable for those to pass —
+      # the tests themselves self-skip if it isn't.
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v6
 

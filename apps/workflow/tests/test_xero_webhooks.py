@@ -9,7 +9,9 @@ import base64
 import hashlib
 import hmac
 import json
+import socket
 import time
+import unittest
 from unittest.mock import patch
 
 import pytest
@@ -257,7 +259,23 @@ TEST_BROKER_DB = 15  # unused by dev/UAT/prod — db 0 is channels, db 1 is cele
 TEST_BROKER_URL = f"redis://127.0.0.1:6379/{TEST_BROKER_DB}"
 
 
+def _redis_reachable() -> bool:
+    """Cheap TCP probe — Django's `manage.py test` ignores pytest markers, so
+    these tests run regardless. We self-skip if Redis isn't running so a dev
+    without Redis (or CI without the service) gets a skip, not a connection
+    error."""
+    try:
+        with socket.create_connection(("127.0.0.1", 6379), timeout=0.5):
+            return True
+    except OSError:
+        return False
+
+
 @pytest.mark.broker
+@unittest.skipUnless(
+    _redis_reachable(),
+    "Redis not reachable on 127.0.0.1:6379 — broker integration tests skipped",
+)
 @override_settings(
     XERO_WEBHOOK_KEY=WEBHOOK_KEY,
     CELERY_TASK_ALWAYS_EAGER=False,
