@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**183 components** (vue)
+**185 components** (vue)
 
 ## Client Components
 
@@ -32,6 +32,7 @@
 - **StaffFormModal** — props: staff — `frontend/src/components/StaffFormModal.vue`
 - **StaffPanel** — `frontend/src/components/StaffPanel.vue`
 - **StatusMultiSelect** — `frontend/src/components/StatusMultiSelect.vue`
+- **XeroQuotaBadge** — `frontend/src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
 - **ErrorDialog** — props: error, groupMeta — `frontend/src/components/admin/errors/ErrorDialog.vue`
@@ -180,6 +181,7 @@
 - **WorkshopMyTimeView** — `frontend/src/views/WorkshopMyTimeView.vue`
 - **WorkshopScheduleView** — `frontend/src/views/WorkshopScheduleView.vue`
 - **WorkshopView** — `frontend/src/views/WorkshopView.vue`
+- **XeroAppSettings** — `frontend/src/views/XeroAppSettings.vue`
 - **XeroView** — `frontend/src/views/XeroView.vue`
 - **CreateFromQuoteView** — `frontend/src/views/purchasing/CreateFromQuoteView.vue`
 - **ItemSelect** — props: modelValue, disabled, showQuantity, lineKind, tabKind — `frontend/src/views/purchasing/ItemSelect.vue`

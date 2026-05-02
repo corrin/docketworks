@@ -747,6 +747,7 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
+- `frontend/src/composables/useXeroApps.ts` — function useXeroApps: (autoPoll) => void, type XeroApp
 - `frontend/src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
 - `frontend/src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `frontend/src/constants/job-status.ts`

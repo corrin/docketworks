@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 371 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~243,900 tokens. **Saves ~213,200 tokens per conversation.**
+> 95 routes | 44 models | 185 components | 372 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
+> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~244,900 tokens. **Saves ~214,000 tokens per conversation.**
 
 ---
 
@@ -727,6 +727,7 @@
 - **StaffFormModal** [client] — props: staff — `frontend/src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `frontend/src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
+- **XeroQuotaBadge** [client] — `frontend/src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
 - **ErrorDialog** [client] — props: error, groupMeta — `frontend/src/components/admin/errors/ErrorDialog.vue`
@@ -875,6 +876,7 @@
 - **WorkshopMyTimeView** [client] — `frontend/src/views/WorkshopMyTimeView.vue`
 - **WorkshopScheduleView** [client] — `frontend/src/views/WorkshopScheduleView.vue`
 - **WorkshopView** [client] — `frontend/src/views/WorkshopView.vue`
+- **XeroAppSettings** [client] — `frontend/src/views/XeroAppSettings.vue`
 - **XeroView** [client] — `frontend/src/views/XeroView.vue`
 - **CreateFromQuoteView** [client] — `frontend/src/views/purchasing/CreateFromQuoteView.vue`
 - **ItemSelect** [client] — props: modelValue, disabled, showQuantity, lineKind, tabKind — `frontend/src/views/purchasing/ItemSelect.vue`
@@ -1636,6 +1638,7 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
+- `frontend/src/composables/useXeroApps.ts` — function useXeroApps: (autoPoll) => void, type XeroApp
 - `frontend/src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
 - `frontend/src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `frontend/src/constants/job-status.ts`

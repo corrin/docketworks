@@ -6,7 +6,7 @@
 
 ## Scale
 
-95 API routes · 44 database models · 183 UI components · 11 middleware layers · 70 environment variables
+95 API routes · 44 database models · 185 UI components · 11 middleware layers · 70 environment variables
 
 ## Subsystems
 
@@ -17,7 +17,7 @@
 
 **Database:** django, 44 models — see [database.md](./database.md)
 
-**UI:** 183 components (vue) — see [ui.md](./ui.md)
+**UI:** 185 components (vue) — see [ui.md](./ui.md)
 
 ## High-Impact Files
 

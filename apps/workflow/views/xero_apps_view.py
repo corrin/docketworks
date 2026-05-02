@@ -9,6 +9,7 @@ restart" procedure.
 """
 
 from django.db import IntegrityError
+from drf_spectacular.utils import extend_schema
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
@@ -78,6 +79,7 @@ class XeroAppViewSet(viewsets.ModelViewSet):
             )
         return super().destroy(request, *args, **kwargs)
 
+    @extend_schema(request=None, responses={200: XeroAppSerializer})
     @action(detail=True, methods=["post"], url_path="activate")
     def activate(self, request, pk=None):
         try:

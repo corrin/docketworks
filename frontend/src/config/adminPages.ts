@@ -7,6 +7,7 @@ import {
   Bot,
   Brain,
   ExternalLink,
+  KeyRound,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { APP_NAME } from '@/config/app'
@@ -59,6 +60,13 @@ const adminPagesConfig = [
     title: 'AI Providers',
     icon: Brain,
     view: 'AdminAIProvidersView',
+  },
+  {
+    key: 'xero-apps',
+    label: 'Xero Apps',
+    title: 'Xero Apps',
+    icon: KeyRound,
+    view: 'XeroAppSettings',
   },
 ] as const
 

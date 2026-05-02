@@ -8730,11 +8730,6 @@ Endpoints:
     requestFormat: 'json',
     parameters: [
       {
-        name: 'body',
-        type: 'Body',
-        schema: XeroAppRequest,
-      },
-      {
         name: 'id',
         type: 'Path',
         schema: z.string().uuid(),

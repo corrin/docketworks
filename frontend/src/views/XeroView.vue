@@ -19,7 +19,8 @@
               </svg>
               Xero Sync Progress
             </h1>
-            <div class="flex gap-2 ml-5">
+            <div class="flex gap-2 ml-5 items-center">
+              <XeroQuotaBadge />
               <Button
                 v-if="!isAuthenticated && !loading"
                 @click="loginXero"
@@ -197,6 +198,7 @@ import { onMounted, onUnmounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/ui/button/Button.vue'
 import Progress from '../components/ui/progress/Progress.vue'
+import XeroQuotaBadge from '../components/XeroQuotaBadge.vue'
 import { useXeroAuth } from '../composables/useXeroAuth'
 import { toast } from 'vue-sonner'
 
