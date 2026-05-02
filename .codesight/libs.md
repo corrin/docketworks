@@ -562,7 +562,10 @@
 - `apps/workflow/context_processors.py` — function debug_mode: (request) -> Dict[str, Any]
 - `apps/workflow/enums.py` — class AIProviderTypes
 - `apps/workflow/exception_handlers.py` — function custom_exception_handler: (exc, context) -> Optional[Response]
-- `apps/workflow/exceptions.py` — class XeroValidationError, class AlreadyLoggedException
+- `apps/workflow/exceptions.py`
+  - class XeroValidationError
+  - class AlreadyLoggedException
+  - class XeroQuotaFloorReached
 - `apps/workflow/extensions.py` — class CookieJWTScheme
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command

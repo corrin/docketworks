@@ -52,7 +52,7 @@ from apps.workflow.api.xero.transforms import (
     transform_stock,
 )
 from apps.workflow.api.xero.xero import get_xero_items
-from apps.workflow.exceptions import XeroValidationError
+from apps.workflow.exceptions import XeroQuotaFloorReached, XeroValidationError
 from apps.workflow.models import (
     CompanyDefaults,
     XeroAccount,
@@ -214,17 +214,17 @@ def sync_xero_data(
 
     while True:
         if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
-            yield {
-                "datetime": timezone.now().isoformat(),
-                "entity": our_entity_type,
-                "severity": "warning",
-                "message": (
-                    f"Skipping {our_entity_type}: Xero day quota at floor "
-                    f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
-                ),
-                "progress": 0.0,
-            }
-            return
+            # Raise (don't yield-warning-and-return). The yield+return pattern
+            # is right for human-fix-required config errors (see the tenant
+            # mismatch above) but wrong for an operational abort: the caller
+            # would consume the warning and continue to its "Sync stream
+            # ended"/"success" marker, masking the abort. Raising propagates
+            # through `yield from` to XeroSyncService.run_sync, which has a
+            # XeroQuotaFloorReached branch that emits sync_status:"aborted".
+            raise XeroQuotaFloorReached(
+                f"Skipping {our_entity_type}: Xero day quota at floor "
+                f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
+            )
 
         # Update pagination params
         if pagination_mode == "offset":
@@ -534,6 +534,12 @@ def sync_local_stock_to_xero():
             "progress": 1.0,
         }
 
+    except XeroQuotaFloorReached:
+        # Bubble up — XeroSyncService.run_sync's quota-floor branch handles
+        # this with sync_status:"aborted". Catching here would degrade an
+        # abort to a generic error event and let run_sync's success marker
+        # still fire.
+        raise
     except Exception as e:
         logger.error(f"Error syncing local stock to Xero: {str(e)}")
         yield {
@@ -576,17 +582,14 @@ def synchronise_xero_data(delay_between_requests=1):
     # floor on every breached sync. The per-page gate in `sync_xero_data`
     # never gets a chance because the orchestrator crashes first.
     if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
-        yield {
-            "datetime": timezone.now().isoformat(),
-            "entity": "sync",
-            "severity": "warning",
-            "message": (
-                f"Skipping sync: Xero day quota at floor "
-                f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
-            ),
-            "progress": 0.0,
-        }
-        return
+        # Raise rather than yield-and-return: the latter would let
+        # `XeroSyncService.run_sync` finish normally and emit
+        # sync_status:"success", silently hiding the abort. Raising lets
+        # the run_sync XeroQuotaFloorReached branch emit "aborted" instead.
+        raise XeroQuotaFloorReached(
+            f"Skipping sync: Xero day quota at floor "
+            f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
+        )
 
     if not cache.add("xero_sync_lock", True, timeout=60 * 60 * 4):
         logger.info("Skipping sync - another sync is running")

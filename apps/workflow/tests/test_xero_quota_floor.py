@@ -24,6 +24,7 @@ from django.utils import timezone as dj_timezone
 from apps.purchasing.models import Stock
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_xero_data
+from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.models import XeroApp
 
 
@@ -230,7 +231,11 @@ class SynchroniseXeroDataOrchestratorGateTests(TestCase):
     def tearDown(self):
         cache.delete("xero_sync_lock")
 
-    def test_floor_breached_skips_entire_pipeline(self):
+    def test_floor_breached_raises_before_pipeline(self):
+        # The orchestrator must raise XeroQuotaFloorReached, NOT yield a
+        # warning event and return. A returned generator looks like a
+        # successful empty stream to XeroSyncService.run_sync, which would
+        # then emit sync_status:"success" — masking the abort.
         from apps.workflow.api.xero.sync import synchronise_xero_data
 
         _set_quota(day_remaining=0)
@@ -244,14 +249,32 @@ class SynchroniseXeroDataOrchestratorGateTests(TestCase):
                 "apps.workflow.api.xero.sync.one_way_sync_all_xero_data"
             ) as mock_normal,
         ):
-            events = list(synchronise_xero_data())
+            with self.assertRaises(XeroQuotaFloorReached) as ctx:
+                list(synchronise_xero_data())
 
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["severity"], "warning")
-        self.assertIn("Xero day quota at floor", events[0]["message"])
+        self.assertIn("Xero day quota at floor", str(ctx.exception))
         mock_pay_items.assert_not_called()
         mock_deep.assert_not_called()
         mock_normal.assert_not_called()
+
+    def test_floor_breached_does_not_advance_last_sync_timestamps(self):
+        # §6 Bug 3: ``synchronise_xero_data`` previously fell through to
+        # ``last_xero_sync = now`` after a quota abort, which pushed deep
+        # sync 30 days out. The raise contract makes this impossible —
+        # the exception unwinds at the orchestrator's top gate, BEFORE
+        # ``CompanyDefaults.get_solo()`` is ever called. Proving the call
+        # never happens is a stronger guarantee than reading the row back.
+        from apps.workflow.api.xero.sync import synchronise_xero_data
+
+        _set_quota(day_remaining=0)
+
+        with patch(
+            "apps.workflow.api.xero.sync.CompanyDefaults"
+        ) as mock_company_defaults:
+            with self.assertRaises(XeroQuotaFloorReached):
+                list(synchronise_xero_data())
+
+        mock_company_defaults.get_solo.assert_not_called()
 
 
 @override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
@@ -271,26 +294,26 @@ class SyncXeroDataPerPageGateTests(TestCase):
         """Fully iterate the generator and return its emitted events."""
         return list(generator)
 
-    def test_floor_breached_yields_warning_and_skips_fetch(self):
+    def test_floor_breached_raises_before_fetch(self):
+        # Per-page gate must raise (not yield+return). See the orchestrator
+        # test above for the same reasoning re: silent success masking.
         _set_quota(day_remaining=50)
         fetch = MagicMock()  # would explode if called
 
-        events = self._consume(
-            sync_xero_data(
-                xero_entity_type="invoices",
-                our_entity_type="invoices",
-                xero_api_fetch_function=fetch,
-                sync_function=lambda items: None,
-                last_modified_time="2026-01-01",
-                xero_tenant_id="test-tenant",
+        with self.assertRaises(XeroQuotaFloorReached) as ctx:
+            self._consume(
+                sync_xero_data(
+                    xero_entity_type="invoices",
+                    our_entity_type="invoices",
+                    xero_api_fetch_function=fetch,
+                    sync_function=lambda items: None,
+                    last_modified_time="2026-01-01",
+                    xero_tenant_id="test-tenant",
+                )
             )
-        )
 
         fetch.assert_not_called()
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0]["severity"], "warning")
-        self.assertIn("quota at floor", events[0]["message"])
-        self.assertEqual(events[0]["progress"], 0.0)
+        self.assertIn("quota at floor", str(ctx.exception))
 
     def test_above_floor_proceeds_normally(self):
         _set_quota(day_remaining=500)
@@ -476,3 +499,54 @@ class StockBatchedUpsertRefactorTests(TestCase):
 
         self.assertEqual(result["synced_count"], 2)
         self.assertEqual(result["failed_count"], 0)
+
+
+class RunSyncAbortedBranchTests(TestCase):
+    """``XeroSyncService.run_sync`` must catch ``XeroQuotaFloorReached``
+    distinctly from generic exceptions: emit ``sync_status:"aborted"``
+    (NOT "success", NOT a generic error), do NOT ``persist_app_error``
+    (24+ rows/day at the floor would be noise), and clean up the lock."""
+
+    def setUp(self):
+        cache.delete("xero_sync_status")
+
+    def tearDown(self):
+        cache.delete("xero_sync_status")
+
+    def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self):
+        from apps.workflow.models import AppError
+        from apps.workflow.services.xero_sync_service import XeroSyncService
+
+        task_id = "test-task-quota"
+        cache.set(f"xero_sync_messages_{task_id}", [], timeout=60)
+        cache.set(XeroSyncService.SYNC_STATUS_KEY, task_id, timeout=60)
+
+        # Provider whose run_full_sync raises quota-floor mid-stream.
+        def _gen():
+            yield {"entity": "contacts", "severity": "info", "message": "starting"}
+            raise XeroQuotaFloorReached("Skipping sync: Xero day quota at floor (100)")
+
+        provider = MagicMock()
+        provider.run_full_sync.return_value = _gen()
+        provider.get_sync_entity_count.return_value = 5
+
+        appserror_before = AppError.objects.count()
+        with patch(
+            "apps.workflow.accounting.registry.get_provider", return_value=provider
+        ):
+            XeroSyncService.run_sync(task_id)
+
+        # Lock released
+        self.assertIsNone(cache.get(XeroSyncService.SYNC_STATUS_KEY))
+        # No AppError row created — abort isn't a defect to investigate.
+        self.assertEqual(AppError.objects.count(), appserror_before)
+
+        msgs = cache.get(f"xero_sync_messages_{task_id}", [])
+        # Final message marks sync_status:"aborted", not "success".
+        final = msgs[-1]
+        self.assertEqual(final["sync_status"], "aborted")
+        self.assertEqual(final["message"], "Sync stream ended")
+        # Penultimate message is the error marker explaining the abort.
+        penult = msgs[-2]
+        self.assertEqual(penult["severity"], "error")
+        self.assertIn("aborted", penult["message"].lower())

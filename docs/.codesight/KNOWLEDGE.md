@@ -108,7 +108,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
 - `docs/msm-cutover.md` — Move MSM production from the old server (`/home/django_user`, MariaDB, `192.168.1.17`) to the new
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
-- `docs/plans/adaptive-imagining-waterfall.md` — The brief in `docs/plans/xero_auto_overengineer.md` was narrow:
+- `docs/plans/adaptive-imagining-waterfall.md` — The brief (`docs/plans/xero_auto_overengineer.md`) was narrow: ~25 lines of real code to gate automated Xero traffic when the day-quota nears zero, plus a fix f…
 - `docs/plans/as-long-as-teh-bubbly-volcano.md` — `CompanyDefaults` has two image fields:
 - _…and 74 more_
 

@@ -203,6 +203,15 @@ const {
 watch(syncStatus, (val) => {
   if (val === 'success') {
     toast.success('Sync completed successfully!')
+  } else if (val === 'aborted') {
+    // Backend signals aborted (e.g. day-quota floor reached) distinctly
+    // from generic errors — operational signal, not a defect to investigate.
+    toast.warning(
+      syncErrorMessages.value.length
+        ? `Sync aborted: ${syncErrorMessages.value.join('; ')}`
+        : 'Sync aborted before completion.',
+      { duration: 7000 },
+    )
   } else if (val === 'error') {
     toast.error(
       syncErrorMessages.value.length
