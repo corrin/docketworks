@@ -2,17 +2,15 @@
   <TooltipProvider :delay-duration="200">
     <Tooltip>
       <TooltipTrigger as-child>
-        <span
-          :class="[
-            'inline-flex items-center gap-2 rounded-md border px-2 py-1 text-xs font-medium whitespace-nowrap',
-            colourClasses,
-            stale ? 'opacity-50 grayscale' : '',
-          ]"
+        <Badge
+          variant="outline"
+          :class="['h-8 gap-2 px-3 text-sm font-medium', stale ? 'opacity-50 grayscale' : '']"
           data-testid="xero-quota-badge"
         >
+          <span :class="['inline-block w-2 h-2 rounded-full shrink-0', dotClass]" />
           <span>{{ dayDisplay }}</span>
           <span class="text-[10px] uppercase tracking-wide opacity-75">{{ ageDisplay }}</span>
-        </span>
+        </Badge>
       </TooltipTrigger>
       <TooltipContent v-if="hasTooltipContent">
         <div class="text-xs space-y-1 max-w-xs">
@@ -35,6 +33,7 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
+import { Badge } from '@/components/ui/badge'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { useXeroApps } from '@/composables/useXeroApps'
 
@@ -58,17 +57,19 @@ const dayDisplay = computed<string>(() => {
   return `Xero calls left: ${dayRemaining.value}`
 })
 
-const colourClasses = computed<string>(() => {
+// Colour signal lives on a small dot inside the outline badge — the badge
+// itself stays neutral so it reads as one of a row of toolbar controls.
+const dotClass = computed<string>(() => {
   if (!activeApp.value || dayRemaining.value === null) {
-    return 'border-gray-300 bg-gray-100 text-gray-700'
+    return 'bg-gray-400'
   }
   if (dayRemaining.value < 100) {
-    return 'border-red-300 bg-red-100 text-red-800'
+    return 'bg-red-500'
   }
   if (dayRemaining.value <= 1000) {
-    return 'border-amber-300 bg-amber-100 text-amber-800'
+    return 'bg-amber-500'
   }
-  return 'border-green-300 bg-green-100 text-green-800'
+  return 'bg-green-500'
 })
 
 const stale = computed<boolean>(() => {
