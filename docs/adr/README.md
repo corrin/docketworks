@@ -34,3 +34,7 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0015 | Fix incorrect data; do not add read-side fallbacks             |
 | 0016 | Ambiguous names trigger rename, not grandfathering             |
 | 0017 | Zero backwards compatibility; rewrite every call site in one PR |
+| 0018 | Fail early, handle unhappy cases first, no fallbacks           |
+| 0019 | Every exception is persisted to AppError before re-raise       |
+| 0020 | Frontend/Backend separation: data is backend, presentation is frontend |
+| 0021 | Frontend reads and writes the API only through the generated client |

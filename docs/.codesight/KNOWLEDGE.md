@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 116 notes · 20 decisions · 10 open questions · 2026-04-16 → 2026-05-01
+> 120 notes · 20 decisions · 10 open questions · 2026-04-16 → 2026-05-01
 
-> **AI Primer:** This knowledge base spans 2026-04-16 to 2026-05-01 (116 notes). Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
+> **AI Primer:** This knowledge base spans 2026-04-16 to 2026-05-01 (120 notes). Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
 
 ## Key Decisions (20)
 - `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
@@ -21,9 +21,9 @@
 - When stored data violates a consumer's invariant, fix the data. In order of preference: (1) data migration that reconstructs the canonical field from another in-row source; (2) emission-side patch that closes the path producing wrong data going forward; (3) both. The consumer stays strict — no `COALESCE`, no `or detail.changes…`, no schema relaxation, no tolerant reads. If the data genuinely cannot be reconstructed, escalate (raise, alert, leave the row visibly broken) rather than silently degrade. Document the unrecoverable subset as a separate emission-audit task.
 - When an ambiguous name is identified, rename everything: model field → migration → serializer → API field → frontend type → grid column → every consumer, end-to-end, in a dedicated rename PR. No grandfathering, no legacy allowlist, no waiting. No fallbacks to the legacy name (no `getattr(obj, 'new_name', obj.old_name)`, no serializer accepting both, no DB column kept "for safety," no aliased re-exports). The rename PR removes the old name in the same commit that adds the new one.
 - When something changes, change every caller in the same PR. Old name disappears in the same commit the new name appears. Old URL returns `404`, not a redirect. Old field is removed from the model, not kept null. Old serializer key is removed, not accepted-but-deprecated. Old SDK import path is gone, not re-exported. Tests and CI break loudly on stragglers; that's the point.
-- The rule, stated as an imperative. One paragraph.
-- *Merge `fix/timezones` as-is. Defer the schema promotion until a concrete
-- /usr/local/lib/nodemodules/ VS your user account using ~/
+- In any non-trivial function, check the bad case first (`if <bad>: handle_error()`) before doing the work for the good case. Validate every required input at the call boundary; raise immediately on missing or malformed values rather than coercing them to defaults. No default values or fallbacks that paper over missing configuration or malformed rows. When the issue is data shape, repair the data (ADR 0015) — do not soften the consumer.
+- Every `except` block follows a two-arm pattern. If the caught exception is already an `AlreadyLoggedException` (ADR 0001), re-raise it unchanged — it has been persisted by an inner handler. Otherwise, call `persist_app_error(exc)`, wrap in `AlreadyLoggedException`, and re-raise. `persist_app_error` returns the `AppError` row so the UUID id can be carried forward into the wrapping exception and into API error responses (ADR 0013). The handler re-raises unless business logic explicitly requires continuation. Net effect: every distinct failure produces exactly one `AppError` row, regardless of how many `except` blocks the exception passed through.
+- 1. If a value involves the database, business rules, or external systems → **backend**. Frontend reads it as a number/string, never recomputes it.
 
 ## Open Questions (10)
 - when stored data *is* malformed, what do we do? The temptation is always the one-line read-side fallback ("if `delta_aft
@@ -51,9 +51,9 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (116)
+## Note Index (120)
 
-### Decision Records (18)
+### Decision Records (22)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException`; nested handlers re-raise unchanged instead of re-persisting.
 - `docs/adr/0002-auth-gate-global-allowlist.md` — A blocking middleware gate rejects any request that is neither authenticated nor on `AUTH_ANON_ALLOWLIST`. Identity comes from cookies in all envs and, in DEV o…
 - `docs/adr/0003-etag-optimistic-concurrency.md` — Every Job and PO mutation requires an `If-Match` header carrying the latest ETag; the server rejects mismatches with `412` and missing headers with `428`, atomi…
@@ -70,8 +70,11 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/adr/0015-fix-data-not-fallback.md` — When a consumer finds data shaped differently from the model's contract, repair the data (migration, emission fix, or both). Never soften the consumer.
 - `docs/adr/0016-ambiguous-names-trigger-rename.md` — When a name is found to carry more than one meaning, rearchitect and rename every occurrence in a dedicated PR. No baseline, no allowlist, no "we'll fix it when…
 - `docs/adr/0017-zero-backwards-compatibility.md` — When a name, URL, signature, or shape changes, every caller changes in the same PR. No deprecation aliases, no dual-name field readers, no parallel old-and-new …
-- `docs/adr/_template.md` ← 1 refs — One-sentence tagline summarising the decision. Codesight's knowledge index grabs this line as the entry description, so make it informative.
-- `docs/plans/we-re-going-in-circles-sequential-gem.md` — The PR is on `origin/fix/timezones`, ready to merge. After protracted
+- `docs/adr/0018-fail-early-no-fallbacks.md` — Validate inputs at the entry point, check the bad branch first, and never coerce missing or malformed values to defaults that mask the underlying problem.
+- `docs/adr/0019-mandatory-error-persistence.md` — Every `except` block calls `persist_app_error(exc)` before re-raising. Errors live in the database, not just in stdout.
+- `docs/adr/0020-frontend-backend-separation.md` — Backend owns data integrity, calculations, persistence, and external integrations. Frontend owns presentation, UI state, and ergonomics. The boundary line is th…
+- `docs/adr/0021-frontend-generated-api-client-only.md` — All frontend HTTP traffic goes through `/src/api/generated/api.ts`. Types come from the OpenAPI schema via `z.infer<typeof schemas.X>`. No raw `fetch`/`axios`, …
+- _…and 2 more_
 
 ### Specs & PRDs (7)
 - `docs/production-mysql-to-postgres-migration.md` ← 1 refs — Every command and its key output must be logged, same as the backup-restore process.
