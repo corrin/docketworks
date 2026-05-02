@@ -63,7 +63,7 @@ try:
             XeroTokenSerializer,
             XeroTriggerSyncResponseSerializer,
         )
-        from .tasks import celery_health_check
+        from .tasks import celery_health_check, process_xero_webhook_event
         from .utils import (
             build_xero_payroll_url,
             extract_messages,
@@ -72,12 +72,7 @@ try:
             is_valid_uuid,
             parse_pagination_params,
         )
-        from .xero_webhooks import (
-            XeroWebhookView,
-            process_webhook_event,
-            process_webhook_queue,
-            validate_webhook_signature,
-        )
+        from .xero_webhooks import XeroWebhookView, validate_webhook_signature
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -138,8 +133,7 @@ __all__ = [
     "is_valid_invoice_number",
     "is_valid_uuid",
     "parse_pagination_params",
-    "process_webhook_event",
-    "process_webhook_queue",
+    "process_xero_webhook_event",
     "service_api_key_required",
     "stop_scheduler",
     "validate_webhook_signature",

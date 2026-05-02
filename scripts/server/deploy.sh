@@ -183,28 +183,35 @@ for instance in "${TARGETS[@]}"; do
         FAILED_INSTANCES+=("$instance")
     fi
 
+    # Re-render the celery-worker unit on every deploy. Idempotent: systemd's
+    # daemon-reload only re-reads files that changed, and `enable` is a no-op
+    # on an already-enabled unit. Always-rendering means template edits
+    # (flags, environment, hostname) reach existing instances without manual
+    # intervention — the previous "render once" guard meant a flag added in
+    # this PR would silently never apply on UAT/prod.
+    log "  Rendering celery-worker-$instance unit"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__INSTANCE_USER__|$inst_user|g" \
+        "$SCRIPT_DIR/templates/celery-worker-instance.service.template" \
+        > "/etc/systemd/system/celery-worker-$instance.service"
+    systemctl daemon-reload
+    systemctl enable "celery-worker-$instance"
+
+    # Restart celery-worker BEFORE gunicorn. If gunicorn restarts first it
+    # starts dispatching new task names while the worker still has stale
+    # code; the old worker silently ack-discards messages it doesn't know
+    # (Celery's default behaviour) and webhook events are lost without a
+    # trace. Worker-first means new task names are always registered before
+    # any new dispatch can land.
+    log "  Restarting celery-worker-$instance"
+    systemctl restart "celery-worker-$instance"
+
     # Restart gunicorn
     if systemctl is-enabled "gunicorn-$instance" &>/dev/null; then
         log "  Restarting gunicorn-$instance"
         systemctl restart "gunicorn-$instance"
     fi
-
-    # Install the celery-worker unit on instances that pre-date this template.
-    # `instance.sh` renders it for new instances; this branch one-shots existing
-    # ones. After first deploy each instance has the unit and the guard skips —
-    # no per-deploy churn.
-    if [[ ! -f "/etc/systemd/system/celery-worker-$instance.service" ]]; then
-        log "  Installing celery-worker-$instance unit (one-time)"
-        sed \
-            -e "s|__INSTANCE__|$instance|g" \
-            -e "s|__INSTANCE_USER__|$inst_user|g" \
-            "$SCRIPT_DIR/templates/celery-worker-instance.service.template" \
-            > "/etc/systemd/system/celery-worker-$instance.service"
-        systemctl daemon-reload
-        systemctl enable "celery-worker-$instance"
-    fi
-    log "  Restarting celery-worker-$instance"
-    systemctl restart "celery-worker-$instance"
 
     # Re-render nginx config from template. The rendered config is written once
     # at instance creation (instance.sh), so template edits only reach live

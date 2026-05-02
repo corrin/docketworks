@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 370 lib files | 69 env vars | 11 middleware | 1 events | 22% test coverage
-> **Token savings:** this file is ~30,500 tokens. Without it, AI exploration would cost ~243,400 tokens. **Saves ~212,800 tokens per conversation.**
+> 95 routes | 44 models | 183 components | 370 lib files | 69 env vars | 11 middleware | 2 events | 22% test coverage
+> **Token savings:** this file is ~30,600 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~213,000 tokens per conversation.**
 
 ---
 
@@ -1502,7 +1502,7 @@
   - class LLMService
 - `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
-- `apps/workflow/tasks.py` — function celery_health_check: () -> str
+- `apps/workflow/tasks.py` — function celery_health_check: () -> str, function process_xero_webhook_event: (tenant_id, event, Any]) -> None
 - `apps/workflow/utils.py`
   - function extract_messages: (request) -> List[Dict[str, Any]]
   - function is_valid_uuid: (value) -> bool
@@ -1510,11 +1510,7 @@
   - function get_machine_id: (path) -> Optional[str]
   - function parse_pagination_params: (request) -> tuple[int, int]
   - function build_xero_payroll_url: (pay_run_xero_id) -> Optional[str]
-- `apps/workflow/xero_webhooks.py`
-  - function validate_webhook_signature: (request) -> bool
-  - function process_webhook_event: (event, Any]) -> None
-  - function process_webhook_queue: () -> None
-  - class XeroWebhookView
+- `apps/workflow/xero_webhooks.py` — function validate_webhook_signature: (request) -> bool, class XeroWebhookView
 - `conftest.py` — function django_db_setup: (django_db_blocker)
 - `docketworks/settings.py` — function validate_required_settings: () -> None
 - `frontend/src/api/client.ts`
@@ -2084,13 +2080,14 @@
 # Events & Queues
 
 - `celery_health_check` [queue] → celery-task — `apps/workflow/tasks.py`
+- `process_xero_webhook_event` [queue] → celery-task — `apps/workflow/tasks.py`
 
 ---
 
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 126 test files found
+> 127 test files found
 
 ## Covered Routes
 

@@ -6,8 +6,12 @@ a live Redis broker — `CELERY_TASK_ALWAYS_EAGER=True` in settings_test.py runs
 the task synchronously in-process.
 """
 
+from types import SimpleNamespace
+
+from celery.signals import task_unknown
 from django.test import TestCase
 
+from apps.workflow.models import AppError
 from apps.workflow.tasks import (
     CELERY_HEALTH_CHECK_SENTINEL,
     celery_health_check,
@@ -47,3 +51,43 @@ class CelerySetupTests(TestCase):
         so this works under any DJANGO_SETTINGS_MODULE."""
         result = celery_health_check.apply()
         self.assertEqual(result.get(), CELERY_HEALTH_CHECK_SENTINEL)
+
+
+class UnknownTaskSignalTests(TestCase):
+    """The task_unknown signal handler must persist an AppError so that a
+    stale worker silently ack-discarding messages becomes visible instead
+    of vanishing into the logs. Triggered by deploys that restart gunicorn
+    before celery — the new task name dispatches into a worker that
+    doesn't know about it."""
+
+    def test_unknown_task_signal_persists_app_error(self) -> None:
+        before = AppError.objects.count()
+        message = SimpleNamespace(delivery_tag="unit-test-delivery-tag")
+        # Send the same signal Celery emits internally when a worker
+        # consumes a message naming a task that isn't in its registry.
+        task_unknown.send(
+            sender=celery_app,
+            name="apps.workflow.tasks.does_not_exist",
+            id="unit-test-task-id",
+            message=message,
+        )
+        self.assertEqual(AppError.objects.count(), before + 1)
+        err = AppError.objects.latest("timestamp")
+        self.assertIn("unregistered task", err.message)
+        self.assertIn("apps.workflow.tasks.does_not_exist", err.message)
+        # persist_app_error merges additional_context into the data dict
+        # (alongside the traceback), it doesn't nest it.
+        self.assertEqual(err.data["task_name"], "apps.workflow.tasks.does_not_exist")
+        self.assertEqual(err.data["task_id"], "unit-test-task-id")
+        self.assertEqual(err.data["delivery_tag"], "unit-test-delivery-tag")
+        # Trace must be a real stack from inside the signal handler — not
+        # `NoneType: None`, which is what traceback.format_exc() emits when
+        # called outside an active except block.
+        trace = err.data["trace"]
+        self.assertNotIn("NoneType: None", trace)
+        self.assertIn("RuntimeError", trace)
+        self.assertIn(
+            "Celery worker received unregistered task: "
+            "apps.workflow.tasks.does_not_exist",
+            trace,
+        )
