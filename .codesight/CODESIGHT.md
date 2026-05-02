@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 370 lib files | 69 env vars | 11 middleware | 2 events | 23% test coverage
-> **Token savings:** this file is ~30,600 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~213,000 tokens per conversation.**
+> 95 routes | 44 models | 183 components | 370 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
+> **Token savings:** this file is ~30,600 tokens. Without it, AI exploration would cost ~243,700 tokens. **Saves ~213,100 tokens per conversation.**
 
 ---
 
@@ -1997,6 +1997,7 @@
 - `UAT_INSTANCE_ID` (has default) — .env
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
+- `XERO_AUTOMATED_DAY_FLOOR` **required** — docketworks/settings.py
 - `XERO_CLIENT_ID` (has default) — .env.example
 - `XERO_CLIENT_SECRET` (has default) — .env.example
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example
