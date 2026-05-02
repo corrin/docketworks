@@ -1,7 +1,7 @@
 # Test Coverage
 
-> **23%** of routes and models are covered by tests
-> 128 test files found
+> **24%** of routes and models are covered by tests
+> 129 test files found
 
 ## Covered Routes
 
@@ -38,5 +38,6 @@
 - XeroError
 - CacheState
 - XeroAccount
+- XeroApp
 - XeroPayItem
 - XeroToken

@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Schema shapes and field types extracted via AST. Read the actual schema source files before writing migrations or query logic.
 
-**django** — 44 models
+**django** — 45 models
 
 ### Invoice
 
@@ -597,6 +597,27 @@ pk: `id` (uuid)
 - `raw_json`: json
 - `django_created_at`: timestamp
 - `django_updated_at`: timestamp
+
+### XeroApp
+
+pk: `id` (uuid)
+
+- `id`: uuid _(pk, default)_
+- `label`: string
+- `client_id`: string _(unique)_
+- `client_secret`: string
+- `redirect_uri`: string
+- `is_active`: boolean _(default)_
+- `tenant_id`: string _(nullable)_
+- `token_type`: string _(nullable)_
+- `access_token`: string _(nullable)_
+- `refresh_token`: string _(nullable)_
+- `expires_at`: timestamp _(nullable)_
+- `scope`: string _(nullable)_
+- `day_remaining`: integer _(nullable)_
+- `minute_remaining`: integer _(nullable)_
+- `snapshot_at`: timestamp _(nullable)_
+- `last_429_at`: timestamp _(nullable)_
 
 ### XeroJournal
 

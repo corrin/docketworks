@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 370 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
-> **Token savings:** this file is ~30,600 tokens. Without it, AI exploration would cost ~243,700 tokens. **Saves ~213,100 tokens per conversation.**
+> 95 routes | 45 models | 183 components | 371 lib files | 70 env vars | 11 middleware | 2 events | 24% test coverage
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,300 tokens. **Saves ~213,600 tokens per conversation.**
 
 ---
 
@@ -595,6 +595,24 @@
 - raw_json: json
 - django_created_at: timestamp
 - django_updated_at: timestamp
+
+### XeroApp
+- id: uuid (pk, default)
+- label: string
+- client_id: string (unique)
+- client_secret: string
+- redirect_uri: string
+- is_active: boolean (default)
+- tenant_id: string (nullable)
+- token_type: string (nullable)
+- access_token: string (nullable)
+- refresh_token: string (nullable)
+- expires_at: timestamp (nullable)
+- scope: string (nullable)
+- day_remaining: integer (nullable)
+- minute_remaining: integer (nullable)
+- snapshot_at: timestamp (nullable)
+- last_429_at: timestamp (nullable)
 
 ### XeroJournal
 - id: uuid (pk, default)
@@ -1461,6 +1479,7 @@
   - function get_field_metadata: (field, Any]", field_name, read_only_fields) -> dict[str, Any]
   - class SettingsSection
 - `apps/workflow/models/xero_account.py` — class XeroAccount
+- `apps/workflow/models/xero_app.py` — class XeroApp
 - `apps/workflow/models/xero_journal.py` — class XeroJournal, class XeroJournalLineItem
 - `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
 - `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
@@ -2087,8 +2106,8 @@
 
 # Test Coverage
 
-> **23%** of routes and models are covered by tests
-> 128 test files found
+> **24%** of routes and models are covered by tests
+> 129 test files found
 
 ## Covered Routes
 
@@ -2125,6 +2144,7 @@
 - XeroError
 - CacheState
 - XeroAccount
+- XeroApp
 - XeroPayItem
 - XeroToken
 

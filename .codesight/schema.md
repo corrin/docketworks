@@ -487,6 +487,24 @@
 - django_created_at: timestamp
 - django_updated_at: timestamp
 
+### XeroApp
+- id: uuid (pk, default)
+- label: string
+- client_id: string (unique)
+- client_secret: string
+- redirect_uri: string
+- is_active: boolean (default)
+- tenant_id: string (nullable)
+- token_type: string (nullable)
+- access_token: string (nullable)
+- refresh_token: string (nullable)
+- expires_at: timestamp (nullable)
+- scope: string (nullable)
+- day_remaining: integer (nullable)
+- minute_remaining: integer (nullable)
+- snapshot_at: timestamp (nullable)
+- last_429_at: timestamp (nullable)
+
 ### XeroJournal
 - id: uuid (pk, default)
 - xero_id: uuid (unique)

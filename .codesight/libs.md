@@ -582,6 +582,7 @@
   - function get_field_metadata: (field, Any]", field_name, read_only_fields) -> dict[str, Any]
   - class SettingsSection
 - `apps/workflow/models/xero_account.py` — class XeroAccount
+- `apps/workflow/models/xero_app.py` — class XeroApp
 - `apps/workflow/models/xero_journal.py` — class XeroJournal, class XeroJournalLineItem
 - `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
 - `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
