@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 369 lib files | 69 env vars | 10 middleware | 22% test coverage
-> **Token savings:** this file is ~30,500 tokens. Without it, AI exploration would cost ~242,600 tokens. **Saves ~212,200 tokens per conversation.**
+> 95 routes | 44 models | 183 components | 369 lib files | 69 env vars | 11 middleware | 22% test coverage
+> **Token savings:** this file is ~30,500 tokens. Without it, AI exploration would cost ~242,900 tokens. **Saves ~212,400 tokens per conversation.**
 
 ---
 
@@ -2031,6 +2031,7 @@
 ## custom
 - test_e2e_cache_bypass_middleware — `apps/workflow/tests/test_e2e_cache_bypass_middleware.py`
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
+- 0021-frontend-generated-api-client-only — `docs/adr/0021-frontend-generated-api-client-only.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
 - migrate_to_snapshot — `scripts/migrate_to_snapshot.py`
 
@@ -2082,7 +2083,7 @@
 # Test Coverage
 
 > **22%** of routes and models are covered by tests
-> 124 test files found
+> 125 test files found
 
 ## Covered Routes
 

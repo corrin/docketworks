@@ -1,27 +1,29 @@
 # 0006 — REST resource hierarchy and operationId hygiene
 
-Identifiers live in the URL path (not body or query); request bodies carry data only; one endpoint per operation — no conditional routing inside views.
+Identifiers live in the URL path (not body, not query); request bodies carry data only; one endpoint per operation — no conditional routing inside views.
 
-- **Status:** Accepted
-- **Date:** 2025-11-01
-- **PR(s):** Commit `1b3cb002` — "Add proper serializers for bearer token endpoint" (predates GitHub PR workflow; scope broader than the title suggests)
+## Problem
 
-## Context
-
-The Job Files API had accreted into a mess: two upload views with different `operationId`s (`uploadJobFilesRest` and `uploadJobFilesApi`), one view class (`JobFileView`) that internally dispatched on which of `file_path` / `job_number` was populated, and six overlapping URL patterns where `/rest/jobs/files/{file_path}/` and `/rest/jobs/files/{job_number}/` collided because DRF couldn't distinguish path vs int. `drf-spectacular` emitted duplicate operation ids with numeric suffixes (`uploadJobFilesApi_2`). The frontend auto-generated client had corresponding duplicate methods.
+A view that branches on which of two path or body fields is populated produces overlapping URL patterns and duplicate `operationId`s in the OpenAPI schema (`uploadJobFilesApi_2`). The frontend uses a generated client (ADR 0008's monorepo shape), so any schema collision becomes an unusable client method name and an immediate frontend break. The Job Files API had hit exactly this — six overlapping URLs, two upload views, one class internally dispatching on which field was populated.
 
 ## Decision
 
-Enforce three rules for all REST endpoints: (1) identifiers live in the URL path, never in request body or query string; (2) request bodies contain only data, never identifiers; (3) one endpoint per operation — no conditional routing inside a view. For Job Files this collapses six patterns into three: `JobFilesCollectionView` at `/jobs/{job_id}/files/` (POST upload, GET list), `JobFileDetailView` at `/jobs/files/{file_id}/` (GET, PUT, DELETE), `JobFileThumbnailView` at `/jobs/files/{file_id}/thumbnail/` (GET) — six unique `operationId`s, no collisions, UUID in path for file ids. Old endpoints return `404`; breaking the frontend is intentional and forces migration to the clean shape.
+Three rules for all REST endpoints:
+
+1. Identifiers live in the URL path, never in request body or query string.
+2. Request bodies contain only data, never identifiers.
+3. One endpoint per operation — no conditional routing inside a view.
+
+For Job Files this means `JobFilesCollectionView` at `/jobs/{job_id}/files/` (POST upload, GET list), `JobFileDetailView` at `/jobs/files/{file_id}/` (GET, PUT, DELETE), `JobFileThumbnailView` at `/jobs/files/{file_id}/thumbnail/` (GET). Six unique `operationId`s, no collisions.
+
+## Why
+
+Generated clients are only useful if their method names are stable and meaningful. Conditional routing inside a view means the same URL has different behaviour depending on what you put in it — unreviewable, unloggable, and impossible to express in OpenAPI. Putting identifiers in the path keeps the body a pure payload, which lines up cleanly with ETag/If-Match precondition headers (ADR 0003) and the delta envelope (ADR 0004).
 
 ## Alternatives considered
 
-- **Back-compat shim that leaves old URLs working:** defers the frontend migration indefinitely and leaves two ways to do each operation in the OpenAPI schema.
-- **Keep conditional routing but split `operationId`s with `@extend_schema`:** cosmetically fixes the schema warnings but keeps the runtime ambiguity (same URL pattern, different behaviour depending on path type).
-- **Drop `drf-spectacular` warnings and accept the numeric suffixes:** generated client methods become `uploadJobFilesApi2()` etc. — unusable in practice.
+- **Keep old URLs working alongside the new shape.** Standard library-author move when callers can't be broken. Rejected: this codebase ships zero backwards compatibility (ADR 0017). Two ways to do one operation is the failure mode the rule exists to prevent.
 
 ## Consequences
 
-- **Positive:** OpenAPI schema generates zero warnings; frontend generated client has predictable method names; the same pattern now has a name we can apply to other modules (timesheet, purchasing) that still violate it.
-- **Negative / costs:** breaking change — old URLs return `404` until the frontend is redeployed; any external integrations using the old paths break simultaneously.
-- **Follow-ups:** timesheet (`/rest/timesheet/entries/` with staff_id + date in query/body) and other modules still violate the rule — same pattern applies whenever we touch them. This ADR is the reference.
+OpenAPI generates zero warnings; the generated frontend client has predictable method names; the rule is the reference for every endpoint that still violates it (timesheet, purchasing — to be fixed when touched). Old URLs return `404`; external integrations using them break simultaneously with the frontend redeploy.

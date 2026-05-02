@@ -1,27 +1,31 @@
 # 0007 — Xero Payroll NZ sync with four-bucket hour categorisation
 
-Split a week's `CostLine` time entries into work / other-leave / annual-or-sick / unpaid buckets and post each through the right Xero surface (Timesheets API or Employee Leave API), with Draft-pay-run gating and idempotent re-posting.
+Split a week's `CostLine` time entries into work / other-leave / annual-or-sick / unpaid buckets and post each through the right Xero surface, with Draft-pay-run gating and idempotent re-posting.
 
-- **Status:** Accepted (backend; frontend/REST endpoints deferred)
-- **Date:** 2025-11-04
-- **PR(s):** Commit `84a19d12` — feat(xero-payroll): complete backend implementation with pay run creation and testing (predates GitHub PR workflow)
+## Problem
 
-## Context
-
-Users record work and leave as `CostLine` entries (`kind='time'`, `meta['wage_rate_multiplier']`, job name pattern-matching leave type). We want to post a whole week's hours to Xero Payroll NZ. The Xero Payroll NZ API splits responsibility across two surfaces: **Timesheets** (work hours, paid leave that doesn't accrue balances, via earnings-rate IDs) and **Employee Leave** (annual/sick/balance-tracked leave, via leave-type IDs). Pay runs must be created in `Draft` state *before* hours can be posted; a `Posted` pay run is locked forever.
+Users record work and leave as `CostLine` entries (`kind='time'`). Xero Payroll NZ splits responsibility across two surfaces: **Timesheets** (work hours and paid leave that doesn't accrue balances, via earnings-rate IDs) and **Employee Leave** (annual/sick/balance-tracked leave, via leave-type IDs). Pay runs are immutable once `Posted` — a posted run is locked forever. So we need to know, per entry, which surface to use *and* we need re-posting to be safe in case the user edits the week and re-syncs.
 
 ## Decision
 
-Implement as a service layer (no REST/UI yet). `PayrollSyncService.post_week_to_xero(staff_id, week_start_date)` categorises the week's `CostLine`s into four buckets by `Job.get_leave_type()`: **work** → Timesheets API with `wage_rate_multiplier → earnings_rate_id` mapping; **other leave** (paid, no balance) → Timesheets API; **annual/sick** → Employee Leave API, grouping consecutive days into `LeavePeriod` objects; **unpaid** → discarded (no posting). Before posting work hours, delete existing timesheet lines to make re-posting idempotent. Before any posting, verify the pay run is `Draft` (not `Posted`) and fail fast with a clear error if locked. Leave-type IDs and earnings-rate IDs are stored on `CompanyDefaults` (seven new fields) and seeded via `python manage.py xero --configure-payroll`.
+`PayrollSyncService.post_week_to_xero(staff_id, week_start_date)` categorises entries by `Job.get_leave_type()`:
+
+- **work** → Timesheets API, mapping `wage_rate_multiplier → earnings_rate_id`.
+- **other leave** (paid, no balance) → Timesheets API.
+- **annual / sick** → Employee Leave API, grouping consecutive days into `LeavePeriod` objects.
+- **unpaid** → discarded.
+
+Before posting work hours, delete existing timesheet lines on Xero — so re-posting is replace-not-append. Before any posting, verify the pay run is `Draft`; fail fast if it's `Posted`. Earnings-rate IDs and leave-type IDs are stored on `CompanyDefaults` and seeded via `python manage.py xero --configure-payroll`.
+
+## Why
+
+Xero's two surfaces aren't a quirk — they're how balance-tracked leave actually works (it has to debit the leave balance, which a timesheet line can't do). Forcing one surface means losing balance tracking. Replace-not-append delegates source-of-truth to Xero rather than maintaining our own "posted" state that would drift. The Draft check is what stops a re-sync from silently failing against a locked pay run.
 
 ## Alternatives considered
 
-- **Single API surface:** Xero doesn't offer one; balance-tracked leave and timesheet lines are genuinely different resources. Forcing one-fits-all would require posting leave as work hours and losing the balance tracking.
-- **Compute categories on the fly from job flags:** less visible than `Job.get_leave_type()` returning a small string enum; pattern-matching the job name keeps the leave-type decision close to the job's identity.
-- **Idempotency by tracking our own "posted" flag:** would drift from Xero's state. Deleting timesheet lines before re-posting delegates the source-of-truth to Xero.
+- **Compute leave categories from job flags, not job name.** Defendable — names are mutable, flags are explicit. Rejected for now: `Job.get_leave_type()` returning a small string enum keeps the leave-type decision local to the job's identity and the existing leave jobs already encode this in the name. Revisit if a leave job ever gets renamed and breaks categorisation.
+- **Track our own "posted" flag on the CostLine.** Defendable — avoids a Xero round-trip on re-sync. Rejected: any flag that can disagree with Xero's actual state will eventually disagree.
 
 ## Consequences
 
-- **Positive:** week-level posting is a single service call; re-posting is safe (replace-not-append); four-bucket split lets us drop unpaid hours cleanly while still surfacing them in the result dict for audit.
-- **Negative / costs:** `Job.get_leave_type()` pattern-matches on job *name*, so renaming a leave job silently breaks categorisation — needs tests. Seven new `CompanyDefaults` fields must be seeded before first use. No REST endpoint yet: the feature is backend-only until UI work lands.
-- **Follow-ups:** REST endpoint (`POST /api/timesheet/post-week-to-xero/`), frontend "Post week" button, `leave_type` field in the job serialiser, unit tests for `_categorize_entries`, `_map_work_entries`, `_post_leave_entries`.
+Week-level posting is a single service call; re-posting is safe; unpaid hours are dropped cleanly while still surfacing in the result for audit. `Job.get_leave_type()` pattern-matches on job name, so renaming a leave job silently breaks categorisation — needs tests. Seven new `CompanyDefaults` fields must be seeded before first use.

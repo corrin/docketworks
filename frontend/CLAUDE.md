@@ -2,6 +2,8 @@
 
 Vue 3 + TypeScript jobs management app with multi-user editing, autosave, and optimistic concurrency. API contracts defined in OpenAPI schema.
 
+The architectural decisions behind these rules live in `../docs/adr/`. Most directly relevant: API access (rules 1–7) → ADR 0021 (generated client only); concurrency (rules 22–25) → ADR 0003 (ETag) and ADR 0004 (delta envelope); the frontend/backend boundary → ADR 0020. The remaining rules below are Vue/TS conventions and operational specifics.
+
 ---
 
 ## Backend Communication
