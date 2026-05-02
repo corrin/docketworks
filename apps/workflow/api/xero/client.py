@@ -39,6 +39,23 @@ QUOTA_CACHE_KEY = "xero_quota_snapshot"
 QUOTA_CACHE_TIMEOUT_SECONDS = 60 * 60 * 24
 
 
+def quota_floor_breached(floor: int) -> bool:
+    """Return True iff a snapshot reports day_remaining at or below ``floor``.
+
+    Reads the quota snapshot maintained by ``RateLimitedRESTClient`` after every
+    Xero API call. A missing snapshot or a missing ``day_remaining`` value
+    returns False — automated callers fall through and let the next response
+    populate the cache.
+    """
+    snapshot = cache.get(QUOTA_CACHE_KEY)
+    if not snapshot:
+        return False
+    day_remaining = snapshot.get("day_remaining")
+    if day_remaining is None:
+        return False
+    return day_remaining <= floor
+
+
 class RateLimitedRESTClient(RESTClientObject):
     def __init__(self, configuration, pools_size=4, maxsize=None):
         super().__init__(configuration, pools_size=pools_size, maxsize=maxsize)
@@ -133,6 +150,14 @@ class RateLimitedRESTClient(RESTClientObject):
             f"Retry-After: {retry_after}s. "
             f"Day remaining: {day_remaining}. "
             f"Minute remaining: {min_remaining}."
+        )
+
+        # 429 responses carry the same quota headers as 2xx responses — write
+        # them to the snapshot so quota_floor_breached() can short-circuit
+        # subsequent automated calls. Without this, the snapshot only updates
+        # on success and the gate stays unarmed precisely when it's needed.
+        self._store_quota_snapshot(
+            self._parse_int(day_remaining), self._parse_int(min_remaining)
         )
 
         if limit_type == "day":

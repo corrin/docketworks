@@ -15,7 +15,7 @@ try:
             refresh_token,
             store_token,
         )
-        from .client import RateLimitedRESTClient
+        from .client import RateLimitedRESTClient, quota_floor_breached
         from .payroll import (
             create_employee_leave,
             create_pay_run,
@@ -185,6 +185,7 @@ __all__ = [
     "post_timesheet",
     "process_xero_data",
     "process_xero_item",
+    "quota_floor_breached",
     "refresh_token",
     "reprocess_all",
     "reprocess_bills",

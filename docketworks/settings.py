@@ -707,6 +707,12 @@ XERO_SYNC_PROJECTS = os.getenv("XERO_SYNC_PROJECTS", "False").lower() == "true"
 DEFAULT_XERO_SCOPES = " ".join(DEFAULT_XERO_SCOPES_LIST)
 XERO_SCOPES = os.getenv("XERO_SCOPES", DEFAULT_XERO_SCOPES).split()
 
+# Day-quota floor for automated Xero traffic. Sync and webhook processing
+# refuse to make Xero API calls once X-DayLimit-Remaining is at or below this
+# value, leaving the remaining budget for known-cost user-initiated operations
+# (creating an invoice, a client, etc.).
+XERO_AUTOMATED_DAY_FLOOR = 100
+
 # Hardcoded production Xero tenant ID
 PRODUCTION_XERO_TENANT_ID = "75e57cfd-302d-4f84-8734-8aae354e76a7"
 

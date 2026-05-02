@@ -12,6 +12,7 @@ from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_token
+from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.payroll import (
     get_all_pay_slips_for_sync,
     get_pay_runs_for_sync,
@@ -211,6 +212,19 @@ def sync_xero_data(
     max_updated_date_utc = None
 
     while True:
+        if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+            yield {
+                "datetime": timezone.now().isoformat(),
+                "entity": our_entity_type,
+                "severity": "warning",
+                "message": (
+                    f"Skipping {our_entity_type}: Xero day quota at floor "
+                    f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
+                ),
+                "progress": 0.0,
+            }
+            return
+
         # Update pagination params
         if pagination_mode == "offset":
             params["offset"] = offset
@@ -555,6 +569,23 @@ def deep_sync_xero_data(days_back=30, entities=None):
 def synchronise_xero_data(delay_between_requests=1):
     """Yield progress events while performing a full Xero synchronisation."""
     from apps.workflow.api.xero.payroll import sync_xero_pay_items
+
+    # `sync_xero_pay_items` runs before any per-page gate and isn't itself
+    # gated; without this orchestrator-level check it would 429 below the
+    # floor on every breached sync. The per-page gate in `sync_xero_data`
+    # never gets a chance because the orchestrator crashes first.
+    if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+        yield {
+            "datetime": timezone.now().isoformat(),
+            "entity": "sync",
+            "severity": "warning",
+            "message": (
+                f"Skipping sync: Xero day quota at floor "
+                f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
+            ),
+            "progress": 0.0,
+        }
+        return
 
     if not cache.add("xero_sync_lock", True, timeout=60 * 60 * 4):
         logger.info("Skipping sync - another sync is running")

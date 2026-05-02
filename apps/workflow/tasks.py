@@ -9,7 +9,9 @@ import logging
 from typing import Any, Dict
 
 from celery import shared_task
+from django.conf import settings
 
+from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_single_contact, sync_single_invoice
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
@@ -42,6 +44,15 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
     Tenant-aware: ``tenant_id`` is the explicit task argument; never read
     from process state. Write-side: callers do not read a return value.
     """
+    if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+        logger.warning(
+            "Xero day quota at floor (%s) — skipping webhook event %s",
+            settings.XERO_AUTOMATED_DAY_FLOOR,
+            event,
+        )
+        # Return (do not raise) — raising would make Celery retry indefinitely.
+        return
+
     event_category = event.get("eventCategory")
     resource_id = event.get("resourceId")
 

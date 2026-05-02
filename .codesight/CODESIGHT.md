@@ -2,7 +2,7 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 370 lib files | 69 env vars | 11 middleware | 2 events | 22% test coverage
+> 95 routes | 44 models | 183 components | 370 lib files | 69 env vars | 11 middleware | 2 events | 23% test coverage
 > **Token savings:** this file is ~30,600 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~213,000 tokens per conversation.**
 
 ---
@@ -1362,7 +1362,7 @@
   - function get_authentication_url: (state) -> str
   - function get_tenant_id_from_connections: () -> str
   - _...2 more_
-- `apps/workflow/api/xero/client.py` — class RateLimitedRESTClient
+- `apps/workflow/api/xero/client.py` — function quota_floor_breached: (floor) -> bool, class RateLimitedRESTClient
 - `apps/workflow/api/xero/payroll.py`
   - function get_employees: () -> List[Employee]
   - function create_payroll_employee: (employee_data, Any]) -> Employee
@@ -2086,8 +2086,8 @@
 
 # Test Coverage
 
-> **22%** of routes and models are covered by tests
-> 127 test files found
+> **23%** of routes and models are covered by tests
+> 128 test files found
 
 ## Covered Routes
 
@@ -2123,6 +2123,7 @@
 - AppError
 - XeroError
 - CacheState
+- XeroAccount
 - XeroPayItem
 - XeroToken
 

@@ -483,7 +483,7 @@
   - function get_authentication_url: (state) -> str
   - function get_tenant_id_from_connections: () -> str
   - _...2 more_
-- `apps/workflow/api/xero/client.py` — class RateLimitedRESTClient
+- `apps/workflow/api/xero/client.py` — function quota_floor_breached: (floor) -> bool, class RateLimitedRESTClient
 - `apps/workflow/api/xero/payroll.py`
   - function get_employees: () -> List[Employee]
   - function create_payroll_employee: (employee_data, Any]) -> Employee
