@@ -10,7 +10,7 @@ import {
 import { Pagination } from '@/components/ui/pagination'
 import { Button } from '@/components/ui/button'
 
-interface ErrorRow {
+export interface ErrorRow {
   id: string
   occurredAt: string
   message: string
@@ -31,7 +31,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  (e: 'rowClick', row: { id: string; occurredAt: string; message: string }): void
+  (e: 'rowClick', row: ErrorRow): void
   (e: 'resolve', row: { id: string; fingerprint?: string }): void
   (e: 'unresolve', row: { id: string; fingerprint?: string }): void
   (e: 'update:page', value: number): void

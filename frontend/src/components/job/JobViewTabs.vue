@@ -7,7 +7,7 @@
             v-for="tab in tabs"
             :key="tab.key"
             :data-automation-id="`JobViewTabs-${tab.key}-mobile`"
-            @click="handleTabChange(tab.key as JobViewTabKey)"
+            @click="handleTabChange(tab.key)"
             :class="[
               'flex-1 py-3 px-2 text-sm font-medium text-center border-b-2 transition-colors',
               activeTab === tab.key
@@ -25,7 +25,7 @@
             v-for="tab in tabs"
             :key="tab.key"
             :data-automation-id="`JobViewTabs-${tab.key}`"
-            @click="handleTabChange(tab.key as JobViewTabKey)"
+            @click="handleTabChange(tab.key)"
             :class="[
               'py-4 px-1 border-b-2 font-medium text-sm transition-colors',
               activeTab === tab.key
@@ -126,20 +126,12 @@ import JobSafetyTab from './JobSafetyTab.vue'
 import { watch, computed } from 'vue'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
-import type { JobTabKey as BaseJobTabKey } from '@/constants/job-tabs'
+import type { JobTabKey } from '@/constants/job-tabs'
 
 type JobFile = z.infer<typeof schemas.JobFile>
-type JobViewTabKey =
-  | BaseJobTabKey
-  | 'jobSettings'
-  | 'workflow'
-  | 'history'
-  | 'attachments'
-  | 'quotingChat'
-  | 'safety'
 
 const emit = defineEmits<{
-  (e: 'change-tab', tab: JobViewTabKey): void
+  (e: 'change-tab', tab: JobTabKey): void
   (e: 'open-settings'): void
   (e: 'open-workflow'): void
   (e: 'open-history'): void
@@ -159,7 +151,7 @@ const emit = defineEmits<{
   (e: 'file-deleted'): void
 }>()
 
-const allTabs: { key: JobViewTabKey; label: string }[] = [
+const allTabs: { key: JobTabKey; label: string }[] = [
   { key: 'estimate', label: 'Estimate' },
   { key: 'quote', label: 'Quote' },
   { key: 'actual', label: 'Actual' },
@@ -179,12 +171,12 @@ const tabs = computed(() => {
   return allTabs
 })
 
-function handleTabChange(tab: JobViewTabKey) {
+function handleTabChange(tab: JobTabKey) {
   emit('change-tab', tab)
 }
 
 const props = defineProps<{
-  activeTab: JobViewTabKey
+  activeTab: JobTabKey
   jobId: string
   jobNumber: number
   jobStatus?: string

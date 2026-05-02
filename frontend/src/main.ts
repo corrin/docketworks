@@ -1,5 +1,5 @@
 import './assets/main.css'
-import '@fontsource-variable/inter'
+import '@fontsource-variable/inter/index.css'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'

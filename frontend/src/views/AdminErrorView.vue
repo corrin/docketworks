@@ -42,7 +42,7 @@ import ErrorTabs from '@/components/admin/errors/ErrorTabs.vue'
 import ErrorFilter from '@/components/admin/errors/ErrorFilter.vue'
 import SystemErrorFilter from '@/components/admin/errors/SystemErrorFilter.vue'
 import JobErrorFilter from '@/components/admin/errors/JobErrorFilter.vue'
-import ErrorTable from '@/components/admin/errors/ErrorTable.vue'
+import ErrorTable, { type ErrorRow } from '@/components/admin/errors/ErrorTable.vue'
 import ErrorDialog from '@/components/admin/errors/ErrorDialog.vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useErrorApi } from '@/composables/useErrorApi'
@@ -261,7 +261,7 @@ function mapGroupedRows(
   }))
 }
 
-async function openErrorDialog(row: DisplayErrorRow | GroupedErrorRow) {
+async function openErrorDialog(row: ErrorRow) {
   if (!showIndividual.value) {
     const grouped = row as GroupedErrorRow
     const thisRequest = ++openRequestId
