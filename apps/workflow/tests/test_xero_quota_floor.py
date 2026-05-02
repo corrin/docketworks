@@ -376,6 +376,21 @@ class StockBatchedUpsertRefactorTests(TestCase):
     items have no ``ItemID`` in the payload (Xero creates them); items
     linked-by-Code carry the existing ``ItemID`` (Xero updates them)."""
 
+    def setUp(self):
+        # sync_all_local_stock_to_xero now constructs AccountingApi via
+        # get_active_client(), which requires an active XeroApp row.
+        # The patched AccountingApi swallows the actual SDK calls — but
+        # the row needs to exist so get_active_client() can read it.
+        _active_app(client_id="stock-test", access_token="x", refresh_token="y")
+        from apps.workflow.api.xero import active_app
+
+        active_app._reset_client_cache()
+
+    def tearDown(self):
+        from apps.workflow.api.xero import active_app
+
+        active_app._reset_client_cache()
+
     def test_upsert_batch_called_with_mixed_create_and_update_payload(self):
         from apps.workflow.api.xero import stock_sync
 

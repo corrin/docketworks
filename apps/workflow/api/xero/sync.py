@@ -11,7 +11,8 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder, Stock
-from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_token
+from apps.workflow.api.xero.active_app import get_active_client
+from apps.workflow.api.xero.auth import get_tenant_id, get_token
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.payroll import (
     get_all_pay_slips_for_sync,
@@ -418,7 +419,7 @@ def _resolve_api_method(api_method):
         return get_pay_runs_for_sync
     if api_method == "get_all_pay_slips_for_sync":
         return get_all_pay_slips_for_sync
-    return getattr(AccountingApi(api_client), api_method)
+    return getattr(AccountingApi(get_active_client()), api_method)
 
 
 def sync_all_xero_data(

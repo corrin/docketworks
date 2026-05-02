@@ -484,7 +484,7 @@
   - class NoActiveXeroApp
 - `apps/workflow/api/xero/auth.py`
   - function get_token: () -> Optional[Dict[str, Any]]
-  - function store_token: (token, Any]) -> None
+  - function bind_token_callbacks: (api_client, app_id) -> None
   - function refresh_token: () -> Optional[Dict[str, Any]]
   - function get_valid_token: () -> Optional[Dict[str, Any]]
   - function get_authentication_url: (state) -> str

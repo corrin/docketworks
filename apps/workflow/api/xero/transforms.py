@@ -11,7 +11,8 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.active_app import get_active_client
+from apps.workflow.api.xero.auth import get_tenant_id
 from apps.workflow.api.xero.reprocess_xero import (
     set_client_fields,
     set_invoice_or_bill_fields,
@@ -123,7 +124,7 @@ def get_or_fetch_client(contact_id, reference=None):
     if client:
         return client.get_final_client()
 
-    response = AccountingApi(api_client).get_contacts(
+    response = AccountingApi(get_active_client()).get_contacts(
         get_tenant_id(), i_ds=[contact_id], include_archived=True
     )
     time.sleep(SLEEP_TIME)

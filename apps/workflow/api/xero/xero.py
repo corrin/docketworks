@@ -12,7 +12,8 @@ from xero_python.project.models import (
     TaskCreateOrUpdate,
 )
 
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.active_app import get_active_client
+from apps.workflow.api.xero.auth import get_tenant_id
 from apps.workflow.models import CompanyDefaults
 
 logger = logging.getLogger("xero")
@@ -26,7 +27,7 @@ def get_xero_items(if_modified_since: Optional[datetime] = None) -> Any:
     logger.info(f"Fetching Xero Items. If modified since: {if_modified_since}")
 
     tenant_id = get_tenant_id()
-    accounting_api = AccountingApi(api_client)
+    accounting_api = AccountingApi(get_active_client())
     logger.info(f"Using tenant ID: {tenant_id}")
 
     # Convert string to datetime if needed
@@ -68,7 +69,7 @@ def get_projects(if_modified_since: Optional[datetime] = None) -> Any:
     logger.info(f"Fetching Xero Projects. If modified since: {if_modified_since}")
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
     logger.info(f"Using tenant ID: {tenant_id}")
 
     # Convert string to datetime if needed
@@ -117,7 +118,7 @@ def create_project(project_data: Dict[str, Any]) -> Any:
     logger.info(f"Creating Xero Project with data: {project_data}")
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
 
     try:
         # Create ProjectCreateOrUpdate object from dictionary data
@@ -153,7 +154,7 @@ def update_project(project_id: str, project_data: Dict[str, Any]) -> Any:
     logger.info(f"Updating Xero Project {project_id} with data: {project_data}")
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
 
     try:
         # Update project using the Projects API
@@ -187,7 +188,7 @@ def create_time_entries(
     )
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
 
     try:
         # Create time entries one by one using the Projects API
@@ -224,7 +225,7 @@ def create_default_task(project_id: str) -> Any:
     logger.info(f"Creating default Labor task for Xero Project {project_id}")
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
 
     # Get charge out rate from company defaults
     company_defaults = CompanyDefaults.get_solo()
@@ -270,7 +271,7 @@ def create_expense_entries(
     )
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
 
     try:
         # Create expense entries as tasks using the Projects API
@@ -325,7 +326,7 @@ def update_time_entries(
     )
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
 
     try:
         # Update time entries one by one using the Projects API
@@ -374,7 +375,7 @@ def update_expense_entries(
     )
 
     tenant_id = get_tenant_id()
-    projects_api = ProjectApi(api_client)
+    projects_api = ProjectApi(get_active_client())
 
     try:
         # Update expense entries as tasks using the Projects API

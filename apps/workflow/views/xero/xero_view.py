@@ -34,8 +34,13 @@ from apps.job.models import Job
 from apps.job.permissions import IsOfficeStaff
 from apps.purchasing.models import PurchaseOrder
 from apps.workflow.api.pagination import FiftyPerPagePagination
+from apps.workflow.api.xero.active_app import (
+    NoActiveXeroApp,
+    get_active_app,
+    get_active_client,
+    wipe_tokens_and_quota,
+)
 from apps.workflow.api.xero.auth import (
-    api_client,
     exchange_code_for_token,
     get_authentication_url,
     get_tenant_id_from_connections,
@@ -44,7 +49,7 @@ from apps.workflow.api.xero.auth import (
 )
 from apps.workflow.api.xero.sync import ENTITY_CONFIGS
 from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.models import XeroError, XeroToken
+from apps.workflow.models import XeroError
 from apps.workflow.serializers import (
     XeroAuthenticationErrorResponseSerializer,
     XeroDocumentErrorResponseSerializer,
@@ -142,7 +147,7 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
         )
 
     try:
-        identity_api = IdentityApi(api_client)
+        identity_api = IdentityApi(get_active_client())
         connections = identity_api.get_connections()
         if connections:
             logger.info("Available Xero Organizations after authentication:")
@@ -877,15 +882,26 @@ def delete_xero_purchase_order(
 @api_view(["POST"])
 @permission_classes([IsAuthenticated, IsOfficeStaff])
 def xero_disconnect(request):
-    """Disconnects from Xero by clearing the token from cache and database."""
+    """Disconnect from Xero by clearing tokens on the active XeroApp.
+
+    The row itself stays so the user can re-authorise without re-entering
+    credentials. Inactive rows (e.g. a backup app) are untouched.
+    """
     try:
-        cache.delete("xero_token")
         cache.delete("xero_tenant_id")
-        XeroToken.objects.all().delete()
-        logger.info("Successfully disconnected from Xero")
+        try:
+            active = get_active_app()
+        except NoActiveXeroApp:
+            logger.info("xero_disconnect: no active XeroApp; nothing to do")
+            return Response({"connected": False}, status=status.HTTP_200_OK)
+        wipe_tokens_and_quota(active)
+        logger.info(f"Disconnected XeroApp {active.id} ({active.label})")
         return Response({"connected": False}, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error disconnecting from Xero: {str(e)}")
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        persist_app_error(exc)
+        logger.error(f"Error disconnecting from Xero: {str(exc)}")
         return Response(
             {"error": "Failed to disconnect from Xero"},
             status=status.HTTP_500_INTERNAL_SERVER_ERROR,

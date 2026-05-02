@@ -14,6 +14,7 @@ try:
             wipe_tokens_and_quota,
         )
         from .auth import (
+            bind_token_callbacks,
             exchange_code_for_token,
             get_authentication_url,
             get_tenant_id,
@@ -21,7 +22,6 @@ try:
             get_token,
             get_valid_token,
             refresh_token,
-            store_token,
         )
         from .client import RateLimitedRESTClient, quota_floor_breached
         from .payroll import (
@@ -141,6 +141,7 @@ except (ImportError, RuntimeError):
 __all__ = [
     "NoActiveXeroApp",
     "RateLimitedRESTClient",
+    "bind_token_callbacks",
     "build_api_client",
     "bulk_create_contacts_in_xero",
     "clean_json",
@@ -211,7 +212,6 @@ __all__ = [
     "set_client_fields",
     "set_invoice_or_bill_fields",
     "set_journal_fields",
-    "store_token",
     "swap_active",
     "sync_accounts",
     "sync_all_local_stock_to_xero",

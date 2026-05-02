@@ -26,7 +26,8 @@ from xero_python.payrollnz.models import (
     WorkingWeek,
 )
 
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.active_app import get_active_client
+from apps.workflow.api.xero.auth import get_tenant_id
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 from apps.workflow.services.error_persistence import (
@@ -114,7 +115,7 @@ def get_employees() -> List[Employee]:
         raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info("Fetching Xero Payroll employees")
@@ -177,7 +178,7 @@ def create_payroll_employee(employee_data: Dict[str, Any]) -> Employee:
             )
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info(
@@ -315,7 +316,7 @@ def update_employee_name(employee_id: str, first_name: str, last_name: str) -> N
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured")
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     # Fetch existing employee to preserve their data
     response = payroll_api.get_employee(
@@ -586,7 +587,7 @@ def get_employee_salary_and_wages(employee_id: str) -> List[SalaryAndWage]:
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured")
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info("Fetching salary/wage for employee %s", employee_id)
@@ -627,7 +628,7 @@ def get_employee_working_patterns(employee_id: str) -> List[Dict[str, float]]:
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured")
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info("Fetching working patterns for employee %s", employee_id)
@@ -686,7 +687,7 @@ def get_payroll_calendars() -> List[Dict[str, Any]]:
         raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info("Fetching Xero Payroll calendars")
@@ -727,7 +728,7 @@ def get_pay_runs() -> List[Dict[str, Any]]:
         raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info("Fetching Xero Payroll pay runs")
@@ -776,7 +777,7 @@ def get_pay_run(pay_run_id: str):
         raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info(f"Fetching Xero pay run {pay_run_id}")
@@ -850,7 +851,7 @@ def get_leave_types() -> List[Dict[str, Any]]:
         raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info("Fetching Xero Payroll leave types")
@@ -887,7 +888,7 @@ def get_earnings_rates() -> List[Dict[str, Any]]:
         raise ValueError("No Xero tenant ID configured")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info("Fetching Xero Payroll earnings rates")
@@ -1100,7 +1101,7 @@ def create_pay_run(
         f"payment date {payment_date}"
     )
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         pay_run = PayRun(
@@ -1177,7 +1178,7 @@ def get_all_timesheets_for_week(week_start_date: date) -> Dict[str, Any]:
         Dict mapping employee_id (str) to existing Timesheet object
     """
     week_end_date = week_start_date + timedelta(days=6)
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
     tenant_id = get_tenant_id()
 
     logger.info(
@@ -1274,7 +1275,7 @@ def post_timesheet(
         raise Exception("week_start_date must be a Monday")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info(
@@ -1455,7 +1456,7 @@ def create_employee_leave(
         raise Exception("end_date cannot be before start_date")
 
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     try:
         logger.info(
@@ -1537,7 +1538,7 @@ def get_pay_runs_for_sync(**kwargs):
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured for payroll sync")
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     logger.info("Fetching Xero pay runs for sync")
     response = payroll_api.get_pay_runs(xero_tenant_id=tenant_id)
@@ -1565,7 +1566,7 @@ def get_pay_slips_for_sync(pay_run_id: str, **kwargs):
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured for payroll sync")
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     logger.debug(f"Fetching pay slips for pay run {pay_run_id}")
     response = payroll_api.get_pay_slips(
@@ -1592,7 +1593,7 @@ def get_all_pay_slips_for_sync(**kwargs):
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured for payroll sync")
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     # First get all pay runs
     logger.info("Fetching all pay runs to gather pay slips")
@@ -1956,7 +1957,7 @@ def _delete_existing_leave_for_week(
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured")
 
-    payroll_api = PayrollNzApi(api_client)
+    payroll_api = PayrollNzApi(get_active_client())
 
     logger.info(
         f"Checking for existing leave for employee {employee_id} "
