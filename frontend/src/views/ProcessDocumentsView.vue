@@ -127,17 +127,20 @@ function onFiltersUpdate(newFilters: Filters) {
   store.setFilters(newFilters, documentType.value, category.value)
 }
 
-function handleFormRowClick(doc: FormListItem) {
+type DocumentItem = FormListItem | ProcedureListItem
+
+function handleFormRowClick(doc: DocumentItem) {
   router.push(`/process-documents/forms/${category.value}/${doc.id}`)
 }
 
-function handleProcedureRowClick(doc: ProcedureListItem) {
-  if (doc.google_doc_url) {
-    window.open(doc.google_doc_url, '_blank')
+function handleProcedureRowClick(doc: DocumentItem) {
+  const procedure = doc as ProcedureListItem
+  if (procedure.google_doc_url) {
+    window.open(procedure.google_doc_url, '_blank')
   }
 }
 
-async function handleFill(doc: FormListItem) {
+async function handleFill(doc: DocumentItem) {
   const confirmed = window.confirm(
     `Fill "${doc.title}"? This will create a new entry from this form.`,
   )
@@ -149,18 +152,18 @@ async function handleFill(doc: FormListItem) {
   }
 }
 
-function handleEdit(doc: FormListItem | ProcedureListItem) {
+function handleEdit(doc: DocumentItem) {
   editingDocument.value = doc
   showCreateModal.value = true
 }
 
-function handleDeleteForm(doc: FormListItem) {
+function handleDeleteForm(doc: DocumentItem) {
   const confirmed = window.confirm('Delete this document?')
   if (!confirmed) return
   store.deleteForm(category.value, doc.id)
 }
 
-function handleDeleteProcedure(doc: ProcedureListItem) {
+function handleDeleteProcedure(doc: DocumentItem) {
   const confirmed = window.confirm('Delete this document?')
   if (!confirmed) return
   store.deleteProcedure(category.value, doc.id)
