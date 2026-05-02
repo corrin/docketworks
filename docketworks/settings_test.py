@@ -17,3 +17,8 @@ TEST_DB_PASSWORD = os.environ["TEST_DB_PASSWORD"]
 
 DATABASES["default"]["USER"] = TEST_DB_USER
 DATABASES["default"]["PASSWORD"] = TEST_DB_PASSWORD
+
+# Run Celery tasks synchronously in tests — no broker required, no worker
+# required, exceptions surface immediately at the call site.
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True

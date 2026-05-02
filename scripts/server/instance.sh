@@ -460,6 +460,16 @@ EOSQL
     systemctl enable "scheduler-$INSTANCE"
     systemctl restart "scheduler-$INSTANCE"
 
+    log "Installing systemd service celery-worker-$INSTANCE..."
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
+        "$TEMPLATE_DIR/celery-worker-instance.service.template" \
+        > "/etc/systemd/system/celery-worker-$INSTANCE.service"
+    systemctl daemon-reload
+    systemctl enable "celery-worker-$INSTANCE"
+    systemctl restart "celery-worker-$INSTANCE"
+
     # --- Install sudoers drop-in ---
     # Lets the instance user restart its own units without a password.
     # Render to a temp file, validate with visudo, then install atomically —

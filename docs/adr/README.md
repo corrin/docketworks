@@ -33,3 +33,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0019 | Every exception is persisted to AppError                       |
 | 0020 | Frontend/Backend separation: data is backend, presentation is frontend |
 | 0021 | Frontend reads and writes the API only through the generated client |
+| 0024 | Background work runs through Celery; tasks are idempotent and tenant-aware |

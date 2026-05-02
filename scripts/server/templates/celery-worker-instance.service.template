@@ -1,0 +1,15 @@
+[Unit]
+Description=Celery worker for docketworks __INSTANCE__
+After=network.target redis-server.service
+
+[Service]
+User=__INSTANCE_USER__
+Group=www-data
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__
+ExecStart=/opt/docketworks/.venv/bin/celery -A docketworks worker --concurrency=4 --loglevel=info
+EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

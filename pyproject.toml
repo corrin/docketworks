@@ -59,6 +59,7 @@ litellm = { version = "^1.83.7", python = ">=3.12,<3.14" }
 python-stdnum = "^2.1"
 pylint-django = "^2.7.0"
 django-solo = "^2.5.1"
+celery = "^5.5.0"
 
 [tool.poetry.scripts]
 post-install = "scripts.post_install:install_system_deps"  # Script to install system dependencies like poppler-utils
