@@ -15,7 +15,7 @@ autopep8==2.3.2 ; python_version >= "3.12" and python_version < "4.0"
 beautifulsoup4==4.14.3 ; python_version >= "3.12" and python_version < "4.0"
 black==26.3.1 ; python_version >= "3.12" and python_version < "4.0"
 cachetools==7.0.5 ; python_version >= "3.12" and python_version < "4.0"
-certifi==2026.2.25 ; python_version >= "3.12" and python_version < "4.0"
+certifi==2026.4.22 ; python_version >= "3.12" and python_version < "4.0"
 cffi==2.0.0 ; python_version >= "3.12" and python_version < "4.0" and (platform_python_implementation != "PyPy" or os_name == "nt") and (platform_python_implementation != "PyPy" or implementation_name != "pypy")
 cfgv==3.5.0 ; python_version >= "3.12" and python_version < "4.0"
 channels-redis==4.3.0 ; python_version >= "3.12" and python_version < "4.0"
