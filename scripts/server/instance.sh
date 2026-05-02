@@ -3,9 +3,17 @@ set -euo pipefail
 
 # Manage docketworks instances.
 # Usage: instance.sh prepare-config <client> <env>
-#        instance.sh create <client> <env> [--seed] [--fqdn <hostname>]
+#        instance.sh create <client> <env> [--seed] [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
 #        instance.sh list
+#
+# --no-start: create the instance but do NOT enable/restart scheduler-* and
+# celery-worker-* services, and drop a .dr-mode marker in the instance dir.
+# This is the "cold standby" / DR mode: scheduler+celery would otherwise fire
+# their first heartbeat (and hit Xero with live tokens) within ~5 min of
+# creation, which is the wrong posture for a standby that shares creds with a
+# live primary. The marker also makes future deploy.sh runs leave the services
+# alone — to "go live", `rm .dr-mode` then enable+start the units by hand.
 #
 # Naming convention:
 #   Instance name: <client>-<env>     (e.g., msm-uat)     — directory, systemd unit suffix
@@ -92,17 +100,19 @@ do_create() {
 
     local SEED=false
     local CUSTOM_FQDN=""
+    local NO_START=false
     local parsed
-    if ! parsed=$(getopt -o '' --long seed,fqdn: -n "$(basename "$0") create" -- "$@"); then
-        echo "Usage: $(basename "$0") create <client> <env> [--seed] [--fqdn <hostname>]" >&2
+    if ! parsed=$(getopt -o '' --long seed,fqdn:,no-start -n "$(basename "$0") create" -- "$@"); then
+        echo "Usage: $(basename "$0") create <client> <env> [--seed] [--fqdn <hostname>] [--no-start]" >&2
         exit 1
     fi
     eval set -- "$parsed"
     while true; do
         case "$1" in
-            --seed) SEED=true;        shift ;;
-            --fqdn) CUSTOM_FQDN="$2"; shift 2 ;;
-            --)     shift; break ;;
+            --seed)     SEED=true;        shift ;;
+            --fqdn)     CUSTOM_FQDN="$2"; shift 2 ;;
+            --no-start) NO_START=true;    shift ;;
+            --)         shift; break ;;
         esac
     done
     if [[ $# -gt 0 ]]; then
@@ -439,6 +449,19 @@ EOSQL
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
     fi
 
+    # --- DR-mode marker ---
+    # If --no-start was passed, drop a marker file BEFORE the systemd installs
+    # below so the marker check skips enable/restart for scheduler+celery in
+    # this run, and so subsequent deploy.sh runs also leave them alone. The
+    # unit files themselves are still rendered — "go live" later is just
+    # `rm .dr-mode && systemctl enable --now scheduler-* celery-worker-*`.
+    if [[ "$NO_START" == "true" ]]; then
+        log "DR mode: writing $INSTANCE_DIR/.dr-mode (scheduler+celery will not be auto-started)"
+        touch "$INSTANCE_DIR/.dr-mode"
+        chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.dr-mode"
+        chmod 644 "$INSTANCE_DIR/.dr-mode"
+    fi
+
     # --- Install systemd service ---
     log "Installing systemd service gunicorn-$INSTANCE..."
     sed \
@@ -457,8 +480,12 @@ EOSQL
         "$TEMPLATE_DIR/scheduler-instance.service.template" \
         > "/etc/systemd/system/scheduler-$INSTANCE.service"
     systemctl daemon-reload
-    systemctl enable "scheduler-$INSTANCE"
-    systemctl restart "scheduler-$INSTANCE"
+    if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
+        log "  DR mode: skipping enable/restart of scheduler-$INSTANCE"
+    else
+        systemctl enable "scheduler-$INSTANCE"
+        systemctl restart "scheduler-$INSTANCE"
+    fi
 
     log "Installing systemd service celery-worker-$INSTANCE..."
     sed \
@@ -467,8 +494,12 @@ EOSQL
         "$TEMPLATE_DIR/celery-worker-instance.service.template" \
         > "/etc/systemd/system/celery-worker-$INSTANCE.service"
     systemctl daemon-reload
-    systemctl enable "celery-worker-$INSTANCE"
-    systemctl restart "celery-worker-$INSTANCE"
+    if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
+        log "  DR mode: skipping enable/restart of celery-worker-$INSTANCE"
+    else
+        systemctl enable "celery-worker-$INSTANCE"
+        systemctl restart "celery-worker-$INSTANCE"
+    fi
 
     # --- Install sudoers drop-in ---
     # Lets the instance user restart its own units without a password.
