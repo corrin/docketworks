@@ -12,7 +12,7 @@ Every API call goes through the generated client at `/src/api/generated/api.ts`.
 
 ## Why
 
-A backend rename becomes a TypeScript compilation error in the frontend the next time `gen:api` runs — not a silent runtime breakage discovered weeks later. There is exactly one path through which frontend code reaches the API; the schema is the single source of truth; drift between schema and frontend is structurally impossible. Generated zod schemas double as runtime validation, so even a deploy-time backend version skew fails loudly at the parse step rather than corrupting state.
+A backend rename becomes a TypeScript compilation error in the frontend the next time `gen:api` runs — not a silent runtime breakage discovered weeks later. The schema is the single source of truth and there's exactly one path through which frontend code reaches the API. Generated zod schemas double as runtime validation, so even a deploy-time backend version skew fails loudly at the parse step rather than corrupting state.
 
 ## Alternatives considered
 

@@ -18,7 +18,8 @@ This is the umbrella principle behind several specific ADRs:
 
 - **ADR 0006** — Old REST URLs return `404`; breaking the frontend is intentional and forces migration to the clean shape.
 - **ADR 0015** — Consumers stay strict; data is repaired rather than read through a fallback.
-- **ADR 0016** — Renamed identifiers remove the old name in the same commit, with no aliases.
+
+Renames are the most common application: a rename PR removes the old name in the same commit it adds the new one — no `getattr` shims, no aliased re-exports, no DB column kept "for safety," no serializer accepting the old key. Tests break loudly on any straggler.
 
 ## Alternatives considered
 

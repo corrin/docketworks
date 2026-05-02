@@ -20,4 +20,4 @@ A cross-cutting change (API field + frontend consumer) lands in one commit, runs
 
 ## Consequences
 
-One PR can change backend + frontend together; CI runs both on the same commit; `deploy.sh` ships everything. Cost: subtree history is flattened into the parent — contributors who only worked on the frontend lose the ability to clone just that repo; `git subtree pull/push` semantics are awkward if we ever want to split it back out.
+One PR can change backend + frontend together; CI runs both on the same commit; `deploy.sh` ships everything. The merged shape also lets frontend tooling read the backend `.env` at `../.env` and derive frontend URL + allowed-hosts from `APP_DOMAIN` at build time — `VITE_FRONTEND_BASE_URL` and `VITE_ALLOWED_HOSTS` no longer exist as separate values that drift across two files. Cost: subtree history is flattened into the parent — contributors who only worked on the frontend lose the ability to clone just that repo; `git subtree pull/push` semantics are awkward if we ever want to split it back out.

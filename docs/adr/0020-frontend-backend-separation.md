@@ -10,10 +10,8 @@ In repos where backend and frontend share a team, the boundary drifts. Backend s
 
 Two rules:
 
-1. If a value involves the database, business rules, or external systems → **backend**. Frontend reads it as a number/string, never recomputes it.
+1. If a value involves the database, business rules, or external systems → **backend**. Frontend reads it as a number or string, never recomputes it.
 2. If a value is static UI constants, layout, or ergonomics → **frontend**. Backend never ships dropdown labels, never returns HTML, never shapes responses around what one UI happens to render.
-
-Forbidden: backend serializers for static UI constants; backend views returning HTML or UI-specific structures; frontend making business-logic decisions or recomputing calculated values; frontend bypassing backend validation.
 
 ## Why
 
