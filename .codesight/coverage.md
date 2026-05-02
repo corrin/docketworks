@@ -1,6 +1,6 @@
 # Test Coverage
 
-> **24%** of routes and models are covered by tests
+> **23%** of routes and models are covered by tests
 > 131 test files found
 
 ## Covered Routes
@@ -40,4 +40,3 @@
 - XeroAccount
 - XeroApp
 - XeroPayItem
-- XeroToken

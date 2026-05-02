@@ -11,7 +11,6 @@ from .models import (
     XeroApp,
     XeroError,
     XeroPayItem,
-    XeroToken,
 )
 from .models.settings_metadata import COMPANY_DEFAULTS_READ_ONLY_FIELDS
 
@@ -27,12 +26,6 @@ def _build_logo_url(
     if not request:
         return field_file.url
     return request.build_absolute_uri(field_file.url)
-
-
-class XeroTokenSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = XeroToken
-        fields = "__all__"
 
 
 class AIProviderSerializer(serializers.ModelSerializer):

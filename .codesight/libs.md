@@ -594,7 +594,6 @@
 - `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
 - `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
 - `apps/workflow/models/xero_sync_cursor.py` — class XeroSyncCursor
-- `apps/workflow/models/xero_token.py` — class XeroToken
 - `apps/workflow/permissions.py` — class F
 - `apps/workflow/scheduler.py` — function get_scheduler: () -> BackgroundScheduler, function stop_scheduler: () -> bool
 - `apps/workflow/scheduler_jobs.py`
@@ -602,13 +601,13 @@
   - function xero_regular_sync_job: () -> None
   - function xero_30_day_sync_job: () -> None
 - `apps/workflow/serializers.py`
-  - class XeroTokenSerializer
   - class AIProviderSerializer
   - class CompanyDefaultsSerializer
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
   - class XeroAppSerializer
-  - _...24 more_
+  - class AIProviderCreateUpdateSerializer
+  - _...23 more_
 - `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]

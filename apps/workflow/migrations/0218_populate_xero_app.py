@@ -4,9 +4,15 @@ On a fresh install (no env, no token) the table stays empty and the user
 adds the first row via the UI. On an existing install, this produces one
 row labeled "Primary" marked is_active=True with the credentials and
 tokens that were previously in .env / XeroToken.
+
+Env vars are read directly from os.environ rather than settings — the
+follow-up migration (0219) drops XeroToken and the same-PR settings.py
+cleanup removes the XERO_CLIENT_* settings entries. Reading os.environ
+keeps the migration replayable on a clean checkout.
 """
 
-from django.conf import settings
+import os
+
 from django.db import migrations
 
 
@@ -14,9 +20,9 @@ def populate_from_legacy(apps, schema_editor):
     XeroApp = apps.get_model("workflow", "XeroApp")
     XeroToken = apps.get_model("workflow", "XeroToken")
 
-    client_id = getattr(settings, "XERO_CLIENT_ID", None)
-    client_secret = getattr(settings, "XERO_CLIENT_SECRET", None)
-    redirect_uri = getattr(settings, "XERO_REDIRECT_URI", None)
+    client_id = os.environ.get("XERO_CLIENT_ID")
+    client_secret = os.environ.get("XERO_CLIENT_SECRET")
+    redirect_uri = os.environ.get("XERO_REDIRECT_URI")
 
     legacy = XeroToken.objects.first()
 

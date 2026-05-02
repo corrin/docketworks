@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Schema shapes and field types extracted via AST. Read the actual schema source files before writing migrations or query logic.
 
-**django** — 45 models
+**django** — 44 models
 
 ### Invoice
 
@@ -717,15 +717,6 @@ pk: `id` (uuid) · fk: pay_run_id
 
 - `entity_key`: string _(unique)_
 - `last_modified`: timestamp
-
-### XeroToken
-
-- `tenant_id`: string _(unique)_
-- `token_type`: string
-- `access_token`: string
-- `refresh_token`: string
-- `expires_at`: timestamp
-- `scope`: string _(default)_
 
 ## Schema Source Files
 

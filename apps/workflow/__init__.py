@@ -61,7 +61,6 @@ try:
             XeroSseEventSerializer,
             XeroSyncInfoResponseSerializer,
             XeroSyncStartResponseSerializer,
-            XeroTokenSerializer,
             XeroTriggerSyncResponseSerializer,
         )
         from .tasks import celery_health_check, process_xero_webhook_event
@@ -120,7 +119,6 @@ __all__ = [
     "XeroSseEventSerializer",
     "XeroSyncInfoResponseSerializer",
     "XeroSyncStartResponseSerializer",
-    "XeroTokenSerializer",
     "XeroTriggerSyncResponseSerializer",
     "XeroValidationError",
     "XeroWebhookView",

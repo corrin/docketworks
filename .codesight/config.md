@@ -63,11 +63,11 @@
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
 - `XERO_AUTOMATED_DAY_FLOOR` **required** — docketworks/settings.py
-- `XERO_CLIENT_ID` (has default) — .env.example
-- `XERO_CLIENT_SECRET` (has default) — .env.example
+- `XERO_CLIENT_ID` (has default) — .env
+- `XERO_CLIENT_SECRET` (has default) — .env
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example
 - `XERO_PASSWORD` (has default) — frontend/.env.example
-- `XERO_REDIRECT_URI` (has default) — .env.example
+- `XERO_REDIRECT_URI` (has default) — .env
 - `XERO_SCOPES` **required** — docketworks/settings.py
 - `XERO_SYNC_PROJECTS` (has default) — .env.example
 - `XERO_USERNAME` (has default) — frontend/.env.example

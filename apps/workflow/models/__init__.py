@@ -11,7 +11,6 @@ from .xero_journal import XeroJournal, XeroJournalLineItem
 from .xero_pay_item import XeroPayItem
 from .xero_payroll import XeroPayRun, XeroPaySlip
 from .xero_sync_cursor import XeroSyncCursor
-from .xero_token import XeroToken
 
 __all__ = [
     "AIProvider",
@@ -28,5 +27,4 @@ __all__ = [
     "XeroPayRun",
     "XeroPaySlip",
     "XeroSyncCursor",
-    "XeroToken",
 ]

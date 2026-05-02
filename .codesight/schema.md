@@ -587,11 +587,3 @@
 ### XeroSyncCursor
 - entity_key: string (unique)
 - last_modified: timestamp
-
-### XeroToken
-- tenant_id: string (unique)
-- token_type: string
-- access_token: string
-- refresh_token: string
-- expires_at: timestamp
-- scope: string (default)

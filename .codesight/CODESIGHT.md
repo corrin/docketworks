@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 45 models | 183 components | 372 lib files | 70 env vars | 11 middleware | 2 events | 24% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,600 tokens. **Saves ~213,800 tokens per conversation.**
+> 95 routes | 44 models | 183 components | 371 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~243,900 tokens. **Saves ~213,200 tokens per conversation.**
 
 ---
 
@@ -696,14 +696,6 @@
 ### XeroSyncCursor
 - entity_key: string (unique)
 - last_modified: timestamp
-
-### XeroToken
-- tenant_id: string (unique)
-- token_type: string
-- access_token: string
-- refresh_token: string
-- expires_at: timestamp
-- scope: string (default)
 
 ---
 
@@ -1491,7 +1483,6 @@
 - `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
 - `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
 - `apps/workflow/models/xero_sync_cursor.py` — class XeroSyncCursor
-- `apps/workflow/models/xero_token.py` — class XeroToken
 - `apps/workflow/permissions.py` — class F
 - `apps/workflow/scheduler.py` — function get_scheduler: () -> BackgroundScheduler, function stop_scheduler: () -> bool
 - `apps/workflow/scheduler_jobs.py`
@@ -1499,13 +1490,13 @@
   - function xero_regular_sync_job: () -> None
   - function xero_30_day_sync_job: () -> None
 - `apps/workflow/serializers.py`
-  - class XeroTokenSerializer
   - class AIProviderSerializer
   - class CompanyDefaultsSerializer
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
   - class XeroAppSerializer
-  - _...24 more_
+  - class AIProviderCreateUpdateSerializer
+  - _...23 more_
 - `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
@@ -2024,11 +2015,11 @@
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
 - `XERO_AUTOMATED_DAY_FLOOR` **required** — docketworks/settings.py
-- `XERO_CLIENT_ID` (has default) — .env.example
-- `XERO_CLIENT_SECRET` (has default) — .env.example
+- `XERO_CLIENT_ID` (has default) — .env
+- `XERO_CLIENT_SECRET` (has default) — .env
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example
 - `XERO_PASSWORD` (has default) — frontend/.env.example
-- `XERO_REDIRECT_URI` (has default) — .env.example
+- `XERO_REDIRECT_URI` (has default) — .env
 - `XERO_SCOPES` **required** — docketworks/settings.py
 - `XERO_SYNC_PROJECTS` (has default) — .env.example
 - `XERO_USERNAME` (has default) — frontend/.env.example
@@ -2113,7 +2104,7 @@
 
 # Test Coverage
 
-> **24%** of routes and models are covered by tests
+> **23%** of routes and models are covered by tests
 > 131 test files found
 
 ## Covered Routes
@@ -2153,7 +2144,6 @@
 - XeroAccount
 - XeroApp
 - XeroPayItem
-- XeroToken
 
 ---
 

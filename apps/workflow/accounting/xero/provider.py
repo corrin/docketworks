@@ -116,9 +116,17 @@ class XeroAccountingProvider:
         return refresh_token()
 
     def disconnect(self) -> None:
-        from apps.workflow.models import XeroToken
+        from apps.workflow.api.xero.active_app import (
+            NoActiveXeroApp,
+            get_active_app,
+            wipe_tokens_and_quota,
+        )
 
-        XeroToken.objects.all().delete()
+        try:
+            active = get_active_app()
+        except NoActiveXeroApp:
+            return
+        wipe_tokens_and_quota(active)
 
     # --- Contacts ---
 

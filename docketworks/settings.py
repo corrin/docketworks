@@ -697,9 +697,11 @@ LOGGING = {
 
 # Custom settings
 ACCOUNTING_BACKEND = os.getenv("ACCOUNTING_BACKEND", "xero")
-XERO_CLIENT_ID = os.getenv("XERO_CLIENT_ID", "")
-XERO_CLIENT_SECRET = os.getenv("XERO_CLIENT_SECRET", "")
-XERO_REDIRECT_URI = os.getenv("XERO_REDIRECT_URI", "")
+# XERO_CLIENT_ID / XERO_CLIENT_SECRET / XERO_REDIRECT_URI used to live here.
+# They are now stored on the XeroApp model (one row per registered Xero app)
+# and managed via the /api/workflow/xero-apps/ UI — which lets a user swap
+# between two registered apps without restarting any service. See ADR? and
+# docs/plans/2026-05-03-xero-app-credentials-quota.md.
 XERO_DEFAULT_USER_ID = os.getenv("XERO_DEFAULT_USER_ID", "")
 XERO_WEBHOOK_KEY = os.getenv("XERO_WEBHOOK_KEY", "")
 XERO_SYNC_PROJECTS = os.getenv("XERO_SYNC_PROJECTS", "False").lower() == "true"
