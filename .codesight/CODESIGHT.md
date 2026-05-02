@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 45 models | 183 components | 371 lib files | 70 env vars | 11 middleware | 2 events | 24% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,300 tokens. **Saves ~213,600 tokens per conversation.**
+> 95 routes | 45 models | 183 components | 372 lib files | 70 env vars | 11 middleware | 2 events | 24% test coverage
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,600 tokens. **Saves ~213,800 tokens per conversation.**
 
 ---
 
@@ -1372,6 +1372,13 @@
 - `apps/workflow/api/reports/payroll_reconciliation.py` — class PayrollReconciliationReport, class PayrollDateRangeView
 - `apps/workflow/api/reports/pnl.py` — class CompanyProfitAndLossReport
 - `apps/workflow/api/reports/utils.py` — function format_period_label: (period_start, period_end)
+- `apps/workflow/api/xero/active_app.py`
+  - function get_active_app: () -> XeroApp
+  - function swap_active: (app_id) -> XeroApp
+  - function wipe_tokens_and_quota: (app) -> None
+  - function build_api_client: (app) -> ApiClient
+  - function get_active_client: () -> ApiClient
+  - class NoActiveXeroApp
 - `apps/workflow/api/xero/auth.py`
   - function get_token: () -> Optional[Dict[str, Any]]
   - function store_token: (token, Any]) -> None
@@ -2107,7 +2114,7 @@
 # Test Coverage
 
 > **24%** of routes and models are covered by tests
-> 129 test files found
+> 130 test files found
 
 ## Covered Routes
 

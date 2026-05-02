@@ -5,6 +5,14 @@ try:
     from django.apps import apps
 
     if apps.ready:
+        from .active_app import (
+            NoActiveXeroApp,
+            build_api_client,
+            get_active_app,
+            get_active_client,
+            swap_active,
+            wipe_tokens_and_quota,
+        )
         from .auth import (
             exchange_code_for_token,
             get_authentication_url,
@@ -131,7 +139,9 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "NoActiveXeroApp",
     "RateLimitedRESTClient",
+    "build_api_client",
     "bulk_create_contacts_in_xero",
     "clean_json",
     "create_client_contact_in_xero",
@@ -150,6 +160,8 @@ __all__ = [
     "fetch_xero_entity_lookup",
     "fix_long_item_codes",
     "generate_item_code",
+    "get_active_app",
+    "get_active_client",
     "get_all_pay_slips_for_sync",
     "get_all_timesheets_for_week",
     "get_all_xero_contacts",
@@ -200,6 +212,7 @@ __all__ = [
     "set_invoice_or_bill_fields",
     "set_journal_fields",
     "store_token",
+    "swap_active",
     "sync_accounts",
     "sync_all_local_stock_to_xero",
     "sync_all_xero_data",
@@ -235,4 +248,5 @@ __all__ = [
     "update_time_entries",
     "validate_pay_items_for_week",
     "validate_stock_for_xero",
+    "wipe_tokens_and_quota",
 ]
