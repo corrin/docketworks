@@ -459,17 +459,9 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
                 )
                 continue
 
-            stock_item.xero_id = existing.item_id
-            stock_item.xero_last_modified = timezone.now()
-            stock_item.xero_last_synced = timezone.now()
-            stock_item.save(
-                update_fields=["xero_id", "xero_last_modified", "xero_last_synced"]
-            )
-            logger.info(
-                f"Linked local stock {stock_item.id} to existing Xero item "
-                f"{stock_item.xero_id} by Code"
-            )
-            payload["ItemID"] = stock_item.xero_id
+            # Don't persist xero_id yet — if the batched upsert below fails,
+            # the row stays in the retry queryset (xero_id__isnull=True).
+            payload["ItemID"] = existing.item_id
 
         items_to_upsert.append((stock_item, payload))
 

@@ -37,18 +37,29 @@ DAY_WARNING_THRESHOLDS = (
 )
 QUOTA_CACHE_KEY = "xero_quota_snapshot"
 QUOTA_CACHE_TIMEOUT_SECONDS = 60 * 60 * 24
+# Xero's day quota is a rolling 24h window — old calls age out continuously.
+# A snapshot saying day_remaining <= floor from N hours ago is stale: the
+# rolling window has freed roughly (N/24) * 5000 calls since it was written.
+# Treat snapshots older than this as unknown so the next call probes Xero
+# fresh; without this, one 429 pins the gate closed in this process for the
+# remaining 23h+ of cache TTL.
+QUOTA_STALE_AFTER_SECONDS = 30 * 60
 
 
 def quota_floor_breached(floor: int) -> bool:
-    """Return True iff a snapshot reports day_remaining at or below ``floor``.
+    """Return True iff a *fresh* snapshot reports day_remaining at or below
+    ``floor``.
 
-    Reads the quota snapshot maintained by ``RateLimitedRESTClient`` after every
-    Xero API call. A missing snapshot or a missing ``day_remaining`` value
-    returns False — automated callers fall through and let the next response
-    populate the cache.
+    Reads the quota snapshot maintained by ``RateLimitedRESTClient`` after
+    every Xero API call. A missing snapshot, a missing ``day_remaining``, or
+    a snapshot older than ``QUOTA_STALE_AFTER_SECONDS`` returns False —
+    automated callers fall through and let the next response refresh the
+    cache.
     """
     snapshot = cache.get(QUOTA_CACHE_KEY)
     if not snapshot:
+        return False
+    if time.time() - snapshot["timestamp"] > QUOTA_STALE_AFTER_SECONDS:
         return False
     day_remaining = snapshot.get("day_remaining")
     if day_remaining is None:
