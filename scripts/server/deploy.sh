@@ -106,13 +106,30 @@ log "=========================================="
 log "Pulling latest from GitHub into local repo..."
 sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 
-# --- Converge system-level dependencies ---
-# server-setup.sh is idempotent: every install block is dpkg-guarded, and the
-# heavy unconditional steps (apt update, apt upgrade) have been removed. Running
-# it on every deploy means a new system dep added in any future PR (e.g. a new
-# apt package or systemd-managed service) lands on every host automatically.
-log "Converging system-level dependencies via server-setup.sh..."
-bash "$SCRIPT_DIR/server-setup.sh"
+# --- Converge system-level dependencies (only when inputs change) ---
+# server-setup.sh is idempotent, but its no-op path still scans every dpkg
+# and `command -v` guard. ~80% of PRs touch nothing it reads. Hash the
+# files server-setup.sh actually consumes (itself, the certbot hooks it
+# copies, and the logrotate template); skip the re-run when the hash
+# matches the last successful run. Adding a new file to server-setup.sh's
+# inputs requires adding it here too — review-visible because it lives
+# next to the bash invocation.
+SERVER_SETUP_INPUTS=(
+    "$SCRIPT_DIR/server-setup.sh"
+    "$SCRIPT_DIR/certbot-dreamhost-auth.sh"
+    "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh"
+    "$SCRIPT_DIR/templates/logrotate-docketworks.conf"
+)
+SERVER_SETUP_HASH="$(sha256sum "${SERVER_SETUP_INPUTS[@]}" | sha256sum | awk '{print $1}')"
+SERVER_SETUP_STAMP="/opt/docketworks/.server-setup-hash"
+if [[ -f "$SERVER_SETUP_STAMP" && "$(cat "$SERVER_SETUP_STAMP")" == "$SERVER_SETUP_HASH" ]]; then
+    log "server-setup.sh inputs unchanged since last successful run; skipping convergence."
+else
+    log "Converging system-level dependencies via server-setup.sh..."
+    bash "$SCRIPT_DIR/server-setup.sh"
+    echo "$SERVER_SETUP_HASH" > "$SERVER_SETUP_STAMP"
+    log "  Stamped $SERVER_SETUP_STAMP with current input hash."
+fi
 
 # --- Per-instance prepare: clean-tree check, pre-deploy backup, git pull ---
 for instance in "${TARGETS[@]}"; do
