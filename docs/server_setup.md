@@ -32,18 +32,50 @@ Run the automated base setup script as `ubuntu` with sudo. This installs all
 system dependencies, creates the `docketworks` user, configures the firewall,
 and sets up the base Nginx config.
 
+Every box needs a Dreamhost API key (all customer DNS lives on Dreamhost,
+so DNS-01 challenges work uniformly). Every box also needs an explicit
+decision about which domains it serves certs for: one or more
+`--cert-domain` flags, or `--no-cert-domain` for a DR-posture box.
+
 ```bash
-# First run on a UAT server (Let's Encrypt wildcard via Dreamhost DNS):
+# First install on UAT (wildcard cert covering every *-uat.docketworks.site):
 sudo ./scripts/server/server-setup.sh \
     --dreamhost-key   "$DREAMHOST_API_KEY" \
-    --google-maps-key "$GOOGLE_MAPS_API_KEY"
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --cert-domain     '*.docketworks.site'
 
-# First run on a prod server (no wildcard cert; DNS is elsewhere):
-sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key "$GOOGLE_MAPS_API_KEY"
+# Same UAT box also serving a client-branded URL (additional cert):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --cert-domain     '*.docketworks.site' \
+    --cert-domain     uat-office.morrissheetmetal.co.nz
 
-# Re-run on an already-configured server (reads keys from saved files):
+# First install on a prod box (one cert for the customer FQDN):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --cert-domain     office.heuserlimited.com
+
+# First install on a DR box (no certs obtained):
+sudo ./scripts/server/server-setup.sh \
+    --dreamhost-key   "$DREAMHOST_API_KEY" \
+    --google-maps-key "$GOOGLE_MAPS_API_KEY" \
+    --no-cert-domain
+
+# Re-run on an already-configured server (reads everything from saved files):
 sudo ./scripts/server/server-setup.sh
 ```
+
+The Dreamhost key, Google Maps key, and cert-domain list are persisted
+on first install at `/etc/letsencrypt/dreamhost-api-key.txt`,
+`/opt/docketworks/shared.env`, and `/etc/letsencrypt/cert-domains.txt`
+respectively. Re-runs read all three from disk, so `deploy.sh` can
+re-invoke `server-setup.sh` with no flags on every deploy.
+
+To add or remove a single cert-domain on an already-configured server,
+edit `/etc/letsencrypt/cert-domains.txt` (one FQDN per line; blanks and
+`#`-comments ignored) and re-run `server-setup.sh`.
 
 The script logs every action to `/var/log/docketworks-setup.log` with timestamps,
 and writes a manifest of installed software to `/opt/docketworks/server-manifest.txt`.
@@ -64,16 +96,14 @@ It is **idempotent** — safe to re-run on an already-configured server.
 - Poetry (for the `docketworks` system user)
 - iptables rules for ports 80/443 (Oracle Cloud)
 
-### Interactive steps during the script
+### What happens on first install
 
-The script will pause and prompt you for:
+The script:
 
-1. **SSH deploy key** — generates the key, displays the public key, and waits for you to add it as a deploy key in GitHub (Settings > Deploy keys)
-2. **Dreamhost API key** — prompts you to paste your API key (get one from `panel.dreamhost.com/?tree=home.api` with `dns-*` permissions)
-
-The script then automatically:
-- Obtains a wildcard SSL cert via Dreamhost DNS API (~2-4 min for DNS propagation)
-- Configures and starts Nginx with the SSL cert
+- Persists `--dreamhost-key` to `/etc/letsencrypt/dreamhost-api-key.txt`.
+- Persists every `--cert-domain` (or the `--no-cert-domain` decision) to `/etc/letsencrypt/cert-domains.txt`.
+- Iterates over the cert-domains list and obtains each cert via Dreamhost DNS-01 (~2-4 min per cert for DNS propagation). Wildcards include the apex automatically.
+- Configures and starts Nginx with the first cert as the default-server fallback (DR boxes get a port-80-only default).
 
 Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 
