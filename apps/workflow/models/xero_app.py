@@ -23,6 +23,11 @@ class XeroApp(models.Model):
     client_id = models.CharField(max_length=128, unique=True)
     client_secret = models.CharField(max_length=256)
     redirect_uri = models.CharField(max_length=512)
+    # Xero webhook signing key — set per-app in Xero's developer portal.
+    # Empty string means the app cannot verify webhooks; the verifier loops
+    # over every non-empty webhook_key and accepts if any HMAC matches, so
+    # both apps in a rotation pair must each have their own key set.
+    webhook_key = models.CharField(max_length=128, blank=True, default="")
 
     is_active = models.BooleanField(default=False)
 

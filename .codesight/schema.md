@@ -493,6 +493,7 @@
 - client_id: string (unique)
 - client_secret: string
 - redirect_uri: string
+- webhook_key: string (default)
 - is_active: boolean (default)
 - tenant_id: string (nullable)
 - token_type: string (nullable)

@@ -15,10 +15,11 @@ sudo scripts/server/instance.sh prepare-config <client> prod
 ```
 
 Fill in `/opt/docketworks/instances/<client>-prod/credentials.env`:
-- Xero Webhook Key (from Phase 2b of client_onboarding.md). The Client ID and Secret go into the `xero_apps.json` fixture in Step 2.5, not `credentials.env`.
 - XERO_DEFAULT_USER_ID (leave blank for now — set after Step 7)
 - GCP_CREDENTIALS path (from Phase 3a of client_onboarding.md)
 - EMAIL_HOST_USER + EMAIL_HOST_PASSWORD
+
+(The Xero Client ID, Client Secret, and Webhook Key go into the `xero_apps.json` fixture in Step 2.5, not `credentials.env`.)
 
 ## Step 2: Create Instance
 
@@ -32,7 +33,7 @@ Creates: OS user, database, .env, code clone, frontend build, migrations, admin 
 
 ## Step 2.5: Load Xero App Credentials
 
-Copy the example fixture and fill in the client's prod Xero app's Client ID, Client Secret, and Redirect URI (from Phase 2b of client_onboarding.md). Set `label` to `<client>-prod xero`.
+Copy the example fixture and fill in the client's prod Xero app's Client ID, Client Secret, Redirect URI, and Webhook Key (all from Phase 2b of client_onboarding.md). Set `label` to `<client>-prod xero`.
 
 ```bash
 INSTANCE_DIR=/opt/docketworks/instances/<client>-prod/docketworks

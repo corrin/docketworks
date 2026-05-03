@@ -19,9 +19,10 @@ sudo scripts/server/instance.sh prepare-config <client> uat
 ```
 
 Fill in `/opt/docketworks/instances/<client>-uat/credentials.env`:
-- Xero Webhook Key for the **Xero Demo Company** app (the Client ID and Secret go into the `xero_apps.json` fixture in Step 3.5, not `credentials.env`)
 - GCP_CREDENTIALS — shared dev service account key
 - EMAIL credentials
+
+(The Xero Client ID, Client Secret, and Webhook Key for the **Xero Demo Company** app go into the `xero_apps.json` fixture in Step 3.5, not `credentials.env`.)
 
 ## Step 2: Create Instance
 
@@ -48,7 +49,7 @@ scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_compan
 
 ## Step 3.5: Load Xero App Credentials
 
-Copy the example fixture and fill in the **Xero Demo Company** app's Client ID, Client Secret, and Redirect URI. Set `label` to something identifiable like `<client>-uat xero`.
+Copy the example fixture and fill in the **Xero Demo Company** app's Client ID, Client Secret, Redirect URI, and Webhook Key. Set `label` to something identifiable like `<client>-uat xero`.
 
 ```bash
 INSTANCE_DIR=/opt/docketworks/instances/<client>-uat/docketworks

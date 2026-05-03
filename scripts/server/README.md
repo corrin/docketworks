@@ -74,27 +74,29 @@ After creation, the instance is live at `https://mycompany-uat.docketworks.site`
 
 ## Per-Instance Xero Setup
 
-The credentials file needs seven values:
+The credentials file needs:
 
 ```
-XERO_CLIENT_ID=
-XERO_CLIENT_SECRET=
-XERO_WEBHOOK_KEY=
 XERO_DEFAULT_USER_ID=
 GCP_CREDENTIALS=
 EMAIL_HOST_USER=
 EMAIL_HOST_PASSWORD=
 ```
 
+Xero client_id, client_secret, and webhook_key live on the XeroApp model
+(loaded from `apps/workflow/fixtures/xero_apps.json` or set via the Xero
+Apps admin UI), not in the credentials file.
+
 How to get them:
 
 1. **Create a Xero app** at https://developer.xero.com/app/manage
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
-3. **Copy Client ID and Client Secret** into the credentials file
-4. **Create a webhook subscription** in the Xero app, copy the webhook key
-5. **XERO_DEFAULT_USER_ID:** Create the instance first (it will work without Xero initially), create a Staff member in the app's admin, then copy that staff member's UUID into the credentials file and re-run create
-6. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
-7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
+3. **Copy Client ID, Client Secret, and webhook signing key** into either
+   `apps/workflow/fixtures/xero_apps.json` (copy from `.example` first)
+   or paste them via Admin → Xero Apps after deploy.
+4. **XERO_DEFAULT_USER_ID:** Create the instance first (it will work without Xero initially), create a Staff member in the app's admin, then copy that staff member's UUID into the credentials file and re-run create
+5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
+6. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
 
 ## Deploying Updates
 

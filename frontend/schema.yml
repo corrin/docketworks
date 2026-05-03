@@ -15361,14 +15361,18 @@ components:
       description: |-
         List/detail serializer for XeroApp.
 
-        client_secret is write-only — never returned. access_token / refresh_token
-        are not surfaced at all; instead a derived has_tokens boolean indicates
-        whether the row has been authorised.
+        client_secret and webhook_key are write-only — never returned. The
+        webhook signing key is comparable in sensitivity to the client secret
+        (anyone holding it can forge webhook deliveries that we'd verify as
+        authentic), so it gets the same treatment. access_token /
+        refresh_token are not surfaced at all; instead a derived has_tokens
+        boolean indicates whether the row has been authorised.
 
-        client_secret is REQUIRED on create (no secret = the row can never
-        complete OAuth, which is a configuration footgun) but OPTIONAL on
+        client_secret and webhook_key are REQUIRED on create (a row missing
+        either is inert: no secret = OAuth never completes, no webhook_key =
+        webhooks from this app's deliveries 401 forever) but OPTIONAL on
         update (so PATCH can change label/client_id/redirect_uri without
-        re-supplying the secret each time).
+        re-supplying secrets each time).
       properties:
         label:
           type: string
@@ -15386,6 +15390,10 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        webhook_key:
+          type: string
+          writeOnly: true
+          minLength: 1
     PayRunListItem:
       type: object
       description: Serializer for a pay run in the list response.
@@ -19962,14 +19970,18 @@ components:
       description: |-
         List/detail serializer for XeroApp.
 
-        client_secret is write-only — never returned. access_token / refresh_token
-        are not surfaced at all; instead a derived has_tokens boolean indicates
-        whether the row has been authorised.
+        client_secret and webhook_key are write-only — never returned. The
+        webhook signing key is comparable in sensitivity to the client secret
+        (anyone holding it can forge webhook deliveries that we'd verify as
+        authentic), so it gets the same treatment. access_token /
+        refresh_token are not surfaced at all; instead a derived has_tokens
+        boolean indicates whether the row has been authorised.
 
-        client_secret is REQUIRED on create (no secret = the row can never
-        complete OAuth, which is a configuration footgun) but OPTIONAL on
+        client_secret and webhook_key are REQUIRED on create (a row missing
+        either is inert: no secret = OAuth never completes, no webhook_key =
+        webhooks from this app's deliveries 401 forever) but OPTIONAL on
         update (so PATCH can change label/client_id/redirect_uri without
-        re-supplying the secret each time).
+        re-supplying secrets each time).
       properties:
         id:
           type: string
@@ -20051,14 +20063,18 @@ components:
       description: |-
         List/detail serializer for XeroApp.
 
-        client_secret is write-only — never returned. access_token / refresh_token
-        are not surfaced at all; instead a derived has_tokens boolean indicates
-        whether the row has been authorised.
+        client_secret and webhook_key are write-only — never returned. The
+        webhook signing key is comparable in sensitivity to the client secret
+        (anyone holding it can forge webhook deliveries that we'd verify as
+        authentic), so it gets the same treatment. access_token /
+        refresh_token are not surfaced at all; instead a derived has_tokens
+        boolean indicates whether the row has been authorised.
 
-        client_secret is REQUIRED on create (no secret = the row can never
-        complete OAuth, which is a configuration footgun) but OPTIONAL on
+        client_secret and webhook_key are REQUIRED on create (a row missing
+        either is inert: no secret = OAuth never completes, no webhook_key =
+        webhooks from this app's deliveries 401 forever) but OPTIONAL on
         update (so PATCH can change label/client_id/redirect_uri without
-        re-supplying the secret each time).
+        re-supplying secrets each time).
       properties:
         label:
           type: string
@@ -20076,6 +20092,10 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        webhook_key:
+          type: string
+          writeOnly: true
+          minLength: 1
       required:
         - client_id
         - label

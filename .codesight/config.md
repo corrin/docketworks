@@ -71,7 +71,7 @@
 - `XERO_SCOPES` **required** — docketworks/settings.py
 - `XERO_SYNC_PROJECTS` (has default) — .env.example
 - `XERO_USERNAME` (has default) — frontend/.env.example
-- `XERO_WEBHOOK_KEY` (has default) — .env.example
+- `XERO_WEBHOOK_KEY` (has default) — .env
 
 ## Config Files
 

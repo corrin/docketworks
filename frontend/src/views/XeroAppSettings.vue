@@ -150,6 +150,22 @@
             </div>
           </div>
 
+          <div class="grid grid-cols-4 items-center gap-4">
+            <Label for="webhook_key" class="text-right">Webhook Key</Label>
+            <div class="col-span-3">
+              <Input
+                id="webhook_key"
+                type="password"
+                v-model="form.webhook_key"
+                :required="!isEditing"
+                :placeholder="
+                  isEditing ? 'Leave blank to keep unchanged' : 'Enter webhook signing key'
+                "
+                maxlength="128"
+              />
+            </div>
+          </div>
+
           <div
             v-if="credentialChangeWarning"
             class="rounded border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800"
@@ -255,6 +271,7 @@ interface FormState {
   client_id: string
   client_secret: string
   redirect_uri: string
+  webhook_key: string
 }
 
 const emptyForm: FormState = {
@@ -262,6 +279,7 @@ const emptyForm: FormState = {
   client_id: '',
   client_secret: '',
   redirect_uri: '',
+  webhook_key: '',
 }
 
 const form = reactive<FormState>({ ...emptyForm })
@@ -302,6 +320,7 @@ function resetForm(): void {
   form.client_id = emptyForm.client_id
   form.client_secret = emptyForm.client_secret
   form.redirect_uri = defaultRedirectUri()
+  form.webhook_key = emptyForm.webhook_key
   originalClientId.value = ''
   formError.value = null
 }
@@ -318,6 +337,7 @@ function openEditModal(row: XeroApp): void {
   form.client_id = row.client_id
   form.client_secret = ''
   form.redirect_uri = row.redirect_uri
+  form.webhook_key = ''
   originalClientId.value = row.client_id
   formError.value = null
   isFormOpen.value = true
@@ -340,6 +360,7 @@ async function onSubmit(): Promise<void> {
         client_id: string
         redirect_uri: string
         client_secret?: string
+        webhook_key?: string
       } = {
         label: form.label.trim(),
         client_id: form.client_id.trim(),
@@ -348,6 +369,10 @@ async function onSubmit(): Promise<void> {
       const secret = form.client_secret.trim()
       if (secret.length > 0) {
         payload.client_secret = secret
+      }
+      const webhookKey = form.webhook_key.trim()
+      if (webhookKey.length > 0) {
+        payload.webhook_key = webhookKey
       }
       await api.workflow_xero_apps_partial_update(payload, {
         params: { id: editingId.value },
@@ -359,6 +384,7 @@ async function onSubmit(): Promise<void> {
         client_id: form.client_id.trim(),
         client_secret: form.client_secret.trim(),
         redirect_uri: form.redirect_uri.trim(),
+        webhook_key: form.webhook_key.trim(),
       })
       toast.success('Xero app created.')
     }

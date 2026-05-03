@@ -20,12 +20,29 @@ from django.test import RequestFactory, TestCase, TransactionTestCase, override_
 from django.urls import reverse
 
 from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models import XeroApp
 from apps.workflow.tasks import process_xero_webhook_event
 from apps.workflow.xero_webhooks import XeroWebhookView
 from docketworks.celery import app as celery_app
 
 WEBHOOK_KEY = "unit-test-webhook-key"
 TENANT_ID = "tenant-abc-123"
+
+
+def _make_xero_app(*, webhook_key: str = WEBHOOK_KEY, label: str = "Test") -> XeroApp:
+    """Minimal XeroApp row sufficient for webhook signature verification.
+
+    Webhook verification only reads webhook_key, so the OAuth fields can
+    be any non-empty placeholder. is_active is irrelevant — the verifier
+    accepts any app's signature (rotation pattern).
+    """
+    return XeroApp.objects.create(
+        label=label,
+        client_id=f"client-id-{label}",
+        client_secret="secret",
+        redirect_uri="https://example.test/callback/",
+        webhook_key=webhook_key,
+    )
 
 
 def _sign(body: bytes, key: str = WEBHOOK_KEY) -> str:
@@ -50,13 +67,13 @@ def _event(
     }
 
 
-@override_settings(XERO_WEBHOOK_KEY=WEBHOOK_KEY)
 class XeroWebhookHandlerTests(TestCase):
     """The HTTP layer — must return 200 fast and dispatch via Celery."""
 
     def setUp(self) -> None:
         self.factory = RequestFactory()
         self.url = reverse("xero_webhook")
+        _make_xero_app()
 
     def _post(self, body_bytes: bytes, *, signature: str | None = None):
         request = self.factory.post(
@@ -277,7 +294,6 @@ def _redis_reachable() -> bool:
     "Redis not reachable on 127.0.0.1:6379 — broker integration tests skipped",
 )
 @override_settings(
-    XERO_WEBHOOK_KEY=WEBHOOK_KEY,
     CELERY_TASK_ALWAYS_EAGER=False,
     CELERY_TASK_EAGER_PROPAGATES=False,
     CELERY_BROKER_URL=TEST_BROKER_URL,
@@ -328,6 +344,7 @@ class BrokerRoundtripTests(TransactionTestCase):
     def setUp(self) -> None:
         self.factory = RequestFactory()
         self.url = reverse("xero_webhook")
+        _make_xero_app()
         # Safety: refuse to run if we'd be writing to dev's broker.
         assert celery_app.conf.broker_url == TEST_BROKER_URL, (
             f"Refusing to run broker test — broker_url is "

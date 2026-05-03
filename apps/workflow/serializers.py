@@ -78,25 +78,37 @@ class XeroPayItemSerializer(serializers.ModelSerializer):
 class XeroAppSerializer(serializers.ModelSerializer):
     """List/detail serializer for XeroApp.
 
-    client_secret is write-only — never returned. access_token / refresh_token
-    are not surfaced at all; instead a derived has_tokens boolean indicates
-    whether the row has been authorised.
+    client_secret and webhook_key are write-only — never returned. The
+    webhook signing key is comparable in sensitivity to the client secret
+    (anyone holding it can forge webhook deliveries that we'd verify as
+    authentic), so it gets the same treatment. access_token /
+    refresh_token are not surfaced at all; instead a derived has_tokens
+    boolean indicates whether the row has been authorised.
 
-    client_secret is REQUIRED on create (no secret = the row can never
-    complete OAuth, which is a configuration footgun) but OPTIONAL on
+    client_secret and webhook_key are REQUIRED on create (a row missing
+    either is inert: no secret = OAuth never completes, no webhook_key =
+    webhooks from this app's deliveries 401 forever) but OPTIONAL on
     update (so PATCH can change label/client_id/redirect_uri without
-    re-supplying the secret each time).
+    re-supplying secrets each time).
     """
 
     has_tokens = serializers.SerializerMethodField()
     client_secret = serializers.CharField(write_only=True, required=False)
+    webhook_key = serializers.CharField(write_only=True, required=False)
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
-        if self.instance is None and not attrs.get("client_secret"):
-            raise serializers.ValidationError(
-                {"client_secret": "client_secret is required when creating a XeroApp."}
-            )
+        if self.instance is None:
+            missing = [
+                name for name in ("client_secret", "webhook_key") if not attrs.get(name)
+            ]
+            if missing:
+                raise serializers.ValidationError(
+                    {
+                        name: f"{name} is required when creating a XeroApp."
+                        for name in missing
+                    }
+                )
         return attrs
 
     class Meta:
@@ -107,6 +119,7 @@ class XeroAppSerializer(serializers.ModelSerializer):
             "client_id",
             "client_secret",
             "redirect_uri",
+            "webhook_key",
             "is_active",
             "has_tokens",
             "tenant_id",

@@ -47,7 +47,6 @@ def validate_required_settings() -> None:
         # Xero Integration
         "XERO_DEFAULT_USER_ID",
         "XERO_SYNC_PROJECTS",
-        "XERO_WEBHOOK_KEY",
         # Email
         "EMAIL_HOST",
         "EMAIL_PORT",
@@ -695,7 +694,6 @@ LOGGING = {
 # Custom settings
 ACCOUNTING_BACKEND = os.getenv("ACCOUNTING_BACKEND", "xero")
 XERO_DEFAULT_USER_ID = os.getenv("XERO_DEFAULT_USER_ID", "")
-XERO_WEBHOOK_KEY = os.getenv("XERO_WEBHOOK_KEY", "")
 XERO_SYNC_PROJECTS = os.getenv("XERO_SYNC_PROJECTS", "False").lower() == "true"
 
 DEFAULT_XERO_SCOPES = " ".join(DEFAULT_XERO_SCOPES_LIST)

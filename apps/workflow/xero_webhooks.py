@@ -14,36 +14,53 @@ import hmac
 import json
 import logging
 
-from django.conf import settings
 from django.http import HttpRequest, HttpResponse
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
+from apps.workflow.models import XeroApp
 from apps.workflow.tasks import process_xero_webhook_event
 
 logger = logging.getLogger("xero")
 
 
 def validate_webhook_signature(request: HttpRequest) -> bool:
-    """Validate Xero webhook signature using HMAC-SHA256."""
+    """Validate Xero webhook signature using HMAC-SHA256.
+
+    Xero signs each webhook with the signing key of the Xero app that
+    emitted it. During credential rotation an install has two registered
+    apps in Xero's portal — each with its own signing key — and both
+    apps emit webhooks until the operator deletes the old one. So we
+    accept the request if any non-blank XeroApp.webhook_key produces a
+    matching HMAC. If a now-inactive app keeps firing webhooks because
+    the operator hasn't deleted it in the Xero portal, that's fine: we
+    process them. Cleaning up orphan apps in Xero is the operator's job.
+    """
     signature = request.headers.get("x-xero-signature")
     if not signature:
         logger.warning("Missing x-xero-signature header")
         return False
 
-    webhook_key = getattr(settings, "XERO_WEBHOOK_KEY", None)
-    if not webhook_key:
-        logger.error("XERO_WEBHOOK_KEY not configured in settings")
+    keys = list(
+        XeroApp.objects.exclude(webhook_key="").values_list("webhook_key", flat=True)
+    )
+    if not keys:
+        logger.error(
+            "No XeroApp row has webhook_key set; cannot verify webhook signatures"
+        )
         return False
 
-    expected_signature_bytes = hmac.new(
-        webhook_key.encode("utf-8"), request.body, hashlib.sha256
-    ).digest()
+    body = request.body
+    for key in keys:
+        expected_signature_bytes = hmac.new(
+            key.encode("utf-8"), body, hashlib.sha256
+        ).digest()
+        expected_signature = base64.b64encode(expected_signature_bytes).decode("utf-8")
+        if hmac.compare_digest(signature, expected_signature):
+            return True
 
-    expected_signature = base64.b64encode(expected_signature_bytes).decode("utf-8")
-
-    return hmac.compare_digest(signature, expected_signature)
+    return False
 
 
 @method_decorator(csrf_exempt, name="dispatch")

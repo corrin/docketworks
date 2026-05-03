@@ -36,7 +36,8 @@ You need to create an app in Xero because we need to tell Xero where do send you
    - Name: e.g., `docketworks-dave Development`
    - Type: "Web app"
    - **OAuth 2.0 Redirect URI:** Your domain + `/api/xero/oauth/callback/` (e.g., `https://docketworks-dave.ngrok-free.app/api/xero/oauth/callback/`)
-3. Copy the **Client ID** and **Client Secret** — these go into `.env` (dev) or `credentials.env` (server).
+3. Copy the **Client ID** and **Client Secret**.
 4. Under Webhooks, create a subscription:
    - **Webhook Delivery URL:** Your domain + `/api/xero/webhook/` (e.g., `https://docketworks-dave.ngrok-free.app/api/xero/webhook/`)
-   - Copy the **Webhook Key** — this goes into `XERO_WEBHOOK_KEY` in `.env` or `credentials.env`.
+   - Copy the **Webhook Key**.
+5. Paste the Client ID, Client Secret, and Webhook Key into the XeroApp row — either via `apps/workflow/fixtures/xero_apps.json` (loaded by `manage.py loaddata` during install) or via Admin → Xero Apps after the instance is up.

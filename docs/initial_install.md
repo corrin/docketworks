@@ -41,7 +41,7 @@ sudo -u postgres ./scripts/setup_database.sh
    ```
    This updates backend `.env`, frontend `.env`, and `vite.config.ts` with the correct URLs.
 3. **`apps/workflow/fixtures/ai_providers.json`** — Copy from `ai_providers.json.example` and add your API keys for Claude, Gemini, and Mistral. Then `python manage.py loaddata apps/workflow/fixtures/ai_providers.json`.
-4. **`apps/workflow/fixtures/xero_apps.json`** — Copy from `xero_apps.json.example` and fill in your dev Xero app credentials (ask the team for the shared dev credentials). Set `label` to `<your-name> xero` so it's distinguishable from other devs' rows. Then `python manage.py loaddata apps/workflow/fixtures/xero_apps.json`.
+4. **`apps/workflow/fixtures/xero_apps.json`** — Copy from `xero_apps.json.example` and fill in your dev Xero app credentials: client_id, client_secret, redirect_uri, and webhook_key (ask the team for the shared dev credentials). Set `label` to `<your-name> xero` so it's distinguishable from other devs' rows. Then `python manage.py loaddata apps/workflow/fixtures/xero_apps.json`.
 
 ## Troubleshooting
 
