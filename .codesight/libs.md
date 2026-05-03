@@ -479,8 +479,6 @@
   - function get_active_app: () -> XeroApp
   - function swap_active: (app_id) -> XeroApp
   - function wipe_tokens_and_quota: (app) -> None
-  - function build_api_client: (app) -> ApiClient
-  - function get_active_client: () -> ApiClient
   - class NoActiveXeroApp
 - `apps/workflow/api/xero/auth.py`
   - function get_token: () -> Optional[Dict[str, Any]]
@@ -609,8 +607,8 @@
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
   - class XeroAppSerializer
-  - class AIProviderCreateUpdateSerializer
-  - _...23 more_
+  - class XeroAppCreateSerializer
+  - _...24 more_
 - `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]

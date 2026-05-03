@@ -136,9 +136,6 @@ do_create() {
     set +a
 
     local MISSING=()
-    [[ -z "${XERO_CLIENT_ID:-}" ]] && MISSING+=("XERO_CLIENT_ID")
-    [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
-    [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
     [[ -z "${XERO_DEFAULT_USER_ID:-}" ]] && MISSING+=("XERO_DEFAULT_USER_ID")
     [[ -z "${GCP_CREDENTIALS:-}" ]] && MISSING+=("GCP_CREDENTIALS")
     [[ -z "${EMAIL_HOST_USER:-}" ]] && MISSING+=("EMAIL_HOST_USER")
@@ -269,10 +266,7 @@ BASH_PROFILE
 
         log "Generating .env from template..."
         # Escape sed-special chars in values that come from human-edited credentials.env
-        local ESC_XERO_CLIENT_ID ESC_XERO_CLIENT_SECRET ESC_XERO_WEBHOOK_KEY ESC_XERO_DEFAULT_USER_ID
-        ESC_XERO_CLIENT_ID="$(sed_escape "$XERO_CLIENT_ID")"
-        ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
-        ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
+        local ESC_XERO_DEFAULT_USER_ID
         ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
         local ESC_EMAIL_HOST_USER ESC_EMAIL_HOST_PASSWORD ESC_DJANGO_ADMINS ESC_EMAIL_BCC
         ESC_EMAIL_HOST_USER="$(sed_escape "$EMAIL_HOST_USER")"
@@ -293,9 +287,6 @@ BASH_PROFILE
             -e "s|__TEST_DB_PASSWORD__|$TEST_DB_PASSWORD|g" \
             -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
             -e "s|__BEARER_SECRET__|$BEARER_SECRET|g" \
-            -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
-            -e "s|__XERO_CLIENT_SECRET__|$ESC_XERO_CLIENT_SECRET|g" \
-            -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
             -e "s|__XERO_DEFAULT_USER_ID__|$ESC_XERO_DEFAULT_USER_ID|g" \
             -e "s|__GCP_CREDENTIALS_PATH__|$GCP_DEST|g" \
             -e "s|__EMAIL_HOST_USER__|$ESC_EMAIL_HOST_USER|g" \

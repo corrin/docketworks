@@ -39,6 +39,7 @@
 - `FRONT_END_URL` (has default) — .env.example
 - `GCP_CREDENTIALS` (has default) — .env.example
 - `GOOGLE_MAPS_API_KEY` (has default) — .env.example
+- `INSTANCE` **required** — apps/workflow/api/xero/active_app.py
 - `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
 - `LOG_DIR` **required** — docketworks/settings.py
 - `MEDIA_ROOT` **required** — docketworks/settings.py
@@ -71,7 +72,7 @@
 - `XERO_SCOPES` **required** — docketworks/settings.py
 - `XERO_SYNC_PROJECTS` (has default) — .env.example
 - `XERO_USERNAME` (has default) — frontend/.env.example
-- `XERO_WEBHOOK_KEY` (has default) — .env.example
+- `XERO_WEBHOOK_KEY` (has default) — .env
 
 ## Config Files
 

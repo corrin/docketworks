@@ -4,6 +4,13 @@ SECRET_KEY=__SECRET_KEY__
 DJANGO_ENV=production_like
 ALLOWED_HOSTS=__FQDN__
 
+# Instance slug — matches systemd unit naming (gunicorn-<INSTANCE>.service,
+# scheduler-<INSTANCE>.service, celery-worker-<INSTANCE>.service). Read by
+# active_app.py to dispatch sibling-worker restarts during a Xero credential
+# swap. Distinct from DB_NAME (which uses underscores) because systemd unit
+# names use hyphens.
+INSTANCE=__INSTANCE__
+
 # Database Configuration (PostgreSQL — local Unix socket)
 DB_NAME=__DB_NAME__
 DB_USER=__DB_USER__
@@ -30,7 +37,6 @@ ENABLE_JWT_AUTH=True
 # Xero Integration
 XERO_SYNC_PROJECTS=False
 XERO_DEFAULT_USER_ID=__XERO_DEFAULT_USER_ID__
-XERO_WEBHOOK_KEY=__XERO_WEBHOOK_KEY__
 
 # Email Configuration
 EMAIL_HOST=smtp.gmail.com

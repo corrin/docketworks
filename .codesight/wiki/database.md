@@ -607,6 +607,7 @@ pk: `id` (uuid)
 - `client_id`: string _(unique)_
 - `client_secret`: string
 - `redirect_uri`: string
+- `webhook_key`: string _(default)_
 - `is_active`: boolean _(default)_
 - `tenant_id`: string _(nullable)_
 - `token_type`: string _(nullable)_

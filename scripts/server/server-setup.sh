@@ -288,7 +288,12 @@ fi
 
 log "Ensuring docketworks home directory structure..."
 mkdir -p /opt/docketworks/.local/share /opt/docketworks/.local/bin
-chown -R docketworks:docketworks /opt/docketworks
+# Chown docketworks-owned scaffolding only. NEVER recurse into /opt/docketworks
+# blindly — /opt/docketworks/instances/<inst>/ is owned by <inst_user>:www-data
+# (see instance.sh) and a recursive chown here would clobber every instance on
+# every deploy.
+chown docketworks:docketworks /opt/docketworks
+chown -R docketworks:docketworks /opt/docketworks/.local
 
 # --- Install Dreamhost API key for certbot hooks ---
 

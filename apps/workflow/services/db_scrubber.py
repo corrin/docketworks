@@ -219,7 +219,7 @@ _EXCLUDED_TABLES = (
     # TRUNCATE parent WITH CASCADE will cascade to children. Do NOT include
     # child tables — workflow_xeroerror will be cascaded from workflow_apperror.
     "workflow_apperror",  # Parent; CASCADE will delete xeroerror children
-    "workflow_xerotoken",
+    "workflow_xeroapp",
     "workflow_serviceapikey",
     "django_apscheduler_djangojob",
     "django_apscheduler_djangojobexecution",

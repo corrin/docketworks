@@ -3,6 +3,7 @@
 import uuid
 from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
+from unittest.mock import patch
 
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -114,6 +115,7 @@ class XeroAppApiCreateTests(APITestCase):
             "client_id": "c-b",
             "client_secret": "s-b",
             "redirect_uri": "https://example.test/cb",
+            "webhook_key": "wk-b",
         }
         response = self.client.post("/api/workflow/xero-apps/", payload, format="json")
         self.assertEqual(response.status_code, 201)
@@ -121,6 +123,7 @@ class XeroAppApiCreateTests(APITestCase):
         self.assertEqual(row.label, "Backup")
         self.assertFalse(row.is_active)
         self.assertEqual(row.client_secret, "s-b")
+        self.assertEqual(row.webhook_key, "wk-b")
 
     def test_create_duplicate_client_id_returns_400(self):
         _row(client_id="c-a")
@@ -129,6 +132,7 @@ class XeroAppApiCreateTests(APITestCase):
             "client_id": "c-a",
             "client_secret": "s",
             "redirect_uri": "https://e/cb",
+            "webhook_key": "wk",
         }
         response = self.client.post("/api/workflow/xero-apps/", payload, format="json")
         self.assertEqual(response.status_code, 400)
@@ -141,11 +145,27 @@ class XeroAppApiCreateTests(APITestCase):
             "label": "NoSecret",
             "client_id": "c-no-secret",
             "redirect_uri": "https://example.test/cb",
+            "webhook_key": "wk",
         }
         response = self.client.post("/api/workflow/xero-apps/", payload, format="json")
         self.assertEqual(response.status_code, 400)
         self.assertIn("client_secret", response.data)
         self.assertFalse(XeroApp.objects.filter(client_id="c-no-secret").exists())
+
+    def test_create_without_webhook_key_rejected(self):
+        # A row without webhook_key would 401 every webhook delivery from
+        # this app's tenant — symmetrical to the missing-client_secret
+        # case, and just as fatal.
+        payload = {
+            "label": "NoHook",
+            "client_id": "c-no-hook",
+            "client_secret": "s",
+            "redirect_uri": "https://example.test/cb",
+        }
+        response = self.client.post("/api/workflow/xero-apps/", payload, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("webhook_key", response.data)
+        self.assertFalse(XeroApp.objects.filter(client_id="c-no-hook").exists())
 
     def test_patch_without_secret_allowed(self):
         # PATCH must NOT require client_secret — the secret is already
@@ -214,6 +234,71 @@ class XeroAppApiPatchTests(APITestCase):
         self.assertIsNone(row.tenant_id)
         self.assertIsNone(row.day_remaining)
         self.assertIsNone(row.snapshot_at)
+
+    def test_patch_active_row_credentials_invalidates_singleton(self):
+        # When the *active* row's credentials change, the in-process
+        # ApiClient singleton is bound to the old client_id/secret. Without
+        # a reset its next call would use stale credentials. Sibling
+        # workers must also restart to drop their own singletons.
+        row = _row(client_id="c-a", is_active=True)
+        with (
+            patch(
+                "apps.workflow.views.xero_apps_view.xero_auth._reset_api_client"
+            ) as mock_reset,
+            patch(
+                "apps.workflow.views.xero_apps_view._restart_sibling_workers"
+            ) as mock_restart,
+        ):
+            response = self.client.patch(
+                f"/api/workflow/xero-apps/{row.id}/",
+                {"client_secret": "new-secret"},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200)
+        mock_reset.assert_called_once()
+        mock_restart.assert_called_once()
+
+    def test_patch_inactive_row_credentials_does_not_restart(self):
+        # PATCHing a non-active row's credentials must not touch the
+        # singleton or restart workers — they're bound to the active row,
+        # which is unchanged.
+        row = _row(client_id="c-a", is_active=False)
+        with (
+            patch(
+                "apps.workflow.views.xero_apps_view.xero_auth._reset_api_client"
+            ) as mock_reset,
+            patch(
+                "apps.workflow.views.xero_apps_view._restart_sibling_workers"
+            ) as mock_restart,
+        ):
+            response = self.client.patch(
+                f"/api/workflow/xero-apps/{row.id}/",
+                {"client_secret": "new-secret"},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200)
+        mock_reset.assert_not_called()
+        mock_restart.assert_not_called()
+
+    def test_patch_label_only_does_not_restart(self):
+        # Label change must not propagate as a credential rotation.
+        row = _row(client_id="c-a", is_active=True)
+        with (
+            patch(
+                "apps.workflow.views.xero_apps_view.xero_auth._reset_api_client"
+            ) as mock_reset,
+            patch(
+                "apps.workflow.views.xero_apps_view._restart_sibling_workers"
+            ) as mock_restart,
+        ):
+            response = self.client.patch(
+                f"/api/workflow/xero-apps/{row.id}/",
+                {"label": "Renamed"},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200)
+        mock_reset.assert_not_called()
+        mock_restart.assert_not_called()
 
 
 class XeroAppApiDeleteTests(APITestCase):

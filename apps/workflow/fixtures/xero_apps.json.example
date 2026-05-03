@@ -1,0 +1,24 @@
+[
+  {
+    "model": "workflow.xeroapp",
+    "pk": "00000000-0000-0000-0000-000000000001",
+    "fields": {
+      "label": "REPLACE_ME xero",
+      "client_id": "YOUR_XERO_CLIENT_ID",
+      "client_secret": "YOUR_XERO_CLIENT_SECRET",
+      "redirect_uri": "https://YOUR_DOMAIN/api/xero/oauth/callback/",
+      "webhook_key": "YOUR_XERO_WEBHOOK_KEY",
+      "is_active": true,
+      "tenant_id": null,
+      "token_type": null,
+      "access_token": null,
+      "refresh_token": null,
+      "expires_at": null,
+      "scope": null,
+      "day_remaining": null,
+      "minute_remaining": null,
+      "snapshot_at": null,
+      "last_429_at": null
+    }
+  }
+]

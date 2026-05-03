@@ -27,19 +27,19 @@
 - when stored data *is* malformed, what do we do? The temptation is always the one-line read-side fallback ("if `delta_aft
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
-- 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
-- is enough approved work flowing into the shop, and if not, where is the bottleneck? The report must be reproducible hist
+- 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match the redirect URI and `.env`? Is the port correct?
 - process.env.MSM_FRONTEND_URL ??
 - Timing issue? Page not fully rendered when we search?
 - Selector issue? `data-automation-id^="cost-line-row-"` not matching?
 - Textarea selector issue? `.locator('textarea').first()` not finding the right element?
 - Maybe the first edited field doesn't trigger autosave?
+- Maybe quantity needs blur event but we Tab away too fast?
 
 ## Recurring Themes
-problem · why · alternatives considered · tips · what youll need · steps · what happens next · troubleshooting · prerequisites · purpose · frontend · development workflow
+problem · why · alternatives considered · tips · what youll need · steps · what happens next · troubleshooting · prerequisites · purpose · verification · development workflow
 
 ## People
-@login_required · @docketworks · @morrissheetmetal · @msm · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
+@login_required · @docketworks · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -85,7 +85,6 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
 ### General Notes (82)
-- `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
 - `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
@@ -96,9 +95,10 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/initial_install.md` ← 5 refs — Dev machine setup. One-off steps that persist across restores.
 - `docs/instance-setup-demo.md` ← 1 refs — Onboard a prospect for a paid trial of DocketWorks. Uses dummy staff but the prospect's real rates, markups, and configuration. Connects to Xero Demo Company.
 - `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
-- `docs/msm-cutover.md` — Move MSM production from the old server (`/home/django_user`, MariaDB, `192.168.1.17`) to the new
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
-- `docs/plans/now-the-performance-concerns-stateful-taco.md` — Two Copilot review comments on #162 flagged the Sales Pipeline service as having hot paths that do Python-side work which could move to SQL:
+- `docs/plans/abstract-tumbling-milner.md` — `feat/xero-day-quota-floor` moved Xero credentials from `.env` into the
+- `docs/plans/hidden-yawning-mccarthy.md` — PR #266 introduced `apps/workflow/api/xero/active_app.py:get_active_client()` to dispatch Xero API calls to the credentials of whichever `XeroApp` row has `is_a…
+- `docs/plans/synthetic-drifting-allen.md` — PR #266 (`feat/xero-day-quota-floor`, this branch) was meant to be a tiny change adding a day-quota floor and the `XeroApp` table for the once-a-year emergency …
 - `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). This guide is environment-agnostic: assume venv active, `.env` loaded, i…
 - `docs/restore-workaround-jobevent-staff-null.md` — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
 - `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).

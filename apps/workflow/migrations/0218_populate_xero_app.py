@@ -11,9 +11,11 @@ cleanup removes the XERO_CLIENT_* settings entries. Reading os.environ
 keeps the migration replayable on a clean checkout.
 
 Fail-early posture: if the install has a legacy XeroToken row but is
-MISSING any of the three env vars, the migration raises rather than
+MISSING any of the four env vars, the migration raises rather than
 silently skipping. Otherwise the next migration (0219) drops XeroToken
-permanently and the install has no Xero credentials at all.
+permanently and the install has no Xero credentials at all — or, in the
+case of XERO_WEBHOOK_KEY, every inbound Xero webhook 401s forever
+because the verifier has no key to compare HMACs against.
 """
 
 import os
@@ -28,17 +30,23 @@ def populate_from_legacy(apps, schema_editor):
     client_id = os.environ.get("XERO_CLIENT_ID")
     client_secret = os.environ.get("XERO_CLIENT_SECRET")
     redirect_uri = os.environ.get("XERO_REDIRECT_URI")
+    # XERO_WEBHOOK_KEY moved off settings.py in this PR but is still set
+    # in every existing install's .env at the moment migrate runs. Read
+    # it here so the upgrade is transparent; without this the new XeroApp
+    # row would have webhook_key="" and all inbound webhooks would 401.
+    webhook_key = os.environ.get("XERO_WEBHOOK_KEY")
 
     legacy = XeroToken.objects.first()
-    env_present = bool(client_id and client_secret and redirect_uri)
+    env_present = bool(client_id and client_secret and redirect_uri and webhook_key)
 
     # Legacy token + missing env: silently dropping the token here (the
     # next migration deletes XeroToken) would leave the install with no
-    # Xero credentials at all. Fail loudly so the operator either fixes
-    # .env first or accepts the loss explicitly. Other partial-state
-    # combinations are recoverable: missing legacy with env present is a
-    # fresh deployment that just needs the operator to OAuth once via the
-    # UI; both missing is a brand-new install.
+    # Xero credentials at all, or with webhooks broken. Fail loudly so
+    # the operator either fixes .env first or accepts the loss
+    # explicitly. Other partial-state combinations are recoverable:
+    # missing legacy with env present is a fresh deployment that just
+    # needs the operator to OAuth once via the UI; both missing is a
+    # brand-new install.
     if legacy is not None and not env_present:
         missing = [
             name
@@ -46,6 +54,7 @@ def populate_from_legacy(apps, schema_editor):
                 ("XERO_CLIENT_ID", client_id),
                 ("XERO_CLIENT_SECRET", client_secret),
                 ("XERO_REDIRECT_URI", redirect_uri),
+                ("XERO_WEBHOOK_KEY", webhook_key),
             )
             if not value
         ]
@@ -68,6 +77,7 @@ def populate_from_legacy(apps, schema_editor):
         client_id=client_id,
         client_secret=client_secret,
         redirect_uri=redirect_uri,
+        webhook_key=webhook_key,
         is_active=True,
         tenant_id=legacy.tenant_id,
         token_type=legacy.token_type,

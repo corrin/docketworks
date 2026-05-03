@@ -8,12 +8,21 @@
           <div class="flex items-center gap-2 mb-6 flex-wrap">
             <XeroQuotaBadge />
             <Button
-              v-if="!isAuthenticated && !loading"
+              v-if="!isAuthenticated && !loading && hasActiveApp"
               @click="loginXero"
               variant="default"
               size="sm"
             >
               Login with Xero
+            </Button>
+            <Button
+              v-if="!isAuthenticated && !loading && !hasActiveApp"
+              :disabled="true"
+              variant="default"
+              size="sm"
+              title="Add and activate a Xero app in Xero Apps settings before logging in"
+            >
+              Set up Xero
             </Button>
             <Button
               v-if="isAuthenticated && !syncing && !loading"
@@ -41,7 +50,10 @@
               v-if="!isAuthenticated"
               class="text-center text-red-600 font-semibold py-8 text-lg bg-gray-100 rounded-lg shadow"
             >
-              <span>Your Xero session has expired or is not connected.</span>
+              <span v-if="!hasActiveApp">
+                No active Xero app is configured. Add one in Xero Apps settings to enable login.
+              </span>
+              <span v-else>Your Xero session has expired or is not connected.</span>
             </div>
             <div v-else>
               <div class="mb-6">
@@ -167,13 +179,20 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, onUnmounted, watch } from 'vue'
+import { computed, onMounted, onUnmounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/ui/button/Button.vue'
 import Progress from '../components/ui/progress/Progress.vue'
 import XeroQuotaBadge from '../components/XeroQuotaBadge.vue'
+import { useXeroApps } from '../composables/useXeroApps'
 import { useXeroAuth } from '../composables/useXeroAuth'
 import { toast } from 'vue-sonner'
+
+// Drives the "Set up Xero" vs "Login with Xero" button choice. If no
+// XeroApp row is marked active, the OAuth flow has nothing to bind to,
+// so the button must steer the user at /admin/xero-apps instead.
+const { activeApp } = useXeroApps()
+const hasActiveApp = computed(() => activeApp.value !== null)
 
 const {
   entities,

@@ -28,6 +28,10 @@ class Migration(migrations.Migration):
                 ("client_id", models.CharField(max_length=128, unique=True)),
                 ("client_secret", models.CharField(max_length=256)),
                 ("redirect_uri", models.CharField(max_length=512)),
+                (
+                    "webhook_key",
+                    models.CharField(blank=True, default="", max_length=128),
+                ),
                 ("is_active", models.BooleanField(default=False)),
                 ("tenant_id", models.CharField(blank=True, max_length=100, null=True)),
                 ("token_type", models.CharField(blank=True, max_length=50, null=True)),

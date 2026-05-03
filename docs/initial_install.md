@@ -41,15 +41,16 @@ sudo -u postgres ./scripts/setup_database.sh
    ```
    This updates backend `.env`, frontend `.env`, and `vite.config.ts` with the correct URLs.
 3. **`apps/workflow/fixtures/ai_providers.json`** — Copy from `ai_providers.json.example` and add your API keys for Claude, Gemini, and Mistral. Then `python manage.py loaddata apps/workflow/fixtures/ai_providers.json`.
+4. **`apps/workflow/fixtures/xero_apps.json`** — Copy from `xero_apps.json.example` and fill in your dev Xero app credentials: client_id, client_secret, redirect_uri, and webhook_key (ask the team for the shared dev credentials). Set `label` to `<your-name> xero` so it's distinguishable from other devs' rows. Then `python manage.py loaddata apps/workflow/fixtures/xero_apps.json`.
 
 ## Troubleshooting
 
 If you encounter issues:
 
 1.  **Dependencies:** Rerun `poetry install`. Check for errors.
-2.  **.env File:** Verify `DB_NAME`, `DB_USER`, `DB_PASSWORD`, Xero keys, `APP_DOMAIN`.
+2.  **.env File:** Verify `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `APP_DOMAIN`.
 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
-5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
-6.  **Xero Config:** Double-check Redirect URI in Xero Dev portal. Check Client ID/Secret.
+5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match the redirect URI and `.env`? Is the port correct?
+6.  **Xero app configured?** Admin > Xero Apps shows a row with `Authorised: ✓` after the OAuth login. Redirect URI on the row must match the URI registered in the Xero Dev portal.
 7.  **Django Debug Page/Logs:** Look for detailed errors when `DEBUG=True`. Check `logs/` directory.

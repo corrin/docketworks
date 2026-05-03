@@ -227,6 +227,8 @@ maestral-venv/
 # AI provider keys (copy from .example and add real keys)
 apps/workflow/fixtures/ai_providers.json
 apps/workflow/fixtures/ai_providers_uat.json
+# Per-install Xero app credentials (copy from .example, edit, loaddata)
+apps/workflow/fixtures/xero_apps.json
 apps/process/fixtures/form_entries.json
 TestDropbox/
 staff_name_mapping.json

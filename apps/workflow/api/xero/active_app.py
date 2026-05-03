@@ -1,35 +1,31 @@
-"""Active-app resolution and per-app ApiClient construction.
+"""Active-app resolution and swap.
 
-This is the only place that asks "which XeroApp is active?" and the only
-place that builds an xero-python ApiClient. Every Xero call site goes
-through ``get_active_client()``, which holds a process-level cache and
-rebuilds whenever the active row's id changes — so swapping the active
-row in the DB causes the next call in every Django/Celery/scheduler
-process to rebuild against the new credentials. No restart needed.
+Public surface:
+- ``get_active_app()`` — load the row with ``is_active=True``.
+- ``swap_active(app_id)`` — atomically flip the active row, invalidate the
+  in-process ApiClient singleton, and restart sibling worker units so their
+  fresh processes rebuild against the new row.
+- ``wipe_tokens_and_quota(app)`` — null all token/quota fields on a row.
 
-Token-saver and quota-writer paths write to the row whose credentials
-made the call (passed explicitly as app_id), NOT to whichever row is
-active at the moment of write. This keeps a swap racing an in-flight
-refresh safe: the in-flight call finishes against its own row, the new
-active row is untouched.
+The ApiClient itself lives in ``apps.workflow.api.xero.auth`` as a lazy
+process singleton (``auth.api_client``). Swap propagation across worker
+processes happens via systemd restart, not a per-call DB lookup.
 """
 
 import logging
-from typing import Optional, Tuple
-from uuid import UUID
+import os
+import subprocess
+from typing import List
 
 from django.core.cache import cache
 from django.db import transaction
-from xero_python.api_client import ApiClient, Configuration
-from xero_python.api_client.oauth2 import OAuth2Token
 
-from apps.workflow.api.xero.client import RateLimitedRESTClient
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
-
-_client_cache: Tuple[Optional[UUID], Optional[ApiClient]] = (None, None)
 
 
 class NoActiveXeroApp(Exception):
@@ -44,7 +40,16 @@ def get_active_app() -> XeroApp:
 
 
 def swap_active(app_id) -> XeroApp:
-    """Atomically clear is_active on every other row and set it on the target."""
+    """Atomically clear is_active on every other row and set it on the target.
+
+    After the DB flip, invalidate the calling process's cached ApiClient so
+    its next Xero call rebuilds against the new row. Then dispatch a detached
+    ``systemctl restart`` for the sibling units (gunicorn / scheduler /
+    celery-worker) so they rebuild their own singletons. The restart is
+    detached (``Popen`` with ``start_new_session=True``) because if we're
+    running inside the gunicorn unit we'd otherwise SIGKILL ourselves before
+    the HTTP response goes out.
+    """
     with transaction.atomic():
         target = XeroApp.objects.select_for_update().get(id=app_id)
         if target.is_active:
@@ -52,13 +57,56 @@ def swap_active(app_id) -> XeroApp:
         XeroApp.objects.filter(is_active=True).update(is_active=False)
         target.is_active = True
         target.save(update_fields=["is_active", "updated_at"])
-    _reset_client_cache()
-    # Tenant id was cached against the previous app's credentials. Without
-    # this delete, the next get_tenant_id() returns the prior tenant and
-    # subsequent calls hit the wrong tenant under the new credentials.
+
     cache.delete(TENANT_ID_CACHE_KEY)
+
+    # Invalidate this process's singleton.
+    from apps.workflow.api.xero import auth
+
+    auth._reset_api_client()
+
+    _restart_sibling_workers()
+
     logger.info(f"Active XeroApp swapped to {target.id} ({target.label})")
     return target
+
+
+def _restart_sibling_workers() -> None:
+    """Detached ``sudo systemctl restart`` of the per-instance worker units.
+
+    Reads ``INSTANCE`` (the systemd-unit naming slug, e.g. ``msm-prod``),
+    NOT ``DB_NAME`` (which uses underscores, e.g. ``dw_msm_prod`` — wrong
+    shape for unit names). The two diverged in instance.sh: see
+    ``scripts/server/common.sh:instance_user`` and the unit templates.
+
+    No-op when ``INSTANCE`` is unset (dev/test): the in-process singleton
+    has already been invalidated; user-owned VS Code services stay stale
+    until the user restarts them, per the dev-services policy.
+    """
+    instance = os.getenv("INSTANCE")
+    if not instance:
+        logger.info("No INSTANCE env; skipping worker restart (dev/test).")
+        return
+
+    units: List[str] = [
+        f"gunicorn-{instance}.service",
+        f"scheduler-{instance}.service",
+        f"celery-worker-{instance}.service",
+    ]
+    try:
+        subprocess.Popen(
+            ["sudo", "systemctl", "restart", *units],
+            start_new_session=True,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+        )
+        logger.info(f"Dispatched detached restart for: {', '.join(units)}")
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
 
 def wipe_tokens_and_quota(app: XeroApp) -> None:
@@ -84,46 +132,3 @@ def wipe_tokens_and_quota(app: XeroApp) -> None:
     # it unconditionally — the cache key is global, not per-app, so the
     # safe move is to drop it whenever any row's credentials change.
     cache.delete(TENANT_ID_CACHE_KEY)
-
-
-def build_api_client(app: XeroApp) -> ApiClient:
-    """Construct an ApiClient bound to the given app's credentials and id."""
-    api_client = ApiClient(
-        Configuration(
-            debug=False,
-            oauth2_token=OAuth2Token(
-                client_id=app.client_id,
-                client_secret=app.client_secret,
-            ),
-        ),
-    )
-    api_client.rest_client = RateLimitedRESTClient(
-        api_client.configuration, app_id=app.id
-    )
-    # Local import: auth.py imports from active_app for refresh.
-    from apps.workflow.api.xero import auth
-
-    auth.bind_token_callbacks(api_client, app.id)
-    return api_client
-
-
-def get_active_client() -> ApiClient:
-    """Return a process-cached ApiClient for the currently active app.
-
-    Rebuilds on first call after a swap_active(). One indexed PK read
-    per call to detect the swap.
-    """
-    global _client_cache
-    active = get_active_app()
-    cached_id, cached_client = _client_cache
-    if cached_id == active.id and cached_client is not None:
-        return cached_client
-    client = build_api_client(active)
-    _client_cache = (active.id, client)
-    return client
-
-
-def _reset_client_cache() -> None:
-    """Test hook + post-swap invalidation."""
-    global _client_cache
-    _client_cache = (None, None)

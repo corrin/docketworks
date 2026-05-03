@@ -12,6 +12,7 @@ import json
 import socket
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -20,12 +21,29 @@ from django.test import RequestFactory, TestCase, TransactionTestCase, override_
 from django.urls import reverse
 
 from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models import XeroApp
 from apps.workflow.tasks import process_xero_webhook_event
 from apps.workflow.xero_webhooks import XeroWebhookView
 from docketworks.celery import app as celery_app
 
 WEBHOOK_KEY = "unit-test-webhook-key"
 TENANT_ID = "tenant-abc-123"
+
+
+def _make_xero_app(*, webhook_key: str = WEBHOOK_KEY, label: str = "Test") -> XeroApp:
+    """Minimal XeroApp row sufficient for webhook signature verification.
+
+    Webhook verification only reads webhook_key, so the OAuth fields can
+    be any non-empty placeholder. is_active is irrelevant — the verifier
+    accepts any app's signature (rotation pattern).
+    """
+    return XeroApp.objects.create(
+        label=label,
+        client_id=f"client-id-{label}",
+        client_secret="secret",
+        redirect_uri="https://example.test/callback/",
+        webhook_key=webhook_key,
+    )
 
 
 def _sign(body: bytes, key: str = WEBHOOK_KEY) -> str:
@@ -50,13 +68,13 @@ def _event(
     }
 
 
-@override_settings(XERO_WEBHOOK_KEY=WEBHOOK_KEY)
 class XeroWebhookHandlerTests(TestCase):
     """The HTTP layer — must return 200 fast and dispatch via Celery."""
 
     def setUp(self) -> None:
         self.factory = RequestFactory()
         self.url = reverse("xero_webhook")
+        _make_xero_app()
 
     def _post(self, body_bytes: bytes, *, signature: str | None = None):
         request = self.factory.post(
@@ -133,6 +151,133 @@ class XeroWebhookHandlerTests(TestCase):
         self.assertEqual(mock_delay.call_count, 1)
         args, _ = mock_delay.call_args
         self.assertEqual(args[1]["resourceId"], "inv-2")
+
+
+class XeroWebhookRotationTests(TestCase):
+    """Multi-key acceptance during a Xero credential rotation.
+
+    During a rotation an install has TWO XeroApp rows registered with
+    Xero (the "old" app being phased out and the "new" replacement),
+    each with its own webhook_key. Both apps emit signed webhooks until
+    the operator deletes the old one in Xero's portal. The verifier must
+    accept either signature — and reject any third-party signature that
+    isn't on any row, regardless of how many keys are configured.
+    """
+
+    def setUp(self) -> None:
+        self.factory = RequestFactory()
+        self.url = reverse("xero_webhook")
+
+    def test_signature_from_inactive_row_is_accepted(self) -> None:
+        # Old app is non-active; new app is active. A webhook signed with
+        # the OLD app's key must still be accepted (Xero is still
+        # delivering events from the old app's tenant binding).
+        _make_xero_app(label="Old", webhook_key="key-old")
+        new = _make_xero_app(label="New", webhook_key="key-new")
+        XeroApp.objects.filter(label="New").update(is_active=True)
+        new.refresh_from_db()
+
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        for key in ("key-old", "key-new"):
+            request = self.factory.post(
+                self.url,
+                data=body,
+                content_type="application/json",
+                HTTP_X_XERO_SIGNATURE=_sign(body, key=key),
+            )
+            with patch.object(process_xero_webhook_event, "delay") as mock_delay:
+                response = XeroWebhookView.as_view()(request)
+            self.assertEqual(
+                response.status_code,
+                200,
+                f"Signature signed with {key!r} should be accepted",
+            )
+            mock_delay.assert_called_once()
+
+    def test_signature_from_unknown_key_is_rejected_even_with_multiple_keys(
+        self,
+    ) -> None:
+        # Pin that the multi-key loop is "any-of", not "anything-goes".
+        _make_xero_app(label="A", webhook_key="key-a")
+        _make_xero_app(label="B", webhook_key="key-b")
+
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        request = self.factory.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_XERO_SIGNATURE=_sign(body, key="not-on-any-row"),
+        )
+        with patch.object(process_xero_webhook_event, "delay") as mock_delay:
+            response = XeroWebhookView.as_view()(request)
+        self.assertEqual(response.status_code, 401)
+        mock_delay.assert_not_called()
+
+
+class XeroWebhookConfigErrorTests(TestCase):
+    """No XeroApp.webhook_key set → loud failure, not silent 401.
+
+    A misconfigured deployment that left every XeroApp row with an empty
+    webhook_key used to log an error and 401 every inbound webhook
+    indefinitely. Per ADR 0019 that's silent — the operator never sees
+    it. This class pins the new behaviour: persist an AppError, return
+    503 so Xero retries instead of giving up.
+    """
+
+    def setUp(self) -> None:
+        self.factory = RequestFactory()
+        self.url = reverse("xero_webhook")
+        # Deliberately do NOT call _make_xero_app — we want zero rows
+        # with webhook_key set.
+
+    def test_no_webhook_key_returns_503_and_persists_app_error(self) -> None:
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        request = self.factory.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_XERO_SIGNATURE=_sign(body),
+        )
+        with (
+            patch("apps.workflow.xero_webhooks.persist_app_error") as mock_persist,
+            patch.object(process_xero_webhook_event, "delay") as mock_delay,
+        ):
+            mock_persist.return_value = SimpleNamespace(id="ae-test-1")
+            response = XeroWebhookView.as_view()(request)
+        self.assertEqual(response.status_code, 503)
+        self.assertIn(b"webhook_key", response.content)
+        self.assertIn(b"ae-test-1", response.content)
+        mock_persist.assert_called_once()
+        # The persisted exception is the actual config-error message,
+        # not a wrapping AlreadyLoggedException.
+        (persisted_exc,), _ = mock_persist.call_args
+        self.assertIsInstance(persisted_exc, RuntimeError)
+        self.assertIn("webhook_key", str(persisted_exc))
+        # Events must NOT be processed when validation can't even run.
+        mock_delay.assert_not_called()
+
+    def test_no_webhook_key_with_blank_rows_still_returns_503(self) -> None:
+        # XeroApp rows exist but all have webhook_key="" — same failure
+        # mode as no rows at all.
+        XeroApp.objects.create(
+            label="Blank",
+            client_id="blank",
+            client_secret="x",
+            redirect_uri="https://e/cb",
+            webhook_key="",
+        )
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        request = self.factory.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_XERO_SIGNATURE=_sign(body),
+        )
+        with patch("apps.workflow.xero_webhooks.persist_app_error") as mock_persist:
+            mock_persist.return_value = SimpleNamespace(id="ae-test-2")
+            response = XeroWebhookView.as_view()(request)
+        self.assertEqual(response.status_code, 503)
+        mock_persist.assert_called_once()
 
 
 class ProcessXeroWebhookEventTaskTests(TestCase):
@@ -277,7 +422,6 @@ def _redis_reachable() -> bool:
     "Redis not reachable on 127.0.0.1:6379 — broker integration tests skipped",
 )
 @override_settings(
-    XERO_WEBHOOK_KEY=WEBHOOK_KEY,
     CELERY_TASK_ALWAYS_EAGER=False,
     CELERY_TASK_EAGER_PROPAGATES=False,
     CELERY_BROKER_URL=TEST_BROKER_URL,
@@ -328,6 +472,7 @@ class BrokerRoundtripTests(TransactionTestCase):
     def setUp(self) -> None:
         self.factory = RequestFactory()
         self.url = reverse("xero_webhook")
+        _make_xero_app()
         # Safety: refuse to run if we'd be writing to dev's broker.
         assert celery_app.conf.broker_url == TEST_BROKER_URL, (
             f"Refusing to run broker test — broker_url is "

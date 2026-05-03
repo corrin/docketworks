@@ -6,8 +6,7 @@ from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, Invoice
 from apps.client.models import Client
-from apps.workflow.api.xero.active_app import get_active_client
-from apps.workflow.api.xero.auth import get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.push import (
     bulk_create_contacts_in_xero,
     get_all_xero_contacts,
@@ -122,7 +121,7 @@ def sync_single_contact(sync_service, contact_id):
     if not contact_id:
         raise ValueError("No contact_id provided")
 
-    accounting_api = AccountingApi(get_active_client())
+    accounting_api = AccountingApi(api_client)
     response = accounting_api.get_contacts(
         sync_service.tenant_id, i_ds=[contact_id], include_archived=True
     )
@@ -185,7 +184,7 @@ def sync_single_invoice(sync_service, invoice_id):
     if not invoice_id:
         raise ValueError("No invoice_id provided")
 
-    accounting_api = AccountingApi(get_active_client())
+    accounting_api = AccountingApi(api_client)
     response = accounting_api.get_invoice(sync_service.tenant_id, invoice_id=invoice_id)
     time.sleep(SLEEP_TIME)
 

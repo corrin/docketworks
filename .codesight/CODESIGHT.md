@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 185 components | 372 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
-> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~244,900 tokens. **Saves ~214,000 tokens per conversation.**
+> 95 routes | 44 models | 185 components | 372 lib files | 71 env vars | 11 middleware | 2 events | 23% test coverage
+> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~245,000 tokens. **Saves ~214,100 tokens per conversation.**
 
 ---
 
@@ -602,6 +602,7 @@
 - client_id: string (unique)
 - client_secret: string
 - redirect_uri: string
+- webhook_key: string (default)
 - is_active: boolean (default)
 - tenant_id: string (nullable)
 - token_type: string (nullable)
@@ -1370,8 +1371,6 @@
   - function get_active_app: () -> XeroApp
   - function swap_active: (app_id) -> XeroApp
   - function wipe_tokens_and_quota: (app) -> None
-  - function build_api_client: (app) -> ApiClient
-  - function get_active_client: () -> ApiClient
   - class NoActiveXeroApp
 - `apps/workflow/api/xero/auth.py`
   - function get_token: () -> Optional[Dict[str, Any]]
@@ -1500,8 +1499,8 @@
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
   - class XeroAppSerializer
-  - class AIProviderCreateUpdateSerializer
-  - _...23 more_
+  - class XeroAppCreateSerializer
+  - _...24 more_
 - `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
 - `apps/workflow/services/error_grouping.py`
   - function list_grouped_app_errors: (*, limit, offset, app, severity, resolved, job_id, user_id) -> Dict[str, Any]
@@ -1997,6 +1996,7 @@
 - `FRONT_END_URL` (has default) — .env.example
 - `GCP_CREDENTIALS` (has default) — .env.example
 - `GOOGLE_MAPS_API_KEY` (has default) — .env.example
+- `INSTANCE` **required** — apps/workflow/api/xero/active_app.py
 - `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
 - `LOG_DIR` **required** — docketworks/settings.py
 - `MEDIA_ROOT` **required** — docketworks/settings.py
@@ -2029,7 +2029,7 @@
 - `XERO_SCOPES` **required** — docketworks/settings.py
 - `XERO_SYNC_PROJECTS` (has default) — .env.example
 - `XERO_USERNAME` (has default) — frontend/.env.example
-- `XERO_WEBHOOK_KEY` (has default) — .env.example
+- `XERO_WEBHOOK_KEY` (has default) — .env
 
 ## Config Files
 

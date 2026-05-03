@@ -7543,13 +7543,13 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/XeroAppRequest'
+              $ref: '#/components/schemas/XeroAppCreateRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/XeroAppRequest'
+              $ref: '#/components/schemas/XeroAppCreateRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/XeroAppRequest'
+              $ref: '#/components/schemas/XeroAppCreateRequest'
         required: true
       security:
         - cookieAuth: []
@@ -7558,7 +7558,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/XeroApp'
+                $ref: '#/components/schemas/XeroAppCreate'
           description: ''
   /api/workflow/xero-apps/{id}/:
     get:
@@ -15359,16 +15359,18 @@ components:
     PatchedXeroAppRequest:
       type: object
       description: |-
-        List/detail serializer for XeroApp.
+        List / detail / PATCH serializer for XeroApp.
 
-        client_secret is write-only — never returned. access_token / refresh_token
-        are not surfaced at all; instead a derived has_tokens boolean indicates
-        whether the row has been authorised.
+        client_secret and webhook_key are write-only — never returned. The
+        webhook signing key is comparable in sensitivity to the client secret
+        (anyone holding it can forge webhook deliveries that we'd verify as
+        authentic), so it gets the same treatment. access_token /
+        refresh_token are not surfaced at all; instead a derived has_tokens
+        boolean indicates whether the row has been authorised.
 
-        client_secret is REQUIRED on create (no secret = the row can never
-        complete OAuth, which is a configuration footgun) but OPTIONAL on
-        update (so PATCH can change label/client_id/redirect_uri without
-        re-supplying the secret each time).
+        Both secrets are OPTIONAL here so PATCH can change
+        label/client_id/redirect_uri without re-supplying them. The view uses
+        ``XeroAppCreateSerializer`` for POST, where they are required.
       properties:
         label:
           type: string
@@ -15386,6 +15388,10 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        webhook_key:
+          type: string
+          writeOnly: true
+          minLength: 1
     PayRunListItem:
       type: object
       description: Serializer for a pay run in the list response.
@@ -19960,16 +19966,18 @@ components:
     XeroApp:
       type: object
       description: |-
-        List/detail serializer for XeroApp.
+        List / detail / PATCH serializer for XeroApp.
 
-        client_secret is write-only — never returned. access_token / refresh_token
-        are not surfaced at all; instead a derived has_tokens boolean indicates
-        whether the row has been authorised.
+        client_secret and webhook_key are write-only — never returned. The
+        webhook signing key is comparable in sensitivity to the client secret
+        (anyone holding it can forge webhook deliveries that we'd verify as
+        authentic), so it gets the same treatment. access_token /
+        refresh_token are not surfaced at all; instead a derived has_tokens
+        boolean indicates whether the row has been authorised.
 
-        client_secret is REQUIRED on create (no secret = the row can never
-        complete OAuth, which is a configuration footgun) but OPTIONAL on
-        update (so PATCH can change label/client_id/redirect_uri without
-        re-supplying the secret each time).
+        Both secrets are OPTIONAL here so PATCH can change
+        label/client_id/redirect_uri without re-supplying them. The view uses
+        ``XeroAppCreateSerializer`` for POST, where they are required.
       properties:
         id:
           type: string
@@ -20046,19 +20054,88 @@ components:
             off once X-DayLimit-Remaining is at or below this value.
       required:
         - day_floor
-    XeroAppRequest:
+    XeroAppCreate:
       type: object
       description: |-
-        List/detail serializer for XeroApp.
+        POST-only variant: client_secret and webhook_key are mandatory.
 
-        client_secret is write-only — never returned. access_token / refresh_token
-        are not surfaced at all; instead a derived has_tokens boolean indicates
-        whether the row has been authorised.
+        A row created without either is inert (no secret → OAuth never
+        completes; no webhook_key → webhooks from this app 401 forever), so
+        the API rejects such payloads up front instead of letting them land
+        and silently break later.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        label:
+          type: string
+          maxLength: 64
+        client_id:
+          type: string
+          maxLength: 128
+        redirect_uri:
+          type: string
+          maxLength: 512
+        is_active:
+          type: boolean
+          readOnly: true
+        has_tokens:
+          type: boolean
+          readOnly: true
+        tenant_id:
+          type: string
+          readOnly: true
+          nullable: true
+        day_remaining:
+          type: integer
+          readOnly: true
+          nullable: true
+        minute_remaining:
+          type: integer
+          readOnly: true
+          nullable: true
+        snapshot_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        last_429_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - client_id
+        - created_at
+        - day_remaining
+        - has_tokens
+        - id
+        - is_active
+        - label
+        - last_429_at
+        - minute_remaining
+        - redirect_uri
+        - snapshot_at
+        - tenant_id
+        - updated_at
+    XeroAppCreateRequest:
+      type: object
+      description: |-
+        POST-only variant: client_secret and webhook_key are mandatory.
 
-        client_secret is REQUIRED on create (no secret = the row can never
-        complete OAuth, which is a configuration footgun) but OPTIONAL on
-        update (so PATCH can change label/client_id/redirect_uri without
-        re-supplying the secret each time).
+        A row created without either is inert (no secret → OAuth never
+        completes; no webhook_key → webhooks from this app 401 forever), so
+        the API rejects such payloads up front instead of letting them land
+        and silently break later.
       properties:
         label:
           type: string
@@ -20076,6 +20153,52 @@ components:
           type: string
           minLength: 1
           maxLength: 512
+        webhook_key:
+          type: string
+          writeOnly: true
+          minLength: 1
+      required:
+        - client_id
+        - client_secret
+        - label
+        - redirect_uri
+        - webhook_key
+    XeroAppRequest:
+      type: object
+      description: |-
+        List / detail / PATCH serializer for XeroApp.
+
+        client_secret and webhook_key are write-only — never returned. The
+        webhook signing key is comparable in sensitivity to the client secret
+        (anyone holding it can forge webhook deliveries that we'd verify as
+        authentic), so it gets the same treatment. access_token /
+        refresh_token are not surfaced at all; instead a derived has_tokens
+        boolean indicates whether the row has been authorised.
+
+        Both secrets are OPTIONAL here so PATCH can change
+        label/client_id/redirect_uri without re-supplying them. The view uses
+        ``XeroAppCreateSerializer`` for POST, where they are required.
+      properties:
+        label:
+          type: string
+          minLength: 1
+          maxLength: 64
+        client_id:
+          type: string
+          minLength: 1
+          maxLength: 128
+        client_secret:
+          type: string
+          writeOnly: true
+          minLength: 1
+        redirect_uri:
+          type: string
+          minLength: 1
+          maxLength: 512
+        webhook_key:
+          type: string
+          writeOnly: true
+          minLength: 1
       required:
         - client_id
         - label
