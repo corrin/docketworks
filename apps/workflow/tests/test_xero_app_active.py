@@ -103,8 +103,10 @@ class SwapActiveTests(TestCase):
         mock_reset.assert_called_once()
 
     def test_swap_dispatches_systemctl_restart(self):
-        # In a production-like env (DB_NAME set), swap fires a detached
-        # `sudo systemctl restart` for the sibling worker units.
+        # In a production-like env (INSTANCE set), swap fires a detached
+        # `sudo systemctl restart` for the sibling worker units. The unit
+        # names use the instance slug ("msm-prod"), NOT DB_NAME
+        # ("dw_msm_prod") — they diverged in instance.sh.
         from apps.workflow.api.xero import active_app
 
         _row(client_id="a1", is_active=True)
@@ -114,7 +116,7 @@ class SwapActiveTests(TestCase):
             patch("apps.workflow.api.xero.active_app.subprocess.Popen") as mock_popen,
             patch(
                 "apps.workflow.api.xero.active_app.os.getenv",
-                return_value="dw_test_env",
+                return_value="msm-prod",
             ),
         ):
             active_app.swap_active(b.id)
@@ -126,15 +128,41 @@ class SwapActiveTests(TestCase):
         self.assertEqual(
             set(cmd[3:]),
             {
-                "gunicorn-dw_test_env.service",
-                "scheduler-dw_test_env.service",
-                "celery-worker-dw_test_env.service",
+                "gunicorn-msm-prod.service",
+                "scheduler-msm-prod.service",
+                "celery-worker-msm-prod.service",
             },
         )
         self.assertTrue(kwargs.get("start_new_session"))
 
+    def test_swap_reads_instance_env_not_db_name(self):
+        # Regression guard: the restart used to read DB_NAME by mistake,
+        # which produced unit names like "gunicorn-dw_msm_prod.service"
+        # that don't exist on disk — restart silently no-op'd. Pin that
+        # the env var read is INSTANCE.
+        from apps.workflow.api.xero import active_app
+
+        _row(client_id="a1", is_active=True)
+        b = _row(client_id="b1", is_active=False)
+
+        captured: dict = {}
+
+        def fake_getenv(name, default=None):
+            captured["name"] = name
+            return "msm-prod"
+
+        with (
+            patch("apps.workflow.api.xero.active_app.subprocess.Popen"),
+            patch(
+                "apps.workflow.api.xero.active_app.os.getenv", side_effect=fake_getenv
+            ),
+        ):
+            active_app.swap_active(b.id)
+
+        self.assertEqual(captured["name"], "INSTANCE")
+
     def test_swap_skips_restart_in_dev(self):
-        # No DB_NAME → no systemctl call. In-process singleton reset still happens.
+        # No INSTANCE → no systemctl call. In-process singleton reset still happens.
         from apps.workflow.api.xero import active_app
 
         _row(client_id="a1", is_active=True)

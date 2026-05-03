@@ -74,13 +74,18 @@ def swap_active(app_id) -> XeroApp:
 def _restart_sibling_workers() -> None:
     """Detached ``sudo systemctl restart`` of the per-instance worker units.
 
-    No-op when ``DB_NAME`` is unset (dev/test): the in-process singleton has
-    already been invalidated; user-owned VS Code services stay stale until
-    the user restarts them, per the dev-services policy.
+    Reads ``INSTANCE`` (the systemd-unit naming slug, e.g. ``msm-prod``),
+    NOT ``DB_NAME`` (which uses underscores, e.g. ``dw_msm_prod`` — wrong
+    shape for unit names). The two diverged in instance.sh: see
+    ``scripts/server/common.sh:instance_user`` and the unit templates.
+
+    No-op when ``INSTANCE`` is unset (dev/test): the in-process singleton
+    has already been invalidated; user-owned VS Code services stay stale
+    until the user restarts them, per the dev-services policy.
     """
-    instance = os.getenv("DB_NAME")
+    instance = os.getenv("INSTANCE")
     if not instance:
-        logger.info("No DB_NAME env; skipping worker restart (dev/test).")
+        logger.info("No INSTANCE env; skipping worker restart (dev/test).")
         return
 
     units: List[str] = [

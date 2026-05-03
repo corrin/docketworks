@@ -52,11 +52,14 @@ scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_compan
 Copy the example fixture and fill in the **Xero Demo Company** app's Client ID, Client Secret, Redirect URI, and Webhook Key. Set `label` to something identifiable like `<client>-uat xero`.
 
 ```bash
-INSTANCE_DIR=/opt/docketworks/instances/<client>-uat/docketworks
-sudo -u dw-<client>-uat cp \
+# instance.sh creates the checkout directly at /opt/docketworks/instances/<INSTANCE>/
+# (no /docketworks suffix) and the OS user as dw_<client>_<env> (underscores —
+# matches the DB role; see scripts/server/common.sh:instance_user).
+INSTANCE_DIR=/opt/docketworks/instances/<client>-uat
+sudo -u dw_<client>_uat cp \
   $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json.example \
   $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
-sudo -u dw-<client>-uat $EDITOR $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
+sudo -u dw_<client>_uat $EDITOR $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
 scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fixtures/xero_apps.json
 ```
 

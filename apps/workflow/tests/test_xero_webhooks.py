@@ -153,6 +153,67 @@ class XeroWebhookHandlerTests(TestCase):
         self.assertEqual(args[1]["resourceId"], "inv-2")
 
 
+class XeroWebhookRotationTests(TestCase):
+    """Multi-key acceptance during a Xero credential rotation.
+
+    During a rotation an install has TWO XeroApp rows registered with
+    Xero (the "old" app being phased out and the "new" replacement),
+    each with its own webhook_key. Both apps emit signed webhooks until
+    the operator deletes the old one in Xero's portal. The verifier must
+    accept either signature — and reject any third-party signature that
+    isn't on any row, regardless of how many keys are configured.
+    """
+
+    def setUp(self) -> None:
+        self.factory = RequestFactory()
+        self.url = reverse("xero_webhook")
+
+    def test_signature_from_inactive_row_is_accepted(self) -> None:
+        # Old app is non-active; new app is active. A webhook signed with
+        # the OLD app's key must still be accepted (Xero is still
+        # delivering events from the old app's tenant binding).
+        _make_xero_app(label="Old", webhook_key="key-old")
+        new = _make_xero_app(label="New", webhook_key="key-new")
+        XeroApp.objects.filter(label="New").update(is_active=True)
+        new.refresh_from_db()
+
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        for key in ("key-old", "key-new"):
+            request = self.factory.post(
+                self.url,
+                data=body,
+                content_type="application/json",
+                HTTP_X_XERO_SIGNATURE=_sign(body, key=key),
+            )
+            with patch.object(process_xero_webhook_event, "delay") as mock_delay:
+                response = XeroWebhookView.as_view()(request)
+            self.assertEqual(
+                response.status_code,
+                200,
+                f"Signature signed with {key!r} should be accepted",
+            )
+            mock_delay.assert_called_once()
+
+    def test_signature_from_unknown_key_is_rejected_even_with_multiple_keys(
+        self,
+    ) -> None:
+        # Pin that the multi-key loop is "any-of", not "anything-goes".
+        _make_xero_app(label="A", webhook_key="key-a")
+        _make_xero_app(label="B", webhook_key="key-b")
+
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        request = self.factory.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_XERO_SIGNATURE=_sign(body, key="not-on-any-row"),
+        )
+        with patch.object(process_xero_webhook_event, "delay") as mock_delay:
+            response = XeroWebhookView.as_view()(request)
+        self.assertEqual(response.status_code, 401)
+        mock_delay.assert_not_called()
+
+
 class XeroWebhookConfigErrorTests(TestCase):
     """No XeroApp.webhook_key set → loud failure, not silent 401.
 

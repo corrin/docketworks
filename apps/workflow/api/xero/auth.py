@@ -139,23 +139,22 @@ def _make_token_saver(app_id) -> Callable[[Dict[str, Any]], None]:
     our callback writes the new tokens to the row whose id was captured
     here, NOT to whichever row is currently active. This is what makes
     credential swaps safe under concurrent refreshes.
+
+    The saver writes tokens only — never tenant_id. tenant_id is per-app
+    and a connections lookup needs an ApiClient; the only ApiClient
+    available here is the global ``api_client`` proxy, which resolves to
+    the currently active row, not necessarily ``app_id``. Writing the
+    proxy's tenant onto ``app_id``'s row would corrupt the row→tenant
+    binding the moment ``app_id`` isn't the active one (e.g. a refresh
+    in flight when an operator swaps active apps). XeroApp.tenant_id is
+    informational; live calls read CompanyDefaults.xero_tenant_id and the
+    global TENANT_ID_CACHE_KEY, not this column.
     """
 
     def _save(token: Dict[str, Any]) -> None:
         if not token.get("expires_in"):
             raise ValueError("Missing expires_in in Xero token response")
         expires_at = datetime.now(timezone.utc) + timedelta(seconds=token["expires_in"])
-
-        # Tenant id may be None if the connections call fails; that's OK.
-        tenant_id = None
-        try:
-            tenant_id = get_tenant_id_from_connections()
-        except AlreadyLoggedException:
-            raise
-        except Exception as exc:
-            persist_app_error(exc)
-            logger.warning(f"Could not fetch tenant ID when storing token: {exc}")
-            # Don't re-raise — we still want to persist the new tokens.
 
         scope = token["scope"]
         scope_str = " ".join(scope) if isinstance(scope, list) else str(scope)
@@ -169,8 +168,6 @@ def _make_token_saver(app_id) -> Callable[[Dict[str, Any]], None]:
         refresh = token.get("refresh_token")
         if refresh:
             update_fields["refresh_token"] = str(refresh)
-        if tenant_id:
-            update_fields["tenant_id"] = tenant_id
 
         try:
             XeroApp.objects.filter(id=app_id).update(**update_fields)

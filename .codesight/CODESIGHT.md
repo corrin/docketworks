@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 185 components | 372 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,900 tokens. **Saves ~214,000 tokens per conversation.**
+> 95 routes | 44 models | 185 components | 372 lib files | 71 env vars | 11 middleware | 2 events | 23% test coverage
+> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~245,000 tokens. **Saves ~214,100 tokens per conversation.**
 
 ---
 
@@ -1996,6 +1996,7 @@
 - `FRONT_END_URL` (has default) — .env.example
 - `GCP_CREDENTIALS` (has default) — .env.example
 - `GOOGLE_MAPS_API_KEY` (has default) — .env.example
+- `INSTANCE` **required** — apps/workflow/api/xero/active_app.py
 - `JOB_DELTA_SOFT_FAIL` (has default) — .env.example
 - `LOG_DIR` **required** — docketworks/settings.py
 - `MEDIA_ROOT` **required** — docketworks/settings.py

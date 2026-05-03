@@ -36,11 +36,14 @@ Creates: OS user, database, .env, code clone, frontend build, migrations, admin 
 Copy the example fixture and fill in the client's prod Xero app's Client ID, Client Secret, Redirect URI, and Webhook Key (all from Phase 2b of client_onboarding.md). Set `label` to `<client>-prod xero`.
 
 ```bash
-INSTANCE_DIR=/opt/docketworks/instances/<client>-prod/docketworks
-sudo -u dw-<client>-prod cp \
+# instance.sh creates the checkout directly at /opt/docketworks/instances/<INSTANCE>/
+# (no /docketworks suffix) and the OS user as dw_<client>_<env> (underscores —
+# matches the DB role; see scripts/server/common.sh:instance_user).
+INSTANCE_DIR=/opt/docketworks/instances/<client>-prod
+sudo -u dw_<client>_prod cp \
   $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json.example \
   $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
-sudo -u dw-<client>-prod $EDITOR $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
+sudo -u dw_<client>_prod $EDITOR $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
 scripts/server/dw-run.sh <client>-prod python manage.py loaddata apps/workflow/fixtures/xero_apps.json
 ```
 
@@ -56,11 +59,9 @@ Log into the app as admin (`defaultadmin@example.com` / `Default-admin-password`
 
 Admin > Xero > "Login with Xero" > Authorize the client's Xero organisation.
 
-**Check:**
-```bash
-scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_xero_app.py
-```
-Expected: `XeroApp configured: <client>-prod xero` (now with `Authorised: ✓` in Admin > Xero Apps).
+**Check:** in **Admin > Xero Apps** the row shows `Authorised: ✓`.
+(There's no CLI check for this — `check_xero_app.py` is a pre-OAuth
+existence check and doesn't read tokens.)
 
 ## Step 4: Configure Xero
 
