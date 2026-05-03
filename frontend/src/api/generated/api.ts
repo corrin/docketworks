@@ -3012,6 +3012,7 @@ const XeroAppRequest = z.object({
   client_id: z.string().min(1).max(128),
   client_secret: z.string().min(1).optional(),
   redirect_uri: z.string().min(1).max(512),
+  webhook_key: z.string().min(1).optional(),
 })
 const PatchedXeroAppRequest = z
   .object({
@@ -3019,6 +3020,7 @@ const PatchedXeroAppRequest = z
     client_id: z.string().min(1).max(128),
     client_secret: z.string().min(1),
     redirect_uri: z.string().min(1).max(512),
+    webhook_key: z.string().min(1),
   })
   .partial()
 const XeroAppConfig = z.object({ day_floor: z.number().int() })
