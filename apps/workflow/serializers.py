@@ -81,10 +81,23 @@ class XeroAppSerializer(serializers.ModelSerializer):
     client_secret is write-only — never returned. access_token / refresh_token
     are not surfaced at all; instead a derived has_tokens boolean indicates
     whether the row has been authorised.
+
+    client_secret is REQUIRED on create (no secret = the row can never
+    complete OAuth, which is a configuration footgun) but OPTIONAL on
+    update (so PATCH can change label/client_id/redirect_uri without
+    re-supplying the secret each time).
     """
 
     has_tokens = serializers.SerializerMethodField()
     client_secret = serializers.CharField(write_only=True, required=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance is None and not attrs.get("client_secret"):
+            raise serializers.ValidationError(
+                {"client_secret": "client_secret is required when creating a XeroApp."}
+            )
+        return attrs
 
     class Meta:
         model = XeroApp

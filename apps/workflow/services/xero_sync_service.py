@@ -8,6 +8,7 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from apps.workflow.accounting.registry import get_provider
+from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
 from apps.workflow.exceptions import XeroQuotaFloorReached
 
 logger = logging.getLogger("xero")
@@ -30,14 +31,14 @@ class XeroSyncService:
         if tenant_id:
             self.tenant_id = tenant_id
         else:
-            self.tenant_id = cache.get("xero_tenant_id")
+            self.tenant_id = cache.get(TENANT_ID_CACHE_KEY)
             if not self.tenant_id:
                 from apps.workflow.api.xero.auth import get_tenant_id_from_connections
 
                 self.tenant_id = get_tenant_id_from_connections()
         if not self.tenant_id:
             raise ValueError("No tenant ID found in cache or connections")
-        cache.set("xero_tenant_id", self.tenant_id, timeout=1800)
+        cache.set(TENANT_ID_CACHE_KEY, self.tenant_id, timeout=1800)
 
     LOCK_TIMEOUT = 60 * 60 * 4  # 4 hours
     SYNC_STATUS_KEY = "xero_sync_status"

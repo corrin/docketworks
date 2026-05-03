@@ -133,6 +133,35 @@ class XeroAppApiCreateTests(APITestCase):
         response = self.client.post("/api/workflow/xero-apps/", payload, format="json")
         self.assertEqual(response.status_code, 400)
 
+    def test_create_without_secret_rejected(self):
+        # A row created without client_secret can never complete OAuth —
+        # serializer must reject it on create even though secret is
+        # write-only and otherwise tolerated as missing.
+        payload = {
+            "label": "NoSecret",
+            "client_id": "c-no-secret",
+            "redirect_uri": "https://example.test/cb",
+        }
+        response = self.client.post("/api/workflow/xero-apps/", payload, format="json")
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("client_secret", response.data)
+        self.assertFalse(XeroApp.objects.filter(client_id="c-no-secret").exists())
+
+    def test_patch_without_secret_allowed(self):
+        # PATCH must NOT require client_secret — the secret is already
+        # persisted, and forcing operators to re-supply it on every label
+        # tweak would be punitive.
+        existing = _row(client_id="c-patch", client_secret="s-original")
+        response = self.client.patch(
+            f"/api/workflow/xero-apps/{existing.id}/",
+            {"label": "RenamedLabel"},
+            format="json",
+        )
+        self.assertEqual(response.status_code, 200)
+        existing.refresh_from_db()
+        self.assertEqual(existing.label, "RenamedLabel")
+        self.assertEqual(existing.client_secret, "s-original")
+
 
 class XeroAppApiPatchTests(APITestCase):
     def setUp(self):

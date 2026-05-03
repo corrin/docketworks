@@ -18,7 +18,7 @@ from xero_python.api_client import ApiClient
 from xero_python.api_client.oauth2 import TokenApi
 from xero_python.identity import IdentityApi
 
-from apps.workflow.api.xero.constants import XERO_SCOPES
+from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY, XERO_SCOPES
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.services.error_persistence import persist_app_error
@@ -268,7 +268,7 @@ def exchange_code_for_token(
 def get_tenant_id() -> str:
     """Retrieve the tenant ID, refreshing the token or fetching from Xero
     connections if needed."""
-    tenant_id = cache.get("xero_tenant_id")
+    tenant_id = cache.get(TENANT_ID_CACHE_KEY)
 
     payload = get_valid_token()
     if not payload:
@@ -279,7 +279,7 @@ def get_tenant_id() -> str:
     if not tenant_id:
         try:
             tenant_id = get_tenant_id_from_connections()
-            cache.set("xero_tenant_id", tenant_id)
+            cache.set(TENANT_ID_CACHE_KEY, tenant_id)
         except AlreadyLoggedException:
             raise
         except Exception as exc:

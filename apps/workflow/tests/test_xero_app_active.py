@@ -71,6 +71,20 @@ class SwapActiveTests(TestCase):
         with self.assertRaises(XeroApp.DoesNotExist):
             swap_active(uuid.uuid4())
 
+    def test_swap_invalidates_tenant_id_cache(self):
+        # Without this invalidation the next get_tenant_id() returns the
+        # prior app's tenant under the new app's credentials.
+        from django.core.cache import cache
+
+        from apps.workflow.api.xero.active_app import swap_active
+        from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
+
+        a = _row(client_id="a1", is_active=True)  # noqa: F841
+        b = _row(client_id="b1", is_active=False)
+        cache.set(TENANT_ID_CACHE_KEY, "tenant-from-a")
+        swap_active(b.id)
+        self.assertIsNone(cache.get(TENANT_ID_CACHE_KEY))
+
 
 class WipeTokensAndQuotaTests(TestCase):
     def test_wipes_token_and_quota_fields(self):
@@ -104,6 +118,20 @@ class WipeTokensAndQuotaTests(TestCase):
             "last_429_at",
         ]:
             self.assertIsNone(getattr(row, field), field)
+
+    def test_wipe_invalidates_tenant_id_cache(self):
+        # Same reasoning as the swap test — credentials can change without
+        # the active row flipping (e.g. operator edits client_id), and the
+        # global tenant cache must drop in lockstep.
+        from django.core.cache import cache
+
+        from apps.workflow.api.xero.active_app import wipe_tokens_and_quota
+        from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
+
+        row = _row(client_id="a1", tenant_id="t-1")
+        cache.set(TENANT_ID_CACHE_KEY, "stale-tenant")
+        wipe_tokens_and_quota(row)
+        self.assertIsNone(cache.get(TENANT_ID_CACHE_KEY))
 
 
 class GetActiveClientRebuildTests(TestCase):

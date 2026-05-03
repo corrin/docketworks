@@ -7,11 +7,14 @@ from django.db.models import Q, UniqueConstraint
 class XeroApp(models.Model):
     """A registered Xero app (client_id / client_secret pair).
 
-    Each install can have up to two rows (Xero policy). Exactly one is
-    marked is_active=True at a time, enforced by a partial unique index.
-    The active row's credentials are what every Xero API call uses;
-    tokens and quota state are stored alongside the credentials so a
-    swap is a single atomic flip.
+    In practice an install has one or two rows — Xero's developer portal
+    registers up to two apps per integration so credentials can be
+    rotated without downtime — but the code does not enforce a hard cap;
+    extra rows are inert until activated. Exactly one row is marked
+    is_active=True at a time (enforced by a partial unique index). The
+    active row's credentials are what every Xero API call uses; tokens
+    and quota state are stored alongside the credentials so a swap is a
+    single atomic flip.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)

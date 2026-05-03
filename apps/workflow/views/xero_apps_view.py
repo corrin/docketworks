@@ -1,4 +1,4 @@
-"""DRF viewset for /api/xero-apps/ — manage Xero app credential pairs.
+"""DRF viewset for /api/workflow/xero-apps/ — manage Xero app credential pairs.
 
 Staff-only. The serializer never returns client_secret / access_token /
 refresh_token; only the has_tokens boolean and quota timestamps.
@@ -8,9 +8,10 @@ credentials Xero calls use, replacing the legacy "ssh + edit .env +
 restart" procedure.
 """
 
+from django.conf import settings
 from django.db import IntegrityError
 from drf_spectacular.utils import extend_schema
-from rest_framework import status, viewsets
+from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
@@ -24,6 +25,18 @@ from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
 from apps.workflow.serializers import XeroAppSerializer
 from apps.workflow.services.error_persistence import persist_app_error
+
+
+class XeroAppConfigSerializer(serializers.Serializer):
+    """Read-only config snapshot for clients (e.g. the quota badge) that
+    need to align UI thresholds to backend behaviour."""
+
+    day_floor = serializers.IntegerField(
+        help_text=(
+            "XERO_AUTOMATED_DAY_FLOOR — automated Xero traffic is gated off "
+            "once X-DayLimit-Remaining is at or below this value."
+        )
+    )
 
 
 class XeroAppViewSet(viewsets.ModelViewSet):
@@ -92,3 +105,14 @@ class XeroAppViewSet(viewsets.ModelViewSet):
             err = persist_app_error(exc)
             raise AlreadyLoggedException(exc, err.id) from exc
         return Response(self.get_serializer(target).data)
+
+    @extend_schema(request=None, responses={200: XeroAppConfigSerializer})
+    @action(detail=False, methods=["get"], url_path="config")
+    def config(self, request):
+        """Expose backend Xero config to the frontend.
+
+        Today: just the day-quota floor — the quota badge derives its
+        red/amber thresholds from this so a deployment bumping the floor
+        in env doesn't leave the UI showing "healthy" while syncs abort.
+        """
+        return Response({"day_floor": settings.XERO_AUTOMATED_DAY_FLOOR})

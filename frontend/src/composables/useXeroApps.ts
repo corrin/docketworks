@@ -8,6 +8,13 @@ export type XeroApp = z.infer<typeof schemas.XeroApp>
 
 const POLL_INTERVAL_MS = 60_000
 
+// Backend day-quota floor (XERO_AUTOMATED_DAY_FLOOR). Static for the
+// life of the process — fetched once on first mount and reused. Null
+// before the first fetch resolves; consumers should fall back to the
+// hard default until then.
+const dayFloor = ref<number | null>(null)
+let configFetchInflight: Promise<void> | null = null
+
 /**
  * Reactive view of the workflow XeroApp collection.
  *
@@ -41,8 +48,29 @@ export function useXeroApps(autoPoll: boolean = true) {
     }
   }
 
+  async function fetchConfigOnce(): Promise<void> {
+    // Module-scoped guard so multiple components mounting in parallel
+    // don't all fire the same request, and a settled fetch is reused.
+    if (dayFloor.value !== null) return
+    if (configFetchInflight === null) {
+      configFetchInflight = api
+        .workflow_xero_apps_config_retrieve()
+        .then((response) => {
+          dayFloor.value = response.day_floor
+        })
+        .catch((err) => {
+          debugLog('[useXeroApps] config fetch failed:', err)
+        })
+        .finally(() => {
+          configFetchInflight = null
+        })
+    }
+    await configFetchInflight
+  }
+
   onMounted(() => {
     refresh()
+    fetchConfigOnce()
     if (autoPoll) {
       intervalId = setInterval(() => {
         refresh()
@@ -63,5 +91,6 @@ export function useXeroApps(autoPoll: boolean = true) {
     error,
     refresh,
     activeApp,
+    dayFloor,
   }
 }

@@ -39,8 +39,17 @@ import { useXeroApps } from '@/composables/useXeroApps'
 
 const STALE_AFTER_MS = 30 * 60 * 1000 // 30 minutes — matches backend quota_floor_breached window
 
-const { activeApp } = useXeroApps()
+// Until the backend's day_floor config arrives, fall back to 100 — the
+// historical default and the value most installs run at.
+const DAY_FLOOR_FALLBACK = 100
+// Amber warning kicks in at 5×floor — gives the operator a visible
+// "running low" signal well above the abort point. Tuned by feel; the
+// only hard line in the system is the floor itself.
+const AMBER_MULTIPLIER = 5
 
+const { activeApp, dayFloor } = useXeroApps()
+
+const effectiveFloor = computed<number>(() => dayFloor.value ?? DAY_FLOOR_FALLBACK)
 const dayRemaining = computed<number | null>(() => activeApp.value?.day_remaining ?? null)
 
 // Xero only sends X-DayLimit-Remaining (the count), never the ceiling — and
@@ -59,14 +68,17 @@ const dayDisplay = computed<string>(() => {
 
 // Colour signal lives on a small dot inside the outline badge — the badge
 // itself stays neutral so it reads as one of a row of toolbar controls.
+// Thresholds derive from the backend floor so a deployment bumping
+// XERO_AUTOMATED_DAY_FLOOR doesn't leave the UI showing "healthy" while
+// automated syncs are already being aborted.
 const dotClass = computed<string>(() => {
   if (!activeApp.value || dayRemaining.value === null) {
     return 'bg-gray-400'
   }
-  if (dayRemaining.value < 100) {
+  if (dayRemaining.value <= effectiveFloor.value) {
     return 'bg-red-500'
   }
-  if (dayRemaining.value <= 1000) {
+  if (dayRemaining.value <= effectiveFloor.value * AMBER_MULTIPLIER) {
     return 'bg-amber-500'
   }
   return 'bg-green-500'

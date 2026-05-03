@@ -470,8 +470,16 @@ EOSQL
         "$TEMPLATE_DIR/gunicorn-instance.service.template" \
         > "/etc/systemd/system/gunicorn-$INSTANCE.service"
     systemctl daemon-reload
-    systemctl enable "gunicorn-$INSTANCE"
-    systemctl restart "gunicorn-$INSTANCE"
+    if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
+        # Cold-standby: docs/server_setup.md and deploy.sh both gate
+        # gunicorn on .dr-mode so the box doesn't accept HTTP traffic
+        # before DNS cutover. The unit file is rendered above so "go
+        # live" is just `rm .dr-mode && systemctl enable --now ...`.
+        log "  DR mode: skipping enable/restart of gunicorn-$INSTANCE"
+    else
+        systemctl enable "gunicorn-$INSTANCE"
+        systemctl restart "gunicorn-$INSTANCE"
+    fi
 
     log "Installing systemd service scheduler-$INSTANCE..."
     sed \

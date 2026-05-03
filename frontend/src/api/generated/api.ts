@@ -3021,6 +3021,7 @@ const PatchedXeroAppRequest = z
     redirect_uri: z.string().min(1).max(512),
   })
   .partial()
+const XeroAppConfig = z.object({ day_floor: z.number().int() })
 const XeroPayItem = z.object({
   id: z.string().uuid(),
   xero_id: z.string().max(50).nullish(),
@@ -3460,6 +3461,7 @@ export const schemas = {
   XeroApp,
   XeroAppRequest,
   PatchedXeroAppRequest,
+  XeroAppConfig,
   XeroPayItem,
   XeroError,
   PaginatedXeroErrorList,
@@ -8736,6 +8738,18 @@ Endpoints:
       },
     ],
     response: XeroApp,
+  },
+  {
+    method: 'get',
+    path: '/api/workflow/xero-apps/config/',
+    alias: 'workflow_xero_apps_config_retrieve',
+    description: `Expose backend Xero config to the frontend.
+
+Today: just the day-quota floor — the quota badge derives its
+red/amber thresholds from this so a deployment bumping the floor
+in env doesn&#x27;t leave the UI showing &quot;healthy&quot; while syncs abort.`,
+    requestFormat: 'json',
+    response: z.object({ day_floor: z.number().int() }),
   },
   {
     method: 'get',

@@ -7686,6 +7686,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/XeroApp'
           description: ''
+  /api/workflow/xero-apps/config/:
+    get:
+      operationId: workflow_xero_apps_config_retrieve
+      description: |-
+        Expose backend Xero config to the frontend.
+
+        Today: just the day-quota floor — the quota badge derives its
+        red/amber thresholds from this so a deployment bumping the floor
+        in env doesn't leave the UI showing "healthy" while syncs abort.
+      tags:
+        - workflow
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/XeroAppConfig'
+          description: ''
   /api/workflow/xero-pay-items/:
     get:
       operationId: workflow_xero_pay_items_list
@@ -15344,6 +15364,11 @@ components:
         client_secret is write-only — never returned. access_token / refresh_token
         are not surfaced at all; instead a derived has_tokens boolean indicates
         whether the row has been authorised.
+
+        client_secret is REQUIRED on create (no secret = the row can never
+        complete OAuth, which is a configuration footgun) but OPTIONAL on
+        update (so PATCH can change label/client_id/redirect_uri without
+        re-supplying the secret each time).
       properties:
         label:
           type: string
@@ -19940,6 +19965,11 @@ components:
         client_secret is write-only — never returned. access_token / refresh_token
         are not surfaced at all; instead a derived has_tokens boolean indicates
         whether the row has been authorised.
+
+        client_secret is REQUIRED on create (no secret = the row can never
+        complete OAuth, which is a configuration footgun) but OPTIONAL on
+        update (so PATCH can change label/client_id/redirect_uri without
+        re-supplying the secret each time).
       properties:
         id:
           type: string
@@ -20004,6 +20034,18 @@ components:
         - snapshot_at
         - tenant_id
         - updated_at
+    XeroAppConfig:
+      type: object
+      description: |-
+        Read-only config snapshot for clients (e.g. the quota badge) that
+        need to align UI thresholds to backend behaviour.
+      properties:
+        day_floor:
+          type: integer
+          description: XERO_AUTOMATED_DAY_FLOOR — automated Xero traffic is gated
+            off once X-DayLimit-Remaining is at or below this value.
+      required:
+        - day_floor
     XeroAppRequest:
       type: object
       description: |-
@@ -20012,6 +20054,11 @@ components:
         client_secret is write-only — never returned. access_token / refresh_token
         are not surfaced at all; instead a derived has_tokens boolean indicates
         whether the row has been authorised.
+
+        client_secret is REQUIRED on create (no secret = the row can never
+        complete OAuth, which is a configuration footgun) but OPTIONAL on
+        update (so PATCH can change label/client_id/redirect_uri without
+        re-supplying the secret each time).
       properties:
         label:
           type: string

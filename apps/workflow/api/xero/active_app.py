@@ -18,11 +18,13 @@ import logging
 from typing import Optional, Tuple
 from uuid import UUID
 
+from django.core.cache import cache
 from django.db import transaction
 from xero_python.api_client import ApiClient, Configuration
 from xero_python.api_client.oauth2 import OAuth2Token
 
 from apps.workflow.api.xero.client import RateLimitedRESTClient
+from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
 from apps.workflow.models import XeroApp
 
 logger = logging.getLogger("xero")
@@ -51,6 +53,10 @@ def swap_active(app_id) -> XeroApp:
         target.is_active = True
         target.save(update_fields=["is_active", "updated_at"])
     _reset_client_cache()
+    # Tenant id was cached against the previous app's credentials. Without
+    # this delete, the next get_tenant_id() returns the prior tenant and
+    # subsequent calls hit the wrong tenant under the new credentials.
+    cache.delete(TENANT_ID_CACHE_KEY)
     logger.info(f"Active XeroApp swapped to {target.id} ({target.label})")
     return target
 
@@ -73,6 +79,11 @@ def wipe_tokens_and_quota(app: XeroApp) -> None:
         snapshot_at=None,
         last_429_at=None,
     )
+    # If this row is currently active, the cached tenant id was derived
+    # from the now-wiped credentials and is no longer authoritative. Clear
+    # it unconditionally — the cache key is global, not per-app, so the
+    # safe move is to drop it whenever any row's credentials change.
+    cache.delete(TENANT_ID_CACHE_KEY)
 
 
 def build_api_client(app: XeroApp) -> ApiClient:
