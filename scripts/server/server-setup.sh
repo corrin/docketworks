@@ -300,6 +300,13 @@ mkdir -p /opt/docketworks/.local/share /opt/docketworks/.local/bin
 # (see instance.sh) and a recursive chown here would clobber every instance on
 # every deploy.
 chown docketworks:docketworks /opt/docketworks
+# Instance users (dw_*) are created with no supplementary groups (instance.sh
+# uses `useradd --system` without -G), so they need world-x on /opt/docketworks
+# to traverse into their own /opt/docketworks/instances/<inst>/ home dir.
+# `useradd --create-home` honours HOME_MODE from /etc/login.defs, which is 0750
+# on Ubuntu 21.04+ — so without this chmod, every instance user is locked out
+# of its own home and gunicorn/celery/dw-run all fail with EACCES.
+chmod 755 /opt/docketworks
 chown -R docketworks:docketworks /opt/docketworks/.local
 
 # --- Install Dreamhost API key for certbot hooks ---
@@ -489,6 +496,9 @@ log "Server manifest written to $MANIFEST"
 
 mkdir -p /opt/docketworks/instances
 chown docketworks:docketworks /opt/docketworks/instances
+# Same reason as /opt/docketworks above: instance users have no supplementary
+# groups and need world-x to traverse into their own instance dir.
+chmod 755 /opt/docketworks/instances
 
 # --- Clone repository (HTTPS, no SSH key needed) ---
 
