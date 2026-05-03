@@ -5,9 +5,18 @@ set -euo pipefail
 # Runs once on a fresh Ubuntu 24.04 server as the 'ubuntu' user.
 # Idempotent — safe to re-run.
 #
-# First run (UAT):   sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY>
-# First run (prod):  sudo ./server-setup.sh --no-cert       --google-maps-key <KEY>
-# Re-run:            sudo ./server-setup.sh   (reads keys from files saved on first run)
+# Every box needs a Dreamhost API key (all customer DNS is on Dreamhost,
+# so DNS-01 challenges work uniformly). Every box also needs an explicit
+# decision about which domains it serves certs for: one or more
+# --cert-domain flags, or --no-cert-domain for a DR-posture box.
+#
+# First run (UAT):   sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY> \
+#                                           --cert-domain '*.docketworks.site'
+# First run (prod):  sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY> \
+#                                           --cert-domain <customer-fqdn>
+# First run (DR):    sudo ./server-setup.sh --dreamhost-key <KEY> --google-maps-key <KEY> \
+#                                           --no-cert-domain
+# Re-run:            sudo ./server-setup.sh   (reads everything from files saved on first run)
 
 SETUP_LOG="/var/log/docketworks-setup.log"
 MANIFEST="/opt/docketworks/server-manifest.txt"
@@ -40,34 +49,58 @@ fi
 cd /
 
 DREAMHOST_KEY_FILE="/etc/letsencrypt/dreamhost-api-key.txt"
+CERT_DOMAINS_FILE="/etc/letsencrypt/cert-domains.txt"
 SHARED_ENV_FILE="/opt/docketworks/shared.env"
 
-USAGE="Usage: $0 [--no-cert] [--dreamhost-key <KEY>] [--google-maps-key <KEY>]
+USAGE="Usage: $0 [--dreamhost-key <KEY>] [--google-maps-key <KEY>]
+              [--cert-domain <FQDN> [--cert-domain <FQDN> ...] | --no-cert-domain]
 
-  UAT (wildcard cert):  $0 --dreamhost-key <KEY> --google-maps-key <KEY>
-  Prod (no cert):       $0 --no-cert            --google-maps-key <KEY>
-  Re-run:               $0   (reads any missing keys from files saved on first run)
+  First install on UAT (wildcard cert):
+    $0 --dreamhost-key <KEY> --google-maps-key <KEY> \\
+       --cert-domain '*.docketworks.site'
+
+  First install on UAT with extra client-branded URL:
+    $0 --dreamhost-key <KEY> --google-maps-key <KEY> \\
+       --cert-domain '*.docketworks.site' \\
+       --cert-domain uat-office.morrissheetmetal.co.nz
+
+  First install on prod:
+    $0 --dreamhost-key <KEY> --google-maps-key <KEY> \\
+       --cert-domain office.heuserlimited.com
+
+  First install on DR (no certs obtained):
+    $0 --dreamhost-key <KEY> --google-maps-key <KEY> --no-cert-domain
+
+  Re-run on a configured server:
+    $0   (reads everything from files saved on first run)
 
   --dreamhost-key:    panel.dreamhost.com → Home > API (grant dns-* permissions)
   --google-maps-key:  GCP console → APIs & Services → Credentials
-  --no-cert:          skip Let's Encrypt wildcard cert (use for prod where DNS is elsewhere)"
+  --cert-domain:      one cert per FQDN. Repeatable. Wildcards include the apex.
+                      On a re-run with this flag, the supplied list REPLACES
+                      the persisted list at $CERT_DOMAINS_FILE.
+  --no-cert-domain:   explicit DR posture (no certs obtained). Mutually
+                      exclusive with --cert-domain."
 
-if ! parsed=$(getopt -o '' --long no-cert,dreamhost-key:,google-maps-key: -n "$(basename "$0")" -- "$@"); then
+if ! parsed=$(getopt -o '' --long dreamhost-key:,google-maps-key:,cert-domain:,no-cert-domain -n "$(basename "$0")" -- "$@"); then
     echo "$USAGE" >&2
     exit 1
 fi
 eval set -- "$parsed"
 
-NO_CERT=false
 DREAMHOST_API_KEY=""
 GOOGLE_MAPS_API_KEY=""
 DREAMHOST_KEY_GIVEN=false
 GOOGLE_MAPS_KEY_GIVEN=false
+CERT_DOMAINS=()
+CERT_DOMAINS_GIVEN=false
+NO_CERT_DOMAIN_GIVEN=false
 while true; do
     case "$1" in
-        --no-cert)         NO_CERT=true;             shift ;;
         --dreamhost-key)   DREAMHOST_API_KEY="$2";   DREAMHOST_KEY_GIVEN=true;   shift 2 ;;
         --google-maps-key) GOOGLE_MAPS_API_KEY="$2"; GOOGLE_MAPS_KEY_GIVEN=true; shift 2 ;;
+        --cert-domain)     CERT_DOMAINS+=("$2");     CERT_DOMAINS_GIVEN=true;    shift 2 ;;
+        --no-cert-domain)  NO_CERT_DOMAIN_GIVEN=true;                            shift ;;
         --)                shift; break ;;
     esac
 done
@@ -78,24 +111,23 @@ if [[ $# -gt 0 ]]; then
     exit 1
 fi
 
-# --no-cert + --dreamhost-key are contradictory: with --no-cert there's no
-# DNS challenge to authenticate, so a Dreamhost key has no effect. Reject
-# loudly rather than silently ignore the key.
-if [[ "$NO_CERT" == true && "$DREAMHOST_KEY_GIVEN" == true ]]; then
-    echo "ERROR: --no-cert and --dreamhost-key are mutually exclusive." >&2
+if [[ "$CERT_DOMAINS_GIVEN" == true && "$NO_CERT_DOMAIN_GIVEN" == true ]]; then
+    echo "ERROR: --cert-domain and --no-cert-domain are mutually exclusive." >&2
     exit 1
 fi
 
-# --- Resolve any keys not given on the CLI from saved files ---
-if [[ "$NO_CERT" == false && "$DREAMHOST_KEY_GIVEN" == false ]]; then
+# --- Resolve Dreamhost key (every box needs one) ---
+if [[ "$DREAMHOST_KEY_GIVEN" == false ]]; then
     if [[ ! -f "$DREAMHOST_KEY_FILE" ]]; then
         echo "ERROR: --dreamhost-key not given and no saved key at $DREAMHOST_KEY_FILE" >&2
+        echo "" >&2
         echo "$USAGE" >&2
         exit 1
     fi
     DREAMHOST_API_KEY="$(cat "$DREAMHOST_KEY_FILE")"
 fi
 
+# --- Resolve Google Maps key (unchanged) ---
 if [[ "$GOOGLE_MAPS_KEY_GIVEN" == false ]]; then
     if [[ ! -f "$SHARED_ENV_FILE" ]]; then
         echo "ERROR: --google-maps-key not given and no saved value in $SHARED_ENV_FILE" >&2
@@ -103,6 +135,56 @@ if [[ "$GOOGLE_MAPS_KEY_GIVEN" == false ]]; then
         exit 1
     fi
     GOOGLE_MAPS_API_KEY="$(grep GOOGLE_MAPS_API_KEY "$SHARED_ENV_FILE" | cut -d"'" -f2)"
+fi
+
+# --- Resolve cert-domains list ---
+# Migration auto-detect: an existing UAT box that predates this rework has
+# the wildcard live-dir but no cert-domains.txt yet. The live-dir at
+# /etc/letsencrypt/live/docketworks.site/ is unambiguous evidence — only a
+# previous successful UAT bootstrap creates it — so writing the standard UAT
+# entry is safe. Never fires on a prod or DR box because they don't have
+# that path. Runs before the explicit-flag handling below so an operator
+# override still wins.
+if [[ ! -f "$CERT_DOMAINS_FILE" && -d /etc/letsencrypt/live/docketworks.site ]]; then
+    mkdir -p "$(dirname "$CERT_DOMAINS_FILE")"
+    cat > "$CERT_DOMAINS_FILE" <<'CERT_DOMAINS_EOF'
+# Cert domains for this server. One FQDN per line.
+# Wildcards (*.example.com) include the apex (example.com) automatically.
+# Edit to add or remove individual domains.
+*.docketworks.site
+CERT_DOMAINS_EOF
+fi
+
+if [[ "$CERT_DOMAINS_GIVEN" == true ]]; then
+    # Explicit --cert-domain replaces the persisted list.
+    mkdir -p "$(dirname "$CERT_DOMAINS_FILE")"
+    {
+        echo "# Cert domains for this server. One FQDN per line."
+        echo "# Wildcards (*.example.com) include the apex (example.com) automatically."
+        echo "# Edit to add or remove individual domains."
+        for d in "${CERT_DOMAINS[@]}"; do printf '%s\n' "$d"; done
+    } > "$CERT_DOMAINS_FILE"
+elif [[ "$NO_CERT_DOMAIN_GIVEN" == true ]]; then
+    # Explicit DR posture: header-only file, no FQDNs.
+    mkdir -p "$(dirname "$CERT_DOMAINS_FILE")"
+    cat > "$CERT_DOMAINS_FILE" <<'CERT_DOMAINS_EOF'
+# DR posture: no cert domains configured for this server.
+CERT_DOMAINS_EOF
+    CERT_DOMAINS=()
+elif [[ -f "$CERT_DOMAINS_FILE" ]]; then
+    # Re-run: read from disk, ignoring blanks and #-comments.
+    CERT_DOMAINS=()
+    while IFS= read -r line; do
+        line="${line%%#*}"
+        line="${line//[[:space:]]/}"
+        [[ -z "$line" ]] && continue
+        CERT_DOMAINS+=("$line")
+    done < "$CERT_DOMAINS_FILE"
+else
+    echo "ERROR: --cert-domain or --no-cert-domain not given, and no saved list at $CERT_DOMAINS_FILE" >&2
+    echo "" >&2
+    echo "$USAGE" >&2
+    exit 1
 fi
 
 mkdir -p "$(dirname "$SETUP_LOG")"
@@ -219,17 +301,17 @@ apt install -y certbot python3-certbot-nginx
 log_version "certbot" "$(certbot --version 2>&1)"
 
 # --- Certbot Dreamhost DNS hook scripts ---
+# Every box has a Dreamhost key, so the hooks always get installed —
+# even DR-posture boxes, so adding a cert later requires no extra setup.
 
-if [[ "$NO_CERT" == false ]]; then
-    HOOK_DIR="/opt/docketworks/certbot-hooks"
-    log "Installing Dreamhost DNS hook scripts to $HOOK_DIR..."
-    mkdir -p "$HOOK_DIR"
-    SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-    cp "$SCRIPT_DIR/certbot-dreamhost-auth.sh" "$HOOK_DIR/auth.sh"
-    cp "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh" "$HOOK_DIR/cleanup.sh"
-    chmod 700 "$HOOK_DIR"/*.sh
-    log "  Hooks installed: $HOOK_DIR/auth.sh, $HOOK_DIR/cleanup.sh"
-fi
+HOOK_DIR="/opt/docketworks/certbot-hooks"
+log "Installing Dreamhost DNS hook scripts to $HOOK_DIR..."
+mkdir -p "$HOOK_DIR"
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cp "$SCRIPT_DIR/certbot-dreamhost-auth.sh" "$HOOK_DIR/auth.sh"
+cp "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh" "$HOOK_DIR/cleanup.sh"
+chmod 700 "$HOOK_DIR"/*.sh
+log "  Hooks installed: $HOOK_DIR/auth.sh, $HOOK_DIR/cleanup.sh"
 
 log_version "git" "$(git --version)"
 log_version "iptables" "$(iptables --version)"
@@ -250,10 +332,9 @@ log_version "quota" "$(dpkg -s quota | grep Version | awk '{print $2}')"
 
 # --- Logrotate config for instance logs ---
 
-SCRIPT_DIR_SETUP="$(cd "$(dirname "$0")" && pwd)"
 if [[ ! -f /etc/logrotate.d/docketworks ]]; then
     log "Installing logrotate config for instance logs..."
-    cp "$SCRIPT_DIR_SETUP/templates/logrotate-docketworks.conf" /etc/logrotate.d/docketworks
+    cp "$SCRIPT_DIR/templates/logrotate-docketworks.conf" /etc/logrotate.d/docketworks
     log "  Logrotate config installed."
 else
     log "Logrotate config already installed, skipping."
@@ -311,15 +392,13 @@ chown -R docketworks:docketworks /opt/docketworks/.local
 
 # --- Install Dreamhost API key for certbot hooks ---
 
-if [[ "$NO_CERT" == false ]]; then
-    if [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
-        log "Dreamhost API key already configured, skipping."
-    else
-        mkdir -p /etc/letsencrypt
-        echo "$DREAMHOST_API_KEY" > /etc/letsencrypt/dreamhost-api-key.txt
-        chmod 600 /etc/letsencrypt/dreamhost-api-key.txt
-        log "  Dreamhost API key saved to /etc/letsencrypt/dreamhost-api-key.txt"
-    fi
+if [[ -f "$DREAMHOST_KEY_FILE" ]]; then
+    log "Dreamhost API key already configured, skipping."
+else
+    mkdir -p /etc/letsencrypt
+    echo "$DREAMHOST_API_KEY" > "$DREAMHOST_KEY_FILE"
+    chmod 600 "$DREAMHOST_KEY_FILE"
+    log "  Dreamhost API key saved to $DREAMHOST_KEY_FILE"
 fi
 
 # --- Write shared.env (Google Maps key, sourced by instance .env files) ---
@@ -390,25 +469,40 @@ fi
 CLAUDE_VERSION="$(claude --version 2>&1 || echo 'not available')"
 log_version "claude" "$CLAUDE_VERSION"
 
-# --- Wildcard SSL certificate ---
+# --- SSL certificates ---
+# Iterate over every entry in CERT_DOMAINS, obtaining via Dreamhost DNS-01.
+# Empty list (DR posture) → loop runs zero times. Already-present certs
+# are skipped.
 
-if [[ "$NO_CERT" == false ]]; then
-    if [[ -f /etc/letsencrypt/live/docketworks.site/fullchain.pem ]]; then
-        log "Wildcard SSL certificate already exists, skipping."
-    else
-        log "Obtaining wildcard SSL certificate via Dreamhost DNS..."
-        log "  This will take ~2-4 minutes (DNS propagation wait)."
-        certbot certonly --manual --preferred-challenges dns \
-            --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
-            --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
-            -d "*.docketworks.site" -d "docketworks.site" \
-            --non-interactive --agree-tos --email admin@docketworks.site
-        log "  Wildcard SSL certificate obtained."
-    fi
+if (( ${#CERT_DOMAINS[@]} == 0 )); then
+    log "No cert domains configured (DR posture); skipping cert acquisition."
+else
+    for DOMAIN in "${CERT_DOMAINS[@]}"; do
+        # Wildcards always cover the apex too. Live-dir is named after the apex.
+        case "$DOMAIN" in
+            \*.*) APEX="${DOMAIN#*.}"
+                  CERTBOT_D=( -d "$DOMAIN" -d "$APEX" )
+                  LIVE_DIR="/etc/letsencrypt/live/$APEX" ;;
+            *)    CERTBOT_D=( -d "$DOMAIN" )
+                  LIVE_DIR="/etc/letsencrypt/live/$DOMAIN" ;;
+        esac
+        if [[ -f "$LIVE_DIR/fullchain.pem" ]]; then
+            log "Cert for $DOMAIN already present, skipping."
+        else
+            log "Obtaining cert for $DOMAIN via Dreamhost DNS-01..."
+            log "  This will take ~2-4 minutes (DNS propagation wait)."
+            certbot certonly --manual --preferred-challenges dns \
+                --manual-auth-hook /opt/docketworks/certbot-hooks/auth.sh \
+                --manual-cleanup-hook /opt/docketworks/certbot-hooks/cleanup.sh \
+                "${CERTBOT_D[@]}" \
+                --non-interactive --agree-tos --email admin@docketworks.site
+            log "  Cert obtained for $DOMAIN."
+        fi
+    done
 
     # certbot certonly --manual doesn't create the standard SSL config files
     # that the nginx plugin would. Instance nginx configs reference these,
-    # so we must ensure they exist.
+    # so we must ensure they exist whenever this box has any cert at all.
     if [[ ! -f /etc/letsencrypt/options-ssl-nginx.conf ]]; then
         log "Creating /etc/letsencrypt/options-ssl-nginx.conf..."
         curl -fsSL -o /etc/letsencrypt/options-ssl-nginx.conf \
@@ -422,17 +516,25 @@ if [[ "$NO_CERT" == false ]]; then
 fi
 
 # --- Base Nginx config (reject unknown hosts) ---
+# The default server returns 444 for any request whose Host doesn't match
+# an instance config. Has to reference a real cert for port 443; pick the
+# first cert-domain. DR boxes have no certs and so only listen on port 80.
 
 log "Installing base Nginx config (reject unknown hosts)..."
-if [[ "$NO_CERT" == false ]]; then
-    cat > /etc/nginx/sites-available/default <<'EOF'
+if (( ${#CERT_DOMAINS[@]} > 0 )); then
+    FIRST_DOMAIN="${CERT_DOMAINS[0]}"
+    case "$FIRST_DOMAIN" in
+        \*.*) DEFAULT_LIVE_DIR="${FIRST_DOMAIN#*.}" ;;
+        *)    DEFAULT_LIVE_DIR="$FIRST_DOMAIN" ;;
+    esac
+    cat > /etc/nginx/sites-available/default <<EOF
 server {
     listen 80 default_server;
     listen 443 ssl default_server;
     server_name _;
 
-    ssl_certificate /etc/letsencrypt/live/docketworks.site/fullchain.pem;
-    ssl_certificate_key /etc/letsencrypt/live/docketworks.site/privkey.pem;
+    ssl_certificate /etc/letsencrypt/live/$DEFAULT_LIVE_DIR/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/$DEFAULT_LIVE_DIR/privkey.pem;
 
     return 444;
 }
