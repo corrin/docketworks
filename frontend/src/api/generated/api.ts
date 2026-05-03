@@ -3007,6 +3007,28 @@ const XeroApp = z.object({
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
+const XeroAppCreateRequest = z.object({
+  label: z.string().min(1).max(64),
+  client_id: z.string().min(1).max(128),
+  client_secret: z.string().min(1),
+  redirect_uri: z.string().min(1).max(512),
+  webhook_key: z.string().min(1),
+})
+const XeroAppCreate = z.object({
+  id: z.string().uuid(),
+  label: z.string().max(64),
+  client_id: z.string().max(128),
+  redirect_uri: z.string().max(512),
+  is_active: z.boolean(),
+  has_tokens: z.boolean(),
+  tenant_id: z.string().nullable(),
+  day_remaining: z.number().int().nullable(),
+  minute_remaining: z.number().int().nullable(),
+  snapshot_at: z.string().datetime({ offset: true }).nullable(),
+  last_429_at: z.string().datetime({ offset: true }).nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
 const XeroAppRequest = z.object({
   label: z.string().min(1).max(64),
   client_id: z.string().min(1).max(128),
@@ -3461,6 +3483,8 @@ export const schemas = {
   AIProviderRequest,
   AppErrorRequest,
   XeroApp,
+  XeroAppCreateRequest,
+  XeroAppCreate,
   XeroAppRequest,
   PatchedXeroAppRequest,
   XeroAppConfig,
@@ -8656,10 +8680,10 @@ Endpoints:
       {
         name: 'body',
         type: 'Body',
-        schema: XeroAppRequest,
+        schema: XeroAppCreateRequest,
       },
     ],
-    response: XeroApp,
+    response: XeroAppCreate,
   },
   {
     method: 'get',

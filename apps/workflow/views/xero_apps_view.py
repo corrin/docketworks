@@ -17,13 +17,15 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.job.permissions import IsOfficeStaff
+from apps.workflow.api.xero import auth as xero_auth
 from apps.workflow.api.xero.active_app import (
+    _restart_sibling_workers,
     swap_active,
     wipe_tokens_and_quota,
 )
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
-from apps.workflow.serializers import XeroAppSerializer
+from apps.workflow.serializers import XeroAppCreateSerializer, XeroAppSerializer
 from apps.workflow.services.error_persistence import persist_app_error
 
 
@@ -43,6 +45,11 @@ class XeroAppViewSet(viewsets.ModelViewSet):
     queryset = XeroApp.objects.all().order_by("created_at")
     serializer_class = XeroAppSerializer
     permission_classes = [IsAuthenticated, IsOfficeStaff]
+
+    def get_serializer_class(self):
+        if self.action == "create":
+            return XeroAppCreateSerializer
+        return XeroAppSerializer
 
     def create(self, request, *args, **kwargs):
         try:
@@ -74,8 +81,22 @@ class XeroAppViewSet(viewsets.ModelViewSet):
                 # New client_id is a different Xero app from Xero's
                 # perspective — old tokens and quota are invalid for it.
                 wipe_tokens_and_quota(instance)
+                if instance.is_active:
+                    # The process-level ApiClient singleton was built from
+                    # the old credentials; without this reset its next call
+                    # would use stale client_id/secret. Sibling workers hold
+                    # their own singletons — restart them the same way
+                    # swap_active does.
+                    xero_auth._reset_api_client()
+                    _restart_sibling_workers()
+                else:
+                    pass  # inactive row — singleton is bound to a different app
                 instance.refresh_from_db()
                 response.data = self.get_serializer(instance).data
+            else:
+                pass  # only label/redirect_uri/webhook_key changed; no propagation needed
+        else:
+            pass  # non-200 (validation error, etc.) — super().partial_update already returned the error response
         return response
 
     def destroy(self, request, *args, **kwargs):

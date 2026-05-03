@@ -76,7 +76,7 @@ class XeroPayItemSerializer(serializers.ModelSerializer):
 
 
 class XeroAppSerializer(serializers.ModelSerializer):
-    """List/detail serializer for XeroApp.
+    """List / detail / PATCH serializer for XeroApp.
 
     client_secret and webhook_key are write-only — never returned. The
     webhook signing key is comparable in sensitivity to the client secret
@@ -85,31 +85,14 @@ class XeroAppSerializer(serializers.ModelSerializer):
     refresh_token are not surfaced at all; instead a derived has_tokens
     boolean indicates whether the row has been authorised.
 
-    client_secret and webhook_key are REQUIRED on create (a row missing
-    either is inert: no secret = OAuth never completes, no webhook_key =
-    webhooks from this app's deliveries 401 forever) but OPTIONAL on
-    update (so PATCH can change label/client_id/redirect_uri without
-    re-supplying secrets each time).
+    Both secrets are OPTIONAL here so PATCH can change
+    label/client_id/redirect_uri without re-supplying them. The view uses
+    ``XeroAppCreateSerializer`` for POST, where they are required.
     """
 
     has_tokens = serializers.SerializerMethodField()
     client_secret = serializers.CharField(write_only=True, required=False)
     webhook_key = serializers.CharField(write_only=True, required=False)
-
-    def validate(self, attrs):
-        attrs = super().validate(attrs)
-        if self.instance is None:
-            missing = [
-                name for name in ("client_secret", "webhook_key") if not attrs.get(name)
-            ]
-            if missing:
-                raise serializers.ValidationError(
-                    {
-                        name: f"{name} is required when creating a XeroApp."
-                        for name in missing
-                    }
-                )
-        return attrs
 
     class Meta:
         model = XeroApp
@@ -145,6 +128,19 @@ class XeroAppSerializer(serializers.ModelSerializer):
 
     def get_has_tokens(self, obj: XeroApp) -> bool:
         return bool(obj.access_token and obj.refresh_token)
+
+
+class XeroAppCreateSerializer(XeroAppSerializer):
+    """POST-only variant: client_secret and webhook_key are mandatory.
+
+    A row created without either is inert (no secret → OAuth never
+    completes; no webhook_key → webhooks from this app 401 forever), so
+    the API rejects such payloads up front instead of letting them land
+    and silently break later.
+    """
+
+    client_secret = serializers.CharField(write_only=True, required=True)
+    webhook_key = serializers.CharField(write_only=True, required=True)
 
 
 class AIProviderCreateUpdateSerializer(serializers.ModelSerializer):
