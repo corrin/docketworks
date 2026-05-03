@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 105 notes · 18 decisions · 10 open questions
+> 107 notes · 18 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base has 105 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 107 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
 
 ## Key Decisions (18)
 - `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
@@ -36,7 +36,7 @@
 - Maybe quantity needs blur event but we Tab away too fast?
 
 ## Recurring Themes
-problem · why · alternatives considered · tips · what youll need · steps · what happens next · troubleshooting · prerequisites · purpose · development workflow · license
+problem · why · alternatives considered · tips · what youll need · steps · what happens next · troubleshooting · prerequisites · purpose · verification · development workflow
 
 ## People
 @login_required · @docketworks · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
@@ -49,7 +49,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (105)
+## Note Index (107)
 
 ### Decision Records (16)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException`; nested handlers re-raise unchanged instead of re-persisting.
@@ -84,7 +84,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (80)
+### General Notes (82)
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
 - `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
@@ -97,15 +97,15 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
 - `docs/plans/abstract-tumbling-milner.md` — `feat/xero-day-quota-floor` moved Xero credentials from `.env` into the
+- `docs/plans/hidden-yawning-mccarthy.md` — PR #266 introduced `apps/workflow/api/xero/active_app.py:get_active_client()` to dispatch Xero API calls to the credentials of whichever `XeroApp` row has `is_a…
+- `docs/plans/synthetic-drifting-allen.md` — PR #266 (`feat/xero-day-quota-floor`, this branch) was meant to be a tiny change adding a day-quota floor and the `XeroApp` table for the once-a-year emergency …
 - `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). This guide is environment-agnostic: assume venv active, `.env` loaded, i…
 - `docs/restore-workaround-jobevent-staff-null.md` — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
 - `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
 - `docs/test_pdfs/price_lists/1.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
 - `docs/test_pdfs/price_lists/2.md` — Effective 1st April 2025 (All Prices Excl. GST)
 - `docs/test_pdfs/price_lists/3.md` — **Attention:** Craig/Nigel
-- `docs/test_pdfs/price_lists/4.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
-- `docs/trello.md` — Quick reference for the board this project tracks work on. The board and column layout change rarely; IDs are stable across sessions. If the MCP reports anythin…
-- _…and 60 more_
+- _…and 62 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

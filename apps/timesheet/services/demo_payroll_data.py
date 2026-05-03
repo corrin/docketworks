@@ -18,8 +18,7 @@ from xero_python.payrollnz.models import (
     TaxCode,
 )
 
-from apps.workflow.api.xero.active_app import get_active_client
-from apps.workflow.api.xero.auth import get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +62,7 @@ def get_bank_account(index: int) -> str:
 def setup_employee_tax(employee_id: str, ird_number: str) -> None:
     """Set up employee tax details including KiwiSaver."""
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(get_active_client())
+    payroll_api = PayrollNzApi(api_client)
 
     ird_clean = ird_number.replace("-", "").zfill(9)
     tax = EmployeeTax(
@@ -88,7 +87,7 @@ def setup_employee_tax(employee_id: str, ird_number: str) -> None:
 def setup_employee_leave(employee_id: str) -> None:
     """Set up employee leave entitlements."""
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(get_active_client())
+    payroll_api = PayrollNzApi(api_client)
 
     leave_setup = EmployeeLeaveSetup(
         include_holiday_pay=False,
@@ -116,7 +115,7 @@ def setup_employee_leave(employee_id: str) -> None:
 def setup_employee_bank(employee_id: str, bank_account_number: str) -> None:
     """Set up employee bank account."""
     tenant_id = get_tenant_id()
-    payroll_api = PayrollNzApi(get_active_client())
+    payroll_api = PayrollNzApi(api_client)
 
     parts = bank_account_number.split("-")
     if len(parts) != 4:

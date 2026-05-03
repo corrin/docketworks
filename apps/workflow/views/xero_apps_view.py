@@ -104,7 +104,17 @@ class XeroAppViewSet(viewsets.ModelViewSet):
         except Exception as exc:
             err = persist_app_error(exc)
             raise AlreadyLoggedException(exc, err.id) from exc
-        return Response(self.get_serializer(target).data)
+        # swap_active dispatched a detached `systemctl restart` for the
+        # worker units — gunicorn (this process) included. The HTTP response
+        # gets out before systemd kills us; the operator's next request
+        # lands on a fresh worker bound to the new active row.
+        data = self.get_serializer(target).data
+        data["restart_initiated"] = True
+        data["message"] = (
+            "Active Xero app swapped. Workers are restarting; "
+            "this page will refresh in a few seconds."
+        )
+        return Response(data)
 
     @extend_schema(request=None, responses={200: XeroAppConfigSerializer})
     @action(detail=False, methods=["get"], url_path="config")

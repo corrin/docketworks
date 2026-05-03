@@ -268,8 +268,8 @@ class RateLimitedRESTClient(RESTClientObject):
 
     def _store_quota_snapshot(self, day_remaining, minute_remaining):
         # No app_id means a misconfigured client (constructed without going
-        # through active_app.build_api_client). Refuse silently — the
-        # snapshot just won't be persisted.
+        # through auth._build()). Refuse silently — the snapshot just won't
+        # be persisted.
         if self.app_id is None:
             return
         from apps.workflow.models import XeroApp

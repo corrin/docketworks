@@ -8,8 +8,7 @@ from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.purchasing.models import Stock
-from apps.workflow.api.xero.active_app import get_active_client
-from apps.workflow.api.xero.auth import get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.models import XeroAccount
@@ -180,7 +179,7 @@ def sync_stock_to_xero(
             f"Generated item_code '{stock_item.item_code}' for stock {stock_item.id}"
         )
 
-    api = AccountingApi(get_active_client())
+    api = AccountingApi(api_client)
     tenant_id = get_tenant_id()
 
     purchase_account = (
@@ -393,7 +392,7 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
 
     logger.info(f"Found {total_items} stock items to sync to Xero")
 
-    api = AccountingApi(get_active_client())
+    api = AccountingApi(api_client)
     tenant_id = get_tenant_id()
     xero_items_lookup = fetch_all_xero_items(api, tenant_id)
 

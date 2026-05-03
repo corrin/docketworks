@@ -1,9 +1,14 @@
 """Xero OAuth2 helpers — backed by the XeroApp table.
 
-Every public function operates against the active XeroApp row (the one
-with is_active=True). Token-saver callbacks bound at client-construction
-time target a specific app_id, so background refreshes never clobber
-another row's tokens during a swap race.
+Module-level ``api_client`` is a process singleton built lazily from the
+active XeroApp row on first attribute access (PEP 562 ``__getattr__``).
+Token-saver and quota-writer callbacks bound at construction time target
+the row whose credentials built the client, so an in-flight refresh
+during a swap window writes to its own row, not the new active row.
+
+Active-row swaps must call ``_reset_api_client()`` to invalidate the
+singleton in the calling process; ``swap_active`` also restarts the
+other worker units so their fresh processes rebuild from the new row.
 """
 
 import json
@@ -14,16 +19,77 @@ from urllib.parse import quote, urlencode
 
 import requests
 from django.core.cache import cache
-from xero_python.api_client import ApiClient
-from xero_python.api_client.oauth2 import TokenApi
+from xero_python.api_client import ApiClient, Configuration
+from xero_python.api_client.oauth2 import OAuth2Token, TokenApi
 from xero_python.identity import IdentityApi
 
+from apps.workflow.api.xero.client import RateLimitedRESTClient
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY, XERO_SCOPES
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
+
+
+_api_client: Optional[ApiClient] = None
+
+
+def _build() -> ApiClient:
+    """Construct an ApiClient bound to the currently active XeroApp row."""
+    # Local import: active_app imports are cheap, but avoid pulling at
+    # module-load time (auth.py is imported very early).
+    from apps.workflow.api.xero.active_app import get_active_app
+
+    app = get_active_app()
+    client = ApiClient(
+        Configuration(
+            debug=False,
+            oauth2_token=OAuth2Token(
+                client_id=app.client_id,
+                client_secret=app.client_secret,
+            ),
+        ),
+    )
+    client.rest_client = RateLimitedRESTClient(client.configuration, app_id=app.id)
+    bind_token_callbacks(client, app.id)
+    return client
+
+
+def _get_or_build() -> ApiClient:
+    global _api_client
+    if _api_client is None:
+        _api_client = _build()
+    return _api_client
+
+
+class _ApiClientProxy:
+    """Forwards attribute access to the lazy ApiClient singleton.
+
+    Reason for the proxy (vs PEP 562 module ``__getattr__``): callsites do
+    ``from auth import api_client`` which evaluates the name at the
+    importer's import time. A PEP 562 ``__getattr__`` would fire ``_build()``
+    at import — hitting the DB before any code wants Xero. The proxy is a
+    real, cheap module attribute; ``_build()`` only fires when something
+    reads/sets an attribute on it (i.e. an actual SDK call).
+    """
+
+    __slots__ = ()
+
+    def __getattr__(self, name: str) -> Any:
+        return getattr(_get_or_build(), name)
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        setattr(_get_or_build(), name, value)
+
+
+api_client = _ApiClientProxy()
+
+
+def _reset_api_client() -> None:
+    """Invalidate the cached singleton. Called by ``swap_active`` and tests."""
+    global _api_client
+    _api_client = None
 
 
 def _payload_from_row(app: XeroApp) -> Optional[Dict[str, Any]]:
@@ -139,10 +205,6 @@ def refresh_token() -> Optional[Dict[str, Any]]:
         return None
 
     try:
-        # Local import: avoid circular (active_app imports auth).
-        from apps.workflow.api.xero.active_app import get_active_client
-
-        api_client = get_active_client()
         token_api = TokenApi(
             api_client,
             client_id=app.client_id,
@@ -199,9 +261,6 @@ def get_authentication_url(state: str) -> str:
 
 def get_tenant_id_from_connections() -> str:
     """Get tenant ID using the active client."""
-    from apps.workflow.api.xero.active_app import get_active_client
-
-    api_client = get_active_client()
     identity_api = IdentityApi(api_client)
     connections = identity_api.get_connections()
     if not connections:

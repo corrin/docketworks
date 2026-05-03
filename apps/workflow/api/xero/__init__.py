@@ -7,13 +7,12 @@ try:
     if apps.ready:
         from .active_app import (
             NoActiveXeroApp,
-            build_api_client,
             get_active_app,
-            get_active_client,
             swap_active,
             wipe_tokens_and_quota,
         )
         from .auth import (
+            _ApiClientProxy,
             bind_token_callbacks,
             exchange_code_for_token,
             get_authentication_url,
@@ -141,8 +140,8 @@ except (ImportError, RuntimeError):
 __all__ = [
     "NoActiveXeroApp",
     "RateLimitedRESTClient",
+    "_ApiClientProxy",
     "bind_token_callbacks",
-    "build_api_client",
     "bulk_create_contacts_in_xero",
     "clean_json",
     "create_client_contact_in_xero",
@@ -162,7 +161,6 @@ __all__ = [
     "fix_long_item_codes",
     "generate_item_code",
     "get_active_app",
-    "get_active_client",
     "get_all_pay_slips_for_sync",
     "get_all_timesheets_for_week",
     "get_all_xero_contacts",

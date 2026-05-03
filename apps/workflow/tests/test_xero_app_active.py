@@ -1,6 +1,5 @@
 """Tests for active_app helpers: get_active_app, swap_active,
-wipe_tokens_and_quota, and the rebuild-on-swap behaviour of
-get_active_client."""
+wipe_tokens_and_quota."""
 
 import uuid
 from datetime import datetime
@@ -49,7 +48,8 @@ class SwapActiveTests(TestCase):
 
         a = _row(client_id="a1", is_active=True)
         b = _row(client_id="b1", is_active=False)
-        result = swap_active(b.id)
+        with patch("apps.workflow.api.xero.active_app._restart_sibling_workers"):
+            result = swap_active(b.id)
         a.refresh_from_db()
         b.refresh_from_db()
         self.assertFalse(a.is_active)
@@ -60,7 +60,8 @@ class SwapActiveTests(TestCase):
         from apps.workflow.api.xero.active_app import swap_active
 
         a = _row(client_id="a1", is_active=True)
-        result = swap_active(a.id)
+        with patch("apps.workflow.api.xero.active_app._restart_sibling_workers"):
+            result = swap_active(a.id)
         a.refresh_from_db()
         self.assertTrue(a.is_active)
         self.assertEqual(result.id, a.id)
@@ -82,8 +83,70 @@ class SwapActiveTests(TestCase):
         a = _row(client_id="a1", is_active=True)  # noqa: F841
         b = _row(client_id="b1", is_active=False)
         cache.set(TENANT_ID_CACHE_KEY, "tenant-from-a")
-        swap_active(b.id)
+        with patch("apps.workflow.api.xero.active_app._restart_sibling_workers"):
+            swap_active(b.id)
         self.assertIsNone(cache.get(TENANT_ID_CACHE_KEY))
+
+    def test_swap_resets_in_process_singleton(self):
+        # The caller's auth.api_client must be invalidated so the next call
+        # rebuilds against the now-active row.
+        from apps.workflow.api.xero import active_app, auth
+
+        _row(client_id="a1", is_active=True)
+        b = _row(client_id="b1", is_active=False)
+
+        with (
+            patch.object(auth, "_reset_api_client") as mock_reset,
+            patch.object(active_app, "_restart_sibling_workers"),
+        ):
+            active_app.swap_active(b.id)
+        mock_reset.assert_called_once()
+
+    def test_swap_dispatches_systemctl_restart(self):
+        # In a production-like env (DB_NAME set), swap fires a detached
+        # `sudo systemctl restart` for the sibling worker units.
+        from apps.workflow.api.xero import active_app
+
+        _row(client_id="a1", is_active=True)
+        b = _row(client_id="b1", is_active=False)
+
+        with (
+            patch("apps.workflow.api.xero.active_app.subprocess.Popen") as mock_popen,
+            patch(
+                "apps.workflow.api.xero.active_app.os.getenv",
+                return_value="dw_test_env",
+            ),
+        ):
+            active_app.swap_active(b.id)
+
+        mock_popen.assert_called_once()
+        args, kwargs = mock_popen.call_args
+        cmd = args[0]
+        self.assertEqual(cmd[:3], ["sudo", "systemctl", "restart"])
+        self.assertEqual(
+            set(cmd[3:]),
+            {
+                "gunicorn-dw_test_env.service",
+                "scheduler-dw_test_env.service",
+                "celery-worker-dw_test_env.service",
+            },
+        )
+        self.assertTrue(kwargs.get("start_new_session"))
+
+    def test_swap_skips_restart_in_dev(self):
+        # No DB_NAME → no systemctl call. In-process singleton reset still happens.
+        from apps.workflow.api.xero import active_app
+
+        _row(client_id="a1", is_active=True)
+        b = _row(client_id="b1", is_active=False)
+
+        with (
+            patch("apps.workflow.api.xero.active_app.subprocess.Popen") as mock_popen,
+            patch("apps.workflow.api.xero.active_app.os.getenv", return_value=None),
+        ):
+            active_app.swap_active(b.id)
+
+        mock_popen.assert_not_called()
 
 
 class WipeTokensAndQuotaTests(TestCase):
@@ -134,31 +197,49 @@ class WipeTokensAndQuotaTests(TestCase):
         self.assertIsNone(cache.get(TENANT_ID_CACHE_KEY))
 
 
-class GetActiveClientRebuildTests(TestCase):
-    """The cached client is keyed by app_id; flipping which row is active
-    must cause the next get_active_client() to rebuild."""
+class ApiClientSingletonTests(TestCase):
+    """auth.api_client is a stable proxy backed by a lazy singleton."""
 
-    def test_rebuilds_when_active_id_changes(self):
-        from apps.workflow.api.xero import active_app
+    def test_proxy_is_stable(self):
+        from apps.workflow.api.xero import auth
 
-        active_app._reset_client_cache()
-        _row(client_id="a1", is_active=True)
-        b = _row(client_id="b1", is_active=False)
+        # The proxy itself never changes — `from auth import api_client`
+        # captures it once and stays valid across resets.
+        self.assertIs(auth.api_client, auth.api_client)
 
-        with patch.object(active_app, "build_api_client") as mock_build:
-            sentinel_a = object()
-            sentinel_b = object()
-            mock_build.side_effect = [sentinel_a, sentinel_b]
+    def test_lazy_build_on_attribute_access(self):
+        from apps.workflow.api.xero import auth
 
-            client_a = active_app.get_active_client()
-            client_a_again = active_app.get_active_client()
-            self.assertIs(client_a, sentinel_a)
-            self.assertIs(client_a_again, sentinel_a)
-            self.assertEqual(mock_build.call_count, 1)
+        _row(client_id="a1", is_active=True, access_token="t", refresh_token="r")
+        auth._reset_api_client()
+        self.assertIsNone(auth._api_client)
+        # Touch any attribute on the proxy → triggers _build() once.
+        _ = auth.api_client.configuration
+        self.assertIsNotNone(auth._api_client)
+        first_underlying = auth._api_client
+        _ = auth.api_client.configuration  # cached: same underlying
+        self.assertIs(auth._api_client, first_underlying)
+        auth._reset_api_client()
 
-            active_app.swap_active(b.id)
-            client_b = active_app.get_active_client()
-            self.assertIs(client_b, sentinel_b)
-            self.assertEqual(mock_build.call_count, 2)
+    def test_reset_forces_rebuild_on_next_access(self):
+        from apps.workflow.api.xero import auth
 
-        active_app._reset_client_cache()
+        _row(client_id="a1", is_active=True, access_token="t", refresh_token="r")
+        auth._reset_api_client()
+        _ = auth.api_client.configuration
+        first_underlying = auth._api_client
+        auth._reset_api_client()
+        _ = auth.api_client.configuration
+        second_underlying = auth._api_client
+        self.assertIsNot(first_underlying, second_underlying)
+        auth._reset_api_client()
+
+    def test_no_active_row_raises_on_access(self):
+        from apps.workflow.api.xero import auth
+        from apps.workflow.api.xero.active_app import NoActiveXeroApp
+
+        # No XeroApp row at all. The proxy itself doesn't touch the DB,
+        # but the first attribute access does.
+        auth._reset_api_client()
+        with self.assertRaises(NoActiveXeroApp):
+            _ = auth.api_client.configuration

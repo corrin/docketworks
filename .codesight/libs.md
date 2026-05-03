@@ -479,8 +479,6 @@
   - function get_active_app: () -> XeroApp
   - function swap_active: (app_id) -> XeroApp
   - function wipe_tokens_and_quota: (app) -> None
-  - function build_api_client: (app) -> ApiClient
-  - function get_active_client: () -> ApiClient
   - class NoActiveXeroApp
 - `apps/workflow/api/xero/auth.py`
   - function get_token: () -> Optional[Dict[str, Any]]

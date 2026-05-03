@@ -37,10 +37,10 @@ from apps.workflow.api.pagination import FiftyPerPagePagination
 from apps.workflow.api.xero.active_app import (
     NoActiveXeroApp,
     get_active_app,
-    get_active_client,
     wipe_tokens_and_quota,
 )
 from apps.workflow.api.xero.auth import (
+    api_client,
     exchange_code_for_token,
     get_authentication_url,
     get_tenant_id_from_connections,
@@ -147,7 +147,7 @@ def xero_oauth_callback(request: HttpRequest) -> HttpResponse:
         )
 
     try:
-        identity_api = IdentityApi(get_active_client())
+        identity_api = IdentityApi(api_client)
         connections = identity_api.get_connections()
         if connections:
             logger.info("Available Xero Organizations after authentication:")

@@ -11,8 +11,7 @@ from xero_python.project.models import TimeEntryCreateOrUpdate
 
 from apps.accounts.models import Staff
 from apps.job.models.costing import CostLine
-from apps.workflow.api.xero.active_app import get_active_client
-from apps.workflow.api.xero.auth import get_tenant_id
+from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.xero import (
     create_default_task,
     create_project,
@@ -30,7 +29,7 @@ def sync_client_to_xero(client):
         logger.error(f"Client {client.id} failed validation")
         return False
 
-    accounting_api = AccountingApi(get_active_client())
+    accounting_api = AccountingApi(api_client)
     contact_data = client.get_client_for_xero()
 
     if not contact_data:
@@ -426,7 +425,7 @@ def sync_expense_entries_bulk(project_id, expense_entries_list):
 
 def get_all_xero_contacts():
     """Fetch all contacts from Xero (including archived)"""
-    accounting_api = AccountingApi(get_active_client())
+    accounting_api = AccountingApi(api_client)
     all_contacts = []
 
     try:
@@ -459,7 +458,7 @@ def create_client_contact_in_xero(client):
     if not client.validate_for_xero():
         raise ValueError(f"Client {client.id} failed Xero validation")
 
-    accounting_api = AccountingApi(get_active_client())
+    accounting_api = AccountingApi(api_client)
     contact_data = client.get_client_for_xero()
 
     if not contact_data:
@@ -485,7 +484,7 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
     if not clients_to_create:
         return 0
 
-    accounting_api = AccountingApi(get_active_client())
+    accounting_api = AccountingApi(api_client)
 
     total_created = 0
 
