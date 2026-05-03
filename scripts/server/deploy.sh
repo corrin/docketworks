@@ -11,6 +11,12 @@ set -euo pipefail
 #                   changes. Default: abort (a dirty tree makes the hash we
 #                   stamp on the backup a lie about what code will restore).
 #
+# DR mode: if an instance directory contains a .dr-mode marker file, this
+# script still runs migrations, builds the frontend, and re-renders unit and
+# nginx configs — but it does NOT enable or restart gunicorn / celery-worker.
+# This is the "cold standby" posture: deploys keep the instance current
+# without it ever serving traffic or hitting Xero with shared live tokens.
+#
 # Steps:
 #   1. Per-instance: clean-tree check, pg_dump, git pull
 #   2. Update shared deps (poetry install, npm install)
@@ -196,21 +202,29 @@ for instance in "${TARGETS[@]}"; do
         "$SCRIPT_DIR/templates/celery-worker-instance.service.template" \
         > "/etc/systemd/system/celery-worker-$instance.service"
     systemctl daemon-reload
-    systemctl enable "celery-worker-$instance"
 
-    # Restart celery-worker BEFORE gunicorn. If gunicorn restarts first it
-    # starts dispatching new task names while the worker still has stale
-    # code; the old worker silently ack-discards messages it doesn't know
-    # (Celery's default behaviour) and webhook events are lost without a
-    # trace. Worker-first means new task names are always registered before
-    # any new dispatch can land.
-    log "  Restarting celery-worker-$instance"
-    systemctl restart "celery-worker-$instance"
+    # DR-mode short-circuit. The marker means this instance is a cold standby:
+    # render unit files (so a future "go live" picks up template changes), but
+    # never enable or start the services that talk to live external systems.
+    if [[ -f "$instance_dir/.dr-mode" ]]; then
+        log "  DR mode (.dr-mode present): skipping enable/restart of celery-worker-$instance and gunicorn-$instance"
+    else
+        systemctl enable "celery-worker-$instance"
 
-    # Restart gunicorn
-    if systemctl is-enabled "gunicorn-$instance" &>/dev/null; then
-        log "  Restarting gunicorn-$instance"
-        systemctl restart "gunicorn-$instance"
+        # Restart celery-worker BEFORE gunicorn. If gunicorn restarts first it
+        # starts dispatching new task names while the worker still has stale
+        # code; the old worker silently ack-discards messages it doesn't know
+        # (Celery's default behaviour) and webhook events are lost without a
+        # trace. Worker-first means new task names are always registered before
+        # any new dispatch can land.
+        log "  Restarting celery-worker-$instance"
+        systemctl restart "celery-worker-$instance"
+
+        # Restart gunicorn
+        if systemctl is-enabled "gunicorn-$instance" &>/dev/null; then
+            log "  Restarting gunicorn-$instance"
+            systemctl restart "gunicorn-$instance"
+        fi
     fi
 
     # Re-render nginx config from template. The rendered config is written once

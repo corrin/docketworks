@@ -475,15 +475,22 @@
 - `apps/workflow/api/reports/payroll_reconciliation.py` — class PayrollReconciliationReport, class PayrollDateRangeView
 - `apps/workflow/api/reports/pnl.py` — class CompanyProfitAndLossReport
 - `apps/workflow/api/reports/utils.py` — function format_period_label: (period_start, period_end)
+- `apps/workflow/api/xero/active_app.py`
+  - function get_active_app: () -> XeroApp
+  - function swap_active: (app_id) -> XeroApp
+  - function wipe_tokens_and_quota: (app) -> None
+  - function build_api_client: (app) -> ApiClient
+  - function get_active_client: () -> ApiClient
+  - class NoActiveXeroApp
 - `apps/workflow/api/xero/auth.py`
   - function get_token: () -> Optional[Dict[str, Any]]
-  - function store_token: (token, Any]) -> None
+  - function bind_token_callbacks: (api_client, app_id) -> None
   - function refresh_token: () -> Optional[Dict[str, Any]]
   - function get_valid_token: () -> Optional[Dict[str, Any]]
   - function get_authentication_url: (state) -> str
   - function get_tenant_id_from_connections: () -> str
   - _...2 more_
-- `apps/workflow/api/xero/client.py` — class RateLimitedRESTClient
+- `apps/workflow/api/xero/client.py` — function quota_floor_breached: (floor) -> bool, class RateLimitedRESTClient
 - `apps/workflow/api/xero/payroll.py`
   - function get_employees: () -> List[Employee]
   - function create_payroll_employee: (employee_data, Any]) -> Employee
@@ -555,7 +562,10 @@
 - `apps/workflow/context_processors.py` — function debug_mode: (request) -> Dict[str, Any]
 - `apps/workflow/enums.py` — class AIProviderTypes
 - `apps/workflow/exception_handlers.py` — function custom_exception_handler: (exc, context) -> Optional[Response]
-- `apps/workflow/exceptions.py` — class XeroValidationError, class AlreadyLoggedException
+- `apps/workflow/exceptions.py`
+  - class XeroValidationError
+  - class AlreadyLoggedException
+  - class XeroQuotaFloorReached
 - `apps/workflow/extensions.py` — class CookieJWTScheme
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command
@@ -582,11 +592,11 @@
   - function get_field_metadata: (field, Any]", field_name, read_only_fields) -> dict[str, Any]
   - class SettingsSection
 - `apps/workflow/models/xero_account.py` — class XeroAccount
+- `apps/workflow/models/xero_app.py` — class XeroApp
 - `apps/workflow/models/xero_journal.py` — class XeroJournal, class XeroJournalLineItem
 - `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
 - `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
 - `apps/workflow/models/xero_sync_cursor.py` — class XeroSyncCursor
-- `apps/workflow/models/xero_token.py` — class XeroToken
 - `apps/workflow/permissions.py` — class F
 - `apps/workflow/scheduler.py` — function get_scheduler: () -> BackgroundScheduler, function stop_scheduler: () -> bool
 - `apps/workflow/scheduler_jobs.py`
@@ -594,11 +604,11 @@
   - function xero_regular_sync_job: () -> None
   - function xero_30_day_sync_job: () -> None
 - `apps/workflow/serializers.py`
-  - class XeroTokenSerializer
   - class AIProviderSerializer
   - class CompanyDefaultsSerializer
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
+  - class XeroAppSerializer
   - class AIProviderCreateUpdateSerializer
   - _...23 more_
 - `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
@@ -740,6 +750,7 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
+- `frontend/src/composables/useXeroApps.ts` — function useXeroApps: (autoPoll) => void, type XeroApp
 - `frontend/src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
 - `frontend/src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `frontend/src/constants/job-status.ts`

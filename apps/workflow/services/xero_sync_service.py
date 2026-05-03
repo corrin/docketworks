@@ -8,6 +8,8 @@ from django.core.cache import cache
 from django.utils import timezone
 
 from apps.workflow.accounting.registry import get_provider
+from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
+from apps.workflow.exceptions import XeroQuotaFloorReached
 
 logger = logging.getLogger("xero")
 
@@ -29,14 +31,14 @@ class XeroSyncService:
         if tenant_id:
             self.tenant_id = tenant_id
         else:
-            self.tenant_id = cache.get("xero_tenant_id")
+            self.tenant_id = cache.get(TENANT_ID_CACHE_KEY)
             if not self.tenant_id:
                 from apps.workflow.api.xero.auth import get_tenant_id_from_connections
 
                 self.tenant_id = get_tenant_id_from_connections()
         if not self.tenant_id:
             raise ValueError("No tenant ID found in cache or connections")
-        cache.set("xero_tenant_id", self.tenant_id, timeout=1800)
+        cache.set(TENANT_ID_CACHE_KEY, self.tenant_id, timeout=1800)
 
     LOCK_TIMEOUT = 60 * 60 * 4  # 4 hours
     SYNC_STATUS_KEY = "xero_sync_status"
@@ -147,6 +149,37 @@ class XeroSyncService:
             cache.set(messages_key, msgs, timeout=86400)
             logger.info(f"Completed Xero sync task {task_id}")
 
+        except XeroQuotaFloorReached as exc:
+            # Operational abort, not a defect. Do NOT persist_app_error
+            # (would write 24+ rows/day at the floor). Final marker is
+            # sync_status:"aborted" — distinct from "success" so the UI,
+            # scheduler, and monitoring don't mistake this for a clean run.
+            logger.warning("Xero sync %s aborted: %s", task_id, exc)
+            msgs = cache.get(messages_key, [])
+            msgs.append(
+                {
+                    "datetime": timezone.now().isoformat(),
+                    "entity": "sync",
+                    "severity": "error",
+                    "message": f"Sync aborted: {exc}",
+                    "progress": None,
+                    "task_id": task_id,
+                }
+            )
+            msgs.append(
+                {
+                    "datetime": timezone.now().isoformat(),
+                    "entity": "sync",
+                    "severity": "info",
+                    "message": "Sync stream ended",
+                    "sync_status": "aborted",
+                    "progress": None,
+                    "task_id": task_id,
+                }
+            )
+            cache.set(messages_key, msgs, timeout=86400)
+            # Don't re-raise — abort is operational. The finally below
+            # releases the lock cleanly.
         except Exception as e:
             from apps.workflow.services.error_persistence import persist_app_error
 

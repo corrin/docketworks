@@ -31,3 +31,15 @@ class AlreadyLoggedException(Exception):
         self.original = original_exception
         self.app_error_id = app_error_id
         super().__init__(str(original_exception))
+
+
+class XeroQuotaFloorReached(Exception):
+    """Raised when an automated Xero call cannot proceed because the
+    day-quota is at or below ``settings.XERO_AUTOMATED_DAY_FLOOR``.
+
+    Callers must treat this as an *aborted* operation, not a successful
+    no-op — sync status is "aborted", not "success", and last-sync
+    timestamps must NOT advance. Distinct from defects: do not
+    ``persist_app_error`` on this; at the floor it would generate 24+
+    rows/day of expected operational signal.
+    """

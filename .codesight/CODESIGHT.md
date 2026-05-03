@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 183 components | 370 lib files | 69 env vars | 11 middleware | 2 events | 22% test coverage
-> **Token savings:** this file is ~30,600 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~213,000 tokens per conversation.**
+> 95 routes | 44 models | 185 components | 372 lib files | 70 env vars | 11 middleware | 2 events | 23% test coverage
+> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~244,900 tokens. **Saves ~214,000 tokens per conversation.**
 
 ---
 
@@ -596,6 +596,24 @@
 - django_created_at: timestamp
 - django_updated_at: timestamp
 
+### XeroApp
+- id: uuid (pk, default)
+- label: string
+- client_id: string (unique)
+- client_secret: string
+- redirect_uri: string
+- is_active: boolean (default)
+- tenant_id: string (nullable)
+- token_type: string (nullable)
+- access_token: string (nullable)
+- refresh_token: string (nullable)
+- expires_at: timestamp (nullable)
+- scope: string (nullable)
+- day_remaining: integer (nullable)
+- minute_remaining: integer (nullable)
+- snapshot_at: timestamp (nullable)
+- last_429_at: timestamp (nullable)
+
 ### XeroJournal
 - id: uuid (pk, default)
 - xero_id: uuid (unique)
@@ -679,14 +697,6 @@
 - entity_key: string (unique)
 - last_modified: timestamp
 
-### XeroToken
-- tenant_id: string (unique)
-- token_type: string
-- access_token: string
-- refresh_token: string
-- expires_at: timestamp
-- scope: string (default)
-
 ---
 
 # Components
@@ -717,6 +727,7 @@
 - **StaffFormModal** [client] — props: staff — `frontend/src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `frontend/src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
+- **XeroQuotaBadge** [client] — `frontend/src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
 - **ErrorDialog** [client] — props: error, groupMeta — `frontend/src/components/admin/errors/ErrorDialog.vue`
@@ -865,6 +876,7 @@
 - **WorkshopMyTimeView** [client] — `frontend/src/views/WorkshopMyTimeView.vue`
 - **WorkshopScheduleView** [client] — `frontend/src/views/WorkshopScheduleView.vue`
 - **WorkshopView** [client] — `frontend/src/views/WorkshopView.vue`
+- **XeroAppSettings** [client] — `frontend/src/views/XeroAppSettings.vue`
 - **XeroView** [client] — `frontend/src/views/XeroView.vue`
 - **CreateFromQuoteView** [client] — `frontend/src/views/purchasing/CreateFromQuoteView.vue`
 - **ItemSelect** [client] — props: modelValue, disabled, showQuantity, lineKind, tabKind — `frontend/src/views/purchasing/ItemSelect.vue`
@@ -1354,15 +1366,22 @@
 - `apps/workflow/api/reports/payroll_reconciliation.py` — class PayrollReconciliationReport, class PayrollDateRangeView
 - `apps/workflow/api/reports/pnl.py` — class CompanyProfitAndLossReport
 - `apps/workflow/api/reports/utils.py` — function format_period_label: (period_start, period_end)
+- `apps/workflow/api/xero/active_app.py`
+  - function get_active_app: () -> XeroApp
+  - function swap_active: (app_id) -> XeroApp
+  - function wipe_tokens_and_quota: (app) -> None
+  - function build_api_client: (app) -> ApiClient
+  - function get_active_client: () -> ApiClient
+  - class NoActiveXeroApp
 - `apps/workflow/api/xero/auth.py`
   - function get_token: () -> Optional[Dict[str, Any]]
-  - function store_token: (token, Any]) -> None
+  - function bind_token_callbacks: (api_client, app_id) -> None
   - function refresh_token: () -> Optional[Dict[str, Any]]
   - function get_valid_token: () -> Optional[Dict[str, Any]]
   - function get_authentication_url: (state) -> str
   - function get_tenant_id_from_connections: () -> str
   - _...2 more_
-- `apps/workflow/api/xero/client.py` — class RateLimitedRESTClient
+- `apps/workflow/api/xero/client.py` — function quota_floor_breached: (floor) -> bool, class RateLimitedRESTClient
 - `apps/workflow/api/xero/payroll.py`
   - function get_employees: () -> List[Employee]
   - function create_payroll_employee: (employee_data, Any]) -> Employee
@@ -1434,7 +1453,10 @@
 - `apps/workflow/context_processors.py` — function debug_mode: (request) -> Dict[str, Any]
 - `apps/workflow/enums.py` — class AIProviderTypes
 - `apps/workflow/exception_handlers.py` — function custom_exception_handler: (exc, context) -> Optional[Response]
-- `apps/workflow/exceptions.py` — class XeroValidationError, class AlreadyLoggedException
+- `apps/workflow/exceptions.py`
+  - class XeroValidationError
+  - class AlreadyLoggedException
+  - class XeroQuotaFloorReached
 - `apps/workflow/extensions.py` — class CookieJWTScheme
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command
@@ -1461,11 +1483,11 @@
   - function get_field_metadata: (field, Any]", field_name, read_only_fields) -> dict[str, Any]
   - class SettingsSection
 - `apps/workflow/models/xero_account.py` — class XeroAccount
+- `apps/workflow/models/xero_app.py` — class XeroApp
 - `apps/workflow/models/xero_journal.py` — class XeroJournal, class XeroJournalLineItem
 - `apps/workflow/models/xero_pay_item.py` — class XeroPayItem
 - `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
 - `apps/workflow/models/xero_sync_cursor.py` — class XeroSyncCursor
-- `apps/workflow/models/xero_token.py` — class XeroToken
 - `apps/workflow/permissions.py` — class F
 - `apps/workflow/scheduler.py` — function get_scheduler: () -> BackgroundScheduler, function stop_scheduler: () -> bool
 - `apps/workflow/scheduler_jobs.py`
@@ -1473,11 +1495,11 @@
   - function xero_regular_sync_job: () -> None
   - function xero_30_day_sync_job: () -> None
 - `apps/workflow/serializers.py`
-  - class XeroTokenSerializer
   - class AIProviderSerializer
   - class CompanyDefaultsSerializer
   - class XeroAccountSerializer
   - class XeroPayItemSerializer
+  - class XeroAppSerializer
   - class AIProviderCreateUpdateSerializer
   - _...23 more_
 - `apps/workflow/services/db_scrubber.py` — function scrub: () -> None
@@ -1619,6 +1641,7 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
+- `frontend/src/composables/useXeroApps.ts` — function useXeroApps: (autoPoll) => void, type XeroApp
 - `frontend/src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
 - `frontend/src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `frontend/src/constants/job-status.ts`
@@ -1997,11 +2020,12 @@
 - `UAT_INSTANCE_ID` (has default) — .env
 - `VITE_APP_NAME` (has default) — frontend/.env
 - `VITE_UAT_URL` (has default) — frontend/.env.example
-- `XERO_CLIENT_ID` (has default) — .env.example
-- `XERO_CLIENT_SECRET` (has default) — .env.example
+- `XERO_AUTOMATED_DAY_FLOOR` **required** — docketworks/settings.py
+- `XERO_CLIENT_ID` (has default) — .env
+- `XERO_CLIENT_SECRET` (has default) — .env
 - `XERO_DEFAULT_USER_ID` (has default) — .env.example
 - `XERO_PASSWORD` (has default) — frontend/.env.example
-- `XERO_REDIRECT_URI` (has default) — .env.example
+- `XERO_REDIRECT_URI` (has default) — .env
 - `XERO_SCOPES` **required** — docketworks/settings.py
 - `XERO_SYNC_PROJECTS` (has default) — .env.example
 - `XERO_USERNAME` (has default) — frontend/.env.example
@@ -2086,8 +2110,8 @@
 
 # Test Coverage
 
-> **22%** of routes and models are covered by tests
-> 127 test files found
+> **23%** of routes and models are covered by tests
+> 131 test files found
 
 ## Covered Routes
 
@@ -2123,8 +2147,9 @@
 - AppError
 - XeroError
 - CacheState
+- XeroAccount
+- XeroApp
 - XeroPayItem
-- XeroToken
 
 ---
 

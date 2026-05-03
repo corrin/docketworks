@@ -2,12 +2,16 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
+from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.purchasing.models import Stock
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.active_app import get_active_client
+from apps.workflow.api.xero.auth import get_tenant_id
+from apps.workflow.api.xero.client import quota_floor_breached
+from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.models import XeroAccount
 
 logger = logging.getLogger("xero")
@@ -176,7 +180,7 @@ def sync_stock_to_xero(
             f"Generated item_code '{stock_item.item_code}' for stock {stock_item.id}"
         )
 
-    api = AccountingApi(api_client)
+    api = AccountingApi(get_active_client())
     tenant_id = get_tenant_id()
 
     purchase_account = (
@@ -353,8 +357,9 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
     """
     Sync all local stock items that don't have xero_id to Xero.
 
-    Creates are batched (up to 50 per Xero API call). Updates remain per-item
-    since Xero's update_item endpoint is keyed by ItemID and has no batch form.
+    Both new items (created in Xero) and items linked-by-Code to existing Xero
+    items are pushed via ``update_or_create_items`` in batches of 50 — Xero
+    treats payloads with an ``ItemID`` as updates and those without as creates.
 
     Args:
         limit: Optional limit on number of items to sync
@@ -363,6 +368,16 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
         Dict with sync results
     """
     logger.info("Starting sync of local stock items to Xero")
+
+    if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+        # Raise rather than returning a "0 synced, 0 failed" success-shaped
+        # dict — the wrapper in sync.py interprets the dict as success and
+        # would let the orchestrator continue to its sync_status:"success"
+        # marker, masking the abort.
+        raise XeroQuotaFloorReached(
+            f"Skipping local stock sync: Xero day quota at floor "
+            f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
+        )
 
     queryset = Stock.objects.filter(xero_id__isnull=True, is_active=True).order_by(
         "date"
@@ -378,7 +393,7 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
 
     logger.info(f"Found {total_items} stock items to sync to Xero")
 
-    api = AccountingApi(api_client)
+    api = AccountingApi(get_active_client())
     tenant_id = get_tenant_id()
     xero_items_lookup = fetch_all_xero_items(api, tenant_id)
 
@@ -395,10 +410,12 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
         ).first()
     )
 
-    # First pass: validate, generate codes, link existing-by-Code, partition into
-    # create vs update queues. This is DB-only — no Xero API calls.
-    items_to_create: list = []  # list of (stock_item, payload)
-    items_to_update: list = []  # list of (stock_item, payload) — linked by Code
+    # First pass: validate, generate codes, link existing-by-Code. Items linked
+    # by Code get their ``xero_id`` saved here and an ``ItemID`` set on the
+    # payload — the upsert call then pushes data to that item. Items without a
+    # match get pushed without an ``ItemID``, and Xero creates them.
+    # This pass is DB-only — no Xero API calls.
+    items_to_upsert: list = []  # list of (stock_item, payload)
 
     for stock_item in queryset:
         if not validate_stock_for_xero(stock_item):
@@ -441,37 +458,43 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
                 )
                 continue
 
-            stock_item.xero_id = existing.item_id
-            stock_item.xero_last_modified = timezone.now()
-            stock_item.xero_last_synced = timezone.now()
-            stock_item.save(
-                update_fields=["xero_id", "xero_last_modified", "xero_last_synced"]
-            )
-            logger.info(
-                f"Linked local stock {stock_item.id} to existing Xero item "
-                f"{stock_item.xero_id} by Code"
-            )
-            items_to_update.append((stock_item, payload))
-        else:
-            items_to_create.append((stock_item, payload))
+            # Don't persist xero_id yet — if the batched upsert below fails,
+            # the row stays in the retry queryset (xero_id__isnull=True).
+            payload["ItemID"] = existing.item_id
 
-    # Batch creates: ceil(N/50) API calls instead of N.
+        items_to_upsert.append((stock_item, payload))
+
+    # Batched upsert: ceil(N/50) API calls. Xero routes by presence of ItemID.
     batch_size = 50
-    for i in range(0, len(items_to_create), batch_size):
-        batch = items_to_create[i : i + batch_size]
+    for i in range(0, len(items_to_upsert), batch_size):
+        batch = items_to_upsert[i : i + batch_size]
+
+        if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+            # Raise rather than logging + breaking. Items already upserted
+            # in earlier batches kept their xero_id (set by the post-upsert
+            # handler below). Items in remaining batches still have
+            # xero_id__isnull=True and will be retried on the next sync.
+            # The exception unwinds to XeroSyncService.run_sync which
+            # emits sync_status:"aborted".
+            remaining = len(items_to_upsert) - i
+            raise XeroQuotaFloorReached(
+                f"Stopping stock upsert with {remaining} un-attempted items: "
+                f"Xero day quota at floor ({settings.XERO_AUTOMATED_DAY_FLOOR})"
+            )
+
         items_payload = [data for _, data in batch]
         item_by_code = {data["Code"]: stock for stock, data in batch}
 
         logger.info(
-            f"Creating batch of {len(items_payload)} stock items in Xero "
+            f"Upserting batch of {len(items_payload)} stock items in Xero "
             f"(batch {i // batch_size + 1})"
         )
         try:
-            resp = api.create_items(tenant_id, items={"Items": items_payload})
+            resp = api.update_or_create_items(tenant_id, items={"Items": items_payload})
             time.sleep(SLEEP_TIME)
         except Exception as e:
             logger.error(
-                f"Failed to create batch of {len(items_payload)} stock items: {e}"
+                f"Failed to upsert batch of {len(items_payload)} stock items: {e}"
             )
             for stock_item, _ in batch:
                 failed_count += 1
@@ -479,21 +502,23 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
                     {
                         "id": str(stock_item.id),
                         "description": stock_item.description,
-                        "reason": f"Batch create failed: {e}",
+                        "reason": f"Batch upsert failed: {e}",
                     }
                 )
             continue
 
-        created = getattr(resp, "items", None) or getattr(resp, "Items", None) or []
-        for created_item in created:
-            code = getattr(created_item, "code", None)
+        synced_items = (
+            getattr(resp, "items", None) or getattr(resp, "Items", None) or []
+        )
+        for synced_item in synced_items:
+            code = getattr(synced_item, "code", None)
             stock_item = item_by_code.get(code)
             if stock_item is None:
                 logger.warning(
-                    f"Could not map created Xero item with code '{code}' back to local stock"
+                    f"Could not map upserted Xero item with code '{code}' back to local stock"
                 )
                 continue
-            stock_item.xero_id = created_item.item_id
+            stock_item.xero_id = synced_item.item_id
             stock_item.xero_last_modified = timezone.now()
             stock_item.xero_last_synced = timezone.now()
             stock_item.save(
@@ -501,31 +526,8 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
             )
             synced_count += 1
             logger.info(
-                f"Created stock item {stock_item.id} in Xero with ID {stock_item.xero_id}"
+                f"Upserted stock item {stock_item.id} in Xero with ID {stock_item.xero_id}"
             )
-
-    # Per-item updates for items linked by Code (Xero update_item has no batch form).
-    for stock_item, payload in items_to_update:
-        payload["ItemID"] = stock_item.xero_id
-        try:
-            api.update_item(
-                tenant_id, item_id=stock_item.xero_id, items={"Items": [payload]}
-            )
-            time.sleep(SLEEP_TIME)
-            stock_item.xero_last_synced = timezone.now()
-            stock_item.save(update_fields=["xero_last_synced"])
-            synced_count += 1
-            logger.info(f"Updated stock item {stock_item.id} in Xero")
-        except Exception as e:
-            failed_count += 1
-            failed_items.append(
-                {
-                    "id": str(stock_item.id),
-                    "description": stock_item.description,
-                    "reason": f"Update failed: {e}",
-                }
-            )
-            logger.error(f"Failed to update stock item {stock_item.id}: {e}")
 
     # Clamp success_rate to 0-100 range for valid progress bar display
     raw_rate = (synced_count / total_items * 100) if total_items > 0 else 0

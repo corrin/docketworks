@@ -1,51 +1,37 @@
 <template>
   <AppLayout>
     <div class="max-w-6xl mx-auto py-10 px-4 bg-white min-h-screen">
+      <h1 class="text-3xl font-extrabold tracking-tight text-gray-900 mb-6">Xero Sync Progress</h1>
       <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
         <!-- Left Column: Progress Section with high contrast and simple modern look -->
         <section>
-          <div class="flex items-center justify-between mb-8">
-            <h1
-              class="text-3xl font-extrabold tracking-tight text-gray-900 flex items-center gap-3"
+          <div class="flex items-center gap-2 mb-6 flex-wrap">
+            <XeroQuotaBadge />
+            <Button
+              v-if="!isAuthenticated && !loading"
+              @click="loginXero"
+              variant="default"
+              size="sm"
             >
-              <svg
-                class="w-8 h-8 text-indigo-500 animate-pulse"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <circle cx="12" cy="12" r="10" stroke-width="2" />
-                <path d="M12 6v6l4 2" stroke-width="2" />
-              </svg>
-              Xero Sync Progress
-            </h1>
-            <div class="flex gap-2 ml-5">
-              <Button
-                v-if="!isAuthenticated && !loading"
-                @click="loginXero"
-                variant="default"
-                class="text-base px-4 py-2"
-              >
-                Login with Xero
-              </Button>
-              <Button
-                v-if="isAuthenticated && !syncing && !loading"
-                @click="startSync"
-                variant="default"
-                :disabled="syncing || loading"
-                class="text-base px-4 py-2"
-              >
-                Start Sync
-              </Button>
-              <Button
-                v-if="isAuthenticated && !loading"
-                @click="logoutXero"
-                variant="ghost"
-                class="text-base px-4 py-2"
-              >
-                Disconnect
-              </Button>
-            </div>
+              Login with Xero
+            </Button>
+            <Button
+              v-if="isAuthenticated && !syncing && !loading"
+              @click="startSync"
+              variant="default"
+              size="sm"
+              :disabled="syncing || loading"
+            >
+              Start Sync
+            </Button>
+            <Button
+              v-if="isAuthenticated && !loading"
+              @click="logoutXero"
+              variant="outline"
+              size="sm"
+            >
+              Disconnect
+            </Button>
           </div>
           <div v-if="loading" class="flex justify-center items-center h-40">
             <span class="text-xl animate-pulse text-gray-600">Loading...</span>
@@ -138,19 +124,7 @@
         </section>
         <!-- Right Column: Log -->
         <aside>
-          <h2 class="text-lg font-bold mb-2 text-indigo-400 flex items-center gap-2">
-            <svg
-              class="w-5 h-5 text-green-400 animate-pulse"
-              fill="none"
-              stroke="currentColor"
-              viewBox="0 0 24 24"
-            >
-              <path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2" stroke-width="2" />
-              <path d="M7 9l5-5 5 5" stroke-width="2" />
-              <path d="M12 4v12" stroke-width="2" />
-            </svg>
-            Sync Log
-          </h2>
+          <h2 class="text-lg font-bold mb-2 text-indigo-400">Sync Log</h2>
           <div
             class="bg-zinc-900 rounded-lg p-4 h-[32rem] max-h-[40vh] min-h-[16rem] overflow-y-auto font-mono text-sm shadow-inner border border-zinc-800 animate-fade-in"
           >
@@ -197,6 +171,7 @@ import { onMounted, onUnmounted, watch } from 'vue'
 import AppLayout from '../components/AppLayout.vue'
 import Button from '../components/ui/button/Button.vue'
 import Progress from '../components/ui/progress/Progress.vue'
+import XeroQuotaBadge from '../components/XeroQuotaBadge.vue'
 import { useXeroAuth } from '../composables/useXeroAuth'
 import { toast } from 'vue-sonner'
 
@@ -228,6 +203,15 @@ const {
 watch(syncStatus, (val) => {
   if (val === 'success') {
     toast.success('Sync completed successfully!')
+  } else if (val === 'aborted') {
+    // Backend signals aborted (e.g. day-quota floor reached) distinctly
+    // from generic errors — operational signal, not a defect to investigate.
+    toast.warning(
+      syncErrorMessages.value.length
+        ? `Sync aborted: ${syncErrorMessages.value.join('; ')}`
+        : 'Sync aborted before completion.',
+      { duration: 7000 },
+    )
   } else if (val === 'error') {
     toast.error(
       syncErrorMessages.value.length

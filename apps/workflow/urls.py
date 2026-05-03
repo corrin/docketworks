@@ -32,6 +32,7 @@ from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
 from apps.workflow.views.xero import xero_view
+from apps.workflow.views.xero_apps_view import XeroAppViewSet
 from apps.workflow.views.xero_pay_item_viewset import XeroPayItemViewSet
 from apps.workflow.xero_webhooks import XeroWebhookView
 
@@ -42,6 +43,7 @@ router = DefaultRouter()
 router.register("ai-providers", AIProviderViewSet, basename="ai-provider")
 router.register("app-errors", AppErrorViewSet, basename="app-error")
 router.register("xero-pay-items", XeroPayItemViewSet, basename="xero-pay-item")
+router.register("xero-apps", XeroAppViewSet, basename="xero-app")
 
 urlpatterns = [
     path("build-id/", BuildIdAPIView.as_view(), name="build_id"),

@@ -19,7 +19,8 @@ from apps.client.models import Client
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.timesheet.services.payroll_employee_sync import PayrollEmployeeSyncService
-from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.active_app import get_active_client
+from apps.workflow.api.xero.auth import get_tenant_id
 from apps.workflow.api.xero.seed import (
     fetch_xero_entity_lookup,
     seed_clients_to_xero,
@@ -190,7 +191,7 @@ class Command(BaseCommand):
             self.stdout.write("Would fetch accounts from dev Xero and update xero_ids")
             return local_count
 
-        xero_api = AccountingApi(api_client)
+        xero_api = AccountingApi(get_active_client())
         xero_tenant_id = get_tenant_id()
 
         response = xero_api.get_accounts(xero_tenant_id)
@@ -354,7 +355,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"Deleted {orphan_count} orphaned invoices")
             result["orphans_deleted"] = orphan_count
 
-        xero_api = AccountingApi(api_client)
+        xero_api = AccountingApi(get_active_client())
         xero_tenant_id = get_tenant_id()
 
         # Find job-linked invoices not yet seeded to this Xero tenant
@@ -592,7 +593,7 @@ class Command(BaseCommand):
                 self.stdout.write(f"Deleted {orphan_count} orphaned quotes")
             result["orphans_deleted"] = orphan_count
 
-        xero_api = AccountingApi(api_client)
+        xero_api = AccountingApi(get_active_client())
         xero_tenant_id = get_tenant_id()
 
         # Find job-linked quotes not yet seeded to this Xero tenant

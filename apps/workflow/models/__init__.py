@@ -6,11 +6,11 @@ from .cache_state import CacheState
 from .company_defaults import CompanyDefaults
 from .service_api_key import ServiceAPIKey
 from .xero_account import XeroAccount
+from .xero_app import XeroApp
 from .xero_journal import XeroJournal, XeroJournalLineItem
 from .xero_pay_item import XeroPayItem
 from .xero_payroll import XeroPayRun, XeroPaySlip
 from .xero_sync_cursor import XeroSyncCursor
-from .xero_token import XeroToken
 
 __all__ = [
     "AIProvider",
@@ -19,6 +19,7 @@ __all__ = [
     "CompanyDefaults",
     "ServiceAPIKey",
     "XeroAccount",
+    "XeroApp",
     "XeroError",
     "XeroJournal",
     "XeroJournalLineItem",
@@ -26,5 +27,4 @@ __all__ = [
     "XeroPayRun",
     "XeroPaySlip",
     "XeroSyncCursor",
-    "XeroToken",
 ]

@@ -12,7 +12,8 @@ from xero_python.project import ProjectApi
 
 from apps.accounts.models import Staff
 from apps.timesheet.services import PayrollEmployeeSyncService
-from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
+from apps.workflow.api.xero.active_app import get_active_client
+from apps.workflow.api.xero.auth import get_tenant_id, get_valid_token
 from apps.workflow.api.xero.payroll import (
     get_earnings_rates,
     get_employees,
@@ -20,7 +21,7 @@ from apps.workflow.api.xero.payroll import (
     get_pay_runs,
     get_payroll_calendars,
 )
-from apps.workflow.models import XeroToken
+from apps.workflow.models import XeroApp
 from apps.workflow.models.company_defaults import CompanyDefaults
 
 
@@ -31,11 +32,11 @@ def get_employees_simple_dev():
     Returns simple dicts with just: employee_id, first_name, last_name, email.
     Skips contractors without dateOfBirth that crash the xero-python library.
     """
-    token = XeroToken.objects.first()
+    app = XeroApp.objects.get(is_active=True)
     tenant_id = get_tenant_id()
 
     headers = {
-        "Authorization": f"Bearer {token.access_token}",
+        "Authorization": f"Bearer {app.access_token}",
         "Xero-Tenant-Id": tenant_id,
         "Accept": "application/json",
     }
@@ -263,7 +264,7 @@ class Command(BaseCommand):
 
     def get_tenants(self, options):
         """Get available Xero tenant IDs and names"""
-        identity_api = IdentityApi(api_client)
+        identity_api = IdentityApi(get_active_client())
         connections = identity_api.get_connections()
 
         self.stdout.write("Available Xero Organizations:")
@@ -314,7 +315,7 @@ class Command(BaseCommand):
 
         from apps.workflow.models import XeroPayItem
 
-        payroll_api = PayrollNzApi(api_client)
+        payroll_api = PayrollNzApi(get_active_client())
 
         # Calendar
         if calendar_name:
@@ -408,7 +409,7 @@ class Command(BaseCommand):
 
         # Step 1: Get connected organisations
         try:
-            identity_api = IdentityApi(api_client)
+            identity_api = IdentityApi(get_active_client())
             connections = identity_api.get_connections()
         except Exception as e:
             self.stdout.write(self.style.ERROR(f"Failed to get Xero connections: {e}"))
@@ -461,7 +462,7 @@ class Command(BaseCommand):
             )
 
         # Step 4: Fetch organisation shortcode for deep linking
-        accounting_api = AccountingApi(api_client)
+        accounting_api = AccountingApi(get_active_client())
         org_response = accounting_api.get_organisations(xero_tenant_id=tenant_id)
 
         if not org_response or not org_response.organisations:
@@ -529,7 +530,7 @@ class Command(BaseCommand):
             return
 
         try:
-            project_api = ProjectApi(api_client)
+            project_api = ProjectApi(get_active_client())
             users_response = project_api.get_project_users(xero_tenant_id=tenant_id)
 
             self.stdout.write(

@@ -900,7 +900,6 @@ certbot certificates
 - [ ] Delete migration dump file in `/opt/docketworks/instances/msm-prod/logs/`
 - [ ] Delete `docs/plans/old_msm_restore_plan.md` (replaced by this document)
 - [ ] Delete `docs/production-cutover-plan.md` (replaced by this document)
-- [ ] Update `docs/production-mysql-to-postgres-migration.md` post-migration checklist
 
 ---
 

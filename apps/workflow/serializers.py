@@ -8,9 +8,9 @@ from .models import (
     AppError,
     CompanyDefaults,
     XeroAccount,
+    XeroApp,
     XeroError,
     XeroPayItem,
-    XeroToken,
 )
 from .models.settings_metadata import COMPANY_DEFAULTS_READ_ONLY_FIELDS
 
@@ -26,12 +26,6 @@ def _build_logo_url(
     if not request:
         return field_file.url
     return request.build_absolute_uri(field_file.url)
-
-
-class XeroTokenSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = XeroToken
-        fields = "__all__"
 
 
 class AIProviderSerializer(serializers.ModelSerializer):
@@ -79,6 +73,65 @@ class XeroPayItemSerializer(serializers.ModelSerializer):
     class Meta:
         model = XeroPayItem
         fields = "__all__"
+
+
+class XeroAppSerializer(serializers.ModelSerializer):
+    """List/detail serializer for XeroApp.
+
+    client_secret is write-only — never returned. access_token / refresh_token
+    are not surfaced at all; instead a derived has_tokens boolean indicates
+    whether the row has been authorised.
+
+    client_secret is REQUIRED on create (no secret = the row can never
+    complete OAuth, which is a configuration footgun) but OPTIONAL on
+    update (so PATCH can change label/client_id/redirect_uri without
+    re-supplying the secret each time).
+    """
+
+    has_tokens = serializers.SerializerMethodField()
+    client_secret = serializers.CharField(write_only=True, required=False)
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+        if self.instance is None and not attrs.get("client_secret"):
+            raise serializers.ValidationError(
+                {"client_secret": "client_secret is required when creating a XeroApp."}
+            )
+        return attrs
+
+    class Meta:
+        model = XeroApp
+        fields = (
+            "id",
+            "label",
+            "client_id",
+            "client_secret",
+            "redirect_uri",
+            "is_active",
+            "has_tokens",
+            "tenant_id",
+            "day_remaining",
+            "minute_remaining",
+            "snapshot_at",
+            "last_429_at",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "is_active",
+            "has_tokens",
+            "tenant_id",
+            "day_remaining",
+            "minute_remaining",
+            "snapshot_at",
+            "last_429_at",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_has_tokens(self, obj: XeroApp) -> bool:
+        return bool(obj.access_token and obj.refresh_token)
 
 
 class AIProviderCreateUpdateSerializer(serializers.ModelSerializer):

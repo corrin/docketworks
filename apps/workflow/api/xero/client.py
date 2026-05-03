@@ -11,7 +11,7 @@ import logging
 import time
 
 import urllib3.util
-from django.core.cache import cache
+from django.utils import timezone as dj_timezone
 from xero_python.exceptions import ApiException
 from xero_python.rest import RESTClientObject
 
@@ -35,16 +35,55 @@ DAY_WARNING_THRESHOLDS = (
     50,
     10,
 )
-QUOTA_CACHE_KEY = "xero_quota_snapshot"
-QUOTA_CACHE_TIMEOUT_SECONDS = 60 * 60 * 24
+# Xero's day quota is a rolling 24h window — old calls age out continuously.
+# A snapshot saying day_remaining <= floor from N hours ago is stale: the
+# rolling window has freed roughly (N/24) * 5000 calls since it was written.
+# Treat snapshots older than this as unknown so the next call probes Xero
+# fresh; without this, one 429 pins the gate closed in this process for the
+# remaining 23h+ of cache TTL.
+QUOTA_STALE_AFTER_SECONDS = 30 * 60
+
+
+def quota_floor_breached(floor: int) -> bool:
+    """Return True iff the active XeroApp's snapshot reports day_remaining
+    at or below ``floor`` AND the snapshot is still fresh.
+
+    Reads ``day_remaining`` / ``snapshot_at`` from the row marked
+    ``is_active=True``. Returns False on:
+      - no active row (can't gate without a target);
+      - missing snapshot (no API call has happened in this process yet);
+      - stale snapshot (>= ``QUOTA_STALE_AFTER_SECONDS`` old — the rolling
+        24h window has freed quota since then);
+      - day_remaining is None (Xero sometimes omits the header).
+    """
+    # Local import: client.py is imported at app boot, models may not be ready.
+    from apps.workflow.models import XeroApp
+
+    try:
+        active = XeroApp.objects.only("day_remaining", "snapshot_at").get(
+            is_active=True
+        )
+    except XeroApp.DoesNotExist:
+        return False
+
+    if active.snapshot_at is None or active.day_remaining is None:
+        return False
+    age_seconds = (dj_timezone.now() - active.snapshot_at).total_seconds()
+    if age_seconds > QUOTA_STALE_AFTER_SECONDS:
+        return False
+    return active.day_remaining <= floor
 
 
 class RateLimitedRESTClient(RESTClientObject):
-    def __init__(self, configuration, pools_size=4, maxsize=None):
+    def __init__(self, configuration, pools_size=4, maxsize=None, app_id=None):
         super().__init__(configuration, pools_size=pools_size, maxsize=maxsize)
         self.pool_manager.connection_pool_kw["retries"] = urllib3.util.Retry(
             0, respect_retry_after_header=False
         )
+        # The id of the XeroApp row whose credentials this client uses.
+        # Quota writes target this row, NOT "the currently active row" —
+        # so a swap racing an in-flight call writes to the right place.
+        self.app_id = app_id
         self._last_call_time = 0.0
         self._summary_started_at = time.time()
         self._request_count = 0
@@ -135,6 +174,18 @@ class RateLimitedRESTClient(RESTClientObject):
             f"Minute remaining: {min_remaining}."
         )
 
+        # 429 responses carry the same quota headers as 2xx responses — write
+        # them to the snapshot so quota_floor_breached() can short-circuit
+        # subsequent automated calls. Without this, the snapshot only updates
+        # on success and the gate stays unarmed precisely when it's needed.
+        self._store_quota_snapshot(
+            self._parse_int(day_remaining), self._parse_int(min_remaining)
+        )
+        if self.app_id is not None:
+            from apps.workflow.models import XeroApp
+
+            XeroApp.objects.filter(id=self.app_id).update(last_429_at=dj_timezone.now())
+
         if limit_type == "day":
             persist_app_error(exc)
             raise exc
@@ -215,14 +266,16 @@ class RateLimitedRESTClient(RESTClientObject):
         except (TypeError, ValueError):
             return None
 
-    @staticmethod
-    def _store_quota_snapshot(day_remaining, minute_remaining):
-        cache.set(
-            QUOTA_CACHE_KEY,
-            {
-                "timestamp": time.time(),
-                "day_remaining": day_remaining,
-                "minute_remaining": minute_remaining,
-            },
-            timeout=QUOTA_CACHE_TIMEOUT_SECONDS,
+    def _store_quota_snapshot(self, day_remaining, minute_remaining):
+        # No app_id means a misconfigured client (constructed without going
+        # through active_app.build_api_client). Refuse silently — the
+        # snapshot just won't be persisted.
+        if self.app_id is None:
+            return
+        from apps.workflow.models import XeroApp
+
+        XeroApp.objects.filter(id=self.app_id).update(
+            day_remaining=day_remaining,
+            minute_remaining=minute_remaining,
+            snapshot_at=dj_timezone.now(),
         )

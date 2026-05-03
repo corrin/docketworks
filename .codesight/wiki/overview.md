@@ -6,7 +6,7 @@
 
 ## Scale
 
-95 API routes · 44 database models · 183 UI components · 11 middleware layers · 69 environment variables
+95 API routes · 44 database models · 185 UI components · 11 middleware layers · 70 environment variables
 
 ## Subsystems
 
@@ -17,7 +17,7 @@
 
 **Database:** django, 44 models — see [database.md](./database.md)
 
-**UI:** 183 components (vue) — see [ui.md](./ui.md)
+**UI:** 185 components (vue) — see [ui.md](./ui.md)
 
 ## High-Impact Files
 
@@ -44,7 +44,7 @@ Changes to these files have the widest blast radius across the codebase:
 - `MEDIA_ROOT` — `docketworks/settings.py`
 - `PLAYWRIGHT_BROWSER_CHANNEL` — `frontend/tests/scripts/xero-login.ts`
 - `REDIS_HOST` — `docketworks/settings.py`
-- _...4 more_
+- _...5 more_
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-05-02_
+_Back to [index.md](./index.md) · Generated 2026-05-03_

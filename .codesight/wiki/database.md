@@ -598,6 +598,27 @@ pk: `id` (uuid)
 - `django_created_at`: timestamp
 - `django_updated_at`: timestamp
 
+### XeroApp
+
+pk: `id` (uuid)
+
+- `id`: uuid _(pk, default)_
+- `label`: string
+- `client_id`: string _(unique)_
+- `client_secret`: string
+- `redirect_uri`: string
+- `is_active`: boolean _(default)_
+- `tenant_id`: string _(nullable)_
+- `token_type`: string _(nullable)_
+- `access_token`: string _(nullable)_
+- `refresh_token`: string _(nullable)_
+- `expires_at`: timestamp _(nullable)_
+- `scope`: string _(nullable)_
+- `day_remaining`: integer _(nullable)_
+- `minute_remaining`: integer _(nullable)_
+- `snapshot_at`: timestamp _(nullable)_
+- `last_429_at`: timestamp _(nullable)_
+
 ### XeroJournal
 
 pk: `id` (uuid)
@@ -696,15 +717,6 @@ pk: `id` (uuid) · fk: pay_run_id
 
 - `entity_key`: string _(unique)_
 - `last_modified`: timestamp
-
-### XeroToken
-
-- `tenant_id`: string _(unique)_
-- `token_type`: string
-- `access_token`: string
-- `refresh_token`: string
-- `expires_at`: timestamp
-- `scope`: string _(default)_
 
 ## Schema Source Files
 

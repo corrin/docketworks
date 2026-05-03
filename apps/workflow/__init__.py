@@ -2,7 +2,11 @@
 
 from .apps import WorkflowConfig, check_company_defaults_field_sections
 from .enums import AIProviderTypes
-from .exceptions import AlreadyLoggedException, XeroValidationError
+from .exceptions import (
+    AlreadyLoggedException,
+    XeroQuotaFloorReached,
+    XeroValidationError,
+)
 
 # Conditional imports (only when Django is ready)
 try:
@@ -47,6 +51,7 @@ try:
             SettingsFieldSerializer,
             SettingsSectionSerializer,
             XeroAccountSerializer,
+            XeroAppSerializer,
             XeroAuthenticationErrorResponseSerializer,
             XeroDocumentErrorResponseSerializer,
             XeroDocumentSuccessResponseSerializer,
@@ -60,7 +65,6 @@ try:
             XeroSseEventSerializer,
             XeroSyncInfoResponseSerializer,
             XeroSyncStartResponseSerializer,
-            XeroTokenSerializer,
             XeroTriggerSyncResponseSerializer,
         )
         from .tasks import celery_health_check, process_xero_webhook_event
@@ -105,6 +109,7 @@ __all__ = [
     "SettingsSectionSerializer",
     "WorkflowConfig",
     "XeroAccountSerializer",
+    "XeroAppSerializer",
     "XeroAuthenticationErrorResponseSerializer",
     "XeroDocumentErrorResponseSerializer",
     "XeroDocumentSuccessResponseSerializer",
@@ -114,11 +119,11 @@ __all__ = [
     "XeroOperationResponseSerializer",
     "XeroPayItemSerializer",
     "XeroPingResponseSerializer",
+    "XeroQuotaFloorReached",
     "XeroQuoteCreateSerializer",
     "XeroSseEventSerializer",
     "XeroSyncInfoResponseSerializer",
     "XeroSyncStartResponseSerializer",
-    "XeroTokenSerializer",
     "XeroTriggerSyncResponseSerializer",
     "XeroValidationError",
     "XeroWebhookView",

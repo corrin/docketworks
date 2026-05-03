@@ -32,9 +32,10 @@ class XeroAccountingProvider:
     def _get_api():
         from xero_python.accounting import AccountingApi
 
-        from apps.workflow.api.xero.auth import api_client, get_tenant_id
+        from apps.workflow.api.xero.active_app import get_active_client
+        from apps.workflow.api.xero.auth import get_tenant_id
 
-        return AccountingApi(api_client), get_tenant_id()
+        return AccountingApi(get_active_client()), get_tenant_id()
 
     @staticmethod
     def _to_xero_payload(xero_object):
@@ -115,9 +116,17 @@ class XeroAccountingProvider:
         return refresh_token()
 
     def disconnect(self) -> None:
-        from apps.workflow.models import XeroToken
+        from apps.workflow.api.xero.active_app import (
+            NoActiveXeroApp,
+            get_active_app,
+            wipe_tokens_and_quota,
+        )
 
-        XeroToken.objects.all().delete()
+        try:
+            active = get_active_app()
+        except NoActiveXeroApp:
+            return
+        wipe_tokens_and_quota(active)
 
     # --- Contacts ---
 

@@ -26,6 +26,7 @@
 - **StaffFormModal** [client] — props: staff — `frontend/src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `frontend/src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
+- **XeroQuotaBadge** [client] — `frontend/src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
 - **ErrorDialog** [client] — props: error, groupMeta — `frontend/src/components/admin/errors/ErrorDialog.vue`
@@ -174,6 +175,7 @@
 - **WorkshopMyTimeView** [client] — `frontend/src/views/WorkshopMyTimeView.vue`
 - **WorkshopScheduleView** [client] — `frontend/src/views/WorkshopScheduleView.vue`
 - **WorkshopView** [client] — `frontend/src/views/WorkshopView.vue`
+- **XeroAppSettings** [client] — `frontend/src/views/XeroAppSettings.vue`
 - **XeroView** [client] — `frontend/src/views/XeroView.vue`
 - **CreateFromQuoteView** [client] — `frontend/src/views/purchasing/CreateFromQuoteView.vue`
 - **ItemSelect** [client] — props: modelValue, disabled, showQuantity, lineKind, tabKind — `frontend/src/views/purchasing/ItemSelect.vue`

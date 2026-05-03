@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 183 components | 102 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
-> **Token savings:** this file is ~11,400 tokens. Without it, AI exploration would cost ~98,900 tokens. **Saves ~87,600 tokens per conversation.**
+> 0 routes | 0 models | 185 components | 103 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
+> **Token savings:** this file is ~11,500 tokens. Without it, AI exploration would cost ~99,800 tokens. **Saves ~88,400 tokens per conversation.**
 
 ---
 
@@ -35,6 +35,7 @@
 - **StaffFormModal** [client] — props: staff — `src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `src/components/StatusMultiSelect.vue`
+- **XeroQuotaBadge** [client] — `src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `src/components/admin/MonthEndSummary.vue`
 - **ErrorDialog** [client] — props: error, groupMeta — `src/components/admin/errors/ErrorDialog.vue`
@@ -183,6 +184,7 @@
 - **WorkshopMyTimeView** [client] — `src/views/WorkshopMyTimeView.vue`
 - **WorkshopScheduleView** [client] — `src/views/WorkshopScheduleView.vue`
 - **WorkshopView** [client] — `src/views/WorkshopView.vue`
+- **XeroAppSettings** [client] — `src/views/XeroAppSettings.vue`
 - **XeroView** [client] — `src/views/XeroView.vue`
 - **CreateFromQuoteView** [client] — `src/views/purchasing/CreateFromQuoteView.vue`
 - **ItemSelect** [client] — props: modelValue, disabled, showQuantity, lineKind, tabKind — `src/views/purchasing/ItemSelect.vue`
@@ -303,6 +305,7 @@
   - function normalizeTimeRange: (startTime, endTime, slotMinutes) => void
   - function combineDateTime: (dateKey, time) => Date
   - _...2 more_
+- `src/composables/useXeroApps.ts` — function useXeroApps: (autoPoll) => void, type XeroApp
 - `src/composables/useXeroAuth.ts` — function loginXero: () => void, function useXeroAuth: () => void
 - `src/composables/useXeroConnection.ts` — function useXeroConnection: () => void
 - `src/constants/job-status.ts`
@@ -533,9 +536,9 @@
 
 ## Most Imported Files (change these carefully)
 
-- `src/api/generated/api.ts` — imported by **77** files
-- `src/utils/debug.ts` — imported by **53** files
-- `src/api/client.ts` — imported by **50** files
+- `src/api/generated/api.ts` — imported by **78** files
+- `src/utils/debug.ts` — imported by **54** files
+- `src/api/client.ts` — imported by **51** files
 - `tests/fixtures/auth.ts` — imported by **29** files
 - `tests/fixtures/helpers.ts` — imported by **21** files
 - `src/utils/dateUtils.ts` — imported by **16** files
@@ -556,9 +559,9 @@
 
 ## Import Map (who imports what)
 
-- `src/api/generated/api.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useActiveJob.ts`, `src/composables/useAddEmptyCostLine.ts` +72 more
-- `src/utils/debug.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useAppLayout.ts`, `src/composables/useCamera.ts` +48 more
-- `src/api/client.ts` ← `src/composables/useClientLookup.ts`, `src/composables/useContactManagement.ts`, `src/composables/useErrorApi.ts`, `src/composables/useJobEvents.ts`, `src/composables/useJobFinancials.ts` +45 more
+- `src/api/generated/api.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useActiveJob.ts`, `src/composables/useAddEmptyCostLine.ts` +73 more
+- `src/utils/debug.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useAppLayout.ts`, `src/composables/useCamera.ts` +49 more
+- `src/api/client.ts` ← `src/composables/useClientLookup.ts`, `src/composables/useContactManagement.ts`, `src/composables/useErrorApi.ts`, `src/composables/useJobEvents.ts`, `src/composables/useJobFinancials.ts` +46 more
 - `tests/fixtures/auth.ts` ← `tests/company-defaults.spec.ts`, `tests/example.spec.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/create-job.spec.ts` +24 more
 - `tests/fixtures/helpers.ts` ← `tests/fixtures/auth.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/job-attachments.spec.ts`, `tests/job/job-header.spec.ts` +16 more
 - `src/utils/dateUtils.ts` ← `src/composables/useAddMaterialCostLine.ts`, `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useFinancialYear.ts`, `src/composables/useStaffApi.ts`, `src/composables/useTimesheetEntryGrid.ts` +11 more

@@ -63,7 +63,7 @@
 | `/xero/delete_invoice/<uuid:job_id>/` | `xero_view.delete_xero_invoice` | `delete_invoice` | Deletes a specific invoice in Xero for a given job, identified by its Xero ID. |
 | `/xero/delete_purchase_order/<uuid:purchase_order_id>/` | `xero_view.delete_xero_purchase_order` | `delete_xero_purchase_order` | Deletes a Purchase Order in Xero. |
 | `/xero/delete_quote/<uuid:job_id>/` | `xero_view.delete_xero_quote` | `delete_quote` | Deletes a quote in Xero for a given job. |
-| `/xero/disconnect/` | `xero_view.xero_disconnect` | `xero_disconnect` | Disconnects from Xero by clearing the token from cache and database. |
+| `/xero/disconnect/` | `xero_view.xero_disconnect` | `xero_disconnect` | Disconnect from Xero by clearing tokens on the active XeroApp. |
 | `/xero/oauth/callback/` | `xero_view.xero_oauth_callback` | `xero_oauth_callback` | OAuth callback |
 | `/xero/ping/` | `xero_view.xero_ping` | `xero_ping` | Simple endpoint to check if the user is authenticated with Xero. |
 | `/xero/sync-info/` | `xero_view.get_xero_sync_info` | `xero_sync_info` | Get current sync status and last sync times for all entities in ENTITY_CONFIGS. |
