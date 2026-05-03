@@ -208,7 +208,8 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     python3.12 python3.12-venv python3.12-dev \
     git \
     iptables-persistent netfilter-persistent \
-    quota
+    quota \
+    unattended-upgrades
 log "System packages installed."
 if [[ -d /etc/.git ]]; then
     log "  etckeeper initialized. /etc is now tracked in git."
@@ -217,6 +218,39 @@ log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
 log_version "python3.12" "$(python3.12 --version 2>&1)"
+log_version "unattended-upgrades" "$(dpkg -s unattended-upgrades | grep '^Version:' | awk '{print $2}')"
+
+# --- Unattended security upgrades ---
+# Daily auto-install of security patches via the unattended-upgrades
+# package. Two systemd timers do all the work, completely independent
+# of deploys: apt-daily.timer (apt update + download) and
+# apt-daily-upgrade.timer (install). Auto-reboot at 03:00 (server-local)
+# if a kernel update needs it. WithUsers=true reboots even if an SSH
+# session is open — better than indefinitely deferring a security
+# update because someone forgot to log out.
+#
+# Allowed-Origins is left at the distro default (security pockets only).
+# Don't auto-bump packages from the regular -updates pocket — those can
+# include feature-level changes (postgres, nginx) we want to upgrade
+# deliberately.
+
+log "Configuring unattended-upgrades..."
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<'AUTO_UPG_EOF'
+APT::Periodic::Update-Package-Lists "1";
+APT::Periodic::Unattended-Upgrade "1";
+AUTO_UPG_EOF
+
+cat > /etc/apt/apt.conf.d/51docketworks-unattended-upgrades <<'UNATT_EOF'
+// Docketworks override of /etc/apt/apt.conf.d/50unattended-upgrades.
+// Lives at 51 so it lexically follows the distro default and wins for
+// the keys it sets. Keys NOT set here keep the distro default
+// (notably Allowed-Origins — security pockets only).
+
+Unattended-Upgrade::Automatic-Reboot "true";
+Unattended-Upgrade::Automatic-Reboot-Time "03:00";
+Unattended-Upgrade::Automatic-Reboot-WithUsers "true";
+UNATT_EOF
+log "  Configured: security pockets, auto-reboot 03:00 server-local."
 
 # --- Node.js 22 (NodeSource) ---
 
