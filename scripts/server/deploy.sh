@@ -126,7 +126,11 @@ if [[ -f "$SERVER_SETUP_STAMP" && "$(cat "$SERVER_SETUP_STAMP")" == "$SERVER_SET
     log "server-setup.sh inputs unchanged since last successful run; skipping convergence."
 else
     log "Converging system-level dependencies via server-setup.sh..."
-    bash "$SCRIPT_DIR/server-setup.sh"
+    if ! bash "$SCRIPT_DIR/server-setup.sh"; then
+        log "  ERROR: server-setup.sh failed; not stamping."
+        exit 1
+    fi
+    # Stamp only after successful return — never on failure or partial run.
     echo "$SERVER_SETUP_HASH" > "$SERVER_SETUP_STAMP"
     log "  Stamped $SERVER_SETUP_STAMP with current input hash."
 fi
