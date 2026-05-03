@@ -32,6 +32,13 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# sudo inherits the caller's cwd. If that's a directory the target user can't
+# read (e.g. /home/ubuntu, mode 750 ubuntu:ubuntu), python/poetry/npm startup
+# call getcwd(2), hit EACCES, and die before main() — which silently aborts
+# the deploy before per-instance work runs. Anchor cwd to / so every sudo -u
+# below inherits something universally readable.
+cd /
+
 DREAMHOST_KEY_FILE="/etc/letsencrypt/dreamhost-api-key.txt"
 SHARED_ENV_FILE="/opt/docketworks/shared.env"
 

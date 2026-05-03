@@ -30,6 +30,14 @@ if [[ $EUID -ne 0 ]]; then
     exit 1
 fi
 
+# sudo inherits the caller's cwd. If the operator ran this from /home/ubuntu
+# (mode 750 ubuntu:ubuntu), the docketworks/instance users sudo'd to below
+# can't read it, and python/poetry/npm startup hits getcwd EACCES and dies —
+# silently aborting the deploy before per-instance work runs. Anchor cwd to /
+# so every sudo -u below (and the server-setup.sh invocation) inherits
+# something universally readable.
+cd /
+
 USAGE="Usage: $0 <instance-name> [--no-backup] [--allow-dirty]
        $0 --all          [--no-backup] [--allow-dirty]"
 
