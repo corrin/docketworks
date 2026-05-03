@@ -12,6 +12,7 @@ import json
 import socket
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
@@ -150,6 +151,72 @@ class XeroWebhookHandlerTests(TestCase):
         self.assertEqual(mock_delay.call_count, 1)
         args, _ = mock_delay.call_args
         self.assertEqual(args[1]["resourceId"], "inv-2")
+
+
+class XeroWebhookConfigErrorTests(TestCase):
+    """No XeroApp.webhook_key set → loud failure, not silent 401.
+
+    A misconfigured deployment that left every XeroApp row with an empty
+    webhook_key used to log an error and 401 every inbound webhook
+    indefinitely. Per ADR 0019 that's silent — the operator never sees
+    it. This class pins the new behaviour: persist an AppError, return
+    503 so Xero retries instead of giving up.
+    """
+
+    def setUp(self) -> None:
+        self.factory = RequestFactory()
+        self.url = reverse("xero_webhook")
+        # Deliberately do NOT call _make_xero_app — we want zero rows
+        # with webhook_key set.
+
+    def test_no_webhook_key_returns_503_and_persists_app_error(self) -> None:
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        request = self.factory.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_XERO_SIGNATURE=_sign(body),
+        )
+        with (
+            patch("apps.workflow.xero_webhooks.persist_app_error") as mock_persist,
+            patch.object(process_xero_webhook_event, "delay") as mock_delay,
+        ):
+            mock_persist.return_value = SimpleNamespace(id="ae-test-1")
+            response = XeroWebhookView.as_view()(request)
+        self.assertEqual(response.status_code, 503)
+        self.assertIn(b"webhook_key", response.content)
+        self.assertIn(b"ae-test-1", response.content)
+        mock_persist.assert_called_once()
+        # The persisted exception is the actual config-error message,
+        # not a wrapping AlreadyLoggedException.
+        (persisted_exc,), _ = mock_persist.call_args
+        self.assertIsInstance(persisted_exc, RuntimeError)
+        self.assertIn("webhook_key", str(persisted_exc))
+        # Events must NOT be processed when validation can't even run.
+        mock_delay.assert_not_called()
+
+    def test_no_webhook_key_with_blank_rows_still_returns_503(self) -> None:
+        # XeroApp rows exist but all have webhook_key="" — same failure
+        # mode as no rows at all.
+        XeroApp.objects.create(
+            label="Blank",
+            client_id="blank",
+            client_secret="x",
+            redirect_uri="https://e/cb",
+            webhook_key="",
+        )
+        body = json.dumps({"events": [_event()]}).encode("utf-8")
+        request = self.factory.post(
+            self.url,
+            data=body,
+            content_type="application/json",
+            HTTP_X_XERO_SIGNATURE=_sign(body),
+        )
+        with patch("apps.workflow.xero_webhooks.persist_app_error") as mock_persist:
+            mock_persist.return_value = SimpleNamespace(id="ae-test-2")
+            response = XeroWebhookView.as_view()(request)
+        self.assertEqual(response.status_code, 503)
+        mock_persist.assert_called_once()
 
 
 class ProcessXeroWebhookEventTaskTests(TestCase):

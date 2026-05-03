@@ -19,7 +19,9 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.views.decorators.csrf import csrf_exempt
 
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroApp
+from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.tasks import process_xero_webhook_event
 
 logger = logging.getLogger("xero")
@@ -36,6 +38,12 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
     matching HMAC. If a now-inactive app keeps firing webhooks because
     the operator hasn't deleted it in the Xero portal, that's fine: we
     process them. Cleaning up orphan apps in Xero is the operator's job.
+
+    Raises ``AlreadyLoggedException`` (after persisting an AppError) if
+    no XeroApp row has a webhook_key set. That state is a deploy-time
+    misconfiguration, not a request-time bad-signature event — surfacing
+    it via AppError gets it in front of an operator instead of leaving
+    it to rot in log files while every webhook silently 401s.
     """
     signature = request.headers.get("x-xero-signature")
     if not signature:
@@ -46,10 +54,13 @@ def validate_webhook_signature(request: HttpRequest) -> bool:
         XeroApp.objects.exclude(webhook_key="").values_list("webhook_key", flat=True)
     )
     if not keys:
-        logger.error(
-            "No XeroApp row has webhook_key set; cannot verify webhook signatures"
+        exc = RuntimeError(
+            "No XeroApp row has webhook_key set; cannot verify webhook "
+            "signatures. Set webhook_key via the Xero Apps admin UI or "
+            "the per-install fixture and redeploy."
         )
-        return False
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
     body = request.body
     for key in keys:
@@ -68,7 +79,20 @@ class XeroWebhookView(View):
     """Accept Xero webhook deliveries and dispatch each event to Celery."""
 
     def post(self, request: HttpRequest) -> HttpResponse:
-        if not validate_webhook_signature(request):
+        try:
+            valid = validate_webhook_signature(request)
+        except AlreadyLoggedException as exc:
+            # Config error already persisted as AppError. Return 503 so
+            # Xero treats this as a transient failure and retries — by
+            # the time the operator notices and fixes the config, the
+            # backlog of redelivered events still gets processed. A 4xx
+            # would tell Xero "stop trying", which is the wrong signal
+            # for a fixable config bug.
+            return HttpResponse(
+                f"Service Unavailable: {exc} (error_id={exc.app_error_id})",
+                status=503,
+            )
+        if not valid:
             return HttpResponse("Unauthorized", status=401)
 
         try:
