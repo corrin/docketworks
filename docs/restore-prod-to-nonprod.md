@@ -154,6 +154,14 @@ The DB reset wiped the AI provider rows. Reload from the fixture generated durin
 python manage.py loaddata apps/workflow/fixtures/ai_providers.json
 ```
 
+#### Reload Xero App Credentials
+
+Prod's Xero app credentials are scrubbed from the dump (`db_scrubber._EXCLUDED_TABLES` truncates `workflow_xeroapp` before pg_dump). Load this install's own credentials from the per-install fixture:
+
+```bash
+python manage.py loaddata apps/workflow/fixtures/xero_apps.json
+```
+
 #### Set Up Development Logins
 
 ```bash
@@ -297,7 +305,7 @@ Must show `active (running)`. The "registered jobs" lines in Django startup logs
 for s in scripts/restore_checks/check_*.py; do python "$s"; done
 ```
 
-**Expected output:** Each script prints its own success line and exits zero. Covers: Django ORM (`check_django_orm.py`), admin user (`check_admin_user.py`), company defaults (`check_company_defaults.py`), AI providers (`check_ai_providers.py`), JobFiles (`check_jobfiles.py`), shop client (`check_shop_client.py`), test client (`check_test_client.py`), Xero token (`check_xero_token.py`), Xero accounts (`check_xero_accounts.py`), Xero seed (`check_xero_seed.py`).
+**Expected output:** Each script prints its own success line and exits zero. Covers: Django ORM (`check_django_orm.py`), admin user (`check_admin_user.py`), company defaults (`check_company_defaults.py`), AI providers (`check_ai_providers.py`), JobFiles (`check_jobfiles.py`), shop client (`check_shop_client.py`), test client (`check_test_client.py`), Xero app (`check_xero_app.py`), Xero accounts (`check_xero_accounts.py`), Xero seed (`check_xero_seed.py`).
 
 Any non-zero exit means the upstream mutation step that should have produced that state silently failed — fix the underlying problem, do not re-run just the failing check.
 

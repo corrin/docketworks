@@ -15,7 +15,7 @@ sudo scripts/server/instance.sh prepare-config <client> prod
 ```
 
 Fill in `/opt/docketworks/instances/<client>-prod/credentials.env`:
-- Xero Client ID, Secret, Webhook Key (from Phase 2b of client_onboarding.md)
+- Xero Webhook Key (from Phase 2b of client_onboarding.md). The Client ID and Secret go into the `xero_apps.json` fixture in Step 2.5, not `credentials.env`.
 - XERO_DEFAULT_USER_ID (leave blank for now — set after Step 7)
 - GCP_CREDENTIALS path (from Phase 3a of client_onboarding.md)
 - EMAIL_HOST_USER + EMAIL_HOST_PASSWORD
@@ -30,6 +30,25 @@ Creates: OS user, database, .env, code clone, frontend build, migrations, admin 
 
 **Check:** `https://<client>-prod.docketworks.site` shows login page.
 
+## Step 2.5: Load Xero App Credentials
+
+Copy the example fixture and fill in the client's prod Xero app's Client ID, Client Secret, and Redirect URI (from Phase 2b of client_onboarding.md). Set `label` to `<client>-prod xero`.
+
+```bash
+INSTANCE_DIR=/opt/docketworks/instances/<client>-prod/docketworks
+sudo -u dw-<client>-prod cp \
+  $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json.example \
+  $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
+sudo -u dw-<client>-prod $EDITOR $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
+scripts/server/dw-run.sh <client>-prod python manage.py loaddata apps/workflow/fixtures/xero_apps.json
+```
+
+**Check:**
+```bash
+scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_xero_app.py
+```
+Expected: `XeroApp configured: <client>-prod xero`.
+
 ## Step 3: Connect to Xero
 
 Log into the app as admin (`defaultadmin@example.com` / `Default-admin-password`).
@@ -38,9 +57,9 @@ Admin > Xero > "Login with Xero" > Authorize the client's Xero organisation.
 
 **Check:**
 ```bash
-scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_xero_token.py
+scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_xero_app.py
 ```
-Expected: `Xero OAuth token found.`
+Expected: `XeroApp configured: <client>-prod xero` (now with `Authorised: ✓` in Admin > Xero Apps).
 
 ## Step 4: Configure Xero
 

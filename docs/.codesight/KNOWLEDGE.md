@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 107 notes · 18 decisions · 10 open questions
+> 108 notes · 18 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base has 107 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 108 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
 
 ## Key Decisions (18)
 - `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
@@ -27,7 +27,7 @@
 - when stored data *is* malformed, what do we do? The temptation is always the one-line read-side fallback ("if `delta_aft
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
-- 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match Xero's redirect URI and `.env`? Is the port correct?
+- 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match the redirect URI and `.env`? Is the port correct?
 - is enough approved work flowing into the shop, and if not, where is the bottleneck? The report must be reproducible hist
 - process.env.MSM_FRONTEND_URL ??
 - Timing issue? Page not fully rendered when we search?
@@ -49,7 +49,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (107)
+## Note Index (108)
 
 ### Decision Records (16)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException`; nested handlers re-raise unchanged instead of re-persisting.
@@ -84,7 +84,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (82)
+### General Notes (83)
 - `docs/plans/2026-04-16-sales-pipeline-report.md` — 2026-04-16 — Build a full `Sales Pipeline Report` that answers one primary question: is enough approved work flowing into the shop, and if not, where is the bottleneck? The …
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
@@ -98,14 +98,14 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
 - `docs/msm-cutover.md` — Move MSM production from the old server (`/home/django_user`, MariaDB, `192.168.1.17`) to the new
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
+- `docs/plans/abstract-tumbling-milner.md` — `feat/xero-day-quota-floor` moved Xero credentials from `.env` into the
 - `docs/plans/now-the-performance-concerns-stateful-taco.md` — Two Copilot review comments on #162 flagged the Sales Pipeline service as having hot paths that do Python-side work which could move to SQL:
 - `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). This guide is environment-agnostic: assume venv active, `.env` loaded, i…
 - `docs/restore-workaround-jobevent-staff-null.md` — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
 - `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
 - `docs/test_pdfs/price_lists/1.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
 - `docs/test_pdfs/price_lists/2.md` — Effective 1st April 2025 (All Prices Excl. GST)
-- `docs/test_pdfs/price_lists/3.md` — **Attention:** Craig/Nigel
-- _…and 62 more_
+- _…and 63 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
