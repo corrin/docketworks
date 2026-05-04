@@ -1816,8 +1816,11 @@ onMounted(async () => {
     debugLog('Company Defaults store value: ', companyDefaultsStore.companyDefaults)
 
     let validStaffId = selectedStaffId.value
+    let currentStaffData = validStaffId
+      ? timesheetStore.staff.find((s: Staff) => s.id === validStaffId)
+      : undefined
 
-    if (validStaffId && !timesheetStore.staff.find((s: Staff) => s.id === validStaffId)) {
+    if (validStaffId && !currentStaffData) {
       error.value =
         `Staff ${validStaffId} is not available for timesheet entry. ` +
         `They are not in the active timesheet staff list (typically because they have ` +
@@ -1829,12 +1832,11 @@ onMounted(async () => {
 
     if (!validStaffId && timesheetStore.staff.length > 0) {
       validStaffId = timesheetStore.staff[0].id
+      currentStaffData = timesheetStore.staff[0]
       debugLog('No staffId in URL, using first available:', validStaffId)
     }
 
     selectedStaffId.value = validStaffId
-
-    const currentStaffData = timesheetStore.staff.find((s: Staff) => s.id === validStaffId)
 
     debugLog('Available staff:', timesheetStore.staff.length)
     debugLog('Available jobs:', timesheetStore.jobs.length)
