@@ -40,7 +40,7 @@
 problem · why · alternatives considered · tips · what youll need · steps · what happens next · verification · out of scope · troubleshooting · approach · files to modify
 
 ## People
-@login_required · @docketworks · @shared_task · @staticmethod · @open · @focus · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart
+@login_required · @docketworks · @shared_task · @staticmethod · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -105,7 +105,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/plans/misty-frolicking-rose.md` — A staff member without a valid Xero payroll ID **cannot record time**, so they must not appear in any timesheet view.
 - `docs/plans/mutable-waddling-scott.md` — PR #275 (`feat/celery_for_xero_sync`) moved the Xero sync loop from a
 - `docs/plans/plan-shared-redis-cache-declarative-whistle.md` — The Xero sync write/read sides now live in different processes:
-- `docs/plans/production-bug-report-i-peppy-pascal.md` — **Reported behaviour.** A user updated stock cost prices in Xero. The Stock rows in the local DB sync correctly (verified). When the reporter added stock item c…
+- `docs/plans/production-bug-report-i-peppy-pascal.md` — **Symptom that triggered this work.** A user updated stock cost prices in Xero. The Stock rows in the local DB sync correctly (verified). When the reporter adde…
 - _…and 71 more_
 
 ---
