@@ -10,7 +10,7 @@ from typing import Any, Dict
 
 from celery import shared_task
 from django.conf import settings
-from django.core.cache import cache
+from django.core.cache import caches
 from django.db import close_old_connections
 from django.utils import timezone
 
@@ -23,6 +23,12 @@ from apps.workflow.services.xero_sync_service import XeroSyncService
 
 logger = logging.getLogger("xero")
 scheduler_logger = logging.getLogger("apps.workflow.tasks")
+
+# Xero sync state crosses processes (this Celery worker writes; the gunicorn
+# SSE view reads), so route through the Redis-backed "shared" alias. Other
+# tasks in this module don't share state cross-process and can use the
+# default per-process cache.
+_sync_cache = caches["shared"]
 
 CELERY_HEALTH_CHECK_SENTINEL = "docketworks-celery-ok"
 
@@ -140,7 +146,7 @@ def xero_sync_task(task_id: str) -> None:
     overall_key = f"xero_sync_overall_progress_{task_id}"
 
     try:
-        msgs = cache.get(messages_key, [])
+        msgs = _sync_cache.get(messages_key, [])
         processed = 0
         total_entities = provider.get_sync_entity_count()
 
@@ -152,21 +158,23 @@ def xero_sync_task(task_id: str) -> None:
 
             entity = message.get("entity")
             if entity and entity != "sync":
-                cache.set(current_key, entity, timeout=86400)
+                _sync_cache.set(current_key, entity, timeout=86400)
                 if "entity_progress" in message:
-                    cache.set(progress_key, message["entity_progress"], timeout=86400)
+                    _sync_cache.set(
+                        progress_key, message["entity_progress"], timeout=86400
+                    )
                 if message.get("status") == "Completed":
                     processed += 1
 
             overall = processed / total_entities if total_entities > 0 else 0.0
             message["overall_progress"] = round(overall, 3)
-            cache.set(overall_key, overall, timeout=86400)
+            _sync_cache.set(overall_key, overall, timeout=86400)
 
             if "recordsUpdated" in message:
                 message["records_updated"] = message["recordsUpdated"]
 
             msgs.append(message)
-            cache.set(messages_key, msgs, timeout=86400)
+            _sync_cache.set(messages_key, msgs, timeout=86400)
 
         msgs.append(
             {
@@ -180,7 +188,7 @@ def xero_sync_task(task_id: str) -> None:
                 "task_id": task_id,
             }
         )
-        cache.set(messages_key, msgs, timeout=86400)
+        _sync_cache.set(messages_key, msgs, timeout=86400)
         scheduler_logger.info("Completed Xero sync task %s", task_id)
 
     except XeroQuotaFloorReached as exc:
@@ -189,7 +197,7 @@ def xero_sync_task(task_id: str) -> None:
         # sync_status:"aborted" — distinct from "success" so the UI,
         # scheduler, and monitoring don't mistake this for a clean run.
         scheduler_logger.warning("Xero sync %s aborted: %s", task_id, exc)
-        msgs = cache.get(messages_key, [])
+        msgs = _sync_cache.get(messages_key, [])
         msgs.append(
             {
                 "datetime": timezone.now().isoformat(),
@@ -211,7 +219,7 @@ def xero_sync_task(task_id: str) -> None:
                 "task_id": task_id,
             }
         )
-        cache.set(messages_key, msgs, timeout=86400)
+        _sync_cache.set(messages_key, msgs, timeout=86400)
         # Do not re-raise; abort is operational and the finally clears the
         # lock cleanly. TaskResult records SUCCESS, which is correct for
         # "the task ran and decided to abort cleanly".
@@ -219,7 +227,7 @@ def xero_sync_task(task_id: str) -> None:
     except AlreadyLoggedException:
         raise
     except Exception as exc:
-        msgs = cache.get(messages_key, [])
+        msgs = _sync_cache.get(messages_key, [])
         msgs.append(
             {
                 "datetime": timezone.now().isoformat(),
@@ -240,14 +248,14 @@ def xero_sync_task(task_id: str) -> None:
                 "task_id": task_id,
             }
         )
-        cache.set(messages_key, msgs, timeout=86400)
+        _sync_cache.set(messages_key, msgs, timeout=86400)
         err = persist_app_error(exc)
         raise AlreadyLoggedException(exc, err.id) from exc
 
     finally:
-        cache.delete(current_key)
-        cache.delete(progress_key)
-        cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+        _sync_cache.delete(current_key)
+        _sync_cache.delete(progress_key)
+        _sync_cache.delete(XeroSyncService.SYNC_STATUS_KEY)
 
 
 @shared_task(name="apps.workflow.tasks.xero_regular_sync_task")

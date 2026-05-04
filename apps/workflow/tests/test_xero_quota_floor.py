@@ -17,7 +17,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from django.test import TestCase, override_settings
 from django.utils import timezone as dj_timezone
 
@@ -26,6 +26,13 @@ from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_xero_data
 from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.models import XeroApp
+
+# Sync state lives on the "shared" alias (Redis in prod, LocMem in tests via
+# settings_test). Test fixtures for sync-state behavior must seed/inspect it
+# on the same alias the code under test reads from. The legacy
+# "xero_sync_lock" key in SynchroniseXeroDataOrchestratorGateTests stays on
+# the default cache.
+_shared = caches["shared"]
 
 
 def _active_app(**overrides):
@@ -508,10 +515,10 @@ class RunSyncAbortedBranchTests(TestCase):
     floor would be noise), and clean up the lock."""
 
     def setUp(self):
-        cache.delete("xero_sync_status")
+        _shared.delete("xero_sync_status")
 
     def tearDown(self):
-        cache.delete("xero_sync_status")
+        _shared.delete("xero_sync_status")
 
     def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self):
         from apps.workflow.models import AppError
@@ -519,8 +526,8 @@ class RunSyncAbortedBranchTests(TestCase):
         from apps.workflow.tasks import xero_sync_task
 
         task_id = "test-task-quota"
-        cache.set(f"xero_sync_messages_{task_id}", [], timeout=60)
-        cache.set(XeroSyncService.SYNC_STATUS_KEY, task_id, timeout=60)
+        _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
+        _shared.set(XeroSyncService.SYNC_STATUS_KEY, task_id, timeout=60)
 
         # Provider whose run_full_sync raises quota-floor mid-stream.
         def _gen():
@@ -538,11 +545,11 @@ class RunSyncAbortedBranchTests(TestCase):
             xero_sync_task(task_id)
 
         # Lock released
-        self.assertIsNone(cache.get(XeroSyncService.SYNC_STATUS_KEY))
+        self.assertIsNone(_shared.get(XeroSyncService.SYNC_STATUS_KEY))
         # No AppError row created — abort isn't a defect to investigate.
         self.assertEqual(AppError.objects.count(), appserror_before)
 
-        msgs = cache.get(f"xero_sync_messages_{task_id}", [])
+        msgs = _shared.get(f"xero_sync_messages_{task_id}", [])
         # Final message marks sync_status:"aborted", not "success".
         final = msgs[-1]
         self.assertEqual(final["sync_status"], "aborted")

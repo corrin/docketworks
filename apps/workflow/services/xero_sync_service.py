@@ -3,12 +3,18 @@
 import logging
 import uuid
 
-from django.core.cache import cache
+from django.core.cache import cache, caches
 
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
 
 logger = logging.getLogger("xero")
+
+# Sync state (lock + per-task message buffer / progress) lives on "shared"
+# (Redis) because the writer (Celery worker) and the readers (gunicorn SSE
+# views) run in different processes. TENANT_ID_CACHE_KEY stays on the
+# default per-process cache — it's a discovery cache, refilled cheaply.
+_sync_cache = caches["shared"]
 
 
 class XeroSyncService:
@@ -55,7 +61,7 @@ class XeroSyncService:
         """
         task_id = str(uuid.uuid4())
         # Atomic lock acquire and store task ID
-        got_lock = cache.add(
+        got_lock = _sync_cache.add(
             XeroSyncService.SYNC_STATUS_KEY,
             task_id,
             timeout=XeroSyncService.LOCK_TIMEOUT,
@@ -64,7 +70,7 @@ class XeroSyncService:
         if not got_lock:
             logger.info("Sync already running; not starting a new one")
             # Retrieve the task ID of the currently running sync
-            active_task_id = cache.get(XeroSyncService.SYNC_STATUS_KEY)
+            active_task_id = _sync_cache.get(XeroSyncService.SYNC_STATUS_KEY)
             return active_task_id, False
 
         # Validate token
@@ -72,15 +78,15 @@ class XeroSyncService:
         token = provider.get_valid_token()
         if not token:
             logger.error("No valid Xero token found")
-            cache.delete(
+            _sync_cache.delete(
                 XeroSyncService.SYNC_STATUS_KEY
             )  # Release lock if token is invalid
             return None, False
 
         # Prepare task (message and progress keys still use task_id)
-        cache.set(f"xero_sync_messages_{task_id}", [], timeout=86400)
-        cache.set(f"xero_sync_current_entity_{task_id}", None, timeout=86400)
-        cache.set(f"xero_sync_entity_progress_{task_id}", 0.0, timeout=86400)
+        _sync_cache.set(f"xero_sync_messages_{task_id}", [], timeout=86400)
+        _sync_cache.set(f"xero_sync_current_entity_{task_id}", None, timeout=86400)
+        _sync_cache.set(f"xero_sync_entity_progress_{task_id}", 0.0, timeout=86400)
 
         # Local import to avoid an import cycle: tasks.py imports XeroSyncService.
         from apps.workflow.tasks import xero_sync_task
@@ -91,7 +97,7 @@ class XeroSyncService:
             # Broker unavailable — release the lock so the next attempt can
             # try. Don't persist here; the caller (Beat task or view) owns
             # the AlreadyLoggedException pattern.
-            cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+            _sync_cache.delete(XeroSyncService.SYNC_STATUS_KEY)
             raise
 
         logger.info("Dispatched Xero sync task %s", task_id)
@@ -100,20 +106,20 @@ class XeroSyncService:
     @staticmethod
     def get_messages(task_id, since_index=0):
         """Return sync messages for ``task_id`` starting from ``since_index``."""
-        msgs = cache.get(f"xero_sync_messages_{task_id}", [])
+        msgs = _sync_cache.get(f"xero_sync_messages_{task_id}", [])
         return msgs[since_index:] if since_index < len(msgs) else []
 
     @staticmethod
     def get_current_entity(task_id):
         """Get the entity currently being processed for ``task_id``."""
-        return cache.get(f"xero_sync_current_entity_{task_id}")
+        return _sync_cache.get(f"xero_sync_current_entity_{task_id}")
 
     @staticmethod
     def get_entity_progress(task_id):
         """Retrieve progress (0.0-1.0) for ``task_id``."""
-        return cache.get(f"xero_sync_entity_progress_{task_id}", 0.0)
+        return _sync_cache.get(f"xero_sync_entity_progress_{task_id}", 0.0)
 
     @staticmethod
     def get_active_task_id():
         """Return the task ID of the running sync if any."""
-        return cache.get(XeroSyncService.SYNC_STATUS_KEY)
+        return _sync_cache.get(XeroSyncService.SYNC_STATUS_KEY)

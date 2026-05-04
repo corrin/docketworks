@@ -13,13 +13,18 @@ correctly reporting "the dispatch decision succeeded".
 
 from unittest.mock import MagicMock, patch
 
-from django.core.cache import cache
+from django.core.cache import caches
 from django.test import TestCase
 
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError
 from apps.workflow.services.xero_sync_service import XeroSyncService
 from apps.workflow.tasks import xero_regular_sync_task, xero_sync_task
+
+# Sync state lives on the "shared" alias (Redis in prod, LocMem in tests via
+# settings_test). Test fixtures must seed/inspect it on the same alias the
+# code under test reads from.
+_shared = caches["shared"]
 
 
 class XeroSyncTaskFailureTests(TestCase):
@@ -28,15 +33,15 @@ class XeroSyncTaskFailureTests(TestCase):
     a populated traceback in TaskResult."""
 
     def setUp(self):
-        cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+        _shared.delete(XeroSyncService.SYNC_STATUS_KEY)
 
     def tearDown(self):
-        cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+        _shared.delete(XeroSyncService.SYNC_STATUS_KEY)
 
     def test_inner_sync_failure_persists_and_raises_already_logged(self):
         task_id = "test-task-failure"
-        cache.set(f"xero_sync_messages_{task_id}", [], timeout=60)
-        cache.set(XeroSyncService.SYNC_STATUS_KEY, task_id, timeout=60)
+        _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
+        _shared.set(XeroSyncService.SYNC_STATUS_KEY, task_id, timeout=60)
 
         def boom():
             yield {"entity": "contacts", "severity": "info", "message": "starting"}
@@ -57,7 +62,7 @@ class XeroSyncTaskFailureTests(TestCase):
         # Exactly one AppError row — no double-persist from a wrapping handler.
         self.assertEqual(AppError.objects.count(), before + 1)
         # Lock released by the finally block.
-        self.assertIsNone(cache.get(XeroSyncService.SYNC_STATUS_KEY))
+        self.assertIsNone(_shared.get(XeroSyncService.SYNC_STATUS_KEY))
 
 
 class XeroRegularSyncSkipTests(TestCase):
@@ -67,15 +72,15 @@ class XeroRegularSyncSkipTests(TestCase):
     succeeded."""
 
     def setUp(self):
-        cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+        _shared.delete(XeroSyncService.SYNC_STATUS_KEY)
 
     def tearDown(self):
-        cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+        _shared.delete(XeroSyncService.SYNC_STATUS_KEY)
 
     def test_lock_held_skips_dispatch_and_returns_cleanly(self):
         # Pre-acquire the lock with some other task_id, simulating a sync
         # that is already running.
-        cache.set(
+        _shared.set(
             XeroSyncService.SYNC_STATUS_KEY,
             "other-task-id",
             timeout=60,

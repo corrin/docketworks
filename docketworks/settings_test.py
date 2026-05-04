@@ -22,3 +22,17 @@ DATABASES["default"]["PASSWORD"] = TEST_DB_PASSWORD
 # required, exceptions surface immediately at the call site.
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+
+# Override the production "shared"=Redis cache with LocMem for tests. The
+# eager-Celery test runner is single-process, so per-process LocMem has
+# identical semantics to Redis here and avoids requiring a live Redis.
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "test-default",
+    },
+    "shared": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "test-shared",
+    },
+}
