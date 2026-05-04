@@ -7,6 +7,10 @@ from django.core.cache import cache, caches
 
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
+from apps.workflow.exceptions import (
+    NoValidXeroTokenError,
+    XeroSyncAlreadyRunningError,
+)
 from apps.workflow.services.xero_sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY
 from apps.workflow.services.xero_sync_worker import xero_sync_task
 
@@ -46,7 +50,7 @@ class XeroSyncService:
         cache.set(TENANT_ID_CACHE_KEY, self.tenant_id, timeout=1800)
 
     @staticmethod
-    def start_sync():
+    def start_sync() -> str:
         """Acquire the lock and dispatch a Celery task for the sync run.
 
         The actual sync work runs in ``apps.workflow.tasks.xero_sync_task``
@@ -55,11 +59,15 @@ class XeroSyncService:
         REVOKED on worker crash) instead of the dispatch-only success the
         thread model produced.
 
-        Returns:
-            tuple[str | None, bool]: (task_id, started)
+        Returns the dispatched task_id on success. Raises
+        ``XeroSyncAlreadyRunningError`` (with the active task_id) when
+        another sync holds the lock, and ``NoValidXeroTokenError`` when
+        the lock was acquired but no valid Xero token is available.
+        Each failure mode has its own typed channel so callers (Beat
+        tasks, views) react distinctly without inspecting an overloaded
+        return shape.
         """
         task_id = str(uuid.uuid4())
-        # Atomic lock acquire and store task ID
         got_lock = _sync_cache.add(
             SYNC_STATUS_KEY,
             task_id,
@@ -67,20 +75,20 @@ class XeroSyncService:
         )
 
         if not got_lock:
-            logger.info("Sync already running; not starting a new one")
-            # Retrieve the task ID of the currently running sync
             active_task_id = _sync_cache.get(SYNC_STATUS_KEY)
-            return active_task_id, False
+            logger.info(
+                "Sync already running (task_id=%s); not starting a new one",
+                active_task_id,
+            )
+            raise XeroSyncAlreadyRunningError(active_task_id)
 
-        # Validate token
         provider = get_provider()
         token = provider.get_valid_token()
         if not token:
             logger.error("No valid Xero token found")
-            _sync_cache.delete(SYNC_STATUS_KEY)  # Release lock if token is invalid
-            return None, False
+            _sync_cache.delete(SYNC_STATUS_KEY)
+            raise NoValidXeroTokenError("No valid Xero token found")
 
-        # Prepare task (message and progress keys still use task_id)
         _sync_cache.set(f"xero_sync_messages_{task_id}", [], timeout=86400)
         _sync_cache.set(f"xero_sync_current_entity_{task_id}", None, timeout=86400)
         _sync_cache.set(f"xero_sync_entity_progress_{task_id}", 0.0, timeout=86400)
@@ -95,7 +103,7 @@ class XeroSyncService:
             raise
 
         logger.info("Dispatched Xero sync task %s", task_id)
-        return task_id, True
+        return task_id
 
     @staticmethod
     def get_messages(task_id, since_index=0):

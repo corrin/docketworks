@@ -3,7 +3,7 @@
 > **Stack:** django | django | vue | mixed
 
 > 93 routes | 43 models | 184 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~30,700 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~212,900 tokens per conversation.**
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~212,900 tokens per conversation.**
 
 ---
 
@@ -1449,6 +1449,8 @@
   - class XeroValidationError
   - class AlreadyLoggedException
   - class XeroQuotaFloorReached
+  - class XeroSyncAlreadyRunningError
+  - class NoValidXeroTokenError
 - `apps/workflow/extensions.py` — class CookieJWTScheme
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command

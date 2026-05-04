@@ -564,6 +564,8 @@
   - class XeroValidationError
   - class AlreadyLoggedException
   - class XeroQuotaFloorReached
+  - class XeroSyncAlreadyRunningError
+  - class NoValidXeroTokenError
 - `apps/workflow/extensions.py` — class CookieJWTScheme
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command

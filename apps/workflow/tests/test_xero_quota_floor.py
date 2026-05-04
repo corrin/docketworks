@@ -26,6 +26,7 @@ from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_xero_data
 from apps.workflow.exceptions import XeroQuotaFloorReached
 from apps.workflow.models import XeroApp
+from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 
 # Sync state lives on the "shared" alias (Redis in prod, LocMem in tests via
 # settings_test). Test fixtures for sync-state behavior must seed/inspect it
@@ -515,14 +516,13 @@ class RunSyncAbortedBranchTests(TestCase):
     floor would be noise), and clean up the lock."""
 
     def setUp(self):
-        _shared.delete("xero_sync_status")
+        _shared.delete(SYNC_STATUS_KEY)
 
     def tearDown(self):
-        _shared.delete("xero_sync_status")
+        _shared.delete(SYNC_STATUS_KEY)
 
     def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self):
         from apps.workflow.models import AppError
-        from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
         from apps.workflow.tasks import xero_sync_task
 
         task_id = "test-task-quota"

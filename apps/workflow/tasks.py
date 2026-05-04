@@ -14,7 +14,11 @@ from django.db import close_old_connections
 
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_single_contact, sync_single_invoice
-from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.exceptions import (
+    AlreadyLoggedException,
+    NoValidXeroTokenError,
+    XeroSyncAlreadyRunningError,
+)
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.xero_sync_service import XeroSyncService
@@ -123,18 +127,23 @@ def xero_regular_sync_task() -> None:
     """Beat-scheduled hourly. Dispatches a sync run; the actual sync work
     happens in xero_sync_task whose TaskResult records the true outcome.
     A SUCCESS TaskResult here means "the dispatch decision succeeded" —
-    either a sync was kicked off, or one was already running and we
-    correctly skipped."""
+    either a sync was kicked off, or one was already running / the token
+    was invalid and we correctly skipped."""
     scheduler_logger.info("Running Xero Regular Sync task.")
     try:
         close_old_connections()
-        task_id, started = XeroSyncService.start_sync()
-        if not started:
+        try:
+            task_id = XeroSyncService.start_sync()
+        except XeroSyncAlreadyRunningError as exc:
             scheduler_logger.info(
                 "Xero regular sync skipped — sync already in progress (task_id=%s)",
-                task_id,
+                exc.active_task_id,
             )
             return
+        except NoValidXeroTokenError as exc:
+            scheduler_logger.error("Xero regular sync skipped: %s", exc)
+            return
+
         scheduler_logger.info("Xero regular sync dispatched (task_id=%s)", task_id)
     except AlreadyLoggedException:
         raise
@@ -154,13 +163,18 @@ def xero_30_day_sync_task() -> None:
     scheduler_logger.info("Running Xero 30-Day Sync task.")
     try:
         close_old_connections()
-        task_id, started = XeroSyncService.start_sync()
-        if not started:
+        try:
+            task_id = XeroSyncService.start_sync()
+        except XeroSyncAlreadyRunningError as exc:
             scheduler_logger.info(
                 "Xero 30-day sync skipped — sync already in progress (task_id=%s)",
-                task_id,
+                exc.active_task_id,
             )
             return
+        except NoValidXeroTokenError as exc:
+            scheduler_logger.error("Xero 30-day sync skipped: %s", exc)
+            return
+
         scheduler_logger.info("Xero 30-day sync dispatched (task_id=%s)", task_id)
     except AlreadyLoggedException:
         raise

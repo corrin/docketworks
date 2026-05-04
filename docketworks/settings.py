@@ -58,6 +58,8 @@ def validate_required_settings() -> None:
         "ENABLE_JWT_AUTH",
         # Frontend Integration
         "FRONT_END_URL",
+        # Cache key isolation between instances sharing a Redis host
+        "APP_DOMAIN",
     ]
 
     # Check which variables are missing or empty
@@ -786,7 +788,7 @@ EMAIL_BCC = (
 # "shared" is Redis-backed and used for cross-process state — Xero sync
 # message/progress buffer and django-solo. KEY_PREFIX isolates instances if
 # Redis is shared across envs (each instance sets its own APP_DOMAIN).
-APP_DOMAIN = os.getenv("APP_DOMAIN", "")
+APP_DOMAIN = os.getenv("APP_DOMAIN")
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",

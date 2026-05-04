@@ -43,3 +43,22 @@ class XeroQuotaFloorReached(Exception):
     ``persist_app_error`` on this; at the floor it would generate 24+
     rows/day of expected operational signal.
     """
+
+
+class XeroSyncAlreadyRunningError(Exception):
+    """Raised by ``XeroSyncService.start_sync`` when another sync is
+    already holding the cross-process lock. Callers receive the active
+    task_id (so they can include it in a 409/log message) without having
+    to inspect the lock themselves.
+    """
+
+    def __init__(self, active_task_id: Optional[str]) -> None:
+        self.active_task_id = active_task_id
+        super().__init__(f"Sync already in progress (task_id={active_task_id})")
+
+
+class NoValidXeroTokenError(Exception):
+    """Raised by ``XeroSyncService.start_sync`` when the lock was
+    acquired but no valid Xero token is available — distinct channel
+    from "lock held" so callers can react differently (Beat: log error;
+    view: HTTP 401)."""
