@@ -968,7 +968,7 @@
   - _...4 more_
 - `apps/accounts/staff_anonymization.py` — function generate_email: (profile, last_name) -> str, function create_staff_profile: () -> dict
 - `apps/accounts/utils.py`
-  - function get_excluded_staff: (apps_registry, *, target_date) -> List[str]
+  - function get_payroll_excluded_staff_ids: () -> List[str]
   - function get_staff_from_nickname: (name, *, include_inactive)
   - function is_valid_uuid: (val) -> bool
 - `apps/client/apps.py` — class ClientConfig
@@ -2107,7 +2107,7 @@
 # Test Coverage
 
 > **23%** of routes and models are covered by tests
-> 131 test files found
+> 132 test files found
 
 ## Covered Routes
 

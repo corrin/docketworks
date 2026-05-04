@@ -17,7 +17,7 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.accounts.models import Staff
 from apps.accounts.serializers import KanbanStaffSerializer
-from apps.accounts.utils import get_excluded_staff
+from apps.accounts.utils import get_payroll_excluded_staff_ids
 
 logger = logging.getLogger(__name__)
 
@@ -96,9 +96,7 @@ class StaffListAPIView(generics.ListAPIView):
             queryset = Staff.objects.currently_active()
 
         if actual_users:
-            excluded_ids = [
-                UUID(id_str) for id_str in get_excluded_staff(target_date=target_date)
-            ]
+            excluded_ids = [UUID(id_str) for id_str in get_payroll_excluded_staff_ids()]
             queryset = queryset.exclude(id__in=excluded_ids)
 
         return queryset

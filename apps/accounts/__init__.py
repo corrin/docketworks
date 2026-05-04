@@ -24,7 +24,7 @@ try:
         from .staff_anonymization import create_staff_profile, generate_email
         from .utils import (
             get_displayable_staff,
-            get_excluded_staff,
+            get_payroll_excluded_staff_ids,
             get_staff_from_nickname,
             is_valid_uuid,
         )
@@ -51,7 +51,7 @@ __all__ = [
     "create_staff_profile",
     "generate_email",
     "get_displayable_staff",
-    "get_excluded_staff",
+    "get_payroll_excluded_staff_ids",
     "get_staff_from_nickname",
     "is_valid_uuid",
 ]
