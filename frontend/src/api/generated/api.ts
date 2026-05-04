@@ -1046,10 +1046,6 @@ const SettingsSection = z.object({
   fields: z.array(SettingsField),
 })
 const CompanyDefaultsSchema = z.object({ sections: z.array(SettingsSection) })
-const DisableCacheResponse = z.object({
-  disabled_until: z.string().datetime({ offset: true }),
-})
-const EnableCacheResponse = z.object({ enabled: z.boolean() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),
@@ -2746,6 +2742,12 @@ const ScheduledTaskExecution = z.object({
   task_args: z.string().nullish(),
   task_kwargs: z.string().nullish(),
 })
+const PaginatedScheduledTaskExecutionList = z.object({
+  count: z.number().int(),
+  next: z.string().url().nullish(),
+  previous: z.string().url().nullish(),
+  results: z.array(ScheduledTaskExecution),
+})
 const ScheduledTask = z.object({
   id: z.number().int(),
   name: z.string().max(200),
@@ -2753,6 +2755,12 @@ const ScheduledTask = z.object({
   enabled: z.boolean().optional(),
   last_run_at: z.string().datetime({ offset: true }).nullable(),
   schedule: z.string(),
+})
+const PaginatedScheduledTaskList = z.object({
+  count: z.number().int(),
+  next: z.string().url().nullish(),
+  previous: z.string().url().nullish(),
+  results: z.array(ScheduledTask),
 })
 const AppErrorListResponse = z.object({
   count: z.number().int(),
@@ -3214,8 +3222,6 @@ export const schemas = {
   SettingsField,
   SettingsSection,
   CompanyDefaultsSchema,
-  DisableCacheResponse,
-  EnableCacheResponse,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
   PatchedCostLineCreateUpdateRequest,
@@ -3448,7 +3454,9 @@ export const schemas = {
   XeroItem,
   XeroItemListResponse,
   ScheduledTaskExecution,
+  PaginatedScheduledTaskExecutionList,
   ScheduledTask,
+  PaginatedScheduledTaskList,
   AppErrorListResponse,
   JobBreakdown,
   StaffDailyData,
@@ -5019,22 +5027,6 @@ POST: Upload a logo image to a specified field.
 DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
     response: CompanyDefaults,
-  },
-  {
-    method: 'post',
-    path: '/api/disable_cache/',
-    alias: 'disable_cache_create',
-    requestFormat: 'json',
-    response: z.object({
-      disabled_until: z.string().datetime({ offset: true }),
-    }),
-  },
-  {
-    method: 'post',
-    path: '/api/enable_cache/',
-    alias: 'enable_cache_create',
-    requestFormat: 'json',
-    response: z.object({ enabled: z.boolean() }),
   },
   {
     method: 'get',
@@ -8057,20 +8049,35 @@ models. No migrations required.`,
     method: 'get',
     path: '/api/quoting/scheduled-task-executions/',
     alias: 'quoting_scheduled_task_executions_list',
+    description: `Beat-fired task executions only.
+
+Exclude TaskResult rows whose &#x60;periodic_task_name&#x60; is empty — those are
+ad-hoc Celery work (webhook handlers, health checks, etc.) which would
+otherwise drown out the scheduled-task history this view is for.`,
     requestFormat: 'json',
     parameters: [
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
       {
         name: 'search',
         type: 'Query',
         schema: z.string().optional(),
       },
     ],
-    response: z.array(ScheduledTaskExecution),
+    response: PaginatedScheduledTaskExecutionList,
   },
   {
     method: 'get',
     path: '/api/quoting/scheduled-task-executions/:id/',
     alias: 'quoting_scheduled_task_executions_retrieve',
+    description: `Beat-fired task executions only.
+
+Exclude TaskResult rows whose &#x60;periodic_task_name&#x60; is empty — those are
+ad-hoc Celery work (webhook handlers, health checks, etc.) which would
+otherwise drown out the scheduled-task history this view is for.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -8088,12 +8095,17 @@ models. No migrations required.`,
     requestFormat: 'json',
     parameters: [
       {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
         name: 'search',
         type: 'Query',
         schema: z.string().optional(),
       },
     ],
-    response: z.array(ScheduledTask),
+    response: PaginatedScheduledTaskList,
   },
   {
     method: 'get',

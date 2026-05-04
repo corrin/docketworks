@@ -24,7 +24,6 @@ try:
         from .middleware import (
             AccessLoggingMiddleware,
             DisallowedHostMiddleware,
-            E2ECacheBypassMiddleware,
             FrontendRedirectMiddleware,
             LoginRequiredMiddleware,
             PasswordStrengthMiddleware,
@@ -96,7 +95,6 @@ __all__ = [
     "CompanyDefaultsSerializer",
     "CookieJWTScheme",
     "DisallowedHostMiddleware",
-    "E2ECacheBypassMiddleware",
     "F",
     "FrontendRedirectMiddleware",
     "GroupedAppErrorListResponseSerializer",

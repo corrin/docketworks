@@ -2,7 +2,6 @@
 
 from .ai_provider import AIProvider
 from .app_error import AppError, XeroError
-from .cache_state import CacheState
 from .company_defaults import CompanyDefaults
 from .service_api_key import ServiceAPIKey
 from .xero_account import XeroAccount
@@ -15,7 +14,6 @@ from .xero_sync_cursor import XeroSyncCursor
 __all__ = [
     "AIProvider",
     "AppError",
-    "CacheState",
     "CompanyDefaults",
     "ServiceAPIKey",
     "XeroAccount",
