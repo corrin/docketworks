@@ -36,7 +36,6 @@
 - AIProvider
 - AppError
 - XeroError
-- CacheState
 - XeroAccount
 - XeroApp
 - XeroPayItem

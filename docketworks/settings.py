@@ -58,6 +58,8 @@ def validate_required_settings() -> None:
         "ENABLE_JWT_AUTH",
         # Frontend Integration
         "FRONT_END_URL",
+        # Cache key isolation between instances sharing a Redis host
+        "APP_DOMAIN",
     ]
 
     # Check which variables are missing or empty
@@ -169,7 +171,6 @@ MIDDLEWARE = [
     "apps.workflow.middleware.FrontendRedirectMiddleware",
     "apps.workflow.middleware.AccessLoggingMiddleware",
     "apps.workflow.middleware.LoginRequiredMiddleware",
-    "apps.workflow.middleware.E2ECacheBypassMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
     "simple_history.middleware.HistoryRequestMiddleware",
@@ -783,17 +784,27 @@ EMAIL_BCC = (
 )
 
 # CACHE CONFIGURATION
+# "default" is per-process LocMem (sessions, tenant-id discovery cache, etc.).
+# "shared" is Redis-backed and used for cross-process state — Xero sync
+# message/progress buffer and django-solo. KEY_PREFIX isolates instances if
+# Redis is shared across envs (each instance sets its own APP_DOMAIN).
+APP_DOMAIN = os.getenv("APP_DOMAIN")
 CACHES = {
     "default": {
         "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
         "LOCATION": "unique-snowflake",
-    }
+    },
+    "shared": {
+        "BACKEND": "django.core.cache.backends.redis.RedisCache",
+        "LOCATION": f"redis://{_REDIS_HOST}:{_REDIS_PORT}/2",
+        "KEY_PREFIX": APP_DOMAIN,
+    },
 }
 
-# django-solo: cache SingletonModel.get_solo() results (e.g. CompanyDefaults).
-# LocMemCache is per-worker, so admin edits to CompanyDefaults take up to
-# SOLO_CACHE_TIMEOUT seconds to propagate across all gunicorn workers.
-SOLO_CACHE = "default"
+# django-solo caches CompanyDefaults.get_solo() across reads. Routed onto
+# "shared" (Redis) so admin edits propagate immediately to all gunicorn
+# workers and the Celery worker, not after SOLO_CACHE_TIMEOUT.
+SOLO_CACHE = "shared"
 SOLO_CACHE_TIMEOUT = 300
 
 # Password reset timeout
@@ -830,11 +841,19 @@ if PRODUCTION_LIKE:
     USE_X_FORWARDED_PORT = True
 
     # CACHE CONFIGURATION
+    # Mirror the base config so PRODUCTION_LIKE keeps the cross-process
+    # "shared" alias — without it the Xero sync buffer and django-solo
+    # would silently fall back to per-process LocMem.
     CACHES = {
         "default": {
             "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
             "LOCATION": "unique-snowflake",
-        }
+        },
+        "shared": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": f"redis://{_REDIS_HOST}:{_REDIS_PORT}/2",
+            "KEY_PREFIX": APP_DOMAIN,
+        },
     }
 
     # JWT Configuration for production - secure cookies

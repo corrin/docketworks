@@ -564,6 +564,8 @@
   - class XeroValidationError
   - class AlreadyLoggedException
   - class XeroQuotaFloorReached
+  - class XeroSyncAlreadyRunningError
+  - class NoValidXeroTokenError
 - `apps/workflow/extensions.py` — class CookieJWTScheme
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command
@@ -577,11 +579,9 @@
   - class AccessLoggingMiddleware
   - class FrontendRedirectMiddleware
   - class LoginRequiredMiddleware
-  - class E2ECacheBypassMiddleware
   - class PasswordStrengthMiddleware
 - `apps/workflow/models/ai_provider.py` — class AIProvider
 - `apps/workflow/models/app_error.py` — class AppError, class XeroError
-- `apps/workflow/models/cache_state.py` — class CacheState
 - `apps/workflow/models/company_defaults.py` — class CompanyDefaults
 - `apps/workflow/models/service_api_key.py` — class ServiceAPIKey
 - `apps/workflow/models/settings_metadata.py`
@@ -625,6 +625,7 @@
   - class LLMService
 - `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
+- `apps/workflow/services/xero_sync_worker.py` — function xero_sync_task: (task_id) -> None
 - `apps/workflow/tasks.py`
   - function celery_health_check: () -> str
   - function process_xero_webhook_event: (tenant_id, event, Any]) -> None

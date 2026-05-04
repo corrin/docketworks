@@ -4,7 +4,9 @@ from .apps import WorkflowConfig, check_company_defaults_field_sections
 from .enums import AIProviderTypes
 from .exceptions import (
     AlreadyLoggedException,
+    NoValidXeroTokenError,
     XeroQuotaFloorReached,
+    XeroSyncAlreadyRunningError,
     XeroValidationError,
 )
 
@@ -24,7 +26,6 @@ try:
         from .middleware import (
             AccessLoggingMiddleware,
             DisallowedHostMiddleware,
-            E2ECacheBypassMiddleware,
             FrontendRedirectMiddleware,
             LoginRequiredMiddleware,
             PasswordStrengthMiddleware,
@@ -95,7 +96,6 @@ __all__ = [
     "CompanyDefaultsSerializer",
     "CookieJWTScheme",
     "DisallowedHostMiddleware",
-    "E2ECacheBypassMiddleware",
     "F",
     "FrontendRedirectMiddleware",
     "GroupedAppErrorListResponseSerializer",
@@ -104,6 +104,7 @@ __all__ = [
     "GroupedErrorResolveResponseSerializer",
     "JWTAuthentication",
     "LoginRequiredMiddleware",
+    "NoValidXeroTokenError",
     "PasswordStrengthMiddleware",
     "ServiceAPIKeyAuthentication",
     "SettingsFieldSerializer",
@@ -124,6 +125,7 @@ __all__ = [
     "XeroQuotaFloorReached",
     "XeroQuoteCreateSerializer",
     "XeroSseEventSerializer",
+    "XeroSyncAlreadyRunningError",
     "XeroSyncInfoResponseSerializer",
     "XeroSyncStartResponseSerializer",
     "XeroTriggerSyncResponseSerializer",

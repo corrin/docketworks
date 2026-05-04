@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 
 from django.conf import settings
 from django.contrib import messages
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from django.http import (
     HttpRequest,
     HttpResponse,
@@ -48,7 +48,11 @@ from apps.workflow.api.xero.auth import (
     refresh_token,
 )
 from apps.workflow.api.xero.sync import ENTITY_CONFIGS
-from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.exceptions import (
+    AlreadyLoggedException,
+    NoValidXeroTokenError,
+    XeroSyncAlreadyRunningError,
+)
 from apps.workflow.models import XeroError
 from apps.workflow.serializers import (
     XeroAuthenticationErrorResponseSerializer,
@@ -979,7 +983,13 @@ def get_xero_sync_info(request):
             last_syncs[entity_key] = _get_last_sync_time(model)
 
         sync_range = "Syncing data since last successful sync"
-        sync_in_progress = cache.get("xero_sync_lock", False)
+        # Sync runs in the Celery worker process; the lock lives on the
+        # cross-process "shared" alias keyed by SYNC_STATUS_KEY. Reading
+        # the legacy per-process "xero_sync_lock" here always returned
+        # False from gunicorn and broke the UI's auto-reconnect.
+        from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
+
+        sync_in_progress = bool(caches["shared"].get(SYNC_STATUS_KEY))
 
         response_data = {
             "last_syncs": last_syncs,
@@ -1006,25 +1016,23 @@ def start_xero_sync(request):
     View function to start a Xero sync as a background task.
     """
     try:
-        token = get_valid_token()
-        if not token:
+        try:
+            task_id = XeroSyncService.start_sync()
+            response_data = {
+                "status": "success",
+                "message": "Started new Xero sync",
+                "task_id": task_id,
+            }
+        except XeroSyncAlreadyRunningError as exc:
+            response_data = {
+                "status": "success",
+                "message": "A sync is already running",
+                "task_id": exc.active_task_id,
+            }
+        except NoValidXeroTokenError:
             error_response = {"error": "No valid token. Please authenticate."}
             error_serializer = XeroSyncStartResponseSerializer(error_response)
             return JsonResponse(error_serializer.data, status=401)
-
-        # Start sync using the service
-        task_id, is_new = XeroSyncService.start_sync()
-
-        if not task_id:
-            error_response = {
-                "status": "error",
-                "message": "Failed to start sync. The scheduler may not be running or a sync is already in progress.",
-            }
-            error_serializer = XeroSyncStartResponseSerializer(error_response)
-            return JsonResponse(error_serializer.data, status=500)
-
-        message = "Started new Xero sync" if is_new else "A sync is already running"
-        response_data = {"status": "success", "message": message, "task_id": task_id}
 
         response_serializer = XeroSyncStartResponseSerializer(response_data)
         return JsonResponse(response_serializer.data)
@@ -1047,13 +1055,24 @@ def trigger_xero_sync(request):
     if isinstance(tenant, JsonResponse):
         return tenant
 
-    task_id, started = XeroSyncService.start_sync()
-    if not task_id:
-        error_response = {"success": False, "message": "Unable to start sync."}
+    try:
+        task_id = XeroSyncService.start_sync()
+        response_data = {"success": True, "task_id": task_id, "started": True}
+    except XeroSyncAlreadyRunningError as exc:
+        response_data = {
+            "success": True,
+            "task_id": exc.active_task_id,
+            "started": False,
+            "message": "A sync is already running",
+        }
+    except NoValidXeroTokenError:
+        error_response = {
+            "success": False,
+            "message": "Unable to start sync — no valid Xero token.",
+        }
         error_serializer = XeroTriggerSyncResponseSerializer(error_response)
         return JsonResponse(error_serializer.data, status=400)
 
-    response_data = {"success": True, "task_id": task_id, "started": started}
     response_serializer = XeroTriggerSyncResponseSerializer(response_data)
     return JsonResponse(response_serializer.data)
 

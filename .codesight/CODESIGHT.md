@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 184 components | 369 lib files | 70 env vars | 11 middleware | 9 events | 23% test coverage
-> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~245,100 tokens. **Saves ~214,200 tokens per conversation.**
+> 93 routes | 43 models | 184 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~212,900 tokens per conversation.**
 
 ---
 
@@ -59,39 +59,37 @@
 - `ALL` `/payroll/pay-runs/` params()
 - `ALL` `/payroll/post-staff-week/` params()
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
-- `ALL` `/build-id/` params() [auth, cache, payment, upload]
-- `ALL` `/disable_cache/` params() [auth, cache, payment, upload]
-- `ALL` `/enable_cache/` params() [auth, cache, payment, upload]
-- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, cache, payment, upload]
-- `ALL` `/xero/authenticate/` params() [auth, cache, payment, upload]
-- `ALL` `/xero/oauth/callback/` params() [auth, cache, payment, upload]
-- `ALL` `/xero/disconnect/` params() [auth, cache, payment, upload]
-- `ALL` `/xero/sync-stream/` params() [auth, cache, payment, upload]
-- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
-- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
-- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
-- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, cache, payment, upload]
-- `ALL` `/xero/sync-info/` params() [auth, cache, payment, upload]
-- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
-- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, cache, payment, upload]
-- `ALL` `/xero/sync/` params() [auth, cache, payment, upload]
-- `ALL` `/xero/webhook/` params() [auth, cache, payment, upload]
-- `ALL` `/xero/ping/` params() [auth, cache, payment, upload]
-- `ALL` `/app-errors/grouped/` params() [auth, cache, payment, upload]
-- `ALL` `/app-errors/grouped/mark_resolved/` params() [auth, cache, payment, upload]
-- `ALL` `/app-errors/grouped/mark_unresolved/` params() [auth, cache, payment, upload]
-- `ALL` `/app-errors/` params() [auth, cache, payment, upload]
-- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
-- `ALL` `/rest/app-errors/` params() [auth, cache, payment, upload]
-- `ALL` `/xero-errors/grouped/` params() [auth, cache, payment, upload]
-- `ALL` `/xero-errors/grouped/mark_resolved/` params() [auth, cache, payment, upload]
-- `ALL` `/xero-errors/grouped/mark_unresolved/` params() [auth, cache, payment, upload]
-- `ALL` `/xero-errors/` params() [auth, cache, payment, upload]
-- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, cache, payment, upload]
-- `ALL` `/company-defaults/` params() [auth, cache, payment, upload]
-- `ALL` `/company-defaults/upload-logo/` params() [auth, cache, payment, upload]
-- `ALL` `/company-defaults/schema/` params() [auth, cache, payment, upload]
-- `ALL` `/workflow/` params() [auth, cache, payment, upload]
+- `ALL` `/build-id/` params() [auth, payment, upload]
+- `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
+- `ALL` `/xero/authenticate/` params() [auth, payment, upload]
+- `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
+- `ALL` `/xero/disconnect/` params() [auth, payment, upload]
+- `ALL` `/xero/sync-stream/` params() [auth, payment, upload]
+- `ALL` `/xero/create_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_invoice/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/create_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/delete_quote/<uuid:job_id>` params(job_id) [auth, payment, upload]
+- `ALL` `/xero/sync-info/` params() [auth, payment, upload]
+- `ALL` `/xero/create_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/delete_purchase_order/<uuid:purchase_order_id>` params(purchase_order_id) [auth, payment, upload]
+- `ALL` `/xero/sync/` params() [auth, payment, upload]
+- `ALL` `/xero/webhook/` params() [auth, payment, upload]
+- `ALL` `/xero/ping/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_resolved/` params() [auth, payment, upload]
+- `ALL` `/app-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
+- `ALL` `/app-errors/` params() [auth, payment, upload]
+- `ALL` `/app-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/rest/app-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_resolved/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/grouped/mark_unresolved/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/` params() [auth, payment, upload]
+- `ALL` `/xero-errors/<uuid:pk>/` params(pk) [auth, payment, upload]
+- `ALL` `/company-defaults/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/upload-logo/` params() [auth, payment, upload]
+- `ALL` `/company-defaults/schema/` params() [auth, payment, upload]
+- `ALL` `/workflow/` params() [auth, payment, upload]
 - `ALL` `/api/` params() ✓
 - `ALL` `/api/job/` params()
 - `ALL` `/api/accounts/` params()
@@ -568,10 +566,6 @@
 - entity: string
 - reference_id: string
 - kind: string
-
-### CacheState
-- id: integer (pk, default)
-- disabled_until: timestamp (nullable)
 
 ### ServiceAPIKey
 - id: uuid (pk, default)
@@ -1455,6 +1449,8 @@
   - class XeroValidationError
   - class AlreadyLoggedException
   - class XeroQuotaFloorReached
+  - class XeroSyncAlreadyRunningError
+  - class NoValidXeroTokenError
 - `apps/workflow/extensions.py` — class CookieJWTScheme
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command
@@ -1468,11 +1464,9 @@
   - class AccessLoggingMiddleware
   - class FrontendRedirectMiddleware
   - class LoginRequiredMiddleware
-  - class E2ECacheBypassMiddleware
   - class PasswordStrengthMiddleware
 - `apps/workflow/models/ai_provider.py` — class AIProvider
 - `apps/workflow/models/app_error.py` — class AppError, class XeroError
-- `apps/workflow/models/cache_state.py` — class CacheState
 - `apps/workflow/models/company_defaults.py` — class CompanyDefaults
 - `apps/workflow/models/service_api_key.py` — class ServiceAPIKey
 - `apps/workflow/models/settings_metadata.py`
@@ -1516,6 +1510,7 @@
   - class LLMService
 - `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
+- `apps/workflow/services/xero_sync_worker.py` — function xero_sync_task: (task_id) -> None
 - `apps/workflow/tasks.py`
   - function celery_health_check: () -> str
   - function process_xero_webhook_event: (tenant_id, event, Any]) -> None
@@ -2044,7 +2039,6 @@
 - auth — `frontend/tests/fixtures/auth.ts`
 
 ## custom
-- test_e2e_cache_bypass_middleware — `apps/workflow/tests/test_e2e_cache_bypass_middleware.py`
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - 0021-frontend-generated-api-client-only — `docs/adr/0021-frontend-generated-api-client-only.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
@@ -2067,8 +2061,8 @@
 - `frontend/src/api/client.ts` — imported by **7** files
 - `frontend/src/utils/dateUtils.ts` — imported by **6** files
 - `/enums.py` — imported by **5** files
+- `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `frontend/src/stores/jobs.ts` — imported by **5** files
-- `frontend/tests/scripts/db-backup-utils.ts` — imported by **4** files
 - `/utils.py` — imported by **3** files
 - `/models.py` — imported by **3** files
 - `/xero_helpers.py` — imported by **3** files
@@ -2090,8 +2084,8 @@
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
 - `frontend/src/utils/dateUtils.ts` ← `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/services/timesheet.service.ts`, `frontend/tests/staff/staff-wage-loading.spec.ts`, `frontend/tests/timesheet/create-timesheet-entry.spec.ts` +1 more
 - `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`
+- `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/global-teardown.ts`, `frontend/tests/scripts/xero-login.ts`
 - `frontend/src/stores/jobs.ts` ← `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobHeaderAutosave.ts`, `frontend/src/composables/useOptimizedKanban.ts`, `frontend/src/composables/useTimesheetEntryCalculations.ts`, `frontend/src/main.ts`
-- `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/xero-login.ts`
 
 ---
 
@@ -2101,6 +2095,7 @@
 - `auto_archive_completed_jobs_task` [queue] → celery-task — `apps/job/tasks.py`
 - `recompute_workshop_schedule_task` [queue] → celery-task — `apps/operations/tasks.py`
 - `run_all_scrapers_task` [queue] → celery-task — `apps/quoting/tasks.py`
+- `xero_sync_task` [queue] → celery-task — `apps/workflow/services/xero_sync_worker.py`
 - `celery_health_check` [queue] → celery-task — `apps/workflow/tasks.py`
 - `process_xero_webhook_event` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_heartbeat_task` [queue] → celery-task — `apps/workflow/tasks.py`
@@ -2147,7 +2142,6 @@
 - AIProvider
 - AppError
 - XeroError
-- CacheState
 - XeroAccount
 - XeroApp
 - XeroPayItem

@@ -29,6 +29,7 @@ try:
         from .llm_service import LLMService, quick_completion, quick_json_completion
         from .validation import to_decimal, validate_required_fields
         from .xero_sync_service import XeroSyncService
+        from .xero_sync_worker import xero_sync_task
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -57,4 +58,5 @@ __all__ = [
     "scrub",
     "to_decimal",
     "validate_required_fields",
+    "xero_sync_task",
 ]

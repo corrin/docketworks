@@ -67,24 +67,6 @@ async function checkXeroConnected(): Promise<boolean> {
   return data.connected === true
 }
 
-/**
- * Disable per-worker solo caching for the duration of the E2E run. Auto-
- * resumes after an hour as a safety net in case teardown doesn't run.
- */
-async function disableServerCache(): Promise<void> {
-  const frontendUrl = getFrontendUrl()
-  const cookieValue = await getAuthCookie(frontendUrl)
-  const response = await fetch(`${frontendUrl}/api/disable_cache/?resume_after=3600`, {
-    method: 'POST',
-    headers: { Cookie: cookieValue },
-  })
-  if (!response.ok) {
-    throw new Error(`disable_cache failed with status ${response.status}`)
-  }
-  const body = (await response.json()) as { disabled_until: string }
-  console.log(`[cache] Server cache disabled until ${body.disabled_until}`)
-}
-
 export default async function globalSetup() {
   if (fs.existsSync(LOCK_FILE)) {
     const pid = fs.readFileSync(LOCK_FILE, 'utf8').trim()
@@ -169,9 +151,4 @@ export default async function globalSetup() {
   fs.appendFileSync(LOCK_FILE, `\n${backupFile}`, 'utf8')
 
   console.log(`[db] Backup complete: ${backupFile}`)
-
-  // Disable per-worker solo caching so PATCH/GET of singleton models don't
-  // race across gunicorn workers during tests.
-  console.log('[cache] Disabling server cache for the test run...')
-  await disableServerCache()
 }

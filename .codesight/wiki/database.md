@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Schema shapes and field types extracted via AST. Read the actual schema source files before writing migrations or query logic.
 
-**django** — 44 models
+**django** — 43 models
 
 ### Invoice
 
@@ -562,13 +562,6 @@ pk: `id` (uuid) · fk: resolved_by_id
 - `reference_id`: string
 - `kind`: string
 
-### CacheState
-
-pk: `id` (integer)
-
-- `id`: integer _(pk, default)_
-- `disabled_until`: timestamp _(nullable)_
-
 ### ServiceAPIKey
 
 pk: `id` (uuid)
@@ -723,7 +716,7 @@ pk: `id` (uuid) · fk: pay_run_id
 
 Read and edit these files when adding columns, creating migrations, or changing relations:
 
-- `frontend/tests/scripts/db-backup-utils.ts` — imported by **4** files
+- `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
 - `/models.py` — imported by **3** files
 
 ---
