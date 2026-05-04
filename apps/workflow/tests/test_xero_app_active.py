@@ -271,3 +271,51 @@ class ApiClientSingletonTests(TestCase):
         auth._reset_api_client()
         with self.assertRaises(NoActiveXeroApp):
             _ = auth.api_client.configuration
+
+
+class RefreshTokenPersistenceTests(TestCase):
+    """auth.refresh_token() must persist the new tokens to the DB row.
+
+    Regression: TokenApi.refresh_token() is the low-level POST and does not
+    invoke the bound oauth2_token_saver. Earlier code returned the new token
+    dict without persisting, so successful Xero refreshes were dropped on the
+    floor and the stored refresh_token went stale until Xero finally rejected
+    it (Trello #298).
+    """
+
+    def test_successful_refresh_writes_new_tokens_to_active_row(self):
+        from datetime import timedelta
+
+        from xero_python.api_client.oauth2 import TokenApi
+
+        from apps.workflow.api.xero import auth
+
+        row = _row(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="OLD_AT",
+            refresh_token="OLD_RT",
+            token_type="Bearer",
+            expires_at=datetime.now(dt_timezone.utc) + timedelta(minutes=30),
+            scope="accounting.transactions",
+        )
+        auth._reset_api_client()
+
+        new_token = {
+            "access_token": "NEW_AT",
+            "refresh_token": "NEW_RT",
+            "token_type": "Bearer",
+            "expires_in": 1800,
+            "scope": "accounting.transactions",
+        }
+        with patch.object(TokenApi, "refresh_token", return_value=dict(new_token)):
+            result = auth.refresh_token()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["access_token"], "NEW_AT")
+
+        row.refresh_from_db()
+        self.assertEqual(row.access_token, "NEW_AT")
+        self.assertEqual(row.refresh_token, "NEW_RT")
+        auth._reset_api_client()

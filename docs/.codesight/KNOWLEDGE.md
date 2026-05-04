@@ -1,9 +1,9 @@
 # Knowledge Map — docketworks
-> 109 notes · 18 decisions · 10 open questions
+> 111 notes · 19 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base has 109 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 111 notes. Key topics: problem, why, alternatives considered, tips. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
 
-## Key Decisions (18)
+## Key Decisions (19)
 - `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
 - Two layers. An **identity layer** (non-blocking) reads cookies always and, when `ALLOW_DEV_BEARER=true` and the host matches `DEV_HOST_PATTERNS`, an HS256 bearer signed with `DEV_JWT_SECRET`. A **global gate** (blocking) runs on every request: not authenticated and path not in `AUTH_ANON_ALLOWLIST` → `401 JSON` for `/api/**`, `302 /login` for everything else. The gate is authoritative; views do not rely on per-view decorators. PROD has `ALLOW_DEV_BEARER=false`, so bearer is ignored even if presented.
 - GETs return an `ETag` derived from `updated_at` (plus the primary key for delivery receipts). Mutating endpoints (`PUT`, `PATCH`, `DELETE`, and the domain-specific POSTs) require `If-Match` with the latest ETag. Missing → `428 Precondition Required`. Mismatch → `412 Precondition Failed`. The check happens inside the service layer under `select_for_update`, so comparison and write are atomic. GETs accept `If-None-Match` for `304 Not Modified`. CORS exposes `ETag` and allows `If-Match` / `If-None-Match` so a cross-origin frontend can participate.
@@ -21,6 +21,7 @@
 - Every API call goes through the generated client at `/src/api/generated/api.ts`. Types are inferred from the schema (`z.infer<typeof schemas.X>` or generated TypeScript types). After a backend schema change, regenerate via `npm run update-schema && npm run gen:api`. Generated files are never hand-edited. Raw `fetch` and `axios` are not used. A missing endpoint is a backend request — never a frontend workaround.
 - Three rules apply to every async task:
 - The rule, stated as an imperative. One paragraph.
+- abort cleanly"
 - /usr/local/lib/nodemodules/ VS your user account using ~/
 
 ## Open Questions (10)
@@ -36,10 +37,10 @@
 - Maybe quantity needs blur event but we Tab away too fast?
 
 ## Recurring Themes
-problem · why · alternatives considered · tips · what youll need · steps · what happens next · troubleshooting · verification · prerequisites · purpose · out of scope
+problem · why · alternatives considered · tips · what youll need · steps · what happens next · verification · troubleshooting · out of scope · prerequisites · purpose
 
 ## People
-@login_required · @docketworks · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
+@login_required · @docketworks · @shared_task · @staticmethod · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @update · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
 
 ## Hub Notes (most referenced)
 - `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
@@ -49,7 +50,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (109)
+## Note Index (111)
 
 ### Decision Records (16)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException`; nested handlers re-raise unchanged instead of re-persisting.
@@ -84,7 +85,7 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (84)
+### General Notes (86)
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
 - `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
@@ -98,14 +99,14 @@ problem · why · alternatives considered · tips · what youll need · steps ·
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
 - `docs/plans/abstract-tumbling-milner.md` — `feat/xero-day-quota-floor` moved Xero credentials from `.env` into the
 - `docs/plans/cuddly-wandering-globe.md` — Prod client boxes (e.g. `office.heuserlimited.com`) are **refusing to
+- `docs/plans/here-is-what-prod-tidy-manatee.md` — Recurring prod incident: Xero shows "disconnected", heartbeat refreshes return `400 invalid_grant: Refresh token has expired` (or `Refresh token not found`), an…
 - `docs/plans/hidden-yawning-mccarthy.md` — PR #266 introduced `apps/workflow/api/xero/active_app.py:get_active_client()` to dispatch Xero API calls to the credentials of whichever `XeroApp` row has `is_a…
+- `docs/plans/implementation-task-fluffy-hopcroft.md` — **Branch:** `feat/migrate-apscheduler-to-celery-beat` (PR #273, against `main`)
 - `docs/plans/so-let-s-think-about-tranquil-shamir.md` — The codebase runs two parallel async layers: APScheduler (in-process, via `scheduler-$INSTANCE.service` running `manage.py run_scheduler`) for periodic jobs, an…
 - `docs/plans/synthetic-drifting-allen.md` — PR #266 (`feat/xero-day-quota-floor`, this branch) was meant to be a tiny change adding a day-quota floor and the `XeroApp` table for the once-a-year emergency …
 - `docs/restore-prod-to-nonprod.md` ← 3 refs — Restore a production backup to any non-production environment (dev or server instance). This guide is environment-agnostic: assume venv active, `.env` loaded, i…
 - `docs/restore-workaround-jobevent-staff-null.md` — Temporary addendum to [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). Delete this file once `feat/jobevent-audit` has been deployed to prod and a fres…
-- `docs/server_setup.md` ← 2 refs — Multi-instance server on `192.9.188.248` (Oracle Cloud, Ubuntu 24.04 ARM/aarch64).
-- `docs/test_pdfs/price_lists/1.md` — [Price List for Customer: MORRIS SHEETMETAL WORKS LTD](#price-list-for-customer-morris-sheetmetal-works-ltd)
-- _…and 64 more_
+- _…and 66 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_
