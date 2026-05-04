@@ -629,6 +629,7 @@
   - function celery_health_check: () -> str
   - function process_xero_webhook_event: (tenant_id, event, Any]) -> None
   - function xero_heartbeat_task: () -> None
+  - function xero_sync_task: (task_id) -> None
   - function xero_regular_sync_task: () -> None
   - function xero_30_day_sync_task: () -> None
 - `apps/workflow/utils.py`

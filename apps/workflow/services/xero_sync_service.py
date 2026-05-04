@@ -1,21 +1,18 @@
 # workflow/services/xero_sync_service.py
 
 import logging
-import threading
 import uuid
 
 from django.core.cache import cache
-from django.utils import timezone
 
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
-from apps.workflow.exceptions import XeroQuotaFloorReached
 
 logger = logging.getLogger("xero")
 
 
 class XeroSyncService:
-    """Accounting sync service that manages synchronisation threads.
+    """Accounting sync service that dispatches sync runs to Celery.
 
     Works with any configured accounting provider via the provider registry.
     """
@@ -45,7 +42,13 @@ class XeroSyncService:
 
     @staticmethod
     def start_sync():
-        """Launch a sync thread if none is running.
+        """Acquire the lock and dispatch a Celery task for the sync run.
+
+        The actual sync work runs in ``apps.workflow.tasks.xero_sync_task``
+        — moving it out of a detached thread means django_celery_results
+        records the true outcome (SUCCESS, FAILURE-with-traceback, or
+        REVOKED on worker crash) instead of the dispatch-only success the
+        thread model produced.
 
         Returns:
             tuple[str | None, bool]: (task_id, started)
@@ -79,149 +82,20 @@ class XeroSyncService:
         cache.set(f"xero_sync_current_entity_{task_id}", None, timeout=86400)
         cache.set(f"xero_sync_entity_progress_{task_id}", 0.0, timeout=86400)
 
-        # Launch
-        thread = threading.Thread(
-            target=XeroSyncService.run_sync, args=[task_id], daemon=True
-        )
-        thread.start()
-
-        logger.info(f"Started Xero sync with task ID {task_id}")
-        return task_id, True
-
-    @staticmethod
-    def run_sync(task_id):
-        """Execute the sync and record messages under ``task_id``."""
-        from apps.workflow.accounting.registry import get_provider
-
-        provider = get_provider()
-
-        messages_key = f"xero_sync_messages_{task_id}"
-        current_key = f"xero_sync_current_entity_{task_id}"
-        progress_key = f"xero_sync_entity_progress_{task_id}"
-        overall_key = f"xero_sync_overall_progress_{task_id}"
+        # Local import to avoid an import cycle: tasks.py imports XeroSyncService.
+        from apps.workflow.tasks import xero_sync_task
 
         try:
-            msgs = cache.get(messages_key, [])
-            processed = 0
-            total_entities = provider.get_sync_entity_count()
+            xero_sync_task.delay(task_id)
+        except Exception:
+            # Broker unavailable — release the lock so the next attempt can
+            # try. Don't persist here; the caller (Beat task or view) owns
+            # the AlreadyLoggedException pattern.
+            cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+            raise
 
-            for message in provider.run_full_sync():
-                message["task_id"] = task_id
-
-                # Always propagate 'entity_progress' if there is 'progress'
-                if "progress" in message and message["progress"] is not None:
-                    message["entity_progress"] = message.pop("progress")
-
-                # Track entity/progress
-                entity = message.get("entity")
-                if entity and entity != "sync":
-                    cache.set(current_key, entity, timeout=86400)
-                    if "entity_progress" in message:
-                        cache.set(
-                            progress_key, message["entity_progress"], timeout=86400
-                        )
-                    if message.get("status") == "Completed":
-                        processed += 1
-
-                overall = processed / total_entities if total_entities > 0 else 0.0
-                message["overall_progress"] = round(overall, 3)
-                cache.set(overall_key, overall, timeout=86400)
-
-                if "recordsUpdated" in message:
-                    message["records_updated"] = message["recordsUpdated"]
-
-                msgs.append(message)
-                cache.set(messages_key, msgs, timeout=86400)
-
-            # Final marker
-            msgs.append(
-                {
-                    "datetime": timezone.now().isoformat(),
-                    "entity": "sync",
-                    "severity": "info",
-                    "message": "Sync stream ended",
-                    "overall_progress": 1.0,
-                    "entity_progress": 1.0,
-                    "sync_status": "success",
-                    "task_id": task_id,
-                }
-            )
-            cache.set(messages_key, msgs, timeout=86400)
-            logger.info(f"Completed Xero sync task {task_id}")
-
-        except XeroQuotaFloorReached as exc:
-            # Operational abort, not a defect. Do NOT persist_app_error
-            # (would write 24+ rows/day at the floor). Final marker is
-            # sync_status:"aborted" — distinct from "success" so the UI,
-            # scheduler, and monitoring don't mistake this for a clean run.
-            logger.warning("Xero sync %s aborted: %s", task_id, exc)
-            msgs = cache.get(messages_key, [])
-            msgs.append(
-                {
-                    "datetime": timezone.now().isoformat(),
-                    "entity": "sync",
-                    "severity": "error",
-                    "message": f"Sync aborted: {exc}",
-                    "progress": None,
-                    "task_id": task_id,
-                }
-            )
-            msgs.append(
-                {
-                    "datetime": timezone.now().isoformat(),
-                    "entity": "sync",
-                    "severity": "info",
-                    "message": "Sync stream ended",
-                    "sync_status": "aborted",
-                    "progress": None,
-                    "task_id": task_id,
-                }
-            )
-            cache.set(messages_key, msgs, timeout=86400)
-            # Don't re-raise — abort is operational. The finally below
-            # releases the lock cleanly.
-        except Exception as e:
-            from apps.workflow.services.error_persistence import persist_app_error
-
-            persist_app_error(e)
-            logger.error(f"Error during Xero sync task {task_id}: {e}", exc_info=True)
-            msgs = cache.get(messages_key, [])
-            msgs.append(
-                {
-                    "datetime": timezone.now().isoformat(),
-                    "entity": "sync",
-                    "severity": "error",
-                    "message": f"Error during sync: {e}",
-                    "progress": None,
-                    "task_id": task_id,
-                }
-            )
-            msgs.append(
-                {
-                    "datetime": timezone.now().isoformat(),
-                    "entity": "sync",
-                    "severity": "info",
-                    "message": "Sync stream ended",
-                    "progress": None,
-                    "task_id": task_id,
-                }
-            )
-            cache.set(messages_key, msgs, timeout=86400)
-            # Re-raise the exception to ensure the calling process is aware of the failure
-            # We are about to crash, so we need to clean up the lock
-            cache.delete(current_key)
-            cache.delete(progress_key)
-            cache.delete(
-                XeroSyncService.SYNC_STATUS_KEY
-            )  # Release lock and clear task ID
-            raise e
-
-        finally:
-            cache.delete(current_key)
-            cache.delete(progress_key)
-            cache.delete(
-                XeroSyncService.SYNC_STATUS_KEY
-            )  # Release lock and clear task ID
+        logger.info("Dispatched Xero sync task %s", task_id)
+        return task_id, True
 
     @staticmethod
     def get_messages(task_id, since_index=0):

@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 184 components | 369 lib files | 70 env vars | 11 middleware | 9 events | 23% test coverage
-> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~245,100 tokens. **Saves ~214,200 tokens per conversation.**
+> 95 routes | 44 models | 184 components | 369 lib files | 70 env vars | 11 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~245,300 tokens. **Saves ~214,400 tokens per conversation.**
 
 ---
 
@@ -1520,6 +1520,7 @@
   - function celery_health_check: () -> str
   - function process_xero_webhook_event: (tenant_id, event, Any]) -> None
   - function xero_heartbeat_task: () -> None
+  - function xero_sync_task: (task_id) -> None
   - function xero_regular_sync_task: () -> None
   - function xero_30_day_sync_task: () -> None
 - `apps/workflow/utils.py`
@@ -2104,6 +2105,7 @@
 - `celery_health_check` [queue] → celery-task — `apps/workflow/tasks.py`
 - `process_xero_webhook_event` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_heartbeat_task` [queue] → celery-task — `apps/workflow/tasks.py`
+- `xero_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_regular_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_30_day_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 
@@ -2112,7 +2114,7 @@
 # Test Coverage
 
 > **23%** of routes and models are covered by tests
-> 131 test files found
+> 132 test files found
 
 ## Covered Routes
 

@@ -502,10 +502,10 @@ class StockBatchedUpsertRefactorTests(TestCase):
 
 
 class RunSyncAbortedBranchTests(TestCase):
-    """``XeroSyncService.run_sync`` must catch ``XeroQuotaFloorReached``
-    distinctly from generic exceptions: emit ``sync_status:"aborted"``
-    (NOT "success", NOT a generic error), do NOT ``persist_app_error``
-    (24+ rows/day at the floor would be noise), and clean up the lock."""
+    """``xero_sync_task`` must catch ``XeroQuotaFloorReached`` distinctly
+    from generic exceptions: emit ``sync_status:"aborted"`` (NOT "success",
+    NOT a generic error), do NOT ``persist_app_error`` (24+ rows/day at the
+    floor would be noise), and clean up the lock."""
 
     def setUp(self):
         cache.delete("xero_sync_status")
@@ -516,6 +516,7 @@ class RunSyncAbortedBranchTests(TestCase):
     def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self):
         from apps.workflow.models import AppError
         from apps.workflow.services.xero_sync_service import XeroSyncService
+        from apps.workflow.tasks import xero_sync_task
 
         task_id = "test-task-quota"
         cache.set(f"xero_sync_messages_{task_id}", [], timeout=60)
@@ -534,7 +535,7 @@ class RunSyncAbortedBranchTests(TestCase):
         with patch(
             "apps.workflow.accounting.registry.get_provider", return_value=provider
         ):
-            XeroSyncService.run_sync(task_id)
+            xero_sync_task(task_id)
 
         # Lock released
         self.assertIsNone(cache.get(XeroSyncService.SYNC_STATUS_KEY))

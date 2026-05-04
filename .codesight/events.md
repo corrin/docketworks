@@ -7,5 +7,6 @@
 - `celery_health_check` [queue] → celery-task — `apps/workflow/tasks.py`
 - `process_xero_webhook_event` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_heartbeat_task` [queue] → celery-task — `apps/workflow/tasks.py`
+- `xero_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_regular_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_30_day_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
