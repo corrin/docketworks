@@ -569,6 +569,7 @@
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command
 - `apps/workflow/management/commands/e2e_cleanup.py` — class Command
 - `apps/workflow/management/commands/seed_xero_from_database.py` — class Command
+- `apps/workflow/management/commands/start_xero_sync.py` — class Command
 - `apps/workflow/management/commands/sync_sequences.py` — class Command
 - `apps/workflow/management/commands/xero.py` — function get_employees_simple_dev: (), class Command
 - `apps/workflow/middleware.py`
