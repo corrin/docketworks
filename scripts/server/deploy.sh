@@ -214,8 +214,27 @@ for instance in "${TARGETS[@]}"; do
     if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
         log "  Django commands complete for $instance"
     else
-        log "  ERROR: Django commands failed for $instance"
+        # Skip the unit-restart block below: starting Beat against a
+        # half-migrated schema dispatches periodic tasks autonomously and can
+        # hit "no such column" on every fire until the next deploy. Same
+        # caution applies to celery-worker / gunicorn restart, but Beat is
+        # the new failure mode worth guarding against here.
+        log "  ERROR: Django commands failed for $instance — skipping unit restarts"
         FAILED_INSTANCES+=("$instance")
+        continue
+    fi
+
+    # Legacy cleanup: pre-celery-beat instances had a scheduler-$instance unit
+    # running `manage.py run_scheduler`. After this PR's git-pull the
+    # `run_scheduler` command no longer exists, so the unit (Restart=always)
+    # would crash-loop until manually disabled. Idempotent: silently skip
+    # when the unit isn't present (clean instances and second-deploy onward).
+    if [[ -f "/etc/systemd/system/scheduler-$instance.service" ]]; then
+        log "  Removing legacy scheduler-$instance unit (replaced by celery-beat)"
+        systemctl stop "scheduler-$instance" 2>/dev/null || true
+        systemctl disable "scheduler-$instance" 2>/dev/null || true
+        rm -f "/etc/systemd/system/scheduler-$instance.service"
+        systemctl daemon-reload
     fi
 
     # Re-render the celery-worker unit on every deploy. Idempotent: systemd's

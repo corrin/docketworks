@@ -6642,7 +6642,19 @@ paths:
   /api/quoting/scheduled-task-executions/:
     get:
       operationId: quoting_scheduled_task_executions_list
+      description: |-
+        Beat-fired task executions only.
+
+        Exclude TaskResult rows whose `periodic_task_name` is empty — those are
+        ad-hoc Celery work (webhook handlers, health checks, etc.) which would
+        otherwise drown out the scheduled-task history this view is for.
       parameters:
+        - name: page
+          required: false
+          in: query
+          description: A page number within the paginated result set.
+          schema:
+            type: integer
         - name: search
           required: false
           in: query
@@ -6658,13 +6670,17 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ScheduledTaskExecution'
+                $ref: '#/components/schemas/PaginatedScheduledTaskExecutionList'
           description: ''
   /api/quoting/scheduled-task-executions/{id}/:
     get:
       operationId: quoting_scheduled_task_executions_retrieve
+      description: |-
+        Beat-fired task executions only.
+
+        Exclude TaskResult rows whose `periodic_task_name` is empty — those are
+        ad-hoc Celery work (webhook handlers, health checks, etc.) which would
+        otherwise drown out the scheduled-task history this view is for.
       parameters:
         - in: path
           name: id
@@ -6687,6 +6703,12 @@ paths:
     get:
       operationId: quoting_scheduled_tasks_list
       parameters:
+        - name: page
+          required: false
+          in: query
+          description: A page number within the paginated result set.
+          schema:
+            type: integer
         - name: search
           required: false
           in: query
@@ -6702,9 +6724,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ScheduledTask'
+                $ref: '#/components/schemas/PaginatedScheduledTaskList'
           description: ''
   /api/quoting/scheduled-tasks/{id}/:
     get:
@@ -14178,6 +14198,52 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CompleteJob'
+    PaginatedScheduledTaskExecutionList:
+      type: object
+      required:
+        - count
+        - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledTaskExecution'
+    PaginatedScheduledTaskList:
+      type: object
+      required:
+        - count
+        - results
+      properties:
+        count:
+          type: integer
+          example: 123
+        next:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=4
+        previous:
+          type: string
+          nullable: true
+          format: uri
+          example: http://api.example.org/accounts/?page=2
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ScheduledTask'
     PaginatedXeroErrorList:
       type: object
       required:
