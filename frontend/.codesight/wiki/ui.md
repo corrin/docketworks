@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**185 components** (vue)
+**184 components** (vue)
 
 ## Client Components
 
@@ -19,19 +19,18 @@
 - **ContactSelector** — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `src/components/ContactSelector.vue`
 - **CreateClientModal** — `src/components/CreateClientModal.vue`
 - **DataTable** — props: columns, data, pageSize, hideFooter, isLoading — `src/components/DataTable.vue`
-- **ExecutionsModal** — `src/components/ExecutionsModal.vue`
 - **JobCard** — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `src/components/JobCard.vue`
-- **JobFormModal** — props: job — `src/components/JobFormModal.vue`
-- **JobsModal** — `src/components/JobsModal.vue`
 - **KanbanColumn** — `src/components/KanbanColumn.vue`
 - **QuoteStatus** — props: jobId, autoRefresh — `src/components/QuoteStatus.vue`
 - **RichTextEditor** — `src/components/RichTextEditor.vue`
+- **ScheduledTasksModal** — `src/components/ScheduledTasksModal.vue`
 - **SectionModal** — props: section — `src/components/SectionModal.vue`
 - **StaffAvatar** — props: staff, size, isActive, isDragging — `src/components/StaffAvatar.vue`
 - **StaffDropdown** — `src/components/StaffDropdown.vue`
 - **StaffFormModal** — props: staff — `src/components/StaffFormModal.vue`
 - **StaffPanel** — `src/components/StaffPanel.vue`
 - **StatusMultiSelect** — `src/components/StatusMultiSelect.vue`
+- **TaskExecutionsModal** — `src/components/TaskExecutionsModal.vue`
 - **XeroQuotaBadge** — `src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** — props: provider — `src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `src/components/admin/MonthEndSummary.vue`
@@ -144,9 +143,9 @@
 - **AdminAIProvidersView** — `src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** — `src/views/AdminArchiveJobsView.vue`
 - **AdminCompanyView** — `src/views/AdminCompanyView.vue`
-- **AdminDjangoJobsView** — `src/views/AdminDjangoJobsView.vue`
 - **AdminErrorView** — `src/views/AdminErrorView.vue`
 - **AdminMonthEnd** — `src/views/AdminMonthEnd.vue`
+- **AdminScheduledTasksView** — `src/views/AdminScheduledTasksView.vue`
 - **AdminStaffView** — `src/views/AdminStaffView.vue`
 - **AdminView** — `src/views/AdminView.vue`
 - **ClientDetailView** — `src/views/ClientDetailView.vue`

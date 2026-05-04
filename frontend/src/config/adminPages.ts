@@ -48,11 +48,11 @@ const adminPagesConfig = [
   },
   { key: 'errors', label: 'Errors', title: 'Errors', icon: AlertTriangle, view: 'AdminErrorView' },
   {
-    key: 'django-jobs',
-    label: 'Django Jobs',
-    title: 'Django Jobs',
+    key: 'scheduled-tasks',
+    label: 'Scheduled Tasks',
+    title: 'Scheduled Tasks',
     icon: Bot,
-    view: 'AdminDjangoJobsView',
+    view: 'AdminScheduledTasksView',
   },
   {
     key: 'ai-providers',

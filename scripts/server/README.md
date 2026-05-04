@@ -112,7 +112,7 @@ What deploy does, in order:
 1. Pull latest code from GitHub (into the shared local repo).
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
 3. Update shared Python/Node deps.
-4. For each instance: pre-deploy backup (unless `--no-backup`), git pull, build frontend, run migrate, restart `gunicorn-<instance>`, render+enable `celery-worker-<instance>` if its unit file is missing (one-shot for instances that pre-date the celery-worker template), restart `celery-worker-<instance>`.
+4. For each instance: pre-deploy backup (unless `--no-backup`), git pull, build frontend, run migrate, render+restart `celery-worker-<instance>`, render+restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
 
 ## Destroying an Instance
 
@@ -195,4 +195,5 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/env-instance.template` | Template for full .env file |
 | `templates/gunicorn-instance.service.template` | Systemd unit template (web) |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker) |
+| `templates/celery-beat-instance.service.template` | Systemd unit template (Celery Beat — periodic task dispatcher) |
 | `templates/nginx-instance.conf.template` | Nginx server block template |

@@ -21,9 +21,9 @@ Sections must run in the order written. The Connect to Xero OAuth section is a h
   ```bash
   scp prod-server:/path/to/docketworks/restore/scrubbed_<DB_NAME>_<ts>.dump restore/
   ```
-- Scheduler stopped. The scheduler ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Background Scheduler section restarts it.
-  - Dev: kill the `run_scheduler` process in its terminal.
-  - Server: `sudo systemctl stop scheduler-<instance>`
+- Celery Beat stopped. Beat ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Celery Beat section restarts it. The worker can stay running — it has nothing to do without Beat dispatches.
+  - Dev: kill the `Celery Beat` task in its VS Code terminal.
+  - Server: `sudo systemctl stop celery-beat-<instance>`
 
 ---
 
@@ -281,17 +281,18 @@ python manage.py start_xero_sync
 
 **Expected output:** Error and warning free sync between local and Xero data.
 
-#### Start Background Scheduler (Dev)
+#### Start Celery Beat (Dev)
 
-The scheduler is a separate process that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. In a separate terminal (it blocks forever):
+Beat is the periodic-task dispatcher that keeps Xero tokens refreshed, runs hourly syncs, weekly scraping, and nightly housekeeping. The worker also needs to be running so dispatched tasks actually execute. In separate terminals (each blocks forever):
 
 ```bash
-python manage.py run_scheduler
+poetry run celery -A docketworks worker --concurrency=4 --loglevel=info
+poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 ```
 
-#### Verify Background Scheduler (Server)
+#### Verify Celery Beat (Server)
 
-On server instances the scheduler is already running as a systemd service (`scheduler-<instance>`), installed by `instance.sh create`. Verify:
+On server instances Beat is already running as a systemd service (`celery-beat-<instance>`), installed by `instance.sh create`. Verify:
 
 ```bash
 sudo systemctl status scheduler-<instance>

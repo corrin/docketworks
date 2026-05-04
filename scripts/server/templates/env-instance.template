@@ -63,7 +63,6 @@ LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs
 # Feature flags
 DEBUG_PAYLOAD=False
 JOB_DELTA_SOFT_FAIL=True
-DJANGO_RUN_SCHEDULER=true
 
 # Shared Playwright browsers (installed once by server-setup.sh)
 PLAYWRIGHT_BROWSERS_PATH=/opt/docketworks/.playwright-browsers

@@ -232,22 +232,39 @@ for instance in "${TARGETS[@]}"; do
         > "/etc/systemd/system/celery-worker-$instance.service"
     systemctl daemon-reload
 
+    # Same idempotent re-render for celery-beat (the periodic-task dispatcher).
+    # Same rationale as celery-worker above.
+    log "  Rendering celery-beat-$instance unit"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__INSTANCE_USER__|$inst_user|g" \
+        "$SCRIPT_DIR/templates/celery-beat-instance.service.template" \
+        > "/etc/systemd/system/celery-beat-$instance.service"
+    systemctl daemon-reload
+
     # DR-mode short-circuit. The marker means this instance is a cold standby:
     # render unit files (so a future "go live" picks up template changes), but
     # never enable or start the services that talk to live external systems.
     if [[ -f "$instance_dir/.dr-mode" ]]; then
-        log "  DR mode (.dr-mode present): skipping enable/restart of celery-worker-$instance and gunicorn-$instance"
+        log "  DR mode (.dr-mode present): skipping enable/restart of celery-worker-$instance, celery-beat-$instance, and gunicorn-$instance"
     else
         systemctl enable "celery-worker-$instance"
 
-        # Restart celery-worker BEFORE gunicorn. If gunicorn restarts first it
-        # starts dispatching new task names while the worker still has stale
-        # code; the old worker silently ack-discards messages it doesn't know
-        # (Celery's default behaviour) and webhook events are lost without a
-        # trace. Worker-first means new task names are always registered before
-        # any new dispatch can land.
+        # Restart celery-worker BEFORE celery-beat and gunicorn. If gunicorn or
+        # beat restart first they dispatch new task names while the worker still
+        # has stale code; the old worker silently ack-discards messages it
+        # doesn't know (Celery's default behaviour) and webhook events / Beat
+        # firings are lost without a trace. Worker-first means new task names
+        # are always registered before any new dispatch can land.
         log "  Restarting celery-worker-$instance"
         systemctl restart "celery-worker-$instance"
+
+        # Restart celery-beat after the worker so the next periodic dispatch
+        # lands on a worker that knows the task. Without restarting beat here
+        # it would keep running stale code with stale schedule definitions.
+        systemctl enable "celery-beat-$instance"
+        log "  Restarting celery-beat-$instance"
+        systemctl restart "celery-beat-$instance"
 
         # Restart gunicorn
         if systemctl is-enabled "gunicorn-$instance" &>/dev/null; then

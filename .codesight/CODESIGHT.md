@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 95 routes | 44 models | 185 components | 372 lib files | 71 env vars | 11 middleware | 2 events | 23% test coverage
-> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~245,000 tokens. **Saves ~214,100 tokens per conversation.**
+> 95 routes | 44 models | 184 components | 368 lib files | 70 env vars | 11 middleware | 9 events | 23% test coverage
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,900 tokens. **Saves ~214,000 tokens per conversation.**
 
 ---
 
@@ -715,19 +715,18 @@
 - **ContactSelector** [client] — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `frontend/src/components/ContactSelector.vue`
 - **CreateClientModal** [client] — `frontend/src/components/CreateClientModal.vue`
 - **DataTable** [client] — props: columns, data, pageSize, hideFooter, isLoading — `frontend/src/components/DataTable.vue`
-- **ExecutionsModal** [client] — `frontend/src/components/ExecutionsModal.vue`
 - **JobCard** [client] — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `frontend/src/components/JobCard.vue`
-- **JobFormModal** [client] — props: job — `frontend/src/components/JobFormModal.vue`
-- **JobsModal** [client] — `frontend/src/components/JobsModal.vue`
 - **KanbanColumn** [client] — `frontend/src/components/KanbanColumn.vue`
 - **QuoteStatus** [client] — props: jobId, autoRefresh — `frontend/src/components/QuoteStatus.vue`
 - **RichTextEditor** [client] — `frontend/src/components/RichTextEditor.vue`
+- **ScheduledTasksModal** [client] — `frontend/src/components/ScheduledTasksModal.vue`
 - **SectionModal** [client] — props: section — `frontend/src/components/SectionModal.vue`
 - **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `frontend/src/components/StaffAvatar.vue`
 - **StaffDropdown** [client] — `frontend/src/components/StaffDropdown.vue`
 - **StaffFormModal** [client] — props: staff — `frontend/src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `frontend/src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
+- **TaskExecutionsModal** [client] — `frontend/src/components/TaskExecutionsModal.vue`
 - **XeroQuotaBadge** [client] — `frontend/src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
@@ -840,9 +839,9 @@
 - **AdminAIProvidersView** [client] — `frontend/src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** [client] — `frontend/src/views/AdminArchiveJobsView.vue`
 - **AdminCompanyView** [client] — `frontend/src/views/AdminCompanyView.vue`
-- **AdminDjangoJobsView** [client] — `frontend/src/views/AdminDjangoJobsView.vue`
 - **AdminErrorView** [client] — `frontend/src/views/AdminErrorView.vue`
 - **AdminMonthEnd** [client] — `frontend/src/views/AdminMonthEnd.vue`
+- **AdminScheduledTasksView** [client] — `frontend/src/views/AdminScheduledTasksView.vue`
 - **AdminStaffView** [client] — `frontend/src/views/AdminStaffView.vue`
 - **AdminView** [client] — `frontend/src/views/AdminView.vue`
 - **ClientDetailView** [client] — `frontend/src/views/ClientDetailView.vue`
@@ -1056,7 +1055,6 @@
 - `apps/job/models/job_quote_chat.py` — class JobQuoteChat
 - `apps/job/models/spreadsheet.py` — class QuoteSpreadsheet
 - `apps/job/permissions.py` — class IsOfficeStaff, class IsStaffUser
-- `apps/job/scheduler_jobs.py` — function set_paid_flag_jobs: (), function auto_archive_completed_jobs: ()
 - `apps/job/schemas/quote_mode_schemas.py` — function get_schema: (mode) -> Dict[str, Any], function get_allowed_tools: (mode) -> List[str]
 - `apps/job/serializers/costing_serializer.py`
   - class CostLineSerializer
@@ -1174,12 +1172,12 @@
   - function get_image_dimensions: (image_path)
   - _...17 more_
 - `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
+- `apps/job/tasks.py` — function set_paid_flag_task: () -> None, function auto_archive_completed_jobs_task: () -> None
 - `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
 - `apps/operations/apps.py` — class OperationsConfig
 - `apps/operations/models/allocation_block.py` — class AllocationBlock
 - `apps/operations/models/job_projection.py` — class UnscheduledReason, class JobProjection
 - `apps/operations/models/scheduler_run.py` — class SchedulerRun
-- `apps/operations/scheduler_jobs.py` — function recompute_workshop_schedule: () -> None
 - `apps/operations/serializers/workshop_schedule_serializer.py`
   - class DaySerializer
   - class AssignedStaffSerializer
@@ -1192,6 +1190,7 @@
   - function run_workshop_schedule: () -> SchedulerRun
   - class JobScheduleState
   - class UnschedulableJob
+- `apps/operations/tasks.py` — function recompute_workshop_schedule_task: () -> None
 - `apps/process/apps.py` — class ProcessConfig
 - `apps/process/management/commands/import_dropbox_hs_documents.py` — class Command
 - `apps/process/models/form.py` — class Form
@@ -1260,7 +1259,6 @@
   - class SupplierPriceList
   - class ScrapeJob
   - class ProductParsingMapping
-- `apps/quoting/scheduler_jobs.py` — function run_all_scrapers_job: (), function delete_old_job_executions: (max_age_days)
 - `apps/quoting/scrapers/base.py` — class BaseScraper
 - `apps/quoting/scrapers/steel_and_tube.py` — class SteelAndTubeScraper
 - `apps/quoting/serializers.py`
@@ -1271,7 +1269,7 @@
   - class ValidationInfoSerializer
   - class ExtractSupplierPriceListResponseSerializer
   - _...1 more_
-- `apps/quoting/serializers_django_jobs.py` — class DjangoJobSerializer, class DjangoJobExecutionSerializer
+- `apps/quoting/serializers_scheduled_tasks.py` — class ScheduledTaskSerializer, class ScheduledTaskExecutionSerializer
 - `apps/quoting/services/ai_price_extraction.py`
   - function get_prioritized_active_providers: ()
   - function extract_price_data: (file_path, content_type) -> Tuple[Optional[Dict[str, Any]], Optional[str]]
@@ -1291,6 +1289,7 @@
 - `apps/quoting/services/providers/gemini_provider.py` — class GeminiPriceExtractionProvider
 - `apps/quoting/services/providers/mistral_provider.py` — function encode_pdf: (pdf_path), class MistralPriceExtractionProvider
 - `apps/quoting/services/stock_parser.py` — function auto_parse_stock_item: (stock_instance)
+- `apps/quoting/tasks.py` — function run_all_scrapers_task: () -> None
 - `apps/quoting/tests_mcp.py` — class QuotingToolTests, class SupplierProductQueryToolTests
 - `apps/quoting/tests_utils.py` — class TestCalculateSheetTenths
 - `apps/quoting/utils.py`
@@ -1298,7 +1297,7 @@
   - function calculate_supplier_product_hash: (supplier_product) -> str
   - function calculate_sheet_tenths: (part_width_mm, part_height_mm, sheet_width_mm, sheet_height_mm) -> int
 - `apps/quoting/views.py` — function extract_supplier_price_list_data_view: (request)
-- `apps/quoting/views_django_jobs.py` — class DjangoJobViewSet, class DjangoJobExecutionViewSet
+- `apps/quoting/views_scheduled_tasks.py` — class ScheduledTaskViewSet, class ScheduledTaskExecutionViewSet
 - `apps/testing.py`
   - class BaseTestCase
   - class BaseTransactionTestCase
@@ -1460,9 +1459,7 @@
 - `apps/workflow/management/commands/backport_data_backup.py` — class Command
 - `apps/workflow/management/commands/create_service_api_key.py` — class Command
 - `apps/workflow/management/commands/e2e_cleanup.py` — class Command
-- `apps/workflow/management/commands/run_scheduler.py` — class Command
 - `apps/workflow/management/commands/seed_xero_from_database.py` — class Command
-- `apps/workflow/management/commands/start_xero_sync.py` — class Command
 - `apps/workflow/management/commands/sync_sequences.py` — class Command
 - `apps/workflow/management/commands/xero.py` — function get_employees_simple_dev: (), class Command
 - `apps/workflow/middleware.py`
@@ -1488,11 +1485,6 @@
 - `apps/workflow/models/xero_payroll.py` — class XeroPayRun, class XeroPaySlip
 - `apps/workflow/models/xero_sync_cursor.py` — class XeroSyncCursor
 - `apps/workflow/permissions.py` — class F
-- `apps/workflow/scheduler.py` — function get_scheduler: () -> BackgroundScheduler, function stop_scheduler: () -> bool
-- `apps/workflow/scheduler_jobs.py`
-  - function xero_heartbeat_job: () -> None
-  - function xero_regular_sync_job: () -> None
-  - function xero_30_day_sync_job: () -> None
 - `apps/workflow/serializers.py`
   - class AIProviderSerializer
   - class CompanyDefaultsSerializer
@@ -1523,7 +1515,12 @@
   - class LLMService
 - `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
-- `apps/workflow/tasks.py` — function celery_health_check: () -> str, function process_xero_webhook_event: (tenant_id, event, Any]) -> None
+- `apps/workflow/tasks.py`
+  - function celery_health_check: () -> str
+  - function process_xero_webhook_event: (tenant_id, event, Any]) -> None
+  - function xero_heartbeat_task: () -> None
+  - function xero_regular_sync_task: () -> None
+  - function xero_30_day_sync_task: () -> None
 - `apps/workflow/utils.py`
   - function extract_messages: (request) -> List[Dict[str, Any]]
   - function is_valid_uuid: (value) -> bool
@@ -1703,14 +1700,6 @@
   - function navigateDay
   - _...12 more_
 - `frontend/src/services/delta.service.ts` — function submitJobDelta: (jobId, envelope) => Promise<
-- `frontend/src/services/django-jobs-service.ts`
-  - function getDjangoJobs: () => Promise<DjangoJob[]>
-  - function createDjangoJob: (data) => Promise<DjangoJob>
-  - function updateDjangoJob: (id, data) => Promise<DjangoJob>
-  - function deleteDjangoJob: (id) => Promise<void>
-  - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
-  - type DjangoJob
-  - _...1 more_
 - `frontend/src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -1732,6 +1721,11 @@
   - interface PostStaffWeekProgressEvent
   - _...8 more_
 - `frontend/src/services/quote-chat.service.ts` — class QuoteChatService, const quoteChatService
+- `frontend/src/services/scheduled-tasks-service.ts`
+  - function getScheduledTasks: () => Promise<ScheduledTask[]>
+  - function getTaskExecutions: (taskName?) => Promise<TaskExecution[]>
+  - type ScheduledTask
+  - type TaskExecution
 - `frontend/src/services/staff-performance-report.service.ts` — class StaffPerformanceReportService, const staffPerformanceReportService
 - `frontend/src/services/timesheet.service.ts` — class TimesheetService
 - `frontend/src/services/weekly-timesheet.service.ts`
@@ -1978,7 +1972,6 @@
 - `DJANGO_ADMINS` (has default) — .env.example
 - `DJANGO_ENV` (has default) — .env.example
 - `DJANGO_PASSWORD` **required** — frontend/scripts/capture_metrics.cjs
-- `DJANGO_RUN_SCHEDULER` **required** — docketworks/settings.py
 - `DJANGO_SITE_DOMAIN` (has default) — .env.example
 - `DJANGO_USER` **required** — frontend/scripts/capture_metrics.cjs
 - `DROPBOX_WORKFLOW_FOLDER` (has default) — .env.example
@@ -2103,8 +2096,15 @@
 
 # Events & Queues
 
+- `set_paid_flag_task` [queue] → celery-task — `apps/job/tasks.py`
+- `auto_archive_completed_jobs_task` [queue] → celery-task — `apps/job/tasks.py`
+- `recompute_workshop_schedule_task` [queue] → celery-task — `apps/operations/tasks.py`
+- `run_all_scrapers_task` [queue] → celery-task — `apps/quoting/tasks.py`
 - `celery_health_check` [queue] → celery-task — `apps/workflow/tasks.py`
 - `process_xero_webhook_event` [queue] → celery-task — `apps/workflow/tasks.py`
+- `xero_heartbeat_task` [queue] → celery-task — `apps/workflow/tasks.py`
+- `xero_regular_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
+- `xero_30_day_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 
 ---
 

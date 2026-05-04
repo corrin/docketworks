@@ -15,7 +15,6 @@ try:
             SupplierPriceList,
             SupplierProduct,
         )
-        from .scheduler_jobs import delete_old_job_executions, run_all_scrapers_job
         from .serializers import (
             ExtractSupplierPriceListErrorSerializer,
             ExtractSupplierPriceListResponseSerializer,
@@ -25,17 +24,21 @@ try:
             SupplierPriceListUploadSerializer,
             ValidationInfoSerializer,
         )
-        from .serializers_django_jobs import (
-            DjangoJobExecutionSerializer,
-            DjangoJobSerializer,
+        from .serializers_scheduled_tasks import (
+            ScheduledTaskExecutionSerializer,
+            ScheduledTaskSerializer,
         )
+        from .tasks import run_all_scrapers_task
         from .tests_mcp import QuotingToolTests, SupplierProductQueryToolTests
         from .utils import (
             calculate_product_mapping_hash,
             calculate_sheet_tenths,
             calculate_supplier_product_hash,
         )
-        from .views_django_jobs import DjangoJobExecutionViewSet, DjangoJobViewSet
+        from .views_scheduled_tasks import (
+            ScheduledTaskExecutionViewSet,
+            ScheduledTaskViewSet,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -46,10 +49,6 @@ except (ImportError, RuntimeError):
 #
 
 __all__ = [
-    "DjangoJobExecutionSerializer",
-    "DjangoJobExecutionViewSet",
-    "DjangoJobSerializer",
-    "DjangoJobViewSet",
     "ExtractSupplierPriceListErrorSerializer",
     "ExtractSupplierPriceListResponseSerializer",
     "ImportStatisticsSerializer",
@@ -58,6 +57,10 @@ __all__ = [
     "QuotingConfig",
     "QuotingTool",
     "QuotingToolTests",
+    "ScheduledTaskExecutionSerializer",
+    "ScheduledTaskExecutionViewSet",
+    "ScheduledTaskSerializer",
+    "ScheduledTaskViewSet",
     "ScrapeJob",
     "SupplierInfoSerializer",
     "SupplierPriceList",
@@ -70,6 +73,5 @@ __all__ = [
     "calculate_product_mapping_hash",
     "calculate_sheet_tenths",
     "calculate_supplier_product_hash",
-    "delete_old_job_executions",
-    "run_all_scrapers_job",
+    "run_all_scrapers_task",
 ]
