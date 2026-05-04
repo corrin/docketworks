@@ -369,7 +369,9 @@ class WebhookTaskGateTests(TestCase):
         _set_quota(day_remaining=50)
 
         with (
-            patch("apps.workflow.tasks.XeroSyncService") as mock_svc,
+            patch(
+                "apps.workflow.services.xero_sync_service.XeroSyncService"
+            ) as mock_svc,
             patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
             patch("apps.workflow.tasks.sync_single_contact") as mock_contact,
             patch("apps.workflow.tasks.CompanyDefaults.get_solo") as mock_solo,
@@ -388,7 +390,7 @@ class WebhookTaskGateTests(TestCase):
         _set_quota(day_remaining=500)
 
         with (
-            patch("apps.workflow.tasks.XeroSyncService"),
+            patch("apps.workflow.services.xero_sync_service.XeroSyncService"),
             patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
             patch(
                 "apps.workflow.tasks.CompanyDefaults.get_solo",
@@ -522,12 +524,12 @@ class RunSyncAbortedBranchTests(TestCase):
 
     def test_quota_floor_emits_aborted_marker_and_skips_persist_app_error(self):
         from apps.workflow.models import AppError
-        from apps.workflow.services.xero_sync_service import XeroSyncService
+        from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
         from apps.workflow.tasks import xero_sync_task
 
         task_id = "test-task-quota"
         _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
-        _shared.set(XeroSyncService.SYNC_STATUS_KEY, task_id, timeout=60)
+        _shared.set(SYNC_STATUS_KEY, task_id, timeout=60)
 
         # Provider whose run_full_sync raises quota-floor mid-stream.
         def _gen():
@@ -545,7 +547,7 @@ class RunSyncAbortedBranchTests(TestCase):
             xero_sync_task(task_id)
 
         # Lock released
-        self.assertIsNone(_shared.get(XeroSyncService.SYNC_STATUS_KEY))
+        self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
         # No AppError row created — abort isn't a defect to investigate.
         self.assertEqual(AppError.objects.count(), appserror_before)
 

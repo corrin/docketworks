@@ -19,7 +19,7 @@ from apps.workflow.api.xero.sync import sync_single_contact, sync_single_invoice
 from apps.workflow.exceptions import AlreadyLoggedException, XeroQuotaFloorReached
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
-from apps.workflow.services.xero_sync_service import XeroSyncService
+from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 
 logger = logging.getLogger("xero")
 scheduler_logger = logging.getLogger("apps.workflow.tasks")
@@ -78,6 +78,10 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
             company_defaults.xero_tenant_id,
         )
         return
+
+    # Local import: see xero_regular_sync_task for why the dispatcher service
+    # is imported function-scoped here.
+    from apps.workflow.services.xero_sync_service import XeroSyncService
 
     try:
         sync_service = XeroSyncService(tenant_id=tenant_id)
@@ -255,7 +259,7 @@ def xero_sync_task(task_id: str) -> None:
     finally:
         _sync_cache.delete(current_key)
         _sync_cache.delete(progress_key)
-        _sync_cache.delete(XeroSyncService.SYNC_STATUS_KEY)
+        _sync_cache.delete(SYNC_STATUS_KEY)
 
 
 @shared_task(name="apps.workflow.tasks.xero_regular_sync_task")
@@ -265,6 +269,12 @@ def xero_regular_sync_task() -> None:
     A SUCCESS TaskResult here means "the dispatch decision succeeded" —
     either a sync was kicked off, or one was already running and we
     correctly skipped."""
+    # Local import: xero_sync_service imports xero_sync_task at module top to
+    # dispatch via Celery, so importing the service at our module top would
+    # cycle. The dispatcher → worker direction is the canonical one; this
+    # beat → dispatcher edge is the irregular one and lives function-scoped.
+    from apps.workflow.services.xero_sync_service import XeroSyncService
+
     scheduler_logger.info("Running Xero Regular Sync task.")
     try:
         close_old_connections()
@@ -291,6 +301,9 @@ def xero_30_day_sync_task() -> None:
     """Beat-scheduled Saturday 02:00 NZT. Dispatches a sync run; the actual
     sync work happens in xero_sync_task whose TaskResult records the true
     outcome."""
+    # Local import for the same reason as xero_regular_sync_task above.
+    from apps.workflow.services.xero_sync_service import XeroSyncService
+
     scheduler_logger.info("Running Xero 30-Day Sync task.")
     try:
         close_old_connections()

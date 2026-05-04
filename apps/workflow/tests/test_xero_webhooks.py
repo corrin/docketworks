@@ -293,7 +293,7 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
 
     def _patch_sync_service(self):
         return patch(
-            "apps.workflow.tasks.XeroSyncService",
+            "apps.workflow.services.xero_sync_service.XeroSyncService",
             autospec=True,
         )
 
