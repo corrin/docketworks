@@ -515,11 +515,7 @@ class Command(BaseCommand):
             )
         self.stdout.write(self.style.SUCCESS("Xero setup complete."))
         self.stdout.write("")
-        self.stdout.write(
-            "Next step: the periodic xero_regular_sync_task runs hourly via "
-            "Celery Beat. To trigger an immediate sync, use the in-app "
-            "'Sync now' action or POST /api/xero/sync/start/."
-        )
+        self.stdout.write("Next step: python manage.py start_xero_sync")
 
     def get_users(self):
         """Get Xero users from Projects API"""
