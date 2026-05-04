@@ -295,10 +295,10 @@ poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_
 On server instances Beat is already running as a systemd service (`celery-beat-<instance>`), installed by `instance.sh create`. Verify:
 
 ```bash
-sudo systemctl status scheduler-<instance>
+sudo systemctl status celery-beat-<instance>
 ```
 
-Must show `active (running)`. The "registered jobs" lines in Django startup logs are just declarations — they do not mean jobs are executing.
+Must show `active (running)`. The Beat startup banner shows the loaded schedule; rows in `/admin/django_celery_results/taskresult/` confirm tasks are actually firing.
 
 #### Run All Validators
 

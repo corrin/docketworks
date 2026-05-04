@@ -50,7 +50,7 @@ if [[ "$MODE" == "production" ]]; then
     INSTANCE_DIR="/opt/docketworks/instances/$INSTANCE"
     ENV_FILE="$INSTANCE_DIR/.env"
     CODE_DIR="$INSTANCE_DIR"
-    SERVICES=("gunicorn-$INSTANCE" "scheduler-$INSTANCE")
+    SERVICES=("gunicorn-$INSTANCE" "celery-beat-$INSTANCE" "celery-worker-$INSTANCE")
     SHARED_VENV="/opt/docketworks/.venv"
     SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
     source "$SCRIPT_DIR/server/common.sh"
