@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 93 routes | 43 models | 184 components | 368 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~30,700 tokens. Without it, AI exploration would cost ~243,400 tokens. **Saves ~212,600 tokens per conversation.**
+> 93 routes | 43 models | 184 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~30,700 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~212,900 tokens per conversation.**
 
 ---
 
@@ -1508,11 +1508,11 @@
   - class LLMService
 - `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
+- `apps/workflow/services/xero_sync_worker.py` — function xero_sync_task: (task_id) -> None
 - `apps/workflow/tasks.py`
   - function celery_health_check: () -> str
   - function process_xero_webhook_event: (tenant_id, event, Any]) -> None
   - function xero_heartbeat_task: () -> None
-  - function xero_sync_task: (task_id) -> None
   - function xero_regular_sync_task: () -> None
   - function xero_30_day_sync_task: () -> None
 - `apps/workflow/utils.py`
@@ -2093,10 +2093,10 @@
 - `auto_archive_completed_jobs_task` [queue] → celery-task — `apps/job/tasks.py`
 - `recompute_workshop_schedule_task` [queue] → celery-task — `apps/operations/tasks.py`
 - `run_all_scrapers_task` [queue] → celery-task — `apps/quoting/tasks.py`
+- `xero_sync_task` [queue] → celery-task — `apps/workflow/services/xero_sync_worker.py`
 - `celery_health_check` [queue] → celery-task — `apps/workflow/tasks.py`
 - `process_xero_webhook_event` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_heartbeat_task` [queue] → celery-task — `apps/workflow/tasks.py`
-- `xero_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_regular_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 - `xero_30_day_sync_task` [queue] → celery-task — `apps/workflow/tasks.py`
 

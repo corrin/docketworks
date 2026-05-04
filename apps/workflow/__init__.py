@@ -67,7 +67,6 @@ try:
             xero_30_day_sync_task,
             xero_heartbeat_task,
             xero_regular_sync_task,
-            xero_sync_task,
         )
         from .utils import (
             build_xero_payroll_url,
@@ -144,5 +143,4 @@ __all__ = [
     "xero_30_day_sync_task",
     "xero_heartbeat_task",
     "xero_regular_sync_task",
-    "xero_sync_task",
 ]

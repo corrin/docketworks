@@ -23,6 +23,8 @@ set -euo pipefail
 #   3. Per-instance: npm run build, migrate, restart
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+SELF="$SCRIPT_DIR/$(basename "$0")"
+ORIG_ARGS=("$@")
 source "$SCRIPT_DIR/common.sh"
 
 if [[ $EUID -ne 0 ]]; then
@@ -104,7 +106,20 @@ log "=========================================="
 
 # --- Update local repo from GitHub ---
 log "Pulling latest from GitHub into local repo..."
+SELF_HASH_BEFORE="$(sha256sum "$SELF" | awk '{print $1}')"
 sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
+
+# Self-re-exec when git pull updated deploy.sh itself. bash loads $0 into
+# memory at invocation, so without this any deploy.sh change can only take
+# effect on the *next* deploy — see the May 2026 celery-beat migration where
+# the cleanup-and-rerender block existed in the new deploy.sh but couldn't
+# run on the deploy that delivered it. Guard env var prevents an infinite
+# loop if a future change ever produces a non-deterministic hash.
+SELF_HASH_AFTER="$(sha256sum "$SELF" | awk '{print $1}')"
+if [[ "$SELF_HASH_BEFORE" != "$SELF_HASH_AFTER" && -z "${DOCKETWORKS_DEPLOY_REEXECED:-}" ]]; then
+    log "deploy.sh updated by git pull — re-execing with new version"
+    DOCKETWORKS_DEPLOY_REEXECED=1 exec "$SELF" "${ORIG_ARGS[@]}"
+fi
 
 # --- Converge system-level dependencies (only when inputs change) ---
 # server-setup.sh is idempotent, but its no-op path still scans every dpkg

@@ -369,9 +369,7 @@ class WebhookTaskGateTests(TestCase):
         _set_quota(day_remaining=50)
 
         with (
-            patch(
-                "apps.workflow.services.xero_sync_service.XeroSyncService"
-            ) as mock_svc,
+            patch("apps.workflow.tasks.XeroSyncService") as mock_svc,
             patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
             patch("apps.workflow.tasks.sync_single_contact") as mock_contact,
             patch("apps.workflow.tasks.CompanyDefaults.get_solo") as mock_solo,
@@ -390,7 +388,7 @@ class WebhookTaskGateTests(TestCase):
         _set_quota(day_remaining=500)
 
         with (
-            patch("apps.workflow.services.xero_sync_service.XeroSyncService"),
+            patch("apps.workflow.tasks.XeroSyncService"),
             patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
             patch(
                 "apps.workflow.tasks.CompanyDefaults.get_solo",

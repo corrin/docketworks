@@ -623,11 +623,11 @@
   - class LLMService
 - `apps/workflow/services/validation.py` — function to_decimal: (value, *, field_label) -> Decimal, function validate_required_fields: (fields, entity, xero_id)
 - `apps/workflow/services/xero_sync_service.py` — class XeroSyncService
+- `apps/workflow/services/xero_sync_worker.py` — function xero_sync_task: (task_id) -> None
 - `apps/workflow/tasks.py`
   - function celery_health_check: () -> str
   - function process_xero_webhook_event: (tenant_id, event, Any]) -> None
   - function xero_heartbeat_task: () -> None
-  - function xero_sync_task: (task_id) -> None
   - function xero_regular_sync_task: () -> None
   - function xero_30_day_sync_task: () -> None
 - `apps/workflow/utils.py`

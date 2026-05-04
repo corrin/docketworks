@@ -8,7 +8,7 @@ from django.core.cache import cache, caches
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
 from apps.workflow.services.xero_sync_constants import LOCK_TIMEOUT, SYNC_STATUS_KEY
-from apps.workflow.tasks import xero_sync_task
+from apps.workflow.services.xero_sync_worker import xero_sync_task
 
 logger = logging.getLogger("xero")
 
