@@ -210,7 +210,10 @@ def refresh_token() -> Optional[Dict[str, Any]]:
         refreshed = token_api.refresh_token(payload["refresh_token"], payload["scope"])
         if isinstance(refreshed.get("scope"), str):
             refreshed["scope"] = refreshed["scope"].split()
-        # The SDK invokes the bound saver as a side-effect — no explicit save.
+        # TokenApi.refresh_token is the low-level POST — it returns the new
+        # tokens but does NOT invoke the bound oauth2_token_saver. Persist
+        # explicitly via set_oauth2_token, which calls the saver.
+        api_client.set_oauth2_token(refreshed)
         return refreshed
     except AlreadyLoggedException:
         raise
