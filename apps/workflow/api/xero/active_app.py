@@ -90,7 +90,7 @@ def _restart_sibling_workers() -> None:
 
     units: List[str] = [
         f"gunicorn-{instance}.service",
-        f"scheduler-{instance}.service",
+        f"celery-beat-{instance}.service",
         f"celery-worker-{instance}.service",
     ]
     try:

@@ -1,19 +1,25 @@
+"""Celery tasks for the operations app.
+
+Beat-scheduled workshop schedule recomputation.
+"""
+
 import logging
 
+from celery import shared_task
 from django.db import close_old_connections
 
 from apps.workflow.services.error_persistence import persist_app_error
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("apps.operations.tasks")
 
 
-def recompute_workshop_schedule() -> None:
-    """
-    Recompute and persist the workshop schedule forecast.
+@shared_task(name="apps.operations.tasks.recompute_workshop_schedule_task")
+def recompute_workshop_schedule_task() -> None:
+    """Recompute and persist the workshop schedule forecast.
 
-    Runs on a schedule. On failure, calls persist_app_error and returns
-    without raising so the scheduler keeps running and the last successful
-    forecast remains intact.
+    Beat-scheduled hourly. On failure, calls persist_app_error and returns
+    without raising so the next scheduled run still happens and the last
+    successful forecast remains intact.
     """
     logger.info("Starting workshop schedule recomputation.")
     try:
@@ -25,4 +31,3 @@ def recompute_workshop_schedule() -> None:
     except Exception as exc:
         persist_app_error(exc)
         logger.error("Workshop schedule recomputation failed: %s", exc, exc_info=True)
-        # Do NOT re-raise — keep the scheduler running and preserve last good forecast

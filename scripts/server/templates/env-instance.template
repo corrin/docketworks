@@ -5,7 +5,7 @@ DJANGO_ENV=production_like
 ALLOWED_HOSTS=__FQDN__
 
 # Instance slug — matches systemd unit naming (gunicorn-<INSTANCE>.service,
-# scheduler-<INSTANCE>.service, celery-worker-<INSTANCE>.service). Read by
+# celery-beat-<INSTANCE>.service, celery-worker-<INSTANCE>.service). Read by
 # active_app.py to dispatch sibling-worker restarts during a Xero credential
 # swap. Distinct from DB_NAME (which uses underscores) because systemd unit
 # names use hyphens.
@@ -63,7 +63,6 @@ LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs
 # Feature flags
 DEBUG_PAYLOAD=False
 JOB_DELTA_SOFT_FAIL=True
-DJANGO_RUN_SCHEDULER=true
 
 # Shared Playwright browsers (installed once by server-setup.sh)
 PLAYWRIGHT_BROWSERS_PATH=/opt/docketworks/.playwright-browsers

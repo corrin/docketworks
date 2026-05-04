@@ -10,6 +10,7 @@ from typing import Any, Dict
 
 from celery import shared_task
 from django.conf import settings
+from django.db import close_old_connections
 
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_single_contact, sync_single_invoice
@@ -19,6 +20,7 @@ from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.xero_sync_service import XeroSyncService
 
 logger = logging.getLogger("xero")
+scheduler_logger = logging.getLogger("apps.workflow.tasks")
 
 CELERY_HEALTH_CHECK_SENTINEL = "docketworks-celery-ok"
 
@@ -84,3 +86,63 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
     except Exception as exc:
         err = persist_app_error(exc)
         raise AlreadyLoggedException(exc, err.id) from exc
+
+
+@shared_task(name="apps.workflow.tasks.xero_heartbeat_task")
+def xero_heartbeat_task() -> None:
+    """Refresh the Xero API token. Beat-scheduled every 5 minutes."""
+    scheduler_logger.info("Attempting Xero Heartbeat task.")
+    try:
+        close_old_connections()
+        from apps.workflow.accounting.registry import get_provider
+
+        provider = get_provider()
+        result = provider.refresh_token()
+        if result:
+            scheduler_logger.info("Xero API token refreshed successfully.")
+        else:
+            scheduler_logger.error("No Xero token available to refresh.")
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        scheduler_logger.error(
+            "Error during Xero Heartbeat task: %s", exc, exc_info=True
+        )
+        app_error = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+@shared_task(name="apps.workflow.tasks.xero_regular_sync_task")
+def xero_regular_sync_task() -> None:
+    """Full bidirectional Xero synchronization. Beat-scheduled hourly."""
+    scheduler_logger.info("Running Xero Regular Sync task.")
+    try:
+        close_old_connections()
+        XeroSyncService.start_sync()
+        scheduler_logger.info("Xero regular sync completed successfully.")
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        scheduler_logger.error(
+            "Error during Xero Regular Sync task: %s", exc, exc_info=True
+        )
+        app_error = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+@shared_task(name="apps.workflow.tasks.xero_30_day_sync_task")
+def xero_30_day_sync_task() -> None:
+    """Deep Xero sync (30-day window). Beat-scheduled Saturday 02:00 NZT."""
+    scheduler_logger.info("Running Xero 30-Day Sync task.")
+    try:
+        close_old_connections()
+        XeroSyncService.start_sync()
+        scheduler_logger.info("Xero 30-day sync completed successfully.")
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        scheduler_logger.error(
+            "Error during Xero 30-Day Sync task: %s", exc, exc_info=True
+        )
+        app_error = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, app_error.id) from exc

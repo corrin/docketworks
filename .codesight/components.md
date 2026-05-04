@@ -13,19 +13,18 @@
 - **ContactSelector** [client] — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `frontend/src/components/ContactSelector.vue`
 - **CreateClientModal** [client] — `frontend/src/components/CreateClientModal.vue`
 - **DataTable** [client] — props: columns, data, pageSize, hideFooter, isLoading — `frontend/src/components/DataTable.vue`
-- **ExecutionsModal** [client] — `frontend/src/components/ExecutionsModal.vue`
 - **JobCard** [client] — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `frontend/src/components/JobCard.vue`
-- **JobFormModal** [client] — props: job — `frontend/src/components/JobFormModal.vue`
-- **JobsModal** [client] — `frontend/src/components/JobsModal.vue`
 - **KanbanColumn** [client] — `frontend/src/components/KanbanColumn.vue`
 - **QuoteStatus** [client] — props: jobId, autoRefresh — `frontend/src/components/QuoteStatus.vue`
 - **RichTextEditor** [client] — `frontend/src/components/RichTextEditor.vue`
+- **ScheduledTasksModal** [client] — `frontend/src/components/ScheduledTasksModal.vue`
 - **SectionModal** [client] — props: section — `frontend/src/components/SectionModal.vue`
 - **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `frontend/src/components/StaffAvatar.vue`
 - **StaffDropdown** [client] — `frontend/src/components/StaffDropdown.vue`
 - **StaffFormModal** [client] — props: staff — `frontend/src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `frontend/src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `frontend/src/components/StatusMultiSelect.vue`
+- **TaskExecutionsModal** [client] — `frontend/src/components/TaskExecutionsModal.vue`
 - **XeroQuotaBadge** [client] — `frontend/src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
@@ -138,9 +137,9 @@
 - **AdminAIProvidersView** [client] — `frontend/src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** [client] — `frontend/src/views/AdminArchiveJobsView.vue`
 - **AdminCompanyView** [client] — `frontend/src/views/AdminCompanyView.vue`
-- **AdminDjangoJobsView** [client] — `frontend/src/views/AdminDjangoJobsView.vue`
 - **AdminErrorView** [client] — `frontend/src/views/AdminErrorView.vue`
 - **AdminMonthEnd** [client] — `frontend/src/views/AdminMonthEnd.vue`
+- **AdminScheduledTasksView** [client] — `frontend/src/views/AdminScheduledTasksView.vue`
 - **AdminStaffView** [client] — `frontend/src/views/AdminStaffView.vue`
 - **AdminView** [client] — `frontend/src/views/AdminView.vue`
 - **ClientDetailView** [client] — `frontend/src/views/ClientDetailView.vue`

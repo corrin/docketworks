@@ -2731,31 +2731,29 @@ const XeroItemListResponse = z.object({
   items: z.array(XeroItem),
   total_count: z.number().int().optional(),
 })
-const DjangoJobExecutionStatusEnum = z.enum(['Started execution', 'Error!', 'Executed'])
-const DjangoJobExecution = z.object({
+const ScheduledTaskExecution = z.object({
   id: z.number().int(),
-  job_id: z.string(),
-  status: DjangoJobExecutionStatusEnum,
-  run_time: z.string().datetime({ offset: true }),
-  duration: z.number().gt(-10000000000000).lt(10000000000000).nullish(),
-  exception: z.string().max(1000).nullish(),
+  task_id: z.string().max(255),
+  task_name: z.string().max(255).nullish(),
+  periodic_task_name: z.string().max(255).nullish(),
+  status: z.string().max(50).optional(),
+  date_created: z.string().datetime({ offset: true }),
+  date_started: z.string().datetime({ offset: true }).nullish(),
+  date_done: z.string().datetime({ offset: true }),
+  result: z.string().nullable(),
   traceback: z.string().nullish(),
+  worker: z.string().max(100).nullish(),
+  task_args: z.string().nullish(),
+  task_kwargs: z.string().nullish(),
 })
-const DjangoJob = z.object({
-  id: z.string().max(255),
-  next_run_time: z.string().datetime({ offset: true }).nullish(),
-  job_state: z.string(),
+const ScheduledTask = z.object({
+  id: z.number().int(),
+  name: z.string().max(200),
+  task: z.string().max(200),
+  enabled: z.boolean().optional(),
+  last_run_at: z.string().datetime({ offset: true }).nullable(),
+  schedule: z.string(),
 })
-const DjangoJobRequest = z.object({
-  id: z.string().min(1).max(255),
-  next_run_time: z.string().datetime({ offset: true }).nullish(),
-})
-const PatchedDjangoJobRequest = z
-  .object({
-    id: z.string().min(1).max(255),
-    next_run_time: z.string().datetime({ offset: true }).nullable(),
-  })
-  .partial()
 const AppErrorListResponse = z.object({
   count: z.number().int(),
   next: z.string().nullish(),
@@ -3449,11 +3447,8 @@ export const schemas = {
   SupplierPriceStatusResponse,
   XeroItem,
   XeroItemListResponse,
-  DjangoJobExecutionStatusEnum,
-  DjangoJobExecution,
-  DjangoJob,
-  DjangoJobRequest,
-  PatchedDjangoJobRequest,
+  ScheduledTaskExecution,
+  ScheduledTask,
   AppErrorListResponse,
   JobBreakdown,
   StaffDailyData,
@@ -8060,8 +8055,8 @@ models. No migrations required.`,
   },
   {
     method: 'get',
-    path: '/api/quoting/django-job-executions/',
-    alias: 'quoting_django_job_executions_list',
+    path: '/api/quoting/scheduled-task-executions/',
+    alias: 'quoting_scheduled_task_executions_list',
     requestFormat: 'json',
     parameters: [
       {
@@ -8070,12 +8065,12 @@ models. No migrations required.`,
         schema: z.string().optional(),
       },
     ],
-    response: z.array(DjangoJobExecution),
+    response: z.array(ScheduledTaskExecution),
   },
   {
     method: 'get',
-    path: '/api/quoting/django-job-executions/:id/',
-    alias: 'quoting_django_job_executions_retrieve',
+    path: '/api/quoting/scheduled-task-executions/:id/',
+    alias: 'quoting_scheduled_task_executions_retrieve',
     requestFormat: 'json',
     parameters: [
       {
@@ -8084,12 +8079,12 @@ models. No migrations required.`,
         schema: z.number().int(),
       },
     ],
-    response: DjangoJobExecution,
+    response: ScheduledTaskExecution,
   },
   {
     method: 'get',
-    path: '/api/quoting/django-jobs/',
-    alias: 'quoting_django_jobs_list',
+    path: '/api/quoting/scheduled-tasks/',
+    alias: 'quoting_scheduled_tasks_list',
     requestFormat: 'json',
     parameters: [
       {
@@ -8098,87 +8093,21 @@ models. No migrations required.`,
         schema: z.string().optional(),
       },
     ],
-    response: z.array(DjangoJob),
-  },
-  {
-    method: 'post',
-    path: '/api/quoting/django-jobs/',
-    alias: 'quoting_django_jobs_create',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: DjangoJobRequest,
-      },
-    ],
-    response: DjangoJob,
+    response: z.array(ScheduledTask),
   },
   {
     method: 'get',
-    path: '/api/quoting/django-jobs/:id/',
-    alias: 'quoting_django_jobs_retrieve',
+    path: '/api/quoting/scheduled-tasks/:id/',
+    alias: 'quoting_scheduled_tasks_retrieve',
     requestFormat: 'json',
     parameters: [
       {
         name: 'id',
         type: 'Path',
-        schema: z.string(),
+        schema: z.number().int(),
       },
     ],
-    response: DjangoJob,
-  },
-  {
-    method: 'put',
-    path: '/api/quoting/django-jobs/:id/',
-    alias: 'quoting_django_jobs_update',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: DjangoJobRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string(),
-      },
-    ],
-    response: DjangoJob,
-  },
-  {
-    method: 'patch',
-    path: '/api/quoting/django-jobs/:id/',
-    alias: 'quoting_django_jobs_partial_update',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PatchedDjangoJobRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string(),
-      },
-    ],
-    response: DjangoJob,
-  },
-  {
-    method: 'delete',
-    path: '/api/quoting/django-jobs/:id/',
-    alias: 'quoting_django_jobs_destroy',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string(),
-      },
-    ],
-    response: z.void(),
+    response: ScheduledTask,
   },
   {
     method: 'get',

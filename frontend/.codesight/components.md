@@ -13,19 +13,18 @@
 - **ContactSelector** [client] — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `src/components/ContactSelector.vue`
 - **CreateClientModal** [client] — `src/components/CreateClientModal.vue`
 - **DataTable** [client] — props: columns, data, pageSize, hideFooter, isLoading — `src/components/DataTable.vue`
-- **ExecutionsModal** [client] — `src/components/ExecutionsModal.vue`
 - **JobCard** [client] — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `src/components/JobCard.vue`
-- **JobFormModal** [client] — props: job — `src/components/JobFormModal.vue`
-- **JobsModal** [client] — `src/components/JobsModal.vue`
 - **KanbanColumn** [client] — `src/components/KanbanColumn.vue`
 - **QuoteStatus** [client] — props: jobId, autoRefresh — `src/components/QuoteStatus.vue`
 - **RichTextEditor** [client] — `src/components/RichTextEditor.vue`
+- **ScheduledTasksModal** [client] — `src/components/ScheduledTasksModal.vue`
 - **SectionModal** [client] — props: section — `src/components/SectionModal.vue`
 - **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `src/components/StaffAvatar.vue`
 - **StaffDropdown** [client] — `src/components/StaffDropdown.vue`
 - **StaffFormModal** [client] — props: staff — `src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `src/components/StatusMultiSelect.vue`
+- **TaskExecutionsModal** [client] — `src/components/TaskExecutionsModal.vue`
 - **XeroQuotaBadge** [client] — `src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `src/components/admin/MonthEndSummary.vue`
@@ -138,9 +137,9 @@
 - **AdminAIProvidersView** [client] — `src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** [client] — `src/views/AdminArchiveJobsView.vue`
 - **AdminCompanyView** [client] — `src/views/AdminCompanyView.vue`
-- **AdminDjangoJobsView** [client] — `src/views/AdminDjangoJobsView.vue`
 - **AdminErrorView** [client] — `src/views/AdminErrorView.vue`
 - **AdminMonthEnd** [client] — `src/views/AdminMonthEnd.vue`
+- **AdminScheduledTasksView** [client] — `src/views/AdminScheduledTasksView.vue`
 - **AdminStaffView** [client] — `src/views/AdminStaffView.vue`
 - **AdminView** [client] — `src/views/AdminView.vue`
 - **ClientDetailView** [client] — `src/views/ClientDetailView.vue`

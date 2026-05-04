@@ -7,10 +7,10 @@ set -euo pipefail
 #        instance.sh destroy <client> <env>
 #        instance.sh list
 #
-# --no-start: create the instance but do NOT enable/restart scheduler-* and
+# --no-start: create the instance but do NOT enable/restart celery-beat-* and
 # celery-worker-* services, and drop a .dr-mode marker in the instance dir.
-# This is the "cold standby" / DR mode: scheduler+celery would otherwise fire
-# their first heartbeat (and hit Xero with live tokens) within ~5 min of
+# This is the "cold standby" / DR mode: celery-beat+celery-worker would otherwise
+# fire their first heartbeat (and hit Xero with live tokens) within ~5 min of
 # creation, which is the wrong posture for a standby that shares creds with a
 # live primary. The marker also makes future deploy.sh runs leave the services
 # alone — to "go live", `rm .dr-mode` then enable+start the units by hand.
@@ -442,12 +442,12 @@ EOSQL
 
     # --- DR-mode marker ---
     # If --no-start was passed, drop a marker file BEFORE the systemd installs
-    # below so the marker check skips enable/restart for scheduler+celery in
-    # this run, and so subsequent deploy.sh runs also leave them alone. The
+    # below so the marker check skips enable/restart for celery-beat+celery-worker
+    # in this run, and so subsequent deploy.sh runs also leave them alone. The
     # unit files themselves are still rendered — "go live" later is just
-    # `rm .dr-mode && systemctl enable --now scheduler-* celery-worker-*`.
+    # `rm .dr-mode && systemctl enable --now celery-beat-* celery-worker-*`.
     if [[ "$NO_START" == "true" ]]; then
-        log "DR mode: writing $INSTANCE_DIR/.dr-mode (scheduler+celery will not be auto-started)"
+        log "DR mode: writing $INSTANCE_DIR/.dr-mode (celery-beat+celery-worker will not be auto-started)"
         touch "$INSTANCE_DIR/.dr-mode"
         chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.dr-mode"
         chmod 644 "$INSTANCE_DIR/.dr-mode"
@@ -472,18 +472,18 @@ EOSQL
         systemctl restart "gunicorn-$INSTANCE"
     fi
 
-    log "Installing systemd service scheduler-$INSTANCE..."
+    log "Installing systemd service celery-beat-$INSTANCE..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
         -e "s|__INSTANCE_USER__|$INSTANCE_USER|g" \
-        "$TEMPLATE_DIR/scheduler-instance.service.template" \
-        > "/etc/systemd/system/scheduler-$INSTANCE.service"
+        "$TEMPLATE_DIR/celery-beat-instance.service.template" \
+        > "/etc/systemd/system/celery-beat-$INSTANCE.service"
     systemctl daemon-reload
     if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
-        log "  DR mode: skipping enable/restart of scheduler-$INSTANCE"
+        log "  DR mode: skipping enable/restart of celery-beat-$INSTANCE"
     else
-        systemctl enable "scheduler-$INSTANCE"
-        systemctl restart "scheduler-$INSTANCE"
+        systemctl enable "celery-beat-$INSTANCE"
+        systemctl restart "celery-beat-$INSTANCE"
     fi
 
     log "Installing systemd service celery-worker-$INSTANCE..."
@@ -542,7 +542,7 @@ EOSQL
     log "  User:       $INSTANCE_USER"
     log "  Database:   $DB_NAME"
     log "  Service:    gunicorn-$INSTANCE"
-    log "  Scheduler:  scheduler-$INSTANCE"
+    log "  Beat:       celery-beat-$INSTANCE"
     log "=========================================="
 
     echo ""
@@ -575,7 +575,7 @@ do_destroy() {
     echo "    - DB role:   $TEST_DB_USER"
     echo "    - User:      $INSTANCE_USER"
     echo "    - Service:   gunicorn-$INSTANCE"
-    echo "    - Service:   scheduler-$INSTANCE"
+    echo "    - Service:   celery-beat-$INSTANCE"
     echo "    - Nginx:     docketworks-$INSTANCE"
     echo ""
     read -p "Are you sure? (yes/no): " CONFIRM
@@ -596,12 +596,22 @@ do_destroy() {
         systemctl daemon-reload
     fi
 
+    if systemctl is-active --quiet "celery-beat-$INSTANCE" 2>/dev/null; then
+        echo "=== Stopping Celery Beat service ==="
+        systemctl stop "celery-beat-$INSTANCE"
+    fi
+    if [[ -f "/etc/systemd/system/celery-beat-$INSTANCE.service" ]]; then
+        echo "=== Removing Celery Beat service ==="
+        systemctl disable "celery-beat-$INSTANCE" 2>/dev/null || true
+        rm -f "/etc/systemd/system/celery-beat-$INSTANCE.service"
+        systemctl daemon-reload
+    fi
+    # Legacy: clean up the pre-celery-beat scheduler-$INSTANCE unit if present
+    # (from an instance created before the apscheduler→celery-beat migration).
     if systemctl is-active --quiet "scheduler-$INSTANCE" 2>/dev/null; then
-        echo "=== Stopping Scheduler service ==="
         systemctl stop "scheduler-$INSTANCE"
     fi
     if [[ -f "/etc/systemd/system/scheduler-$INSTANCE.service" ]]; then
-        echo "=== Removing Scheduler service ==="
         systemctl disable "scheduler-$INSTANCE" 2>/dev/null || true
         rm -f "/etc/systemd/system/scheduler-$INSTANCE.service"
         systemctl daemon-reload
@@ -678,9 +688,9 @@ do_list() {
             status="no service"
         fi
 
-        if systemctl is-active --quiet "scheduler-$name" 2>/dev/null; then
+        if systemctl is-active --quiet "celery-beat-$name" 2>/dev/null; then
             sched_status="running"
-        elif systemctl is-enabled --quiet "scheduler-$name" 2>/dev/null; then
+        elif systemctl is-enabled --quiet "celery-beat-$name" 2>/dev/null; then
             sched_status="stopped"
         else
             sched_status="no service"

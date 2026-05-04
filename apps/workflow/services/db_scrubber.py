@@ -221,8 +221,6 @@ _EXCLUDED_TABLES = (
     "workflow_apperror",  # Parent; CASCADE will delete xeroerror children
     "workflow_xeroapp",
     "workflow_serviceapikey",
-    "django_apscheduler_djangojob",
-    "django_apscheduler_djangojobexecution",
     "accounts_historicalstaff",
     "job_historicaljob",
     "process_historicalform",

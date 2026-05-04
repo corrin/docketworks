@@ -169,14 +169,6 @@
   - function navigateDay
   - _...12 more_
 - `src/services/delta.service.ts` — function submitJobDelta: (jobId, envelope) => Promise<
-- `src/services/django-jobs-service.ts`
-  - function getDjangoJobs: () => Promise<DjangoJob[]>
-  - function createDjangoJob: (data) => Promise<DjangoJob>
-  - function updateDjangoJob: (id, data) => Promise<DjangoJob>
-  - function deleteDjangoJob: (id) => Promise<void>
-  - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
-  - type DjangoJob
-  - _...1 more_
 - `src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -198,6 +190,11 @@
   - interface PostStaffWeekProgressEvent
   - _...8 more_
 - `src/services/quote-chat.service.ts` — class QuoteChatService, const quoteChatService
+- `src/services/scheduled-tasks-service.ts`
+  - function getScheduledTasks: () => Promise<ScheduledTask[]>
+  - function getTaskExecutions: (taskName?) => Promise<TaskExecution[]>
+  - type ScheduledTask
+  - type TaskExecution
 - `src/services/staff-performance-report.service.ts` — class StaffPerformanceReportService, const staffPerformanceReportService
 - `src/services/timesheet.service.ts` — class TimesheetService
 - `src/services/weekly-timesheet.service.ts`

@@ -40,11 +40,19 @@ This uses the `ngrok.yml` in the project root. A single tunnel points to Vite on
 
 Visit https://docketworks-msm-dev.ngrok-free.app/xero and click "Login with Xero" if token has expired.
 
-### 5. Start Background Scheduler
+### 5. Start Celery Worker + Beat
+
+Two separate processes. The worker executes tasks; Beat dispatches periodic
+tasks (Xero heartbeat, hourly sync, nightly housekeeping) on a schedule. Both
+are needed.
 
 ```bash
-python manage.py run_scheduler
+poetry run celery -A docketworks worker --concurrency=4 --loglevel=info
+poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
 ```
+
+The `Celery Worker` and `Celery Beat` VS Code tasks (`.vscode/tasks.json`) run
+the same commands.
 
 ## Verifying Everything is Running
 

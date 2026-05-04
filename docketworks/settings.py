@@ -97,8 +97,6 @@ JOB_DELTA_SOFT_FAIL = os.getenv("JOB_DELTA_SOFT_FAIL", "True").strip() == "True"
 # =======================
 # Cookie Configuration
 # =======================
-# Control scheduler registration - only register jobs when explicitly enabled
-RUN_SCHEDULER = os.getenv("DJANGO_RUN_SCHEDULER")
 
 # Detect production-like environment (for UAT/production)
 # This matches the original settings/__init__.py logic
@@ -134,7 +132,8 @@ AUTH_USER_MODEL = "accounts.Staff"
 
 # Application definition
 INSTALLED_APPS = [
-    "django_apscheduler",
+    "django_celery_beat",
+    "django_celery_results",
     "solo",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -459,6 +458,19 @@ CELERY_ENABLE_UTC = True
 CELERY_TASK_ACKS_LATE = True
 CELERY_WORKER_PREFETCH_MULTIPLIER = 1
 CELERY_TASK_TRACK_STARTED = True
+CELERY_RESULT_BACKEND = "django-db"
+CELERY_BEAT_SCHEDULER = "django_celery_beat.schedulers:DatabaseScheduler"
+# Persist task_name, periodic_task_name, worker, args, kwargs to TaskResult
+# rows. Without this django-celery-results stores only the bare result/status
+# and the scheduled-tasks UI shows blank columns for task name and worker.
+CELERY_RESULT_EXTENDED = True
+# Don't let Celery's worker reconfigure the root logger at startup. By default
+# it does, which silently overrides Django's LOGGING dict — task-body
+# `logger.info(...)` calls would then bypass our routing to
+# celery-scheduler.log and show up only on the worker's stdout. Disabling the
+# hijack means Django's LOGGING config (set up in settings.py) governs all
+# loggers in the worker process, same as in gunicorn.
+CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
 # Media files (user uploads)
 MEDIA_URL = "/media/"
@@ -527,10 +539,10 @@ LOGGING = {
             "backupCount": 5,
             "formatter": "verbose",
         },
-        "scheduler_file": {
+        "celery_scheduler_file": {
             "level": "INFO",
             "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
-            "filename": os.path.join(LOG_DIR, "scheduler.log"),
+            "filename": os.path.join(LOG_DIR, "celery-scheduler.log"),
             "maxBytes": 5 * 1024 * 1024,
             "backupCount": 5,
             "formatter": "verbose",
@@ -609,8 +621,38 @@ LOGGING = {
             "level": "DEBUG",
             "propagate": True,
         },
-        "django_apscheduler": {
-            "handlers": ["console", "scheduler_file"],
+        "celery": {
+            "handlers": ["console", "celery_scheduler_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "celery.beat": {
+            "handlers": ["console", "celery_scheduler_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "celery.task": {
+            "handlers": ["console", "celery_scheduler_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "apps.workflow.tasks": {
+            "handlers": ["console", "celery_scheduler_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "apps.quoting.tasks": {
+            "handlers": ["console", "celery_scheduler_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "apps.job.tasks": {
+            "handlers": ["console", "celery_scheduler_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "apps.operations.tasks": {
+            "handlers": ["console", "celery_scheduler_file"],
             "level": "INFO",
             "propagate": False,
         },
