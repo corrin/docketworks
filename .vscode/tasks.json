@@ -69,8 +69,30 @@
       }
     },
     {
+      "label": "Celery Beat",
+      "type": "shell",
+      "command": "poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler",
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "celery-beat",
+        "pattern": {
+          "regexp": "^$"
+        },
+        "background": {
+          "activeOnStart": true,
+          "beginsPattern": ".",
+          "endsPattern": "beat: Starting\\.\\.\\."
+        }
+      },
+      "presentation": {
+        "group": "dev",
+        "reveal": "always",
+        "panel": "dedicated"
+      }
+    },
+    {
       "label": "Start Dev Environment",
-      "dependsOn": ["Frontend Dev Server", "Ngrok Tunnels", "Celery Worker"],
+      "dependsOn": ["Frontend Dev Server", "Ngrok Tunnels", "Celery Worker", "Celery Beat"],
       "problemMatcher": []
     },
     {

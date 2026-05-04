@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 185 components | 103 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
-> **Token savings:** this file is ~11,500 tokens. Without it, AI exploration would cost ~99,800 tokens. **Saves ~88,400 tokens per conversation.**
+> 0 routes | 0 models | 184 components | 103 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
+> **Token savings:** this file is ~11,400 tokens. Without it, AI exploration would cost ~99,500 tokens. **Saves ~88,100 tokens per conversation.**
 
 ---
 
@@ -22,19 +22,18 @@
 - **ContactSelector** [client] — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `src/components/ContactSelector.vue`
 - **CreateClientModal** [client] — `src/components/CreateClientModal.vue`
 - **DataTable** [client] — props: columns, data, pageSize, hideFooter, isLoading — `src/components/DataTable.vue`
-- **ExecutionsModal** [client] — `src/components/ExecutionsModal.vue`
 - **JobCard** [client] — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `src/components/JobCard.vue`
-- **JobFormModal** [client] — props: job — `src/components/JobFormModal.vue`
-- **JobsModal** [client] — `src/components/JobsModal.vue`
 - **KanbanColumn** [client] — `src/components/KanbanColumn.vue`
 - **QuoteStatus** [client] — props: jobId, autoRefresh — `src/components/QuoteStatus.vue`
 - **RichTextEditor** [client] — `src/components/RichTextEditor.vue`
+- **ScheduledTasksModal** [client] — `src/components/ScheduledTasksModal.vue`
 - **SectionModal** [client] — props: section — `src/components/SectionModal.vue`
 - **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `src/components/StaffAvatar.vue`
 - **StaffDropdown** [client] — `src/components/StaffDropdown.vue`
 - **StaffFormModal** [client] — props: staff — `src/components/StaffFormModal.vue`
 - **StaffPanel** [client] — `src/components/StaffPanel.vue`
 - **StatusMultiSelect** [client] — `src/components/StatusMultiSelect.vue`
+- **TaskExecutionsModal** [client] — `src/components/TaskExecutionsModal.vue`
 - **XeroQuotaBadge** [client] — `src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** [client] — props: provider — `src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** [client] — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `src/components/admin/MonthEndSummary.vue`
@@ -147,9 +146,9 @@
 - **AdminAIProvidersView** [client] — `src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** [client] — `src/views/AdminArchiveJobsView.vue`
 - **AdminCompanyView** [client] — `src/views/AdminCompanyView.vue`
-- **AdminDjangoJobsView** [client] — `src/views/AdminDjangoJobsView.vue`
 - **AdminErrorView** [client] — `src/views/AdminErrorView.vue`
 - **AdminMonthEnd** [client] — `src/views/AdminMonthEnd.vue`
+- **AdminScheduledTasksView** [client] — `src/views/AdminScheduledTasksView.vue`
 - **AdminStaffView** [client] — `src/views/AdminStaffView.vue`
 - **AdminView** [client] — `src/views/AdminView.vue`
 - **ClientDetailView** [client] — `src/views/ClientDetailView.vue`
@@ -368,14 +367,6 @@
   - function navigateDay
   - _...12 more_
 - `src/services/delta.service.ts` — function submitJobDelta: (jobId, envelope) => Promise<
-- `src/services/django-jobs-service.ts`
-  - function getDjangoJobs: () => Promise<DjangoJob[]>
-  - function createDjangoJob: (data) => Promise<DjangoJob>
-  - function updateDjangoJob: (id, data) => Promise<DjangoJob>
-  - function deleteDjangoJob: (id) => Promise<void>
-  - function getDjangoJobExecutions: (search?) => Promise<DjangoJobExecution[]>
-  - type DjangoJob
-  - _...1 more_
 - `src/services/job-aging-report.service.ts`
   - class JobAgingReportService
   - interface JobAgingData
@@ -397,6 +388,11 @@
   - interface PostStaffWeekProgressEvent
   - _...8 more_
 - `src/services/quote-chat.service.ts` — class QuoteChatService, const quoteChatService
+- `src/services/scheduled-tasks-service.ts`
+  - function getScheduledTasks: () => Promise<ScheduledTask[]>
+  - function getTaskExecutions: (taskName?) => Promise<TaskExecution[]>
+  - type ScheduledTask
+  - type TaskExecution
 - `src/services/staff-performance-report.service.ts` — class StaffPerformanceReportService, const staffPerformanceReportService
 - `src/services/timesheet.service.ts` — class TimesheetService
 - `src/services/weekly-timesheet.service.ts`

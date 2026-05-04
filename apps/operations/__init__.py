@@ -7,12 +7,12 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .scheduler_jobs import recompute_workshop_schedule
+        from .tasks import recompute_workshop_schedule_task
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
 
 __all__ = [
     "OperationsConfig",
-    "recompute_workshop_schedule",
+    "recompute_workshop_schedule_task",
 ]

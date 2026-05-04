@@ -129,7 +129,7 @@ class SwapActiveTests(TestCase):
             set(cmd[3:]),
             {
                 "gunicorn-msm-prod.service",
-                "scheduler-msm-prod.service",
+                "celery-beat-msm-prod.service",
                 "celery-worker-msm-prod.service",
             },
         )

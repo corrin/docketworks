@@ -5,23 +5,23 @@
         <div class="flex items-center justify-between mb-2">
           <h1 class="text-2xl font-bold text-indigo-700 flex items-center gap-2">
             <CalendarClock class="w-7 h-7 text-indigo-400 animate-pulse" />
-            Django Jobs
+            Scheduled Tasks
           </h1>
         </div>
         <div class="flex flex-col items-center justify-center" style="height: 60vh">
           <div class="grid grid-cols-2 gap-8 w-full max-w-2xl">
-            <button class="section-btn" @click="openJobsModal">
+            <button class="section-btn" @click="openTasksModal">
               <CalendarClock class="w-12 h-12 mb-2" />
-              <span>Django Jobs</span>
+              <span>Scheduled Tasks</span>
             </button>
             <button class="section-btn" @click="openExecutionsModal">
               <ListChecks class="w-12 h-12 mb-2" />
-              <span>Job Executions</span>
+              <span>Task Executions</span>
             </button>
           </div>
         </div>
-        <JobsModal v-if="showJobsModal" @close="closeJobsModal" class="w-[90vw]" />
-        <ExecutionsModal v-if="showExecutionsModal" @close="closeExecutionsModal" />
+        <ScheduledTasksModal v-if="showTasksModal" @close="closeTasksModal" class="w-[90vw]" />
+        <TaskExecutionsModal v-if="showExecutionsModal" @close="closeExecutionsModal" />
       </div>
     </div>
   </AppLayout>
@@ -31,17 +31,17 @@
 import AppLayout from '@/components/AppLayout.vue'
 import { CalendarClock, ListChecks } from 'lucide-vue-next'
 import { ref } from 'vue'
-import JobsModal from '@/components/JobsModal.vue'
-import ExecutionsModal from '@/components/ExecutionsModal.vue'
+import ScheduledTasksModal from '@/components/ScheduledTasksModal.vue'
+import TaskExecutionsModal from '@/components/TaskExecutionsModal.vue'
 
-const showJobsModal = ref(false)
+const showTasksModal = ref(false)
 const showExecutionsModal = ref(false)
 
-function openJobsModal() {
-  showJobsModal.value = true
+function openTasksModal() {
+  showTasksModal.value = true
 }
-function closeJobsModal() {
-  showJobsModal.value = false
+function closeTasksModal() {
+  showTasksModal.value = false
 }
 function openExecutionsModal() {
   showExecutionsModal.value = true

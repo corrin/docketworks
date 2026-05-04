@@ -30,12 +30,6 @@ try:
             PasswordStrengthMiddleware,
         )
         from .permissions import F
-        from .scheduler import get_scheduler, stop_scheduler
-        from .scheduler_jobs import (
-            xero_30_day_sync_job,
-            xero_heartbeat_job,
-            xero_regular_sync_job,
-        )
         from .serializers import (
             AIProviderCreateUpdateSerializer,
             AIProviderSerializer,
@@ -68,7 +62,13 @@ try:
             XeroSyncStartResponseSerializer,
             XeroTriggerSyncResponseSerializer,
         )
-        from .tasks import celery_health_check, process_xero_webhook_event
+        from .tasks import (
+            celery_health_check,
+            process_xero_webhook_event,
+            xero_30_day_sync_task,
+            xero_heartbeat_task,
+            xero_regular_sync_task,
+        )
         from .utils import (
             build_xero_payroll_url,
             extract_messages,
@@ -136,15 +136,13 @@ __all__ = [
     "debug_mode",
     "extract_messages",
     "get_machine_id",
-    "get_scheduler",
     "is_valid_invoice_number",
     "is_valid_uuid",
     "parse_pagination_params",
     "process_xero_webhook_event",
     "service_api_key_required",
-    "stop_scheduler",
     "validate_webhook_signature",
-    "xero_30_day_sync_job",
-    "xero_heartbeat_job",
-    "xero_regular_sync_job",
+    "xero_30_day_sync_task",
+    "xero_heartbeat_task",
+    "xero_regular_sync_task",
 ]

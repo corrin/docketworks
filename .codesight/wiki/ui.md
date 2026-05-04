@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**185 components** (vue)
+**184 components** (vue)
 
 ## Client Components
 
@@ -19,19 +19,18 @@
 - **ContactSelector** — props: id, label, placeholder, optional, clientId, clientName, modelValue, initialContactId — `frontend/src/components/ContactSelector.vue`
 - **CreateClientModal** — `frontend/src/components/CreateClientModal.vue`
 - **DataTable** — props: columns, data, pageSize, hideFooter, isLoading — `frontend/src/components/DataTable.vue`
-- **ExecutionsModal** — `frontend/src/components/ExecutionsModal.vue`
 - **JobCard** — props: job, isDragging, isStaffDragTarget, isMovementModeActive, isJobSelectedForMovement, mobileSelectedStaffId, enableTapAssign — `frontend/src/components/JobCard.vue`
-- **JobFormModal** — props: job — `frontend/src/components/JobFormModal.vue`
-- **JobsModal** — `frontend/src/components/JobsModal.vue`
 - **KanbanColumn** — `frontend/src/components/KanbanColumn.vue`
 - **QuoteStatus** — props: jobId, autoRefresh — `frontend/src/components/QuoteStatus.vue`
 - **RichTextEditor** — `frontend/src/components/RichTextEditor.vue`
+- **ScheduledTasksModal** — `frontend/src/components/ScheduledTasksModal.vue`
 - **SectionModal** — props: section — `frontend/src/components/SectionModal.vue`
 - **StaffAvatar** — props: staff, size, isActive, isDragging — `frontend/src/components/StaffAvatar.vue`
 - **StaffDropdown** — `frontend/src/components/StaffDropdown.vue`
 - **StaffFormModal** — props: staff — `frontend/src/components/StaffFormModal.vue`
 - **StaffPanel** — `frontend/src/components/StaffPanel.vue`
 - **StatusMultiSelect** — `frontend/src/components/StatusMultiSelect.vue`
+- **TaskExecutionsModal** — `frontend/src/components/TaskExecutionsModal.vue`
 - **XeroQuotaBadge** — `frontend/src/components/XeroQuotaBadge.vue`
 - **AIProviderFormModal** — props: provider — `frontend/src/components/admin/AIProviderFormModal.vue`
 - **MonthEndSummary** — props: jobs, stockSummary, monthKey, selectedIds, isLoading — `frontend/src/components/admin/MonthEndSummary.vue`
@@ -144,9 +143,9 @@
 - **AdminAIProvidersView** — `frontend/src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** — `frontend/src/views/AdminArchiveJobsView.vue`
 - **AdminCompanyView** — `frontend/src/views/AdminCompanyView.vue`
-- **AdminDjangoJobsView** — `frontend/src/views/AdminDjangoJobsView.vue`
 - **AdminErrorView** — `frontend/src/views/AdminErrorView.vue`
 - **AdminMonthEnd** — `frontend/src/views/AdminMonthEnd.vue`
+- **AdminScheduledTasksView** — `frontend/src/views/AdminScheduledTasksView.vue`
 - **AdminStaffView** — `frontend/src/views/AdminStaffView.vue`
 - **AdminView** — `frontend/src/views/AdminView.vue`
 - **ClientDetailView** — `frontend/src/views/ClientDetailView.vue`

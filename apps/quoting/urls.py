@@ -1,18 +1,18 @@
 from django.urls import path
 from rest_framework.routers import DefaultRouter
 
-from . import views, views_django_jobs
+from . import views, views_scheduled_tasks
 
 router = DefaultRouter()
 router.register(
-    r"django-jobs",
-    views_django_jobs.DjangoJobViewSet,
-    basename="django-job",
+    r"scheduled-tasks",
+    views_scheduled_tasks.ScheduledTaskViewSet,
+    basename="scheduled-task",
 )
 router.register(
-    r"django-job-executions",
-    views_django_jobs.DjangoJobExecutionViewSet,
-    basename="django-job-execution",
+    r"scheduled-task-executions",
+    views_scheduled_tasks.ScheduledTaskExecutionViewSet,
+    basename="scheduled-task-execution",
 )
 
 urlpatterns = [
