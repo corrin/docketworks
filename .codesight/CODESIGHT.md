@@ -3,7 +3,7 @@
 > **Stack:** django | django | vue | mixed
 
 > 93 routes | 43 models | 184 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~212,900 tokens per conversation.**
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~212,800 tokens per conversation.**
 
 ---
 
@@ -1163,8 +1163,8 @@
   - function get_time_breakdown: (job) -> dict
   - function draw_table_with_page_breaks: (pdf, table, y_position, *, x_position, margin, available_width, on_new_page, float]]) -> float
   - function wait_until_file_ready: (file_path, max_wait)
-  - function get_image_dimensions: (image_path)
-  - _...17 more_
+  - function convert_html_to_reportlab: (html_content)
+  - _...16 more_
 - `apps/job/services/workshop_service.py` — class WorkshopTimesheetService
 - `apps/job/tasks.py` — function set_paid_flag_task: () -> None, function auto_archive_completed_jobs_task: () -> None
 - `apps/job/utils.py` — function get_jobs_data: (related_jobs), function get_active_jobs: () -> models.QuerySet[Job]
