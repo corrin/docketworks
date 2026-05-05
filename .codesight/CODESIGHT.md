@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 43 models | 184 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,100 tokens. **Saves ~213,400 tokens per conversation.**
+> 94 routes | 43 models | 185 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,500 tokens. **Saves ~213,700 tokens per conversation.**
 
 ---
 
@@ -715,7 +715,7 @@
 - **QuoteStatus** [client] — props: jobId, autoRefresh — `frontend/src/components/QuoteStatus.vue`
 - **RichTextEditor** [client] — `frontend/src/components/RichTextEditor.vue`
 - **ScheduledTasksModal** [client] — `frontend/src/components/ScheduledTasksModal.vue`
-- **SectionModal** [client] — props: section — `frontend/src/components/SectionModal.vue`
+- **SectionForm** [client] — props: section — `frontend/src/components/SectionForm.vue`
 - **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `frontend/src/components/StaffAvatar.vue`
 - **StaffDropdown** [client] — `frontend/src/components/StaffDropdown.vue`
 - **StaffFormModal** [client] — props: staff — `frontend/src/components/StaffFormModal.vue`
@@ -833,6 +833,7 @@
 - **AboutView** [client] — `frontend/src/views/AboutView.vue`
 - **AdminAIProvidersView** [client] — `frontend/src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** [client] — `frontend/src/views/AdminArchiveJobsView.vue`
+- **AdminCompanySectionView** [client] — props: section — `frontend/src/views/AdminCompanySectionView.vue`
 - **AdminCompanyView** [client] — `frontend/src/views/AdminCompanyView.vue`
 - **AdminErrorView** [client] — `frontend/src/views/AdminErrorView.vue`
 - **AdminMonthEnd** [client] — `frontend/src/views/AdminMonthEnd.vue`

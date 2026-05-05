@@ -5,52 +5,44 @@
         <div class="max-w-5xl mx-auto py-6 px-2 md:px-8 h-full flex flex-col gap-6">
           <div class="flex items-center justify-between mb-2">
             <h1 class="text-2xl font-bold text-indigo-700 flex items-center gap-2">
-              <Building2 class="w-7 h-7 text-indigo-400 animate-pulse" />
+              <Building2 class="w-7 h-7 text-indigo-400" />
               Company Defaults
             </h1>
           </div>
           <div
-            v-if="loading || schemaLoading"
+            v-if="schemaLoading"
             class="flex flex-col items-center justify-center"
             style="height: 60vh"
           >
             <div class="flex items-center justify-center gap-2">
               <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
-              Company defaults are still loading, please wait
+              Loading sections…
             </div>
           </div>
           <div v-else class="flex flex-col items-center justify-center" style="height: 60vh">
-            <div class="grid grid-cols-3 gap-6 w-full max-w-3xl">
-              <button
+            <div class="grid grid-cols-2 md:grid-cols-3 gap-4 md:gap-6 w-full max-w-3xl">
+              <component
+                :is="getSpecialHandler(section.key) === 'ai_providers' ? 'button' : RouterLink"
                 v-for="section in orderedSections"
                 :key="section.key"
+                :to="
+                  getSpecialHandler(section.key) === 'ai_providers'
+                    ? undefined
+                    : `/admin/company/${section.key}`
+                "
                 class="section-btn"
                 :data-automation-id="`AdminCompanyView-${section.key}-button`"
-                @click="openSection(section.key)"
+                @click="
+                  getSpecialHandler(section.key) === 'ai_providers'
+                    ? openAIProvidersDialog()
+                    : undefined
+                "
               >
                 <component :is="section.icon" class="w-12 h-12 mb-2" />
                 <span>{{ section.title }}</span>
-              </button>
+              </component>
             </div>
           </div>
-          <div class="flex justify-center mt-8">
-            <Button
-              type="button"
-              variant="default"
-              class="bg-green-600 hover:bg-green-700 text-white px-8 py-3 flex items-center gap-2 text-base font-semibold rounded shadow"
-              data-automation-id="AdminCompanyView-save-all-button"
-              @click="saveAll"
-            >
-              <Save class="w-5 h-5" /> Save All
-            </Button>
-          </div>
-          <SectionModal
-            v-if="modalSection"
-            :section="modalSection"
-            :form="form"
-            @close="closeSection"
-            @update="onSectionUpdate"
-          />
         </div>
       </div>
       <AIProvidersDialog
@@ -64,125 +56,36 @@
 </template>
 
 <script setup lang="ts">
-import { debugLog } from '../utils/debug'
-
 import AppLayout from '../components/AppLayout.vue'
-import { Button } from '../components/ui/button'
 import { ref, onMounted } from 'vue'
-import type { AIProvider } from '../services/admin-company-defaults-service'
-import { Building2, Save } from 'lucide-vue-next'
+import { RouterLink } from 'vue-router'
+import { Building2 } from 'lucide-vue-next'
 import AIProvidersDialog from '../components/AIProvidersDialog.vue'
-import SectionModal from '../components/SectionModal.vue'
-import {
-  getCompanyDefaults,
-  updateCompanyDefaults,
-} from '../services/admin-company-defaults-service'
-import type {
-  CompanyDefaults,
-  PatchedCompanyDefaults,
-} from '../services/admin-company-defaults-service'
-import { toast } from 'vue-sonner'
+import type { AIProvider } from '../services/admin-company-defaults-service'
 import { useSettingsSchema } from '@/composables/useSettingsSchema'
 
 const {
   orderedSections,
-  sections,
   isLoading: schemaLoading,
   loadSchema,
   getSpecialHandler,
 } = useSettingsSchema()
 
-const companyDefaults = ref<CompanyDefaults>({} as CompanyDefaults)
-const form = ref<CompanyDefaults>({} as CompanyDefaults)
 const aiProviders = ref<AIProvider[]>([])
-const loading = ref(true)
 const showAIProvidersDialog = ref(false)
-const modalSection = ref<string | null>(null)
-
-debugLog('[AdminCompanyView] companyDefaults:', companyDefaults.value)
-debugLog('[AdminCompanyView] form:', form.value)
 
 function openAIProvidersDialog() {
-  debugLog('[AdminCompanyView] openAIProvidersDialog, providers:', aiProviders.value)
   showAIProvidersDialog.value = true
 }
 function closeAIProvidersDialog() {
   showAIProvidersDialog.value = false
 }
-async function fetchDefaults() {
-  loading.value = true
-  const data = await getCompanyDefaults()
-  debugLog('[AdminCompanyView] getCompanyDefaults() result:', data)
-  companyDefaults.value = data
-  form.value = JSON.parse(JSON.stringify(data))
-  // AI providers are managed separately via AIProvidersDialog
-  debugLog('[AdminCompanyView] form after fetch:', form.value)
-  loading.value = false
-}
-async function saveAll() {
-  loading.value = true
-  try {
-    debugLog('[AdminCompanyView] saveAll() called with form.value:', form.value)
-    debugLog('[AdminCompanyView] saveAll() AI providers specifically:', aiProviders.value)
-
-    // Build payload dynamically from schema - only include writable fields
-    const payload: Partial<PatchedCompanyDefaults> = {}
-
-    // Get all writable field keys from schema (skip image fields — handled by upload endpoint)
-    for (const section of sections.value) {
-      for (const field of section.fields) {
-        if (!field.readOnly && field.type !== 'image') {
-          const key = field.key as keyof CompanyDefaults
-          if (key in form.value) {
-            ;(payload as Record<string, unknown>)[key] = form.value[key]
-          }
-        }
-      }
-    }
-
-    debugLog('[AdminCompanyView] saveAll() dynamic payload:', payload)
-
-    await updateCompanyDefaults(payload)
-    toast.success('Company defaults saved successfully!')
-    await fetchDefaults()
-  } catch (error) {
-    debugLog('[AdminCompanyView] saveAll() error:', error)
-    toast.error('Failed to save company defaults.')
-  }
-  loading.value = false
-}
 function onProvidersUpdate(providers: AIProvider[]) {
-  debugLog('[AdminCompanyView] onProvidersUpdate called with:', providers)
-  debugLog(
-    '[AdminCompanyView] onProvidersUpdate, new providers:',
-    providers.map((p) => ({
-      name: p.name,
-      default: p.default,
-      id: p.id,
-    })),
-  )
-
   aiProviders.value = providers
-  debugLog('[AdminCompanyView] aiProviders updated to:', aiProviders.value)
 }
-function openSection(sectionKey: string) {
-  const handler = getSpecialHandler(sectionKey)
 
-  if (handler === 'ai_providers') {
-    openAIProvidersDialog()
-    return
-  }
-
-  modalSection.value = sectionKey
-}
-function closeSection() {
-  modalSection.value = null
-}
-function onSectionUpdate(newData: Partial<CompanyDefaults>) {
-  Object.assign(form.value, newData)
-}
-onMounted(async () => {
-  await Promise.all([loadSchema(), fetchDefaults()])
+onMounted(() => {
+  loadSchema()
 })
 </script>
 
@@ -202,11 +105,12 @@ onMounted(async () => {
   transition:
     background 0.2s,
     transform 0.2s;
-  min-width: 160px;
+  min-width: 140px;
   min-height: 140px;
   border: none;
   outline: none;
   cursor: pointer;
+  text-decoration: none;
 }
 
 .section-btn:hover,

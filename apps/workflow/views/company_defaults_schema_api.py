@@ -4,6 +4,7 @@ API endpoint for CompanyDefaults schema/metadata.
 Provides field metadata so frontend can dynamically render settings UI.
 """
 
+import logging
 from typing import Any
 
 from django.db import models
@@ -21,6 +22,8 @@ from apps.workflow.models.settings_metadata import (
     get_field_metadata,
 )
 from apps.workflow.serializers import CompanyDefaultsSchemaSerializer
+
+logger = logging.getLogger(__name__)
 
 
 class CompanyDefaultsSchemaAPIView(APIView):
@@ -87,10 +90,29 @@ class CompanyDefaultsSchemaAPIView(APIView):
 
             field_name = field.name
 
-            # Get section for this field
+            # Get section for this field. If a new field is added to the model
+            # but the developer forgets to register it in
+            # COMPANY_DEFAULTS_FIELD_SECTIONS, fall back to the default section
+            # (the get_field_metadata helper itself defaults to "company") and
+            # log a loud warning. The startup system check is the primary
+            # enforcement; this fallback ensures the field still reaches the
+            # UI even if checks are skipped or run late.
             section_key = COMPANY_DEFAULTS_FIELD_SECTIONS.get(field_name)
             if not section_key:
-                continue  # Skip unmapped fields (fail-safe handled by system check)
+                logger.warning(
+                    "CompanyDefaults field '%s' has no entry in "
+                    "COMPANY_DEFAULTS_FIELD_SECTIONS; falling back to default "
+                    "section. Add it to "
+                    "apps/workflow/models/settings_metadata.py.",
+                    field_name,
+                )
+                field_meta = get_field_metadata(
+                    field, field_name, COMPANY_DEFAULTS_READ_ONLY_FIELDS
+                )
+                fallback = field_meta["section"]
+                if fallback in sections_dict:
+                    sections_dict[fallback]["fields"].append(field_meta)
+                continue
 
             # Skip internal fields
             if section_key == "internal":

@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 184 components | 103 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
-> **Token savings:** this file is ~11,400 tokens. Without it, AI exploration would cost ~99,500 tokens. **Saves ~88,100 tokens per conversation.**
+> 0 routes | 0 models | 185 components | 103 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
+> **Token savings:** this file is ~11,400 tokens. Without it, AI exploration would cost ~99,800 tokens. **Saves ~88,400 tokens per conversation.**
 
 ---
 
@@ -27,7 +27,7 @@
 - **QuoteStatus** [client] — props: jobId, autoRefresh — `src/components/QuoteStatus.vue`
 - **RichTextEditor** [client] — `src/components/RichTextEditor.vue`
 - **ScheduledTasksModal** [client] — `src/components/ScheduledTasksModal.vue`
-- **SectionModal** [client] — props: section — `src/components/SectionModal.vue`
+- **SectionForm** [client] — props: section — `src/components/SectionForm.vue`
 - **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `src/components/StaffAvatar.vue`
 - **StaffDropdown** [client] — `src/components/StaffDropdown.vue`
 - **StaffFormModal** [client] — props: staff — `src/components/StaffFormModal.vue`
@@ -145,6 +145,7 @@
 - **AboutView** [client] — `src/views/AboutView.vue`
 - **AdminAIProvidersView** [client] — `src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** [client] — `src/views/AdminArchiveJobsView.vue`
+- **AdminCompanySectionView** [client] — props: section — `src/views/AdminCompanySectionView.vue`
 - **AdminCompanyView** [client] — `src/views/AdminCompanyView.vue`
 - **AdminErrorView** [client] — `src/views/AdminErrorView.vue`
 - **AdminMonthEnd** [client] — `src/views/AdminMonthEnd.vue`

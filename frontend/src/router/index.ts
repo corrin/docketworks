@@ -147,6 +147,16 @@ const router = createRouter({
           component: page.component,
           meta: { title: page.title },
         })),
+        // Per-section editing pages: /admin/company/<section_key>.
+        // The non-parametric /admin/company route above takes precedence;
+        // this catches anything deeper.
+        {
+          path: 'company/:section',
+          name: 'admin-company-section',
+          component: () => import('@/views/AdminCompanySectionView.vue'),
+          props: true,
+          meta: { title: 'Company Defaults' },
+        },
         {
           path: '',
           redirect: { name: defaultAdminPage.name },

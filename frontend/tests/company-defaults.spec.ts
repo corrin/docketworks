@@ -26,7 +26,7 @@ test('test can call backend API directly', async ({ authenticatedPage: page }) =
 })
 
 test('test company defaults edit and save', async ({ authenticatedPage: page }) => {
-  // Navigate to the admin company page
+  // Navigate to the admin company index
   await page.goto('/admin/company')
 
   // Wait for the section buttons to load
@@ -34,16 +34,18 @@ test('test company defaults edit and save', async ({ authenticatedPage: page }) 
     timeout: 15000,
   })
 
-  // Click Company section to open modal
+  // Click Company section — navigates to /admin/company/company
   await page.click('[data-automation-id="AdminCompanyView-company-button"]')
 
-  // Wait for modal to open
-  const modal = page.locator('[data-automation-id="SectionModal-content"]')
-  await expect(modal).toBeVisible({ timeout: 10000 })
+  await expect(page).toHaveURL(/\/admin\/company\/company$/)
+
+  // Wait for the section form to render
+  const form = page.locator('[data-automation-id="AdminCompanySectionView-form"]')
+  await expect(form).toBeVisible({ timeout: 10000 })
 
   // Find the company email input (company_name is readonly)
   const companyEmailInput = page.locator(
-    '[data-automation-id="SectionModal-company-field-company_email"]',
+    '[data-automation-id="SectionForm-company-field-company_email"]',
   )
   await expect(companyEmailInput).toBeVisible()
 
@@ -59,38 +61,33 @@ test('test company defaults edit and save', async ({ authenticatedPage: page }) 
   await page.waitForTimeout(500) // Wait for Vue reactivity to propagate
   console.log(`Changed company email to: ${testValue}`)
 
-  // Close the modal
-  await page.click('[data-automation-id="SectionModal-company-close-button"]')
+  // Click the page-level Save button
+  await page.click('[data-automation-id="AdminCompanySectionView-save-button"]')
 
-  // Wait for modal to close
-  await expect(modal).not.toBeVisible({ timeout: 5000 })
-
-  // Click Save All
-  await page.click('[data-automation-id="AdminCompanyView-save-all-button"]')
-
-  // Wait for save to complete (toast appears)
+  // Wait for save to complete (toast appears, snapshot reloads)
   await page.waitForTimeout(1500)
 
-  // Reopen the Company section
-  await page.click('[data-automation-id="AdminCompanyView-company-button"]')
-  await page.waitForSelector('[data-automation-id="SectionModal-content"]', { timeout: 10000 })
+  // Navigate back to the index, then re-enter Company to verify persistence
+  await page.click('[data-automation-id="AdminCompanySectionView-back-button"]')
+  await expect(page).toHaveURL(/\/admin\/company$/)
 
-  // Verify the value persisted
-  const savedInput = page.locator('[data-automation-id="SectionModal-company-field-company_email"]')
+  await page.click('[data-automation-id="AdminCompanyView-company-button"]')
+  await expect(page).toHaveURL(/\/admin\/company\/company$/)
+  await expect(form).toBeVisible({ timeout: 10000 })
+
+  const savedInput = page.locator('[data-automation-id="SectionForm-company-field-company_email"]')
+  await expect(savedInput).toBeVisible()
   const savedValue = await savedInput.inputValue()
   console.log(`Saved company email: ${savedValue}`)
   expect(savedValue).toBe(testValue)
 
-  // Restore original value
+  // Restore original value and save
   await savedInput.clear()
   await savedInput.fill(originalValue)
-
-  // Close modal and save
-  await page.click('[data-automation-id="SectionModal-company-close-button"]')
-  await expect(page.locator('[data-automation-id="SectionModal-content"]')).not.toBeVisible({
-    timeout: 5000,
-  })
-  await page.click('[data-automation-id="AdminCompanyView-save-all-button"]')
+  await page.keyboard.press('Tab')
+  await page.waitForTimeout(500)
+  await page.click('[data-automation-id="AdminCompanySectionView-save-button"]')
+  await page.waitForTimeout(1500)
 
   console.log(`Restored company email to: ${originalValue}`)
 })
