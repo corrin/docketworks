@@ -4,6 +4,7 @@ import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { z } from 'zod'
 import { normalizeOptionalDecimal } from '@/utils/number'
+import { dataFreshness } from '@/composables/useDataFreshness'
 
 const stockArraySchema = z.array(schemas.StockItem)
 
@@ -26,6 +27,15 @@ export const useStockStore = defineStore('stock', () => {
   const loading = ref(false)
   let inFlight: Promise<StockItem[]> | null = null
   type StockFetchOptions = { signal?: AbortSignal; timeout?: number; force?: boolean }
+
+  // When the backend's `stock` dataset version changes, drop the cache so the
+  // next fetchStock() / fetchStockSafe() call refetches fresh prices. The
+  // freshness mechanism is what makes the cache safe to hold long-term — without
+  // this subscription, a session-long picker would autofill stale unit costs.
+  dataFreshness.subscribe('stock', () => {
+    items.value = []
+    inFlight = null
+  })
 
   // Single internal fetch routine used by both public methods
   function startStockFetch({ signal, timeout }: { signal?: AbortSignal; timeout?: number }) {

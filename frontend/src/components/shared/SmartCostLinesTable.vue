@@ -39,6 +39,7 @@ import {
 
 import { useCompanyDefaultsStore } from '../../stores/companyDefaults'
 import { useStockStore } from '../../stores/stockStore'
+import { dataFreshness } from '../../composables/useDataFreshness'
 import { useCostLineCalculations } from '../../composables/useCostLineCalculations'
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
 import { useGridKeyboardNav } from '../../composables/useGridKeyboardNav'
@@ -624,7 +625,24 @@ const columns = computed(() => {
                 h(ItemSelect, {
                   modelValue: model,
                   open: openItemSelect.value,
-                  'onUpdate:open': (val: boolean) => (openItemSelect.value = val),
+                  'onUpdate:open': async (val: boolean) => {
+                    openItemSelect.value = val
+                    if (!val) return
+                    // Picker open is the moment the user is about to lock in a
+                    // unit cost. Check the backend stock dataset version; if it
+                    // changed since this session loaded, the subscribed callback
+                    // in stockStore clears the cache so the follow-up
+                    // fetchStock() pulls fresh prices before the user picks.
+                    try {
+                      await dataFreshness.checkFreshness()
+                    } catch {
+                      // Non-fatal; fall through to fetchStock which will hit
+                      // the cache or the network as usual.
+                    }
+                    if (store.items.length === 0 && !store.loading) {
+                      void store.fetchStock()
+                    }
+                  },
                   disabled: !enabled,
                   lineKind: String(line.kind),
                   tabKind: props.tabKind,

@@ -27,6 +27,7 @@ from apps.workflow.views.build_id_view import BuildIdAPIView
 from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
+from apps.workflow.views.data_versions_view import DataVersionsAPIView
 from apps.workflow.views.xero import xero_view
 from apps.workflow.views.xero_apps_view import XeroAppViewSet
 from apps.workflow.views.xero_pay_item_viewset import XeroPayItemViewSet
@@ -43,6 +44,7 @@ router.register("xero-apps", XeroAppViewSet, basename="xero-app")
 
 urlpatterns = [
     path("build-id/", BuildIdAPIView.as_view(), name="build_id"),
+    path("data-versions/", DataVersionsAPIView.as_view(), name="data_versions"),
     path("enums/<str:enum_name>/", get_enum_choices, name="get_enum_choices"),
     path(
         "xero/authenticate/",

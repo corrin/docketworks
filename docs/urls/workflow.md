@@ -22,6 +22,11 @@
 | `/company-defaults/schema/` | `company_defaults_schema_api.CompanyDefaultsSchemaAPIView` | `api_company_defaults_schema` | API endpoint that returns field metadata for CompanyDefaults. |
 | `/company-defaults/upload-logo/` | `company_defaults_logo_api.CompanyDefaultsLogoAPIView` | `api_company_defaults_upload_logo` | API view for uploading and deleting company logo images. |
 
+### Data-Versions Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/data-versions/` | `data_versions_view.DataVersionsAPIView` | `data_versions` | Return a flat dict of dataset version strings. |
+
 ### Reports
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|

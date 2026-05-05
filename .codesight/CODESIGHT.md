@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 93 routes | 43 models | 184 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~243,600 tokens. **Saves ~212,800 tokens per conversation.**
+> 94 routes | 43 models | 184 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,100 tokens. **Saves ~213,400 tokens per conversation.**
 
 ---
 
@@ -60,6 +60,7 @@
 - `ALL` `/payroll/post-staff-week/` params()
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
 - `ALL` `/build-id/` params() [auth, payment, upload]
+- `ALL` `/data-versions/` params() [auth, payment, upload]
 - `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
 - `ALL` `/xero/authenticate/` params() [auth, payment, upload]
 - `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]
@@ -2107,7 +2108,7 @@
 # Test Coverage
 
 > **23%** of routes and models are covered by tests
-> 132 test files found
+> 133 test files found
 
 ## Covered Routes
 
