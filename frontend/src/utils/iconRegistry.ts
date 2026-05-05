@@ -50,6 +50,9 @@ const iconMap: Record<string, Component> = {
 const sectionIconMap: Record<string, Component> = {
   general: Settings,
   google: FileText,
+  company: Building2,
+  finances: DollarSign,
+  setup: Folder,
   xero: Link2,
   kpi: BarChart3,
   ai: Sparkles,

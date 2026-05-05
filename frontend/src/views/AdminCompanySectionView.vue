@@ -6,10 +6,9 @@
           <h1 class="text-2xl font-bold text-indigo-700 flex items-center gap-3 flex-wrap">
             <RouterLink
               to="/admin/company"
-              class="flex items-center gap-2 hover:underline"
+              class="hover:underline"
               data-automation-id="AdminCompanySectionView-back-button"
             >
-              <ArrowLeft class="w-6 h-6" />
               Company Defaults
             </RouterLink>
             <ChevronRight class="w-6 h-6 text-gray-400" />
@@ -68,7 +67,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, watch } from 'vue'
 import { onBeforeRouteLeave, useRouter, RouterLink } from 'vue-router'
-import { ArrowLeft, ChevronRight, Save, HelpCircle } from 'lucide-vue-next'
+import { ChevronRight, Save, HelpCircle } from 'lucide-vue-next'
 import AppLayout from '@/components/AppLayout.vue'
 import { Button } from '@/components/ui/button'
 import SectionForm from '@/components/SectionForm.vue'
