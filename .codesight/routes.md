@@ -51,6 +51,7 @@
 - `ALL` `/payroll/post-staff-week/` params()
 - `ALL` `/payroll/post-staff-week/stream/<str:task_id>/` params(task_id)
 - `ALL` `/build-id/` params() [auth, payment, upload]
+- `ALL` `/data-versions/` params() [auth, payment, upload]
 - `ALL` `/enums/<str:enum_name>/` params(enum_name) [auth, payment, upload]
 - `ALL` `/xero/authenticate/` params() [auth, payment, upload]
 - `ALL` `/xero/oauth/callback/` params() [auth, payment, upload]

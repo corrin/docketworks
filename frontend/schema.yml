@@ -2187,6 +2187,21 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyDefaults'
           description: ''
+  /api/data-versions/:
+    get:
+      operationId: data_versions_retrieve
+      description: Return a flat dict of dataset version strings.
+      tags:
+        - data-versions
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataVersions'
+          description: ''
   /api/job/company_defaults/:
     get:
       operationId: job_company_defaults_retrieve
@@ -10497,6 +10512,13 @@ components:
         - total_broken_json_refs
         - total_business_rule_violations
         - total_issues
+    DataVersions:
+      type: object
+      properties:
+        stock:
+          type: string
+      required:
+        - stock
     Day:
       type: object
       properties:

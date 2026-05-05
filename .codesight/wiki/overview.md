@@ -6,13 +6,13 @@
 
 ## Scale
 
-93 API routes · 43 database models · 184 UI components · 10 middleware layers · 70 environment variables
+94 API routes · 43 database models · 184 UI components · 10 middleware layers · 70 environment variables
 
 ## Subsystems
 
 - **[Auth](./auth.md)** — 6 routes — touches: auth, payment, upload
 - **[Payments](./payments.md)** — 1 routes — touches: auth, payment, upload
-- **[Urls](./urls.md)** — 85 routes — touches: auth, payment, upload
+- **[Urls](./urls.md)** — 86 routes — touches: auth, payment, upload
 - **[Infra](./infra.md)** — 1 routes
 
 **Database:** django, 43 models — see [database.md](./database.md)
@@ -47,4 +47,4 @@ Changes to these files have the widest blast radius across the codebase:
 - _...5 more_
 
 ---
-_Back to [index.md](./index.md) · Generated 2026-05-04_
+_Back to [index.md](./index.md) · Generated 2026-05-05_

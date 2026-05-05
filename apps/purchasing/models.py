@@ -558,6 +558,16 @@ class Stock(models.Model):
         help_text="Parser confidence score 0.00-1.00",
     )
 
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        null=True,
+        help_text=(
+            "Auto-bumped on every save(); feeds the /api/data-versions/ "
+            "freshness signal so the frontend stockStore can detect catalogue "
+            "changes (e.g. Xero unit_cost updates) and refetch."
+        ),
+    )
+
     # TODO: Add fields for:
     # - Location
     # - Minimum stock level
@@ -618,9 +628,11 @@ class Stock(models.Model):
         self.active_source_purchase_order_line_id = desired_active_ref
 
         update_fields = kwargs.get("update_fields")
-        if update_fields is not None and needs_active_ref_update:
-            field_name = "active_source_purchase_order_line_id"
-            merged = tuple(update_fields) + (field_name,)
+        if update_fields is not None:
+            extras: tuple[str, ...] = ("updated_at",)
+            if needs_active_ref_update:
+                extras = ("active_source_purchase_order_line_id",) + extras
+            merged = tuple(update_fields) + extras
             deduped = tuple(dict.fromkeys(merged))
             kwargs["update_fields"] = deduped
 

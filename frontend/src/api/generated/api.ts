@@ -1046,6 +1046,7 @@ const SettingsSection = z.object({
   fields: z.array(SettingsField),
 })
 const CompanyDefaultsSchema = z.object({ sections: z.array(SettingsSection) })
+const DataVersions = z.object({ stock: z.string() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),
@@ -3222,6 +3223,7 @@ export const schemas = {
   SettingsField,
   SettingsSection,
   CompanyDefaultsSchema,
+  DataVersions,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
   PatchedCostLineCreateUpdateRequest,
@@ -5027,6 +5029,14 @@ POST: Upload a logo image to a specified field.
 DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
     response: CompanyDefaults,
+  },
+  {
+    method: 'get',
+    path: '/api/data-versions/',
+    alias: 'data_versions_retrieve',
+    description: `Return a flat dict of dataset version strings.`,
+    requestFormat: 'json',
+    response: z.object({ stock: z.string() }),
   },
   {
     method: 'get',
