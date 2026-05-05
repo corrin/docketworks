@@ -13,7 +13,7 @@ from django.db.models.fields.json import KeyTextTransform
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.accounts.utils import get_displayable_staff, get_excluded_staff
+from apps.accounts.utils import get_displayable_staff, get_payroll_excluded_staff_ids
 from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
@@ -160,7 +160,7 @@ class KPIService:
             List of job breakdowns with profit details
         """
         cls._ensure_shop_client_id()
-        excluded_staff_ids = get_excluded_staff()
+        excluded_staff_ids = get_payroll_excluded_staff_ids()
 
         # Get cost lines for the target date from 'actual' cost sets
         cost_lines = (
@@ -329,7 +329,7 @@ class KPIService:
 
         start_date, end_date, _ = cls.get_month_days_range(year, month)
         print(f"📅 Date range calculated: {start_date} to {end_date}")
-        excluded_staff_ids = get_excluded_staff()
+        excluded_staff_ids = get_payroll_excluded_staff_ids()
         logger.debug(f"Excluded staff IDs: {excluded_staff_ids}")
 
         calendar_data = {}

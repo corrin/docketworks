@@ -15,7 +15,7 @@ from typing import Dict, List
 from django.db.models.fields.json import KeyTextTransform
 
 from apps.accounts.models import Staff
-from apps.accounts.utils import get_excluded_staff
+from apps.accounts.utils import get_displayable_staff
 from apps.job.models.costing import CostLine
 from apps.workflow.models import CompanyDefaults
 
@@ -69,15 +69,7 @@ class DailyTimesheetService:
     def _get_staff_daily_data(cls, target_date: date) -> List[Dict]:
         """Get timesheet data for each staff member"""
         staff_data = []
-        excluded_staff_ids = get_excluded_staff(target_date=target_date)
-
-        # Filter to staff who were employed on target_date (date_joined <= date, date_left null or > date)
-        # Then exclude staff without valid Xero payroll IDs (admin/system users)
-        active_staff = (
-            Staff.objects.active_on_date(target_date)
-            .exclude(id__in=excluded_staff_ids)
-            .order_by("first_name", "last_name")
-        )
+        active_staff = get_displayable_staff(target_date=target_date)
 
         for staff in active_staff:
             # Check if staff member has working hours for this specific date
