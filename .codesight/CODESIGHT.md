@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 43 models | 188 components | 367 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~30,900 tokens. Without it, AI exploration would cost ~244,900 tokens. **Saves ~214,000 tokens per conversation.**
+> 94 routes | 43 models | 188 components | 368 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~31,000 tokens. Without it, AI exploration would cost ~245,200 tokens. **Saves ~214,200 tokens per conversation.**
 
 ---
 
@@ -890,6 +890,7 @@
 
 # Libraries
 
+- `adhoc/debug_xero_email_drop.py` — function fetch_back: (contact_id) -> dict, function summarise: (label, raw) -> dict
 - `adhoc/debug_xero_serialization.py` — class MockContact, class MockBill
 - `adhoc/drive_storage_check.py` — function check_drive_storage: ()
 - `adhoc/fix_missing_default_tasks.py` — function main: ()
