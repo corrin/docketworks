@@ -28,21 +28,30 @@ export const useStockStore = defineStore('stock', () => {
   let inFlight: Promise<StockItem[]> | null = null
   type StockFetchOptions = { signal?: AbortSignal; timeout?: number; force?: boolean }
 
+  // Generation token: every stock-version invalidation bumps this. Each fetch
+  // captures the value at start and only writes results back if the token still
+  // matches — otherwise a fetch that began before the version bump would
+  // overwrite the just-cleared cache with stale prices.
+  let generation = 0
+
   // When the backend's `stock` dataset version changes, drop the cache so the
   // next fetchStock() / fetchStockSafe() call refetches fresh prices. The
   // freshness mechanism is what makes the cache safe to hold long-term — without
   // this subscription, a session-long picker would autofill stale unit costs.
   dataFreshness.subscribe('stock', () => {
+    generation++
     items.value = []
     inFlight = null
   })
 
   // Single internal fetch routine used by both public methods
   function startStockFetch({ signal, timeout }: { signal?: AbortSignal; timeout?: number }) {
+    const myGen = generation
     return (async () => {
       try {
         // Use the list endpoint to fetch all active stock items
         const response = await api.purchasing_stock_list({ signal, timeout })
+        if (myGen !== generation) return items.value
         items.value = response || []
         return items.value
       } catch (error: unknown) {
@@ -53,6 +62,7 @@ export const useStockStore = defineStore('stock', () => {
             if (Array.isArray(receivedData)) {
               // If backend returned a raw list despite validation, coerce it
               const parsed = stockArraySchema.parse(receivedData)
+              if (myGen !== generation) return items.value
               items.value = parsed
               return items.value
             }

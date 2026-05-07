@@ -1,6 +1,6 @@
 # docketworks — Wiki
 
-_Generated 2026-05-05 — re-run `npx codesight --wiki` if the codebase has changed._
+_Generated 2026-05-07 — re-run `npx codesight --wiki` if the codebase has changed._
 
 Structural map compiled from source code via AST. No LLM — deterministic, 200ms.
 
@@ -20,7 +20,7 @@ Structural map compiled from source code via AST. No LLM — deterministic, 200m
 
 - Routes: **94**
 - Models: **43**
-- Components: **184**
+- Components: **185**
 - Env vars: **17** required, **53** with defaults
 
 ## How to Use
@@ -47,4 +47,4 @@ These exist in your codebase but are **not** reflected in wiki articles:
 When in doubt, search the source. The wiki is a starting point, not a complete inventory.
 
 ---
-_Last compiled: 2026-05-05 · 8 articles · [codesight](https://github.com/Houseofmvps/codesight)_
+_Last compiled: 2026-05-07 · 8 articles · [codesight](https://github.com/Houseofmvps/codesight)_

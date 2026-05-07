@@ -2,69 +2,18 @@
 
 Steps to start a development session. For first-time setup, see [initial_install.md](initial_install.md).
 
-This document uses my real development URL (docketworks-msm-dev.ngrok-free.app). Replace with your own domain from initial setup.
+## Start
 
-## Quick Start Checklist
+1. **Terminal → Run Task → Start Dev Environment** — fans out to Vite, ngrok, Celery worker, Celery Beat in dedicated panels.
+2. **Run → Start Debugging** (F5) — launches Django under the debugger.
 
-Each development session requires starting these services:
+Then visit your ngrok URL (e.g. `https://docketworks-<name>-dev.ngrok-free.app`). If the Xero token has expired, hit `/xero` and click "Login with Xero".
 
-1. **Django server** (VS Code debugger or terminal 1)
-2. **Frontend dev server** (terminal 2)
-3. **Ngrok tunnel** (terminal 3) - single tunnel to Vite, which proxies `/api` to Django
-4. **Connect to Xero** (in browser, if token expired)
-5. **Background scheduler** (terminal 4) - keeps Xero token alive
+## What each task does
 
-## Detailed Steps
+Defined in `.vscode/tasks.json`:
 
-### 1. Start Django Server
-
-VS Code: Run menu > Start Debugging (F5)
-
-### 2. Start Frontend Dev Server
-
-In the frontend directory:
-
-```bash
-npm run dev
-```
-
-### 3. Start Ngrok Tunnel
-
-```bash
-ngrok start --config ngrok.yml --all
-```
-
-This uses the `ngrok.yml` in the project root. A single tunnel points to Vite on port 5173; Vite proxies `/api` requests to Django on localhost:8000. See [initial_install.md](initial_install.md) for setup instructions.
-
-### 4. Connect to Xero
-
-Visit https://docketworks-msm-dev.ngrok-free.app/xero and click "Login with Xero" if token has expired.
-
-### 5. Start Celery Worker + Beat
-
-Two separate processes. The worker executes tasks; Beat dispatches periodic
-tasks (Xero heartbeat, hourly sync, nightly housekeeping) on a schedule. Both
-are needed.
-
-```bash
-poetry run celery -A docketworks worker --concurrency=4 --loglevel=info
-poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler
-```
-
-The `Celery Worker` and `Celery Beat` VS Code tasks (`.vscode/tasks.json`) run
-the same commands.
-
-## Verifying Everything is Running
-
-- **App**: Visit https://docketworks-msm-dev.ngrok-free.app - should show the Vue app (Vite proxies API requests to Django)
-- **ngrok tunnel**: The ngrok terminal should show the tunnel active
-
-## Troubleshooting
-
-| Issue | Solution |
-|-------|----------|
-| ngrok domain already in use | Check for other ngrok processes: `pkill ngrok` |
-| Port 8000 already in use | Find process: `lsof -i :8000` and kill it |
-| Port 5173 already in use | Find process: `lsof -i :5173` and kill it |
-| Database connection errors | Ensure PostgreSQL is running: `sudo systemctl start postgresql` |
-| Virtual environment not active | Run `poetry shell` in the project directory |
+- **Frontend Dev Server** — `npm run dev` in `frontend/`. Vite on :5173, proxies `/api` to Django on :8000.
+- **Ngrok Tunnels** — `ngrok start --config ngrok.yml --all`. Single tunnel points at Vite, not Django.
+- **Celery Worker** — executes async tasks.
+- **Celery Beat** — dispatches periodic tasks (Xero heartbeat, hourly sync, nightly housekeeping). Both worker and Beat are required.

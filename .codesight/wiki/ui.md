@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**184 components** (vue)
+**185 components** (vue)
 
 ## Client Components
 
@@ -24,7 +24,7 @@
 - **QuoteStatus** — props: jobId, autoRefresh — `frontend/src/components/QuoteStatus.vue`
 - **RichTextEditor** — `frontend/src/components/RichTextEditor.vue`
 - **ScheduledTasksModal** — `frontend/src/components/ScheduledTasksModal.vue`
-- **SectionModal** — props: section — `frontend/src/components/SectionModal.vue`
+- **SectionForm** — props: section — `frontend/src/components/SectionForm.vue`
 - **StaffAvatar** — props: staff, size, isActive, isDragging — `frontend/src/components/StaffAvatar.vue`
 - **StaffDropdown** — `frontend/src/components/StaffDropdown.vue`
 - **StaffFormModal** — props: staff — `frontend/src/components/StaffFormModal.vue`
@@ -142,6 +142,7 @@
 - **AboutView** — `frontend/src/views/AboutView.vue`
 - **AdminAIProvidersView** — `frontend/src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** — `frontend/src/views/AdminArchiveJobsView.vue`
+- **AdminCompanySectionView** — props: section — `frontend/src/views/AdminCompanySectionView.vue`
 - **AdminCompanyView** — `frontend/src/views/AdminCompanyView.vue`
 - **AdminErrorView** — `frontend/src/views/AdminErrorView.vue`
 - **AdminMonthEnd** — `frontend/src/views/AdminMonthEnd.vue`

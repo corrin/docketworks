@@ -1,5 +1,6 @@
 # Libraries
 
+- `adhoc/debug_xero_email_drop.py` — function fetch_back: (contact_id) -> dict, function summarise: (label, raw) -> dict
 - `adhoc/debug_xero_serialization.py` — class MockContact, class MockBill
 - `adhoc/drive_storage_check.py` — function check_drive_storage: ()
 - `adhoc/fix_missing_default_tasks.py` — function main: ()

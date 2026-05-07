@@ -18,7 +18,7 @@
 - **QuoteStatus** [client] — props: jobId, autoRefresh — `src/components/QuoteStatus.vue`
 - **RichTextEditor** [client] — `src/components/RichTextEditor.vue`
 - **ScheduledTasksModal** [client] — `src/components/ScheduledTasksModal.vue`
-- **SectionModal** [client] — props: section — `src/components/SectionModal.vue`
+- **SectionForm** [client] — props: section — `src/components/SectionForm.vue`
 - **StaffAvatar** [client] — props: staff, size, isActive, isDragging — `src/components/StaffAvatar.vue`
 - **StaffDropdown** [client] — `src/components/StaffDropdown.vue`
 - **StaffFormModal** [client] — props: staff — `src/components/StaffFormModal.vue`
@@ -136,6 +136,7 @@
 - **AboutView** [client] — `src/views/AboutView.vue`
 - **AdminAIProvidersView** [client] — `src/views/AdminAIProvidersView.vue`
 - **AdminArchiveJobsView** [client] — `src/views/AdminArchiveJobsView.vue`
+- **AdminCompanySectionView** [client] — props: section — `src/views/AdminCompanySectionView.vue`
 - **AdminCompanyView** [client] — `src/views/AdminCompanyView.vue`
 - **AdminErrorView** [client] — `src/views/AdminErrorView.vue`
 - **AdminMonthEnd** [client] — `src/views/AdminMonthEnd.vue`
