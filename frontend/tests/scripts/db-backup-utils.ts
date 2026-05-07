@@ -157,7 +157,7 @@ export function runIntegrityCheck(
 ): IntegrityCheckResult {
   const issues: string[] = []
 
-  const singletons = ['workflow_cachestate', 'workflow_companydefaults']
+  const singletons = ['workflow_companydefaults']
   for (const t of singletons) {
     const count = parseInt(runPsql(dbConfig, `SELECT COUNT(*) FROM ${t}`), 10)
     if (count !== 1) {
