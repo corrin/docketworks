@@ -13927,6 +13927,9 @@ components:
         default_xero_pay_item_name:
           type: string
           readOnly: true
+        shop_job:
+          type: boolean
+          readOnly: true
       required:
         - charge_out_rate
         - client_name
@@ -13938,6 +13941,7 @@ components:
         - job_number
         - leave_type
         - name
+        - shop_job
     ModernTimesheetJobGetResponse:
       type: object
       description: Serializer for timesheet job GET response

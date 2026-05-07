@@ -8,7 +8,6 @@ import App from './App.vue'
 import router from './router'
 
 import './plugins/axios'
-import './plugins/ag-grid'
 
 import './polyfills'
 import { NativeEventSource, EventSourcePolyfill } from 'event-source-polyfill'

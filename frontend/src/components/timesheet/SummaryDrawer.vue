@@ -205,18 +205,18 @@ import {
 import { useTimesheetSummary } from '@/composables/useTimesheetSummary'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
-import type { TimesheetEntryWithMeta } from '@/constants/timesheet'
 import { debugLog } from '../../utils/debug'
 import { z } from 'zod'
 import { formatCurrency, formatHoursDisplay } from '@/utils/string-formatting'
 
 type ModernTimesheetJob = z.infer<typeof schemas.ModernTimesheetJob>
 type FullJob = z.infer<typeof schemas.Job> | z.infer<typeof schemas.JobSummary>
+type TimesheetCostLine = z.infer<typeof schemas.TimesheetCostLine>
 
 interface Props {
   open: boolean
   jobs: ModernTimesheetJob[]
-  timeEntries: TimesheetEntryWithMeta[]
+  timeEntries: TimesheetCostLine[]
   loading?: boolean
   error?: string | null
 }

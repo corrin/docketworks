@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**185 components** (vue)
+**188 components** (vue)
 
 ## Client Components
 
@@ -112,16 +112,19 @@
 - **InlineEditText** — `frontend/src/components/shared/InlineEditText.vue`
 - **SmartCostLinesTable** — props: lines, tabKind, readOnly, showItemColumn, showSourceColumn, sourceResolver, line — `frontend/src/components/shared/SmartCostLinesTable.vue`
 - **BillablePercentageBadge** — props: percentage — `frontend/src/components/timesheet/BillablePercentageBadge.vue`
+- **HoursCell** — props: hours, disabled, automationId — `frontend/src/components/timesheet/HoursCell.vue`
 - **MetricsModal** — props: open, summary — `frontend/src/components/timesheet/MetricsModal.vue`
 - **PayrollControlSection** — `frontend/src/components/timesheet/PayrollControlSection.vue`
 - **PayrollStaffRow** — `frontend/src/components/timesheet/PayrollStaffRow.vue`
+- **SmartTimesheetTable** — props: entries, staffId, staffWageRate, defaultChargeOutRate, accountingDate, jobs, payItemsByMultiplier, readOnly — `frontend/src/components/timesheet/SmartTimesheetTable.vue`
 - **StaffDetailModal** — `frontend/src/components/timesheet/StaffDetailModal.vue`
 - **StaffRow** — `frontend/src/components/timesheet/StaffRow.vue`
 - **StaffWeekRow** — `frontend/src/components/timesheet/StaffWeekRow.vue`
 - **StatusBadge** — `frontend/src/components/timesheet/StatusBadge.vue`
 - **SummaryCard** — props: title, value, subtitle, progress, icon, color — `frontend/src/components/timesheet/SummaryCard.vue`
 - **SummaryDrawer** — `frontend/src/components/timesheet/SummaryDrawer.vue`
-- **TimesheetActionsCell** — props: approved, canApprove, onApprove, onDelete — `frontend/src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetActionsCell** — props: approved, canApprove, onApprove, onDelete, automationIdPrefix — `frontend/src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetJobPicker** — props: modelValue, jobs, disabled, placeholder, automationIdPrefix — `frontend/src/components/timesheet/TimesheetJobPicker.vue`
 - **WeekPickerModal** — `frontend/src/components/timesheet/WeekPickerModal.vue`
 - **WeeklyMetricsModal** — `frontend/src/components/timesheet/WeeklyMetricsModal.vue`
 - **WorkshopJobAttachmentsCard** — `frontend/src/components/workshop/WorkshopJobAttachmentsCard.vue`

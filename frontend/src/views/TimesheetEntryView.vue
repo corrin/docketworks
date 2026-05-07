@@ -117,15 +117,6 @@
 
             <div class="flex items-center space-x-1">
               <Button
-                @click="addNewEntry"
-                size="sm"
-                variant="default"
-                class="h-7 text-xs px-2 bg-gray-600 hover:bg-gray-700 text-white border-gray-500"
-              >
-                <Plus class="h-3 w-3" />
-              </Button>
-
-              <Button
                 @click="refreshData"
                 variant="ghost"
                 size="sm"
@@ -250,17 +241,6 @@
             </div>
 
             <Button
-              data-automation-id="TimesheetEntryView-add-entry"
-              @click="addNewEntry"
-              size="sm"
-              variant="default"
-              class="bg-gray-600 hover:bg-gray-700 text-white border-gray-500"
-            >
-              <Plus class="h-4 w-4 mr-1" />
-              Add Entry
-            </Button>
-
-            <Button
               @click="refreshData"
               variant="ghost"
               size="sm"
@@ -312,15 +292,21 @@
             v-else
             class="flex-1 bg-white shadow-sm border border-gray-200 rounded-lg m-2 lg:m-4 overflow-hidden"
           >
-            <div class="h-full">
-              <AgGridVue
-                ref="agGridRef"
-                class="h-full ag-theme-custom ag-theme-responsive"
-                :columnDefs="columnDefs"
-                :rowData="gridData"
-                :gridOptions="gridOptions"
-                @grid-ready="onGridReady"
-                @first-data-rendered="onFirstDataRendered"
+            <div class="h-full overflow-auto p-2">
+              <SmartTimesheetTable
+                v-if="selectedStaffId && currentStaff"
+                :entries="timeEntries"
+                :staff-id="selectedStaffId"
+                :staff-wage-rate="currentStaff.wageRate ?? 0"
+                :default-charge-out-rate="
+                  companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0
+                "
+                :accounting-date="currentDate"
+                :jobs="timesheetStore.jobs"
+                :pay-items-by-multiplier="payItemsByMultiplier"
+                @create-entry="handleCreateEntry"
+                @delete-entry="handleDeleteEntryById"
+                @approve-entry="handleApproveCostLine"
               />
             </div>
           </div>
@@ -548,11 +534,8 @@
 </template>
 
 <script lang="ts" setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { AgGridVue } from 'ag-grid-vue3'
-import type { GridReadyEvent, RowNode } from 'ag-grid-community'
-import { v4 as uuidv4 } from 'uuid'
 import { debounce } from 'lodash-es'
 
 import AppLayout from '@/components/AppLayout.vue'
@@ -571,7 +554,6 @@ import { Badge } from '@/components/ui/badge'
 import {
   ChevronLeft,
   ChevronRight,
-  Plus,
   HelpCircle,
   AlertTriangle,
   RefreshCw,
@@ -581,12 +563,11 @@ import {
   XCircle,
   ExternalLink,
 } from 'lucide-vue-next'
-import { useTimesheetAutosave } from '@/composables/useTimesheetAutosave'
 import { useTimesheetSummary } from '@/composables/useTimesheetSummary'
 import { toast } from 'vue-sonner'
 import { formatCurrency, formatHoursDisplay } from '@/utils/string-formatting'
 
-import { useTimesheetEntryGrid } from '@/composables/useTimesheetEntryGrid'
+import SmartTimesheetTable from '@/components/timesheet/SmartTimesheetTable.vue'
 import { useTimesheetStore } from '@/stores/timesheet'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import * as costlineService from '@/services/costline.service'
@@ -599,18 +580,13 @@ import { z } from 'zod'
 
 import { debugLog } from '@/utils/debug'
 import { toLocalDateString } from '@/utils/dateUtils'
-import type { TimesheetEntryWithMeta } from '@/constants/timesheet'
-type RateMultiplierMetaRecord = Record<string, unknown> & {
-  wage_rate_multiplier?: number
-}
+import { extractErrorMessage, logError } from '@/utils/error-handler'
 
 type ModernTimesheetJob = z.infer<typeof schemas.ModernTimesheetJob>
 type Staff = z.infer<typeof schemas.ModernStaff>
 type TimesheetCostLine = z.infer<typeof schemas.TimesheetCostLine>
 type Job = z.infer<typeof schemas.Job>
 type JobSummary = z.infer<typeof schemas.JobSummary>
-
-type TimesheetEntryViewRow = TimesheetEntryWithMeta
 
 type ActiveJobWithData = {
   job: Job | JobSummary | ModernTimesheetJob
@@ -631,9 +607,6 @@ const resolveJobStatus = (job: Job | JobSummary | ModernTimesheetJob): string =>
   return 'draft'
 }
 
-// Type for autosave callback
-type TimesheetEntryGridRowWithSaving = TimesheetEntryWithMeta
-
 const router = useRouter()
 const route = useRoute()
 const timesheetStore = useTimesheetStore()
@@ -642,49 +615,12 @@ const companyDefaultsStore = useCompanyDefaultsStore()
 const loading = ref(false)
 const error = ref<string | null>(null)
 const showHelpModal = ref(false)
-const agGridRef = ref()
 
 const todayDate = toLocalDateString()
 debugLog('Today is:', todayDate, 'Day of week:', new Date().getDay())
 
 const initialDate = (route.query.date as string) || todayDate
 const initialStaffId = (route.query.staffId as string) || ''
-
-const descriptionEditingRows = new Set<string>()
-
-function getRowKey(entry: { id?: unknown; tempId?: unknown } | null | undefined): string | null {
-  if (!entry) return null
-  if (entry.id != null && String(entry.id) !== '') return String(entry.id)
-  if (entry.tempId != null && String(entry.tempId) !== '') return String(entry.tempId)
-  return null
-}
-
-function setDescriptionEditingState(
-  entry: { id?: unknown; tempId?: unknown } | null | undefined,
-  isEditing: boolean,
-): void {
-  const key = getRowKey(entry)
-  if (!key) return
-  if (isEditing) {
-    descriptionEditingRows.add(key)
-  } else {
-    descriptionEditingRows.delete(key)
-  }
-}
-
-function isDescriptionBeingEdited(
-  entry: { id?: unknown; tempId?: unknown } | null | undefined,
-): boolean {
-  const key = getRowKey(entry)
-  return key ? descriptionEditingRows.has(key) : false
-}
-
-function toMetaRecord(meta: unknown): Record<string, unknown> | null {
-  if (meta && typeof meta === 'object') {
-    return meta as Record<string, unknown>
-  }
-  return null
-}
 
 debugLog('URL params:', { date: route.query.date, staffId: route.query.staffId })
 debugLog('Using initial values:', { date: initialDate, staffId: initialStaffId })
@@ -694,7 +630,7 @@ const selectedStaffId = ref<string>(initialStaffId)
 const isInitializing = ref(true)
 const isLoadingData = ref(false) // ✅ Add loading flag to prevent duplicate calls
 
-const timeEntries = ref<TimesheetEntryViewRow[]>([])
+const timeEntries = ref<TimesheetCostLine[]>([])
 const scheduledHours = ref<number>(0)
 
 // Adapter to convert TimesheetEntryView data format to TimesheetCostLine format
@@ -729,12 +665,8 @@ const availableJobs = computed(() => {
 })
 
 const currentStaff = computed(() => {
-  const staff = timesheetStore.staff.find((s: Staff) => s.id === selectedStaffId.value) || null
-  setCurrentStaff(staff)
-  return staff
+  return timesheetStore.staff.find((s: Staff) => s.id === selectedStaffId.value) || null
 })
-
-const hasUnsavedChanges = ref(false)
 
 const hoursStatusClass = computed(() => {
   const actual = timeEntries.value.reduce((sum, entry) => sum + getEntryHours(entry), 0)
@@ -746,10 +678,7 @@ const hoursStatusClass = computed(() => {
 
 const todayStats = computed(() => {
   const totalHours = timeEntries.value.reduce((sum, entry) => sum + getEntryHours(entry), 0)
-  const totalBill = timeEntries.value.reduce(
-    (sum, entry) => sum + (entry.bill ?? entry.total_rev ?? 0),
-    0,
-  )
+  const totalBill = timeEntries.value.reduce((sum, entry) => sum + (entry.total_rev ?? 0), 0)
   const entryCount = timeEntries.value.length
 
   return {
@@ -758,8 +687,6 @@ const todayStats = computed(() => {
     entryCount,
   }
 })
-
-const companyDefaultsRef = computed(() => companyDefaultsStore.companyDefaults)
 
 // Summary logic
 const {
@@ -777,8 +704,8 @@ const {
   getEstimatedHours,
 } = useTimesheetSummary()
 
-const getEntryHours = (entry: TimesheetEntryViewRow): number => {
-  return entry.hours ?? entry.quantity ?? 0
+const getEntryHours = (entry: TimesheetCostLine): number => {
+  return entry.quantity ?? 0
 }
 
 async function handleApproveCostLine(id: string): Promise<void> {
@@ -793,7 +720,7 @@ async function handleApproveCostLine(id: string): Promise<void> {
   }
 }
 
-const getJobHours = (jobId: string, timeEntries: TimesheetEntryViewRow[]) => {
+const getJobHours = (jobId: string, timeEntries: TimesheetCostLine[]) => {
   const jobEntries = timeEntries.filter((entry) => entry.job_id === jobId)
 
   const hours = jobEntries.reduce((sum, entry) => sum + getEntryHours(entry), 0)
@@ -869,7 +796,7 @@ const activeJobs = computed(() => {
 })
 
 const consolidatedSummary = computed(() => {
-  const costLineEntries = adaptedTimeEntries.value as TimesheetEntryViewRow[]
+  const costLineEntries = adaptedTimeEntries.value as TimesheetCostLine[]
   return {
     totalHours: getTotalHours(costLineEntries),
     totalBill: getTotalBill(costLineEntries),
@@ -880,7 +807,7 @@ const consolidatedSummary = computed(() => {
 })
 
 const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
-  const costLineEntries = adaptedTimeEntries.value as TimesheetEntryViewRow[]
+  const costLineEntries = adaptedTimeEntries.value as TimesheetCostLine[]
   const uniqueJobIds = [
     ...new Set(
       costLineEntries.map((entry) => entry.job_id).filter((id): id is string => Boolean(id)),
@@ -985,163 +912,84 @@ watch(
   },
   { immediate: false }, // Don't run immediately to avoid circular dependency
 )
-const jobsForGrid = computed<Record<string, unknown>[]>(() =>
-  timesheetStore.jobs.map((job) => job as Record<string, unknown>),
-)
-
-const {
-  gridData,
-  columnDefs,
-  gridOptions,
-  setGridApi,
-  loadData,
-  addNewRow,
-  handleKeyboardShortcut,
-  setCurrentStaff,
-  createEntryFromRow,
-  getIncompleteDraftRows,
-} = useTimesheetEntryGrid(
-  companyDefaultsRef,
-  jobsForGrid, // Pass jobs from timesheet store
-  handleSaveEntry,
-  handleDeleteEntry,
-  {
-    resolveStaffById: (id: string) => timesheetStore.staff.find((s) => s.id === id),
-    onDescriptionEditChange: (entry: TimesheetEntryGridRowWithSaving, isEditing: boolean) => {
-      setDescriptionEditingState(entry, isEditing)
-    },
-    onScheduleAutosave: (entry: TimesheetEntryGridRowWithSaving) => {
-      const rows = gridData.value as TimesheetEntryViewRow[]
-
-      if (entry.id != null && String(entry.id) !== '') {
-        autosave.schedule(String(entry.id))
-        return
-      }
-
-      // if it has tempId, try to promote
-      if (!entry.tempId) return
-
-      const now = rows.find((r) => r.tempId && String(r.tempId) === String(entry.tempId))
-      if (now?.id != null && String(now.id) !== '') {
-        entry.id = now.id
-        delete entry.tempId
-        autosave.schedule(String(now.id))
-      } else {
-        autosave.schedule(String(entry.tempId))
-      }
-    },
-    approveRow: (id: string) => {
-      void handleApproveCostLine(id)
-    },
-  },
-)
-
-const autosave = useTimesheetAutosave<TimesheetEntryViewRow>({
-  getRowKey: (entry) => {
-    if (entry.id != null && String(entry.id) !== '') return String(entry.id)
-
-    if (entry.tempId) {
-      const rows = gridData.value as TimesheetEntryViewRow[]
-      const found = rows.find((r) => r.tempId === entry.tempId)
-      if (found?.id != null && String(found.id) !== '') return String(found.id)
-      return entry.tempId
+// Map multiplier (as string, e.g. "1.5") → pay item, used by SmartTimesheetTable
+// when the user changes Rate. The mapping is keyed on the multiplier value the
+// row stores in `meta.wage_rate_multiplier`.
+const payItemsByMultiplier = computed(() => {
+  const out: Record<string, { id: string; name: string; multiplier: number } | undefined> = {}
+  for (const m of [1.0, 1.5, 2.0, 0.0]) {
+    const item = timesheetStore.getPayItemByMultiplier(m)
+    if (item && item.id) {
+      out[String(m)] = { id: item.id, name: item.name, multiplier: m }
     }
-
-    return undefined
-  },
-  getEntry: (rowKey) => {
-    const rows = gridData.value as unknown as TimesheetEntryViewRow[]
-
-    const byId = rows.find(
-      (r) => r.id !== null && r.id !== undefined && String(r.id) === String(rowKey),
-    )
-
-    if (byId) {
-      const normalized = createEntryFromRow(byId)
-      console.log('[DEBUG] getEntry found by id:', {
-        rowKey,
-        hours: normalized.hours,
-        quantity: normalized.quantity,
-        jobNumber: normalized.jobNumber,
-        job_number: normalized.job_number,
-        description: normalized.description,
-        rate: normalized.rate,
-        billable: normalized.billable,
-      })
-      return normalized
-    }
-
-    const byTemp = rows.find((r) => r.tempId && String(r.tempId) === String(rowKey))
-    if (byTemp) {
-      const normalized = createEntryFromRow(byTemp)
-      console.log('[DEBUG] getEntry found by tempId:', {
-        rowKey,
-        hours: normalized.hours,
-        quantity: normalized.quantity,
-        jobNumber: normalized.jobNumber,
-        job_number: normalized.job_number,
-        description: normalized.description,
-        rate: normalized.rate,
-        billable: normalized.billable,
-      })
-      return normalized
-    }
-
-    return null
-  },
-  isRowComplete: (e) => {
-    // Check both UI field names (jobNumber, hours) and backend field names (job_id, job_number, quantity)
-    const hasJob = Boolean(e.job_id || e.job_number || e.jobNumber)
-    const hasHours = Number(e.quantity || e.hours || 0) > 0
-    const isEditingDescription = isDescriptionBeingEdited(e)
-    const isComplete = hasJob && hasHours && !isEditingDescription
-    if (!isComplete) {
-      console.log('[DEBUG] isRowComplete FAILED:', {
-        hasJob,
-        hasHours,
-        isEditingDescription,
-        job_id: e.job_id,
-        job_number: e.job_number,
-        jobNumber: e.jobNumber,
-        quantity: e.quantity,
-        hours: e.hours,
-        tempId: e.tempId,
-        id: e.id,
-      })
-    }
-    return isComplete
-  },
-  isDuplicate: (e) => {
-    if (e.id) return false
-    const rows = gridData.value as TimesheetEntryViewRow[]
-    return rows.some(
-      (row) =>
-        !!row.id &&
-        row.job_number === e.job_number &&
-        row.date === e.date &&
-        row.meta &&
-        typeof row.meta === 'object' &&
-        typeof e.meta === 'object' &&
-        (row.meta as Record<string, unknown>).staff_id ===
-          (e.meta as Record<string, unknown>).staff_id &&
-        String(row.desc || '').trim() === String(e.desc || '').trim(),
-    )
-  },
-  save: async (e) => {
-    await handleSaveEntry(e)
-  },
-  softRefresh: async (e) => {
-    await softRefreshRow(e)
-  },
+  }
+  return out
 })
 
-const warnIncompleteDrafts = (): void => {
-  const drafts = getIncompleteDraftRows()
-  for (const row of drafts) {
-    const jobValue = row.jobNumber || row.job_number
-    const jobPart = jobValue ? `job ${jobValue}` : '(no job)'
-    const missing = !jobValue ? 'a job number' : 'hours'
-    toast.warning(`Entry for ${jobPart} not saved — needs ${missing}`, { duration: 6000 })
+async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
+  const job = timesheetStore.jobs.find((j: ModernTimesheetJob) => j.id === entry.job_id)
+  if (!job) {
+    toast.error('Cannot save entry — job not found')
+    return
+  }
+  const meta = (entry.meta ?? {}) as Record<string, unknown>
+  const payload = {
+    kind: 'time' as const,
+    desc: entry.desc ?? '',
+    quantity: entry.quantity,
+    unit_cost: entry.unit_cost,
+    unit_rev: entry.unit_rev,
+    accounting_date: entry.accounting_date || currentDate.value,
+    xero_pay_item: entry.xero_pay_item ?? null,
+    meta: {
+      ...meta,
+      staff_id: selectedStaffId.value,
+      date: currentDate.value,
+      created_from_timesheet: true,
+    },
+  }
+  debugLog('[handleCreateEntry] POST payload:', payload, 'jobId:', job.id)
+  try {
+    const saved = await costlineService.createCostLine(job.id, 'actual', payload)
+    // Reload to get the canonical row (with id, total_cost, etc) from the backend
+    const idx = timeEntries.value.indexOf(entry)
+    if (saved && typeof saved === 'object' && 'id' in saved) {
+      const merged = { ...entry, ...(saved as Partial<TimesheetCostLine>) } as TimesheetCostLine
+      if (idx >= 0) timeEntries.value[idx] = merged
+      else timeEntries.value.push(merged)
+    } else {
+      // Fallback: refresh from backend
+      await loadTimesheetData()
+    }
+    toast.success('Entry saved')
+  } catch (err) {
+    // Log the request payload + the response body so the validation rejection
+    // is visible without DevTools network round-trips.
+    const responseBody =
+      err && typeof err === 'object' && 'response' in err
+        ? ((err as { response?: { data?: unknown; status?: number } }).response ?? null)
+        : null
+    logError('handleCreateEntry', err, {
+      jobId: job.id,
+      payload,
+      responseStatus: responseBody?.status,
+      responseBody: responseBody?.data,
+    })
+    toast.error(`Failed to save entry: ${extractErrorMessage(err)}`)
+  }
+}
+
+async function handleDeleteEntryById(id: string): Promise<void> {
+  try {
+    loading.value = true
+    await costlineService.deleteCostLine(String(id))
+    timeEntries.value = timeEntries.value.filter((e) => String(e.id) !== String(id))
+    debugLog('Entry deleted successfully:', id)
+  } catch (err) {
+    debugLog('Error deleting entry:', err)
+    error.value = 'Failed to delete entry'
+  } finally {
+    loading.value = false
   }
 }
 
@@ -1162,14 +1010,12 @@ const navigateStaff = (direction: number) => {
   const newStaff = timesheetStore.staff[newIndex]
 
   if (newStaff) {
-    warnIncompleteDrafts()
     selectedStaffId.value = newStaff.id
     updateRoute()
   }
 }
 
 const navigateDate = (direction: number) => {
-  warnIncompleteDrafts()
   const parts = currentDate.value.split('-')
   const year = parseInt(parts[0], 10)
   const month = parseInt(parts[1], 10) - 1
@@ -1203,7 +1049,6 @@ const navigateDate = (direction: number) => {
 }
 
 const goToToday = () => {
-  warnIncompleteDrafts()
   const today = new Date()
 
   // Only skip weekends if weekend feature is disabled
@@ -1283,314 +1128,6 @@ const formatShortDate = (date: string): string => {
   return formatted
 }
 
-async function handleSaveEntry(entry: TimesheetEntryViewRow): Promise<void> {
-  const entryRow = entry
-  const hasJob = Boolean(entryRow.job_id || entryRow.job_number)
-  const hasDescription = entryRow.desc && entryRow.desc.trim().length > 0
-  const hasHours = Number(entryRow.quantity ?? 0) > 0
-  const isEditingDescription = isDescriptionBeingEdited(entryRow)
-
-  debugLog('VALIDATION CHECK:', {
-    entryId: entryRow.id,
-    jobId: entryRow.job_id,
-    jobNumber: entryRow.job_number,
-    hasJob,
-    description: entryRow.description,
-    hasDescription,
-    hours: entryRow.hours,
-    hasHours,
-    isEditingDescription,
-    validationPassed: hasJob && hasHours && !isEditingDescription,
-  })
-
-  if (isEditingDescription) {
-    debugLog('VALIDATION SKIP - Description currently being edited, delaying save', {
-      entryId: entry.id,
-      tempId: entry.tempId,
-    })
-    return
-  }
-
-  if (!hasJob || !hasHours) {
-    debugLog('VALIDATION FAILED - Entry not saved:', {
-      hasJob,
-      hasDescription,
-      hasHours,
-      entry: {
-        id: entryRow.id,
-        jobId: entryRow.jobId,
-        jobNumber: entryRow.jobNumber,
-        description: entryRow.description,
-        hours: entryRow.hours,
-      },
-    })
-    return
-  }
-
-  if (entryRow._isSaving) return
-
-  try {
-    entryRow._isSaving = true
-
-    if (!entryRow.id && !entryRow.tempId) {
-      entryRow.tempId = uuidv4()
-    }
-
-    const staffId = selectedStaffId.value
-    const date = currentDate.value
-
-    let targetJobId = entryRow.jobId
-    if (!targetJobId && entryRow.jobNumber) {
-      const jobNumber = Number(entryRow.jobNumber)
-      const jobByNumber = timesheetStore.jobs.find(
-        (j: ModernTimesheetJob) => j.job_number === jobNumber,
-      )
-      if (jobByNumber) {
-        targetJobId = jobByNumber.id
-        entryRow.jobId = targetJobId
-        entryRow.client = jobByNumber.client_name || ''
-        entryRow.jobName = jobByNumber.name || ''
-        entryRow.chargeOutRate = jobByNumber.charge_out_rate || 0
-      }
-    }
-
-    const costLinePayload = {
-      kind: 'time' as const,
-      desc: entryRow.description,
-      quantity: entryRow.hours,
-      unit_cost: entryRow.wageRate,
-      unit_rev: entryRow.chargeOutRate,
-      accounting_date: date,
-      xero_pay_item: entryRow.xeroPayItemId,
-      meta: {
-        staff_id: staffId,
-        date: date,
-        is_billable: entryRow.billable,
-        created_from_timesheet: true,
-        wage_rate_multiplier: entryRow.rateMultiplier,
-      },
-    }
-
-    let savedLine
-
-    if (entryRow.id && String(entryRow.id) !== '') {
-      debugLog('UPDATING existing entry:', entryRow.id)
-      savedLine = await costlineService.updateCostLine(entryRow.id, costLinePayload)
-    } else {
-      debugLog('CREATING new entry')
-      const job = timesheetStore.jobs.find((j: ModernTimesheetJob) => j.id === targetJobId)
-      if (!job) throw new Error('Job not found')
-      savedLine = await costlineService.createCostLine(job.id, 'actual', costLinePayload)
-    }
-
-    const savedId =
-      savedLine && typeof savedLine === 'object' && 'id' in savedLine
-        ? String((savedLine as { id?: string | number }).id ?? '')
-        : ''
-    if (savedId) {
-      entryRow.id = savedId
-      delete entryRow.tempId
-    }
-
-    const entryIndex = timeEntries.value.findIndex((e: TimesheetEntryViewRow) => {
-      if (entryRow.id && e.id === entryRow.id) return true
-      if (entryRow.tempId && e.tempId === entryRow.tempId) return true
-      return false
-    })
-    if (entryIndex >= 0) {
-      timeEntries.value[entryIndex] = {
-        ...entryRow,
-        ...savedLine,
-        isNewRow: false,
-        isModified: false,
-      }
-    } else {
-      timeEntries.value.push({ ...entryRow, ...savedLine, isNewRow: false, isModified: false })
-    }
-  } catch (err) {
-    debugLog('Error saving entry:', err)
-    error.value = 'Failed to save entry'
-  } finally {
-    entryRow._isSaving = false
-  }
-}
-
-/**
- * Soft refresh of a specific row after saving, without blocking the grid.
- * - Searches for current entries in the backend for (staffId, date)
- * - Locates the saved row by ID and applies an authoritative merge to the grid data and timeEntries
- */
-async function softRefreshRow(entry: TimesheetEntryViewRow): Promise<void> {
-  try {
-    const resp = await costlineService.getTimesheetEntries(selectedStaffId.value, currentDate.value)
-    const line = resp.cost_lines.find((l: TimesheetCostLine) => String(l.id) === String(entry.id))
-    if (!line) return
-
-    const hours = line.quantity
-    const staffWageRate = line.wage_rate || line.unit_cost
-    const metaRecord = toMetaRecord(line.meta) as RateMultiplierMetaRecord | null
-    const rateMultiplier = metaRecord?.wage_rate_multiplier as number
-
-    const calculatedWage =
-      hours > 0 && staffWageRate > 0
-        ? Math.round(hours * rateMultiplier * staffWageRate * 100) / 100
-        : 0
-
-    const normalizedJobId = line.job_id || ''
-    const normalizedJobNumber =
-      typeof line.job_number === 'number' ? line.job_number : Number(line.job_number) || 0
-    const normalizedJobNumberString = line.job_number != null ? String(line.job_number) : ''
-    const normalizedClientName = line.client_name || ''
-    const normalizedJobName = line.job_name || ''
-    const normalizedChargeOutRate = line.charge_out_rate || 0
-    const xeroPayItemId = line.xero_pay_item ?? undefined
-    const xeroPayItemName = line.xero_pay_item_name ?? undefined
-
-    const merged = {
-      id: line.id,
-      jobId: normalizedJobId,
-      job_id: normalizedJobId,
-      jobNumber: normalizedJobNumberString,
-      job_number: normalizedJobNumber,
-      client: normalizedClientName,
-      client_name: normalizedClientName,
-      jobName: normalizedJobName,
-      job_name: normalizedJobName,
-      hours,
-      billable:
-        typeof metaRecord?.['is_billable'] === 'boolean'
-          ? (metaRecord['is_billable'] as boolean)
-          : true,
-      description: line.desc,
-      rate: getRateTypeFromMultiplier(rateMultiplier),
-      wage: calculatedWage,
-      bill: line.total_rev,
-      staffId: selectedStaffId.value,
-      date: currentDate.value,
-      wageRate: staffWageRate,
-      chargeOutRate: normalizedChargeOutRate,
-      charge_out_rate: normalizedChargeOutRate,
-      rateMultiplier,
-      isNewRow: false,
-      isModified: false,
-      approved: line.approved,
-      xeroPayItemId,
-      xeroPayItemName,
-      xero_pay_item: xeroPayItemId ?? null,
-      xero_pay_item_name: xeroPayItemName ?? '',
-    } as unknown as TimesheetEntryViewRow
-
-    // Update the grid
-    const rows = gridData.value as unknown as TimesheetEntryViewRow[]
-    const idx = rows.findIndex(
-      (r) =>
-        (merged.id && String(r.id) === String(merged.id)) ||
-        (r.tempId && entry.tempId && String(r.tempId) === String(entry.tempId)),
-    )
-    if (idx !== -1) {
-      const prev = rows[idx]
-      rows[idx] = {
-        ...prev,
-        ...merged,
-        tempId: merged.id ? undefined : prev.tempId,
-        _isSaving: false,
-        isModified: false,
-        isNewRow: false,
-      }
-
-      const api = agGridRef.value?.api
-      if (api) {
-        let targetNode: RowNode | null = null
-        api.forEachNode((node: RowNode) => {
-          const data = (node as unknown as { data?: TimesheetEntryViewRow }).data
-          if (data && String(data.id) === String(merged.id)) targetNode = node
-        })
-        if (targetNode) {
-          ;(targetNode as unknown as { setData: (d: unknown) => void }).setData(
-            rows[idx] as unknown,
-          )
-          nextTick(() => {
-            if (api && !api.isDestroyed?.()) {
-              api.refreshCells({ rowNodes: [targetNode!] })
-            }
-          })
-        } else {
-          nextTick(() => {
-            if (api && !api.isDestroyed?.()) {
-              api.refreshCells()
-            }
-          })
-        }
-      }
-    }
-
-    // Update entries to reflect state
-    const tRows = timeEntries.value as TimesheetEntryViewRow[]
-    const tIdx = tRows.findIndex((r) => r?.id && String(r.id) === String(merged.id))
-    if (tIdx !== -1) {
-      const prevTE = tRows[tIdx]
-      tRows[tIdx] = { ...prevTE, ...merged }
-    } else {
-      tRows.push(merged)
-    }
-  } catch (err) {
-    debugLog('Soft refresh failed:', err)
-  }
-}
-
-async function handleDeleteEntry(id: string): Promise<void> {
-  try {
-    // Keep loading for deletion since it's a critical operation
-    loading.value = true
-
-    await costlineService.deleteCostLine(String(id))
-
-    timeEntries.value = timeEntries.value.filter(
-      (e: TimesheetEntryViewRow) => String(e.id) !== String(id),
-    )
-
-    hasUnsavedChanges.value = false
-    debugLog('Entry deleted successfully:', id)
-  } catch (err) {
-    debugLog('Error deleting entry:', err)
-    error.value = 'Failed to delete entry'
-  } finally {
-    loading.value = false
-  }
-}
-
-function onGridReady(params: GridReadyEvent) {
-  setGridApi(params.api)
-}
-
-function onFirstDataRendered() {
-  setTimeout(() => agGridRef.value?.api?.sizeColumnsToFit(), 100)
-}
-
-const addNewEntry = () => {
-  debugLog('Adding new entry for staff:', selectedStaffId.value)
-
-  const staffData = timesheetStore.staff.find((s) => s.id === selectedStaffId.value)
-
-  debugLog('Staff data for new entry:', {
-    staffId: selectedStaffId.value,
-    staffData: staffData
-      ? {
-          id: staffData.id,
-          name: `${staffData.firstName} ${staffData.lastName}`,
-          wageRate: staffData.wageRate,
-        }
-      : null,
-  })
-
-  // Use the composable's addNewRow function which properly handles ag-Grid
-  addNewRow(selectedStaffId.value, currentDate.value, staffData)
-
-  hasUnsavedChanges.value = true
-
-  debugLog('Added new entry via composable')
-}
-
 const reloadData = () => {
   error.value = null
   loadTimesheetData()
@@ -1666,79 +1203,16 @@ const loadTimesheetData = async () => {
     debugLog('Cost lines from API:', response.cost_lines)
     debugLog('Number of cost lines:', response.cost_lines?.length || 0)
 
-    timeEntries.value = response.cost_lines.map((line: TimesheetCostLine) => {
-      const hours = line.quantity
-      const staffWageRate = line.wage_rate || line.unit_cost
-      const metaRecord = toMetaRecord(line.meta) as RateMultiplierMetaRecord | null
-      const rateMultiplier = metaRecord?.wage_rate_multiplier as number
-
-      // Always calculate wage with correct formula: hours * rate_multiplier * staff_wage_rate
-      const calculatedWage =
-        hours > 0 && staffWageRate > 0
-          ? Math.round(hours * rateMultiplier * staffWageRate * 100) / 100
-          : 0
-
-      debugLog('[Timesheet] Loading entry with correct wage calculation:', {
-        id: line.id,
-        hours,
-        staffWageRate,
-        rateMultiplier,
-        calculatedWage,
-        backendWage: line.total_cost,
-        formula: `${hours} * ${rateMultiplier} * ${staffWageRate} = ${calculatedWage}`,
-      })
-
-      const normalizedJobId = line.job_id || ''
-      const normalizedJobNumber =
-        typeof line.job_number === 'number' ? line.job_number : Number(line.job_number) || 0
-      const normalizedJobNumberString = line.job_number != null ? String(line.job_number) : ''
-      const normalizedClientName = line.client_name || ''
-      const normalizedJobName = line.job_name || ''
-      const normalizedChargeOutRate = line.charge_out_rate || 0
-
-      return {
-        ...line,
-        jobId: normalizedJobId,
-        job_id: normalizedJobId,
-        jobNumber: normalizedJobNumberString,
-        job_number: normalizedJobNumber,
-        client: normalizedClientName,
-        client_name: normalizedClientName,
-        jobName: normalizedJobName,
-        job_name: normalizedJobName,
-        hours,
-        billable:
-          typeof metaRecord?.['is_billable'] === 'boolean'
-            ? (metaRecord['is_billable'] as boolean)
-            : true,
-        description: line.desc,
-        rate: getRateTypeFromMultiplier(rateMultiplier),
-        wage: calculatedWage,
-        bill: line.total_rev,
-        staffId: selectedStaffId.value,
-        date: currentDate.value,
-        wageRate: staffWageRate,
-        chargeOutRate: normalizedChargeOutRate,
-        charge_out_rate: normalizedChargeOutRate,
-        rateMultiplier,
-        xeroPayItemId: line.xero_pay_item,
-        xeroPayItemName: line.xero_pay_item_name,
-        isNewRow: false,
-        isModified: false,
-      } as TimesheetEntryViewRow
-    })
-
     // Sort by creation time so entries stay in the order they were entered
-    timeEntries.value.sort((a, b) => {
+    const lines = [...response.cost_lines]
+    lines.sort((a, b) => {
       const aTime = a.created_at ?? ''
       const bTime = b.created_at ?? ''
       return aTime < bTime ? -1 : aTime > bTime ? 1 : 0
     })
+    timeEntries.value = lines
 
     scheduledHours.value = response.summary.scheduled_hours as number
-
-    const staffData = timesheetStore.staff.find((s) => s.id === selectedStaffId.value)
-    loadData(timeEntries.value, selectedStaffId.value, staffData)
 
     debugLog(`Loaded ${timeEntries.value.length} timesheet entries`)
   } catch (err) {
@@ -1752,57 +1226,6 @@ const loadTimesheetData = async () => {
 
 // ✅ Create debounced version to prevent rapid successive calls
 const debouncedLoadTimesheetData = debounce(loadTimesheetData, 1000)
-
-const getRateTypeFromMultiplier = (multiplier: number): string => {
-  switch (multiplier) {
-    case 1.0:
-      return 'Ord'
-    case 1.5:
-      return '1.5'
-    case 2.0:
-      return '2.0'
-    case 0.0:
-      return 'Unpaid'
-    default:
-      return 'Ord'
-  }
-}
-
-const handleKeydown = (event: KeyboardEvent) => {
-  const target = event.target as HTMLElement
-  if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
-    return
-  }
-
-  const staffData = timesheetStore.staff.find((s) => s.id === selectedStaffId.value)
-  if (handleKeyboardShortcut(event, selectedStaffId.value, staffData)) {
-    return
-  }
-
-  if (event.ctrlKey || event.metaKey) {
-    switch (event.key) {
-      case 'n':
-        event.preventDefault()
-        addNewEntry()
-        break
-      case 's':
-        event.preventDefault()
-        if (autosave.isIdle()) {
-          toast.success('All changes saved')
-        } else {
-          toast.info('Saving entries...')
-        }
-        break
-    }
-  }
-
-  if (event.shiftKey && event.key === 'N') {
-    event.preventDefault()
-    event.stopPropagation()
-    debugLog('Shift+N pressed - adding new entry')
-    addNewEntry()
-  }
-}
 
 onMounted(async () => {
   try {
@@ -1856,15 +1279,13 @@ onMounted(async () => {
     await loadTimesheetData()
 
     // Load enhanced job data for jobs with timesheet entries
-    const costLineEntries = adaptedTimeEntries.value as TimesheetEntryViewRow[]
+    const costLineEntries = adaptedTimeEntries.value as TimesheetCostLine[]
     const jobsWithEntries = activeJobs.value.filter(
       (job) => getJobHours(job.id, costLineEntries) > 0,
     )
     if (jobsWithEntries.length > 0) {
       await loadEnhancedJobData(jobsWithEntries.map((job) => job.id))
     }
-
-    window.addEventListener('keydown', handleKeydown)
 
     debugLog('Optimized timesheet initialized successfully')
   } catch (err) {
@@ -1898,9 +1319,6 @@ watch(
 
     selectedStaffId.value = newStaffId
     updateRoute()
-
-    const staffData = timesheetStore.staff.find((s) => s.id === selectedStaffId.value) || null
-    setCurrentStaff(staffData)
 
     debugLog('Loading data due to staff/date change:', {
       newStaffId,
@@ -1951,92 +1369,9 @@ watch(
   },
   { immediate: false },
 )
-
-onUnmounted(() => {
-  window.removeEventListener('keydown', handleKeydown)
-})
 </script>
 
 <style scoped>
-:deep(.ag-theme-custom) {
-  --ag-header-height: 40px;
-  --ag-row-height: 35px;
-  --ag-header-background-color: #181f2a;
-  --ag-header-foreground-color: #f3f4f6;
-  --ag-odd-row-background-color: rgb(248, 250, 252);
-  --ag-row-hover-color: rgb(241, 245, 249);
-  --ag-selected-row-background-color: rgb(219, 234, 254);
-  --ag-border-color: rgb(226, 232, 240);
-  --ag-font-size: 13px;
-}
-
-@media (max-width: 1024px) {
-  :deep(.ag-theme-custom) {
-    --ag-header-height: 36px;
-    --ag-row-height: 32px;
-    --ag-font-size: 12px;
-  }
-
-  :deep(.ag-theme-custom .ag-header-cell) {
-    padding: 0 4px;
-  }
-
-  :deep(.ag-theme-custom .ag-cell) {
-    padding: 0 4px;
-  }
-
-  :deep(.ag-theme-custom .ag-header-cell[col-id='client_name']),
-  :deep(.ag-theme-custom .ag-cell[col-id='client_name']) {
-    display: none;
-  }
-
-  :deep(.ag-theme-custom .ag-header-cell[col-id='rate']),
-  :deep(.ag-theme-custom .ag-cell[col-id='rate']) {
-    display: none;
-  }
-}
-
-@media (max-width: 640px) {
-  :deep(.ag-theme-custom) {
-    --ag-header-height: 32px;
-    --ag-row-height: 28px;
-    --ag-font-size: 11px;
-  }
-
-  :deep(.ag-theme-custom .ag-header-cell[col-id='job_name']),
-  :deep(.ag-theme-custom .ag-cell[col-id='job_name']) {
-    display: none;
-  }
-
-  :deep(.ag-theme-custom .ag-header-cell[col-id='wage']),
-  :deep(.ag-theme-custom .ag-cell[col-id='wage']) {
-    display: none;
-  }
-}
-
-:deep(.ag-theme-custom .ag-header-cell) {
-  font-weight: 700;
-  background: var(--ag-header-background-color) !important;
-  color: var(--ag-header-foreground-color) !important;
-  border-bottom: 1.5px solid #334155;
-}
-
-:deep(.ag-theme-custom .ag-cell) {
-  border-right: 1px solid var(--ag-border-color);
-}
-
-:deep(.ag-theme-custom .ag-row-selected) {
-  border: 1px solid rgb(59, 130, 246);
-}
-
-:deep(.ag-theme-custom .ag-body-horizontal-scroll) {
-  height: 14px !important;
-}
-
-:deep(.ag-theme-custom .ag-body-vertical-scroll) {
-  width: 14px !important;
-}
-
 kbd {
   font-family:
     ui-monospace, SFMono-Regular, 'SF Mono', Consolas, 'Liberation Mono', Menlo, monospace;

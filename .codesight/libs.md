@@ -720,13 +720,10 @@
   - type AddressCandidate
 - `frontend/src/composables/usePoConcurrencyEvents.ts` — function emitPoConcurrencyRetry: (poId) => void, function onPoConcurrencyRetry: (poId, handler) => void
 - `frontend/src/composables/usePoETags.ts` — function usePoETags: () => void
-- `frontend/src/composables/usePurchaseOrderGrid.ts` — function usePurchaseOrderGrid: (lines) => void
 - `frontend/src/composables/useQuoteImport.ts` — function useQuoteImport: () => void
 - `frontend/src/composables/useSettingsSchema.ts` — function useSettingsSchema: () => void
 - `frontend/src/composables/useSmartCostLineDelete.ts` — function useSmartCostLineDelete: (options) => void, interface UseSmartCostLineDeleteOptions
 - `frontend/src/composables/useStaffApi.ts` — function useStaffApi: () => void
-- `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
-- `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
 - `frontend/src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
@@ -926,6 +923,14 @@
   - function capitalize: (str) => string
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
+- `frontend/src/utils/timesheetCalc.ts`
+  - function getRateMultiplier: (rateType) => number
+  - function getRateTypeFromMultiplier: (m) => string
+  - function getMeta: (entry) => Record<string, unknown>
+  - function getMultiplier: (entry) => number
+  - function getIsBillable: (entry) => boolean
+  - function calculatedWage: (entry) => number
+  - _...3 more_
 - `manage.py` — function main: () -> None
 - `restore/extracted/home/corrin/backport_data_backup.py` — class Command
 - `restore/extracted/usr/local/bin/cleanup_backups.py`
