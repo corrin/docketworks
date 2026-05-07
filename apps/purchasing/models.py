@@ -558,6 +558,9 @@ class Stock(models.Model):
         help_text="Parser confidence score 0.00-1.00",
     )
 
+    # Not indexed: Stock is < 10k rows at our scale and the freshness query also
+    # does Count(id) (to catch deletions), which scans regardless. Revisit if
+    # the table grows materially or if Max(updated_at) shows up in profiling.
     updated_at = models.DateTimeField(
         auto_now=True,
         null=True,

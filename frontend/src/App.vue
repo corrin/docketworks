@@ -22,6 +22,10 @@ debugLog(useFeatureFlags().isCostingApiEnabled)
 
 function refreshDataIfVisible(): void {
   if (document.visibilityState !== 'visible') return
+  // Skip when unauthenticated (login screen, expired session) — otherwise
+  // every tab-focus would 401 against /api/data-versions/ and persist an
+  // AppError per ADR 0019.
+  if (!authStore.isAuthenticated) return
   dataFreshness.checkFreshness().catch((err) => {
     debugLog('[App] data-freshness check failed:', err)
   })
