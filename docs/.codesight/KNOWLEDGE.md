@@ -37,13 +37,13 @@
 - Maybe quantity needs blur event but we Tab away too fast?
 
 ## Recurring Themes
-problem · why · alternatives considered · verification · tips · what youll need · steps · what happens next · out of scope · troubleshooting · approach · critical files
+problem · why · alternatives considered · verification · tips · what youll need · steps · what happens next · out of scope · approach · critical files · troubleshooting
 
 ## People
 @login_required · @docketworks · @shared_task · @staticmethod · @democompany · @update · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
 
 ## Hub Notes (most referenced)
-- `docs/initial_install.md` — **5** incoming references — Initial Installation Guide
+- `docs/initial_install.md` — **4** incoming references — Initial Installation Guide
 - `docs/restore-prod-to-nonprod.md` — **3** incoming references — Restore Production to Non-Production
 - `docs/client_onboarding.md` — **2** incoming references — Client Onboarding
 - `docs/development_session.md` — **2** incoming references — Development Session Startup
@@ -93,7 +93,7 @@ problem · why · alternatives considered · verification · tips · what youll 
 - `docs/architecture.md` ← 1 refs — DocketWorks is a Django-based web application that digitizes paper-based workflows from quote generation to job completion and invoicing for businesses that do …
 - `docs/client_onboarding.md` ← 2 refs — Everything needed to take a new client from signed contract to running instance. This is the handoff document for the onboarding specialist.
 - `docs/development_session.md` ← 2 refs — Steps to start a development session. For first-time setup, see [initial_install.md](initial_install.md).
-- `docs/initial_install.md` ← 5 refs — Dev machine setup. One-off steps that persist across restores.
+- `docs/initial_install.md` ← 4 refs — Dev machine setup. One-off steps that persist across restores.
 - `docs/instance-setup-demo.md` ← 1 refs — Onboard a prospect for a paid trial of DocketWorks. Uses dummy staff but the prospect's real rates, markups, and configuration. Connects to Xero Demo Company.
 - `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.

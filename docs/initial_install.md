@@ -14,6 +14,7 @@ Dev machine setup. One-off steps that persist across restores.
    local   all       all       scram-sha-256
    ```
    Restart PostgreSQL after editing.
+5. **Redis** — `sudo apt install redis-server`. Used as the Celery broker, Django shared cache, and Channels backend. Starts on :6379 automatically on Debian/Ubuntu.
 
 ## Clone and Install
 
