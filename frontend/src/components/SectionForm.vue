@@ -302,9 +302,21 @@ async function onLogoDelete(fieldKey: string) {
   }
 }
 
+function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): boolean {
+  const keysA = Object.keys(a)
+  if (keysA.length !== Object.keys(b).length) return false
+  return keysA.every((k) => a[k] === b[k])
+}
+
 watch(
   () => props.modelValue,
   (newForm) => {
+    // Skip the echo: when the parent reassigns `form` because of our own
+    // emit, newForm matches localForm field-for-field. Reassigning localForm
+    // here would re-fire the deep watcher below, emit again, and run the
+    // cycle. While Vue's batching settles it, fast `input` events that arrive
+    // mid-cycle (Playwright fill, browser paste, autofill) get dropped.
+    if (shallowEqual(newForm, localForm.value)) return
     localForm.value = { ...newForm }
   },
 )
@@ -345,11 +357,7 @@ function formatDateTime(val: string | Date | null) {
     if (isNaN(d.getTime())) return ''
   } else if (val instanceof Date) {
     d = val
-  } else if (
-    typeof val === 'object' &&
-    val !== null &&
-    Object.prototype.hasOwnProperty.call(val, 'year')
-  ) {
+  } else if (typeof val === 'object' && Object.prototype.hasOwnProperty.call(val, 'year')) {
     const anyVal = val as {
       year: number
       month: number
