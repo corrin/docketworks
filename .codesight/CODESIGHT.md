@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 43 models | 185 components | 370 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~30,800 tokens. Without it, AI exploration would cost ~244,700 tokens. **Saves ~213,900 tokens per conversation.**
+> 94 routes | 43 models | 188 components | 368 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~31,000 tokens. Without it, AI exploration would cost ~245,200 tokens. **Saves ~214,200 tokens per conversation.**
 
 ---
 
@@ -803,16 +803,19 @@
 - **InlineEditText** [client] — `frontend/src/components/shared/InlineEditText.vue`
 - **SmartCostLinesTable** [client] — props: lines, tabKind, readOnly, showItemColumn, showSourceColumn, sourceResolver, line — `frontend/src/components/shared/SmartCostLinesTable.vue`
 - **BillablePercentageBadge** [client] — props: percentage — `frontend/src/components/timesheet/BillablePercentageBadge.vue`
+- **HoursCell** [client] — props: hours, disabled, automationId — `frontend/src/components/timesheet/HoursCell.vue`
 - **MetricsModal** [client] — props: open, summary — `frontend/src/components/timesheet/MetricsModal.vue`
 - **PayrollControlSection** [client] — `frontend/src/components/timesheet/PayrollControlSection.vue`
 - **PayrollStaffRow** [client] — `frontend/src/components/timesheet/PayrollStaffRow.vue`
+- **SmartTimesheetTable** [client] — props: entries, staffId, staffWageRate, defaultChargeOutRate, accountingDate, jobs, payItemsByMultiplier, readOnly — `frontend/src/components/timesheet/SmartTimesheetTable.vue`
 - **StaffDetailModal** [client] — `frontend/src/components/timesheet/StaffDetailModal.vue`
 - **StaffRow** [client] — `frontend/src/components/timesheet/StaffRow.vue`
 - **StaffWeekRow** [client] — `frontend/src/components/timesheet/StaffWeekRow.vue`
 - **StatusBadge** [client] — `frontend/src/components/timesheet/StatusBadge.vue`
 - **SummaryCard** [client] — props: title, value, subtitle, progress, icon, color — `frontend/src/components/timesheet/SummaryCard.vue`
 - **SummaryDrawer** [client] — `frontend/src/components/timesheet/SummaryDrawer.vue`
-- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete — `frontend/src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete, automationIdPrefix — `frontend/src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetJobPicker** [client] — props: modelValue, jobs, disabled, placeholder, automationIdPrefix — `frontend/src/components/timesheet/TimesheetJobPicker.vue`
 - **WeekPickerModal** [client] — `frontend/src/components/timesheet/WeekPickerModal.vue`
 - **WeeklyMetricsModal** [client] — `frontend/src/components/timesheet/WeeklyMetricsModal.vue`
 - **WorkshopJobAttachmentsCard** [client] — `frontend/src/components/workshop/WorkshopJobAttachmentsCard.vue`
@@ -1608,13 +1611,10 @@
   - type AddressCandidate
 - `frontend/src/composables/usePoConcurrencyEvents.ts` — function emitPoConcurrencyRetry: (poId) => void, function onPoConcurrencyRetry: (poId, handler) => void
 - `frontend/src/composables/usePoETags.ts` — function usePoETags: () => void
-- `frontend/src/composables/usePurchaseOrderGrid.ts` — function usePurchaseOrderGrid: (lines) => void
 - `frontend/src/composables/useQuoteImport.ts` — function useQuoteImport: () => void
 - `frontend/src/composables/useSettingsSchema.ts` — function useSettingsSchema: () => void
 - `frontend/src/composables/useSmartCostLineDelete.ts` — function useSmartCostLineDelete: (options) => void, interface UseSmartCostLineDeleteOptions
 - `frontend/src/composables/useStaffApi.ts` — function useStaffApi: () => void
-- `frontend/src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
-- `frontend/src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `frontend/src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
 - `frontend/src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `frontend/src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
@@ -1814,6 +1814,14 @@
   - function capitalize: (str) => string
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
+- `frontend/src/utils/timesheetCalc.ts`
+  - function getRateMultiplier: (rateType) => number
+  - function getRateTypeFromMultiplier: (m) => string
+  - function getMeta: (entry) => Record<string, unknown>
+  - function getMultiplier: (entry) => number
+  - function getIsBillable: (entry) => boolean
+  - function calculatedWage: (entry) => number
+  - _...3 more_
 - `manage.py` — function main: () -> None
 - `restore/extracted/home/corrin/backport_data_backup.py` — class Command
 - `restore/extracted/usr/local/bin/cleanup_backups.py`
@@ -2057,38 +2065,38 @@
 ## Most Imported Files (change these carefully)
 
 - `frontend/tests/fixtures/auth.ts` — imported by **29** files
-- `frontend/src/api/generated/api.ts` — imported by **27** files
+- `frontend/src/api/generated/api.ts` — imported by **26** files
 - `frontend/tests/fixtures/helpers.ts` — imported by **21** files
-- `frontend/src/utils/debug.ts` — imported by **14** files
+- `frontend/src/utils/debug.ts` — imported by **12** files
 - `/apps.py` — imported by **10** files
 - `frontend/src/api/client.ts` — imported by **7** files
 - `frontend/src/utils/dateUtils.ts` — imported by **6** files
 - `/enums.py` — imported by **5** files
 - `frontend/tests/scripts/db-backup-utils.ts` — imported by **5** files
-- `frontend/src/stores/jobs.ts` — imported by **5** files
+- `frontend/src/services/costline.service.ts` — imported by **4** files
+- `frontend/src/stores/jobs.ts` — imported by **4** files
 - `/utils.py` — imported by **3** files
 - `/models.py` — imported by **3** files
 - `/xero_helpers.py` — imported by **3** files
 - `/xero_base_manager.py` — imported by **3** files
-- `frontend/src/services/costline.service.ts` — imported by **3** files
 - `frontend/src/stores/auth.ts` — imported by **3** files
-- `frontend/src/services/job.service.ts` — imported by **3** files
 - `frontend/src/constants/advanced-filters.ts` — imported by **3** files
 - `/costing.py` — imported by **2** files
 - `/job.py` — imported by **2** files
+- `/job_event.py` — imported by **2** files
 
 ## Import Map (who imports what)
 
 - `frontend/tests/fixtures/auth.ts` ← `frontend/tests/company-defaults.spec.ts`, `frontend/tests/example.spec.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/create-job.spec.ts` +24 more
-- `frontend/src/api/generated/api.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAddEmptyCostLine.ts`, `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCostLineAutosave.ts` +22 more
+- `frontend/src/api/generated/api.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAddEmptyCostLine.ts`, `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCostLineAutosave.ts` +21 more
 - `frontend/tests/fixtures/helpers.ts` ← `frontend/tests/fixtures/auth.ts`, `frontend/tests/job/create-estimate-entry.spec.ts`, `frontend/tests/job/create-job-with-new-client.spec.ts`, `frontend/tests/job/job-attachments.spec.ts`, `frontend/tests/job/job-header.spec.ts` +16 more
-- `frontend/src/utils/debug.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobAutosave.ts`, `frontend/src/composables/useOptimizedDragAndDrop.ts` +9 more
+- `frontend/src/utils/debug.ts` ← `frontend/src/api/client.ts`, `frontend/src/composables/useAppLayout.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobAutosave.ts`, `frontend/src/composables/useOptimizedDragAndDrop.ts` +7 more
 - `/apps.py` ← `apps/accounting/__init__.py`, `apps/accounts/__init__.py`, `apps/client/__init__.py`, `apps/job/__init__.py`, `apps/operations/__init__.py` +5 more
 - `frontend/src/api/client.ts` ← `frontend/src/composables/useJobEvents.ts`, `frontend/src/composables/useJobFinancials.ts`, `frontend/src/services/clientService.ts`, `frontend/src/services/daily-timesheet.service.ts`, `frontend/src/services/job.service.ts` +2 more
 - `frontend/src/utils/dateUtils.ts` ← `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/services/timesheet.service.ts`, `frontend/tests/staff/staff-wage-loading.spec.ts`, `frontend/tests/timesheet/create-timesheet-entry.spec.ts` +1 more
 - `/enums.py` ← `apps/accounting/__init__.py`, `apps/job/__init__.py`, `apps/timesheet/__init__.py`, `apps/workflow/__init__.py`, `apps/workflow/api/__init__.py`
 - `frontend/tests/scripts/db-backup-utils.ts` ← `frontend/playwright.config.ts`, `frontend/scripts/capture-screenshots.ts`, `frontend/tests/scripts/e2e-reset.ts`, `frontend/tests/scripts/global-teardown.ts`, `frontend/tests/scripts/xero-login.ts`
-- `frontend/src/stores/jobs.ts` ← `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useJobHeaderAutosave.ts`, `frontend/src/composables/useOptimizedKanban.ts`, `frontend/src/composables/useTimesheetEntryCalculations.ts`, `frontend/src/main.ts`
+- `frontend/src/services/costline.service.ts` ← `frontend/src/components/timesheet/__tests__/SmartTimesheetTable.test.ts`, `frontend/src/composables/useAddMaterialCostLine.ts`, `frontend/src/composables/useCreateCostLineFromEmpty.ts`, `frontend/src/composables/useSmartCostLineDelete.ts`
 
 ---
 
@@ -2110,7 +2118,7 @@
 # Test Coverage
 
 > **23%** of routes and models are covered by tests
-> 133 test files found
+> 134 test files found
 
 ## Covered Routes
 

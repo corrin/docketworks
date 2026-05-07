@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults, getStaffList } from '../fixtures/api'
-import { autoId, createTestJob, gridCell } from '../fixtures/helpers'
+import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
@@ -102,40 +102,38 @@ test.describe.serial('staff wage loading', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
-    // Add a new entry
-    await autoId(page, 'TimesheetEntryView-add-entry').click()
-    await page.waitForTimeout(500)
+    // SmartTimesheetTable always renders an empty phantom row at the end.
+    // Pick the phantom dynamically — the chosen staff/date may already have
+    // saved entries, in which case the phantom isn't at index 0.
+    const rowIndex = await getPhantomRowIndex(page)
 
-    // Find the new temp row
-    const newRow = page.locator('.ag-row[row-id^="temp_"]').first()
-    await newRow.waitFor({ timeout: 10000 })
-    const rowId = await newRow.getAttribute('row-id')
-    if (!rowId) throw new Error('Failed to get row-id from new row')
-    console.log(`New row created with ID: ${rowId}`)
-
-    // Select the test job
-    await gridCell(page, rowId, 'jobNumber').click()
-    await page.waitForTimeout(300)
-    const jobSearchInput = autoId(page, 'TimesheetEntryJobCellEditor-job-search')
+    // Open the Job picker and pick the test job
+    await autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-trigger`).click()
+    const jobSearchInput = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-search`)
     await jobSearchInput.waitFor({ timeout: 5000 })
     await jobSearchInput.fill(jobNumber)
-    await page.waitForTimeout(500)
-    const jobOption = autoId(page, `TimesheetEntryJobCellEditor-option-${jobNumber}`)
+    const jobOption = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-option-${jobNumber}`)
     await jobOption.waitFor({ timeout: 5000 })
     await jobOption.click()
-    await page.waitForTimeout(500)
 
-    // Enter 1 hour
-    await gridCell(page, rowId, 'hours').click()
-    await page.waitForTimeout(200)
+    // Type 1 hour and blur (Enter blurs the input, committing the value, which
+    // causes the parent to POST the new entry and replace the phantom row).
+    const hoursInput = autoId(page, `SmartTimesheetTable-hours-${rowIndex}`)
+    await hoursInput.click()
     await page.keyboard.type('1')
     await page.keyboard.press('Enter')
 
-    // Wait for recalculation
-    await page.waitForTimeout(2000)
+    // Wait for the create-entry POST to complete and the row to materialise
+    // with an `id` (the toast confirms persistence).
+    await page.waitForResponse(
+      (res) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
+      { timeout: 15000 },
+    )
 
-    // Read the wage value from the grid cell
-    const wageText = await gridCell(page, rowId, 'wage').textContent()
+    // Read the rendered wage cell on the same row
+    const wageCell = autoId(page, `SmartTimesheetTable-wage-${rowIndex}`)
+    await wageCell.waitFor({ timeout: 5000 })
+    const wageText = await wageCell.textContent()
     console.log(`Displayed wage: ${wageText}`)
 
     // Parse currency value (e.g., "$43.20" -> 43.20)

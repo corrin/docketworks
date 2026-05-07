@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
-import { autoId, createTestJob, gridCell } from '../fixtures/helpers'
+import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
@@ -24,9 +24,82 @@ async function navigateToActualsTab(page: Page, jobUrl: string): Promise<void> {
 async function getTimeAndExpensesValue(page: Page): Promise<number> {
   const chip = autoId(page, 'JobActualTab-time-expenses')
   const text = await chip.innerText()
-  // Extract number from text like "$123.45"
   const match = text.match(/\$?([\d,]+\.?\d*)/)
   return match ? parseFloat(match[1].replace(/,/g, '')) : 0
+}
+
+async function navigateToTimesheetEntry(page: Page): Promise<void> {
+  const weekday = getLatestWeekdayDate()
+  await page.goto(`/timesheets/daily?date=${weekday}`)
+  await page.waitForLoadState('networkidle')
+
+  const firstStaffName = page.locator('[data-automation-id^="StaffRow-name-"]').first()
+  await firstStaffName.waitFor({ timeout: 10000 })
+  await firstStaffName.click()
+
+  await page.waitForURL('**/timesheets/entry**')
+  await page.waitForLoadState('networkidle')
+  await page.waitForTimeout(1000)
+}
+
+async function selectJobByNumber(page: Page, rowIndex: number, jobNumber: string): Promise<void> {
+  await autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-trigger`).click()
+  const search = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-search`)
+  await search.waitFor({ timeout: 5000 })
+  await search.fill(jobNumber)
+  const option = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-option-${jobNumber}`)
+  await option.waitFor({ timeout: 5000 })
+  await option.click()
+}
+
+async function selectJobByName(page: Page, rowIndex: number, jobNameSearch: string): Promise<void> {
+  await autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-trigger`).click()
+  const search = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-search`)
+  await search.waitFor({ timeout: 5000 })
+  await search.fill(jobNameSearch)
+  const list = autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-list`)
+  await list.waitFor({ timeout: 5000 })
+  const firstOption = list
+    .locator(`[data-automation-id^="SmartTimesheetTable-jobPicker-${rowIndex}-option-"]`)
+    .first()
+  await firstOption.waitFor({ timeout: 5000 })
+  await firstOption.click()
+}
+
+async function enterHours(page: Page, rowIndex: number, hours: string): Promise<void> {
+  const hoursInput = autoId(page, `SmartTimesheetTable-hours-${rowIndex}`)
+  await hoursInput.click()
+  await page.keyboard.type(hours)
+  await page.keyboard.press('Enter')
+}
+
+async function setRateMultiplier(
+  page: Page,
+  rowIndex: number,
+  rate: 'Ord' | '1.5' | '2.0' | 'Unpaid',
+): Promise<void> {
+  // shadcn Select renders the listbox into a Radix portal at document.body.
+  // Open the trigger, then pick the labelled option.
+  await autoId(page, `SmartTimesheetTable-rate-${rowIndex}`).click()
+  const optionLabel = rate === 'Ord' ? 'Ord' : rate === 'Unpaid' ? 'Unpaid' : `${rate}x`
+  await page.getByRole('option', { name: optionLabel }).click()
+}
+
+async function getPayItemValue(page: Page, rowIndex: number): Promise<string> {
+  const cell = autoId(page, `SmartTimesheetTable-payItem-${rowIndex}`)
+  return (await cell.textContent()) ?? ''
+}
+
+/**
+ * Wait for the in-flight POST that creates a phantom-row entry. Once the
+ * server responds, the row is replaced with the canonical version and a fresh
+ * phantom appears at the next index.
+ */
+async function waitForCreatePost(page: Page, timeout = 15000): Promise<void> {
+  await page.waitForResponse(
+    (res) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
+    { timeout },
+  )
 }
 
 // ============================================================================
@@ -41,7 +114,6 @@ test.describe.serial('timesheet entry operations', () => {
     const context = await browser.newContext()
     const page = await context.newPage()
 
-    // Login
     const username = process.env.E2E_TEST_USERNAME
     const password = process.env.E2E_TEST_PASSWORD
     await page.goto('/login')
@@ -50,11 +122,9 @@ test.describe.serial('timesheet entry operations', () => {
     await page.getByRole('button', { name: 'Sign In' }).click()
     await page.waitForURL('**/kanban')
 
-    // Create a job for timesheet testing
     jobUrl = await createTestJob(page, 'Timesheet')
     console.log(`Created job at: ${jobUrl}`)
 
-    // Extract job number from the page
     await page.goto(jobUrl.split('?')[0])
     await page.waitForLoadState('networkidle')
     const jobNumberElement = autoId(page, 'JobView-job-number').first()
@@ -79,69 +149,69 @@ test.describe.serial('timesheet entry operations', () => {
   })
 
   test('add timesheet entry for the test job', async ({ authenticatedPage: page }) => {
-    // Navigate to daily timesheet with a weekday date (weekends may be disabled)
-    const weekday = getLatestWeekdayDate()
-    await page.goto(`/timesheets/daily?date=${weekday}`)
-    await page.waitForLoadState('networkidle')
+    await navigateToTimesheetEntry(page)
 
-    // Click first staff name to open their timesheet entry view
-    const firstStaffName = page.locator('[data-automation-id^="StaffRow-name-"]').first()
-    await firstStaffName.waitFor({ timeout: 10000 })
-    await firstStaffName.click()
+    const rowIndex = await getPhantomRowIndex(page)
+    console.log(`Phantom row index: ${rowIndex}`)
 
-    // Wait for timesheet entry view
-    await page.waitForURL('**/timesheets/entry**')
-    await page.waitForLoadState('networkidle')
-    await page.waitForTimeout(1000)
+    await selectJobByNumber(page, rowIndex, jobNumber)
+    await enterHours(page, rowIndex, '2')
+    await waitForCreatePost(page)
 
-    // Click Add Entry button and wait for new row
-    await autoId(page, 'TimesheetEntryView-add-entry').click()
-    await page.waitForTimeout(500)
-
-    // Capture the new row's ID (tempId starts with "temp_")
-    const newRow = page.locator('.ag-row[row-id^="temp_"]').first()
-    await newRow.waitFor({ timeout: 10000 })
-    const rowId = await newRow.getAttribute('row-id')
-    if (!rowId) throw new Error('Failed to get row-id from new row')
-    console.log(`New row created with ID: ${rowId}`)
-
-    // Click on the job cell to open the job selector
-    await gridCell(page, rowId, 'jobNumber').click()
-    await page.waitForTimeout(300)
-
-    // Type the job number in the search input
-    const jobSearchInput = autoId(page, 'TimesheetEntryJobCellEditor-job-search')
-    await jobSearchInput.waitFor({ timeout: 5000 })
-    await jobSearchInput.fill(jobNumber)
-    await page.waitForTimeout(500)
-
-    // Select the job from the dropdown
-    const jobOption = autoId(page, `TimesheetEntryJobCellEditor-option-${jobNumber}`)
-    await jobOption.waitFor({ timeout: 5000 })
-    await jobOption.click()
-    await page.waitForTimeout(500)
-
-    // Enter hours in the same row
-    await gridCell(page, rowId, 'hours').click()
-    await page.waitForTimeout(200)
-    await page.keyboard.type('2')
-    // Press Enter to commit the value and stop editing (Tab would move to description and start editing it)
-    await page.keyboard.press('Enter')
-
-    // Wait for autosave debounce (800ms) + save time
-    // The UI shows the data immediately, but we need to wait for the backend save
-    await page.waitForTimeout(2000)
-
-    // Verify the hours were entered by checking the cell value
-    const hoursText = await gridCell(page, rowId, 'hours').textContent()
-    expect(hoursText).toContain('2')
+    // After save the row is at the same index; the phantom moved to rowIndex+1.
+    // Read the saved row's hours back from its rendered cell. The Hours column
+    // is an Input bound to the row's quantity; on a saved row it will display
+    // "2" (HoursCell formats whole numbers with no decimal).
+    const hoursInput = autoId(page, `SmartTimesheetTable-hours-${rowIndex}`)
+    await expect(hoursInput).toHaveValue(/^2/)
     console.log(`Added 2 hours to job ${jobNumber}`)
+  })
+
+  test('edit description on the saved row persists after reload', async ({
+    authenticatedPage: page,
+  }) => {
+    await navigateToTimesheetEntry(page)
+
+    // The previous test added a row for `jobNumber`; it sits just before the
+    // always-present phantom row. SmartTimesheetTable orders entries with the
+    // phantom last, so saved-row index = phantomIndex - 1.
+    const phantomIndex = await getPhantomRowIndex(page)
+    expect(phantomIndex).toBeGreaterThan(0)
+    const savedRowIndex = phantomIndex - 1
+
+    const newDesc = `e2e desc ${Date.now()}`
+    const descCell = autoId(page, `SmartTimesheetTable-description-${savedRowIndex}`)
+
+    // Click into the description, replace its contents, press Enter.
+    // Pressing Enter must blur the field, which triggers setDescription →
+    // commit → autosave → PATCH /cost_lines/{id}.
+    await descCell.click()
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type(newDesc)
+
+    const patchPromise = page.waitForResponse(
+      (res) =>
+        res.url().includes('/cost_lines/') &&
+        res.request().method() === 'PATCH' &&
+        res.status() === 200,
+      { timeout: 15000 },
+    )
+    await page.keyboard.press('Enter')
+    await patchPromise
+    console.log(`PATCHed description to: "${newDesc}"`)
+
+    // Reload to prove the new description came back from the server, not just
+    // from the optimistic in-memory update.
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+
+    const descAfterReload = autoId(page, `SmartTimesheetTable-description-${savedRowIndex}`)
+    await expect(descAfterReload).toHaveValue(newDesc)
   })
 
   test('verify timesheet entry appears on job Actuals tab', async ({ authenticatedPage: page }) => {
     await navigateToActualsTab(page, jobUrl)
 
-    // Time & Expenses should now be > 0
     const timeExpenses = await getTimeAndExpensesValue(page)
     console.log(`Time & Expenses after entry: $${timeExpenses}`)
     expect(timeExpenses).toBeGreaterThan(0)
@@ -152,114 +222,6 @@ test.describe.serial('timesheet entry operations', () => {
 // Test Suite: Xero Pay Item Validation
 // ============================================================================
 
-/**
- * Get the pay item value from a timesheet entry row
- */
-async function getPayItemValue(page: Page, rowId: string): Promise<string> {
-  const cell = gridCell(page, rowId, 'xeroPayItemName')
-  return (await cell.textContent()) || ''
-}
-
-/**
- * Navigate to timesheet entry view for the first staff member
- */
-async function navigateToTimesheetEntry(page: Page): Promise<void> {
-  const weekday = getLatestWeekdayDate()
-  await page.goto(`/timesheets/daily?date=${weekday}`)
-  await page.waitForLoadState('networkidle')
-
-  const firstStaffName = page.locator('[data-automation-id^="StaffRow-name-"]').first()
-  await firstStaffName.waitFor({ timeout: 10000 })
-  await firstStaffName.click()
-
-  await page.waitForURL('**/timesheets/entry**')
-  await page.waitForLoadState('networkidle')
-  await page.waitForTimeout(1000)
-}
-
-/**
- * Add a new timesheet entry row and return its row ID
- */
-async function addNewEntryRow(page: Page): Promise<string> {
-  await autoId(page, 'TimesheetEntryView-add-entry').click()
-  await page.waitForTimeout(500)
-
-  const newRow = page.locator('.ag-row[row-id^="temp_"]').first()
-  await newRow.waitFor({ timeout: 10000 })
-  const rowId = await newRow.getAttribute('row-id')
-  if (!rowId) throw new Error('Failed to get row-id from new row')
-  return rowId
-}
-
-/**
- * Select a job by searching for its name in the job dropdown
- */
-async function selectJobByName(page: Page, rowId: string, jobName: string): Promise<void> {
-  await gridCell(page, rowId, 'jobNumber').click()
-  await page.waitForTimeout(300)
-
-  const jobSearchInput = autoId(page, 'TimesheetEntryJobCellEditor-job-search')
-  await jobSearchInput.waitFor({ timeout: 5000 })
-  await jobSearchInput.fill(jobName)
-  await page.waitForTimeout(500)
-
-  // Click the first matching option in the dropdown
-  const dropdown = autoId(page, 'TimesheetEntryJobCellEditor-dropdown')
-  await dropdown.waitFor({ timeout: 5000 })
-  const firstOption = dropdown
-    .locator('[data-automation-id^="TimesheetEntryJobCellEditor-option-"]')
-    .first()
-  await firstOption.waitFor({ timeout: 5000 })
-  await firstOption.click()
-  await page.waitForTimeout(500)
-}
-
-/**
- * Select a job by its job number
- */
-async function selectJobByNumber(page: Page, rowId: string, jobNumber: string): Promise<void> {
-  await gridCell(page, rowId, 'jobNumber').click()
-  await page.waitForTimeout(300)
-
-  const jobSearchInput = autoId(page, 'TimesheetEntryJobCellEditor-job-search')
-  await jobSearchInput.waitFor({ timeout: 5000 })
-  await jobSearchInput.fill(jobNumber)
-  await page.waitForTimeout(500)
-
-  const jobOption = autoId(page, `TimesheetEntryJobCellEditor-option-${jobNumber}`)
-  await jobOption.waitFor({ timeout: 5000 })
-  await jobOption.click()
-  await page.waitForTimeout(500)
-}
-
-/**
- * Enter hours in the hours cell
- */
-async function enterHours(page: Page, rowId: string, hours: string): Promise<void> {
-  await gridCell(page, rowId, 'hours').click()
-  await page.waitForTimeout(200)
-  await page.keyboard.type(hours)
-  await page.keyboard.press('Enter')
-  await page.waitForTimeout(500)
-}
-
-/**
- * Change the rate multiplier for an entry
- */
-async function setRateMultiplier(page: Page, rowId: string, rate: string): Promise<void> {
-  const rateCell = gridCell(page, rowId, 'rate')
-
-  // Click to open the rate dropdown editor
-  await rateCell.click()
-  await page.waitForTimeout(300)
-
-  // Wait for dropdown to appear and click the option using automation ID
-  const rateOption = autoId(page, `TimesheetEntryRateCellEditor-option-${rate}`)
-  await rateOption.waitFor({ timeout: 5000 })
-  await rateOption.click()
-  await page.waitForTimeout(500)
-}
-
 test.describe.serial('xero pay item validation', () => {
   let testJobNumber: string
 
@@ -267,7 +229,6 @@ test.describe.serial('xero pay item validation', () => {
     const context = await browser.newContext()
     const page = await context.newPage()
 
-    // Login
     const username = process.env.E2E_TEST_USERNAME
     const password = process.env.E2E_TEST_PASSWORD
     await page.goto('/login')
@@ -276,11 +237,9 @@ test.describe.serial('xero pay item validation', () => {
     await page.getByRole('button', { name: 'Sign In' }).click()
     await page.waitForURL('**/kanban')
 
-    // Create a test job for pay item testing
     const jobUrl = await createTestJob(page, 'PayItem')
     console.log(`Created job for pay item tests at: ${jobUrl}`)
 
-    // Extract job number
     await page.goto(jobUrl.split('?')[0])
     await page.waitForLoadState('networkidle')
     const jobNumberElement = autoId(page, 'JobView-job-number').first()
@@ -300,40 +259,28 @@ test.describe.serial('xero pay item validation', () => {
     authenticatedPage: page,
   }) => {
     await navigateToTimesheetEntry(page)
-    const rowId = await addNewEntryRow(page)
-    console.log(`Created new row for Annual Leave test: ${rowId}`)
+    const rowIndex = await getPhantomRowIndex(page)
+    console.log(`Phantom row index for Annual Leave test: ${rowIndex}`)
 
-    // Select the Annual Leave job by searching for its name
-    await selectJobByName(page, rowId, 'Annual Leave')
+    await selectJobByName(page, rowIndex, 'Annual Leave')
+    await enterHours(page, rowIndex, '4')
+    await waitForCreatePost(page)
 
-    // Enter hours
-    await enterHours(page, rowId, '4')
-
-    // Wait for autosave
-    await page.waitForTimeout(2000)
-
-    // Validate the pay item is "Annual Leave"
-    const payItem = await getPayItemValue(page, rowId)
+    const payItem = await getPayItemValue(page, rowIndex)
     console.log(`Annual Leave entry pay item: "${payItem}"`)
     expect(payItem).toBe('Annual Leave')
   })
 
   test('regular job defaults to Ordinary Time pay item', async ({ authenticatedPage: page }) => {
     await navigateToTimesheetEntry(page)
-    const rowId = await addNewEntryRow(page)
-    console.log(`Created new row for regular job test: ${rowId}`)
+    const rowIndex = await getPhantomRowIndex(page)
+    console.log(`Phantom row index for regular job test: ${rowIndex}`)
 
-    // Select the test job by number
-    await selectJobByNumber(page, rowId, testJobNumber)
+    await selectJobByNumber(page, rowIndex, testJobNumber)
+    await enterHours(page, rowIndex, '2')
+    await waitForCreatePost(page)
 
-    // Enter hours (rate defaults to 'Ord')
-    await enterHours(page, rowId, '2')
-
-    // Wait for autosave
-    await page.waitForTimeout(2000)
-
-    // Validate the pay item is "Ordinary Time"
-    const payItem = await getPayItemValue(page, rowId)
+    const payItem = await getPayItemValue(page, rowIndex)
     console.log(`Regular job entry pay item: "${payItem}"`)
     expect(payItem).toBe('Ordinary Time')
   })
@@ -343,24 +290,32 @@ test.describe.serial('xero pay item validation', () => {
   }) => {
     await navigateToTimesheetEntry(page)
 
-    // Find the entry we created in the previous test by looking for our test job number
-    const entryRow = page
-      .locator('.ag-row')
-      .filter({ has: page.locator(`[col-id="jobNumber"]:has-text("${testJobNumber}")`) })
-      .first()
-    await entryRow.waitFor({ timeout: 10000 })
-    const rowId = await entryRow.getAttribute('row-id')
-    if (!rowId) throw new Error('Failed to find the regular job entry row')
-    console.log(`Found regular job entry row: ${rowId}`)
+    // The previous test left a saved entry on testJobNumber, but the staff's
+    // day already had other entries — its row index isn't deterministic. Find
+    // it by matching the picker trigger text (`#${testJobNumber}`) and read
+    // the row index out of the trigger's automation-id.
+    const triggers = page
+      .locator(
+        '[data-automation-id^="SmartTimesheetTable-jobPicker-"][data-automation-id$="-trigger"]',
+      )
+      .filter({ hasText: `#${testJobNumber}` })
+    await triggers.first().waitFor({ timeout: 10000 })
+    const triggerId = await triggers.first().getAttribute('data-automation-id')
+    const match = triggerId?.match(/jobPicker-(\d+)-trigger/)
+    const rowIndex = match ? Number(match[1]) : -1
+    expect(rowIndex).toBeGreaterThanOrEqual(0)
+    console.log(`Found regular-job row at index ${rowIndex} (#${testJobNumber})`)
 
-    // Change the rate to 2.0
-    await setRateMultiplier(page, rowId, '2.0')
+    await setRateMultiplier(page, rowIndex, '2.0')
 
-    // Wait for the pay item to update
-    await page.waitForTimeout(1000)
+    // Rate change kicks off a PATCH; wait for it before reading the pay item.
+    await page.waitForResponse(
+      (res) =>
+        res.url().includes('/cost_lines/') && ['PATCH', 'PUT'].includes(res.request().method()),
+      { timeout: 15000 },
+    )
 
-    // Validate the pay item changed to a 2.0 multiplier pay item
-    const payItem = await getPayItemValue(page, rowId)
+    const payItem = await getPayItemValue(page, rowIndex)
     console.log(`After rate change to 2.0, pay item: "${payItem}"`)
     expect(['Double Time', 'Overtime (2.0)']).toContain(payItem)
   })

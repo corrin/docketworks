@@ -2,8 +2,8 @@
 
 > **Stack:** raw-http | none | vue | typescript
 
-> 0 routes | 0 models | 185 components | 103 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
-> **Token savings:** this file is ~11,400 tokens. Without it, AI exploration would cost ~99,800 tokens. **Saves ~88,400 tokens per conversation.**
+> 0 routes | 0 models | 188 components | 101 lib files | 13 env vars | 3 middleware | 7 events | 0% test coverage
+> **Token savings:** this file is ~11,500 tokens. Without it, AI exploration would cost ~100,300 tokens. **Saves ~88,800 tokens per conversation.**
 
 ---
 
@@ -115,16 +115,19 @@
 - **InlineEditText** [client] — `src/components/shared/InlineEditText.vue`
 - **SmartCostLinesTable** [client] — props: lines, tabKind, readOnly, showItemColumn, showSourceColumn, sourceResolver, line — `src/components/shared/SmartCostLinesTable.vue`
 - **BillablePercentageBadge** [client] — props: percentage — `src/components/timesheet/BillablePercentageBadge.vue`
+- **HoursCell** [client] — props: hours, disabled, automationId — `src/components/timesheet/HoursCell.vue`
 - **MetricsModal** [client] — props: open, summary — `src/components/timesheet/MetricsModal.vue`
 - **PayrollControlSection** [client] — `src/components/timesheet/PayrollControlSection.vue`
 - **PayrollStaffRow** [client] — `src/components/timesheet/PayrollStaffRow.vue`
+- **SmartTimesheetTable** [client] — props: entries, staffId, staffWageRate, defaultChargeOutRate, accountingDate, jobs, payItemsByMultiplier, readOnly — `src/components/timesheet/SmartTimesheetTable.vue`
 - **StaffDetailModal** [client] — `src/components/timesheet/StaffDetailModal.vue`
 - **StaffRow** [client] — `src/components/timesheet/StaffRow.vue`
 - **StaffWeekRow** [client] — `src/components/timesheet/StaffWeekRow.vue`
 - **StatusBadge** [client] — `src/components/timesheet/StatusBadge.vue`
 - **SummaryCard** [client] — props: title, value, subtitle, progress, icon, color — `src/components/timesheet/SummaryCard.vue`
 - **SummaryDrawer** [client] — `src/components/timesheet/SummaryDrawer.vue`
-- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete — `src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete, automationIdPrefix — `src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetJobPicker** [client] — props: modelValue, jobs, disabled, placeholder, automationIdPrefix — `src/components/timesheet/TimesheetJobPicker.vue`
 - **WeekPickerModal** [client] — `src/components/timesheet/WeekPickerModal.vue`
 - **WeeklyMetricsModal** [client] — `src/components/timesheet/WeeklyMetricsModal.vue`
 - **WorkshopJobAttachmentsCard** [client] — `src/components/workshop/WorkshopJobAttachmentsCard.vue`
@@ -277,13 +280,10 @@
   - type AddressCandidate
 - `src/composables/usePoConcurrencyEvents.ts` — function emitPoConcurrencyRetry: (poId) => void, function onPoConcurrencyRetry: (poId, handler) => void
 - `src/composables/usePoETags.ts` — function usePoETags: () => void
-- `src/composables/usePurchaseOrderGrid.ts` — function usePurchaseOrderGrid: (lines) => void
 - `src/composables/useQuoteImport.ts` — function useQuoteImport: () => void
 - `src/composables/useSettingsSchema.ts` — function useSettingsSchema: () => void
 - `src/composables/useSmartCostLineDelete.ts` — function useSmartCostLineDelete: (options) => void, interface UseSmartCostLineDeleteOptions
 - `src/composables/useStaffApi.ts` — function useStaffApi: () => void
-- `src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
-- `src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
 - `src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
@@ -483,6 +483,14 @@
   - function capitalize: (str) => string
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
+- `src/utils/timesheetCalc.ts`
+  - function getRateMultiplier: (rateType) => number
+  - function getRateTypeFromMultiplier: (m) => string
+  - function getMeta: (entry) => Record<string, unknown>
+  - function getMultiplier: (entry) => number
+  - function getIsBillable: (entry) => boolean
+  - function calculatedWage: (entry) => number
+  - _...3 more_
 
 ---
 
@@ -533,39 +541,39 @@
 
 ## Most Imported Files (change these carefully)
 
-- `src/api/generated/api.ts` — imported by **78** files
-- `src/utils/debug.ts` — imported by **54** files
+- `src/api/generated/api.ts` — imported by **73** files
 - `src/api/client.ts` — imported by **52** files
+- `src/utils/debug.ts` — imported by **50** files
 - `tests/fixtures/auth.ts` — imported by **29** files
 - `tests/fixtures/helpers.ts` — imported by **21** files
-- `src/utils/dateUtils.ts` — imported by **16** files
-- `src/utils/string-formatting.ts` — imported by **14** files
+- `src/utils/dateUtils.ts` — imported by **15** files
+- `src/utils/string-formatting.ts` — imported by **11** files
 - `src/stores/auth.ts` — imported by **7** files
-- `src/stores/jobs.ts` — imported by **6** files
-- `src/services/job.service.ts` — imported by **6** files
 - `tests/scripts/db-backup-utils.ts` — imported by **5** files
+- `src/stores/jobs.ts` — imported by **5** files
+- `src/services/job.service.ts` — imported by **5** files
 - `src/plugins/axios.ts` — imported by **5** files
+- `src/services/costline.service.ts` — imported by **4** files
 - `src/stores/companyDefaults.ts` — imported by **4** files
-- `src/constants/timesheet.ts` — imported by **4** files
-- `src/services/costline.service.ts` — imported by **3** files
 - `src/composables/useJobETags.ts` — imported by **3** files
 - `src/composables/useJobDelta.ts` — imported by **3** files
 - `src/constants/advanced-filters.ts` — imported by **3** files
 - `src/router/index.ts` — imported by **3** files
 - `src/composables/useConcurrencyEvents.ts` — imported by **2** files
+- `src/composables/usePoConcurrencyEvents.ts` — imported by **2** files
 
 ## Import Map (who imports what)
 
-- `src/api/generated/api.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useActiveJob.ts`, `src/composables/useAddEmptyCostLine.ts` +73 more
-- `src/utils/debug.ts` ← `src/api/client.ts`, `src/components/purchasing/PurchaseOrderJobCellEditor.ts`, `src/components/timesheet/TimesheetEntryJobCellEditor.ts`, `src/composables/useAppLayout.ts`, `src/composables/useCamera.ts` +49 more
+- `src/api/generated/api.ts` ← `src/api/client.ts`, `src/composables/useActiveJob.ts`, `src/composables/useAddEmptyCostLine.ts`, `src/composables/useAddMaterialCostLine.ts`, `src/composables/useAppLayout.ts` +68 more
 - `src/api/client.ts` ← `src/composables/useClientLookup.ts`, `src/composables/useContactManagement.ts`, `src/composables/useDataFreshness.ts`, `src/composables/useErrorApi.ts`, `src/composables/useJobEvents.ts` +47 more
+- `src/utils/debug.ts` ← `src/api/client.ts`, `src/composables/useAppLayout.ts`, `src/composables/useCamera.ts`, `src/composables/useClientLookup.ts`, `src/composables/useContactManagement.ts` +45 more
 - `tests/fixtures/auth.ts` ← `tests/company-defaults.spec.ts`, `tests/example.spec.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/create-job.spec.ts` +24 more
 - `tests/fixtures/helpers.ts` ← `tests/fixtures/auth.ts`, `tests/job/create-estimate-entry.spec.ts`, `tests/job/create-job-with-new-client.spec.ts`, `tests/job/job-attachments.spec.ts`, `tests/job/job-header.spec.ts` +16 more
-- `src/utils/dateUtils.ts` ← `src/composables/useAddMaterialCostLine.ts`, `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useFinancialYear.ts`, `src/composables/useStaffApi.ts`, `src/composables/useTimesheetEntryGrid.ts` +11 more
-- `src/utils/string-formatting.ts` ← `src/composables/usePurchaseOrderGrid.ts`, `src/composables/useTimesheetEntryGrid.ts`, `src/composables/useWorkshopCalendarSync.ts`, `src/composables/useWorkshopJob.ts`, `src/composables/useWorkshopTimesheetTimeUtils.ts` +9 more
+- `src/utils/dateUtils.ts` ← `src/composables/useAddMaterialCostLine.ts`, `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useFinancialYear.ts`, `src/composables/useStaffApi.ts`, `src/composables/useWorkshopTimesheetDay.ts` +10 more
+- `src/utils/string-formatting.ts` ← `src/composables/useWorkshopCalendarSync.ts`, `src/composables/useWorkshopJob.ts`, `src/composables/useWorkshopTimesheetTimeUtils.ts`, `src/services/daily-timesheet.service.ts`, `src/services/job-aging-report.service.ts` +6 more
 - `src/stores/auth.ts` ← `src/composables/useAppLayout.ts`, `src/composables/useDashboard.ts`, `src/composables/useJobHeaderAutosave.ts`, `src/composables/useLogin.ts`, `src/plugins/axios.ts` +2 more
-- `src/stores/jobs.ts` ← `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useJobFiles.ts`, `src/composables/useJobHeaderAutosave.ts`, `src/composables/useOptimizedKanban.ts`, `src/composables/useTimesheetEntryCalculations.ts` +1 more
-- `src/services/job.service.ts` ← `src/composables/useJobAttachments.ts`, `src/composables/useOptimizedKanban.ts`, `src/composables/useTimesheetEntryCalculations.ts`, `src/composables/useWorkshopJob.ts`, `src/composables/useWorkshopJobBudgets.ts` +1 more
+- `tests/scripts/db-backup-utils.ts` ← `playwright.config.ts`, `scripts/capture-screenshots.ts`, `tests/scripts/e2e-reset.ts`, `tests/scripts/global-teardown.ts`, `tests/scripts/xero-login.ts`
+- `src/stores/jobs.ts` ← `src/composables/useCreateCostLineFromEmpty.ts`, `src/composables/useJobFiles.ts`, `src/composables/useJobHeaderAutosave.ts`, `src/composables/useOptimizedKanban.ts`, `src/main.ts`
 
 ---
 
@@ -584,7 +592,7 @@
 # Test Coverage
 
 > **0%** of routes and models are covered by tests
-> 49 test files found
+> 50 test files found
 
 ---
 

@@ -2840,6 +2840,7 @@ const ModernTimesheetJob = z.object({
   estimated_hours: z.number().nullable(),
   default_xero_pay_item_id: z.string().uuid(),
   default_xero_pay_item_name: z.string(),
+  shop_job: z.boolean(),
 })
 const JobsListResponse = z.object({
   jobs: z.array(ModernTimesheetJob),

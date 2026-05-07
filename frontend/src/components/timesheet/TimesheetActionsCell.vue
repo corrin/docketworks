@@ -1,12 +1,16 @@
 <script setup lang="ts">
 import { Check, Trash2 } from 'lucide-vue-next'
 
-defineProps<{
-  approved: boolean
-  canApprove: boolean
-  onApprove?: () => void
-  onDelete?: () => void
-}>()
+withDefaults(
+  defineProps<{
+    approved: boolean
+    canApprove: boolean
+    onApprove?: () => void
+    onDelete?: () => void
+    automationIdPrefix?: string
+  }>(),
+  { automationIdPrefix: 'TimesheetActionsCell' },
+)
 </script>
 
 <template>
@@ -16,6 +20,7 @@ defineProps<{
       class="h-7 w-7 rounded-md bg-emerald-500 text-white flex items-center justify-center shadow-sm"
       type="button"
       title="Approve"
+      :data-automation-id="`${automationIdPrefix}-approve`"
       @click="onApprove?.()"
     >
       <Check class="h-3.5 w-3.5" />
@@ -24,6 +29,7 @@ defineProps<{
       class="h-7 w-7 rounded-md bg-transparent text-slate-500 flex items-center justify-center"
       type="button"
       title="Delete"
+      :data-automation-id="`${automationIdPrefix}-delete`"
       @click="onDelete?.()"
     >
       <Trash2 class="h-4 w-4" />

@@ -78,13 +78,10 @@
   - type AddressCandidate
 - `src/composables/usePoConcurrencyEvents.ts` — function emitPoConcurrencyRetry: (poId) => void, function onPoConcurrencyRetry: (poId, handler) => void
 - `src/composables/usePoETags.ts` — function usePoETags: () => void
-- `src/composables/usePurchaseOrderGrid.ts` — function usePurchaseOrderGrid: (lines) => void
 - `src/composables/useQuoteImport.ts` — function useQuoteImport: () => void
 - `src/composables/useSettingsSchema.ts` — function useSettingsSchema: () => void
 - `src/composables/useSmartCostLineDelete.ts` — function useSmartCostLineDelete: (options) => void, interface UseSmartCostLineDeleteOptions
 - `src/composables/useStaffApi.ts` — function useStaffApi: () => void
-- `src/composables/useTimesheetEntryCalculations.ts` — function useTimesheetEntryCalculations: (companyDefaults) => void
-- `src/composables/useTimesheetEntryGrid.ts` — function useTimesheetEntryGrid: (companyDefaults, jobs, unknown>[]>, onSaveEntry) => void
 - `src/composables/useTimesheetSummary.ts` — function useTimesheetSummary: () => void
 - `src/composables/useVersionCheck.ts` — function startVersionCheck: () => void
 - `src/composables/useWorkshopCalendarSync.ts` — function useWorkshopCalendarSync: (options) => void
@@ -284,3 +281,11 @@
   - function capitalize: (str) => string
   - function formatCurrency: (value, {...}) => string
   - _...5 more_
+- `src/utils/timesheetCalc.ts`
+  - function getRateMultiplier: (rateType) => number
+  - function getRateTypeFromMultiplier: (m) => string
+  - function getMeta: (entry) => Record<string, unknown>
+  - function getMultiplier: (entry) => number
+  - function getIsBillable: (entry) => boolean
+  - function calculatedWage: (entry) => number
+  - _...3 more_

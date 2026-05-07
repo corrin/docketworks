@@ -1,8 +1,9 @@
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { schemas } from '../api/generated/api'
-import type { TimesheetEntryWithMeta } from '@/constants/timesheet'
 import { z } from 'zod'
+
+type TimesheetCostLine = z.infer<typeof schemas.TimesheetCostLine>
 import { debugLog } from '@/utils/debug'
 import { getJobActualHours, getJobEstimatedHours } from '@/utils/costLineMeta'
 
@@ -20,7 +21,7 @@ export function useTimesheetSummary() {
     )
   }
 
-  const getJobHours = (jobId: string, timeEntries: TimesheetEntryWithMeta[]) => {
+  const getJobHours = (jobId: string, timeEntries: TimesheetCostLine[]) => {
     const jobEntries = timeEntries.filter((entry) => entry.job_id === jobId)
 
     debugLog(`getJobHours for jobId ${jobId}:`, {
@@ -35,7 +36,7 @@ export function useTimesheetSummary() {
     return jobEntries.reduce((sum, entry) => sum + (entry.quantity || 0), 0)
   }
 
-  const getJobBill = (jobId: string, timeEntries: TimesheetEntryWithMeta[]) => {
+  const getJobBill = (jobId: string, timeEntries: TimesheetCostLine[]) => {
     const jobEntries = timeEntries.filter((entry) => entry.job_id === jobId)
     return jobEntries.reduce((sum, entry) => sum + (entry.total_rev || 0), 0)
   }
@@ -49,15 +50,15 @@ export function useTimesheetSummary() {
     return estimatedHours > 0 && actualHours > estimatedHours
   }
 
-  const getTotalHours = (timeEntries: TimesheetEntryWithMeta[]) => {
+  const getTotalHours = (timeEntries: TimesheetCostLine[]) => {
     return timeEntries.reduce((sum, entry) => sum + (entry.quantity || 0), 0)
   }
 
-  const getTotalBill = (timeEntries: TimesheetEntryWithMeta[]) => {
+  const getTotalBill = (timeEntries: TimesheetCostLine[]) => {
     return timeEntries.reduce((sum, entry) => sum + (entry.total_rev || 0), 0)
   }
 
-  const getBillableFlag = (entry: TimesheetEntryWithMeta): boolean | null => {
+  const getBillableFlag = (entry: TimesheetCostLine): boolean | null => {
     const meta = entry.meta
     if (meta && typeof meta === 'object') {
       const record = meta as Record<string, unknown>
@@ -68,11 +69,11 @@ export function useTimesheetSummary() {
     return null
   }
 
-  const getBillableEntries = (timeEntries: TimesheetEntryWithMeta[]) => {
+  const getBillableEntries = (timeEntries: TimesheetCostLine[]) => {
     return timeEntries.filter((entry) => getBillableFlag(entry) === true).length
   }
 
-  const getNonBillableEntries = (timeEntries: TimesheetEntryWithMeta[]) => {
+  const getNonBillableEntries = (timeEntries: TimesheetCostLine[]) => {
     return timeEntries.filter((entry) => getBillableFlag(entry) === false).length
   }
 

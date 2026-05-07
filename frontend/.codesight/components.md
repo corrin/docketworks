@@ -106,16 +106,19 @@
 - **InlineEditText** [client] — `src/components/shared/InlineEditText.vue`
 - **SmartCostLinesTable** [client] — props: lines, tabKind, readOnly, showItemColumn, showSourceColumn, sourceResolver, line — `src/components/shared/SmartCostLinesTable.vue`
 - **BillablePercentageBadge** [client] — props: percentage — `src/components/timesheet/BillablePercentageBadge.vue`
+- **HoursCell** [client] — props: hours, disabled, automationId — `src/components/timesheet/HoursCell.vue`
 - **MetricsModal** [client] — props: open, summary — `src/components/timesheet/MetricsModal.vue`
 - **PayrollControlSection** [client] — `src/components/timesheet/PayrollControlSection.vue`
 - **PayrollStaffRow** [client] — `src/components/timesheet/PayrollStaffRow.vue`
+- **SmartTimesheetTable** [client] — props: entries, staffId, staffWageRate, defaultChargeOutRate, accountingDate, jobs, payItemsByMultiplier, readOnly — `src/components/timesheet/SmartTimesheetTable.vue`
 - **StaffDetailModal** [client] — `src/components/timesheet/StaffDetailModal.vue`
 - **StaffRow** [client] — `src/components/timesheet/StaffRow.vue`
 - **StaffWeekRow** [client] — `src/components/timesheet/StaffWeekRow.vue`
 - **StatusBadge** [client] — `src/components/timesheet/StatusBadge.vue`
 - **SummaryCard** [client] — props: title, value, subtitle, progress, icon, color — `src/components/timesheet/SummaryCard.vue`
 - **SummaryDrawer** [client] — `src/components/timesheet/SummaryDrawer.vue`
-- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete — `src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetActionsCell** [client] — props: approved, canApprove, onApprove, onDelete, automationIdPrefix — `src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetJobPicker** [client] — props: modelValue, jobs, disabled, placeholder, automationIdPrefix — `src/components/timesheet/TimesheetJobPicker.vue`
 - **WeekPickerModal** [client] — `src/components/timesheet/WeekPickerModal.vue`
 - **WeeklyMetricsModal** [client] — `src/components/timesheet/WeeklyMetricsModal.vue`
 - **WorkshopJobAttachmentsCard** [client] — `src/components/workshop/WorkshopJobAttachmentsCard.vue`

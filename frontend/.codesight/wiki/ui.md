@@ -2,7 +2,7 @@
 
 > **Navigation aid.** Component inventory and prop signatures extracted via AST. Read the source files before adding props or modifying component logic.
 
-**185 components** (vue)
+**188 components** (vue)
 
 ## Client Components
 
@@ -112,16 +112,19 @@
 - **InlineEditText** — `src/components/shared/InlineEditText.vue`
 - **SmartCostLinesTable** — props: lines, tabKind, readOnly, showItemColumn, showSourceColumn, sourceResolver, line — `src/components/shared/SmartCostLinesTable.vue`
 - **BillablePercentageBadge** — props: percentage — `src/components/timesheet/BillablePercentageBadge.vue`
+- **HoursCell** — props: hours, disabled, automationId — `src/components/timesheet/HoursCell.vue`
 - **MetricsModal** — props: open, summary — `src/components/timesheet/MetricsModal.vue`
 - **PayrollControlSection** — `src/components/timesheet/PayrollControlSection.vue`
 - **PayrollStaffRow** — `src/components/timesheet/PayrollStaffRow.vue`
+- **SmartTimesheetTable** — props: entries, staffId, staffWageRate, defaultChargeOutRate, accountingDate, jobs, payItemsByMultiplier, readOnly — `src/components/timesheet/SmartTimesheetTable.vue`
 - **StaffDetailModal** — `src/components/timesheet/StaffDetailModal.vue`
 - **StaffRow** — `src/components/timesheet/StaffRow.vue`
 - **StaffWeekRow** — `src/components/timesheet/StaffWeekRow.vue`
 - **StatusBadge** — `src/components/timesheet/StatusBadge.vue`
 - **SummaryCard** — props: title, value, subtitle, progress, icon, color — `src/components/timesheet/SummaryCard.vue`
 - **SummaryDrawer** — `src/components/timesheet/SummaryDrawer.vue`
-- **TimesheetActionsCell** — props: approved, canApprove, onApprove, onDelete — `src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetActionsCell** — props: approved, canApprove, onApprove, onDelete, automationIdPrefix — `src/components/timesheet/TimesheetActionsCell.vue`
+- **TimesheetJobPicker** — props: modelValue, jobs, disabled, placeholder, automationIdPrefix — `src/components/timesheet/TimesheetJobPicker.vue`
 - **WeekPickerModal** — `src/components/timesheet/WeekPickerModal.vue`
 - **WeeklyMetricsModal** — `src/components/timesheet/WeeklyMetricsModal.vue`
 - **WorkshopJobAttachmentsCard** — `src/components/workshop/WorkshopJobAttachmentsCard.vue`

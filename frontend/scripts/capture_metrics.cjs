@@ -233,7 +233,7 @@ const captureMetrics = async (env, jobId) => {
         url: window.location.href,
         title: document.title,
         bodyLength: document.body.innerText.length,
-        dataRows: document.querySelectorAll('tbody tr, .ag-row').length,
+        dataRows: document.querySelectorAll('tbody tr').length,
         tables: document.querySelectorAll('table').length,
         performance: perf
           ? {
