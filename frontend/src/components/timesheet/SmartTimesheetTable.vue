@@ -353,10 +353,14 @@ const columns = computed(() => [
     header: () => h('div', { class: 'text-left' }, 'Job'),
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
+      // Saved rows: cost-line→job linkage isn't a writable field on the cost
+      // line PATCH endpoint (job ownership lives on the parent CostSet). Allow
+      // the picker only on the phantom row; a user retargeting an existing
+      // entry must delete + recreate.
       return h(TimesheetJobPicker, {
         modelValue: entry.job_number || null,
         jobs: props.jobs,
-        disabled: props.readOnly,
+        disabled: props.readOnly || !!entry.id,
         automationIdPrefix: `SmartTimesheetTable-jobPicker-${row.index}`,
         onSelect: (job: Job) => setJob(entry, job),
       })
@@ -439,15 +443,17 @@ const columns = computed(() => [
         class: 'w-full min-w-[28ch] min-h-[2.25rem] text-sm',
         'data-automation-id': `SmartTimesheetTable-description-${row.index}`,
         onKeydown: (e: KeyboardEvent) => {
-          // Plain Enter inside a description textarea blurs to commit, instead
-          // of inserting a newline. Ctrl/Cmd+Enter still bubbles to the grid
-          // (where useGridKeyboardNav handles "add line"). This matches
-          // SmartCostLinesTable.vue's behaviour.
+          // Plain Enter blurs to commit instead of inserting a newline.
           if (e.key === 'Enter' && !(e.metaKey || e.ctrlKey || e.shiftKey)) {
             e.preventDefault()
             ;(e.target as HTMLElement).blur()
             return
           }
+          // Everything else is intentionally swallowed: cell-level edits stay
+          // insulated from grid-level shortcuts. Ctrl+Backspace must mean
+          // "delete previous word" inside text, not deleteSelected; Ctrl/Cmd+
+          // Enter must not surface row operations from inside an active edit.
+          // Row-level keyboard nav lives on the container (Trello #308).
           e.stopPropagation()
         },
         'onUpdate:modelValue': (v: string | number) => {

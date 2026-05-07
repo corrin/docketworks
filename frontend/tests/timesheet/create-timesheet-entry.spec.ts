@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
-import { autoId, createTestJob } from '../fixtures/helpers'
+import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
@@ -26,20 +26,6 @@ async function getTimeAndExpensesValue(page: Page): Promise<number> {
   const text = await chip.innerText()
   const match = text.match(/\$?([\d,]+\.?\d*)/)
   return match ? parseFloat(match[1].replace(/,/g, '')) : 0
-}
-
-/**
- * SmartTimesheetTable always renders an empty phantom row at the end of the
- * table. Returns the index of that phantom (= number of saved entries on the
- * current day for this staff member).
- */
-async function getPhantomRowIndex(page: Page): Promise<number> {
-  const rows = page.locator('[data-automation-id^="DataTable-row-"]')
-  // Initial mount can take a moment after the URL changes; the staff store
-  // and timesheet entries load asynchronously before SmartTimesheetTable
-  // becomes visible. Wait for at least one row before counting.
-  await rows.first().waitFor({ timeout: 15000 })
-  return (await rows.count()) - 1
 }
 
 async function navigateToTimesheetEntry(page: Page): Promise<void> {

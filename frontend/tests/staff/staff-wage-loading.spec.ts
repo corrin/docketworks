@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import { getCompanyDefaults, getStaffList } from '../fixtures/api'
-import { autoId, createTestJob } from '../fixtures/helpers'
+import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
@@ -103,10 +103,9 @@ test.describe.serial('staff wage loading', () => {
     await page.waitForTimeout(1000)
 
     // SmartTimesheetTable always renders an empty phantom row at the end.
-    // Fresh day with no entries → the phantom is at row index 0. After the
-    // entry saves, the row is replaced in-place (still index 0) with the
-    // backend-canonical version, and a fresh phantom appears at index 1.
-    const rowIndex = 0
+    // Pick the phantom dynamically — the chosen staff/date may already have
+    // saved entries, in which case the phantom isn't at index 0.
+    const rowIndex = await getPhantomRowIndex(page)
 
     // Open the Job picker and pick the test job
     await autoId(page, `SmartTimesheetTable-jobPicker-${rowIndex}-trigger`).click()

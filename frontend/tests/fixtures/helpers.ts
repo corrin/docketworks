@@ -147,6 +147,21 @@ export const gridCell = (page: Page, rowId: string, colId: string) =>
   page.locator(`[row-id="${rowId}"] [col-id="${colId}"]`)
 
 /**
+ * SmartTimesheetTable always renders an empty phantom row at the end of the
+ * table. Returns the index of that phantom (= number of saved entries on the
+ * current day for this staff member). Don't hard-code rowIndex=0 — picked
+ * staff/date may already have entries.
+ */
+export async function getPhantomRowIndex(page: Page): Promise<number> {
+  const rows = page.locator('[data-automation-id^="DataTable-row-"]')
+  // Initial mount can take a moment after the URL changes; the staff store
+  // and timesheet entries load asynchronously before SmartTimesheetTable
+  // becomes visible. Wait for at least one row before counting.
+  await rows.first().waitFor({ timeout: 15000 })
+  return (await rows.count()) - 1
+}
+
+/**
  * Helper to dismiss any toast notifications that might block interactions
  */
 export async function dismissToasts(page: Page) {

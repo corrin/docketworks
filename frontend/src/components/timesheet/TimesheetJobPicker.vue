@@ -46,6 +46,10 @@ const triggerLabel = computed(() => {
   return `#${j.job_number}`
 })
 
+// `props.jobs` is the active-jobs-for-timesheet set served by
+// `timesheets_jobs_retrieve()` — bounded by live shop workload (tens to
+// low-hundreds), not the full job table. Blank search shows the full list so
+// a user can pick by eye; typed search trims to top 15 matches.
 const filtered = computed<Job[]>(() => {
   const term = search.value.trim().toLowerCase()
   if (!term) {

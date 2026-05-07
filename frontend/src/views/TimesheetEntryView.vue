@@ -293,8 +293,12 @@
             class="flex-1 bg-white shadow-sm border border-gray-200 rounded-lg m-2 lg:m-4 overflow-hidden"
           >
             <div class="h-full overflow-auto p-2">
+              <!-- :key forces remount on staff/date change so the phantom row
+                   rebuilds against the new wage rate, charge-out rate and date.
+                   Without it, emptyEntry stays bound to the previous context. -->
               <SmartTimesheetTable
                 v-if="selectedStaffId && currentStaff"
+                :key="`${selectedStaffId}|${currentDate}`"
                 :entries="timeEntries"
                 :staff-id="selectedStaffId"
                 :staff-wage-rate="currentStaff.wageRate ?? 0"
