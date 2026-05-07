@@ -22,6 +22,7 @@ vi.mock('../../../utils/debug', () => ({ debugLog: vi.fn() }))
 import SmartTimesheetTable from '../SmartTimesheetTable.vue'
 import TimesheetJobPicker from '../TimesheetJobPicker.vue'
 import HoursCell from '../HoursCell.vue'
+import { costlineService } from '../../../services/costline.service'
 
 const sampleJob = {
   id: 'j1',
@@ -149,6 +150,51 @@ describe('SmartTimesheetTable job picker is disabled on saved rows (C4)', () => 
     expect(pickers[0].props('disabled')).toBe(true)
     // Phantom row (index 1): user must be able to pick a job for the new entry.
     expect(pickers[1].props('disabled')).toBe(false)
+  })
+})
+
+describe('SmartTimesheetTable description save on a saved row', () => {
+  it('typing a new description on a saved row and pressing Enter persists the new desc', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    vi.mocked(costlineService.updateCostLine).mockClear()
+    vi.mocked(costlineService.updateCostLine).mockResolvedValue({})
+
+    const saved = buildSavedEntry({ desc: 'old description' })
+    const wrapper = mount(SmartTimesheetTable, {
+      props: { ...baseProps, entries: [saved] },
+    })
+    await flushPromises()
+
+    // Click into the description on the saved row (index 0).
+    const textarea = wrapper.find<HTMLTextAreaElement>(
+      '[data-automation-id="SmartTimesheetTable-description-0"]',
+    )
+    expect(textarea.exists()).toBe(true)
+
+    // Focus, then change ONLY the description. setValue triggers v-model's
+    // onUpdate:modelValue, which mirrors the live-typing path (entry.desc
+    // gets pre-mutated each keystroke).
+    textarea.element.focus()
+    await textarea.setValue('new description')
+
+    // Press Enter — handler must preventDefault and blur the field. The blur
+    // event then triggers @blur → setDescription → commit → autosave.
+    await textarea.trigger('keydown', { key: 'Enter' })
+
+    // happy-dom doesn't always emit the blur event for programmatic .blur(),
+    // so trigger it explicitly to mirror the real-browser flow.
+    await textarea.trigger('blur')
+
+    // Past the 600ms autosave debounce.
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+
+    expect(costlineService.updateCostLine).toHaveBeenCalledTimes(1)
+    const [id, patch] = vi.mocked(costlineService.updateCostLine).mock.calls[0]
+    expect(id).toBe('cl-1')
+    expect(patch).toEqual({ desc: 'new description' })
+
+    vi.useRealTimers()
   })
 })
 

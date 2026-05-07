@@ -167,6 +167,48 @@ test.describe.serial('timesheet entry operations', () => {
     console.log(`Added 2 hours to job ${jobNumber}`)
   })
 
+  test('edit description on the saved row persists after reload', async ({
+    authenticatedPage: page,
+  }) => {
+    await navigateToTimesheetEntry(page)
+
+    // The previous test added a row for `jobNumber`; it sits just before the
+    // always-present phantom row. SmartTimesheetTable orders entries with the
+    // phantom last, so saved-row index = phantomIndex - 1.
+    const phantomIndex = await getPhantomRowIndex(page)
+    expect(phantomIndex).toBeGreaterThan(0)
+    const savedRowIndex = phantomIndex - 1
+
+    const newDesc = `e2e desc ${Date.now()}`
+    const descCell = autoId(page, `SmartTimesheetTable-description-${savedRowIndex}`)
+
+    // Click into the description, replace its contents, press Enter.
+    // Pressing Enter must blur the field, which triggers setDescription →
+    // commit → autosave → PATCH /cost_lines/{id}.
+    await descCell.click()
+    await page.keyboard.press('ControlOrMeta+a')
+    await page.keyboard.type(newDesc)
+
+    const patchPromise = page.waitForResponse(
+      (res) =>
+        res.url().includes('/cost_lines/') &&
+        res.request().method() === 'PATCH' &&
+        res.status() === 200,
+      { timeout: 15000 },
+    )
+    await page.keyboard.press('Enter')
+    await patchPromise
+    console.log(`PATCHed description to: "${newDesc}"`)
+
+    // Reload to prove the new description came back from the server, not just
+    // from the optimistic in-memory update.
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+
+    const descAfterReload = autoId(page, `SmartTimesheetTable-description-${savedRowIndex}`)
+    await expect(descAfterReload).toHaveValue(newDesc)
+  })
+
   test('verify timesheet entry appears on job Actuals tab', async ({ authenticatedPage: page }) => {
     await navigateToActualsTab(page, jobUrl)
 

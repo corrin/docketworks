@@ -222,7 +222,11 @@ function setHours(entry: TimesheetCostLine, raw: string): void {
 }
 
 function setDescription(entry: TimesheetCostLine, val: string): void {
-  if ((entry.desc ?? '') === val) return
+  // No equality check: the description's onUpdate:modelValue handler already
+  // pre-mutates entry.desc on each keystroke (unlike Hours/Rate which keep a
+  // local string until blur), so by the time onBlur calls us entry.desc and
+  // val are always equal. An equality check here is dead code that prevents
+  // commit from ever running. The autosave layer dedups identical patches.
   Object.assign(entry, { desc: val })
   commit(entry, ['desc'])
 }
