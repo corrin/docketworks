@@ -61,7 +61,7 @@ test.describe('timesheet entry performance', () => {
     await page.goto(`/timesheets/entry?date=${weekday}&staffId=${staffId}`)
 
     // Wait for grid to appear (indicates data loaded)
-    const grid = page.locator('.ag-theme-custom')
+    const grid = page.locator('.smart-timesheet-table')
     await grid.waitFor({ state: 'visible', timeout: 60000 })
 
     // Wait for loading spinner to disappear
@@ -162,7 +162,7 @@ test.describe('timesheet entry performance', () => {
     apiTiming.length = 0
 
     await page.goto(`/timesheets/entry?date=${weekday}&staffId=${staffId}`)
-    await page.locator('.ag-theme-custom').waitFor({ state: 'visible', timeout: 60000 })
+    await page.locator('.smart-timesheet-table').waitFor({ state: 'visible', timeout: 60000 })
     await page.waitForFunction(() => !document.querySelector('.animate-spin'), { timeout: 60000 })
 
     console.log('\n=== API REQUEST TIMELINE ===\n')
@@ -210,6 +210,6 @@ test.describe('timesheet entry performance', () => {
       console.log('\nWARNING: Requests appear to be mostly sequential - could be parallelized!')
     }
 
-    expect(page.locator('.ag-theme-custom')).toBeVisible()
+    expect(page.locator('.smart-timesheet-table')).toBeVisible()
   })
 })
