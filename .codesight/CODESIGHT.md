@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 43 models | 188 components | 368 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~31,000 tokens. Without it, AI exploration would cost ~245,200 tokens. **Saves ~214,200 tokens per conversation.**
+> 94 routes | 43 models | 188 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~31,000 tokens. Without it, AI exploration would cost ~245,400 tokens. **Saves ~214,400 tokens per conversation.**
 
 ---
 
@@ -1953,6 +1953,10 @@
   - function check_xero_oauth: ()
   - function check_xero_config: ()
   - function validate_restore_state: (allow_testing)
+- `scripts/verify_xero_batch_order.py`
+  - function build_contacts: (count, run_token) -> list[Contact]
+  - function archive: (accounting_api, tenant_id, contacts) -> None
+  - function main: () -> int
 
 ---
 
@@ -2118,7 +2122,7 @@
 # Test Coverage
 
 > **23%** of routes and models are covered by tests
-> 134 test files found
+> 137 test files found
 
 ## Covered Routes
 

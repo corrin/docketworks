@@ -37,7 +37,6 @@ def sync_client_to_xero(client):
         return False
 
     if client.xero_contact_id:
-        contact_data["ContactID"] = client.xero_contact_id
         response = accounting_api.update_contact(
             get_tenant_id(),
             contact_id=client.xero_contact_id,
@@ -491,10 +490,7 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
     for i in range(0, len(clients_to_create), batch_size):
         batch = clients_to_create[i : i + batch_size]
 
-        # Prepare batch contact data
         contact_batch = []
-        batch_client_map = {}  # Map contact name to client object
-
         for client in batch:
             if not client.validate_for_xero():
                 logger.error(f"Client {client.name} failed Xero validation")
@@ -509,29 +505,13 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
                     f"Client {client.name} failed to generate Xero data"
                 )  # FAIL EARLY
 
-            # FAIL EARLY: Validate required fields
-            if "name" not in contact_data:
-                logger.error(
-                    f"Client {client.name} contact data missing 'name' field: {contact_data}"
-                )
-                raise ValueError(
-                    f"Client {client.name} contact data missing 'name' field"
-                )  # FAIL EARLY
-
-            # Convert lowercase 'name' to uppercase 'Name' for Xero API
-            if "Name" not in contact_data and "name" in contact_data:
-                contact_data["Name"] = contact_data["name"]
-                del contact_data["name"]
-
             contact_batch.append(contact_data)
-            batch_client_map[contact_data["Name"]] = client
 
         if not contact_batch:
             logger.warning(f"No valid contacts in batch {i // batch_size + 1}")
             continue
 
         try:
-            # Single API call for up to 50 contacts
             logger.info(
                 f"Creating batch of {len(contact_batch)} contacts in Xero (batch {i // batch_size + 1})"
             )
@@ -545,25 +525,27 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
                     f"Xero API returned empty response for batch {i // batch_size + 1}"
                 )
 
-            time.sleep(
-                SLEEP_TIME
-            )  # Single sleep for the entire batch - only after success
+            time.sleep(SLEEP_TIME)
 
-            # Process responses and update client records
-            for created_contact in response.contacts:
-                contact_name = created_contact.name
-                if contact_name in batch_client_map:
-                    client = batch_client_map[contact_name]
-                    client.xero_contact_id = created_contact.contact_id
-                    client.save(update_fields=["xero_contact_id"])
-                    total_created += 1
-                    logger.info(
-                        f"Created Xero contact for client {client.name}: {client.xero_contact_id}"
+            # Map response back to clients by submission order. Verified
+            # against dev Xero by scripts/verify_xero_batch_order.py.
+            for idx, (client, created_contact) in enumerate(
+                zip(batch, response.contacts, strict=True)
+            ):
+                if created_contact.name != client.name:
+                    raise ValueError(
+                        f"Xero response order mismatch at position {idx}: "
+                        f"sent {client.name!r} but received "
+                        f"{created_contact.name!r}. Re-run "
+                        f"scripts/verify_xero_batch_order.py to confirm "
+                        f"Xero is still preserving submission order."
                     )
-                else:
-                    logger.warning(
-                        f"Could not map created contact '{contact_name}' back to client"
-                    )
+                client.xero_contact_id = created_contact.contact_id
+                client.save(update_fields=["xero_contact_id"])
+                total_created += 1
+                logger.info(
+                    f"Created Xero contact for client {client.name}: {client.xero_contact_id}"
+                )
 
         except Exception as e:
             logger.error(
