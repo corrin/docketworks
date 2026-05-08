@@ -179,3 +179,51 @@ class BulkCreateContactsInXeroTests(TestCase):
 
         self.assertEqual(mock_api.create_contacts.call_count, 2)
         self.assertEqual(total, 53)
+
+    def test_duplicate_names_get_distinct_ids_when_response_in_order(
+        self, mock_api_class, _mock_tenant, _mock_sleep
+    ):
+        """Regression: two clients with identical names in one batch must each
+        receive their own xero_contact_id. The previous name-keyed mapping
+        silently overwrote the first client's mapping with the second's."""
+        client_a = _make_client(name="Same Name", email="a@example.test")
+        client_b = _make_client(name="Same Name", email="b@example.test")
+        mock_api = mock_api_class.return_value
+        mock_api.create_contacts.return_value = Contacts(
+            contacts=[
+                Contact(contact_id="id-a", name="Same Name"),
+                Contact(contact_id="id-b", name="Same Name"),
+            ]
+        )
+
+        from apps.workflow.api.xero.push import bulk_create_contacts_in_xero
+
+        total = bulk_create_contacts_in_xero([client_a, client_b])
+
+        self.assertEqual(total, 2)
+        client_a.refresh_from_db()
+        client_b.refresh_from_db()
+        self.assertEqual(client_a.xero_contact_id, "id-a")
+        self.assertEqual(client_b.xero_contact_id, "id-b")
+
+    def test_response_out_of_order_raises_value_error(
+        self, mock_api_class, _mock_tenant, _mock_sleep
+    ):
+        """If Xero ever stops preserving submission order, the runtime
+        name-mismatch check must fail loudly rather than silently writing
+        the wrong xero_contact_id."""
+        client_a = _make_client(name="Alpha")
+        client_b = _make_client(name="Beta")
+        mock_api = mock_api_class.return_value
+        mock_api.create_contacts.return_value = Contacts(
+            contacts=[
+                Contact(contact_id="id-b", name="Beta"),
+                Contact(contact_id="id-a", name="Alpha"),
+            ]
+        )
+
+        from apps.workflow.api.xero.push import bulk_create_contacts_in_xero
+
+        with self.assertRaises(ValueError) as cm:
+            bulk_create_contacts_in_xero([client_a, client_b])
+        self.assertIn("response order mismatch", str(cm.exception))

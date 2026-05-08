@@ -71,7 +71,10 @@ def seed_clients_to_xero(clients):
             logger.error(f"Error linking client {client.name}: {e}")
             raise  # FAIL EARLY
 
-    # Process creation in batches using dedicated function
+    # Process creation in batches using dedicated function.
+    # bulk_create_contacts_in_xero relies on Xero preserving submission
+    # order in the response. If you suspect that's changed, run
+    # scripts/verify_xero_batch_order.py before this seed.
     if clients_to_create:
         results["created"] = bulk_create_contacts_in_xero(clients_to_create)
 

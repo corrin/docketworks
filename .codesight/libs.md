@@ -1063,3 +1063,7 @@
   - function check_xero_oauth: ()
   - function check_xero_config: ()
   - function validate_restore_state: (allow_testing)
+- `scripts/verify_xero_batch_order.py`
+  - function build_contacts: (count, run_token) -> list[Contact]
+  - function archive: (accounting_api, tenant_id, contacts) -> None
+  - function main: () -> int
