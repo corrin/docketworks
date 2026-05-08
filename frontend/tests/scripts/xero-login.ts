@@ -7,7 +7,7 @@
  * Also exports ensureXeroConnected() for use in global-setup.ts
  */
 
-import { chromium, type Browser } from '@playwright/test'
+import { chromium, errors as playwrightErrors, type Browser } from '@playwright/test'
 import dotenv from 'dotenv'
 import { getBackendEnv } from './db-backup-utils'
 
@@ -129,7 +129,14 @@ export async function ensureXeroConnected(): Promise<void> {
     const consentNav = page
       .waitForURL(/^https:\/\/(?:[\w-]+\.)?xero\.com\//, { timeout: 30000 })
       .then(() => 'consent' as const)
-    const outcome = await Promise.race([mfaPrompt, consentNav]).catch(() => 'timeout' as const)
+    // Only treat Playwright TimeoutError as the 'timeout' outcome; let
+    // page crashes, navigation failures, and other errors propagate so
+    // the real failure mode shows up in CI logs instead of a generic
+    // "neither appeared" message.
+    const outcome = await Promise.race([mfaPrompt, consentNav]).catch((err) => {
+      if (err instanceof playwrightErrors.TimeoutError) return 'timeout' as const
+      throw err
+    })
     if (outcome === 'mfa') {
       console.log('MFA required - please approve on your phone...')
       await page.waitForURL(/^https:\/\/(?:[\w-]+\.)?xero\.com\//, { timeout: 120000 })
