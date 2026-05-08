@@ -3,6 +3,7 @@ import uuid
 
 from django.db import models
 from django.utils import timezone
+from xero_python.accounting.models import Address, Contact, Phone
 
 from apps.workflow.models import CompanyDefaults
 
@@ -144,42 +145,31 @@ class Client(models.Model):
 
     def get_client_for_xero(self):
         """
-        Return the client data in a format suitable for syncing to Xero.
-        Handles None values explicitly to ensure proper serialization.
-        """
-        # Logging all data for debugging
-        logger.debug(f"Preparing client for Xero sync: ID={self.id}, Name={self.name}")
+        Build a xero_python.accounting.models.Contact for syncing to Xero.
 
-        # Ensure required fields are present
+        Returns an SDK model instance (not a dict) so the SDK's attribute_map
+        translates Python snake_case to Xero's PascalCase wire format. Raw
+        dicts ship verbatim and Xero silently drops every non-Name field.
+        """
         if not self.name:
             raise ValueError(
                 f"Client {self.id} is missing a name, which is required for Xero."
             )
 
-        # Prepare serialized data
-        client_dict = {
-            "contact_id": self.xero_contact_id or "",  # Empty string if None
-            "name": self.name,  # Required by Xero, must not be None
-            "email_address": self.email or "",  # Empty string if None
-            "phones": [
-                {
-                    "phone_type": "DEFAULT",
-                    "phone_number": self.phone or "",  # Empty string if None
-                }
+        return Contact(
+            contact_id=self.xero_contact_id,
+            name=self.name,
+            email_address=self.email,
+            phones=[Phone(phone_type="DEFAULT", phone_number=self.phone)],
+            addresses=[
+                Address(
+                    address_type="STREET",
+                    attention_to=self.name,
+                    address_line1=self.address,
+                )
             ],
-            "addresses": [
-                {
-                    "address_type": "STREET",
-                    "attention_to": self.name,
-                    "address_line1": self.address or "",  # Empty string if None
-                }
-            ],
-            "is_customer": self.is_account_customer,  # Boolean, always valid
-        }
-
-        # Log the final serialized data
-        logger.debug(f"Serialized client data for Xero: {client_dict}")
-        return client_dict
+            is_customer=self.is_account_customer,
+        )
 
     @classmethod
     def get_shop_client_id(cls) -> str:

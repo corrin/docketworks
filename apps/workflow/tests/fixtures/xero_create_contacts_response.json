@@ -1,0 +1,95 @@
+{
+  "account_number": null,
+  "accounts_payable_tax_type": null,
+  "accounts_receivable_tax_type": null,
+  "addresses": [
+    {
+      "address_line1": "123 Test Street",
+      "address_line2": null,
+      "address_line3": null,
+      "address_line4": null,
+      "address_type": "STREET",
+      "attention_to": "ZZ-MOCK-FIXTURE-20260509-082237",
+      "city": "",
+      "country": "",
+      "postal_code": "",
+      "region": ""
+    },
+    {
+      "address_line1": null,
+      "address_line2": null,
+      "address_line3": null,
+      "address_line4": null,
+      "address_type": "POBOX",
+      "attention_to": null,
+      "city": "",
+      "country": "",
+      "postal_code": "",
+      "region": ""
+    }
+  ],
+  "attachments": null,
+  "balances": null,
+  "bank_account_details": "",
+  "batch_payments": null,
+  "branding_theme": null,
+  "company_number": null,
+  "contact_groups": [],
+  "contact_id": "25cab4cc-ca44-4dca-bc2e-5e6c9b546c48",
+  "contact_number": null,
+  "contact_persons": [],
+  "contact_status": "ACTIVE",
+  "default_currency": null,
+  "discount": null,
+  "email_address": "info@acme.test",
+  "first_name": null,
+  "has_attachments": false,
+  "has_validation_errors": false,
+  "is_customer": false,
+  "is_supplier": false,
+  "last_name": null,
+  "merged_to_contact_id": null,
+  "name": "ZZ-MOCK-FIXTURE-20260509-082237",
+  "payment_terms": null,
+  "phones": [
+    {
+      "phone_area_code": "",
+      "phone_country_code": "",
+      "phone_number": "027 351 8326",
+      "phone_type": "DEFAULT"
+    },
+    {
+      "phone_area_code": "",
+      "phone_country_code": "",
+      "phone_number": "",
+      "phone_type": "DDI"
+    },
+    {
+      "phone_area_code": "",
+      "phone_country_code": "",
+      "phone_number": "",
+      "phone_type": "FAX"
+    },
+    {
+      "phone_area_code": "",
+      "phone_country_code": "",
+      "phone_number": "",
+      "phone_type": "MOBILE"
+    }
+  ],
+  "purchases_default_account_code": null,
+  "purchases_default_line_amount_type": null,
+  "purchases_tracking_categories": [],
+  "sales_default_account_code": null,
+  "sales_default_line_amount_type": null,
+  "sales_tracking_categories": [],
+  "status_attribute_string": null,
+  "tax_number": null,
+  "tax_number_type": null,
+  "tracking_category_name": null,
+  "tracking_category_option": null,
+  "updated_date_utc": "2026-05-08 20:22:39.053000+00:00",
+  "validation_errors": null,
+  "website": null,
+  "xero_network_key": null
+}

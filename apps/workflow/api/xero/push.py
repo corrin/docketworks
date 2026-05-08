@@ -37,7 +37,6 @@ def sync_client_to_xero(client):
         return False
 
     if client.xero_contact_id:
-        contact_data["ContactID"] = client.xero_contact_id
         response = accounting_api.update_contact(
             get_tenant_id(),
             contact_id=client.xero_contact_id,
@@ -509,22 +508,8 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
                     f"Client {client.name} failed to generate Xero data"
                 )  # FAIL EARLY
 
-            # FAIL EARLY: Validate required fields
-            if "name" not in contact_data:
-                logger.error(
-                    f"Client {client.name} contact data missing 'name' field: {contact_data}"
-                )
-                raise ValueError(
-                    f"Client {client.name} contact data missing 'name' field"
-                )  # FAIL EARLY
-
-            # Convert lowercase 'name' to uppercase 'Name' for Xero API
-            if "Name" not in contact_data and "name" in contact_data:
-                contact_data["Name"] = contact_data["name"]
-                del contact_data["name"]
-
             contact_batch.append(contact_data)
-            batch_client_map[contact_data["Name"]] = client
+            batch_client_map[contact_data.name] = client
 
         if not contact_batch:
             logger.warning(f"No valid contacts in batch {i // batch_size + 1}")
