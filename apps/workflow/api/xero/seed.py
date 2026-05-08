@@ -47,11 +47,6 @@ def seed_clients_to_xero(clients):
     clients_to_link = []
     clients_to_create = []
 
-    # TODO: REMOVE DEBUG - Temporary debugging for duplicate contact issue
-    logger.info(
-        f"DEBUG: Found {sum(len(v) for v in existing_by_name.values())} existing contacts in Xero for matching"
-    )
-
     for client in clients:
         candidates = existing_by_name.get(client.name.lower())
         if candidates:
@@ -60,25 +55,8 @@ def seed_clients_to_xero(clients):
             # to create instead.
             existing_contact_id = candidates.pop(0)
             clients_to_link.append((client, existing_contact_id))
-            # TODO: REMOVE DEBUG
-            logger.info(
-                f"DEBUG: Will LINK '{client.name}' to existing contact {existing_contact_id}"
-            )
         else:
             clients_to_create.append(client)
-            # TODO: REMOVE DEBUG - Log clients that will be created (potential duplicates)
-            if client.name in ["Johnson PLC", "Martinez LLC"]:
-                logger.warning(
-                    f"DEBUG: Will CREATE '{client.name}' - not found (or all duplicates already linked) in existing contacts"
-                )
-                logger.warning(
-                    f"DEBUG: Available existing contact names: {sorted(list(set([name for name in existing_by_name.keys() if 'johnson' in name.lower() or 'martinez' in name.lower()])))}"
-                )
-
-    # TODO: REMOVE DEBUG
-    logger.info(
-        f"DEBUG: Final separation - {len(clients_to_link)} to link, {len(clients_to_create)} to create"
-    )
 
     # Process linking (fast, no API calls)
     for client, existing_contact_id in clients_to_link:

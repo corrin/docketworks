@@ -127,12 +127,12 @@ export async function ensureXeroConnected(): Promise<void> {
       .waitFor({ timeout: 30000 })
       .then(() => 'mfa' as const)
     const consentNav = page
-      .waitForURL(/authorize\.xero\.com/, { timeout: 30000 })
+      .waitForURL(/^https:\/\/(?:[\w-]+\.)?xero\.com\//, { timeout: 30000 })
       .then(() => 'consent' as const)
     const outcome = await Promise.race([mfaPrompt, consentNav]).catch(() => 'timeout' as const)
     if (outcome === 'mfa') {
       console.log('MFA required - please approve on your phone...')
-      await page.waitForURL(/authorize\.xero\.com/, { timeout: 120000 })
+      await page.waitForURL(/^https:\/\/(?:[\w-]+\.)?xero\.com\//, { timeout: 120000 })
     } else if (outcome === 'timeout') {
       throw new Error(
         'Neither MFA prompt nor consent page appeared within 30s after Xero login submit',
