@@ -20,6 +20,7 @@ from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.timesheet.services.payroll_employee_sync import PayrollEmployeeSyncService
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.payroll import sync_xero_pay_items
 from apps.workflow.api.xero.seed import (
     fetch_xero_entity_lookup,
     seed_clients_to_xero,
@@ -125,6 +126,14 @@ class Command(BaseCommand):
         # Sync payroll employees (run before invoices/quotes/stock so payroll
         # is in place before any financial transactions are seeded)
         if "employees" in entities_to_sync:
+            # XeroPayItem.xero_id was cleared above (env-specific) and
+            # process_employees needs Ordinary Time's xero_id to build the
+            # employee payload. Repopulate from the target Xero tenant first.
+            if not dry_run:
+                self.stdout.write("Syncing Pay Items...")
+                sync_xero_pay_items()
+            else:
+                self.stdout.write("Skipping Pay Items sync (dry run)")
             self.stdout.write("Syncing Payroll Employees...")
             employees_result = self.process_employees(dry_run)
 

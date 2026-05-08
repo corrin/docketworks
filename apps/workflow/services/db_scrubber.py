@@ -27,7 +27,7 @@ from apps.accounting.models import (
     Invoice,
     Quote,
 )
-from apps.accounts.models import Staff
+from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.staff_anonymization import create_staff_profile
 from apps.client.models import Client, ClientContact
 from apps.workflow.models import CompanyDefaults
@@ -51,9 +51,16 @@ def _scrub_staff() -> None:
 
     Touches first_name, last_name, preferred_name, email only — matches the
     legacy behaviour. xero_user_id and password are intentionally left alone.
+
+    The System Automation row (seeded by accounts.0015) is preserved as-is —
+    it's a system identity, not PII, and downstream consumers (audit-trail
+    saves, Xero sync of background-job-created invoices) look it up by
+    canonical email.
     """
     used_emails: set[str] = set()
-    for staff in Staff.objects.using(SCRUB_ALIAS).all():
+    for staff in Staff.objects.using(SCRUB_ALIAS).exclude(
+        email=SYSTEM_AUTOMATION_EMAIL
+    ):
         for _ in range(_GENERATE_ATTEMPTS):
             profile = create_staff_profile()
             if profile["email"] not in used_emails:

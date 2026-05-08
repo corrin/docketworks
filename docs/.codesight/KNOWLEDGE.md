@@ -1,7 +1,7 @@
 # Knowledge Map — docketworks
-> 118 notes · 19 decisions · 10 open questions
+> 120 notes · 19 decisions · 10 open questions
 
-> **AI Primer:** This knowledge base has 118 notes. Key topics: problem, why, alternatives considered, verification. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
+> **AI Primer:** This knowledge base has 120 notes. Key topics: problem, why, alternatives considered, verification. Most recent decision: `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id…. 10 open questions remain.
 
 ## Key Decisions (19)
 - `AlreadyLoggedException` (in `apps/workflow/exceptions.py`) wraps the original exception plus the persisted `AppError.id`. Every handler is two-arm: re-raise `AlreadyLoggedException` unchanged; otherwise persist once, wrap, re-raise. `persist_app_error()` returns the `AppError` instance so callers can carry the id forward.
@@ -29,15 +29,15 @@
 - 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 - 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 - 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match the redirect URI and `.env`? Is the port correct?
+- REMOVE DEBUG` log statements at `apps/workflow/api/xero/seed.py:45-71` are out of scope for this PR — leaving them for a
 - process.env.MSM_FRONTEND_URL ??
 - Timing issue? Page not fully rendered when we search?
 - Selector issue? `data-automation-id^="cost-line-row-"` not matching?
 - Textarea selector issue? `.locator('textarea').first()` not finding the right element?
 - Maybe the first edited field doesn't trigger autosave?
-- Maybe quantity needs blur event but we Tab away too fast?
 
 ## Recurring Themes
-problem · why · alternatives considered · verification · tips · what youll need · steps · what happens next · out of scope · approach · critical files · troubleshooting
+problem · why · alternatives considered · verification · tips · what youll need · steps · what happens next · out of scope · approach · files to modify · critical files
 
 ## People
 @login_required · @docketworks · @shared_task · @staticmethod · @democompany · @update · @github · @bairdandwhyte · @vue · @deprecated · @latest · @playwright · @staff_member_required · @input · @change · @blur · @dataclass · @ljharb · @mhart · @nvm
@@ -50,7 +50,7 @@ problem · why · alternatives considered · verification · tips · what youll 
 - `docs/server_setup.md` — **2** incoming references — Server Setup
 - `restore/extracted/usr/local/nvm/GOVERNANCE.md` — **2** incoming references — `nvm` Project Governance
 
-## Note Index (118)
+## Note Index (120)
 
 ### Decision Records (16)
 - `docs/adr/0001-exception-already-logged-dedup.md` — Wrap once-persisted exceptions in `AlreadyLoggedException`; nested handlers re-raise unchanged instead of re-persisting.
@@ -85,7 +85,7 @@ problem · why · alternatives considered · verification · tips · what youll 
 ### Session Logs (1)
 - `frontend/manual/end-of-week/weekly-checklist.md` — **When to use:** End of the week admin procedures -- making sure nothing's fallen through the cracks.
 
-### General Notes (93)
+### General Notes (95)
 - `CLAUDE.md` — This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository. `AGENTS.md` is a symlink to this file so Codex, Cursor, a…
 - `README.md` — A Django + Vue.js job/project management system for businesses that do lots of small-to-medium jobs for many clients. Originally built for [Morris Sheetmetal](h…
 - `docs/README.md` ← 1 refs — DocketWorks is a job/project management system for businesses that do lots of relatively small jobs for many clients — fabrication shops, IT consultancies, trad…
@@ -98,15 +98,15 @@ problem · why · alternatives considered · verification · tips · what youll 
 - `docs/instance-setup-production.md` ← 1 refs — Set up a production instance for a client connecting to their real Xero organisation.
 - `docs/ngrok_setup.md` ← 1 refs — Set up ngrok tunnels for local development. Do this first — you'll need the domain for Xero app configuration.
 - `docs/plans/abstract-tumbling-milner.md` — `feat/xero-day-quota-floor` moved Xero credentials from `.env` into the
+- `docs/plans/crystalline-wiggling-dijkstra.md` — I've been rushing this card across multiple turns: recommended an implementation, then a "more architectural" implementation, then "no fix needed", each based o…
 - `docs/plans/cuddly-wandering-globe.md` — Prod client boxes (e.g. `office.heuserlimited.com`) are **refusing to
 - `docs/plans/here-is-what-prod-tidy-manatee.md` — Recurring prod incident: Xero shows "disconnected", heartbeat refreshes return `400 invalid_grant: Refresh token has expired` (or `Refresh token not found`), an…
 - `docs/plans/hidden-yawning-mccarthy.md` — PR #266 introduced `apps/workflow/api/xero/active_app.py:get_active_client()` to dispatch Xero API calls to the credentials of whichever `XeroApp` row has `is_a…
 - `docs/plans/implementation-task-fluffy-hopcroft.md` — **Branch:** `feat/migrate-apscheduler-to-celery-beat` (PR #273, against `main`)
 - `docs/plans/interesting-i-would-have-memoized-flame.md` — E2E test `frontend/tests/company-defaults.spec.ts:28` ("test company defaults edit and save") failed with:
+- `docs/plans/is-your-current-change-hidden-coral.md` — Branch `fix/imporove_restore_prod_to_nonprod` exists to make `docs/restore-prod-to-nonprod.md` reliable enough to run unattended on server instances. While runn…
 - `docs/plans/misty-frolicking-rose.md` — A staff member without a valid Xero payroll ID **cannot record time**, so they must not appear in any timesheet view.
-- `docs/plans/mutable-waddling-scott.md` — PR #275 (`feat/celery_for_xero_sync`) moved the Xero sync loop from a
-- `docs/plans/plan-shared-redis-cache-declarative-whistle.md` — The Xero sync write/read sides now live in different processes:
-- _…and 73 more_
+- _…and 75 more_
 
 ---
 _Generated by [codesight](https://github.com/Houseofmvps/codesight) v1.10.0_

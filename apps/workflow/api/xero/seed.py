@@ -1,5 +1,6 @@
 import logging
 import time
+from collections import defaultdict
 
 from django.utils import timezone
 from xero_python.accounting import AccountingApi
@@ -32,9 +33,13 @@ def seed_clients_to_xero(clients):
         logger.error(f"Failed to fetch existing Xero contacts: {e}")
         raise  # FAIL EARLY
 
-    existing_names = {
-        contact["name"].lower(): contact["contact_id"] for contact in existing_contacts
-    }
+    # Multimap: a single Xero name can map to multiple contact_ids (Xero
+    # allows duplicate contact names). Local clients with shared names
+    # (legitimate — different real customers in Morris/MSM data) must each
+    # claim a distinct Xero contact_id; the column is unique-constrained.
+    existing_by_name = defaultdict(list)
+    for contact in existing_contacts:
+        existing_by_name[contact["name"].lower()].append(contact["contact_id"])
 
     results = {"linked": 0, "created": 0, "failed": []}
 
@@ -42,33 +47,16 @@ def seed_clients_to_xero(clients):
     clients_to_link = []
     clients_to_create = []
 
-    # TODO: REMOVE DEBUG - Temporary debugging for duplicate contact issue
-    logger.info(
-        f"DEBUG: Found {len(existing_names)} existing contacts in Xero for matching"
-    )
-
     for client in clients:
-        if client.name.lower() in existing_names:
-            clients_to_link.append((client, existing_names[client.name.lower()]))
-            # TODO: REMOVE DEBUG
-            logger.info(
-                f"DEBUG: Will LINK '{client.name}' to existing contact {existing_names[client.name.lower()]}"
-            )
+        candidates = existing_by_name.get(client.name.lower())
+        if candidates:
+            # Pop one candidate so a second local client with the same name
+            # doesn't race onto the same xero_contact_id; it falls through
+            # to create instead.
+            existing_contact_id = candidates.pop(0)
+            clients_to_link.append((client, existing_contact_id))
         else:
             clients_to_create.append(client)
-            # TODO: REMOVE DEBUG - Log clients that will be created (potential duplicates)
-            if client.name in ["Johnson PLC", "Martinez LLC"]:
-                logger.warning(
-                    f"DEBUG: Will CREATE '{client.name}' - not found in existing contacts"
-                )
-                logger.warning(
-                    f"DEBUG: Available existing contact names: {sorted(list(set([name for name in existing_names.keys() if 'johnson' in name.lower() or 'martinez' in name.lower()])))}"
-                )
-
-    # TODO: REMOVE DEBUG
-    logger.info(
-        f"DEBUG: Final separation - {len(clients_to_link)} to link, {len(clients_to_create)} to create"
-    )
 
     # Process linking (fast, no API calls)
     for client, existing_contact_id in clients_to_link:
