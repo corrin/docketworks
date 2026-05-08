@@ -118,17 +118,25 @@ export async function ensureXeroConnected(): Promise<void> {
     await page.locator('#xl-form-password').fill(xeroPassword)
     await page.locator('#xl-form-submit').click()
 
-    // Check if MFA is required (phone notification)
-    const mfaPage = page.getByText("We've sent a notification to your phone")
-    const isMfaRequired = await mfaPage.isVisible({ timeout: 5000 }).catch(() => false)
-
-    if (isMfaRequired) {
+    // Detect MFA prompt by waiting for either the MFA text or the consent
+    // URL — whichever appears first. `isVisible({ timeout })` is a no-op
+    // (the option is deprecated and returns immediately), so a polling
+    // race is the reliable check.
+    const mfaPrompt = page
+      .getByText("We've sent a notification to your phone")
+      .waitFor({ timeout: 30000 })
+      .then(() => 'mfa' as const)
+    const consentNav = page
+      .waitForURL(/authorize\.xero\.com/, { timeout: 30000 })
+      .then(() => 'consent' as const)
+    const outcome = await Promise.race([mfaPrompt, consentNav]).catch(() => 'timeout' as const)
+    if (outcome === 'mfa') {
       console.log('MFA required - please approve on your phone...')
-      // Wait up to 2 minutes for user to approve MFA
       await page.waitForURL(/authorize\.xero\.com/, { timeout: 120000 })
-    } else {
-      // Wait for consent page to load (authorize.xero.com)
-      await page.waitForURL(/authorize\.xero\.com/, { timeout: 30000 })
+    } else if (outcome === 'timeout') {
+      throw new Error(
+        'Neither MFA prompt nor consent page appeared within 30s after Xero login submit',
+      )
     }
     console.log('On consent page, clicking Continue...')
 
