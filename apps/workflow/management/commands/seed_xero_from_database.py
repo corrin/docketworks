@@ -1,5 +1,4 @@
 import logging
-import socket
 import time
 from decimal import ROUND_HALF_UP, Decimal
 
@@ -915,14 +914,17 @@ class Command(BaseCommand):
 
     def clear_production_xero_ids(self, dry_run):
         """Clear production Xero IDs from all relevant tables."""
-        # Safety check - never run on production server
-        hostname = socket.gethostname().lower()
+        # Refuse if the configured DB is a prod instance. The naming
+        # standard `dw_<client>_<env>` (`scripts/server/instance.sh:171`)
+        # validates env against {dev,uat,staging,prod}, so the `_prod`
+        # suffix is a deterministic instance-scoped signal — works on
+        # multi-instance servers where `/etc/machine-id` is shared.
         db_name = settings.DATABASES["default"]["NAME"]
 
-        if "msm" in hostname or "prod" in hostname:
+        if db_name.endswith("_prod"):
             self.stdout.write(
                 self.style.ERROR(
-                    f"ERROR: Refusing to run on production server: {hostname}"
+                    f"ERROR: Refusing to run on production database: {db_name}"
                 )
             )
             self.stdout.write(
@@ -930,7 +932,6 @@ class Command(BaseCommand):
             )
             return
 
-        self.stdout.write(f"Host: {hostname}")
         self.stdout.write(f"Database: {db_name}")
         self.stdout.write("This will clear Xero IDs from restored production data.")
         self.stdout.write("Records will be re-linked during the sync process.")

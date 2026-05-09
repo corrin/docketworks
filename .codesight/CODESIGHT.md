@@ -2,8 +2,8 @@
 
 > **Stack:** django | django | vue | mixed
 
-> 94 routes | 43 models | 188 components | 369 lib files | 70 env vars | 10 middleware | 10 events | 23% test coverage
-> **Token savings:** this file is ~31,000 tokens. Without it, AI exploration would cost ~245,400 tokens. **Saves ~214,400 tokens per conversation.**
+> 94 routes | 43 models | 188 components | 369 lib files | 70 env vars | 11 middleware | 10 events | 23% test coverage
+> **Token savings:** this file is ~31,100 tokens. Without it, AI exploration would cost ~245,700 tokens. **Saves ~214,600 tokens per conversation.**
 
 ---
 
@@ -2056,6 +2056,7 @@
 ## custom
 - 0012-accounting-provider-strategy — `docs/adr/0012-accounting-provider-strategy.md`
 - 0021-frontend-generated-api-client-only — `docs/adr/0021-frontend-generated-api-client-only.md`
+- 2026-05-09-309-seed-xero-prod-guard-machine-id — `docs/plans/2026-05-09-309-seed-xero-prod-guard-machine-id.md`
 - e2e_testing_strategy — `frontend/docs/e2e_testing_strategy.md`
 - migrate_to_snapshot — `scripts/migrate_to_snapshot.py`
 
@@ -2122,7 +2123,7 @@
 # Test Coverage
 
 > **23%** of routes and models are covered by tests
-> 137 test files found
+> 138 test files found
 
 ## Covered Routes
 
