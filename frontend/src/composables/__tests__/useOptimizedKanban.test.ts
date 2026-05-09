@@ -215,4 +215,70 @@ describe('useOptimizedKanban search reconciliation', () => {
 
     expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-2'])
   })
+
+  it('uses backend reconciliation for multi-token queries the local substring pass cannot match', async () => {
+    performAdvancedSearch.mockResolvedValue({
+      jobs: [buildKanbanJob({ id: 'job-2', client_name: 'Weaver, Decker and Schultz' })],
+    })
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'weaver schultz'
+    await kanban.handleSearch()
+
+    expect(kanban.filteredJobs.value).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(performAdvancedSearch).toHaveBeenCalledWith({
+      q: 'weaver schultz',
+      status: [],
+      job_number: '',
+      name: '',
+      description: '',
+      client_name: '',
+      contact_person: '',
+      created_by: '',
+      created_after: '',
+      created_before: '',
+      paid: '',
+      rejected_flag: '',
+      xero_invoice_params: '',
+    })
+    expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-2'])
+  })
+
+  it('reconciles typo queries from empty local results to backend matches', async () => {
+    performAdvancedSearch.mockResolvedValue({
+      jobs: [buildKanbanJob({ id: 'job-3', client_name: 'Weaver, Decker and Schultz' })],
+    })
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'weavr schultzz'
+    await kanban.handleSearch()
+
+    expect(kanban.filteredJobs.value).toEqual([])
+
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(performAdvancedSearch).toHaveBeenCalledWith({
+      q: 'weavr schultzz',
+      status: [],
+      job_number: '',
+      name: '',
+      description: '',
+      client_name: '',
+      contact_person: '',
+      created_by: '',
+      created_after: '',
+      created_before: '',
+      paid: '',
+      rejected_flag: '',
+      xero_invoice_params: '',
+    })
+    expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-3'])
+  })
 })

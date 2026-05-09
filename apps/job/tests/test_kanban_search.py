@@ -124,3 +124,43 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual([job["id"] for job in result["jobs"]], [str(target.id)])
+
+    def test_perform_advanced_search_returns_empty_when_query_not_present(self):
+        self._make_job(
+            name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
+            client_name="Weaver, Decker and Schultz",
+        )
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "nonsensezzz"})
+        )
+
+        self.assertEqual(jobs, [])
+
+    def test_perform_advanced_search_recovers_typo_tolerance(self):
+        target = self._make_job(
+            name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
+            client_name="Weaver, Decker and Schultz",
+        )
+
+        jobs = list(
+            KanbanService.perform_advanced_search(
+                {"universal_search": "schultzz weavr"}
+            )
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_get_jobs_by_kanban_column_recovers_typo_tolerance(self):
+        target = self._make_job(
+            name="Kick plates",
+            client_name="Weaver, Decker and Schultz",
+            status="in_progress",
+        )
+
+        result = KanbanService.get_jobs_by_kanban_column(
+            "in_progress", search_term="schultzz weavr"
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual([job["id"] for job in result["jobs"]], [str(target.id)])
