@@ -225,6 +225,27 @@ class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
         row.refresh_from_db()
         self.assertIsNone(row.day_remaining)
 
+    def test_missing_day_header_preserves_previous_snapshot(self):
+        # Without this guard, every response that lacks X-DayLimit-Remaining
+        # writes day_remaining=None and bumps snapshot_at, leaving the badge
+        # showing "Xero calls left: —  1m ago" indefinitely.
+        from apps.workflow.api.xero.client import RateLimitedRESTClient
+
+        previous_snapshot = dj_timezone.now() - timedelta(minutes=10)
+        row = _active_app(
+            day_remaining=4500,
+            minute_remaining=60,
+            snapshot_at=previous_snapshot,
+        )
+        client = RateLimitedRESTClient.__new__(RateLimitedRESTClient)
+        client.app_id = row.id
+        client._store_quota_snapshot(None, None)
+
+        row.refresh_from_db()
+        self.assertEqual(row.day_remaining, 4500)
+        self.assertEqual(row.minute_remaining, 60)
+        self.assertEqual(row.snapshot_at, previous_snapshot)
+
 
 @override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
 class SynchroniseXeroDataOrchestratorGateTests(TestCase):

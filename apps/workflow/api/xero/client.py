@@ -272,10 +272,17 @@ class RateLimitedRESTClient(RESTClientObject):
         # be persisted.
         if self.app_id is None:
             return
+        # Without X-DayLimit-Remaining there is nothing fresh to record;
+        # writing None would clobber a previously-good count and bumping
+        # snapshot_at would falsely advertise the row as up-to-date.
+        if day_remaining is None:
+            return
+        update_fields = {
+            "day_remaining": day_remaining,
+            "snapshot_at": dj_timezone.now(),
+        }
+        if minute_remaining is not None:
+            update_fields["minute_remaining"] = minute_remaining
         from apps.workflow.models import XeroApp
 
-        XeroApp.objects.filter(id=self.app_id).update(
-            day_remaining=day_remaining,
-            minute_remaining=minute_remaining,
-            snapshot_at=dj_timezone.now(),
-        )
+        XeroApp.objects.filter(id=self.app_id).update(**update_fields)
