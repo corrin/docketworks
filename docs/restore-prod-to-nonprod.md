@@ -97,11 +97,11 @@ UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
 ```
   table_name    | count
 ----------------+-------
- job_job         |  1054
- accounts_staff  |    20
- client_client   |  3739
- job_costset     |  3162
- job_costline    | 10334
+ job_job         |  1960
+ accounts_staff  |    22
+ client_client   |  4074
+ job_costset     |  5880
+ job_costline    | 21437
 ```
 
 Then smoke-test the Django ORM against the restored data — fail fast here rather than letting a broken ORM surface later in the validator loop:
@@ -113,9 +113,9 @@ python scripts/restore_checks/check_django_orm.py
 **Expected output:**
 
 ```
-Jobs: ~1400
+Jobs: ~1960
 Staff: ~22
-Clients: ~4800
+Clients: ~4100
 Sample job: [any real job name] (#XXXXX)
 Contact: [any real contact name]
 ```
