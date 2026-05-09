@@ -8,14 +8,20 @@ field branch (alloy / metal_type / specifics), and the `is_active=True`
 filter.
 """
 
+from datetime import date
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
+from apps.client.models import Client
+from apps.job.models import Job
+from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
 from apps.purchasing.services.stock_search_service import list_stock, search_stock
+from apps.testing import BaseTestCase
 
 
 def _stock(**overrides):
@@ -27,6 +33,11 @@ def _stock(**overrides):
     )
     defaults.update(overrides)
     return Stock.objects.create(**defaults)
+
+
+def _top_descriptions(query: str, *, page_size: int = 10, top_n: int = 3) -> list[str]:
+    result = list_stock(query=query, page=1, page_size=page_size)
+    return [r["description"] for r in result["results"]][:top_n]
 
 
 @pytest.fixture
@@ -129,6 +140,131 @@ def test_search_stock_top_n_orders_by_rank(stainless_sheet, stainless_5mm_other_
         "Stainless 5mm sheet 1200x2400",
         "5mm stainless dimpled finish",
     }
+
+
+def test_dimension_query_matches_compact_sheet_notation(db):
+    """Users type `2400x1200 3mm`; stock descriptions often store
+    `3.0X1200X2400 ...` without spaces and in the opposite dimension order.
+    Search should still find the intended sheet row."""
+    target = _stock(description="3.0X1200X2400 5052H32 AL SHT")
+    _stock(description="2.0X1200X2400 5052H32 AL SHT")
+    _stock(description="3mm 900X1800 mild steel sheet")
+
+    assert target.description in _top_descriptions("2400x1200 3mm")
+
+
+def test_dimension_query_treats_sheet_orientation_as_interchangeable(db):
+    """`1200x2400` and `2400x1200` should describe the same sheet size."""
+    target = _stock(description="3mm Cold Rolled Sheet 1200X2400")
+
+    assert target.description in _top_descriptions("1200x2400 3mm")
+    assert target.description in _top_descriptions("2400x1200 3mm")
+
+
+def test_3mm_query_accepts_near_thickness_but_not_30mm(db):
+    """`3mm` should treat `2.9mm` as close, but not rank `30mm` as a good hit."""
+    exact = _stock(description="3.0mm stainless sheet")
+    near = _stock(description="2.9mm stainless sheet")
+    far = _stock(description="30mm stainless plate")
+
+    descriptions = _top_descriptions("3mm", top_n=2)
+
+    assert exact.description in descriptions
+    assert near.description in descriptions
+    assert far.description not in descriptions
+
+
+@pytest.mark.parametrize("query", ["16 316", "316 round", "16 round"])
+def test_round_bar_queries_surface_expected_material(db, query):
+    target = _stock(description="16.0mm Dia Round Bar T316IM CDP h9 A276")
+    _stock(description="16.0mm Dia Round Bar T304 CDP h9 A276")
+    _stock(description="20.0mm Dia Round Bar T316IM CDP h9 A276")
+
+    assert target.description in _top_descriptions(query)
+
+
+@pytest.mark.parametrize("query", ["0.95 galvanised", "0.95 sheet", "galv 0.95"])
+def test_galvanised_sheet_queries_surface_expected_material(db, query):
+    target = _stock(description="0.95mm Galvanised Z275 Regular Spangle Sheet G250")
+    _stock(description="1.55mm Galvanised Z275 Regular Spangle Sheet G250")
+
+    assert target.description in _top_descriptions(query)
+
+
+class TestStockSearchHistoricalRanking(BaseTestCase):
+    def setUp(self):
+        super().setUp()
+        self.client_obj = Client.objects.create(
+            name="Stock Search Client",
+            xero_last_modified=timezone.now(),
+        )
+
+    def _create_job(self, name: str) -> Job:
+        job = Job(client=self.client_obj, name=name)
+        job.save(staff=self.test_staff)
+        return job
+
+    def _record_material_usage(
+        self, *, item_code: str, description: str, times: int
+    ) -> None:
+        job = self._create_job(f"Usage Job {item_code}")
+        for _ in range(times):
+            CostLine.objects.create(
+                cost_set=job.latest_actual,
+                kind="material",
+                desc=description,
+                quantity=Decimal("1.000"),
+                unit_cost=Decimal("1.00"),
+                unit_rev=Decimal("1.00"),
+                accounting_date=date.today(),
+                meta={"item_code": item_code},
+            )
+
+    def test_unspecified_alloy_prefers_more_frequently_used_variant(self):
+        preferred = _stock(
+            item_code="SS-304-1.5-1219X2438",
+            description="1.5X1219X2438 3042B SS SHT FIBRE PE",
+        )
+        _stock(
+            item_code="SS-316-1.5-1219X2438",
+            description="1.5X1219X2438 3162B SS SHT FIBRE PE",
+        )
+
+        self._record_material_usage(
+            item_code="SS-304-1.5-1219X2438",
+            description=preferred.description,
+            times=5,
+        )
+        self._record_material_usage(
+            item_code="SS-316-1.5-1219X2438",
+            description="1.5X1219X2438 3162B SS SHT FIBRE PE",
+            times=2,
+        )
+
+        assert preferred.description in _top_descriptions("1.5 stainless")
+
+    def test_explicit_alloy_overrides_historical_popularity(self):
+        _stock(
+            item_code="SS-304-1.5-1219X2438",
+            description="1.5X1219X2438 3042B SS SHT FIBRE PE",
+        )
+        target = _stock(
+            item_code="SS-316-1.5-1219X2438",
+            description="1.5X1219X2438 3162B SS SHT FIBRE PE",
+        )
+
+        self._record_material_usage(
+            item_code="SS-304-1.5-1219X2438",
+            description="1.5X1219X2438 3042B SS SHT FIBRE PE",
+            times=5,
+        )
+        self._record_material_usage(
+            item_code="SS-316-1.5-1219X2438",
+            description=target.description,
+            times=2,
+        )
+
+        assert target.description in _top_descriptions("1.5 316")
 
 
 @pytest.fixture
