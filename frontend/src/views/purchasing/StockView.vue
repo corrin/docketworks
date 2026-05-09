@@ -23,6 +23,7 @@
               <th class="p-3 text-left font-semibold">Metal</th>
               <th class="p-3 text-left font-semibold">Alloy</th>
               <th class="p-3 text-left font-semibold">Spec</th>
+              <th class="p-3 text-left font-semibold">Used</th>
               <th class="p-3 text-left font-semibold">Quantity</th>
               <th class="p-3 text-left font-semibold">Unit Cost</th>
               <th class="p-3 text-left font-semibold">Unit Revenue</th>
@@ -36,6 +37,7 @@
               <td class="p-3">{{ item.metal_type || '-' }}</td>
               <td class="p-3">{{ item.alloy || '-' }}</td>
               <td class="p-3">{{ item.specifics || '-' }}</td>
+              <td class="p-3">{{ formatTimesUsed(item.times_used) }}</td>
               <td class="p-3">{{ formatQuantity(item.quantity) }}</td>
               <td class="p-3">{{ formatCurrency(item.unit_cost) }}</td>
               <td class="p-3">{{ formatCurrency(item.unit_revenue) }}</td>
@@ -61,10 +63,10 @@
               </td>
             </tr>
             <tr v-if="displayedItems.length === 0 && !isBusy">
-              <td colspan="9" class="p-8 text-center text-gray-500">No stock items found</td>
+              <td colspan="10" class="p-8 text-center text-gray-500">No stock items found</td>
             </tr>
             <tr v-if="displayedItems.length === 0 && isBusy">
-              <td colspan="9" class="p-8 text-center text-gray-500">
+              <td colspan="10" class="p-8 text-center text-gray-500">
                 <div class="flex items-center justify-center gap-2">
                   <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
                   Stock items are still loading, please wait
@@ -379,6 +381,10 @@ const addForm = ref({
 
 function formatQuantity(value: number): string {
   return isNaN(value) ? '0.00' : value.toFixed(2)
+}
+
+function formatTimesUsed(value: number | null | undefined): string {
+  return typeof value === 'number' ? value.toString() : '-'
 }
 
 function openAllocate(item: StockItem) {

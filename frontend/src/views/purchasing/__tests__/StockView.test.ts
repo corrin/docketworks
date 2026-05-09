@@ -45,6 +45,7 @@ function buildStockItem(over: Partial<Record<string, unknown>> = {}) {
     metal_type: over.metal_type ?? 'stainless steel',
     alloy: over.alloy ?? '304',
     specifics: over.specifics ?? '5mm sheet',
+    times_used: over.times_used ?? 12,
     location: over.location ?? '',
     is_active: true,
     source: 'manual',
@@ -59,7 +60,7 @@ beforeEach(() => {
 })
 
 describe('StockView server-side search', () => {
-  it('renders Metal, Alloy, Spec columns from store items', async () => {
+  it('renders Metal, Alloy, Spec, and Used columns from store items', async () => {
     const store = useStockStore()
     store.items = [
       buildStockItem({
@@ -68,6 +69,7 @@ describe('StockView server-side search', () => {
         metal_type: 'stainless steel',
         alloy: '304',
         specifics: '5mm sheet',
+        times_used: 7,
       }),
     ]
     store.fetchStock = vi.fn().mockResolvedValue(store.items)
@@ -79,11 +81,13 @@ describe('StockView server-side search', () => {
     expect(headers).toContain('Metal')
     expect(headers).toContain('Alloy')
     expect(headers).toContain('Spec')
+    expect(headers).toContain('Used')
 
     const firstRowCells = wrapper.find('tbody tr').findAll('td')
     expect(firstRowCells[2].text()).toBe('stainless steel')
     expect(firstRowCells[3].text()).toBe('304')
     expect(firstRowCells[4].text()).toBe('5mm sheet')
+    expect(firstRowCells[5].text()).toBe('7')
   })
 
   it('debounces input and calls the search API once after typing settles', async () => {

@@ -183,6 +183,31 @@ def test_round_bar_queries_surface_expected_material(db, query):
     assert target.description in _top_descriptions(query)
 
 
+def test_round_bar_8_prefers_metric_round_bar_over_fractional_or_fastener_noise(db):
+    target = _stock(description="8.0mm Dia Round Bar T304IM CDP h9 A276")
+    _stock(description='5/8" Dia Round Bar T316IM CDP h9 A276')
+    _stock(description="50mm x 8mm Flat Bar G300 AS/NZS 3679.1 6MTRS")
+    _stock(description="M8 X 22 X 2.5 GALV ROUND WASHER")
+
+    assert _top_descriptions("Round Bar 8", top_n=1) == [target.description]
+
+
+def test_flat_bar_8_prefers_flat_bar_over_round_bar(db):
+    target = _stock(description="50mm x 8mm Flat Bar G300 AS/NZS 3679.1 6MTRS")
+    _stock(description="8.0mm Dia Round Bar T304IM CDP h9 A276")
+    _stock(description="M8 X 22 X 2.5 GALV ROUND WASHER")
+
+    assert _top_descriptions("Flat Bar 8", top_n=1) == [target.description]
+
+
+def test_m8_washer_prefers_fastener_form_over_bar_stock(db):
+    target = _stock(description="M8 X 22 X 2.5 GALV ROUND WASHER")
+    _stock(description="8.0mm Dia Round Bar T304IM CDP h9 A276")
+    _stock(description="50mm x 8mm Flat Bar G300 AS/NZS 3679.1 6MTRS")
+
+    assert _top_descriptions("M8 washer", top_n=1) == [target.description]
+
+
 @pytest.mark.parametrize("query", ["0.95 galvanised", "0.95 sheet", "galv 0.95"])
 def test_galvanised_sheet_queries_surface_expected_material(db, query):
     target = _stock(description="0.95mm Galvanised Z275 Regular Spangle Sheet G250")
@@ -288,7 +313,7 @@ def auth_api(office_staff):
     return api
 
 
-def test_view_returns_search_results_via_http(auth_api, db):
+def test_view_returns_search_results_via_http(auth_api, office_staff, db):
     """Regression: end-to-end through StockSearchRestView.
 
     The original bug was that the view re-validated the response payload via
@@ -302,6 +327,22 @@ def test_view_returns_search_results_via_http(auth_api, db):
     """
     _stock(description="Stainless 5mm sheet", item_code="STK-001")
     _stock(description="Aluminium bar", item_code="STK-002")
+    client = Client.objects.create(
+        name="Stock Search View Client",
+        xero_last_modified=timezone.now(),
+    )
+    job = Job(client=client, name="Stock Search View Job")
+    job.save(staff=office_staff)
+    CostLine.objects.create(
+        cost_set=job.latest_actual,
+        kind="material",
+        desc="Stainless 5mm sheet",
+        quantity=Decimal("1.000"),
+        unit_cost=Decimal("1.00"),
+        unit_rev=Decimal("1.00"),
+        accounting_date=date.today(),
+        meta={"item_code": "STK-001"},
+    )
 
     resp = auth_api.get("/api/purchasing/stock/search/", {"q": "5mm"})
 
@@ -310,8 +351,21 @@ def test_view_returns_search_results_via_http(auth_api, db):
     descriptions = [r["description"] for r in body["results"]]
     assert "Stainless 5mm sheet" in descriptions
     assert "Aluminium bar" not in descriptions
+    result_by_description = {row["description"]: row for row in body["results"]}
+    assert result_by_description["Stainless 5mm sheet"]["times_used"] == 1
     assert body["count"] >= 1
     assert body["page"] == 1
+
+
+def test_stock_list_view_includes_default_times_used(auth_api, db):
+    _stock(description="Plain stock row", item_code="STK-LIST-001")
+
+    resp = auth_api.get("/api/purchasing/stock/")
+
+    assert resp.status_code == 200, resp.content
+    body = resp.json()
+    result_by_description = {row["description"]: row for row in body}
+    assert result_by_description["Plain stock row"]["times_used"] == 0
 
 
 def test_view_unauthenticated_is_rejected(db):

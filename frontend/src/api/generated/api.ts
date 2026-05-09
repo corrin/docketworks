@@ -2668,6 +2668,7 @@ const StockItem = z.object({
   specifics: z.string().max(255).nullish(),
   is_active: z.boolean().optional(),
   job_id: z.string().uuid().nullable(),
+  times_used: z.number().int(),
 })
 const StockItemRequest = z.object({
   item_code: z.string().max(255).nullish(),
@@ -2723,17 +2724,6 @@ const SupplierPriceStatusItem = z.object({
 const SupplierPriceStatusResponse = z.object({
   items: z.array(SupplierPriceStatusItem),
   total_count: z.number().int(),
-})
-const XeroItem = z.object({
-  code: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  sales_details: z.object({}).partial().passthrough().optional(),
-  purchase_details: z.object({}).partial().passthrough().optional(),
-})
-const XeroItemListResponse = z.object({
-  items: z.array(XeroItem),
-  total_count: z.number().int().optional(),
 })
 const ScheduledTaskExecution = z.object({
   id: z.number().int(),
@@ -3462,8 +3452,6 @@ export const schemas = {
   StockSearchResponse,
   SupplierPriceStatusItem,
   SupplierPriceStatusResponse,
-  XeroItem,
-  XeroItemListResponse,
   ScheduledTaskExecution,
   PaginatedScheduledTaskExecutionList,
   ScheduledTask,
@@ -8090,14 +8078,6 @@ Minimal-impact: read-only query over existing Client and SupplierPriceList
 models. No migrations required.`,
     requestFormat: 'json',
     response: SupplierPriceStatusResponse,
-  },
-  {
-    method: 'get',
-    path: '/api/purchasing/xero-items/',
-    alias: 'purchasing_xero_items_retrieve',
-    description: `Return list of items from Xero.`,
-    requestFormat: 'json',
-    response: XeroItemListResponse,
   },
   {
     method: 'get',

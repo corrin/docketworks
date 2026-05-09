@@ -57,6 +57,7 @@ function buildStockItem(over: Partial<Record<string, unknown>> = {}) {
     metal_type: over.metal_type ?? 'stainless steel',
     alloy: over.alloy ?? '304',
     specifics: over.specifics ?? '5mm sheet',
+    times_used: over.times_used ?? 12,
     location: over.location ?? '',
     is_active: true,
     source: 'manual',
@@ -71,14 +72,41 @@ beforeEach(() => {
 })
 
 describe('ItemSelect server-side search and rendering', () => {
-  it('renders the full description with a wrap class (no truncate) and a structured-fields signature line', async () => {
+  it('renders the labour option by default in estimate context', async () => {
     const store = useStockStore()
-    store.items = [buildStockItem({ id: 's1' })]
+    store.items = [buildStockItem({ id: 's1', times_used: 9 })]
     store.fetchStock = vi.fn().mockResolvedValue(store.items)
 
     const wrapper = mount(ItemSelect, {
       props: { modelValue: null, tabKind: 'estimate' },
     })
+    await flushPromises()
+
+    const labourOption = wrapper.find('[data-value="__labour__"]')
+    expect(labourOption.exists()).toBe(true)
+    expect(wrapper.find('[data-value="s1"]').exists()).toBe(false)
+  })
+
+  it('renders the full description, structured-fields signature, and usage count from server results', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    purchasing_stock_search_retrieve.mockResolvedValue({
+      results: [buildStockItem({ id: 's1', times_used: 9 })],
+      count: 1,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    })
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    const input = wrapper.find('input')
+    await input.setValue('steel')
+    await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
 
     const stockOption = wrapper.find('[data-value="s1"]')
@@ -95,6 +123,12 @@ describe('ItemSelect server-side search and rendering', () => {
     const signature = stockOption.find('[data-automation-id="ItemSelect-variant-signature"]')
     expect(signature.exists()).toBe(true)
     expect(signature.text()).toBe('stainless steel · 304 · 5mm sheet')
+
+    const timesUsed = stockOption.find('[data-automation-id="ItemSelect-times-used"]')
+    expect(timesUsed.exists()).toBe(true)
+    expect(timesUsed.text()).toBe('Used 9 times')
+
+    vi.useRealTimers()
   })
 
   it('debounces input and calls the stock search endpoint after settle', async () => {
@@ -133,7 +167,7 @@ describe('ItemSelect server-side search and rendering', () => {
     vi.useRealTimers()
   })
 
-  it('keeps sub-3-character queries on the local stock cache', async () => {
+  it('keeps sub-3-character queries local and does not render the full stock cache', async () => {
     vi.useFakeTimers()
     const store = useStockStore()
     store.items = [
@@ -153,8 +187,48 @@ describe('ItemSelect server-side search and rendering', () => {
     await flushPromises()
 
     expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-value="s1"]').exists()).toBe(true)
-    expect(wrapper.find('[data-value="s2"]').exists()).toBe(true)
+    expect(wrapper.find('[data-value="__labour__"]').exists()).toBe(true)
+    expect(wrapper.find('[data-value="s1"]').exists()).toBe(false)
+    expect(wrapper.find('[data-value="s2"]').exists()).toBe(false)
+
+    vi.useRealTimers()
+  })
+
+  it('suppresses the noisy unspecified metal_type in the metadata line', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    purchasing_stock_search_retrieve.mockResolvedValue({
+      results: [
+        buildStockItem({
+          id: 's1',
+          metal_type: 'unspecified',
+          alloy: '316',
+          specifics: '1.5mm sheet',
+          times_used: 4,
+        }),
+      ],
+      count: 1,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    })
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    const input = wrapper.find('input')
+    await input.setValue('sheet')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    const stockOption = wrapper.find('[data-value="s1"]')
+    const signature = stockOption.find('[data-automation-id="ItemSelect-variant-signature"]')
+    expect(signature.exists()).toBe(true)
+    expect(signature.text()).toBe('316 · 1.5mm sheet')
+    expect(stockOption.text()).not.toContain('unspecified')
 
     vi.useRealTimers()
   })

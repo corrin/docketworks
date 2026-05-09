@@ -31,6 +31,7 @@ ALLOWED_SORT_FIELDS = {
 PHRASE_RE = re.compile(r'"([^"]+)"')
 NUMBER_RE = re.compile(r"\d+(?:\.\d+)?")
 TOKEN_RE = re.compile(r"[a-z0-9.]+")
+FRACTION_RE = re.compile(r'(\d+)\s*/\s*(\d+)(?="|\b)')
 DIMENSION_PAIR_RE = re.compile(
     r"(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)", re.IGNORECASE
 )
@@ -49,6 +50,16 @@ ALIAS_REPLACEMENTS = {
     "plt": "plate",
     "dia": "diameter",
 }
+FORM_PATTERNS = {
+    "round_bar": ("round bar", "dia round bar", "diameter round bar"),
+    "flat_bar": ("flat bar",),
+    "washer": ("washer",),
+    "sheet": ("sheet",),
+    "plate": ("plate",),
+    "tube": ("tube",),
+    "rhs": ("rhs",),
+    "shs": ("shs",),
+}
 
 
 def _normalize_number(value: float) -> tuple[str, ...]:
@@ -61,14 +72,24 @@ def _normalize_number(value: float) -> tuple[str, ...]:
 
 def _expand_aliases(text: str) -> str:
     lowered = text.lower()
-    lowered = lowered.replace("/", " ")
+    lowered = FRACTION_RE.sub(
+        lambda match: f"{(float(match.group(1)) / float(match.group(2))):.4f}",
+        lowered,
+    )
     for src, dst in ALIAS_REPLACEMENTS.items():
         lowered = re.sub(rf"\b{re.escape(src)}\b", dst, lowered)
     lowered = re.sub(r"([0-9])([a-z])", r"\1 \2", lowered)
-    lowered = re.sub(r"([a-z])([0-9])", r"\1 \2", lowered)
     lowered = re.sub(r"(?<=\d)[x×](?=\d)", " x ", lowered)
     lowered = re.sub(r"\s+", " ", lowered).strip()
     return lowered
+
+
+def _extract_forms(text: str) -> set[str]:
+    forms: set[str] = set()
+    for form_name, patterns in FORM_PATTERNS.items():
+        if any(pattern in text for pattern in patterns):
+            forms.add(form_name)
+    return forms
 
 
 def _extract_dimension_pairs(text: str) -> list[tuple[float, float]]:
@@ -112,6 +133,7 @@ def _build_features(text: str) -> dict[str, Any]:
         "thicknesses": _extract_thicknesses(normalized_text),
         "dimension_pairs": _extract_dimension_pairs(normalized_text),
         "phrases": [_expand_aliases(phrase) for phrase in PHRASE_RE.findall(text)],
+        "forms": _extract_forms(normalized_text),
     }
 
 
@@ -198,6 +220,20 @@ def _token_score(
     return score
 
 
+def _form_score(
+    query_features: dict[str, Any], stock_features: dict[str, Any]
+) -> float:
+    query_forms = query_features["forms"]
+    stock_forms = stock_features["forms"]
+    if not query_forms:
+        return 0.0
+    if query_forms & stock_forms:
+        return 28.0 * len(query_forms & stock_forms)
+    if stock_forms:
+        return -18.0
+    return 0.0
+
+
 def _measurement_score(
     query_features: dict[str, Any], stock_features: dict[str, Any]
 ) -> float:
@@ -226,6 +262,13 @@ def _measurement_score(
 
     for raw in query_features["numeric_tokens"] - consumed_numbers:
         query_value = float(raw)
+        if query_features["forms"] & {"round_bar", "flat_bar"} and query_value < 100:
+            score += (
+                _thickness_similarity(query_value, stock_features["thicknesses"][0])
+                * 12.0
+                if stock_features["thicknesses"]
+                else 0.0
+            )
         score += (
             _generic_number_similarity(query_value, stock_features["numeric_values"])
             * 10.0
@@ -257,12 +300,13 @@ def _score_stock(
     if not _matches(query_features, stock_features):
         return 0.0
     score = _token_score(query_features, stock_features)
+    score += _form_score(query_features, stock_features)
     score += _measurement_score(query_features, stock_features)
     score += _usage_score(stock, usage_counts)
     return score
 
 
-def _sorted_stock_matches(query: str) -> list[Stock]:
+def _sorted_stock_matches(query: str) -> tuple[list[Stock], dict[str, int]]:
     usage_counts = _usage_counts_by_item_code()
     query_features = _build_features(query)
     scored: list[tuple[float, Stock]] = []
@@ -277,11 +321,17 @@ def _sorted_stock_matches(query: str) -> list[Stock]:
             item[1].item_code or "",
         )
     )
-    return [stock for _, stock in scored]
+    return [stock for _, stock in scored], usage_counts
 
 
-def _serialize(stock_qs) -> List[Dict[str, Any]]:
-    return StockItemSerializer(stock_qs, many=True).data
+def _serialize(
+    stock_qs, usage_counts: dict[str, int] | None = None
+) -> List[Dict[str, Any]]:
+    usage_counts = usage_counts or {}
+    stock_items = list(stock_qs)
+    for stock in stock_items:
+        stock.times_used = usage_counts.get(stock.item_code or "", 0)
+    return StockItemSerializer(stock_items, many=True).data
 
 
 def search_stock(query: str, limit: int = 10) -> List[Dict[str, Any]]:
@@ -298,13 +348,14 @@ def search_stock(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         query = query.strip()
         limit = max(1, min(limit, 50))
         logger.info("Stock typeahead search query=%r limit=%s", query, limit)
-        results = _sorted_stock_matches(query)[:limit]
+        results, usage_counts = _sorted_stock_matches(query)
+        results = results[:limit]
         logger.info(
             "Stock typeahead search completed query=%r results=%s",
             query,
             len(results),
         )
-        return _serialize(results)
+        return _serialize(results, usage_counts)
 
     except AlreadyLoggedException:
         raise
@@ -339,10 +390,11 @@ def list_stock(
                 sort_by,
                 sort_dir,
             )
-            items = _sorted_stock_matches(query)
+            items, usage_counts = _sorted_stock_matches(query)
         else:
             ordering = (sort_field,)
             items = list(queryset.order_by(*ordering))
+            usage_counts = _usage_counts_by_item_code()
 
         total_count = len(items)
 
@@ -361,7 +413,7 @@ def list_stock(
             )
 
         return {
-            "results": _serialize(items),
+            "results": _serialize(items, usage_counts),
             "count": total_count,
             "page": page,
             "page_size": page_size,
