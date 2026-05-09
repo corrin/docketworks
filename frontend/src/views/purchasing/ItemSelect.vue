@@ -10,7 +10,9 @@ import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { useStockStore, type StockItem } from '../../stores/stockStore'
 import { useCompanyDefaultsStore } from '../../stores/companyDefaults'
-import { onMounted, computed, ref } from 'vue'
+import { api } from '@/api/client'
+import { useDebounceFn } from '@vueuse/core'
+import { onMounted, computed, ref, watch } from 'vue'
 import { formatCurrency } from '@/utils/string-formatting'
 
 type LabourItem = {
@@ -21,6 +23,9 @@ type LabourItem = {
   unit_rev: number
   unit_revenue: number
   quantity: null
+  metal_type?: string
+  alloy?: string | null
+  specifics?: string | null
 }
 
 type DisplayItem = StockItem | LabourItem
@@ -51,6 +56,8 @@ const emit = defineEmits<{
 const store = useStockStore()
 const companyDefaultsStore = useCompanyDefaultsStore()
 const searchTerm = ref('')
+const serverResults = ref<StockItem[]>([])
+const isSearching = ref(false)
 
 // Mocked Labour item for time entries
 const mockedLabourItem = computed<LabourItem>(() => ({
@@ -70,27 +77,57 @@ onMounted(async () => {
   }
 })
 
+const isQueryActive = computed(() => searchTerm.value.trim().length >= 3)
+
+async function runSearch() {
+  if (!isQueryActive.value) {
+    serverResults.value = []
+    return
+  }
+  isSearching.value = true
+  try {
+    const response = await api.purchasing_stock_search_retrieve({
+      queries: {
+        q: searchTerm.value.trim(),
+        page: 1,
+        page_size: 50,
+      },
+    })
+    serverResults.value = response.results
+  } catch (error) {
+    console.error('ItemSelect stock search failed:', error)
+    serverResults.value = []
+  } finally {
+    isSearching.value = false
+  }
+}
+
+const debouncedSearch = useDebounceFn(runSearch, 300)
+
+watch(searchTerm, () => {
+  debouncedSearch()
+})
+
 const filteredItems = computed<DisplayItem[]>(() => {
-  const stockItems = store.items
-  // Only show labour items in job-related contexts (estimate, quote, actual tabs)
-  // Don't show labour in purchasing contexts
+  // Only show labour in job-related contexts (estimate, quote, actual tabs).
   const labourItem =
     props.tabKind === 'estimate' || props.tabKind === 'quote' ? [mockedLabourItem.value] : []
 
-  // Include LABOUR only for job contexts, put it first
-  const allItems = [...labourItem, ...stockItems]
-
-  if (!searchTerm.value) return allItems
-  const term = searchTerm.value.toLowerCase()
-  return allItems.filter((item) => {
-    const searchableFields = [item.description, item.item_code].filter(Boolean) // Remove null/undefined values
-
-    return searchableFields.some((field) => field?.toLowerCase().includes(term))
-  })
+  const stockItems = isQueryActive.value ? serverResults.value : store.items
+  return [...labourItem, ...stockItems]
 })
 
 const displayPrice = (item: DisplayItem) => {
   return formatCurrency(item.unit_revenue ?? 0)
+}
+
+function variantSignature(item: DisplayItem): string {
+  if (item.id === '__labour__') return ''
+  const stock = item as StockItem
+  return [stock.metal_type, stock.alloy, stock.specifics]
+    .map((part) => (part ?? '').toString().trim())
+    .filter(Boolean)
+    .join(' · ')
 }
 </script>
 
@@ -108,7 +145,9 @@ const displayPrice = (item: DisplayItem) => {
           emit('update:unit_cost', companyDefaultsStore.companyDefaults?.wage_rate ?? 0)
           emit('update:kind', 'time')
         } else {
-          const found = store.items.find((i: StockItem) => i.id == val)
+          const found =
+            serverResults.find((i: StockItem) => i.id == val) ||
+            store.items.find((i: StockItem) => i.id == val)
 
           if (found) {
             emit('update:description', found.description || '')
@@ -141,7 +180,10 @@ const displayPrice = (item: DisplayItem) => {
 
       <!-- Items list -->
       <div v-if="filteredItems.length === 0" class="p-4 text-sm text-muted-foreground text-center">
-        {{ searchTerm ? 'No items found matching your search' : 'No stock items available' }}
+        <span v-if="isSearching">Searching…</span>
+        <span v-else>
+          {{ searchTerm ? 'No items found matching your search' : 'No stock items available' }}
+        </span>
       </div>
 
       <div v-else class="max-h-64 w-full overflow-y-auto">
@@ -154,8 +196,15 @@ const displayPrice = (item: DisplayItem) => {
         >
           <div class="flex w-full items-start justify-between gap-6 !min-w-[500px]">
             <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm leading-tight truncate">
+              <div class="font-medium text-sm leading-tight whitespace-normal break-words">
                 {{ i.description || 'Unnamed Item' }}
+              </div>
+              <div
+                v-if="variantSignature(i)"
+                class="text-xs text-muted-foreground mt-1"
+                data-automation-id="ItemSelect-variant-signature"
+              >
+                {{ variantSignature(i) }}
               </div>
               <div v-if="i.item_code" class="text-xs text-muted-foreground mt-1 truncate">
                 Code: {{ i.item_code }}

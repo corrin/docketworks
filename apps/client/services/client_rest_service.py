@@ -13,6 +13,7 @@ from uuid import UUID
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
 
+from django.contrib.postgres.search import SearchVector
 from django.db import transaction
 from django.db.models import DecimalField, Max, Sum, Value
 from django.db.models.functions import Coalesce
@@ -28,6 +29,9 @@ from apps.workflow.services.error_persistence import (
     persist_and_raise,
     persist_app_error,
 )
+from apps.workflow.services.search import apply_text_search
+
+CLIENT_SEARCH_VECTOR = SearchVector("name", config="english")
 
 logger = logging.getLogger(__name__)
 
@@ -144,14 +148,17 @@ class ClientRestService:
 
             # Apply search filter if query provided
             if query:
-                queryset = queryset.filter(name__icontains=query)
+                queryset = apply_text_search(queryset, query, CLIENT_SEARCH_VECTOR)
+                ordering = ("-search_rank", sort_field)
+            else:
+                ordering = (sort_field,)
 
             # Get total count before pagination
             total_count = queryset.count()
 
             # Apply sorting and pagination
             offset = (page - 1) * page_size
-            clients = queryset.order_by(sort_field)[offset : offset + page_size]
+            clients = queryset.order_by(*ordering)[offset : offset + page_size]
 
             # Calculate total pages
             total_pages = (total_count + page_size - 1) // page_size
@@ -524,12 +531,11 @@ class ClientRestService:
         """
         output = DecimalField(max_digits=12, decimal_places=2)
 
+        base_qs = Client.objects.filter(allow_jobs=True)
+        ranked_qs = apply_text_search(base_qs, query, CLIENT_SEARCH_VECTOR)
+
         return (
-            Client.objects.filter(
-                name__icontains=query,
-                allow_jobs=True,
-            )  # Case insensitive substring search, job-eligible only
-            .annotate(
+            ranked_qs.annotate(
                 last_invoice_date=Max("invoice__date"),
                 total_spend=Coalesce(
                     Sum(
@@ -552,7 +558,7 @@ class ClientRestService:
                 "allow_jobs",
                 "xero_contact_id",
             )
-            .order_by("name")[:limit]
+            .order_by("-search_rank", "name")[:limit]
         )
 
     @staticmethod

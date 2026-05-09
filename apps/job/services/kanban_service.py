@@ -440,16 +440,20 @@ class KanbanService:
         jobs_query = Job.objects.all()
         logger.info(f"Performing advanced search with filters: {filters}")
 
-        # Universal search - searches across multiple fields with OR logic
+        # Universal search — every whitespace-separated token must match at
+        # least one of the OR'd fields. This is the order-insensitive fix for
+        # Trello #150: searching "Martin Wood" matches a client named
+        # "Martin, Price and Wood" because both tokens land somewhere.
         if q := filters.get("universal_search", "").strip():
-            jobs_query = jobs_query.filter(
-                Q(name__icontains=q)
-                | Q(job_number__icontains=q)
-                | Q(description__icontains=q)
-                | Q(client__name__icontains=q)
-                | Q(invoices__number__icontains=q)
-                | Q(quote__number__icontains=q)
-            )
+            for token in q.split():
+                jobs_query = jobs_query.filter(
+                    Q(name__icontains=token)
+                    | Q(job_number__icontains=token)
+                    | Q(description__icontains=token)
+                    | Q(client__name__icontains=token)
+                    | Q(invoices__number__icontains=token)
+                    | Q(quote__number__icontains=token)
+                )
 
         # Apply filters with early returns for invalid data
         if number := filters.get("job_number", "").strip():

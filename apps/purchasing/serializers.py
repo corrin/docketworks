@@ -325,6 +325,16 @@ class StockListSerializer(serializers.Serializer):
     total_count = serializers.IntegerField()
 
 
+class StockSearchResponseSerializer(serializers.Serializer):
+    """Serializer for paginated stock search response."""
+
+    results = StockItemSerializer(many=True)
+    count = serializers.IntegerField()
+    page = serializers.IntegerField()
+    page_size = serializers.IntegerField()
+    total_pages = serializers.IntegerField()
+
+
 class StockCreateSerializer(serializers.Serializer):
     """Serializer for creating stock items."""
 

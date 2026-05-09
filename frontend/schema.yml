@@ -6592,6 +6592,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/StockConsumeResponse'
           description: ''
+  /api/purchasing/stock/search/:
+    get:
+      operationId: purchasing_stock_search_retrieve
+      description: REST view for paginated stock search.
+      summary: Search stock
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Page number (default 1)
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+          description: Results per page (default 50)
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search query (Postgres FTS, websearch syntax). Queries shorter
+            than 3 characters return all stock.
+        - in: query
+          name: sort_by
+          schema:
+            type: string
+          description: Field to sort by (default 'description')
+        - in: query
+          name: sort_dir
+          schema:
+            type: string
+          description: "Sort direction: 'asc' or 'desc' (default 'asc')"
+      tags:
+        - Stock
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockSearchResponse'
+          description: ''
   /api/purchasing/supplier-price-status/:
     get:
       operationId: getSupplierPriceStatus
@@ -18542,6 +18585,28 @@ components:
         - quantity
         - source
         - unit_cost
+    StockSearchResponse:
+      type: object
+      description: Serializer for paginated stock search response.
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockItem'
+        count:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+        - count
+        - page
+        - page_size
+        - results
+        - total_pages
     SummaryStats:
       type: object
       description: Serializer for summary statistics
