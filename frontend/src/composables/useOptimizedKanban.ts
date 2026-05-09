@@ -116,6 +116,27 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     }
   }
 
+  const getAllLoadedJobs = (): KanbanJob[] => {
+    const allJobs: KanbanJob[] = []
+    Object.values(columnStates).forEach((columnState) => {
+      allJobs.push(...columnState.jobs)
+    })
+    return allJobs
+  }
+
+  const searchJobsLocally = (jobs: KanbanJob[], query: string): KanbanJob[] => {
+    const normalizedQuery = query.toLowerCase()
+    return jobs.filter((job) => {
+      return (
+        job.name?.toLowerCase().includes(normalizedQuery) ||
+        job.description?.toLowerCase().includes(normalizedQuery) ||
+        job.client_name?.toLowerCase().includes(normalizedQuery) ||
+        String(job.job_number).toLowerCase().includes(normalizedQuery) ||
+        job.contact_person?.toLowerCase().includes(normalizedQuery)
+      )
+    })
+  }
+
   // Staff filter logic
   const jobMatchesStaffFilters = (job: KanbanJob): boolean => {
     // Archived jobs are always shown regardless of staff filters
@@ -497,9 +518,12 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     }
   }
 
-  // Search functionality - search locally first, then backend if no results
+  // Search functionality - single-token queries stay local for responsiveness;
+  // multi-token queries go straight to the backend so order-insensitive
+  // matching is consistent with the UAT fix.
   const handleSearch = async (): Promise<void> => {
-    if (!searchQuery.value.trim()) {
+    const trimmedQuery = searchQuery.value.trim()
+    if (!trimmedQuery) {
       filteredJobs.value = []
       return
     }
@@ -507,36 +531,18 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     try {
       isLoading.value = true
 
-      // First search locally in loaded jobs
-      const allJobs: KanbanJob[] = []
-      Object.values(columnStates).forEach((columnState) => {
-        allJobs.push(...columnState.jobs)
-      })
-
-      const query = searchQuery.value.toLowerCase()
-      const localResults = allJobs.filter((job) => {
-        return (
-          job.name?.toLowerCase().includes(query) ||
-          job.description?.toLowerCase().includes(query) ||
-          job.client_name?.toLowerCase().includes(query) ||
-          String(job.job_number).toLowerCase().includes(query) ||
-          job.contact_person?.toLowerCase().includes(query)
-        )
-      })
-
-      if (localResults.length > 0) {
-        // Use local results if found
-        filteredJobs.value = localResults
-      } else {
-        // If no local results, search backend using universal search parameter
+      const tokens = trimmedQuery.split(/\s+/).filter(Boolean)
+      if (tokens.length > 1) {
         const searchFilters: AdvancedFilters = {
           ...DEFAULT_ADVANCED_FILTERS,
-          q: searchQuery.value.trim(),
+          q: trimmedQuery,
         }
 
         const response: AdvancedSearchResponse =
           await jobService.performAdvancedSearch(searchFilters)
         filteredJobs.value = response.jobs || []
+      } else {
+        filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), trimmedQuery)
       }
 
       debugLog(
@@ -545,20 +551,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     } catch (err) {
       debugLog('Error performing search:', err)
 
-      // Fallback to local search if backend search fails
-      const allJobs: KanbanJob[] = []
-      Object.values(columnStates).forEach((columnState) => {
-        allJobs.push(...columnState.jobs)
-      })
-
-      const query = searchQuery.value.toLowerCase()
-      filteredJobs.value = allJobs.filter((job) => {
-        return (
-          job.name?.toLowerCase().includes(query) ||
-          job.description?.toLowerCase().includes(query) ||
-          job.client_name?.toLowerCase().includes(query)
-        )
-      })
+      filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), trimmedQuery)
     } finally {
       isLoading.value = false
     }
