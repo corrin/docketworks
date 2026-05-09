@@ -19,6 +19,7 @@ from apps.purchasing.views.purchasing_rest_views import (
     SupplierPriceStatusAPIView,
     XeroItemList,
 )
+from apps.purchasing.views.stock_search_rest_view import StockSearchRestView
 from apps.purchasing.views.stock_viewset import StockViewSet
 
 # Router for ViewSet-based endpoints
@@ -93,6 +94,13 @@ urlpatterns = [
         "product-mappings/<uuid:mapping_id>/validate/",
         ProductMappingValidateView.as_view(),
         name="product_mapping_validate_rest",
+    ),
+    # Stock search must come before the router include so it doesn't
+    # match the StockViewSet detail pattern (`/stock/<pk>/`).
+    path(
+        "stock/search/",
+        StockSearchRestView.as_view(),
+        name="stock_search_rest",
     ),
     # ViewSet routes (stock CRUD)
     path("", include(router.urls)),

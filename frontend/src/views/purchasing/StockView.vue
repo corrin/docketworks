@@ -20,6 +20,9 @@
             <tr>
               <th class="p-3 text-left font-semibold">Item Code</th>
               <th class="p-3 text-left font-semibold">Description</th>
+              <th class="p-3 text-left font-semibold">Metal</th>
+              <th class="p-3 text-left font-semibold">Alloy</th>
+              <th class="p-3 text-left font-semibold">Spec</th>
               <th class="p-3 text-left font-semibold">Quantity</th>
               <th class="p-3 text-left font-semibold">Unit Cost</th>
               <th class="p-3 text-left font-semibold">Unit Revenue</th>
@@ -27,9 +30,12 @@
             </tr>
           </thead>
           <tbody>
-            <tr v-for="item in pagedItems" :key="item.id" class="border-b hover:bg-slate-50">
+            <tr v-for="item in displayedItems" :key="item.id" class="border-b hover:bg-slate-50">
               <td class="p-3">{{ item.item_code || '-' }}</td>
               <td class="p-3">{{ item.description }}</td>
+              <td class="p-3">{{ item.metal_type || '-' }}</td>
+              <td class="p-3">{{ item.alloy || '-' }}</td>
+              <td class="p-3">{{ item.specifics || '-' }}</td>
               <td class="p-3">{{ formatQuantity(item.quantity) }}</td>
               <td class="p-3">{{ formatCurrency(item.unit_cost) }}</td>
               <td class="p-3">{{ formatCurrency(item.unit_revenue) }}</td>
@@ -54,11 +60,11 @@
                 </Button>
               </td>
             </tr>
-            <tr v-if="filteredItems.length === 0 && !isLoading">
-              <td colspan="6" class="p-8 text-center text-gray-500">No stock items found</td>
+            <tr v-if="displayedItems.length === 0 && !isBusy">
+              <td colspan="9" class="p-8 text-center text-gray-500">No stock items found</td>
             </tr>
-            <tr v-if="filteredItems.length === 0 && isLoading">
-              <td colspan="6" class="p-8 text-center text-gray-500">
+            <tr v-if="displayedItems.length === 0 && isBusy">
+              <td colspan="9" class="p-8 text-center text-gray-500">
                 <div class="flex items-center justify-center gap-2">
                   <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500"></div>
                   Stock items are still loading, please wait
@@ -250,6 +256,8 @@ import { Box, PlusCircle, Package, Trash2, X, Check } from 'lucide-vue-next'
 import { useStockStore, type StockItem } from '@/stores/stockStore'
 import { useJobsStore } from '@/stores/jobs'
 import { jobService } from '@/services/job.service'
+import { api } from '@/api/client'
+import { useDebounceFn } from '@vueuse/core'
 import { onMounted, ref, computed, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { formatCurrency } from '@/utils/string-formatting'
@@ -258,49 +266,84 @@ const stockStore = useStockStore()
 const jobsStore = useJobsStore()
 
 const items = computed(() => stockStore.items)
-const isLoading = computed(() => stockStore.loading)
 const jobs = computed(() => jobsStore.allKanbanJobs)
 
 const searchQuery = ref('')
 const page = ref(1)
 const pageSize = 25
 
-const normalizeForSearch = (value?: string | null): string => (value ?? '').toLowerCase()
+// Server-side search results (populated when searchQuery has >= 3 chars).
+// When idle, displayedItems falls back to the store's all-stock cache and
+// pagination is client-side; while a query is active, the server returns
+// already-paginated results and we mirror its `total_pages` count.
+const searchResults = ref<StockItem[]>([])
+const searchTotalPages = ref(0)
+const searchTotalCount = ref(0)
+const isSearching = ref(false)
 
-const filteredItems = computed(() => {
-  if (!searchQuery.value.trim()) {
-    return items.value
-  }
-  const query = searchQuery.value.toLowerCase()
-  return items.value.filter(
-    (item) =>
-      normalizeForSearch(item.description).includes(query) ||
-      normalizeForSearch(item.metal_type as string).includes(query) ||
-      normalizeForSearch(item.alloy).includes(query) ||
-      normalizeForSearch(item.specifics).includes(query) ||
-      normalizeForSearch(item.location).includes(query),
-  )
+const isQueryActive = computed(() => searchQuery.value.trim().length >= 3)
+const isBusy = computed(() => isSearching.value || stockStore.loading)
+
+const totalPages = computed(() => {
+  if (isQueryActive.value) return Math.max(1, searchTotalPages.value || 1)
+  return Math.max(1, Math.ceil(items.value.length / pageSize))
 })
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredItems.value.length / pageSize)))
-
-const pagedItems = computed(() => {
+const displayedItems = computed<StockItem[]>(() => {
+  if (isQueryActive.value) return searchResults.value
   const start = (page.value - 1) * pageSize
-  return filteredItems.value.slice(start, start + pageSize)
+  return items.value.slice(start, start + pageSize)
 })
+
+async function runSearch() {
+  if (!isQueryActive.value) {
+    searchResults.value = []
+    searchTotalPages.value = 0
+    searchTotalCount.value = 0
+    return
+  }
+  isSearching.value = true
+  try {
+    const response = await api.purchasing_stock_search_retrieve({
+      queries: {
+        q: searchQuery.value.trim(),
+        page: page.value,
+        page_size: pageSize,
+      },
+    })
+    searchResults.value = response.results
+    searchTotalPages.value = response.total_pages
+    searchTotalCount.value = response.count
+  } catch (error) {
+    console.error('Stock search failed:', error)
+    toast.error('Failed to search stock')
+    searchResults.value = []
+    searchTotalPages.value = 0
+    searchTotalCount.value = 0
+  } finally {
+    isSearching.value = false
+  }
+}
+
+const debouncedSearch = useDebounceFn(runSearch, 300)
+
+async function refreshStock() {
+  await stockStore.fetchStock(true)
+  if (isQueryActive.value) {
+    await runSearch()
+  }
+}
 
 watch(searchQuery, () => {
   page.value = 1
+  debouncedSearch()
 })
 
-watch(
-  () => filteredItems.value.length,
-  () => {
-    if (page.value > totalPages.value) {
-      page.value = Math.max(1, totalPages.value)
-    }
-  },
-)
+watch(page, () => {
+  if (isQueryActive.value) {
+    runSearch()
+  }
+})
 
 const showAllocate = ref(false)
 const showAdd = ref(false)
@@ -407,7 +450,7 @@ async function performStockAllocation() {
     toast.success('Stock allocated successfully')
     showAllocate.value = false
     showInsufficientStockConfirm.value = false
-    await stockStore.fetchStock()
+    await refreshStock()
   } catch (error) {
     toast.error('Failed to allocate stock')
     debugLog('Error allocating stock:', error)
@@ -433,7 +476,7 @@ async function submitAdd() {
     })
     toast.success('Stock added successfully')
     showAdd.value = false
-    await stockStore.fetchStock()
+    await refreshStock()
   } catch (error) {
     toast.error('Failed to add stock')
     debugLog('Error adding stock:', error)
@@ -445,7 +488,7 @@ async function submitDelete() {
     await stockStore.deactivate(activeId.value)
     toast.success('Stock deleted successfully')
     showDelete.value = false
-    await stockStore.fetchStock()
+    await refreshStock()
   } catch (error) {
     toast.error('Failed to delete stock')
     debugLog('Error deleting stock:', error)
