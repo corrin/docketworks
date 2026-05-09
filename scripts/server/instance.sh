@@ -149,6 +149,10 @@ do_create() {
     [[ -z "${E2E_TEST_PASSWORD:-}" ]] && MISSING+=("E2E_TEST_PASSWORD")
     [[ -z "${XERO_USERNAME:-}" ]] && MISSING+=("XERO_USERNAME")
     [[ -z "${XERO_PASSWORD:-}" ]] && MISSING+=("XERO_PASSWORD")
+    [[ -z "${XERO_CLIENT_ID:-}" ]] && MISSING+=("XERO_CLIENT_ID")
+    [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
+    [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
+    [[ -z "${XERO_REDIRECT_URI:-}" ]] && MISSING+=("XERO_REDIRECT_URI")
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $CREDS_FILE:"
@@ -429,6 +433,35 @@ EOSQL
     # file is a loaddata time-bomb (restore-prod-to-nonprod runs loaddata on
     # it, which would overwrite real DB keys with whatever is on disk).
     rm -f "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
+
+    # --- Generate Xero apps fixture from template ---
+    log "Generating Xero apps fixture..."
+    local ESC_XERO_CLIENT_ID ESC_XERO_CLIENT_SECRET ESC_XERO_WEBHOOK_KEY ESC_XERO_REDIRECT_URI
+    ESC_XERO_CLIENT_ID="$(sed_escape "$XERO_CLIENT_ID")"
+    ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
+    ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
+    ESC_XERO_REDIRECT_URI="$(sed_escape "$XERO_REDIRECT_URI")"
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
+        -e "s|__XERO_CLIENT_SECRET__|$ESC_XERO_CLIENT_SECRET|g" \
+        -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
+        -e "s|__XERO_REDIRECT_URI__|$ESC_XERO_REDIRECT_URI|g" \
+        "$TEMPLATE_DIR/xero-apps.json.template" \
+        > "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"
+    chmod 600 "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"
+
+    # --- Load Xero apps ---
+    log "Loading Xero apps..."
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/workflow/fixtures/xero_apps.json
+
+    # Intentionally NOT deleted after load: restore-prod-to-nonprod runs
+    # loaddata against this file (workflow_xeroapp is excluded from the
+    # prod dump, so the table is empty after restore and needs reseeding).
+    # The file holds only the static OAuth app credentials; runtime token
+    # state is never written back to disk, so re-loaddata at restore time
+    # is safe.
 
     # --- Create initial admin user ---
     log "Creating initial admin user..."
