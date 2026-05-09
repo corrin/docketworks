@@ -162,7 +162,7 @@ function usageLabel(item: DisplayItem): string {
         emit('update:modelValue', val as string | null)
 
         if (val === '__labour__') {
-          emit('selectedItem', mockedLabourItem.value)
+          emit('selectedItem', mockedLabourItem)
           emit('update:description', 'Labour')
           emit('update:unit_cost', companyDefaultsStore.companyDefaults?.wage_rate ?? 0)
           emit('update:kind', 'time')

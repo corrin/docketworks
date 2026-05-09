@@ -19,7 +19,6 @@ import type { DataTableRowContext } from '@/utils/data-table-types'
 import type { ColumnDef } from '@tanstack/vue-table'
 import { z } from 'zod'
 import { debugLog } from '../../utils/debug'
-import type { StockItem } from '@/stores/stockStore'
 
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
 type JobForPurchasing = z.infer<typeof schemas.JobForPurchasing>
@@ -210,8 +209,12 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
               },
           onSelectedItem: isColumnDisabled.value
             ? undefined
-            : (selected: StockItem | null) => {
+            : (selected) => {
                 debugLog('PoLinesTable: Received selected item:', selected)
+                if (!selected || selected.id === '__labour__') {
+                  openItemSelectIndex.value = -1
+                  return
+                }
 
                 updateLine(context.row.index, {
                   ...(selected && {
