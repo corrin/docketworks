@@ -451,6 +451,7 @@ class KanbanService:
                     | Q(job_number__icontains=token)
                     | Q(description__icontains=token)
                     | Q(client__name__icontains=token)
+                    | Q(contact__name__icontains=token)
                     | Q(invoices__number__icontains=token)
                     | Q(quote__number__icontains=token)
                 )
@@ -556,6 +557,7 @@ class KanbanService:
                         | Q(job_number__icontains=token)
                         | Q(description__icontains=token)
                         | Q(client__name__icontains=token)
+                        | Q(contact__name__icontains=token)
                     )
 
             # Get total count
