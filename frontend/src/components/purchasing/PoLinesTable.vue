@@ -69,6 +69,21 @@ interface LineEditorState {
   }[]
 }
 
+function isSelectableStockItem(value: unknown): value is {
+  description: string
+  unit_cost: number
+  metal_type?: string
+  alloy?: string | null
+  specifics?: string | null
+  location?: string
+  item_code?: string | null
+  id: string
+} {
+  if (!value || typeof value !== 'object') return false
+  if (!('id' in value) || (value as { id?: unknown }).id === '__labour__') return false
+  return 'description' in value && 'unit_cost' in value
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
@@ -211,7 +226,7 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
             ? undefined
             : (selected) => {
                 debugLog('PoLinesTable: Received selected item:', selected)
-                if (!selected || selected.id === '__labour__') {
+                if (!isSelectableStockItem(selected)) {
                   openItemSelectIndex.value = -1
                   return
                 }
