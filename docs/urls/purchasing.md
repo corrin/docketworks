@@ -45,8 +45,3 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/supplier-price-status/` | `purchasing_rest_views.SupplierPriceStatusAPIView` | `purchasing:supplier_price_status_rest` | Return latest price upload status per supplier. |
-
-### Xero-Items Management
-| URL Pattern | View | Name | Description |
-|-------------|------|------|-------------|
-| `/xero-items/` | `purchasing_rest_views.XeroItemList` | `purchasing:xero_items_rest` | Return list of items from Xero. |

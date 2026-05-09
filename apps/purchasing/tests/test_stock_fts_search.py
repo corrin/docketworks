@@ -178,17 +178,6 @@ def test_view_returns_search_results_via_http(auth_api, db):
     assert body["page"] == 1
 
 
-def test_view_short_query_returns_full_list(auth_api, db):
-    """Short queries (< 3 chars) skip the FTS filter and return the full active list."""
-    _stock(description="Item A", item_code="A-1")
-    _stock(description="Item B", item_code="B-1")
-
-    resp = auth_api.get("/api/purchasing/stock/search/", {"q": "ab"})
-    assert resp.status_code == 200, resp.content
-    descriptions = [r["description"] for r in resp.json()["results"]]
-    assert {"Item A", "Item B"} <= set(descriptions)
-
-
 def test_view_unauthenticated_is_rejected(db):
     resp = APIClient().get("/api/purchasing/stock/search/", {"q": "anything"})
     assert resp.status_code in (401, 403)

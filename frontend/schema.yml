@@ -6654,21 +6654,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/SupplierPriceStatusResponse'
           description: ''
-  /api/purchasing/xero-items/:
-    get:
-      operationId: purchasing_xero_items_retrieve
-      description: Return list of items from Xero.
-      tags:
-        - purchasing
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroItemListResponse'
-          description: ''
   /api/quoting/scheduled-task-executions/:
     get:
       operationId: quoting_scheduled_task_executions_list
@@ -20380,37 +20365,6 @@ components:
           maxLength: 200
       required:
         - number
-    XeroItem:
-      type: object
-      description: Serializer for Xero item data
-      properties:
-        code:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        sales_details:
-          type: object
-          additionalProperties: {}
-        purchase_details:
-          type: object
-          additionalProperties: {}
-      required:
-        - code
-        - name
-    XeroItemListResponse:
-      type: object
-      description: Serializer for XeroItemList response
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/XeroItem'
-        total_count:
-          type: integer
-      required:
-        - items
     XeroPayItem:
       type: object
       properties:

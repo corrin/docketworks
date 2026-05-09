@@ -136,6 +136,30 @@ describe('StockView server-side search', () => {
     expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
   })
 
+  it('keeps sub-3-character queries local and does not call the search API', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = [
+      buildStockItem({ id: 's1', description: 'Steel sheet', metal_type: 'steel' }),
+      buildStockItem({ id: 's2', description: 'Aluminium bar', metal_type: 'aluminium' }),
+    ]
+    store.fetchStock = vi.fn().mockResolvedValue(store.items)
+
+    const wrapper = mount(StockView)
+    await flushPromises()
+
+    const input = wrapper.find('input[placeholder="Search stock items..."]')
+    await input.setValue('st')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    const descriptions = wrapper.findAll('tbody tr').map((r) => r.findAll('td')[1]?.text())
+    expect(descriptions).toEqual(['Steel sheet', 'Aluminium bar'])
+    expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
+
+    vi.useRealTimers()
+  })
+
   it('uses server results when query is active', async () => {
     vi.useFakeTimers()
     const store = useStockStore()

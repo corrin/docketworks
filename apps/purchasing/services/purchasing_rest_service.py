@@ -4,7 +4,6 @@ from decimal import Decimal
 from pprint import pprint
 from typing import Any, Dict, List
 
-from django.core.cache import cache
 from django.core.exceptions import ValidationError
 from django.db import transaction
 from django.db.models import IntegerField
@@ -503,31 +502,3 @@ class PurchasingRestService:
         auto_parse_stock_item(stock_item)
 
         return stock_item
-
-    @staticmethod
-    def list_xero_items() -> list[dict]:
-        from apps.workflow.api.xero.xero import get_xero_items
-
-        cached = cache.get("xero_items")
-        if cached is not None:
-            return cached
-        try:
-            raw = get_xero_items()
-            items = []
-            for i in raw:
-                items.append(
-                    {
-                        "id": i.item_id if i.item_id else None,
-                        "code": i.code if i.code else None,
-                        "name": i.name if i.name else None,
-                        "unit_cost": (
-                            i.purchase_details.unit_price
-                            if i.purchase_details and i.purchase_details.unit_price
-                            else None
-                        ),
-                    }
-                )
-            return items
-        except Exception:
-            logger.exception("Failed to fetch Xero items")
-            return []

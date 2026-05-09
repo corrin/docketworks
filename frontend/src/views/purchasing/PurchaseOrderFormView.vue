@@ -150,7 +150,6 @@ import PoPdfDialog from '@/components/purchasing/PoPdfDialog.vue'
 import PoCommentsSection from '@/components/purchasing/PoCommentsSection.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrderStore'
-import { useXeroItemStore } from '@/stores/xeroItemStore'
 import { useDeliveryReceiptStore } from '@/stores/deliveryReceiptStore'
 import { extractErrorMessage, createErrorToast } from '@/utils/errorHandler'
 import { toast } from 'vue-sonner'
@@ -176,7 +175,6 @@ const route = useRoute()
 const router = useRouter()
 const orderId = route.params.id as string
 const store = usePurchaseOrderStore()
-const xeroItemStore = useXeroItemStore()
 const receiptStore = useDeliveryReceiptStore()
 const originalLines = ref<PurchaseOrderLine[]>([])
 const isSyncing = ref(false)
@@ -1140,13 +1138,7 @@ const handleAllocationDeleted = async (data: { allocationId: string; allocationT
 
 onMounted(async () => {
   try {
-    await Promise.all([
-      xeroItemStore.fetchItems(),
-      fetchJobs(),
-      load(),
-      loadJobsForReceipt(),
-      loadExistingAllocations(),
-    ])
+    await Promise.all([fetchJobs(), load(), loadJobsForReceipt(), loadExistingAllocations()])
   } catch (err) {
     debugLog('Error during component initialization:', err)
   }

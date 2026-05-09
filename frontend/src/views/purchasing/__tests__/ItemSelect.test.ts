@@ -132,4 +132,30 @@ describe('ItemSelect server-side search and rendering', () => {
 
     vi.useRealTimers()
   })
+
+  it('keeps sub-3-character queries on the local stock cache', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = [
+      buildStockItem({ id: 's1', description: 'Steel sheet' }),
+      buildStockItem({ id: 's2', description: 'Aluminium bar' }),
+    ]
+    store.fetchStock = vi.fn().mockResolvedValue(store.items)
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    const input = wrapper.find('input')
+    await input.setValue('st')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-value="s1"]').exists()).toBe(true)
+    expect(wrapper.find('[data-value="s2"]').exists()).toBe(true)
+
+    vi.useRealTimers()
+  })
 })

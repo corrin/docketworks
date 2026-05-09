@@ -365,23 +365,6 @@ class PurchasingJobsResponseSerializer(serializers.Serializer):
     total_count = serializers.IntegerField()
 
 
-class XeroItemSerializer(serializers.Serializer):
-    """Serializer for Xero item data"""
-
-    code = serializers.CharField()
-    name = serializers.CharField()
-    description = serializers.CharField(required=False, allow_blank=True)
-    sales_details = serializers.DictField(required=False)
-    purchase_details = serializers.DictField(required=False)
-
-
-class XeroItemListResponseSerializer(serializers.Serializer):
-    """Serializer for XeroItemList response"""
-
-    items = XeroItemSerializer(many=True)
-    total_count = serializers.IntegerField(required=False)
-
-
 class StockDeactivateResponseSerializer(serializers.Serializer):
     """Serializer for stock deactivation response"""
 

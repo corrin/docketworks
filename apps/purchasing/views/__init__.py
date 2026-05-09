@@ -17,7 +17,6 @@ from .purchasing_rest_views import (
     PurchaseOrderPDFView,
     PurchasingJobsAPIView,
     SupplierPriceStatusAPIView,
-    XeroItemList,
 )
 from .stock_search_rest_view import StockSearchRestView
 
@@ -50,5 +49,4 @@ __all__ = [
     "StockSearchRestView",
     "StockViewSet",
     "SupplierPriceStatusAPIView",
-    "XeroItemList",
 ]

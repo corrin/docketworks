@@ -44,7 +44,6 @@ from apps.purchasing.serializers import (
     PurchasingErrorResponseSerializer,
     PurchasingJobsResponseSerializer,
     SupplierPriceStatusResponseSerializer,
-    XeroItemListResponseSerializer,
 )
 from apps.purchasing.services.allocation_service import (
     AllocationDeletionError,
@@ -310,23 +309,6 @@ class PurchasingJobsAPIView(APIView):
             logger.error(f"Error fetching jobs for purchasing: {e}")
             return Response(
                 {"error": "Failed to fetch jobs", "details": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            )
-
-
-class XeroItemList(APIView):
-    """Return list of items from Xero."""
-
-    serializer_class = XeroItemListResponseSerializer
-
-    def get(self, request):
-        try:
-            items = PurchasingRestService.list_xero_items()
-            return Response({"items": items, "total_count": len(items)})
-        except Exception as e:
-            logger.error("Error fetching Xero items: %s", e)
-            return Response(
-                {"error": "Failed to fetch Xero items"},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 

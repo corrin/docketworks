@@ -17,7 +17,6 @@ from apps.purchasing.views.purchasing_rest_views import (
     PurchaseOrderPDFView,
     PurchasingJobsAPIView,
     SupplierPriceStatusAPIView,
-    XeroItemList,
 )
 from apps.purchasing.views.stock_search_rest_view import StockSearchRestView
 from apps.purchasing.views.stock_viewset import StockViewSet
@@ -34,7 +33,6 @@ urlpatterns = [
     ),
     path("all-jobs/", AllJobsAPIView.as_view(), name="purchasing_all_jobs_rest"),
     path("jobs/", PurchasingJobsAPIView.as_view(), name="purchasing_jobs_rest"),
-    path("xero-items/", XeroItemList.as_view(), name="xero_items_rest"),
     path(
         "purchase-orders/",
         PurchaseOrderListCreateRestView.as_view(),
