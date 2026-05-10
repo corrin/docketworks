@@ -231,11 +231,7 @@ Xero setup complete.
 
 **Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Load Company Defaults).
 
-If the payroll calendar is missing (e.g. after a Xero demo org reset), re-run with:
-
-```bash
-python manage.py xero --setup --create-missing-xero-items
-```
+`--setup` provisions any payroll calendar, earnings rates, or leave types that are present in the restored DB but missing from this Xero org (e.g. a fresh demo org), so the seed step below can match every backup pay item by name.
 
 #### Sync Pay Items from Xero
 

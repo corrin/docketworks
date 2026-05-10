@@ -138,6 +138,44 @@ def get_or_fetch_client(contact_id, reference=None):
     return synced[0].get_final_client()
 
 
+def sync_client_from_xero_contact(contact, reference=None):
+    """Resolve a local client from embedded Xero contact data.
+
+    Use embedded contact payloads from parent Xero documents first. Only the
+    caller decides when the payload is too incomplete and a separate API fetch
+    is warranted.
+    """
+    contact_id = getattr(contact, "contact_id", None)
+    if not contact_id:
+        raise ValueError(f"Client not found for {reference or 'missing contact'}")
+
+    client = Client.objects.filter(xero_contact_id=contact_id).first()
+    if client:
+        return client.get_final_client()
+
+    synced = sync_clients([contact])
+    if not synced:
+        raise ValueError(f"Failed to sync client for {reference or contact_id}")
+
+    return synced[0].get_final_client()
+
+
+def resolve_client_from_xero_contact(contact, reference=None):
+    """Resolve a client from embedded contact data, falling back to GET only if absent."""
+    if contact is None:
+        raise ValueError(f"Client not found for {reference or 'missing contact'}")
+
+    contact_id = getattr(contact, "contact_id", None)
+    if contact_id is None:
+        raise ValueError(f"Client not found for {reference or 'missing contact id'}")
+
+    contact_attrs = getattr(contact, "__dict__", None) or {}
+    if len(contact_attrs) > 1:
+        return sync_client_from_xero_contact(contact, reference)
+
+    return get_or_fetch_client(contact_id, reference)
+
+
 def sync_entities(
     items, model_class, xero_id_attr, transform_func, delete_orphans=False
 ):
@@ -219,7 +257,9 @@ def _extract_required_fields_xero(doc_type, xero_obj, xero_id):
         Mapping of required field names to values.
     """
     number = _resolve_document_number(doc_type, xero_obj, xero_id)
-    client = get_or_fetch_client(xero_obj.contact.contact_id, number)
+    client = resolve_client_from_xero_contact(
+        getattr(xero_obj, "contact", None), number
+    )
     date = getattr(xero_obj, "date", None)
     total_excl_tax = getattr(xero_obj, "sub_total", None)
     tax = getattr(xero_obj, "total_tax", None)
@@ -481,7 +521,9 @@ def transform_quote(xero_quote, xero_id):
     Returns:
         The saved Quote model.
     """
-    client = get_or_fetch_client(xero_quote.contact.contact_id, f"quote {xero_id}")
+    client = resolve_client_from_xero_contact(
+        getattr(xero_quote, "contact", None), f"quote {xero_id}"
+    )
     raw_json = process_xero_data(xero_quote)
 
     status_data = raw_json.get("_status", {})
@@ -524,8 +566,8 @@ def transform_purchase_order(xero_po, xero_id):
         "BILLED": "fully_received",
         "VOIDED": "deleted",
     }
-    supplier = get_or_fetch_client(
-        xero_po.contact.contact_id, xero_po.purchase_order_number
+    supplier = resolve_client_from_xero_contact(
+        getattr(xero_po, "contact", None), xero_po.purchase_order_number
     )
 
     po_number = getattr(xero_po, "purchase_order_number", None)

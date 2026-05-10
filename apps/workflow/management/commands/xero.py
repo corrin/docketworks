@@ -116,11 +116,6 @@ class Command(BaseCommand):
             help="Get Xero Payroll pay runs",
         )
         parser.add_argument(
-            "--create-missing-xero-items",
-            action="store_true",
-            help="Create the payroll calendar in Xero if it does not exist (use when restoring to dev after a demo org reset)",
-        )
-        parser.add_argument(
             "--configure-payroll",
             action="store_true",
             help="Interactively configure payroll earnings rate mappings",
@@ -194,9 +189,7 @@ class Command(BaseCommand):
 
         # Handle specific flags
         if options["setup"]:
-            self.run_setup(
-                create_missing_xero_items=options["create_missing_xero_items"]
-            )
+            self.run_setup()
             return
 
         if options["users"]:
@@ -338,9 +331,12 @@ class Command(BaseCommand):
                     self.style.SUCCESS(f"Created payroll calendar: {calendar_name}")
                 )
 
-        # Pay items with no xero_id — present in DB (from prod backup) but missing in this Xero org
-        missing = XeroPayItem.objects.filter(xero_id__isnull=True)
-        if not missing.exists():
+        # Compare local pay items (from prod backup) against the destination
+        # Xero org by name; create anything missing. Compares by name rather
+        # than `xero_id IS NULL` so the helper works on the first run, before
+        # the seed's Phase 0 has nulled the stale prod xero_ids.
+        pay_items = list(XeroPayItem.objects.all())
+        if not pay_items:
             return
 
         all_rates = get_earnings_rates()
@@ -360,16 +356,17 @@ class Command(BaseCommand):
             )
             return
 
-        for item in missing:
+        for item in pay_items:
             if item.uses_leave_api:
                 if item.name in existing_leave:
                     continue
                 self.stdout.write(f"Leave type '{item.name}' not found — creating it.")
+                is_paid_leave = item.name != "Unpaid Leave"
                 payroll_api.create_leave_type(
                     xero_tenant_id=tenant_id,
                     leave_type=LeaveType(
                         name=item.name,
-                        is_paid_leave=item.multiplier != 0,
+                        is_paid_leave=is_paid_leave,
                         show_on_payslip=True,
                     ),
                 )
@@ -402,7 +399,7 @@ class Command(BaseCommand):
                     )
                 )
 
-    def run_setup(self, create_missing_xero_items: bool):
+    def run_setup(self):
         """Configure Xero tenant ID, shortcode, and payroll calendar."""
         self.stdout.write("Setting up Xero connection...")
 
@@ -455,10 +452,9 @@ class Command(BaseCommand):
         # Always update cache to prevent stale tenant ID from being used
         cache.set("xero_tenant_id", tenant_id)
 
-        if create_missing_xero_items:
-            self._ensure_demo_xero_items_exist(
-                company.xero_payroll_calendar_name, tenant_id
-            )
+        self._ensure_demo_xero_items_exist(
+            company.xero_payroll_calendar_name, tenant_id
+        )
 
         # Step 4: Fetch organisation shortcode for deep linking
         accounting_api = AccountingApi(api_client)
@@ -492,8 +488,7 @@ class Command(BaseCommand):
                 self.stdout.write(
                     self.style.ERROR(
                         f"Payroll calendar '{calendar_name}' not found in Xero.\n"
-                        f"Available calendars: {available}\n"
-                        f"If restoring to dev after a demo org reset, re-run with --create-missing-xero-items."
+                        f"Available calendars: {available}"
                     )
                 )
                 return
