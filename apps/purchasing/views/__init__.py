@@ -17,7 +17,6 @@ from .purchasing_rest_views import (
     PurchaseOrderPDFView,
     PurchasingJobsAPIView,
     SupplierPriceStatusAPIView,
-    XeroItemList,
 )
 
 # Conditional imports (only when Django is ready)
@@ -48,5 +47,4 @@ __all__ = [
     "PurchasingJobsAPIView",
     "StockViewSet",
     "SupplierPriceStatusAPIView",
-    "XeroItemList",
 ]
