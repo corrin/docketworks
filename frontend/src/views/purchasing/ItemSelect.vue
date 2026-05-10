@@ -150,6 +150,33 @@ function usageLabel(item: DisplayItem): string {
     ? `Used ${item.times_used} times`
     : ''
 }
+
+function handleSelectedValue(val: string | null): void {
+  emit('update:modelValue', val)
+
+  if (val === '__labour__') {
+    emit('selectedItem', mockedLabourItem.value)
+    emit('update:description', 'Labour')
+    emit('update:unit_cost', companyDefaultsStore.companyDefaults?.wage_rate ?? 0)
+    emit('update:kind', 'time')
+    return
+  }
+
+  const found =
+    serverResults.value.find((i: StockItem) => i.id == val) ||
+    store.items.find((i: StockItem) => i.id == val)
+
+  emit('selectedItem', found ?? null)
+  if (found) {
+    emit('update:description', found.description || '')
+    emit('update:unit_cost', found.unit_cost || null)
+    emit('update:kind', 'material')
+  } else {
+    emit('update:description', '')
+    emit('update:unit_cost', null)
+    emit('update:kind', null)
+  }
+}
 </script>
 
 <template>
@@ -157,33 +184,7 @@ function usageLabel(item: DisplayItem): string {
     v-bind="selectProps"
     class="!w-full min-w-64"
     @update:open="(nextOpen) => emit('update:open', nextOpen)"
-    @update:model-value="
-      (val) => {
-        emit('update:modelValue', val as string | null)
-
-        if (val === '__labour__') {
-          emit('selectedItem', mockedLabourItem)
-          emit('update:description', 'Labour')
-          emit('update:unit_cost', companyDefaultsStore.companyDefaults?.wage_rate ?? 0)
-          emit('update:kind', 'time')
-        } else {
-          const found =
-            serverResults.find((i: StockItem) => i.id == val) ||
-            store.items.find((i: StockItem) => i.id == val)
-
-          emit('selectedItem', found ?? null)
-          if (found) {
-            emit('update:description', found.description || '')
-            emit('update:unit_cost', found.unit_cost || null)
-            emit('update:kind', 'material')
-          } else {
-            emit('update:description', '')
-            emit('update:unit_cost', null)
-            emit('update:kind', null)
-          }
-        }
-      }
-    "
+    @update:model-value="(val) => handleSelectedValue(val as string | null)"
   >
     <SelectTrigger class="h-10 item-select-trigger" data-automation-id="ItemSelect-trigger">
       <SelectValue :placeholder="'Select Item'" />

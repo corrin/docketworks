@@ -124,6 +124,41 @@ describe('StockView server-side search', () => {
     vi.useRealTimers()
   })
 
+  it('does not fire an immediate search when typing resets page back to 1', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+    purchasing_stock_search_retrieve.mockResolvedValue({
+      results: [buildStockItem({ id: 'r1', description: 'Stainless 5mm sheet', alloy: '304' })],
+      count: 1,
+      page: 1,
+      page_size: 25,
+      total_pages: 1,
+    })
+
+    const wrapper = mount(StockView)
+    await flushPromises()
+
+    wrapper.vm.page = 3
+    await nextTick()
+
+    const input = wrapper.find('input[placeholder="Search stock items..."]')
+    await input.setValue('stainless')
+
+    expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(purchasing_stock_search_retrieve).toHaveBeenCalledTimes(1)
+    expect(purchasing_stock_search_retrieve).toHaveBeenCalledWith({
+      queries: { q: 'stainless', page: 1, page_size: 25 },
+    })
+
+    vi.useRealTimers()
+  })
+
   it('falls back to the unfiltered store list when the search box is empty', async () => {
     const store = useStockStore()
     store.items = [

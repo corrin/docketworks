@@ -5,6 +5,7 @@ import math
 import re
 from typing import Any, Dict, Iterable, List
 
+from django.contrib.postgres.search import SearchVector
 from django.db.models import Count
 
 from apps.job.models.costing import CostLine
@@ -12,10 +13,12 @@ from apps.purchasing.models import Stock
 from apps.purchasing.serializers import StockItemSerializer
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.search import apply_text_search
 
 logger = logging.getLogger(__name__)
 
 MAX_SEARCH_QUERY_LENGTH = 512
+MAX_PAGE_SIZE = 100
 
 ALLOWED_SORT_FIELDS = {
     "description": "description",
@@ -62,6 +65,15 @@ FORM_PATTERNS = {
     "rhs": ("rhs",),
     "shs": ("shs",),
 }
+
+STOCK_SEARCH_VECTOR = (
+    SearchVector("description", weight="A", config="english")
+    + SearchVector("item_code", weight="A", config="english")
+    + SearchVector("metal_type", weight="B", config="english")
+    + SearchVector("alloy", weight="B", config="english")
+    + SearchVector("specifics", weight="B", config="english")
+    + SearchVector("location", weight="C", config="english")
+)
 
 
 def _normalize_search_query(query: str) -> str:
@@ -315,12 +327,32 @@ def _score_stock(
     return score
 
 
+def _candidate_queryset(query: str):
+    normalized_query = _normalize_search_query(query)
+    expanded_query = _expand_aliases(normalized_query)
+    queryset = Stock.objects.filter(is_active=True)
+    candidate_ids = set(
+        apply_text_search(queryset, normalized_query, STOCK_SEARCH_VECTOR).values_list(
+            "id", flat=True
+        )
+    )
+    if expanded_query != normalized_query:
+        candidate_ids.update(
+            apply_text_search(
+                queryset, expanded_query, STOCK_SEARCH_VECTOR
+            ).values_list("id", flat=True)
+        )
+    if candidate_ids:
+        return queryset.filter(id__in=candidate_ids)
+    return queryset
+
+
 def _sorted_stock_matches(query: str) -> tuple[list[Stock], dict[str, int]]:
     query = _normalize_search_query(query)
     usage_counts = _usage_counts_by_item_code()
     query_features = _build_features(query)
     scored: list[tuple[float, Stock]] = []
-    for stock in Stock.objects.filter(is_active=True):
+    for stock in _candidate_queryset(query):
         score = _score_stock(stock, query_features, usage_counts)
         if score > 0:
             scored.append((score, stock))
@@ -389,6 +421,7 @@ def list_stock(
         sort_field = ALLOWED_SORT_FIELDS.get(sort_by, "description")
         if sort_dir.lower() == "desc":
             sort_field = f"-{sort_field}"
+        page_size = max(1, min(page_size, MAX_PAGE_SIZE))
 
         queryset = Stock.objects.filter(is_active=True)
 
@@ -405,13 +438,14 @@ def list_stock(
             items, usage_counts = _sorted_stock_matches(query)
         else:
             ordering = (sort_field,)
-            items = list(queryset.order_by(*ordering))
+            total_count = queryset.count()
+            offset = (page - 1) * page_size
+            items = queryset.order_by(*ordering)[offset : offset + page_size]
             usage_counts = _usage_counts_by_item_code()
-
-        total_count = len(items)
-
-        offset = (page - 1) * page_size
-        items = items[offset : offset + page_size]
+        if query:
+            total_count = len(items)
+            offset = (page - 1) * page_size
+            items = items[offset : offset + page_size]
 
         total_pages = (total_count + page_size - 1) // page_size
 

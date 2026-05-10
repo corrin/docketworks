@@ -22,7 +22,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.purchasing.serializers import StockSearchResponseSerializer
-from apps.purchasing.services.stock_search_service import list_stock
+from apps.purchasing.services.stock_search_service import MAX_PAGE_SIZE, list_stock
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -111,7 +111,7 @@ class StockSearchRestView(APIView):
                 page_size = int(request.GET.get("page_size", 50))
             except ValueError:
                 page_size = 50
-            page_size = max(1, page_size)
+            page_size = max(1, min(page_size, MAX_PAGE_SIZE))
 
             sort_by = request.GET.get("sort_by", "description")
             sort_dir = request.GET.get("sort_dir", "asc")

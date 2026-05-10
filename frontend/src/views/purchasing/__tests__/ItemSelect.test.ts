@@ -13,11 +13,22 @@ vi.mock('@/utils/string-formatting', () => ({
 }))
 
 vi.mock('../../../components/ui/select', () => ({
-  Select: { template: '<div class="ui-select"><slot /></div>' },
-  SelectTrigger: { template: '<div class="ui-select-trigger"><slot /></div>' },
-  SelectValue: { template: '<div />' },
-  SelectContent: { template: '<div class="ui-select-content"><slot /></div>' },
+  Select: {
+    name: 'Select',
+    emits: ['update:model-value', 'update:open'],
+    template: '<div class="ui-select"><slot /></div>',
+  },
+  SelectTrigger: {
+    name: 'SelectTrigger',
+    template: '<div class="ui-select-trigger"><slot /></div>',
+  },
+  SelectValue: { name: 'SelectValue', template: '<div />' },
+  SelectContent: {
+    name: 'SelectContent',
+    template: '<div class="ui-select-content"><slot /></div>',
+  },
   SelectItem: {
+    name: 'SelectItem',
     props: ['value'],
     template: '<div class="ui-select-item" :data-value="value" role="option"><slot /></div>',
   },
@@ -85,6 +96,29 @@ describe('ItemSelect server-side search and rendering', () => {
     const labourOption = wrapper.find('[data-value="__labour__"]')
     expect(labourOption.exists()).toBe(true)
     expect(wrapper.find('[data-value="s1"]').exists()).toBe(false)
+  })
+
+  it('emits the labour item payload rather than the computed ref wrapper', async () => {
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    wrapper.vm.handleSelectedValue('__labour__')
+
+    const selectedItemEvents = wrapper.emitted('selectedItem')
+    expect(selectedItemEvents).toBeTruthy()
+    const payload = selectedItemEvents?.at(-1)?.[0] as Record<string, unknown>
+    expect(payload).toMatchObject({
+      id: '__labour__',
+      description: 'Labour',
+    })
+    expect(payload).not.toHaveProperty('value')
+    expect(wrapper.emitted('update:kind')?.at(-1)).toEqual(['time'])
   })
 
   it('renders the full description, structured-fields signature, and usage count from server results', async () => {

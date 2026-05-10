@@ -130,6 +130,20 @@ def test_empty_query_lists_all_active(db):
     assert descriptions == {"Item A", "Item B"}
 
 
+def test_empty_query_paginates_cleanly(db):
+    _stock(description="Item A", is_active=True)
+    _stock(description="Item B", is_active=True)
+    _stock(description="Item C", is_active=True)
+
+    result = list_stock(query=None, page=2, page_size=1, sort_by="description")
+
+    assert result["count"] == 3
+    assert result["page"] == 2
+    assert result["page_size"] == 1
+    assert result["total_pages"] == 3
+    assert len(result["results"]) == 1
+
+
 def test_search_stock_short_query_is_rejected(db):
     assert search_stock("ab") == []
     assert search_stock("") == []
@@ -398,3 +412,16 @@ def test_view_rejects_overly_long_query(auth_api, db):
         "error": "Invalid search query",
         "details": "Search query too long.",
     }
+
+
+def test_view_clamps_page_size(auth_api, db):
+    for index in range(120):
+        _stock(description=f"Stock Item {index:03d}", item_code=f"STK-{index:03d}")
+
+    resp = auth_api.get("/api/purchasing/stock/search/", {"page_size": 9999})
+
+    assert resp.status_code == 200, resp.content
+    body = resp.json()
+    assert body["page_size"] == 100
+    assert body["count"] == 120
+    assert len(body["results"]) == 100

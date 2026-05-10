@@ -328,6 +328,7 @@ async function runSearch() {
 }
 
 const debouncedSearch = useDebounceFn(runSearch, 300)
+let skipNextPageWatchSearch = false
 
 async function refreshStock() {
   await stockStore.fetchStock(true)
@@ -337,11 +338,18 @@ async function refreshStock() {
 }
 
 watch(searchQuery, () => {
-  page.value = 1
+  if (page.value !== 1) {
+    skipNextPageWatchSearch = true
+    page.value = 1
+  }
   debouncedSearch()
 })
 
 watch(page, () => {
+  if (skipNextPageWatchSearch) {
+    skipNextPageWatchSearch = false
+    return
+  }
   if (isQueryActive.value) {
     runSearch()
   }
