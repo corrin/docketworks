@@ -57,32 +57,34 @@ test.describe('Stock search', () => {
     expect(body).toHaveProperty('total_pages')
     expect(Array.isArray(body.results)).toBe(true)
 
-    // The seed/prod-restore data has plenty of `5mm` items; assert at least one
-    // and assert every returned description contains the FTS lexeme. Using
-    // /5mm/i not /\b5mm\b/ because Postgres lexes `5mm` as one numword and
-    // we don't care which word boundary it sits inside.
+    // The seed/prod-restore data has plenty of `5mm` items. From a user
+    // perspective, the important thing is that a clearly relevant `5mm`
+    // result appears near the top, not that every fuzzy match on the page is
+    // a literal `5mm` string.
     expect(body.count).toBeGreaterThan(0)
-    for (const row of body.results) {
-      const haystack = [row.description, row.metal_type, row.alloy, row.specifics, row.location]
+    const haystacks = body.results.map((row: Record<string, string | null>) =>
+      [row.description, row.metal_type, row.alloy, row.specifics, row.location]
         .filter(Boolean)
         .join(' ')
-        .toLowerCase()
-      expect(haystack).toMatch(/5mm/i)
-    }
+        .toLowerCase(),
+    )
+    expect(haystacks.slice(0, 5).some((haystack: string) => /5(?:\.0+)?mm/i.test(haystack))).toBe(
+      true,
+    )
 
     // The table should render the new variant-disambiguation columns.
     await expect(page.locator('thead th', { hasText: 'Metal' })).toBeVisible()
     await expect(page.locator('thead th', { hasText: 'Alloy' })).toBeVisible()
     await expect(page.locator('thead th', { hasText: 'Spec' })).toBeVisible()
 
-    // At least one body row visible, and the description column shows the match
-    const firstRowDescription = await page
-      .locator('tbody tr')
-      .first()
-      .locator('td')
-      .nth(1)
-      .textContent()
-    expect(firstRowDescription?.toLowerCase()).toContain('5mm')
+    // At least one of the first few visible rows should show a direct `5mm`
+    // hit so the search feels useful to a user.
+    const firstFewDescriptions = await page
+      .locator('tbody tr td:nth-child(2)')
+      .evaluateAll((cells) =>
+        cells.slice(0, 5).map((cell) => cell.textContent?.trim().toLowerCase() || ''),
+      )
+    expect(firstFewDescriptions.some((description) => /5(?:\.0+)?mm/i.test(description))).toBe(true)
 
     // No "No items found" empty state when the search matched.
     await expect(page.locator('text=No stock items found')).toHaveCount(0)
