@@ -2668,6 +2668,7 @@ const StockItem = z.object({
   specifics: z.string().max(255).nullish(),
   is_active: z.boolean().optional(),
   job_id: z.string().uuid().nullable(),
+  times_used: z.number().int(),
 })
 const StockItemRequest = z.object({
   item_code: z.string().max(255).nullish(),
@@ -2705,6 +2706,13 @@ const StockConsumeRequest = z.object({
   unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
   unit_rev: z.number().gt(-100000000).lt(100000000).nullish(),
 })
+const StockSearchResponse = z.object({
+  results: z.array(StockItem),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
+})
 const SupplierPriceStatusItem = z.object({
   supplier_id: z.string().uuid(),
   supplier_name: z.string(),
@@ -2716,17 +2724,6 @@ const SupplierPriceStatusItem = z.object({
 const SupplierPriceStatusResponse = z.object({
   items: z.array(SupplierPriceStatusItem),
   total_count: z.number().int(),
-})
-const XeroItem = z.object({
-  code: z.string(),
-  name: z.string(),
-  description: z.string().optional(),
-  sales_details: z.object({}).partial().passthrough().optional(),
-  purchase_details: z.object({}).partial().passthrough().optional(),
-})
-const XeroItemListResponse = z.object({
-  items: z.array(XeroItem),
-  total_count: z.number().int().optional(),
 })
 const ScheduledTaskExecution = z.object({
   id: z.number().int(),
@@ -3452,10 +3449,9 @@ export const schemas = {
   StockItemRequest,
   PatchedStockItemRequest,
   StockConsumeRequest,
+  StockSearchResponse,
   SupplierPriceStatusItem,
   SupplierPriceStatusResponse,
-  XeroItem,
-  XeroItemListResponse,
   ScheduledTaskExecution,
   PaginatedScheduledTaskExecutionList,
   ScheduledTask,
@@ -8039,6 +8035,41 @@ Custom Actions:
   },
   {
     method: 'get',
+    path: '/api/purchasing/stock/search/',
+    alias: 'purchasing_stock_search_retrieve',
+    description: `REST view for paginated stock search.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'q',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'sort_by',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'sort_dir',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: StockSearchResponse,
+  },
+  {
+    method: 'get',
     path: '/api/purchasing/supplier-price-status/',
     alias: 'getSupplierPriceStatus',
     description: `Return latest price upload status per supplier.
@@ -8047,14 +8078,6 @@ Minimal-impact: read-only query over existing Client and SupplierPriceList
 models. No migrations required.`,
     requestFormat: 'json',
     response: SupplierPriceStatusResponse,
-  },
-  {
-    method: 'get',
-    path: '/api/purchasing/xero-items/',
-    alias: 'purchasing_xero_items_retrieve',
-    description: `Return list of items from Xero.`,
-    requestFormat: 'json',
-    response: XeroItemListResponse,
   },
   {
     method: 'get',

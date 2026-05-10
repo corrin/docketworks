@@ -95,9 +95,39 @@ test.describe.serial('purchase order operations', () => {
     const descriptionInput = autoId(page, 'PoLinesTable-description-0')
     await descriptionInput.waitFor({ timeout: 10000 })
 
-    // Fill in line details — fill all fields rapidly so the 500ms
-    // autosave debounce only fires once, after all values are set
-    await descriptionInput.fill('[TEST] Material Item')
+    const openStartedAt = Date.now()
+    await page.getByRole('button', { name: 'Select Item' }).first().click()
+
+    const searchInput = page.getByPlaceholder('Search items by description, code, or type...')
+    await searchInput.waitFor({ timeout: 10000 })
+    const openMs = Date.now() - openStartedAt
+
+    const searchStartedAt = Date.now()
+    const searchResponsePromise = page.waitForResponse(
+      (response) => {
+        if (!response.url().includes('/api/purchasing/stock/search/')) return false
+        if (response.request().method() !== 'GET') return false
+        if (response.status() !== 200) return false
+        return new URL(response.url()).searchParams.get('q') === '5mm Round Bar'
+      },
+      { timeout: 10000 },
+    )
+
+    await searchInput.fill('5mm Round Bar')
+
+    const searchResponse = await searchResponsePromise
+    const searchBody = await searchResponse.json()
+    const searchMs = Date.now() - searchStartedAt
+    expect(Array.isArray(searchBody.results)).toBe(true)
+    expect(searchBody.results.length).toBeGreaterThan(0)
+
+    const selected = searchBody.results[0]
+    const optionAutomationId = selected.item_code || selected.id
+    const selectStartedAt = Date.now()
+    await autoId(page, `ItemSelect-option-${optionAutomationId}`).click({ timeout: 10000 })
+    const selectMs = Date.now() - selectStartedAt
+
+    await expect(descriptionInput).toHaveValue(selected.description, { timeout: 10000 })
 
     const qtyInput = autoId(page, 'PoLinesTable-quantity-0')
     await qtyInput.fill('5')
@@ -105,13 +135,14 @@ test.describe.serial('purchase order operations', () => {
     const autosavePromise = waitForPoAutosave(page)
     const costInput = autoId(page, 'PoLinesTable-unit-cost-0')
     await costInput.click()
-    await costInput.fill('25.50')
     await page.keyboard.press('Tab')
 
     await autosavePromise
     await page.waitForTimeout(500)
 
-    console.log('Added line item: [TEST] Material Item, qty 5 @ $25.50')
+    console.log(
+      `PO ItemSelect timing: open=${openMs}ms search=${searchMs}ms select=${selectMs}ms item="${selected.description}"`,
+    )
   })
 
   test('assign job to purchase order line using JobSelect', async ({ authenticatedPage: page }) => {

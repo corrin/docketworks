@@ -10,7 +10,9 @@ import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
 import { useStockStore, type StockItem } from '../../stores/stockStore'
 import { useCompanyDefaultsStore } from '../../stores/companyDefaults'
-import { onMounted, computed, ref } from 'vue'
+import { api } from '@/api/client'
+import { useDebounceFn } from '@vueuse/core'
+import { computed, ref, watch } from 'vue'
 import { formatCurrency } from '@/utils/string-formatting'
 
 type LabourItem = {
@@ -21,6 +23,10 @@ type LabourItem = {
   unit_rev: number
   unit_revenue: number
   quantity: null
+  times_used?: null
+  metal_type?: string
+  alloy?: string | null
+  specifics?: string | null
 }
 
 type DisplayItem = StockItem | LabourItem
@@ -28,6 +34,7 @@ type DisplayItem = StockItem | LabourItem
 const props = withDefaults(
   defineProps<{
     modelValue: string | null
+    open?: boolean
     disabled?: boolean
     showQuantity?: boolean
     lineKind?: string
@@ -43,14 +50,18 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [string | null]
+  'update:open': [boolean]
   'update:description': [string]
   'update:unit_cost': [number | null]
   'update:kind': [string | null]
+  selectedItem: [DisplayItem | null]
 }>()
 
 const store = useStockStore()
 const companyDefaultsStore = useCompanyDefaultsStore()
 const searchTerm = ref('')
+const serverResults = ref<StockItem[]>([])
+const isSearching = ref(false)
 
 // Mocked Labour item for time entries
 const mockedLabourItem = computed<LabourItem>(() => ({
@@ -61,67 +72,119 @@ const mockedLabourItem = computed<LabourItem>(() => ({
   unit_rev: companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0,
   unit_revenue: companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0,
   quantity: null,
+  times_used: null,
 }))
 
-onMounted(async () => {
-  // Avoid triggering redundant fetches when many ItemSelects mount at once
-  if (store.items.length === 0 && !store.loading) {
-    await store.fetchStock()
+const isQueryActive = computed(() => searchTerm.value.trim().length >= 3)
+
+async function runSearch() {
+  if (!isQueryActive.value) {
+    serverResults.value = []
+    return
   }
+  isSearching.value = true
+  try {
+    const response = await api.purchasing_stock_search_retrieve({
+      queries: {
+        q: searchTerm.value.trim(),
+        page: 1,
+        page_size: 50,
+      },
+    })
+    serverResults.value = response.results
+  } catch (error) {
+    console.error('ItemSelect stock search failed:', error)
+    serverResults.value = []
+  } finally {
+    isSearching.value = false
+  }
+}
+
+const debouncedSearch = useDebounceFn(runSearch, 300)
+
+watch(searchTerm, () => {
+  debouncedSearch()
 })
 
 const filteredItems = computed<DisplayItem[]>(() => {
-  const stockItems = store.items
-  // Only show labour items in job-related contexts (estimate, quote, actual tabs)
-  // Don't show labour in purchasing contexts
+  // Only show labour in job-related contexts (estimate, quote, actual tabs).
   const labourItem =
     props.tabKind === 'estimate' || props.tabKind === 'quote' ? [mockedLabourItem.value] : []
 
-  // Include LABOUR only for job contexts, put it first
-  const allItems = [...labourItem, ...stockItems]
+  const stockItems = isQueryActive.value ? serverResults.value : []
+  return [...labourItem, ...stockItems]
+})
 
-  if (!searchTerm.value) return allItems
-  const term = searchTerm.value.toLowerCase()
-  return allItems.filter((item) => {
-    const searchableFields = [item.description, item.item_code].filter(Boolean) // Remove null/undefined values
+const selectProps = computed(() => {
+  const base = {
+    modelValue: props.modelValue,
+    disabled: props.disabled,
+  }
 
-    return searchableFields.some((field) => field?.toLowerCase().includes(term))
-  })
+  if (props.open === undefined) return base
+
+  return {
+    ...base,
+    open: props.open,
+  }
 })
 
 const displayPrice = (item: DisplayItem) => {
   return formatCurrency(item.unit_revenue ?? 0)
 }
+
+function variantSignature(item: DisplayItem): string {
+  if (item.id === '__labour__') return ''
+  const stock = item as StockItem
+  const metalType = stock.metal_type && stock.metal_type !== 'unspecified' ? stock.metal_type : null
+
+  return [metalType, stock.alloy, stock.specifics]
+    .map((part) => (part ?? '').toString().trim())
+    .filter(Boolean)
+    .join(' · ')
+}
+
+function usageLabel(item: DisplayItem): string {
+  if (item.id === '__labour__') return ''
+  return typeof item.times_used === 'number' && item.times_used > 0
+    ? `Used ${item.times_used} times`
+    : ''
+}
+
+function handleSelectedValue(val: string | null): void {
+  emit('update:modelValue', val)
+
+  if (val === '__labour__') {
+    emit('selectedItem', mockedLabourItem.value)
+    emit('update:description', 'Labour')
+    emit('update:unit_cost', companyDefaultsStore.companyDefaults?.wage_rate ?? 0)
+    emit('update:kind', 'time')
+    return
+  }
+
+  const found =
+    serverResults.value.find((i: StockItem) => i.id == val) ||
+    store.items.find((i: StockItem) => i.id == val)
+
+  emit('selectedItem', found ?? null)
+  if (found) {
+    emit('update:description', found.description || '')
+    emit('update:unit_cost', found.unit_cost || null)
+    emit('update:kind', 'material')
+  } else {
+    emit('update:description', '')
+    emit('update:unit_cost', null)
+    emit('update:kind', null)
+  }
+}
 </script>
 
 <template>
   <Select
-    :model-value="props.modelValue"
-    :disabled="props.disabled"
+    v-bind="selectProps"
     class="!w-full min-w-64"
-    @update:model-value="
-      (val) => {
-        emit('update:modelValue', val as string | null)
-
-        if (val === '__labour__') {
-          emit('update:description', 'Labour')
-          emit('update:unit_cost', companyDefaultsStore.companyDefaults?.wage_rate ?? 0)
-          emit('update:kind', 'time')
-        } else {
-          const found = store.items.find((i: StockItem) => i.id == val)
-
-          if (found) {
-            emit('update:description', found.description || '')
-            emit('update:unit_cost', found.unit_cost || null)
-            emit('update:kind', 'material')
-          } else {
-            emit('update:description', '')
-            emit('update:unit_cost', null)
-            emit('update:kind', null)
-          }
-        }
-      }
-    "
+    @update:open="(nextOpen) => emit('update:open', nextOpen)"
+    @update:model-value="(val) => handleSelectedValue(val as string | null)"
   >
     <SelectTrigger class="h-10 item-select-trigger" data-automation-id="ItemSelect-trigger">
       <SelectValue :placeholder="'Select Item'" />
@@ -141,44 +204,59 @@ const displayPrice = (item: DisplayItem) => {
 
       <!-- Items list -->
       <div v-if="filteredItems.length === 0" class="p-4 text-sm text-muted-foreground text-center">
-        {{ searchTerm ? 'No items found matching your search' : 'No stock items available' }}
+        <span v-if="isSearching">Searching…</span>
+        <span v-else-if="!isQueryActive"> Type at least 3 characters to search items </span>
+        <span v-else>
+          {{ searchTerm ? 'No items found matching your search' : 'No stock items available' }}
+        </span>
       </div>
 
-      <div v-else class="max-h-64 w-full overflow-y-auto">
-        <SelectItem
-          v-for="i in filteredItems"
-          :key="i.id || 'unknown'"
-          :value="i.id || ''"
-          class="cursor-pointer p-4 border-b border-border last:border-b-0 hover:bg-accent/50 focus:bg-accent/50 bg-background w-full"
-          :data-automation-id="`ItemSelect-option-${i.id === '__labour__' ? 'labour' : i.item_code || i.id}`"
-        >
-          <div class="flex w-full items-start justify-between gap-6 !min-w-[500px]">
-            <div class="flex-1 min-w-0">
-              <div class="font-medium text-sm leading-tight truncate">
-                {{ i.description || 'Unnamed Item' }}
-              </div>
-              <div v-if="i.item_code" class="text-xs text-muted-foreground mt-1 truncate">
-                Code: {{ i.item_code }}
-              </div>
+      <SelectItem
+        v-for="i in filteredItems"
+        :key="i.id || 'unknown'"
+        :value="i.id || ''"
+        class="cursor-pointer p-4 border-b border-border last:border-b-0 hover:bg-accent/50 focus:bg-accent/50 bg-background w-full"
+        :data-automation-id="`ItemSelect-option-${i.id === '__labour__' ? 'labour' : i.item_code || i.id}`"
+      >
+        <div class="flex w-full items-start justify-between gap-6 !min-w-[500px]">
+          <div class="flex-1 min-w-0">
+            <div class="font-medium text-sm leading-tight whitespace-normal break-words">
+              {{ i.description || 'Unnamed Item' }}
             </div>
-
-            <div class="flex flex-col items-end gap-1 shrink-0">
-              <Badge
-                v-if="i.unit_revenue || i.unit_revenue === 0"
-                variant="secondary"
-                class="text-xs font-semibold"
-              >
-                {{ displayPrice(i) }}
-              </Badge>
-              <Badge v-else variant="secondary" class="text-xs"> No price </Badge>
-
-              <div class="text-xs text-muted-foreground">
-                {{ i.id === '__labour__' ? 'per hour' : '' }}
-              </div>
+            <div
+              v-if="usageLabel(i) || variantSignature(i)"
+              class="mt-1 flex flex-wrap gap-x-2 gap-y-1 text-xs text-muted-foreground"
+            >
+              <span v-if="usageLabel(i)" data-automation-id="ItemSelect-times-used">
+                {{ usageLabel(i) }}
+              </span>
+              <span v-if="variantSignature(i)" data-automation-id="ItemSelect-variant-signature">
+                {{ variantSignature(i) }}
+              </span>
+            </div>
+            <div v-if="i.item_code" class="mt-1 text-xs text-muted-foreground truncate">
+              <span data-automation-id="ItemSelect-code">
+                {{ i.item_code }}
+              </span>
             </div>
           </div>
-        </SelectItem>
-      </div>
+
+          <div class="flex flex-col items-end gap-1 shrink-0">
+            <Badge
+              v-if="i.unit_revenue || i.unit_revenue === 0"
+              variant="secondary"
+              class="text-xs font-semibold"
+            >
+              {{ displayPrice(i) }}
+            </Badge>
+            <Badge v-else variant="secondary" class="text-xs"> No price </Badge>
+
+            <div class="text-xs text-muted-foreground">
+              {{ i.id === '__labour__' ? 'per hour' : '' }}
+            </div>
+          </div>
+        </div>
+      </SelectItem>
     </SelectContent>
   </Select>
 </template>

@@ -6592,6 +6592,49 @@ paths:
               schema:
                 $ref: '#/components/schemas/StockConsumeResponse'
           description: ''
+  /api/purchasing/stock/search/:
+    get:
+      operationId: purchasing_stock_search_retrieve
+      description: REST view for paginated stock search.
+      summary: Search stock
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Page number (default 1)
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+          description: Results per page (default 50)
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search query (Postgres FTS, websearch syntax). Queries shorter
+            than 3 characters return all stock.
+        - in: query
+          name: sort_by
+          schema:
+            type: string
+          description: Field to sort by (default 'description')
+        - in: query
+          name: sort_dir
+          schema:
+            type: string
+          description: "Sort direction: 'asc' or 'desc' (default 'asc')"
+      tags:
+        - Stock
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StockSearchResponse'
+          description: ''
   /api/purchasing/supplier-price-status/:
     get:
       operationId: getSupplierPriceStatus
@@ -6610,21 +6653,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SupplierPriceStatusResponse'
-          description: ''
-  /api/purchasing/xero-items/:
-    get:
-      operationId: purchasing_xero_items_retrieve
-      description: Return list of items from Xero.
-      tags:
-        - purchasing
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/XeroItemListResponse'
           description: ''
   /api/quoting/scheduled-task-executions/:
     get:
@@ -18444,12 +18472,17 @@ components:
           format: uuid
           readOnly: true
           nullable: true
+        times_used:
+          type: integer
+          description: Always emit a numeric usage count for generated client validation.
+          readOnly: true
       required:
         - description
         - id
         - job_id
         - quantity
         - source
+        - times_used
         - unit_cost
     StockItemRequest:
       type: object
@@ -18542,6 +18575,28 @@ components:
         - quantity
         - source
         - unit_cost
+    StockSearchResponse:
+      type: object
+      description: Serializer for paginated stock search response.
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/StockItem'
+        count:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+        - count
+        - page
+        - page_size
+        - results
+        - total_pages
     SummaryStats:
       type: object
       description: Serializer for summary statistics
@@ -20315,37 +20370,6 @@ components:
           maxLength: 200
       required:
         - number
-    XeroItem:
-      type: object
-      description: Serializer for Xero item data
-      properties:
-        code:
-          type: string
-        name:
-          type: string
-        description:
-          type: string
-        sales_details:
-          type: object
-          additionalProperties: {}
-        purchase_details:
-          type: object
-          additionalProperties: {}
-      required:
-        - code
-        - name
-    XeroItemListResponse:
-      type: object
-      description: Serializer for XeroItemList response
-      properties:
-        items:
-          type: array
-          items:
-            $ref: '#/components/schemas/XeroItem'
-        total_count:
-          type: integer
-      required:
-        - items
     XeroPayItem:
       type: object
       properties:

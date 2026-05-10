@@ -9,9 +9,16 @@
  */
 import { test, expect } from '../fixtures/auth'
 import type { Page, Locator } from '@playwright/test'
+import { expectStepUnder } from '../fixtures/helpers'
 
 const DESKTOP_VIEWPORT = { width: 1280, height: 720 }
 const TABLET_VIEWPORT = { width: 768, height: 1024 }
+const KANBAN_BUDGET_MS = {
+  initialDrag: 3000,
+  layoutSwitch: 1500,
+  secondDrag: 3000,
+  diagnostics: 1000,
+} as const
 
 const getJobIdFromUrl = (url: string): string => {
   const match = url.match(/\/jobs\/([a-f0-9-]+)/i)
@@ -191,78 +198,88 @@ test.describe('debug: drag-and-drop bugs', () => {
     const jobCard = getVisibleJobCard(page, jobId)
     await expect(jobCard).toBeVisible({ timeout: 15000 })
 
-    // Step 2: First drag-and-drop at desktop — confirm it works
-    const sourceColumn1 = getJobColumn(page, jobId)
-    const sourceStatus1 = await sourceColumn1.getAttribute('data-status')
-    const { column: targetColumn1, status: targetStatus1 } = await pickTargetColumn(
-      page,
-      sourceStatus1,
+    await expectStepUnder(
+      'first drag succeeds on desktop',
+      KANBAN_BUDGET_MS.initialDrag,
+      async () => {
+        const sourceColumn1 = getJobColumn(page, jobId)
+        const sourceStatus1 = await sourceColumn1.getAttribute('data-status')
+        const { column: targetColumn1, status: targetStatus1 } = await pickTargetColumn(
+          page,
+          sourceStatus1,
+        )
+
+        const statusResponse1 = page.waitForResponse(
+          (response) =>
+            response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+            response.request().method() === 'POST' &&
+            response.status() >= 200 &&
+            response.status() < 300,
+        )
+
+        await dragCardToColumn(page, jobCard, targetColumn1)
+        await statusResponse1
+        console.log(`[DEBUG] First drag succeeded: ${sourceStatus1} → ${targetStatus1}`)
+      },
     )
 
-    const statusResponse1 = page.waitForResponse(
-      (response) =>
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300,
+    await expectStepUnder('switch to tablet layout', KANBAN_BUDGET_MS.layoutSwitch, async () => {
+      console.log('[DEBUG] Switching to tablet viewport...')
+      await page.setViewportSize(TABLET_VIEWPORT)
+      await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
+    })
+
+    await expectStepUnder(
+      'switch back to desktop layout',
+      KANBAN_BUDGET_MS.layoutSwitch,
+      async () => {
+        console.log('[DEBUG] Switching back to desktop viewport...')
+        await page.setViewportSize(DESKTOP_VIEWPORT)
+        await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
+      },
     )
 
-    await dragCardToColumn(page, jobCard, targetColumn1)
-    await statusResponse1
-    console.log(`[DEBUG] First drag succeeded: ${sourceStatus1} → ${targetStatus1}`)
+    const dragSucceeded = await expectStepUnder(
+      'second drag succeeds after layout switch',
+      KANBAN_BUDGET_MS.secondDrag,
+      async () => {
+        const jobCard2 = getVisibleJobCard(page, jobId)
+        await expect(jobCard2).toBeVisible({ timeout: 15000 })
 
-    await page.waitForTimeout(1000)
+        const sourceColumn2 = getJobColumn(page, jobId)
+        const sourceStatus2 = await sourceColumn2.getAttribute('data-status')
+        const { column: targetColumn2, status: targetStatus2 } = await pickTargetColumn(
+          page,
+          sourceStatus2,
+        )
 
-    // Step 3: Resize to tablet — triggers v-if layout switch (destroys desktop DOM)
-    console.log('[DEBUG] Switching to tablet viewport...')
-    await page.setViewportSize(TABLET_VIEWPORT)
-    await page.waitForTimeout(2000) // Wait for Vue to remount tablet layout
+        const statusResponse2 = page.waitForResponse(
+          (response) =>
+            response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+            response.request().method() === 'POST' &&
+            response.status() >= 200 &&
+            response.status() < 300,
+        )
 
-    // Step 4: Resize back to desktop — new DOM elements
-    console.log('[DEBUG] Switching back to desktop viewport...')
-    await page.setViewportSize(DESKTOP_VIEWPORT)
-    await page.waitForTimeout(2000) // Wait for Vue to remount desktop layout
-
-    // Step 5: Attempt another drag-and-drop
-    const jobCard2 = getVisibleJobCard(page, jobId)
-    await expect(jobCard2).toBeVisible({ timeout: 15000 })
-
-    const sourceColumn2 = getJobColumn(page, jobId)
-    const sourceStatus2 = await sourceColumn2.getAttribute('data-status')
-    const { column: targetColumn2, status: targetStatus2 } = await pickTargetColumn(
-      page,
-      sourceStatus2,
-    )
-
-    const statusResponse2 = page.waitForResponse(
-      (response) =>
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300,
-    )
-
-    await dragCardToColumn(page, jobCard2, targetColumn2)
-
-    // Check if drag succeeded (card moved to target column)
-    let dragSucceeded = false
-    try {
-      await statusResponse2
-      await expect(
-        page.locator(`[data-status="${targetStatus2}"] [data-job-id="${jobId}"]:visible`),
-      ).toBeVisible({ timeout: 15000 })
-      dragSucceeded = true
-    } catch {
+        await dragCardToColumn(page, jobCard2, targetColumn2)
+        await statusResponse2
+        await expect(
+          page.locator(`[data-status="${targetStatus2}"] [data-job-id="${jobId}"]:visible`),
+        ).toBeVisible({ timeout: 15000 })
+        return true
+      },
+    ).catch((error: unknown) => {
       console.log('[DEBUG] Second drag FAILED — likely stale sortable instance')
-    }
+      throw error
+    })
 
     console.log(`[DEBUG] Second drag (after layout switch): ${dragSucceeded ? 'PASSED' : 'FAILED'}`)
 
-    // Wait for settle
-    await page.waitForTimeout(2000)
-
-    // Check drag state cleanup
-    const diag = await getDragDiagnostics(page)
+    const diag = await expectStepUnder(
+      'post-layout-switch diagnostics complete quickly',
+      KANBAN_BUDGET_MS.diagnostics,
+      async () => await getDragDiagnostics(page),
+    )
     console.log('[DEBUG] Post-layout-switch diagnostics:', JSON.stringify(diag, null, 2))
 
     // Check if sortable containers are connected to DOM

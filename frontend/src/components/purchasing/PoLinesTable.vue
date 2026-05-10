@@ -19,8 +19,6 @@ import type { DataTableRowContext } from '@/utils/data-table-types'
 import type { ColumnDef } from '@tanstack/vue-table'
 import { z } from 'zod'
 import { debugLog } from '../../utils/debug'
-import { useStockStore } from '@/stores/stockStore'
-import type { StockItem } from '@/stores/stockStore'
 
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
 type JobForPurchasing = z.infer<typeof schemas.JobForPurchasing>
@@ -71,15 +69,29 @@ interface LineEditorState {
   }[]
 }
 
+function isSelectableStockItem(value: unknown): value is {
+  description: string
+  unit_cost: number
+  metal_type?: string
+  alloy?: string | null
+  specifics?: string | null
+  location?: string
+  item_code?: string | null
+  id: string
+} {
+  if (!value || typeof value !== 'object') return false
+  if (!('id' in value) || (value as { id?: unknown }).id === '__labour__') return false
+  return 'description' in value && 'unit_cost' in value
+}
+
 const props = defineProps<Props>()
 const emit = defineEmits<Emits>()
 
-const stockStore = useStockStore()
 type RowContext = DataTableRowContext<PurchaseOrderLine>
 
 const showAdditionalFieldsModal = ref(false)
 const editingLineIndex = ref<number>(-1)
-const editingItemIndex = ref<number>(-1)
+const openItemSelectIndex = ref<number>(-1)
 const additionalFields = ref({
   metal_type: '',
   alloy: '',
@@ -170,45 +182,11 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
       id: 'item_code',
       header: 'Item',
       cell: (context: RowContext) => {
-        const isEditing = editingItemIndex.value === context.row.index
+        const itemCode = context.row.original.item_code
+        const displayText = itemCode || 'Select Item'
+        const isOpen = openItemSelectIndex.value === context.row.index
 
-        if (isEditing) {
-          // Show ItemSelect when editing
-          return h(ItemSelect, {
-            modelValue: context.row.original.item_code ?? null,
-            disabled: isColumnDisabled.value,
-            showQuantity: false,
-            'onUpdate:modelValue': isColumnDisabled.value
-              ? undefined
-              : (val: string | null) => {
-                  debugLog('PoLinesTable: Received modelValue update:', val)
-                  debugLog('PoLinesTable: Available stock items:', stockStore.items.length)
-
-                  const found = stockStore.items.find((i: StockItem) => i.id === val)
-                  debugLog('PoLinesTable: Found stock item:', found)
-
-                  updateLine(context.row.index, {
-                    // Auto-populate all fields from stock item when selected
-                    ...(found && {
-                      description: found.description,
-                      unit_cost: found.unit_cost,
-                      metal_type: found.metal_type,
-                      alloy: found.alloy,
-                      specifics: found.specifics,
-                      location: found.location,
-                      item_code: found.item_code || null,
-                    }),
-                  })
-
-                  // Exit edit mode after selection
-                  editingItemIndex.value = -1
-                },
-          })
-        } else {
-          // Show item code button when not editing
-          const itemCode = context.row.original.item_code
-          const displayText = itemCode || 'Select Item'
-
+        if (!isOpen) {
           return h('div', { class: 'col-item flex items-center' }, [
             h(
               Button,
@@ -220,7 +198,7 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
                   ? undefined
                   : (e: Event) => {
                       e.stopPropagation()
-                      editingItemIndex.value = context.row.index
+                      openItemSelectIndex.value = context.row.index
                     },
                 class: 'font-mono uppercase tracking-wide',
               },
@@ -228,6 +206,46 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
             ),
           ])
         }
+
+        return h(ItemSelect, {
+          modelValue: null,
+          open: isOpen,
+          disabled: isColumnDisabled.value,
+          showQuantity: false,
+          lineKind: 'material',
+          'onUpdate:open': (val: boolean) => {
+            openItemSelectIndex.value = val ? context.row.index : -1
+          },
+          'onUpdate:modelValue': isColumnDisabled.value
+            ? undefined
+            : () => {
+                // Selection side-effects are driven from `selectedItem` so the
+                // PO table does not need a separate lookup path.
+              },
+          onSelectedItem: isColumnDisabled.value
+            ? undefined
+            : (selected) => {
+                debugLog('PoLinesTable: Received selected item:', selected)
+                if (!isSelectableStockItem(selected)) {
+                  openItemSelectIndex.value = -1
+                  return
+                }
+
+                updateLine(context.row.index, {
+                  ...(selected && {
+                    description: selected.description,
+                    unit_cost: selected.unit_cost,
+                    metal_type: selected.metal_type,
+                    alloy: selected.alloy,
+                    specifics: selected.specifics,
+                    location: selected.location,
+                    item_code: selected.item_code || null,
+                  }),
+                })
+
+                openItemSelectIndex.value = -1
+              },
+        })
       },
       meta: { editable: !isColumnDisabled.value },
     },

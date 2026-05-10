@@ -36,12 +36,12 @@
 | `/purchase-orders/<uuid:po_id>/pdf/` | `purchasing_rest_views.PurchaseOrderPDFView` | `purchasing:purchase_order_pdf_rest` | REST API view for generating and downloading purchase order PDFs. |
 | `/purchase-orders/last-number/` | `purchasing_rest_views.PurchaseOrderLastNumberAPIView` | `purchasing:purchase_orders_last_number_rest` | Return the most recent purchase order number. |
 
+### Stock Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/stock/search/` | `stock_search_rest_view.StockSearchRestView` | `purchasing:stock_search_rest` | REST view for paginated stock search. |
+
 ### Supplier-Price-Status Management
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/supplier-price-status/` | `purchasing_rest_views.SupplierPriceStatusAPIView` | `purchasing:supplier_price_status_rest` | Return latest price upload status per supplier. |
-
-### Xero-Items Management
-| URL Pattern | View | Name | Description |
-|-------------|------|------|-------------|
-| `/xero-items/` | `purchasing_rest_views.XeroItemList` | `purchasing:xero_items_rest` | Return list of items from Xero. |
