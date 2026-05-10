@@ -1,5 +1,10 @@
+import uuid
+from datetime import date
+from decimal import Decimal
+
 from django.utils import timezone
 
+from apps.accounting.models import Invoice
 from apps.client.models import Client, ClientContact
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
@@ -42,6 +47,21 @@ class KanbanSearchTest(BaseTestCase):
             job_number=self.job_number,
             created_by=self.test_staff,
             default_xero_pay_item=self.xero_pay_item,
+        )
+
+    def _make_invoice(self, job: Job, *, number: str) -> Invoice:
+        return Invoice.objects.create(
+            xero_id=uuid.uuid4(),
+            number=number,
+            client=job.client,
+            job=job,
+            date=date.today(),
+            total_excl_tax=Decimal("100.00"),
+            tax=Decimal("15.00"),
+            total_incl_tax=Decimal("115.00"),
+            amount_due=Decimal("115.00"),
+            xero_last_modified=timezone.now(),
+            raw_json={},
         )
 
     def test_perform_advanced_search_matches_single_token_job_name_substring(self):
@@ -164,3 +184,39 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual([job["id"] for job in result["jobs"]], [str(target.id)])
+
+    def test_perform_advanced_search_does_not_fuzzy_match_invoice_numbers(self):
+        target = self._make_job(
+            name="Kick plates",
+            client_name="Weaver, Decker and Schultz",
+        )
+        other = self._make_job(
+            name="Other work",
+            client_name="Other Client",
+        )
+        self._make_invoice(target, number="INV-15152")
+        self._make_invoice(other, number="INV-15153")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "INV-15151"})
+        )
+
+        self.assertEqual(jobs, [])
+
+    def test_perform_advanced_search_matches_invoice_number_exactly_via_filter(self):
+        target = self._make_job(
+            name="Kick plates",
+            client_name="Weaver, Decker and Schultz",
+        )
+        other = self._make_job(
+            name="Other work",
+            client_name="Other Client",
+        )
+        self._make_invoice(target, number="INV-15151")
+        self._make_invoice(other, number="INV-15152")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"xero_invoice_params": "INV-15151"})
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])

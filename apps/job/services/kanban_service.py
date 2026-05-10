@@ -108,10 +108,6 @@ class KanbanService:
                 ),
             ),
             (
-                "invoices__number",
-                Coalesce("invoices__number", Value(""), output_field=TextField()),
-            ),
-            (
                 "quote__number",
                 Coalesce("quote__number", Value(""), output_field=TextField()),
             ),
