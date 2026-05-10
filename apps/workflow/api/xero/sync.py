@@ -604,7 +604,9 @@ def synchronise_xero_data(delay_between_requests=1):
         company_defaults = CompanyDefaults.get_solo()
         now = timezone.now()
 
-        # Sync pay items (leave types + earnings rates) - lightweight, 2 API calls
+        # Sync pay items (leave types + earnings rates) - lightweight, 2 API calls.
+        # Emit the same Processed/Completed pair as `sync_xero_data` so the log
+        # and table treat pay_items consistently with every other entity.
         result = sync_xero_pay_items()
         lt = result["leave_types"]
         er = result["earnings_rates"]
@@ -613,6 +615,16 @@ def synchronise_xero_data(delay_between_requests=1):
             "entity": "pay_items",
             "severity": "info",
             "message": f"Synced pay items: {lt['created'] + lt['updated']} leave types, {er['created'] + er['updated']} earnings rates",
+            "progress": None,
+            "recordsUpdated": result["records_updated"],
+        }
+        yield {
+            "datetime": timezone.now().isoformat(),
+            "entity": "pay_items",
+            "severity": "info",
+            "message": "Completed sync of pay_items",
+            "status": "Completed",
+            "progress": 1.0,
         }
 
         # Check if deep sync needed

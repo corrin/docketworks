@@ -155,9 +155,13 @@ export function useXeroAuth() {
       const syncInfo = await api.xero_sync_info_retrieve()
       entities.value = Object.keys(syncInfo.last_syncs || {})
       for (const entity of entities.value) {
+        const rawLastSync = (syncInfo.last_syncs as Record<string, string | null>)?.[entity]
+        const hasLastSync = !!rawLastSync && rawLastSync !== '2000-01-01T00:00:00Z'
         entityStats[entity] = {
-          status: 'Pending',
-          lastSync: (syncInfo.last_syncs as Record<string, string>)?.[entity] || '-',
+          // A non-null lastSync means a previous sync run reached this entity,
+          // so showing 'Pending' would contradict the timestamp next to it.
+          status: hasLastSync ? 'Completed' : 'Pending',
+          lastSync: rawLastSync || '-',
           recordsUpdated: 0,
         }
       }
@@ -261,7 +265,10 @@ export function useXeroAuth() {
           overallProgress.value = 1
           entityProgress.value = 1
           currentEntity.value = ''
-          fetchEntitiesAndStatus()
+          // Don't re-fetch sync info here: doing so reset every entityStats
+          // entry to status='Pending' and overwrote the SSE-applied lastSync
+          // for 0-record entities (e.g. credit_notes) back to '-' (spinner).
+          // The SSE stream has already updated entityStats correctly.
           return
         }
       } else if (data.message === 'Sync stream ended') {
@@ -287,7 +294,7 @@ export function useXeroAuth() {
         if (typeof data.records_updated === 'number') {
           entityStats[data.entity].recordsUpdated = data.records_updated
         }
-        if (data.status === 'Completed' || data.message?.includes('Completed sync of')) {
+        if (data.status === 'Completed') {
           entityStats[data.entity].status = 'Completed'
           entityStats[data.entity].lastSync = data.datetime || new Date().toISOString()
           entityProgress.value = 1

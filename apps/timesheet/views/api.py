@@ -36,10 +36,12 @@ from apps.timesheet.serializers.payroll_serializers import (
     PayRunListResponseSerializer,
     PayRunSyncResponseSerializer,
     PostWeekToXeroSerializer,
+    PostWeekToXeroStartResponseSerializer,
 )
 from apps.timesheet.services.weekly_timesheet_service import WeeklyTimesheetService
 from apps.timesheet.views.base import TimesheetBaseView
 from apps.workflow.api.xero.payroll import (
+    ensure_pay_run_for_week,
     get_all_timesheets_for_week,
     get_payroll_calendar_id,
     post_staff_week_to_xero,
@@ -509,7 +511,10 @@ class PostWeekToXeroPayrollAPIView(TimesheetBaseView):
     @extend_schema(
         summary="Start posting weekly timesheets to Xero Payroll",
         request=PostWeekToXeroSerializer,
-        responses={200: None},
+        responses={
+            200: PostWeekToXeroStartResponseSerializer,
+            400: ClientErrorResponseSerializer,
+        },
     )
     def post(self, request):
         """
@@ -559,10 +564,12 @@ class PostWeekToXeroPayrollAPIView(TimesheetBaseView):
         cache.set(f"payroll_task_{task_id}", task_data, timeout=PAYROLL_TASK_TIMEOUT)
 
         return Response(
-            {
-                "task_id": task_id,
-                "stream_url": f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/",
-            }
+            PostWeekToXeroStartResponseSerializer(
+                {
+                    "task_id": task_id,
+                    "stream_url": f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/",
+                }
+            ).data
         )
 
 
@@ -614,6 +621,16 @@ def stream_payroll_post(request, task_id):
             validate_pay_items_for_week(staff_uuids, week_start_date)
         except ValueError as exc:
             logger.error("Pay item validation failed: %s", exc)
+            persist_app_error(exc)
+            yield f"data: {json.dumps({'event': 'error', 'message': str(exc), 'datetime': timezone.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'event': 'done', 'successful': 0, 'failed': total, 'datetime': timezone.now().isoformat()})}\n\n"
+            return
+
+        # FAIL EARLY: ensure Xero has a valid pay run/pay period for this week
+        try:
+            ensure_pay_run_for_week(week_start_date)
+        except Exception as exc:
+            logger.exception("Failed to ensure pay run exists before posting staff")
             persist_app_error(exc)
             yield f"data: {json.dumps({'event': 'error', 'message': str(exc), 'datetime': timezone.now().isoformat()})}\n\n"
             yield f"data: {json.dumps({'event': 'done', 'successful': 0, 'failed': total, 'datetime': timezone.now().isoformat()})}\n\n"

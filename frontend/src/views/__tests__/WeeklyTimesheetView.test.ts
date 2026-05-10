@@ -1,6 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import WeeklyTimesheetView from '../WeeklyTimesheetView.vue'
+import { postStaffWeek } from '@/services/payroll.service'
+import { toast } from 'vue-sonner'
 
 const { mockRoute, mockRouter, fetchAllPayRunsMock, refreshPayRunsMock, fetchWeeklyOverviewMock } =
   vi.hoisted(() => ({
@@ -40,6 +42,12 @@ vi.mock('@/services/weekly-timesheet.service', () => ({
 vi.mock('@/stores/timesheet', () => ({
   useTimesheetStore: () => ({
     weekendEnabled: false,
+  }),
+}))
+
+vi.mock('@/composables/useXeroConnection', () => ({
+  useXeroConnection: () => ({
+    xeroConnected: { value: true },
   }),
 }))
 
@@ -90,7 +98,7 @@ describe('WeeklyTimesheetView', () => {
     })
     fetchWeeklyOverviewMock.mockResolvedValue({
       start_date: '2026-05-05',
-      end_date: '2026-05-11',
+      end_date: '2026-05-09',
       week_days: ['2026-05-05', '2026-05-06', '2026-05-07', '2026-05-08', '2026-05-09'],
       staff_data: [],
     })
@@ -117,6 +125,57 @@ describe('WeeklyTimesheetView', () => {
     expect(refreshPayRunsMock).not.toHaveBeenCalled()
     expect(mockRouter.replace).toHaveBeenCalledWith({
       query: { week: '2026-05-04' },
+    })
+  })
+
+  it('refreshes local pay runs after successful payroll post without a second pay-run create', async () => {
+    mockRoute.query = { week: '2026-05-04' }
+    fetchWeeklyOverviewMock.mockResolvedValue({
+      start_date: '2026-05-04',
+      end_date: '2026-05-08',
+      week_days: ['2026-05-04', '2026-05-05', '2026-05-06', '2026-05-07', '2026-05-08'],
+      staff_data: [
+        {
+          staff_id: 'staff-1',
+          name: 'Pat Example',
+          weekly_hours: [null, null, null, null, null],
+          total_hours: 8,
+          total_billable_hours: 8,
+          weekly_cost: 1,
+          weekly_base_cost: 1,
+        },
+      ],
+    })
+    vi.mocked(postStaffWeek).mockResolvedValue({
+      event: 'done',
+      successful: 1,
+      failed: 0,
+    })
+
+    const wrapper = mount(WeeklyTimesheetView, {
+      global: {
+        stubs: {
+          AppLayout: { template: '<div><slot /></div>' },
+          Button: { template: '<button><slot /></button>' },
+          Label: { template: '<label><slot /></label>' },
+          PayrollStaffRow: { template: '<div />' },
+          WeeklyMetricsModal: { template: '<div />' },
+          WeekPickerModal: { template: '<div />' },
+          PayrollControlSection: {
+            template: '<button data-test="post" @click="$emit(\'postAllToXero\')">Post</button>',
+          },
+        },
+      },
+    })
+
+    await flushPromises()
+    await wrapper.get('[data-test="post"]').trigger('click')
+    await flushPromises()
+
+    expect(postStaffWeek).toHaveBeenCalledOnce()
+    expect(fetchAllPayRunsMock).toHaveBeenCalledTimes(2)
+    expect(toast.success).toHaveBeenCalledWith('All staff posted successfully', {
+      description: '1 staff members posted to Xero.',
     })
   })
 })

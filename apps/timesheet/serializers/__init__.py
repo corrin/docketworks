@@ -39,6 +39,7 @@ try:
             PayRunSyncResponseSerializer,
             PostWeekToXeroResponseSerializer,
             PostWeekToXeroSerializer,
+            PostWeekToXeroStartResponseSerializer,
         )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -60,6 +61,7 @@ __all__ = [
     "PayRunSyncResponseSerializer",
     "PostWeekToXeroResponseSerializer",
     "PostWeekToXeroSerializer",
+    "PostWeekToXeroStartResponseSerializer",
     "StaffDailyDataSerializer",
     "StaffListResponseSerializer",
     "SummaryStatsSerializer",

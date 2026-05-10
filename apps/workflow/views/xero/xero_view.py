@@ -53,7 +53,7 @@ from apps.workflow.exceptions import (
     NoValidXeroTokenError,
     XeroSyncAlreadyRunningError,
 )
-from apps.workflow.models import XeroError
+from apps.workflow.models import XeroError, XeroPayItem
 from apps.workflow.serializers import (
     XeroAuthenticationErrorResponseSerializer,
     XeroDocumentErrorResponseSerializer,
@@ -976,8 +976,10 @@ def get_xero_sync_info(request):
         )
 
     try:
-        # Build last_syncs dynamically from ENTITY_CONFIGS
-        last_syncs = {}
+        # Build last_syncs dynamically from ENTITY_CONFIGS.
+        # pay_items leads because it's synced first in synchronise_xero_data —
+        # the table needs to mirror that order to match the live log.
+        last_syncs = {"pay_items": _get_last_sync_time(XeroPayItem)}
         for entity_key, config in ENTITY_CONFIGS.items():
             model = config[2]  # Model is at index 2 in the config tuple
             last_syncs[entity_key] = _get_last_sync_time(model)

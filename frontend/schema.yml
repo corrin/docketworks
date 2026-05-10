@@ -6900,7 +6900,17 @@ paths:
         - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostWeekToXeroStartResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientErrorResponse'
+          description: ''
   /api/timesheets/staff/:
     get:
       operationId: timesheets_staff_retrieve
@@ -15546,6 +15556,20 @@ components:
       required:
         - staff_ids
         - week_start_date
+    PostWeekToXeroStartResponse:
+      type: object
+      description: Response serializer for starting payroll posting SSE workflow.
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Server-side task identifier
+        stream_url:
+          type: string
+          description: SSE endpoint for payroll progress
+      required:
+        - stream_url
+        - task_id
     PreviewQuoteResponse:
       type: object
       description: Serializer for preview quote response.

@@ -41,6 +41,11 @@ export interface PostStaffWeekCompleteEvent {
   has_entries?: boolean
 }
 
+export interface PostStaffWeekErrorEvent {
+  event: 'error'
+  message: string
+}
+
 export interface PostStaffWeekDoneEvent {
   event: 'done'
   successful: number
@@ -51,12 +56,14 @@ export type PostStaffWeekSSEEvent =
   | PostStaffWeekStartEvent
   | PostStaffWeekProgressEvent
   | PostStaffWeekCompleteEvent
+  | PostStaffWeekErrorEvent
   | PostStaffWeekDoneEvent
 
 export interface PostStaffWeekCallbacks {
   onStart?: (event: PostStaffWeekStartEvent) => void
   onProgress?: (event: PostStaffWeekProgressEvent) => void
   onComplete?: (event: PostStaffWeekCompleteEvent) => void
+  onStreamError?: (event: PostStaffWeekErrorEvent) => void
   onDone?: (event: PostStaffWeekDoneEvent) => void
   onError?: (error: Error) => void
 }
@@ -127,6 +134,9 @@ export async function postStaffWeek(
               break
             case 'complete':
               callbacks?.onComplete?.(data)
+              break
+            case 'error':
+              callbacks?.onStreamError?.(data)
               break
             case 'done':
               doneEvent = data

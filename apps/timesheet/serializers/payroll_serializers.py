@@ -35,6 +35,13 @@ class PostWeekToXeroSerializer(serializers.Serializer):
     week_start_date = serializers.DateField(help_text="Monday of the week (YYYY-MM-DD)")
 
 
+class PostWeekToXeroStartResponseSerializer(serializers.Serializer):
+    """Response serializer for starting payroll posting SSE workflow."""
+
+    task_id = serializers.UUIDField(help_text="Server-side task identifier")
+    stream_url = serializers.CharField(help_text="SSE endpoint for payroll progress")
+
+
 class PostWeekToXeroResponseSerializer(serializers.Serializer):
     """Response serializer for posted timesheet"""
 

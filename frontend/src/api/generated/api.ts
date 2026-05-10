@@ -2865,6 +2865,10 @@ const PostWeekToXeroRequest = z.object({
   staff_ids: z.array(z.string().uuid()),
   week_start_date: z.string(),
 })
+const PostWeekToXeroStartResponse = z.object({
+  task_id: z.string().uuid(),
+  stream_url: z.string(),
+})
 const ModernStaff = z.object({
   id: z.string(),
   name: z.string(),
@@ -3461,6 +3465,7 @@ export const schemas = {
   CreatePayRunResponse,
   PayRunSyncResponse,
   PostWeekToXeroRequest,
+  PostWeekToXeroStartResponse,
   ModernStaff,
   StaffListResponse,
   WeeklyStaffDataWeeklyHours,
@@ -8226,7 +8231,13 @@ Use GET /api/payroll/post-staff-week/stream/{task_id}/ to receive SSE progress.`
         schema: PostWeekToXeroRequest,
       },
     ],
-    response: z.void(),
+    response: PostWeekToXeroStartResponse,
+    errors: [
+      {
+        status: 400,
+        schema: ClientErrorResponse,
+      },
+    ],
   },
   {
     method: 'get',

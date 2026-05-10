@@ -27,8 +27,9 @@ from xero_python.payrollnz.models import (
 )
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.transforms import transform_pay_run
 from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.models import CompanyDefaults, XeroPayItem
+from apps.workflow.models import CompanyDefaults, XeroPayItem, XeroPayRun
 from apps.workflow.services.error_persistence import (
     persist_and_raise,
     persist_app_error,
@@ -836,6 +837,84 @@ def get_pay_run_for_week(week_start_date: date) -> Optional[Dict[str, Any]]:
     return None
 
 
+def ensure_pay_run_for_week(week_start_date: date) -> Dict[str, Any]:
+    """
+    Ensure a pay run exists in Xero for the provided payroll week.
+
+    Reuses a locally mirrored same-week Draft pay run when present; otherwise
+    creates one in Xero and syncs it into the local mirror table before returning it.
+    """
+    week_end_date = week_start_date + timedelta(days=6)
+    local_draft = (
+        XeroPayRun.objects.filter(
+            period_start_date=week_start_date,
+            period_end_date=week_end_date,
+            pay_run_status="Draft",
+        )
+        .order_by("-django_updated_at")
+        .first()
+    )
+    if local_draft:
+        logger.warning(
+            "Reusing local draft pay run %s for week %s-%s; staff timesheets will overwrite its contents",
+            local_draft.xero_id,
+            week_start_date,
+            week_end_date,
+        )
+        return {
+            "pay_run_id": str(local_draft.xero_id),
+            "payroll_calendar_id": str(local_draft.payroll_calendar_id),
+            "period_start_date": local_draft.period_start_date,
+            "period_end_date": local_draft.period_end_date,
+            "payment_date": local_draft.payment_date,
+            "pay_run_status": local_draft.pay_run_status,
+            "pay_run_type": local_draft.pay_run_type,
+        }
+
+    created_pay_run = create_pay_run(week_start_date)
+    pay_run_id = created_pay_run["pay_run_id"]
+    pay_run = get_pay_run(pay_run_id)
+    if not pay_run:
+        raise ValueError(f"Created pay run {pay_run_id} could not be fetched from Xero")
+
+    local_pay_run, _ = transform_pay_run(pay_run, pay_run_id)
+    logger.info(
+        "Created new pay run %s for week %s and mirrored locally as %s",
+        pay_run_id,
+        week_start_date,
+        local_pay_run.id,
+    )
+    return {
+        "pay_run_id": pay_run_id,
+        "payroll_calendar_id": created_pay_run["payroll_calendar_id"],
+        "period_start_date": local_pay_run.period_start_date,
+        "period_end_date": local_pay_run.period_end_date,
+        "payment_date": local_pay_run.payment_date,
+        "pay_run_status": local_pay_run.pay_run_status,
+        "pay_run_type": local_pay_run.pay_run_type,
+    }
+
+
+def _sync_pay_run_into_local_mirror(pay_run_data: Dict[str, Any], xero_id: str) -> None:
+    """Best-effort local mirror update for pay runs discovered during posting."""
+    pay_run_obj = type(
+        "PayRunMirror",
+        (),
+        {
+            "payroll_calendar_id": pay_run_data.get("payroll_calendar_id"),
+            "period_start_date": pay_run_data.get("period_start_date"),
+            "period_end_date": pay_run_data.get("period_end_date"),
+            "payment_date": pay_run_data.get("payment_date"),
+            "pay_run_status": pay_run_data.get("pay_run_status"),
+            "pay_run_type": pay_run_data.get("pay_run_type"),
+            "total_cost": pay_run_data.get("total_cost"),
+            "total_pay": pay_run_data.get("total_pay"),
+            "posted_date_time": pay_run_data.get("posted_date_time"),
+        },
+    )()
+    transform_pay_run(pay_run_obj, xero_id)
+
+
 def get_leave_types() -> List[Dict[str, Any]]:
     """
     Get list of Xero Payroll leave types.
@@ -1120,6 +1199,18 @@ def create_pay_run(
         if not response or not response.pay_run:
             raise Exception("Failed to create pay run")
 
+        actual_start_date = _coerce_xero_date(response.pay_run.period_start_date)
+        actual_end_date = _coerce_xero_date(response.pay_run.period_end_date)
+        if actual_start_date != week_start_date or actual_end_date != week_end_date:
+            raise ValueError(
+                "Xero created pay run "
+                f"{actual_start_date} to {actual_end_date} on calendar "
+                f"'{target_calendar_name}' instead of requested "
+                f"{week_start_date} to {week_end_date}. "
+                "Docketworks currently requires the Xero payroll calendar period "
+                "to match the selected week exactly."
+            )
+
         pay_run_id = str(response.pay_run.pay_run_id)
         logger.info(f"Successfully created pay run: {pay_run_id}")
 
@@ -1128,6 +1219,8 @@ def create_pay_run(
             "payroll_calendar_id": payroll_calendar_id,
         }
 
+    except ValueError:
+        raise
     except Exception as exc:
         logger.error(
             f"Failed to create pay run for week {week_start_date}: {exc}", exc_info=True
@@ -2097,7 +2190,9 @@ def sync_xero_pay_items() -> Dict[str, Any]:
     - Earnings Rates (uses_leave_api=False)
 
     Returns:
-        Dict with sync results: created, updated counts
+        Dict with sync results: created, updated counts and a top-level
+        ``records_updated`` total (sum across leave types and earnings rates)
+        so the SSE orchestrator doesn't have to know the result shape.
 
     Raises:
         ValueError: If no Xero tenant ID configured
@@ -2112,7 +2207,7 @@ def sync_xero_pay_items() -> Dict[str, Any]:
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured")
 
-    results = {
+    results: Dict[str, Any] = {
         "leave_types": {"created": 0, "updated": 0},
         "earnings_rates": {"created": 0, "updated": 0},
     }
@@ -2212,4 +2307,10 @@ def sync_xero_pay_items() -> Dict[str, Any]:
                 f"Xero: {orphaned_names}"
             )
 
+    results["records_updated"] = (
+        results["leave_types"]["created"]
+        + results["leave_types"]["updated"]
+        + results["earnings_rates"]["created"]
+        + results["earnings_rates"]["updated"]
+    )
     return results

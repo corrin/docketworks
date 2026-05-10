@@ -125,6 +125,7 @@
           :pay-run-status="payRunStatus"
           :payment-date="paymentDate"
           :xero-url="xeroUrl"
+          :xero-connected="xeroConnected"
           :creating="creatingPayRun"
           :posting="postingAll"
           :posting-progress="postingProgress"
@@ -323,7 +324,6 @@ import {
 import { fetchWeeklyOverview, formatHours } from '@/services/weekly-timesheet.service'
 import { formatCurrency, humanizeErrorMessage } from '@/utils/string-formatting'
 import {
-  createPayRun,
   postStaffWeek,
   fetchAllPayRuns,
   refreshPayRuns,
@@ -333,6 +333,7 @@ import {
 import { schemas } from '@/api/generated/api'
 import { debugLog } from '../utils/debug'
 import { useTimesheetStore } from '@/stores/timesheet'
+import { useXeroConnection } from '@/composables/useXeroConnection'
 import { toast } from 'vue-sonner'
 import { z } from 'zod'
 
@@ -350,6 +351,7 @@ const weeklyData = ref<WeeklyTimesheetData | null>(null)
 
 const router = useRouter()
 const route = useRoute()
+const { xeroConnected } = useXeroConnection()
 
 function normalizeToWeekStart(dateInput: Date | string): Date {
   const { startDate } = dateService.getWeekRange(dateInput)
@@ -685,35 +687,6 @@ function handleWeekSelect(date: string) {
 }
 
 // Payroll functions
-async function handleCreatePayRun() {
-  creatingPayRun.value = true
-  payrollError.value = null
-  try {
-    const result = await createPayRun(weekStartDate.value)
-
-    payRunStatus.value = result.status
-    paymentDate.value = result.payment_date
-    const xeroUrlRaw = (result as { xero_url?: unknown }).xero_url
-    const xeroUrlValue: string | null = typeof xeroUrlRaw === 'string' ? xeroUrlRaw : null
-    xeroUrl.value = xeroUrlValue
-
-    toast.success('Pay run created successfully', {
-      description: `Payment date: ${result.payment_date}`,
-    })
-
-    debugLog('Pay run created:', result)
-  } catch (err: unknown) {
-    console.error('Create pay run failed:', err)
-
-    payrollError.value = 'Failed to create pay run. Please try again or contact Corrin.'
-    toast.error('Failed to create pay run', {
-      description: 'Something went wrong. Please try again or contact Corrin.',
-    })
-  } finally {
-    creatingPayRun.value = false
-  }
-}
-
 async function handleRefreshPayRuns() {
   refreshingPayRuns.value = true
   payrollError.value = null
@@ -799,6 +772,7 @@ async function handlePostAllToXero() {
   // Track failed and skipped staff for reporting
   const failedStaff: Array<{ staffName: string; error?: string }> = []
   const skippedInactiveWithEntries: string[] = []
+  let streamErrorMessage: string | null = null
 
   try {
     const result = await postStaffWeek(staffIds, weekStart, {
@@ -847,6 +821,10 @@ async function handlePostAllToXero() {
         }
         debugLog('Complete:', event)
       },
+      onStreamError: (event) => {
+        streamErrorMessage = event.message
+        console.error('Payroll stream error:', event.message)
+      },
       onDone: (event) => {
         debugLog('Batch post done:', event)
       },
@@ -855,19 +833,21 @@ async function handlePostAllToXero() {
     const totalPosted = result.successful + result.failed
     if (result.failed > 0) {
       const failedNames = failedStaff.map((s) => s.staffName).join(', ')
-      payrollError.value = `Failed to post ${result.failed} of ${totalPosted} staff members to Xero: ${failedNames}`
+      payrollError.value =
+        streamErrorMessage ||
+        `Failed to post ${result.failed} of ${totalPosted} staff members to Xero: ${failedNames}`
       toast.error('Some staff failed to post', {
-        description: failedNames,
+        description: streamErrorMessage || failedNames,
       })
       postedAllToXero.value = false
     } else {
       toast.success('All staff posted successfully', {
-        description: `${result.successful} staff members posted to Xero. Creating pay run...`,
+        description: `${result.successful} staff members posted to Xero.`,
       })
       postedAllToXero.value = true
 
-      // Automatically create the pay run after successful posting
-      await handleCreatePayRun()
+      await loadAllPayRuns()
+      loadPayRunForCurrentWeek()
     }
 
     // Warn about inactive staff with entries that were skipped

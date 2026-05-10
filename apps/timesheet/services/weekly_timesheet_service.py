@@ -43,7 +43,7 @@ class WeeklyTimesheetService:
         try:
             # Calculate week range
             week_days = cls._get_week_days(start_date)
-            end_date = start_date + timedelta(days=6)
+            end_date = week_days[-1]
 
             # Get staff data
             staff_data = cls._get_staff_data(week_days)
@@ -75,8 +75,10 @@ class WeeklyTimesheetService:
 
     @classmethod
     def _get_week_days(cls, start_date: date) -> List[date]:
-        """Get list of days for the week (Monday to Sunday)."""
-        return [start_date + timedelta(days=i) for i in range(7)]
+        """Get list of days for the configured week shape."""
+        weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
+        day_count = 7 if weekend_enabled else 5
+        return [start_date + timedelta(days=i) for i in range(day_count)]
 
     @classmethod
     def _get_staff_data(cls, week_days: List[date]) -> List[Dict[str, Any]]:
