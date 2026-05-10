@@ -60,10 +60,12 @@ class KanbanService:
                 jobs_query, " ".join(search_terms)
             )
             jobs = jobs_query
+            ordering_description = "ordered by trigram relevance desc"
         else:
             jobs = jobs_query.order_by("-priority", "-created_at")
+            ordering_description = "ordered by priority desc"
         logger.info(
-            f"Jobs fetched by status '{status}' (ordered by priority desc): {[f'#{job.job_number}(p:{job.priority})' for job in jobs[:10]]}"
+            f"Jobs fetched by status '{status}' ({ordering_description}): {[f'#{job.job_number}(p:{job.priority})' for job in jobs[:10]]}"
         )
 
         # Apply different limits based on status

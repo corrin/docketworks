@@ -520,6 +520,10 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   }
 
   const performBackendSearch = async (query: string, requestId: number): Promise<void> => {
+    if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
+      return
+    }
+
     try {
       isLoading.value = true
 
@@ -568,6 +572,8 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), trimmedQuery)
     debouncedBackendSearch(trimmedQuery, requestId)
 
+    // Every non-empty query shows immediate local substring matches first, then
+    // reconciles against backend token-order search after the debounce settles.
     debugLog(
       `Search started locally: ${filteredJobs.value.length} jobs found for "${searchQuery.value}"`,
     )

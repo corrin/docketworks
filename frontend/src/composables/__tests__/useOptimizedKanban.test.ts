@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { defineComponent } from 'vue'
 import { mount, flushPromises } from '@vue/test-utils'
 
@@ -143,6 +143,10 @@ describe('useOptimizedKanban search reconciliation', () => {
     })
   })
 
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
   it('shows immediate local matches, then reconciles with backend results', async () => {
     performAdvancedSearch.mockResolvedValue({
       jobs: [
@@ -214,6 +218,27 @@ describe('useOptimizedKanban search reconciliation', () => {
     await flushPromises()
 
     expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-2'])
+  })
+
+  it('keeps loading false when a pending backend search is cleared before debounce fires', async () => {
+    performAdvancedSearch.mockResolvedValue({
+      jobs: [buildKanbanJob({ id: 'job-2', name: 'Kick plate revision' })],
+    })
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+
+    kanban.searchQuery.value = ''
+    await kanban.handleSearch()
+
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(performAdvancedSearch).not.toHaveBeenCalled()
+    expect(kanban.isLoading.value).toBe(false)
+    expect(kanban.filteredJobs.value).toEqual([])
   })
 
   it('uses backend reconciliation for multi-token queries the local substring pass cannot match', async () => {
