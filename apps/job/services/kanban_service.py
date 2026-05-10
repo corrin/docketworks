@@ -4,11 +4,26 @@ Handles all business logic related to job management in the Kanban board.
 """
 
 import logging
+import operator
+from functools import reduce
 from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
+from django.contrib.postgres.search import TrigramSimilarity, TrigramWordSimilarity
 from django.db import transaction
-from django.db.models import Max, Q, QuerySet
+from django.db.models import (
+    Case,
+    ExpressionWrapper,
+    F,
+    FloatField,
+    Max,
+    Q,
+    QuerySet,
+    TextField,
+    Value,
+    When,
+)
+from django.db.models.functions import Cast, Coalesce, Greatest
 from django.http import HttpRequest
 
 from apps.job.models import Job
@@ -20,6 +35,8 @@ logger = logging.getLogger(__name__)
 
 class KanbanService:
     """Service class for Kanban business logic."""
+
+    KANBAN_TRIGRAM_THRESHOLD = 0.3
 
     @staticmethod
     def get_jobs_by_status(
@@ -39,21 +56,16 @@ class KanbanService:
         jobs_query = Job.objects.filter(status=status)
 
         if search_terms:
-            query = Q()
-            for term in search_terms:
-                term_query = (
-                    Q(name__icontains=term)
-                    | Q(description__icontains=term)
-                    | Q(client__name__icontains=term)
-                    | Q(contact__name__icontains=term)
-                    | Q(created_by__email__icontains=term)
-                )
-                query &= term_query
-            jobs_query = jobs_query.filter(query)
-
-        jobs = jobs_query.order_by("-priority", "-created_at")
+            jobs_query = KanbanService._apply_kanban_search(
+                jobs_query, " ".join(search_terms)
+            )
+            jobs = jobs_query
+            ordering_description = "ordered by trigram relevance desc"
+        else:
+            jobs = jobs_query.order_by("-priority", "-created_at")
+            ordering_description = "ordered by priority desc"
         logger.info(
-            f"Jobs fetched by status '{status}' (ordered by priority desc): {[f'#{job.job_number}(p:{job.priority})' for job in jobs[:10]]}"
+            f"Jobs fetched by status '{status}' ({ordering_description}): {[f'#{job.job_number}(p:{job.priority})' for job in jobs[:10]]}"
         )
 
         # Apply different limits based on status
@@ -62,6 +74,88 @@ class KanbanService:
                 return jobs[:100]
             case _:
                 return jobs[:limit]
+
+    @staticmethod
+    def _apply_kanban_search(jobs_query: QuerySet[Job], query: str) -> QuerySet[Job]:
+        normalized_query = query.strip()
+        if not normalized_query:
+            return jobs_query
+
+        tokens = normalized_query.split()
+        searchable_fields = [
+            (
+                "name",
+                Coalesce("name", Value(""), output_field=TextField()),
+            ),
+            (
+                "client__name",
+                Coalesce("client__name", Value(""), output_field=TextField()),
+            ),
+            (
+                "contact__name",
+                Coalesce("contact__name", Value(""), output_field=TextField()),
+            ),
+            (
+                "description",
+                Coalesce("description", Value(""), output_field=TextField()),
+            ),
+            (
+                "job_number",
+                Coalesce(
+                    Cast("job_number", output_field=TextField()),
+                    Value(""),
+                    output_field=TextField(),
+                ),
+            ),
+            (
+                "quote__number",
+                Coalesce("quote__number", Value(""), output_field=TextField()),
+            ),
+        ]
+
+        annotations: Dict[str, Any] = {}
+        token_aliases: List[str] = []
+        for index, token in enumerate(tokens):
+            alias = f"search_token_score_{index}"
+            substring_whens = [
+                When(**{f"{lookup}__icontains": token}, then=Value(1.0))
+                for lookup, _ in searchable_fields
+                if lookup != "job_number"
+            ]
+            field_scores = [
+                TrigramSimilarity(expression, token)
+                for _, expression in searchable_fields
+            ] + [
+                TrigramWordSimilarity(token, expression)
+                for _, expression in searchable_fields
+            ]
+            annotations[alias] = Greatest(
+                Case(
+                    *substring_whens,
+                    default=Value(0.0),
+                    output_field=FloatField(),
+                ),
+                *field_scores,
+            )
+            token_aliases.append(alias)
+
+        jobs_query = jobs_query.annotate(**annotations)
+
+        token_filter = Q()
+        for alias in token_aliases:
+            token_filter &= Q(
+                **{f"{alias}__gte": KanbanService.KANBAN_TRIGRAM_THRESHOLD}
+            )
+
+        combined_score = reduce(operator.add, (F(alias) for alias in token_aliases))
+        jobs_query = jobs_query.annotate(
+            trigram_score=ExpressionWrapper(
+                combined_score / Value(len(token_aliases)),
+                output_field=FloatField(),
+            )
+        )
+
+        return jobs_query.filter(token_filter).order_by("-trigram_score", "-created_at")
 
     @staticmethod
     def get_all_active_jobs() -> QuerySet[Job]:
@@ -440,16 +534,8 @@ class KanbanService:
         jobs_query = Job.objects.all()
         logger.info(f"Performing advanced search with filters: {filters}")
 
-        # Universal search - searches across multiple fields with OR logic
         if q := filters.get("universal_search", "").strip():
-            jobs_query = jobs_query.filter(
-                Q(name__icontains=q)
-                | Q(job_number__icontains=q)
-                | Q(description__icontains=q)
-                | Q(client__name__icontains=q)
-                | Q(invoices__number__icontains=q)
-                | Q(quote__number__icontains=q)
-            )
+            jobs_query = KanbanService._apply_kanban_search(jobs_query, q)
 
         # Apply filters with early returns for invalid data
         if number := filters.get("job_number", "").strip():
@@ -502,6 +588,8 @@ class KanbanService:
             case "false":
                 jobs_query = jobs_query.filter(rejected_flag=False)
 
+        if filters.get("universal_search", "").strip():
+            return jobs_query.distinct().order_by("-trigram_score", "-created_at")
         return jobs_query.distinct().order_by("-created_at")
 
     @staticmethod
@@ -546,19 +634,16 @@ class KanbanService:
 
             # Apply search filter if provided
             if search_term:
-                search_query = (
-                    Q(name__icontains=search_term)
-                    | Q(job_number__icontains=search_term)
-                    | Q(description__icontains=search_term)
-                    | Q(client__name__icontains=search_term)
-                )
-                jobs_query = jobs_query.filter(search_query)
+                jobs_query = KanbanService._apply_kanban_search(jobs_query, search_term)
 
             # Get total count
             total_count = jobs_query.count()
 
             # Apply limit and ordering
-            jobs = jobs_query.order_by("-priority")[:max_jobs]
+            if search_term:
+                jobs = jobs_query[:max_jobs]
+            else:
+                jobs = jobs_query.order_by("-priority")[:max_jobs]
             logger.debug(
                 f"Jobs fetched for column {column_id} (ordered by priority): {[job.job_number for job in jobs]}"
             )
