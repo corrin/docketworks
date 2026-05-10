@@ -1,4 +1,12 @@
-import type { Reporter, Suite, FullConfig, FullResult } from '@playwright/test/reporter'
+import type {
+  Reporter,
+  Suite,
+  FullConfig,
+  FullResult,
+  TestCase,
+  TestResult,
+  TestStep,
+} from '@playwright/test/reporter'
 import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
@@ -13,7 +21,21 @@ interface CompletedTest {
   testPath: string
   durationMs: number
   status: CompletedStatus
+  retry: number
+  projectName: string
   tracePath?: string
+}
+
+interface CompletedStep {
+  file: string
+  testPath: string
+  projectName: string
+  retry: number
+  category: string
+  stepTitle: string
+  stepPath: string
+  durationMs: number
+  status: 'passed' | 'failed'
 }
 
 const TEST_RUNS_HEADER = 'run_id,run_date,test_file,test_path,duration_ms,status\n'
@@ -108,9 +130,35 @@ function extractActions(
 
 export default class HistoryReporter implements Reporter {
   private rootSuite: Suite | undefined
+  private runId = ''
+  private runDate = ''
+  private completedSteps: CompletedStep[] = []
 
   onBegin(_config: FullConfig, suite: Suite): void {
     this.rootSuite = suite
+    this.runId = Math.random().toString(36).substring(2, 10)
+    this.runDate = new Date().toISOString()
+    this.completedSteps = []
+  }
+
+  onStepEnd(test: TestCase, result: TestResult, step: TestStep): void {
+    if (step.category !== 'test.step') return
+
+    const parts = test.titlePath()
+    const file = parts[2] || ''
+    const testPath = parts.slice(3).join(' > ')
+
+    this.completedSteps.push({
+      file,
+      testPath,
+      projectName: parts[1] || '',
+      retry: result.retry,
+      category: step.category,
+      stepTitle: step.title,
+      stepPath: step.titlePath().join(' > '),
+      durationMs: step.duration,
+      status: step.error ? 'failed' : 'passed',
+    })
   }
 
   onEnd(_result: FullResult): void {
@@ -119,6 +167,7 @@ export default class HistoryReporter implements Reporter {
     const historyDir = path.resolve(__dirname, '..', '..', 'test-history')
     const testRunsFile = path.join(historyDir, 'test-runs.csv')
     const actionsFile = path.join(historyDir, 'timing-aggregate.csv')
+    const stepsFile = path.join(historyDir, 'step-timing-aggregate.csv')
 
     // History only captures pass durations and flake/timeout failures. A
     // test that fails fast (<2s) is almost always infra — server killed,
@@ -149,6 +198,8 @@ export default class HistoryReporter implements Reporter {
           testPath,
           durationMs: result.duration,
           status: result.status,
+          retry: result.retry,
+          projectName: parts[1] || '',
           tracePath: trace?.path,
         })
       }
@@ -162,8 +213,6 @@ export default class HistoryReporter implements Reporter {
     }
 
     fs.mkdirSync(historyDir, { recursive: true })
-    const runId = Math.random().toString(36).substring(2, 10)
-    const runDate = new Date().toISOString()
 
     // Per-test summary — primary artifact for setting timeouts and spotting
     // flakes. Status distinguishes pass/fail/timeout/interrupted; duration_ms
@@ -171,8 +220,8 @@ export default class HistoryReporter implements Reporter {
     const runsRows = completed
       .map((r) =>
         [
-          runId,
-          runDate,
+          this.runId,
+          this.runDate,
           csvCell(r.file),
           csvCell(r.testPath),
           Math.round(r.durationMs),
@@ -196,8 +245,8 @@ export default class HistoryReporter implements Reporter {
       for (const a of actions) {
         actionRows.push(
           [
-            runId,
-            runDate,
+            this.runId,
+            this.runDate,
             csvCell(run.testPath),
             csvCell(a.type),
             csvCell(a.action),
@@ -214,11 +263,34 @@ export default class HistoryReporter implements Reporter {
       appendCsv(actionsFile, actionsHeader, actionRows.join('\n') + '\n')
     }
 
+    if (this.completedSteps.length > 0) {
+      const stepsHeader =
+        'run_id,run_date,project_name,test_file,test_path,retry,category,step_title,step_path,duration_ms,status\n'
+      const stepRows = this.completedSteps
+        .map((step) =>
+          [
+            this.runId,
+            this.runDate,
+            csvCell(step.projectName),
+            csvCell(step.file),
+            csvCell(step.testPath),
+            step.retry,
+            csvCell(step.category),
+            csvCell(step.stepTitle),
+            csvCell(step.stepPath),
+            Math.round(step.durationMs),
+            step.status,
+          ].join(','),
+        )
+        .join('\n')
+      appendCsv(stepsFile, stepsHeader, stepRows + '\n')
+    }
+
     const passCount = completed.filter((c) => c.status === 'passed').length
     const failCount = completed.length - passCount
     console.log(
-      `[history] Run ${runId}: ${passCount} passing, ${failCount} non-passing tests, ` +
-        `${actionRows.length} actions -> ${historyDir}/`,
+      `[history] Run ${this.runId}: ${passCount} passing, ${failCount} non-passing tests, ` +
+        `${actionRows.length} actions, ${this.completedSteps.length} semantic steps -> ${historyDir}/`,
     )
   }
 }

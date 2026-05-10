@@ -1,5 +1,5 @@
 import type { Page, Response } from '@playwright/test'
-import { expect } from '@playwright/test'
+import { expect, test } from '@playwright/test'
 import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 
@@ -14,6 +14,17 @@ const networkCsvPath = path.join(process.cwd(), 'test-results', 'network-aggrega
 // Default max wire transfer size - catches bugs like missing filters
 // 100KB is generous: a 192KB JSON response compresses to ~60-80KB via gzip
 const DEFAULT_MAX_RESPONSE_KB = 100
+const E2E_PERF_BUDGET_MULTIPLIER = (() => {
+  const raw = process.env.E2E_PERF_BUDGET_MULTIPLIER
+  if (!raw) return 1
+
+  const parsed = Number(raw)
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error(`E2E_PERF_BUDGET_MULTIPLIER must be a positive number, got: ${raw}`)
+  }
+
+  return parsed
+})()
 
 /**
  * Helper to log all API network traffic with sizes and assert on response size.
@@ -116,24 +127,36 @@ export function enableNetworkLogging(
 }
 
 /**
- * Helper to time and log async operations
- */
-export async function timed<T>(label: string, fn: () => Promise<T>): Promise<T> {
-  const start = Date.now()
-  try {
-    const result = await fn()
-    console.log(`[TIMING] ${label}: ${Date.now() - start}ms`)
-    return result
-  } catch (error) {
-    console.log(`[TIMING] ${label}: FAILED after ${Date.now() - start}ms`)
-    throw error
-  }
-}
-
-/**
  * Helper to find elements by data-automation-id attribute
  */
 export const autoId = (page: Page, id: string) => page.locator(`[data-automation-id="${id}"]`)
+
+/**
+ * Run a semantic Playwright step and fail if it exceeds the declared UX budget.
+ * Correctness waits should still live inside the step body; this helper enforces
+ * "fast enough for users" separately from "eventually succeeded".
+ */
+export async function expectStepUnder<T>(
+  title: string,
+  maxMs: number,
+  body: () => Promise<T>,
+): Promise<T> {
+  return await test.step(title, async () => {
+    const startedAt = Date.now()
+    const result = await body()
+    const durationMs = Date.now() - startedAt
+    const effectiveMaxMs = Math.round(maxMs * E2E_PERF_BUDGET_MULTIPLIER)
+
+    if (durationMs > effectiveMaxMs) {
+      throw new Error(
+        `Performance budget exceeded for "${title}": ${durationMs}ms > ${effectiveMaxMs}ms ` +
+          `(base budget: ${maxMs}ms, multiplier: ${E2E_PERF_BUDGET_MULTIPLIER})`,
+      )
+    }
+
+    return result
+  })
+}
 
 /**
  * Helper to find AG Grid row by row-id attribute
@@ -297,50 +320,71 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
   const timestamp = Date.now()
   const jobName = `[TEST] Job ${jobNameSuffix} ${timestamp}`
 
-  await autoId(page, 'AppNavbar-create-job').click()
-  await page.waitForURL('**/jobs/create')
-  await page.waitForLoadState('networkidle')
+  await expectStepUnder('createTestJob: navigate to create job page', 2500, async () => {
+    await autoId(page, 'AppNavbar-create-job').click()
+    await page.waitForURL('**/jobs/create')
+    await page.waitForLoadState('networkidle')
+  })
 
-  // Search and select client
-  const clientInput = autoId(page, 'ClientLookup-input')
-  await clientInput.click()
-  await clientInput.fill('ABC')
-  await page.waitForTimeout(500) // Give search time to trigger
-  await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
+  await expectStepUnder('createTestJob: search and select client', 1500, async () => {
+    const clientInput = autoId(page, 'ClientLookup-input')
+    await clientInput.click()
+    await clientInput.fill('ABC')
+    await page.waitForTimeout(500) // Give search time to trigger
+    await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
 
-  await page.getByRole('option', { name: new RegExp(TEST_CLIENT_NAME) }).click()
-  await expect(clientInput).toHaveValue(TEST_CLIENT_NAME)
+    await page.getByRole('option', { name: new RegExp(TEST_CLIENT_NAME) }).click()
+    await expect(clientInput).toHaveValue(TEST_CLIENT_NAME)
+  })
 
-  // Enter job details
-  await autoId(page, 'JobCreateView-name-input').fill(jobName)
-  await autoId(page, 'JobCreateView-estimated-materials').fill('0')
-  await autoId(page, 'JobCreateView-estimated-time').fill('0')
+  await expectStepUnder('createTestJob: fill job details', 1000, async () => {
+    await autoId(page, 'JobCreateView-name-input').fill(jobName)
+    await autoId(page, 'JobCreateView-estimated-materials').fill('0')
+    await autoId(page, 'JobCreateView-estimated-time').fill('0')
+  })
 
   // Select contact
-  await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
-  await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+  await expectStepUnder('createTestJob: open contact modal', 1000, async () => {
+    await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
+    await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+  })
 
-  const selectButtons = autoId(page, 'ContactSelectionModal-select-button')
-  const selectButtonCount = await selectButtons.count()
+  const selectButtonCount = await expectStepUnder(
+    'createTestJob: inspect contact modal branch',
+    250,
+    async () => {
+      const selectButtons = autoId(page, 'ContactSelectionModal-select-button')
+      return await selectButtons.count()
+    },
+  )
 
   if (selectButtonCount > 0) {
-    await selectButtons.first().click()
+    await expectStepUnder('createTestJob: select existing contact', 1000, async () => {
+      await autoId(page, 'ContactSelectionModal-select-button').first().click()
+    })
   } else {
-    const submitButton = autoId(page, 'ContactSelectionModal-submit')
-    await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
-    await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${timestamp}`)
-    await autoId(page, 'ContactSelectionModal-email-input').fill(`test${timestamp}@example.com`)
-    await submitButton.click()
+    await expectStepUnder('createTestJob: create new contact', 2000, async () => {
+      const submitButton = autoId(page, 'ContactSelectionModal-submit')
+      await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
+      await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${timestamp}`)
+      await autoId(page, 'ContactSelectionModal-email-input').fill(`test${timestamp}@example.com`)
+      await submitButton.click()
+    })
   }
 
-  await autoId(page, 'ContactSelectionModal-container').waitFor({ state: 'hidden', timeout: 10000 })
-  await dismissToasts(page)
-
-  // Set pricing method to T&M and submit
-  await autoId(page, 'JobCreateView-pricing-method').selectOption('time_materials')
-  await dismissToasts(page)
-  await autoId(page, 'JobCreateView-submit').click({ force: true })
-  await page.waitForURL('**/jobs/*?*tab=estimate*', { timeout: 15000 })
+  await expectStepUnder('createTestJob: wait for contact modal to close', 1500, async () => {
+    await autoId(page, 'ContactSelectionModal-container').waitFor({
+      state: 'hidden',
+      timeout: 10000,
+    })
+  })
+  await expectStepUnder('createTestJob: submit job', 3500, async () => {
+    await dismissToasts(page)
+    await autoId(page, 'JobCreateView-pricing-method').selectOption('time_materials')
+    await dismissToasts(page)
+    await autoId(page, 'JobCreateView-submit').click({ force: true })
+    await page.waitForURL('**/jobs/*?*tab=estimate*', { timeout: 15000 })
+  })
 
   return page.url()
 }
