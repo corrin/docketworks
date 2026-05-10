@@ -15,6 +15,8 @@ from apps.workflow.services.error_persistence import persist_and_raise
 
 logger = logging.getLogger(__name__)
 
+MAX_SEARCH_QUERY_LENGTH = 512
+
 ALLOWED_SORT_FIELDS = {
     "description": "description",
     "item_code": "item_code",
@@ -60,6 +62,13 @@ FORM_PATTERNS = {
     "rhs": ("rhs",),
     "shs": ("shs",),
 }
+
+
+def _normalize_search_query(query: str) -> str:
+    normalized = query.strip()
+    if len(normalized) > MAX_SEARCH_QUERY_LENGTH:
+        raise ValueError("Search query too long.")
+    return normalized
 
 
 def _normalize_number(value: float) -> tuple[str, ...]:
@@ -307,6 +316,7 @@ def _score_stock(
 
 
 def _sorted_stock_matches(query: str) -> tuple[list[Stock], dict[str, int]]:
+    query = _normalize_search_query(query)
     usage_counts = _usage_counts_by_item_code()
     query_features = _build_features(query)
     scored: list[tuple[float, Stock]] = []
@@ -345,7 +355,7 @@ def search_stock(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         if not query or len(query.strip()) < 3:
             return []
 
-        query = query.strip()
+        query = _normalize_search_query(query)
         limit = max(1, min(limit, 50))
         logger.info("Stock typeahead search query=%r limit=%s", query, limit)
         results, usage_counts = _sorted_stock_matches(query)
@@ -358,6 +368,8 @@ def search_stock(query: str, limit: int = 10) -> List[Dict[str, Any]]:
         return _serialize(results, usage_counts)
 
     except AlreadyLoggedException:
+        raise
+    except ValueError:
         raise
     except Exception as exc:
         persist_and_raise(exc, additional_context={"query": query, "limit": limit})
@@ -381,7 +393,7 @@ def list_stock(
         queryset = Stock.objects.filter(is_active=True)
 
         if query:
-            query = query.strip()
+            query = _normalize_search_query(query)
             logger.info(
                 "Stock paginated search query=%r page=%s page_size=%s sort_by=%s sort_dir=%s",
                 query,
@@ -421,6 +433,8 @@ def list_stock(
         }
 
     except AlreadyLoggedException:
+        raise
+    except ValueError:
         raise
     except Exception as exc:
         persist_and_raise(

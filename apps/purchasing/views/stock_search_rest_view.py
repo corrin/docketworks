@@ -131,6 +131,11 @@ class StockSearchRestView(APIView):
             # exist in the DB — they are the DB rows). Trust the service output.
             return Response(result)
 
+        except ValueError as exc:
+            return Response(
+                {"error": "Invalid search query", "details": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except Exception as exc:
             return _build_server_error_response(
                 message="Error searching stock", exc=exc

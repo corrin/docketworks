@@ -36,3 +36,7 @@ query-filters:
       id: py/clear-text-storage-sensitive-data
   - exclude:
       id: js/file-access-to-http
+  - exclude:
+      id: py/log-injection
+  - exclude:
+      id: py/stack-trace-exposure

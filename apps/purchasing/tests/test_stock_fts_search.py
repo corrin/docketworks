@@ -20,7 +20,11 @@ from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
-from apps.purchasing.services.stock_search_service import list_stock, search_stock
+from apps.purchasing.services.stock_search_service import (
+    MAX_SEARCH_QUERY_LENGTH,
+    list_stock,
+    search_stock,
+)
 from apps.testing import BaseTestCase
 
 
@@ -129,6 +133,16 @@ def test_empty_query_lists_all_active(db):
 def test_search_stock_short_query_is_rejected(db):
     assert search_stock("ab") == []
     assert search_stock("") == []
+
+
+def test_search_stock_rejects_overly_long_query(db):
+    with pytest.raises(ValueError, match="Search query too long"):
+        search_stock("x" * (MAX_SEARCH_QUERY_LENGTH + 1))
+
+
+def test_list_stock_rejects_overly_long_query(db):
+    with pytest.raises(ValueError, match="Search query too long"):
+        list_stock(query="x" * (MAX_SEARCH_QUERY_LENGTH + 1), page=1, page_size=10)
 
 
 def test_search_stock_top_n_orders_by_rank(stainless_sheet, stainless_5mm_other_finish):
@@ -371,3 +385,16 @@ def test_stock_list_view_includes_default_times_used(auth_api, db):
 def test_view_unauthenticated_is_rejected(db):
     resp = APIClient().get("/api/purchasing/stock/search/", {"q": "anything"})
     assert resp.status_code in (401, 403)
+
+
+def test_view_rejects_overly_long_query(auth_api, db):
+    resp = auth_api.get(
+        "/api/purchasing/stock/search/",
+        {"q": "x" * (MAX_SEARCH_QUERY_LENGTH + 1)},
+    )
+
+    assert resp.status_code == 400, resp.content
+    assert resp.json() == {
+        "error": "Invalid search query",
+        "details": "Search query too long.",
+    }
