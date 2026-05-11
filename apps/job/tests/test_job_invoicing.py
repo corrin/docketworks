@@ -11,6 +11,7 @@ from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.services.job_service import recalculate_job_invoicing_state
+from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
 
 
@@ -61,6 +62,11 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
             xero_last_modified=timezone.now(),
             raw_json={},
         )
+
+    def _set_summary_revenue(self, cost_set, revenue):
+        """Set the summarized revenue used by KanbanService."""
+        cost_set.summary = {"rev": float(revenue)}
+        cost_set.save(update_fields=["summary"])
 
     # --- T&M tests ---
 
@@ -173,3 +179,39 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
 
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
+
+    def test_kanban_over_budget_when_tm_actual_exceeds_price_cap(self):
+        """T&M jobs should show over-budget when actual revenue exceeds price cap."""
+        job = self._create_job("time_materials")
+        job.price_cap = Decimal("1000.00")
+        job.save(staff=self.test_staff, update_fields=["price_cap"])
+        self._set_summary_revenue(job.latest_actual, Decimal("1200.00"))
+        self._set_summary_revenue(job.latest_quote, Decimal("5000.00"))
+
+        serialized = KanbanService.serialize_job_for_api(job)
+
+        self.assertTrue(serialized["over_budget"])
+
+    def test_kanban_not_over_budget_when_tm_actual_within_price_cap(self):
+        """T&M jobs should not show over-budget when actual revenue stays within price cap."""
+        job = self._create_job("time_materials")
+        job.price_cap = Decimal("1000.00")
+        job.save(staff=self.test_staff, update_fields=["price_cap"])
+        self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
+        self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
+
+        serialized = KanbanService.serialize_job_for_api(job)
+
+        self.assertFalse(serialized["over_budget"])
+
+    def test_kanban_fixed_price_still_uses_quote_revenue_threshold(self):
+        """Fixed-price jobs should continue to compare actual revenue against quote revenue."""
+        job = self._create_job("fixed_price")
+        job.price_cap = Decimal("1000.00")
+        job.save(staff=self.test_staff, update_fields=["price_cap"])
+        self._set_summary_revenue(job.latest_actual, Decimal("1200.00"))
+        self._set_summary_revenue(job.latest_quote, Decimal("1500.00"))
+
+        serialized = KanbanService.serialize_job_for_api(job)
+
+        self.assertFalse(serialized["over_budget"])

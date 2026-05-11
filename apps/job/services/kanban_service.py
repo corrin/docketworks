@@ -221,7 +221,15 @@ class KanbanService:
             raise ValueError(f"Job #{job.job_number} has no actual CostSet")
         quote_revenue = job.latest_quote.summary["rev"]
         time_and_materials_revenue = job.latest_actual.summary["rev"]
-        over_budget = quote_revenue > 0 and time_and_materials_revenue > quote_revenue
+
+        if job.pricing_methodology == "time_materials" and job.price_cap is not None:
+            over_budget = float(
+                job.price_cap
+            ) > 0 and time_and_materials_revenue > float(job.price_cap)
+        else:
+            over_budget = (
+                quote_revenue > 0 and time_and_materials_revenue > quote_revenue
+            )
 
         return {
             "id": str(job.id),
