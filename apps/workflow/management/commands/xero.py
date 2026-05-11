@@ -316,17 +316,44 @@ class Command(BaseCommand):
                 self.stdout.write(
                     f"Payroll calendar '{calendar_name}' not found — creating it."
                 )
+                # Anchor the calendar ~4 weeks back, on a Monday. A freshly
+                # restored dev/demo org has full timesheet data for recent
+                # *complete* weeks but little/none for the current in-progress
+                # week, so the first postable pay run should land on a week that
+                # actually has data to post. Must be a Monday (Docketworks
+                # payroll posting hard-requires Mon→Sun periods), and the payment
+                # date must fall after period end (period_start + 6) — the
+                # "Wednesday after period end" convention create_pay_run uses
+                # (apps/workflow/api/xero/payroll.py).
                 today = datetime.date.today()
-                period_start = today - datetime.timedelta(days=today.weekday())
+                period_start = today - datetime.timedelta(days=today.weekday(), weeks=4)
                 payroll_api.create_pay_run_calendar(
                     xero_tenant_id=tenant_id,
                     pay_run_calendar=PayRunCalendar(
                         name=calendar_name,
                         calendar_type=CalendarType.WEEKLY,
                         period_start_date=period_start,
-                        payment_date=period_start + datetime.timedelta(days=4),
+                        payment_date=period_start + datetime.timedelta(days=9),
                     ),
                 )
+                # Confirm Xero honoured the Monday anchor. If it didn't, payroll
+                # posting (which hard-requires period_start.weekday() == 0) breaks
+                # weeks later — fail the setup run now instead.
+                created = next(
+                    (c for c in get_payroll_calendars() if c["name"] == calendar_name),
+                    None,
+                )
+                if created is None or created["period_start_date"].weekday() != 0:
+                    got = (
+                        created["period_start_date"].strftime("%A %Y-%m-%d")
+                        if created
+                        else "<calendar not found after creation>"
+                    )
+                    raise CommandError(
+                        f"Created payroll calendar '{calendar_name}' but its period "
+                        f"starts on {got}, not a Monday. Docketworks requires a "
+                        f"Monday-start weekly calendar."
+                    )
                 self.stdout.write(
                     self.style.SUCCESS(f"Created payroll calendar: {calendar_name}")
                 )

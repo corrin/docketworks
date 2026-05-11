@@ -1,38 +1,42 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { postStaffWeek } from '../payroll.service'
+import { postStaffWeek, fetchAllPayRuns } from '../payroll.service'
 
-const { createMock, eventSourceInstances, getApiBaseUrlMock } = vi.hoisted(() => {
-  const instances: Array<{
-    onmessage: ((event: MessageEvent) => void) | null
-    onerror: (() => void) | null
-    close: ReturnType<typeof vi.fn>
-    url: string
-  }> = []
+const { createMock, payRunsRetrieveMock, eventSourceInstances, getApiBaseUrlMock } = vi.hoisted(
+  () => {
+    const instances: Array<{
+      onmessage: ((event: MessageEvent) => void) | null
+      onerror: (() => void) | null
+      close: ReturnType<typeof vi.fn>
+      url: string
+    }> = []
 
-  class MockEventSource {
-    onmessage: ((event: MessageEvent) => void) | null = null
-    onerror: (() => void) | null = null
-    close = vi.fn()
-    url: string
+    class MockEventSource {
+      onmessage: ((event: MessageEvent) => void) | null = null
+      onerror: (() => void) | null = null
+      close = vi.fn()
+      url: string
 
-    constructor(url: string) {
-      this.url = url
-      instances.push(this)
+      constructor(url: string) {
+        this.url = url
+        instances.push(this)
+      }
     }
-  }
 
-  vi.stubGlobal('EventSource', MockEventSource as unknown as typeof EventSource)
+    vi.stubGlobal('EventSource', MockEventSource as unknown as typeof EventSource)
 
-  return {
-    createMock: vi.fn(),
-    eventSourceInstances: instances,
-    getApiBaseUrlMock: vi.fn(() => 'https://example.test'),
-  }
-})
+    return {
+      createMock: vi.fn(),
+      payRunsRetrieveMock: vi.fn(),
+      eventSourceInstances: instances,
+      getApiBaseUrlMock: vi.fn(() => 'https://example.test'),
+    }
+  },
+)
 
 vi.mock('@/api/client', () => ({
   api: {
     timesheets_payroll_post_staff_week_create: createMock,
+    timesheets_payroll_pay_runs_retrieve: payRunsRetrieveMock,
   },
 }))
 
@@ -109,5 +113,49 @@ describe('postStaffWeek', () => {
       event: 'error',
       message: 'The selected week is not a valid Xero pay period',
     })
+  })
+})
+
+describe('fetchAllPayRuns', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('returns the pay runs alongside the backend-chosen postable week', async () => {
+    payRunsRetrieveMock.mockResolvedValue({
+      pay_runs: [
+        {
+          id: '1',
+          xero_id: 'xero-1',
+          period_start_date: '2026-05-04',
+          period_end_date: '2026-05-10',
+          payment_date: '2026-05-12',
+          pay_run_status: 'Posted',
+          xero_url: 'https://example.test/payrun/1',
+        },
+      ],
+      next_postable_week_start_date: '2026-05-11',
+      next_postable_week_end_date: '2026-05-17',
+    })
+
+    const result = await fetchAllPayRuns()
+
+    expect(payRunsRetrieveMock).toHaveBeenCalledOnce()
+    expect(result.pay_runs).toHaveLength(1)
+    expect(result.next_postable_week_start_date).toBe('2026-05-11')
+    expect(result.next_postable_week_end_date).toBe('2026-05-17')
+  })
+
+  it('passes through null postable-week fields for an unconfigured org', async () => {
+    payRunsRetrieveMock.mockResolvedValue({
+      pay_runs: [],
+      next_postable_week_start_date: null,
+      next_postable_week_end_date: null,
+    })
+
+    const result = await fetchAllPayRuns()
+
+    expect(result.next_postable_week_start_date).toBeNull()
+    expect(result.next_postable_week_end_date).toBeNull()
   })
 })

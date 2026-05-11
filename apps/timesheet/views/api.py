@@ -44,6 +44,7 @@ from apps.workflow.api.xero.payroll import (
     ensure_pay_run_for_week,
     get_all_timesheets_for_week,
     get_payroll_calendar_id,
+    next_postable_payroll_week,
     post_staff_week_to_xero,
     validate_pay_items_for_week,
 )
@@ -446,6 +447,7 @@ class PayRunListAPIView(TimesheetBaseView):
         pay_runs = XeroPayRun.objects.filter(payroll_calendar_id=calendar_id).order_by(
             "-period_end_date"
         )
+        postable = next_postable_payroll_week()
 
         return Response(
             {
@@ -460,7 +462,9 @@ class PayRunListAPIView(TimesheetBaseView):
                         "xero_url": build_xero_payroll_url(str(pr.xero_id)),
                     }
                     for pr in pay_runs
-                ]
+                ],
+                "next_postable_week_start_date": postable[0] if postable else None,
+                "next_postable_week_end_date": postable[1] if postable else None,
             },
             status=status.HTTP_200_OK,
         )

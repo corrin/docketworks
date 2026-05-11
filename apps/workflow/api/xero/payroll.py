@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from xero_python.payrollnz import PayrollNzApi
@@ -793,83 +793,73 @@ def get_pay_run(pay_run_id: str):
         persist_and_raise(exc)
 
 
-def get_pay_run_for_week(week_start_date: date) -> Optional[Dict[str, Any]]:
+def ensure_pay_run_for_week(week_start_date: date) -> Dict[str, Any]:
     """
-    Get a single pay run that matches the provided week.
+    Ensure a Draft pay run exists in Xero for the given payroll week and return it.
 
-    Args:
-        week_start_date: Monday of the week to search for
+    Reuses the locally mirrored same-week Draft pay run if present. Otherwise, if a
+    Draft pay run for a *different* week is already open on the configured payroll
+    calendar, raises — Xero allows only one Draft pay run per calendar, so that one
+    must be completed or deleted first. Otherwise creates the pay run in Xero and
+    mirrors it locally before returning.
 
-    Returns:
-        Pay run dictionary if found, otherwise None
-
-    Raises:
-    ValueError: If week_start_date is not a Monday
-        Exception: If fetching pay runs fails
+    The local XeroPayRun mirror is kept consistent with Xero by create_pay_run
+    (which mirrors the pay run it creates even when the period doesn't match the
+    request) and by start_xero_sync, so this function trusts it.
     """
     if week_start_date.weekday() != 0:
         raise ValueError("week_start_date must be a Monday")
-
-    pay_runs = get_pay_runs()
     week_end_date = week_start_date + timedelta(days=6)
 
-    for pay_run in pay_runs:
-        start_date = _coerce_xero_date(pay_run.get("period_start_date"))
-        end_date = _coerce_xero_date(pay_run.get("period_end_date"))
-
-        logger.info(
-            "Evaluating pay run %s: start=%s end=%s status=%s",
-            pay_run.get("pay_run_id"),
-            start_date,
-            end_date,
-            pay_run.get("pay_run_status"),
+    calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
+    if not calendar_id:
+        raise ValueError(
+            "xero_payroll_calendar_id is not configured in CompanyDefaults"
         )
 
-        if start_date == week_start_date and end_date == week_end_date:
-            return pay_run
-
-    logger.info(
-        "No pay run matched week %s-%s (checked %s runs)",
-        week_start_date,
-        week_end_date,
-        len(pay_runs),
-    )
-    return None
-
-
-def ensure_pay_run_for_week(week_start_date: date) -> Dict[str, Any]:
-    """
-    Ensure a pay run exists in Xero for the provided payroll week.
-
-    Reuses a locally mirrored same-week Draft pay run when present; otherwise
-    creates one in Xero and syncs it into the local mirror table before returning it.
-    """
-    week_end_date = week_start_date + timedelta(days=6)
-    local_draft = (
+    # Xero allows exactly one Draft pay run per calendar. The local XeroPayRun
+    # mirror is kept consistent with Xero by create_pay_run (which mirrors the
+    # pay run it creates even when the period doesn't match the request) and by
+    # start_xero_sync, so trust it here.
+    open_drafts = list(
         XeroPayRun.objects.filter(
-            period_start_date=week_start_date,
-            period_end_date=week_end_date,
-            pay_run_status="Draft",
+            payroll_calendar_id=calendar_id, pay_run_status="Draft"
         )
-        .order_by("-django_updated_at")
-        .first()
     )
-    if local_draft:
+    same_week = next(
+        (
+            draft
+            for draft in open_drafts
+            if draft.period_start_date == week_start_date
+            and draft.period_end_date == week_end_date
+        ),
+        None,
+    )
+    if same_week is not None:
         logger.warning(
-            "Reusing local draft pay run %s for week %s-%s; staff timesheets will overwrite its contents",
-            local_draft.xero_id,
+            "Reusing draft pay run %s for week %s-%s; staff timesheets will overwrite its contents",
+            same_week.xero_id,
             week_start_date,
             week_end_date,
         )
         return {
-            "pay_run_id": str(local_draft.xero_id),
-            "payroll_calendar_id": str(local_draft.payroll_calendar_id),
-            "period_start_date": local_draft.period_start_date,
-            "period_end_date": local_draft.period_end_date,
-            "payment_date": local_draft.payment_date,
-            "pay_run_status": local_draft.pay_run_status,
-            "pay_run_type": local_draft.pay_run_type,
+            "pay_run_id": str(same_week.xero_id),
+            "payroll_calendar_id": str(same_week.payroll_calendar_id),
+            "period_start_date": same_week.period_start_date,
+            "period_end_date": same_week.period_end_date,
+            "payment_date": same_week.payment_date,
+            "pay_run_status": same_week.pay_run_status,
+            "pay_run_type": same_week.pay_run_type,
         }
+    if open_drafts:
+        blocking = open_drafts[0]
+        raise ValueError(
+            f"A draft pay run for week {blocking.period_start_date}–"
+            f"{blocking.period_end_date} is already open on the payroll calendar; "
+            f"complete or delete it in Xero before posting week "
+            f"{week_start_date}–{week_end_date} (Xero allows only one draft pay "
+            f"run per calendar)."
+        )
 
     created_pay_run = create_pay_run(week_start_date)
     pay_run_id = created_pay_run["pay_run_id"]
@@ -895,24 +885,55 @@ def ensure_pay_run_for_week(week_start_date: date) -> Dict[str, Any]:
     }
 
 
-def _sync_pay_run_into_local_mirror(pay_run_data: Dict[str, Any], xero_id: str) -> None:
-    """Best-effort local mirror update for pay runs discovered during posting."""
-    pay_run_obj = type(
-        "PayRunMirror",
-        (),
-        {
-            "payroll_calendar_id": pay_run_data.get("payroll_calendar_id"),
-            "period_start_date": pay_run_data.get("period_start_date"),
-            "period_end_date": pay_run_data.get("period_end_date"),
-            "payment_date": pay_run_data.get("payment_date"),
-            "pay_run_status": pay_run_data.get("pay_run_status"),
-            "pay_run_type": pay_run_data.get("pay_run_type"),
-            "total_cost": pay_run_data.get("total_cost"),
-            "total_pay": pay_run_data.get("total_pay"),
-            "posted_date_time": pay_run_data.get("posted_date_time"),
-        },
-    )()
-    transform_pay_run(pay_run_obj, xero_id)
+def next_postable_payroll_week() -> Optional[Tuple[date, date]]:
+    """The (Monday, Sunday) of the only week that can currently be posted to the
+    configured Xero payroll calendar.
+
+    Xero processes pay runs in sequence, so the postable week is: the open Draft
+    pay run's period if there is one; otherwise the week after the latest pay run
+    on the calendar; otherwise the calendar's own anchor period (no pay runs yet —
+    e.g. a freshly set-up org). ``None`` only when no calendar is configured.
+
+    Reads the local ``XeroPayRun`` mirror; only hits Xero (``get_payroll_calendars``)
+    in the no-pay-runs case, which lasts until the first pay run exists.
+    """
+    calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
+    if not calendar_id:
+        return None
+
+    open_draft = (
+        XeroPayRun.objects.filter(
+            payroll_calendar_id=calendar_id, pay_run_status="Draft"
+        )
+        .order_by("-period_start_date")
+        .first()
+    )
+    if open_draft is not None:
+        return open_draft.period_start_date, open_draft.period_end_date
+
+    latest = (
+        XeroPayRun.objects.filter(payroll_calendar_id=calendar_id)
+        .order_by("-period_end_date")
+        .first()
+    )
+    if latest is not None:
+        start = latest.period_end_date + timedelta(days=1)
+        return start, start + timedelta(days=6)
+
+    # No pay runs on the calendar yet — its anchor period is the first postable
+    # week. The calendar's reported period_start/end advances as pay runs are
+    # processed, so with none it's the anchor.
+    for cal in get_payroll_calendars():
+        if str(cal.get("id")) == str(calendar_id):
+            start = cal.get("period_start_date")
+            end = cal.get("period_end_date")
+            if start is None or end is None:
+                return None
+            return (
+                start.date() if hasattr(start, "date") else start,
+                end.date() if hasattr(end, "date") else end,
+            )
+    return None
 
 
 def get_leave_types() -> List[Dict[str, Any]]:
@@ -1202,6 +1223,12 @@ def create_pay_run(
         actual_start_date = _coerce_xero_date(response.pay_run.period_start_date)
         actual_end_date = _coerce_xero_date(response.pay_run.period_end_date)
         if actual_start_date != week_start_date or actual_end_date != week_end_date:
+            # Xero creates the calendar's next unprocessed period regardless of
+            # the dates we asked for. The pay run now exists in Xero, so mirror
+            # it locally before bailing — otherwise the next post for that week
+            # would try to create a second draft and hit Xero's "one draft pay
+            # run per calendar" 409.
+            transform_pay_run(response.pay_run, str(response.pay_run.pay_run_id))
             raise ValueError(
                 "Xero created pay run "
                 f"{actual_start_date} to {actual_end_date} on calendar "

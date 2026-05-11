@@ -15266,7 +15266,22 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PayRunListItem'
+        next_postable_week_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Monday of the only payroll week that can currently be posted
+            to Xero — Xero processes pay runs in sequence (the open Draft's week,
+            else the week after the latest pay run, else the calendar's anchor week).
+            Null only if no payroll calendar is configured, in which case the client
+            should default to the current week.
+        next_postable_week_end_date:
+          type: string
+          format: date
+          nullable: true
       required:
+        - next_postable_week_end_date
+        - next_postable_week_start_date
         - pay_runs
     PayRunSyncResponse:
       type: object

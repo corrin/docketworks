@@ -2844,7 +2844,11 @@ const PayRunListItem = z.object({
   pay_run_status: z.string(),
   xero_url: z.string(),
 })
-const PayRunListResponse = z.object({ pay_runs: z.array(PayRunListItem) })
+const PayRunListResponse = z.object({
+  pay_runs: z.array(PayRunListItem),
+  next_postable_week_start_date: z.string().nullable(),
+  next_postable_week_end_date: z.string().nullable(),
+})
 const CreatePayRunRequest = z.object({ week_start_date: z.string() })
 const CreatePayRunResponse = z.object({
   id: z.string().uuid(),

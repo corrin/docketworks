@@ -84,6 +84,15 @@
         <p class="text-sm leading-snug">
           {{ postingBlockedReason }}
         </p>
+        <Button
+          v-if="canGoToPostableWeek"
+          variant="link"
+          size="sm"
+          class="text-amber-700 hover:text-amber-900 p-0 h-auto mt-1"
+          @click="$emit('goToPostableWeek')"
+        >
+          Go to that week
+        </Button>
       </div>
     </div>
 
@@ -223,9 +232,11 @@ interface Props {
   payrollError?: string | null
   refreshing?: boolean
   postSuccess?: boolean
-  postingBlocked?: boolean // True if a newer pay run has been posted
+  postingBlocked?: boolean // True if the displayed week isn't the postable week
   postingBlockedReason?: string | null // Message explaining why posting is blocked
   draftWeekStart?: string | null // Week start date of existing draft (null if no draft exists)
+  nextPostableWeekStart?: string | null // Backend-chosen postable week (Monday), or null
+  nextPostableWeekEnd?: string | null // Backend-chosen postable week (Sunday), or null
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -243,6 +254,8 @@ const props = withDefaults(defineProps<Props>(), {
   postingBlocked: false,
   postingBlockedReason: null,
   draftWeekStart: null,
+  nextPostableWeekStart: null,
+  nextPostableWeekEnd: null,
 })
 
 defineEmits<{
@@ -250,6 +263,7 @@ defineEmits<{
   refreshPayRuns: []
   dismissError: []
   navigateToDraft: []
+  goToPostableWeek: []
 }>()
 
 const payRunExists = computed(() => props.payRunStatus !== null)
@@ -260,6 +274,12 @@ const hasDraft = computed(() => props.draftWeekStart === props.weekStartDate)
 
 // Can create if no draft exists elsewhere (draft is for this week or no draft at all)
 const canCreatePayRun = computed(() => !props.draftWeekStart || hasDraft.value)
+
+// Show a "Go to that week" affordance when the backend knows the postable week
+// and it isn't the week currently displayed.
+const canGoToPostableWeek = computed(
+  () => !!props.nextPostableWeekStart && props.nextPostableWeekStart !== props.weekStartDate,
+)
 const postButtonText = computed(() => {
   if (!props.xeroConnected) {
     return 'Login to Xero first'

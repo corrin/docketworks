@@ -90,7 +90,7 @@ Upload logos: Admin > Settings > Company > Logo and Logo Wide.
 scripts/server/dw-run.sh <client>-uat python manage.py xero --setup
 ```
 
-**Note:** Requires a payroll calendar named "Weekly Testing" in Xero Demo Company. Create it if missing: Payroll > Settings > Payroll Calendars.
+**Note:** `xero --setup` creates the "Weekly Testing" payroll calendar in the Demo Company if it's missing (a weekly calendar anchored to a **Monday** — Docketworks payroll posting requires Mon→Sun periods). If you ever create one by hand instead (Payroll > Settings > Payroll Calendars), its period **must start on a Monday**; `xero --setup` fails loudly if the calendar it just created came back on any other day.
 
 ## Step 6: Sync Xero Data
 

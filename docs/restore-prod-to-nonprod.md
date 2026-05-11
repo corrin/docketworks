@@ -231,7 +231,7 @@ Xero setup complete.
 
 **Note:** Requires `xero_payroll_calendar_name` to be set in CompanyDefaults (loaded from fixture in Load Company Defaults).
 
-`--setup` provisions any payroll calendar, earnings rates, or leave types that are present in the restored DB but missing from this Xero org (e.g. a fresh demo org), so the seed step below can match every backup pay item by name.
+`--setup` provisions any payroll calendar, earnings rates, or leave types that are present in the restored DB but missing from this Xero org (e.g. a fresh demo org), so the seed step below can match every backup pay item by name. The payroll calendar it creates is a weekly calendar anchored to a **Monday** (payroll posting requires Mon→Sun periods); `--setup` aborts if Xero hands back a calendar starting on any other day.
 
 #### Sync Pay Items from Xero
 
