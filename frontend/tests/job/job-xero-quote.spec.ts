@@ -11,8 +11,7 @@ const getJobIdFromUrl = (url: string): string => {
 
 const summarizeQuoteCostSet = async (page: import('@playwright/test').Page, jobId: string) => {
   const baseUrl = new URL(page.url()).origin
-  const url = new URL(`/api/job/jobs/${jobId}/cost_sets/`, baseUrl)
-  url.searchParams.set('kind', 'quote')
+  const url = new URL(`/api/job/jobs/${jobId}/cost_sets/quote/`, baseUrl)
 
   const response = await page.request.get(url.toString())
   const contentType = response.headers()['content-type'] || ''
