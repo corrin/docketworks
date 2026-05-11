@@ -225,6 +225,42 @@ class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
         row.refresh_from_db()
         self.assertIsNone(row.day_remaining)
 
+    def test_both_none_leaves_stored_values_untouched(self):
+        # Token refreshes hit identity.xero.com, which returns no quota
+        # headers — the heartbeat runs every 5 min, so a clobber here means
+        # the badge reads "—" almost all the time.
+        from apps.workflow.api.xero.client import RateLimitedRESTClient
+
+        row = _active_app()
+        before = dj_timezone.now() - timedelta(hours=1)
+        XeroApp.objects.filter(id=row.id).update(
+            day_remaining=500, minute_remaining=58, snapshot_at=before
+        )
+        client = RateLimitedRESTClient.__new__(RateLimitedRESTClient)
+        client.app_id = row.id
+        client._store_quota_snapshot(None, None)
+
+        row.refresh_from_db()
+        self.assertEqual(row.day_remaining, 500)
+        self.assertEqual(row.minute_remaining, 58)
+        self.assertEqual(row.snapshot_at, before)
+
+    def test_partial_reading_updates_only_present_field(self):
+        # A minute-limit 429 carries X-MinLimit-Remaining but not the day
+        # header — record the minute count without wiping the day count.
+        from apps.workflow.api.xero.client import RateLimitedRESTClient
+
+        row = _active_app()
+        XeroApp.objects.filter(id=row.id).update(day_remaining=500, minute_remaining=58)
+        client = RateLimitedRESTClient.__new__(RateLimitedRESTClient)
+        client.app_id = row.id
+        client._store_quota_snapshot(None, 0)
+
+        row.refresh_from_db()
+        self.assertEqual(row.day_remaining, 500)
+        self.assertEqual(row.minute_remaining, 0)
+        self.assertIsNotNone(row.snapshot_at)
+
 
 @override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
 class SynchroniseXeroDataOrchestratorGateTests(TestCase):
