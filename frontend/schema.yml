@@ -9266,7 +9266,7 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
-            (8.00 = 8%)
+            (20.00 = 20%)
         workshop_efficiency_factor:
           type: number
           format: double
@@ -9647,7 +9647,7 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
-            (8.00 = 8%)
+            (20.00 = 20%)
         workshop_efficiency_factor:
           type: number
           format: double
@@ -14388,7 +14388,7 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
-            (8.00 = 8%)
+            (20.00 = 20%)
         workshop_efficiency_factor:
           type: number
           format: double

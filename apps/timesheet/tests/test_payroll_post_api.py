@@ -1,8 +1,10 @@
 import uuid
+from datetime import date, datetime
 from unittest.mock import patch
 
 from django.core.cache import cache
 from django.urls import reverse
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
@@ -139,6 +141,76 @@ class PayrollPostStartApiTests(BaseTestCase):
             call_order,
             ["validate", "ensure", "fetch_timesheets", "post_staff"],
         )
+
+    @patch("apps.timesheet.views.api.post_staff_week_to_xero")
+    @patch("apps.timesheet.views.api.get_all_timesheets_for_week")
+    @patch("apps.timesheet.views.api.ensure_pay_run_for_week")
+    @patch("apps.timesheet.views.api.validate_pay_items_for_week")
+    def test_stream_posts_staff_who_left_after_posted_week_started(
+        self,
+        mock_validate_pay_items,
+        mock_ensure_pay_run,
+        mock_get_all_timesheets,
+        mock_post_staff_week,
+    ):
+        Staff.objects.filter(pk=self.superuser.pk).update(
+            date_joined=timezone.make_aware(datetime(2026, 1, 1)),
+            date_left=date(2026, 5, 10),
+        )
+        task_id = "44444444-4444-4444-4444-444444444444"
+        cache.set(
+            f"payroll_task_{task_id}",
+            {
+                "staff_ids": [str(self.superuser.id)],
+                "week_start_date": "2026-05-04",
+                "status": "pending",
+            },
+        )
+        mock_get_all_timesheets.return_value = {}
+        mock_post_staff_week.return_value = {"success": True, "work_hours": "8"}
+
+        response = self.client_api.get(
+            reverse("timesheet:api_post_staff_week_stream", args=[task_id])
+        )
+        payload = b"".join(response.streaming_content).decode()
+
+        self.assertIn('"event": "done"', payload)
+        mock_post_staff_week.assert_called_once()
+        self.assertNotIn('"skipped": true', payload)
+
+    @patch("apps.timesheet.views.api.post_staff_week_to_xero")
+    @patch("apps.timesheet.views.api.get_all_timesheets_for_week")
+    @patch("apps.timesheet.views.api.ensure_pay_run_for_week")
+    @patch("apps.timesheet.views.api.validate_pay_items_for_week")
+    def test_stream_skips_staff_who_left_before_posted_week(
+        self,
+        mock_validate_pay_items,
+        mock_ensure_pay_run,
+        mock_get_all_timesheets,
+        mock_post_staff_week,
+    ):
+        Staff.objects.filter(pk=self.superuser.pk).update(
+            date_joined=timezone.make_aware(datetime(2026, 1, 1)),
+            date_left=date(2026, 5, 3),
+        )
+        task_id = "55555555-5555-5555-5555-555555555555"
+        cache.set(
+            f"payroll_task_{task_id}",
+            {
+                "staff_ids": [str(self.superuser.id)],
+                "week_start_date": "2026-05-04",
+                "status": "pending",
+            },
+        )
+        mock_get_all_timesheets.return_value = {}
+
+        response = self.client_api.get(
+            reverse("timesheet:api_post_staff_week_stream", args=[task_id])
+        )
+        payload = b"".join(response.streaming_content).decode()
+
+        self.assertIn('"skipped": true', payload)
+        mock_post_staff_week.assert_not_called()
 
 
 class WeeklyTimesheetApiContractTests(BaseTestCase):

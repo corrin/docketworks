@@ -657,10 +657,14 @@ def stream_payroll_post(request, task_id):
                 staff = Staff.objects.get(id=staff_id)
                 staff_name = staff.get_display_full_name()
 
-                # Skip inactive staff - Xero payroll API rejects them
-                if staff.date_left is not None:
+                week_end_date = week_start_date + timedelta(days=6)
+                joined_after_week = staff.date_joined.date() > week_end_date
+                left_before_week = (
+                    staff.date_left is not None and staff.date_left < week_start_date
+                )
+                # Skip staff outside this payroll week - Xero rejects inactive staff.
+                if joined_after_week or left_before_week:
                     # Only warn if they actually have entries we're skipping
-                    week_end_date = week_start_date + timedelta(days=6)
                     has_entries = CostLine.objects.filter(
                         kind="time",
                         accounting_date__gte=week_start_date,

@@ -138,12 +138,12 @@ class WeeklyTimesheetService:
                 cost_lines = lines_by_staff_day.get((staff_id, day), [])
                 daily_data = cls._process_daily_lines(staff_member, day, cost_lines)
 
-                daily_cost = round(
+                daily_base_cost = round(
                     sum(float(line.total_cost) for line in cost_lines), 2
                 )
-                daily_data["daily_cost"] = daily_cost
-                daily_data["daily_base_cost"] = round(
-                    daily_cost / float(loading_multiplier), 2
+                daily_data["daily_base_cost"] = daily_base_cost
+                daily_data["daily_cost"] = round(
+                    daily_base_cost * float(loading_multiplier), 2
                 )
 
                 weekly_hours.append(daily_data)

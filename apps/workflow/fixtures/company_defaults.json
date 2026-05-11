@@ -46,7 +46,7 @@
       "kpi_daily_gp_green": "1000.00",
       "kpi_daily_gp_amber": "0.00",
       "daily_approved_hours_target": "45.00",
-      "annual_leave_loading": "8.00",
+      "annual_leave_loading": "20.00",
       "financial_year_start_month": 4,
       "xero_payroll_calendar_name": "Weekly Testing",
       "logo": "app_images/docketworks_logo.png",
