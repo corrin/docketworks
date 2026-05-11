@@ -2094,11 +2094,19 @@ def _delete_existing_leave_for_week(
 
     deleted_count = 0
     for leave in response.leave:
+        leave_start_date = _coerce_xero_date(leave.start_date)
+        leave_end_date = _coerce_xero_date(leave.end_date)
+        if leave_start_date is None or leave_end_date is None:
+            raise ValueError(
+                f"Xero leave {leave.leave_id} has invalid date range: "
+                f"{leave.start_date!r} to {leave.end_date!r}"
+            )
+
         # Only delete leave fully within the week
-        if leave.start_date >= week_start_date and leave.end_date <= week_end_date:
+        if leave_start_date >= week_start_date and leave_end_date <= week_end_date:
             logger.info(
                 f"Deleting existing leave {leave.leave_id} "
-                f"({leave.start_date} to {leave.end_date})"
+                f"({leave_start_date} to {leave_end_date})"
             )
             payroll_api.delete_employee_leave(
                 xero_tenant_id=tenant_id,

@@ -10,9 +10,11 @@ type Job = z.infer<typeof schemas.ModernTimesheetJob>
 type WeeklyOverviewData = z.infer<typeof schemas.WeeklyTimesheetData>
 
 export class TimesheetService {
-  static async getStaff(): Promise<Staff[]> {
+  static async getStaff(targetDate?: string): Promise<Staff[]> {
     try {
-      const staffResponse = await api.timesheets_staff_retrieve()
+      const staffResponse = await api.timesheets_staff_retrieve(
+        targetDate ? { queries: { date: targetDate } } : undefined,
+      )
       const staffList = staffResponse.staff ?? []
 
       const defaults = await api.company_defaults_retrieve()
