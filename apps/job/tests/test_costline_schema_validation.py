@@ -54,6 +54,7 @@ class CostLineSchemaValidationTests(BaseTestCase):
             "date": date.today().isoformat(),
             "is_billable": True,
             "wage_rate_multiplier": 1.5,
+            "bill_rate_multiplier": 1.0,
             "wage_rate": 45.00,  # JSON requires float, not Decimal
             "charge_out_rate": 90.00,
         }

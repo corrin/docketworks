@@ -55,6 +55,13 @@ try:
         from .paid_flag_service import PaidFlagResult, PaidFlagService
         from .quote_mode_controller import QuoteModeController
         from .quote_sync_service import apply_quote, link_quote_sheet, preview_quote
+        from .time_entry_rates import (
+            calculate_time_unit_rates,
+            get_bill_rate_multiplier,
+            normalize_multiplier,
+            resolve_xero_pay_item,
+            to_decimal,
+        )
         from .workshop_pdf_service import (
             add_delivery_docket_details_table,
             add_handover_section,
@@ -119,6 +126,7 @@ __all__ = [
     "add_workshop_details_table",
     "apply_quote",
     "archive_complete_jobs",
+    "calculate_time_unit_rates",
     "compute_job_delta_checksum",
     "convert_html_to_reportlab",
     "create_delivery_docket_main_document",
@@ -130,6 +138,7 @@ __all__ = [
     "draw_table_with_page_breaks",
     "format_hours_display",
     "generate_delivery_docket",
+    "get_bill_rate_multiplier",
     "get_job_total_value",
     "get_paid_complete_jobs",
     "get_pdf_file_paths",
@@ -141,13 +150,16 @@ __all__ = [
     "link_quote_sheet",
     "merge_pdfs",
     "normalise_value",
+    "normalize_multiplier",
     "preview_quote",
     "preview_quote_import",
     "preview_quote_import_from_drafts",
     "process_attachments",
     "recalculate_job_invoicing_state",
+    "resolve_xero_pay_item",
     "serialize_draft_lines",
     "serialize_validation_report",
     "sync_job_folder",
+    "to_decimal",
     "wait_until_file_ready",
 ]

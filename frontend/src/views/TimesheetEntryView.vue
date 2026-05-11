@@ -937,6 +937,16 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
     return
   }
   const meta = (entry.meta ?? {}) as Record<string, unknown>
+  const wageRateMultiplier =
+    typeof meta.wage_rate_multiplier === 'number' && Number.isFinite(meta.wage_rate_multiplier)
+      ? meta.wage_rate_multiplier
+      : 1.0
+  const billRateMultiplier =
+    typeof meta.bill_rate_multiplier === 'number' && Number.isFinite(meta.bill_rate_multiplier)
+      ? meta.bill_rate_multiplier
+      : meta.is_billable === false
+        ? 0.0
+        : wageRateMultiplier
   const payload = {
     kind: 'time' as const,
     desc: entry.desc ?? '',
@@ -950,6 +960,9 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
       staff_id: selectedStaffId.value,
       date: currentDate.value,
       created_from_timesheet: true,
+      wage_rate_multiplier: wageRateMultiplier,
+      bill_rate_multiplier: billRateMultiplier,
+      is_billable: billRateMultiplier > 0,
     },
   }
   debugLog('[handleCreateEntry] POST payload:', payload, 'jobId:', job.id)
@@ -1239,7 +1252,12 @@ onMounted(async () => {
 
     // initialize() already calls loadStaff, loadJobs, loadCompanyDefaults in parallel
     // No need to call them again - that was causing duplicate API calls
-    await Promise.all([timesheetStore.initialize(), companyDefaultsStore.loadCompanyDefaults()])
+    timesheetStore.selectedDate = currentDate.value
+    timesheetStore.selectedStaffId = selectedStaffId.value
+    await Promise.all([
+      timesheetStore.initialize(currentDate.value),
+      companyDefaultsStore.loadCompanyDefaults(),
+    ])
     debugLog('Company Defaults store value: ', companyDefaultsStore.companyDefaults)
 
     let validStaffId = selectedStaffId.value

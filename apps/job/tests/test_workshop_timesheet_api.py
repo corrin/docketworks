@@ -9,6 +9,7 @@ from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import CostLine, Job
 from apps.testing import BaseAPITestCase
+from apps.workflow.models import XeroPayItem
 
 
 class WorkshopTimesheetAPITests(BaseAPITestCase):
@@ -32,6 +33,7 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
             password="testpassword123",
             first_name="Workshop",
             last_name="User",
+            base_wage_rate=Decimal("40.00"),
         )
         self.other_staff = Staff.objects.create_user(
             email="other-user@example.com",
@@ -41,6 +43,8 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
         )
         self.url = reverse("jobs:api_workshop_timesheets")
         self.today = date.today().isoformat()
+        self.ordinary_pay_item = XeroPayItem.get_by_multiplier(Decimal("1.00"))
+        self.overtime_pay_item = XeroPayItem.get_by_multiplier(Decimal("1.50"))
 
     def _create_entry(self, staff: Staff | None = None) -> dict:
         """Helper: create an entry as the given staff and return the response data."""
@@ -74,6 +78,47 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
         )
         self.assertEqual(resp.status_code, 201, resp.data)
         self.assertEqual(resp.data["job_number"], self.job.job_number)
+
+    def test_create_can_pay_overtime_and_bill_ordinary_time(self) -> None:
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.post(
+            self.url,
+            {
+                "job_id": str(self.job.id),
+                "accounting_date": self.today,
+                "hours": "2.00",
+                "description": "Workshop overtime",
+                "wage_rate_multiplier": "1.50",
+                "bill_rate_multiplier": "1.00",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 201, resp.data)
+        line = CostLine.objects.get(id=resp.data["id"])
+        self.assertEqual(line.unit_cost, Decimal("72.00"))
+        self.assertEqual(line.unit_rev, Decimal("120.00"))
+        self.assertEqual(line.meta["wage_rate_multiplier"], 1.5)
+        self.assertEqual(line.meta["bill_rate_multiplier"], 1.0)
+        self.assertEqual(line.xero_pay_item, self.overtime_pay_item)
+
+    def test_update_pay_multiplier_updates_xero_pay_item(self) -> None:
+        entry = self._create_entry()
+        line = CostLine.objects.get(id=entry["id"])
+        self.assertEqual(line.xero_pay_item, self.ordinary_pay_item)
+
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.patch(
+            self.url,
+            {
+                "entry_id": entry["id"],
+                "wage_rate_multiplier": "1.50",
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.data)
+        line.refresh_from_db()
+        self.assertEqual(line.xero_pay_item, self.overtime_pay_item)
+        self.assertEqual(line.meta["bill_rate_multiplier"], 1.5)
 
     def test_normal_user_can_list_entries(self) -> None:
         self._create_entry()

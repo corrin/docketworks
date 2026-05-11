@@ -729,6 +729,7 @@ class ModernTimesheetEntryPostSerializer(serializers.Serializer):
     is_billable = serializers.BooleanField(default=True)
     hourly_rate = serializers.FloatField(min_value=0, required=False)
     xero_pay_item_id = serializers.UUIDField()
+    bill_rate_multiplier = serializers.FloatField(min_value=0, required=False)
 
 
 class ModernTimesheetEntryPostResponseSerializer(serializers.Serializer):

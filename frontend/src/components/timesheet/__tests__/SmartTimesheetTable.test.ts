@@ -22,6 +22,7 @@ vi.mock('../../../utils/debug', () => ({ debugLog: vi.fn() }))
 import SmartTimesheetTable from '../SmartTimesheetTable.vue'
 import TimesheetJobPicker from '../TimesheetJobPicker.vue'
 import HoursCell from '../HoursCell.vue'
+import { Select } from '../../ui/select'
 import { costlineService } from '../../../services/costline.service'
 
 const sampleJob = {
@@ -77,6 +78,11 @@ const baseProps = {
   accountingDate: '2026-05-01',
   jobs: [sampleJob],
   payItemsByMultiplier: {},
+}
+
+const payItemsByMultiplier = {
+  '1.5': { id: 'pay-15', name: 'Time and one half', multiplier: 1.5 },
+  '2': { id: 'pay-20', name: 'Double Time', multiplier: 2 },
 }
 
 describe('SmartTimesheetTable description keydown (C2 — defensive contract)', () => {
@@ -195,6 +201,133 @@ describe('SmartTimesheetTable description save on a saved row', () => {
     expect(patch).toEqual({ desc: 'new description' })
 
     vi.useRealTimers()
+  })
+})
+
+describe('SmartTimesheetTable bill multiplier editing', () => {
+  beforeEach(() => {
+    vi.mocked(costlineService.updateCostLine).mockClear()
+    vi.mocked(costlineService.updateCostLine).mockResolvedValue({})
+  })
+
+  it('mirrors Bill to Pay until Bill is explicitly changed', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const saved = buildSavedEntry()
+    const wrapper = mount(SmartTimesheetTable, {
+      props: { ...baseProps, entries: [saved], payItemsByMultiplier },
+    })
+    await flushPromises()
+
+    const selects = wrapper.findAllComponents(Select)
+    selects[0].vm.$emit('update:modelValue', '1.5')
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+
+    const [, patch] = vi.mocked(costlineService.updateCostLine).mock.calls[0]
+    expect(patch.meta).toMatchObject({
+      wage_rate_multiplier: 1.5,
+      bill_rate_multiplier: 1.5,
+      is_billable: true,
+    })
+    expect(patch.xero_pay_item).toBe('pay-15')
+    vi.useRealTimers()
+  })
+
+  it('keeps an explicit Bill override when Pay changes later', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true })
+    const saved = buildSavedEntry({
+      meta: {
+        staff_id: 's1',
+        date: '2026-05-01',
+        is_billable: true,
+        wage_rate_multiplier: 1.5,
+      },
+    })
+    const wrapper = mount(SmartTimesheetTable, {
+      props: { ...baseProps, entries: [saved], payItemsByMultiplier },
+    })
+    await flushPromises()
+
+    const selects = wrapper.findAllComponents(Select)
+    selects[1].vm.$emit('update:modelValue', 'Ord')
+    selects[0].vm.$emit('update:modelValue', '2.0')
+    await vi.advanceTimersByTimeAsync(700)
+    await flushPromises()
+
+    const [, patch] = vi.mocked(costlineService.updateCostLine).mock.calls.at(-1) ?? []
+    expect(patch?.meta).toMatchObject({
+      wage_rate_multiplier: 2,
+      bill_rate_multiplier: 1,
+      is_billable: true,
+    })
+    expect(patch?.xero_pay_item).toBe('pay-20')
+    vi.useRealTimers()
+  })
+
+  it('marks Invoice red when it differs from Wage', async () => {
+    const saved = buildSavedEntry({
+      meta: {
+        staff_id: 's1',
+        date: '2026-05-01',
+        is_billable: true,
+        wage_rate_multiplier: 1.5,
+        bill_rate_multiplier: 1.0,
+      },
+    })
+    const wrapper = mount(SmartTimesheetTable, {
+      props: { ...baseProps, entries: [saved], payItemsByMultiplier },
+    })
+    await flushPromises()
+
+    const invoiceTrigger = wrapper.find('[data-automation-id="SmartTimesheetTable-billRate-0"]')
+    expect(invoiceTrigger.classes()).toContain('border-red-500')
+    expect(invoiceTrigger.classes()).toContain('text-red-700')
+  })
+
+  it('does not mark Invoice red for shop jobs that are unpaid', async () => {
+    const saved = buildSavedEntry({
+      job_id: 'shop-job',
+      job_number: 200,
+      meta: {
+        staff_id: 's1',
+        date: '2026-05-01',
+        is_billable: false,
+        wage_rate_multiplier: 1.5,
+        bill_rate_multiplier: 0.0,
+      },
+    })
+    const shopJob = {
+      ...sampleJob,
+      id: 'shop-job',
+      job_number: 200,
+      shop_job: true,
+    }
+    const wrapper = mount(SmartTimesheetTable, {
+      props: { ...baseProps, entries: [saved], jobs: [shopJob], payItemsByMultiplier },
+    })
+    await flushPromises()
+
+    const invoiceTrigger = wrapper.find('[data-automation-id="SmartTimesheetTable-billRate-0"]')
+    expect(invoiceTrigger.classes()).not.toContain('border-red-500')
+    expect(invoiceTrigger.classes()).not.toContain('text-red-700')
+  })
+})
+
+describe('SmartTimesheetTable pay item visibility', () => {
+  it('does not render the Xero pay item as a timesheet entry column', async () => {
+    const saved = buildSavedEntry({
+      xero_pay_item: 'pay-15',
+      xero_pay_item_name: 'Time and one half (old)',
+    })
+    const wrapper = mount(SmartTimesheetTable, {
+      props: { ...baseProps, entries: [saved], payItemsByMultiplier },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('[data-automation-id="SmartTimesheetTable-payItem-0"]').exists()).toBe(
+      false,
+    )
+    expect(wrapper.text()).not.toContain('Time and one half (old)')
   })
 })
 

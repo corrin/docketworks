@@ -101,6 +101,7 @@ class CostLine(models.Model):
         - start_time (str, ISO time): Start time of the timesheet entry
         - end_time (str, ISO time): End time of the timesheet entry
         - wage_rate_multiplier (float): Multiplier for staff wage rate (e.g., 1.5 for overtime)
+        - bill_rate_multiplier (float): Multiplier for customer bill rate
         - note (str): Optional notes about the time entry
         - created_from_timesheet (bool): True if created via modern timesheet interface
         - wage_rate (float): Wage rate at time of entry (for timesheet entries)

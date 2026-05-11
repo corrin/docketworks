@@ -236,6 +236,9 @@ class WorkshopTimesheetEntrySerializer(serializers.Serializer):
     wage_rate_multiplier = serializers.DecimalField(
         max_digits=4, decimal_places=2, read_only=True
     )
+    bill_rate_multiplier = serializers.DecimalField(
+        max_digits=4, decimal_places=2, read_only=True
+    )
     created_at = serializers.DateTimeField(read_only=True)
     updated_at = serializers.DateTimeField(read_only=True)
 
@@ -247,6 +250,19 @@ class WorkshopTimesheetEntrySerializer(serializers.Serializer):
             rate_multiplier = Decimal(str(raw_multiplier))
         except (InvalidOperation, TypeError):
             rate_multiplier = Decimal("1.0")
+        raw_bill_multiplier = meta.get("bill_rate_multiplier")
+        try:
+            bill_rate_multiplier = (
+                Decimal(str(raw_bill_multiplier))
+                if raw_bill_multiplier is not None
+                else (
+                    Decimal("0.0")
+                    if meta.get("is_billable") is False
+                    else rate_multiplier
+                )
+            )
+        except (InvalidOperation, TypeError):
+            bill_rate_multiplier = rate_multiplier
 
         return {
             "id": str(instance.id),
@@ -261,6 +277,7 @@ class WorkshopTimesheetEntrySerializer(serializers.Serializer):
             "end_time": meta.get("end_time"),
             "is_billable": bool(meta.get("is_billable", True)),
             "wage_rate_multiplier": float(rate_multiplier),
+            "bill_rate_multiplier": float(bill_rate_multiplier),
             "created_at": instance.created_at,
             "updated_at": instance.updated_at,
         }
@@ -287,6 +304,22 @@ class WorkshopTimesheetEntryRequestSerializer(serializers.Serializer):
         min_value=Decimal("0.0"),
         default=Decimal("1.0"),
     )
+    bill_rate_multiplier = serializers.DecimalField(
+        max_digits=4,
+        decimal_places=2,
+        required=False,
+        min_value=Decimal("0.0"),
+    )
+
+    def validate(self, attrs):
+        if "bill_rate_multiplier" not in attrs:
+            if attrs.get("is_billable", True):
+                attrs["bill_rate_multiplier"] = attrs.get(
+                    "wage_rate_multiplier", Decimal("1.0")
+                )
+            else:
+                attrs["bill_rate_multiplier"] = Decimal("0.0")
+        return attrs
 
 
 class WorkshopTimesheetEntryUpdateSerializer(serializers.Serializer):
@@ -308,6 +341,9 @@ class WorkshopTimesheetEntryUpdateSerializer(serializers.Serializer):
     end_time = serializers.TimeField(required=False, allow_null=True)
     is_billable = serializers.BooleanField(required=False)
     wage_rate_multiplier = serializers.DecimalField(
+        max_digits=4, decimal_places=2, required=False, min_value=Decimal("0.0")
+    )
+    bill_rate_multiplier = serializers.DecimalField(
         max_digits=4, decimal_places=2, required=False, min_value=Decimal("0.0")
     )
 

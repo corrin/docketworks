@@ -13846,6 +13846,10 @@ components:
         xero_pay_item_id:
           type: string
           format: uuid
+        bill_rate_multiplier:
+          type: number
+          format: double
+          minimum: 0
       required:
         - date
         - description
@@ -15183,6 +15187,12 @@ components:
         is_billable:
           type: boolean
         wage_rate_multiplier:
+          type: number
+          format: double
+          maximum: 100
+          minimum: 0.0
+          exclusiveMaximum: true
+        bill_rate_multiplier:
           type: number
           format: double
           maximum: 100
@@ -19841,6 +19851,14 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           readOnly: true
+        bill_rate_multiplier:
+          type: number
+          format: double
+          maximum: 100
+          minimum: -100
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -19851,6 +19869,7 @@ components:
           readOnly: true
       required:
         - accounting_date
+        - bill_rate_multiplier
         - client_name
         - created_at
         - description
@@ -19902,6 +19921,12 @@ components:
           minimum: 0.0
           exclusiveMaximum: true
           default: 1.00
+        bill_rate_multiplier:
+          type: number
+          format: double
+          maximum: 100
+          minimum: 0.0
+          exclusiveMaximum: true
       required:
         - accounting_date
         - hours
