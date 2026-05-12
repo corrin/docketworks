@@ -24,9 +24,11 @@ try:
         )
         from .client import RateLimitedRESTClient, quota_floor_breached
         from .payroll import (
+            DraftPayRunBlocksLeaveDeletion,
             create_employee_leave,
             create_pay_run,
             create_payroll_employee,
+            delete_same_week_draft_pay_run,
             ensure_earnings_rate_cache,
             ensure_leave_type_cache,
             ensure_pay_run_for_week,
@@ -48,6 +50,8 @@ try:
             next_postable_payroll_week,
             post_staff_week_to_xero,
             post_timesheet,
+            reconcile_leave_for_staff_week,
+            reconcile_leave_for_week_for_staff,
             sync_xero_pay_items,
             update_employee_name,
             validate_pay_items_for_week,
@@ -141,6 +145,7 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "DraftPayRunBlocksLeaveDeletion",
     "NoActiveXeroApp",
     "RateLimitedRESTClient",
     "_ApiClientProxy",
@@ -156,6 +161,7 @@ __all__ = [
     "create_project",
     "create_time_entries",
     "deep_sync_xero_data",
+    "delete_same_week_draft_pay_run",
     "ensure_earnings_rate_cache",
     "ensure_leave_type_cache",
     "ensure_pay_run_for_week",
@@ -201,6 +207,8 @@ __all__ = [
     "process_xero_data",
     "process_xero_item",
     "quota_floor_breached",
+    "reconcile_leave_for_staff_week",
+    "reconcile_leave_for_week_for_staff",
     "refresh_token",
     "reprocess_all",
     "reprocess_bills",

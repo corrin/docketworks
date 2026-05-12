@@ -43,10 +43,26 @@ def repoint_stale_time_pay_items(apps, schema_editor):
     lines = CostLine.objects.filter(
         cost_set__kind="actual",
         kind="time",
-    ).only("id", "meta", "xero_pay_item")
+    ).select_related("cost_set__job__default_xero_pay_item")
 
     for line in lines.iterator():
         meta = line.meta if isinstance(line.meta, dict) else {}
+        job = line.cost_set.job
+        job_pay_item = job.default_xero_pay_item
+        if job_pay_item and job_pay_item.uses_leave_api:
+            leave_meta = {**meta}
+            if "unpaid" in job_pay_item.name.lower():
+                leave_meta["wage_rate_multiplier"] = 0.0
+            else:
+                leave_meta["wage_rate_multiplier"] = 1.0
+            leave_meta["bill_rate_multiplier"] = 0.0
+            leave_meta["is_billable"] = False
+            CostLine.objects.filter(pk=line.pk).update(
+                xero_pay_item_id=job_pay_item.id,
+                meta=leave_meta,
+            )
+            continue
+
         multiplier = _normalized_multiplier(meta.get("wage_rate_multiplier"))
         if multiplier is None:
             continue

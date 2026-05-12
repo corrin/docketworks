@@ -9,8 +9,10 @@ from apps.job.models import CostLine, CostSet
 from apps.job.services.time_entry_rates import (
     calculate_time_unit_rates,
     get_bill_rate_multiplier,
+    is_leave_pay_item,
+    leave_wage_rate_multiplier,
     normalize_multiplier,
-    resolve_xero_pay_item,
+    resolve_xero_pay_item_for_job,
 )
 from apps.workflow.models import CompanyDefaults
 
@@ -220,9 +222,17 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                     raise exception
 
                 wage_rate_multiplier = normalize_multiplier(rate_multiplier_value)
-                bill_rate_multiplier = get_bill_rate_multiplier(
-                    meta, wage_rate_multiplier
+                pay_item = resolve_xero_pay_item_for_job(
+                    job=job,
+                    wage_rate_multiplier=wage_rate_multiplier,
                 )
+                if is_leave_pay_item(pay_item):
+                    wage_rate_multiplier = leave_wage_rate_multiplier(pay_item)
+                    bill_rate_multiplier = Decimal("0.00")
+                else:
+                    bill_rate_multiplier = get_bill_rate_multiplier(
+                        meta, wage_rate_multiplier
+                    )
                 unit_cost, unit_rev, wage_rate, charge_out_rate = (
                     calculate_time_unit_rates(
                         wage_rate=wage_rate,
@@ -233,9 +243,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                 )
                 self.validated_data["unit_cost"] = unit_cost
                 self.validated_data["unit_rev"] = unit_rev
-                self.validated_data["xero_pay_item"] = resolve_xero_pay_item(
-                    wage_rate_multiplier
-                )
+                self.validated_data["xero_pay_item"] = pay_item
                 meta["wage_rate_multiplier"] = float(wage_rate_multiplier)
                 meta["bill_rate_multiplier"] = float(bill_rate_multiplier)
                 meta["is_billable"] = bill_rate_multiplier > Decimal("0.00")

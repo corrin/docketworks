@@ -46,6 +46,7 @@ from apps.workflow.api.xero.payroll import (
     get_payroll_calendar_id,
     next_postable_payroll_week,
     post_staff_week_to_xero,
+    reconcile_leave_for_week_for_staff,
     validate_pay_items_for_week,
 )
 from apps.workflow.api.xero.sync import sync_all_xero_data
@@ -630,6 +631,18 @@ def stream_payroll_post(request, task_id):
             yield f"data: {json.dumps({'event': 'done', 'successful': 0, 'failed': total, 'datetime': timezone.now().isoformat()})}\n\n"
             return
 
+        # FAIL EARLY: reconcile Xero Leave API records before creating or reusing
+        # the draft pay run. Xero locks leave deletion once the employee is
+        # included in a draft pay run.
+        try:
+            reconcile_leave_for_week_for_staff(staff_uuids, week_start_date)
+        except Exception as exc:
+            logger.exception("Failed to delete stale Xero leave before posting")
+            persist_app_error(exc)
+            yield f"data: {json.dumps({'event': 'error', 'message': str(exc), 'datetime': timezone.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'event': 'done', 'successful': 0, 'failed': total, 'datetime': timezone.now().isoformat()})}\n\n"
+            return
+
         # FAIL EARLY: ensure Xero has a valid pay run/pay period for this week
         try:
             ensure_pay_run_for_week(week_start_date)
@@ -695,6 +708,7 @@ def stream_payroll_post(request, task_id):
                     staff_id=staff_id,
                     week_start_date=week_start_date,
                     existing_timesheet=existing,
+                    leave_already_reconciled=True,
                 )
 
                 if result["success"]:

@@ -49,6 +49,32 @@ def resolve_xero_pay_item(wage_rate_multiplier: Decimal) -> XeroPayItem:
     return pay_item
 
 
+def is_leave_pay_item(pay_item: XeroPayItem | None) -> bool:
+    return pay_item is not None and pay_item.uses_leave_api
+
+
+def leave_wage_rate_multiplier(pay_item: XeroPayItem) -> Decimal:
+    if "unpaid" in pay_item.name.lower():
+        return ZERO_MULTIPLIER
+    return DEFAULT_MULTIPLIER
+
+
+def resolve_xero_pay_item_for_job(
+    *,
+    job: Any,
+    wage_rate_multiplier: Decimal,
+) -> XeroPayItem:
+    job_pay_item = getattr(job, "default_xero_pay_item", None)
+    if is_leave_pay_item(job_pay_item):
+        if not job_pay_item.xero_id:
+            raise ValidationError(
+                f"Leave job '{job.name}' has Xero pay item "
+                f"'{job_pay_item.name}' with no xero_id."
+            )
+        return job_pay_item
+    return resolve_xero_pay_item(wage_rate_multiplier)
+
+
 def calculate_time_unit_rates(
     *,
     wage_rate: Any,

@@ -35,7 +35,10 @@ from apps.job.serializers.job_serializer import (
 from apps.job.services.time_entry_rates import (
     calculate_time_unit_rates,
     get_bill_rate_multiplier,
+    is_leave_pay_item,
+    leave_wage_rate_multiplier,
     normalize_multiplier,
+    resolve_xero_pay_item_for_job,
 )
 from apps.workflow.models import XeroPayItem
 from apps.workflow.services.error_persistence import persist_app_error
@@ -353,22 +356,34 @@ class ModernTimesheetEntryView(APIView):
                 error_serializer.is_valid(raise_exception=True)
                 return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
 
-            # Get rate multiplier from the selected XeroPayItem
-            xero_pay_item = XeroPayItem.objects.get(id=xero_pay_item_id)
-            rate_multiplier = xero_pay_item.multiplier
-            if rate_multiplier is None:
-                raise ValueError(
-                    f"XeroPayItem '{xero_pay_item.name}' has NULL multiplier — "
-                    f"re-run Xero pay item sync to fix"
-                )
-            rate_multiplier = normalize_multiplier(rate_multiplier)
-            bill_rate_multiplier = get_bill_rate_multiplier(
-                {
-                    "is_billable": is_billable,
-                    "bill_rate_multiplier": validated_data.get("bill_rate_multiplier"),
-                },
-                rate_multiplier,
+            selected_pay_item = XeroPayItem.objects.get(id=xero_pay_item_id)
+            selected_multiplier = selected_pay_item.multiplier
+            rate_multiplier = normalize_multiplier(
+                selected_multiplier if selected_multiplier is not None else 1
             )
+            xero_pay_item = resolve_xero_pay_item_for_job(
+                job=job,
+                wage_rate_multiplier=rate_multiplier,
+            )
+            if is_leave_pay_item(xero_pay_item):
+                rate_multiplier = leave_wage_rate_multiplier(xero_pay_item)
+                bill_rate_multiplier = Decimal("0.00")
+            else:
+                if selected_multiplier is None:
+                    raise ValueError(
+                        f"XeroPayItem '{selected_pay_item.name}' has NULL multiplier "
+                        "and cannot be used for work time — re-run Xero pay item sync "
+                        "to fix"
+                    )
+                bill_rate_multiplier = get_bill_rate_multiplier(
+                    {
+                        "is_billable": is_billable,
+                        "bill_rate_multiplier": validated_data.get(
+                            "bill_rate_multiplier"
+                        ),
+                    },
+                    rate_multiplier,
+                )
 
             # Get rates from staff and job
             wage_rate = hourly_rate if hourly_rate else staff.wage_rate
@@ -411,7 +426,7 @@ class ModernTimesheetEntryView(APIView):
                     unit_cost=unit_cost,
                     unit_rev=unit_rev,
                     accounting_date=entry_date,
-                    xero_pay_item_id=xero_pay_item_id,
+                    xero_pay_item=xero_pay_item,
                     ext_refs={},
                     meta={
                         "staff_id": str(staff_id),
