@@ -77,7 +77,7 @@ def repoint_stale_time_pay_items(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("job", "0084_backfill_time_rate_multipliers"),
+        ("job", "0085_backfill_time_rate_multipliers"),
     ]
 
     operations = [

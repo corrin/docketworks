@@ -47,6 +47,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const activeStaffFilters = ref<string[]>([])
   const advancedFilters = ref<AdvancedFilters>({ ...DEFAULT_ADVANCED_FILTERS })
   const filteredJobs = ref<KanbanJob[]>([])
+  let latestSearchRequestId = 0
 
   // Column-based state management
   const columnStates = reactive<Record<string, ColumnState>>({})
@@ -114,6 +115,27 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       total: null,
       error: null,
     }
+  }
+
+  const getAllLoadedJobs = (): KanbanJob[] => {
+    const allJobs: KanbanJob[] = []
+    Object.values(columnStates).forEach((columnState) => {
+      allJobs.push(...columnState.jobs)
+    })
+    return allJobs
+  }
+
+  const searchJobsLocally = (jobs: KanbanJob[], query: string): KanbanJob[] => {
+    const normalizedQuery = query.toLowerCase()
+    return jobs.filter((job) => {
+      return (
+        job.name?.toLowerCase().includes(normalizedQuery) ||
+        job.description?.toLowerCase().includes(normalizedQuery) ||
+        job.client_name?.toLowerCase().includes(normalizedQuery) ||
+        String(job.job_number).toLowerCase().includes(normalizedQuery) ||
+        job.contact_person?.toLowerCase().includes(normalizedQuery)
+      )
+    })
   }
 
   // Staff filter logic
@@ -497,71 +519,64 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     }
   }
 
-  // Search functionality - search locally first, then backend if no results
-  const handleSearch = async (): Promise<void> => {
-    if (!searchQuery.value.trim()) {
-      filteredJobs.value = []
+  const performBackendSearch = async (query: string, requestId: number): Promise<void> => {
+    if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
       return
     }
 
     try {
       isLoading.value = true
 
-      // First search locally in loaded jobs
-      const allJobs: KanbanJob[] = []
-      Object.values(columnStates).forEach((columnState) => {
-        allJobs.push(...columnState.jobs)
-      })
-
-      const query = searchQuery.value.toLowerCase()
-      const localResults = allJobs.filter((job) => {
-        return (
-          job.name?.toLowerCase().includes(query) ||
-          job.description?.toLowerCase().includes(query) ||
-          job.client_name?.toLowerCase().includes(query) ||
-          String(job.job_number).toLowerCase().includes(query) ||
-          job.contact_person?.toLowerCase().includes(query)
-        )
-      })
-
-      if (localResults.length > 0) {
-        // Use local results if found
-        filteredJobs.value = localResults
-      } else {
-        // If no local results, search backend using universal search parameter
-        const searchFilters: AdvancedFilters = {
-          ...DEFAULT_ADVANCED_FILTERS,
-          q: searchQuery.value.trim(),
-        }
-
-        const response: AdvancedSearchResponse =
-          await jobService.performAdvancedSearch(searchFilters)
-        filteredJobs.value = response.jobs || []
+      const searchFilters: AdvancedFilters = {
+        ...DEFAULT_ADVANCED_FILTERS,
+        q: query,
       }
 
-      debugLog(
-        `Search completed: ${filteredJobs.value.length} jobs found for "${searchQuery.value}"`,
-      )
+      const response: AdvancedSearchResponse = await jobService.performAdvancedSearch(searchFilters)
+      if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
+        return
+      }
+
+      filteredJobs.value = response.jobs || []
+      debugLog(`Search reconciled from backend: ${filteredJobs.value.length} jobs for "${query}"`)
     } catch (err) {
+      if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
+        return
+      }
       debugLog('Error performing search:', err)
-
-      // Fallback to local search if backend search fails
-      const allJobs: KanbanJob[] = []
-      Object.values(columnStates).forEach((columnState) => {
-        allJobs.push(...columnState.jobs)
-      })
-
-      const query = searchQuery.value.toLowerCase()
-      filteredJobs.value = allJobs.filter((job) => {
-        return (
-          job.name?.toLowerCase().includes(query) ||
-          job.description?.toLowerCase().includes(query) ||
-          job.client_name?.toLowerCase().includes(query)
-        )
-      })
+      filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), query)
     } finally {
-      isLoading.value = false
+      if (requestId === latestSearchRequestId) {
+        isLoading.value = false
+      }
     }
+  }
+
+  const debouncedBackendSearch = useDebounceFn((query: string, requestId: number) => {
+    return performBackendSearch(query, requestId)
+  }, 300)
+
+  // Search functionality - show immediate local substring matches, then
+  // reconcile with backend results once the debounced request returns.
+  const handleSearch = async (): Promise<void> => {
+    const trimmedQuery = searchQuery.value.trim()
+    latestSearchRequestId += 1
+    const requestId = latestSearchRequestId
+
+    if (!trimmedQuery) {
+      filteredJobs.value = []
+      isLoading.value = false
+      return
+    }
+
+    filteredJobs.value = searchJobsLocally(getAllLoadedJobs(), trimmedQuery)
+    debouncedBackendSearch(trimmedQuery, requestId)
+
+    // Every non-empty query shows immediate local substring matches first, then
+    // reconciles against backend token-order search after the debounce settles.
+    debugLog(
+      `Search started locally: ${filteredJobs.value.length} jobs found for "${searchQuery.value}"`,
+    )
   }
 
   // Advanced search

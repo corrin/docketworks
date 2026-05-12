@@ -46,7 +46,7 @@ def reconcile_time_xero_pay_items(apps, schema_editor):
 
 class Migration(migrations.Migration):
     dependencies = [
-        ("job", "0082_drop_jobevent_description"),
+        ("job", "0083_enable_pg_trgm"),
     ]
 
     operations = [

@@ -101,6 +101,37 @@ class EnsureDemoXeroItemsExistTests(TestCase):
     @patch("apps.workflow.management.commands.xero.PayrollNzApi")
     @patch("apps.workflow.management.commands.xero.get_leave_types")
     @patch("apps.workflow.management.commands.xero.get_earnings_rates")
+    def test_unpaid_leave_is_provisioned_as_unpaid(
+        self,
+        mock_get_earnings_rates,
+        mock_get_leave_types,
+        mock_payroll_api_cls,
+    ):
+        self._leave_item(name="Unpaid Leave")
+        mock_get_earnings_rates.return_value = [
+            {"name": "Ordinary Time", "expense_account_id": "exp-123"}
+        ]
+        mock_get_leave_types.return_value = []
+        mock_payroll_api = mock_payroll_api_cls.return_value
+
+        cmd = Command()
+        cmd._ensure_demo_xero_items_exist("", "tenant-123")
+
+        created_leave_types = [
+            call.kwargs["leave_type"]
+            for call in mock_payroll_api.create_leave_type.call_args_list
+        ]
+
+        matched_leave_type = next(
+            leave_type
+            for leave_type in created_leave_types
+            if leave_type.name == "Unpaid Leave"
+        )
+        self.assertFalse(matched_leave_type.is_paid_leave)
+
+    @patch("apps.workflow.management.commands.xero.PayrollNzApi")
+    @patch("apps.workflow.management.commands.xero.get_leave_types")
+    @patch("apps.workflow.management.commands.xero.get_earnings_rates")
     def test_skips_destination_items_that_already_exist_by_name(
         self,
         mock_get_earnings_rates,

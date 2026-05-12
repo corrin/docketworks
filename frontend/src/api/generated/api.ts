@@ -2672,6 +2672,7 @@ const StockItem = z.object({
   specifics: z.string().max(255).nullish(),
   is_active: z.boolean().optional(),
   job_id: z.string().uuid().nullable(),
+  times_used: z.number().int(),
 })
 const StockItemRequest = z.object({
   item_code: z.string().max(255).nullish(),
@@ -2708,6 +2709,13 @@ const StockConsumeRequest = z.object({
   quantity: z.number().gte(0).lt(100000000),
   unit_cost: z.number().gt(-100000000).lt(100000000).nullish(),
   unit_rev: z.number().gt(-100000000).lt(100000000).nullish(),
+})
+const StockSearchResponse = z.object({
+  results: z.array(StockItem),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
 })
 const SupplierPriceStatusItem = z.object({
   supplier_id: z.string().uuid(),
@@ -3453,6 +3461,7 @@ export const schemas = {
   StockItemRequest,
   PatchedStockItemRequest,
   StockConsumeRequest,
+  StockSearchResponse,
   SupplierPriceStatusItem,
   SupplierPriceStatusResponse,
   ScheduledTaskExecution,
@@ -8036,6 +8045,41 @@ Custom Actions:
       },
     ],
     response: StockConsumeResponse,
+  },
+  {
+    method: 'get',
+    path: '/api/purchasing/stock/search/',
+    alias: 'purchasing_stock_search_retrieve',
+    description: `REST view for paginated stock search.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'q',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'sort_by',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'sort_dir',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: StockSearchResponse,
   },
   {
     method: 'get',

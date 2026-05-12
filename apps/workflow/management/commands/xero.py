@@ -388,11 +388,12 @@ class Command(BaseCommand):
                 if item.name in existing_leave:
                     continue
                 self.stdout.write(f"Leave type '{item.name}' not found — creating it.")
+                is_paid_leave = item.name != "Unpaid Leave"
                 payroll_api.create_leave_type(
                     xero_tenant_id=tenant_id,
                     leave_type=LeaveType(
                         name=item.name,
-                        is_paid_leave=item.multiplier != 0,
+                        is_paid_leave=is_paid_leave,
                         show_on_payslip=True,
                     ),
                 )

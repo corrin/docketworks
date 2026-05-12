@@ -312,10 +312,15 @@ class StockItemSerializer(serializers.ModelSerializer):
     """Serializer for individual stock items."""
 
     job_id = serializers.UUIDField(source="job.id", read_only=True, allow_null=True)
+    times_used = serializers.SerializerMethodField()
 
     class Meta:
         model = Stock
-        fields = Stock.STOCK_API_FIELDS + ["job_id"]
+        fields = Stock.STOCK_API_FIELDS + ["job_id", "times_used"]
+
+    def get_times_used(self, obj: Stock) -> int:
+        """Always emit a numeric usage count for generated client validation."""
+        return int(getattr(obj, "times_used", 0) or 0)
 
 
 class StockListSerializer(serializers.Serializer):
@@ -323,6 +328,16 @@ class StockListSerializer(serializers.Serializer):
 
     items = StockItemSerializer(many=True)
     total_count = serializers.IntegerField()
+
+
+class StockSearchResponseSerializer(serializers.Serializer):
+    """Serializer for paginated stock search response."""
+
+    results = StockItemSerializer(many=True)
+    count = serializers.IntegerField()
+    page = serializers.IntegerField()
+    page_size = serializers.IntegerField()
+    total_pages = serializers.IntegerField()
 
 
 class StockCreateSerializer(serializers.Serializer):

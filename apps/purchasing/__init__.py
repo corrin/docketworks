@@ -59,6 +59,7 @@ try:
             StockDeactivateResponseSerializer,
             StockItemSerializer,
             StockListSerializer,
+            StockSearchResponseSerializer,
             SupplierPriceStatusItemSerializer,
             SupplierPriceStatusResponseSerializer,
         )
@@ -116,6 +117,7 @@ __all__ = [
     "StockDeactivateResponseSerializer",
     "StockItemSerializer",
     "StockListSerializer",
+    "StockSearchResponseSerializer",
     "SupplierPriceStatusItemSerializer",
     "SupplierPriceStatusResponseSerializer",
     "generate_po_etag",
