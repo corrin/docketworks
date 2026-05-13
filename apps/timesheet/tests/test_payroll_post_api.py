@@ -24,10 +24,15 @@ class PayrollPostStartApiTests(BaseTestCase):
             is_superuser=True,
             is_office_staff=True,
         )
-        # The stream endpoint (stream_payroll_post) is a plain Django view, not
-        # DRF — DRF's force_authenticate doesn't authenticate it. Use force_login
-        # so the session cookie carries through to both view styles. Same pattern
-        # as test_permissions.test_stream_payroll_blocked_for_normal_user.
+        # Two auth setups: the POST endpoint is a DRF view (uses
+        # force_authenticate, which bypasses DRF's auth chain entirely), and the
+        # stream endpoint is a plain Django view gated by _require_authenticated_api
+        # (needs a real session). Doing both keeps the test working under either
+        # ENABLE_JWT_AUTH=True (local) or =False (CI / .env.precommit), since
+        # the custom JWTAuthentication returns None unconditionally when JWT auth
+        # is disabled and the session-fallback path is therefore unreachable.
+        # Sibling: test_permissions.test_stream_payroll_blocked_for_normal_user.
+        self.client_api.force_authenticate(user=self.superuser)
         self.client_api.force_login(self.superuser)
 
     @patch("apps.timesheet.views.api.uuid_module.uuid4")
