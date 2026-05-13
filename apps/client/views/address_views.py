@@ -102,6 +102,6 @@ class AddressValidateView(APIView):
             persist_app_error(exc)
             logger.exception("Address validation failed")
             return Response(
-                {"error": "Address validation failed"},
+                {"error": str(exc)},
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
