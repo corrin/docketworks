@@ -22,19 +22,41 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.accounts.models import Staff
+from apps.client.models import Client, ClientContact
+from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 
-def _stock_version() -> str:
-    agg = Stock.objects.aggregate(m=Max("updated_at"), c=Count("id"))
+def _model_version(model, updated_field: str) -> str:
+    agg = model.objects.aggregate(m=Max(updated_field), c=Count("id"))
     max_ts = agg["m"].timestamp() if agg["m"] is not None else 0.0
     return f"{max_ts}-{agg['c']}"
 
 
+def _stock_version() -> str:
+    return _model_version(Stock, "updated_at")
+
+
+def _kanban_version() -> str:
+    # Tracks inputs read by KanbanService.serialize_job_for_api() plus column
+    # membership/order. This is deliberately conservative: false positives
+    # only trigger a reload, while false negatives would serve stale cards.
+    return "|".join(
+        [
+            _model_version(Job, "updated_at"),
+            _model_version(Client, "django_updated_at"),
+            _model_version(ClientContact, "updated_at"),
+            _model_version(Staff, "updated_at"),
+        ]
+    )
+
+
 DATASET_VERSION_PROVIDERS: Dict[str, Callable[[], str]] = {
     "stock": _stock_version,
+    "kanban": _kanban_version,
 }
 
 

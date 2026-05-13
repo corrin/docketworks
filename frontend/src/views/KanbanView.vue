@@ -332,7 +332,6 @@ const {
   getColumnLoadedCount,
   isSearchActive,
 
-  loadJobs,
   handleAdvancedSearch,
   clearFilters,
   loadMoreJobs,
@@ -598,10 +597,6 @@ function getMobileCountDisplay(statusKey: string): string {
   }
   return String(visibleCount)
 }
-
-onMounted(async () => {
-  await loadJobs()
-})
 
 onUnmounted(() => {
   destroyAllSortables()

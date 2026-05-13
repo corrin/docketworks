@@ -5,6 +5,8 @@ import { debugLog } from '../utils/debug'
 import type { z } from 'zod'
 import { api } from '../api/client'
 import { jobService } from '../services/job.service'
+import { dataFreshness } from '../composables/useDataFreshness'
+import { createDatasetCache } from '../composables/useDatasetCache'
 
 type Job = z.infer<typeof schemas.Job>
 type JobDetail = z.infer<typeof schemas.JobDetailResponse>['data']
@@ -13,12 +15,17 @@ type JobDetail = z.infer<typeof schemas.JobDetailResponse>['data']
 type JobBasicInfo = z.infer<typeof schemas.JobBasicInformationResponse>
 type JobEvent = z.infer<typeof schemas.JobEvent>
 type KanbanJobUI = z.infer<typeof schemas.KanbanJob>
+type FetchJobsByColumnResponse = z.infer<typeof schemas.FetchJobsByColumnResponse>
+type KanbanColumnCacheEntry = Omit<FetchJobsByColumnResponse, 'jobs'> & {
+  jobIds: string[]
+}
 type CompanyDefaultsJobDetail = z.infer<typeof schemas.CompanyDefaultsJobDetail>
 type JobHeaderResponse = z.infer<typeof schemas.JobHeaderResponse>
 
 export const useJobsStore = defineStore('jobs', () => {
   const detailedJobs = ref<Record<string, JobDetail>>({})
   const kanbanJobs = ref<Record<string, KanbanJobUI>>({})
+  const kanbanColumnCache = ref<Record<string, KanbanColumnCacheEntry>>({})
   const headersById = ref<Record<string, JobHeaderResponse>>({})
   const basicInfoById = ref<Record<string, JobBasicInfo>>({})
   // Conflict reload timestamp per jobId for UI sync (JobView / JobSettings)
@@ -29,6 +36,22 @@ export const useJobsStore = defineStore('jobs', () => {
 
   const allKanbanJobs = computed(() => {
     return Object.values(kanbanJobs.value)
+  })
+
+  const kanbanDatasetCache = createDatasetCache<string, KanbanColumnCacheEntry>({
+    getCached: (columnId) => kanbanColumnCache.value[columnId] ?? null,
+    hasCached: (columnId) => Boolean(kanbanColumnCache.value[columnId]),
+    onResolved: (columnId, value) => {
+      setKanbanColumnCache(columnId, value)
+    },
+    onInvalidate: () => {
+      kanbanColumnCache.value = {}
+      kanbanJobs.value = {}
+    },
+  })
+
+  dataFreshness.subscribe('kanban', () => {
+    kanbanDatasetCache.invalidate()
   })
 
   const getJobById = computed(() => {
@@ -142,39 +165,121 @@ export const useJobsStore = defineStore('jobs', () => {
     delete detailedJobs.value[jobId]
   }
 
+  function indexKanbanJobs(jobs: KanbanJobUI[]): void {
+    kanbanJobs.value = {
+      ...kanbanJobs.value,
+      ...jobs.reduce<Record<string, KanbanJobUI>>((acc, job) => {
+        acc[job.id] = job
+        return acc
+      }, {}),
+    }
+  }
+
   const setKanbanJobs = (jobs: KanbanJobUI[]): void => {
     kanbanJobs.value = {}
-    jobs.forEach((job) => {
-      kanbanJobs.value[job.id] = job
-    })
+    indexKanbanJobs(jobs)
+  }
+
+  function normalizeKanbanColumnResponse(
+    response: FetchJobsByColumnResponse,
+  ): KanbanColumnCacheEntry {
+    const jobs = (response.jobs ?? []) as KanbanJobUI[]
+    indexKanbanJobs(jobs)
+
+    const rest = Object.fromEntries(
+      Object.entries(response).filter(([key]) => key !== 'jobs'),
+    ) as Omit<FetchJobsByColumnResponse, 'jobs'>
+    return {
+      ...rest,
+      jobIds: jobs.map((job) => job.id),
+    }
+  }
+
+  function getKanbanColumnCache(columnId: string): KanbanColumnCacheEntry | null {
+    return kanbanColumnCache.value[columnId] ?? null
+  }
+
+  function hasKanbanColumnCache(columnId: string): boolean {
+    return Boolean(kanbanColumnCache.value[columnId])
+  }
+
+  function getKanbanColumnJobs(columnId: string): KanbanJobUI[] | null {
+    const cached = kanbanColumnCache.value[columnId]
+    if (!cached) {
+      return null
+    }
+
+    const jobs = cached.jobIds
+      .map((jobId) => kanbanJobs.value[jobId] ?? null)
+      .filter((job): job is KanbanJobUI => job !== null)
+
+    if (jobs.length !== cached.jobIds.length) {
+      return null
+    }
+
+    return jobs
+  }
+
+  function setKanbanColumnCache(columnId: string, response: KanbanColumnCacheEntry): void {
+    kanbanColumnCache.value = {
+      ...kanbanColumnCache.value,
+      [columnId]: response,
+    }
+  }
+
+  function clearKanbanColumnCache(): void {
+    kanbanDatasetCache.invalidate()
+  }
+
+  function loadKanbanColumnWithCache(
+    columnId: string,
+    load: () => Promise<FetchJobsByColumnResponse>,
+    options: { force?: boolean } = {},
+  ): Promise<KanbanColumnCacheEntry> {
+    return kanbanDatasetCache.getOrLoad(
+      columnId,
+      async () => normalizeKanbanColumnResponse(await load()),
+      options,
+    )
   }
 
   const setKanbanJob = (job: KanbanJobUI): void => {
-    kanbanJobs.value[job.id] = job
+    kanbanJobs.value = {
+      ...kanbanJobs.value,
+      [job.id]: job,
+    }
   }
 
   const updateKanbanJob = (jobId: string, updates: Partial<KanbanJobUI>): void => {
     const existingJob = kanbanJobs.value[jobId]
     if (existingJob) {
-      kanbanJobs.value[jobId] = { ...existingJob, ...updates }
+      kanbanJobs.value = {
+        ...kanbanJobs.value,
+        [jobId]: { ...existingJob, ...updates },
+      }
     }
   }
 
   const removeKanbanJob = (jobId: string): void => {
-    delete kanbanJobs.value[jobId]
+    const remaining = { ...kanbanJobs.value }
+    delete remaining[jobId]
+    kanbanJobs.value = remaining
   }
 
   const updateKanbanJobFromDetailed = (detailedJob: JobDetail): void => {
     const jobId = detailedJob.job.id
     const kanbanJob = kanbanJobs.value[jobId]
     if (kanbanJob) {
-      kanbanJobs.value[jobId] = {
-        ...kanbanJob,
-        name: detailedJob.job.name,
-        status: detailedJob.job.job_status,
-        client_name: detailedJob.job.client_name || '',
-        contact_person: detailedJob.job.contact_name || kanbanJob.contact_person,
-        paid: detailedJob.job.paid || false,
+      kanbanJobs.value = {
+        ...kanbanJobs.value,
+        [jobId]: {
+          ...kanbanJob,
+          name: detailedJob.job.name,
+          status: detailedJob.job.job_status,
+          client_name: detailedJob.job.client_name || '',
+          contact_person: detailedJob.job.contact_name || kanbanJob.contact_person,
+          paid: detailedJob.job.paid || false,
+        },
       }
     }
   }
@@ -197,11 +302,12 @@ export const useJobsStore = defineStore('jobs', () => {
 
   const clearKanbanJobs = (): void => {
     kanbanJobs.value = {}
+    kanbanColumnCache.value = {}
   }
 
   const clearAll = (): void => {
     clearDetailedJobs()
-    clearKanbanJobs()
+    clearKanbanColumnCache()
     basicInfoById.value = {}
     currentContext.value = null
   }
@@ -453,6 +559,7 @@ export const useJobsStore = defineStore('jobs', () => {
   return {
     detailedJobs,
     kanbanJobs,
+    kanbanColumnCache,
     headersById,
     basicInfoById,
     isLoadingJob,
@@ -460,6 +567,7 @@ export const useJobsStore = defineStore('jobs', () => {
     currentContext,
 
     allKanbanJobs,
+    kanbanCacheGeneration: computed(() => kanbanDatasetCache.generation.value),
     getJobById,
     getKanbanJobById,
     getHeaderById,
@@ -470,6 +578,12 @@ export const useJobsStore = defineStore('jobs', () => {
     updateDetailedJob,
     removeDetailedJob,
     setKanbanJobs,
+    getKanbanColumnCache,
+    getKanbanColumnJobs,
+    hasKanbanColumnCache,
+    setKanbanColumnCache,
+    clearKanbanColumnCache,
+    loadKanbanColumnWithCache,
     setKanbanJob,
     updateKanbanJob,
     removeKanbanJob,

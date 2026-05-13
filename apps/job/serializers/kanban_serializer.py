@@ -104,6 +104,7 @@ class KanbanJobSerializer(serializers.Serializer):
     created_at = serializers.CharField(
         allow_null=True
     )  # Formatted as string by service
+    updated_at = serializers.CharField(allow_null=True)
     delivery_date = serializers.CharField(allow_null=True)
 
     # Priority
@@ -196,6 +197,7 @@ class KanbanColumnJobSerializer(serializers.Serializer):
 
     # Dates
     created_at = serializers.CharField(allow_null=True)
+    updated_at = serializers.CharField(allow_null=True)
     delivery_date = serializers.CharField(allow_null=True)
 
     # Priority

@@ -10,6 +10,20 @@ from apps.workflow.models import CompanyDefaults
 logger = logging.getLogger(__name__)
 
 
+def _include_auto_now_update_field(kwargs, field_name: str) -> None:
+    update_fields = kwargs.get("update_fields")
+    if update_fields is None:
+        return
+
+    update_field_names = (
+        [update_fields] if isinstance(update_fields, str) else list(update_fields)
+    )
+    if not update_field_names or field_name in update_field_names:
+        return
+
+    kwargs["update_fields"] = [*update_field_names, field_name]
+
+
 class Client(models.Model):
     # CHECKLIST - when adding a new field or property to Client, check these locations:
     #   1. CLIENT_DIRECT_FIELDS below (if it's a model field)
@@ -117,6 +131,10 @@ class Client(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        _include_auto_now_update_field(kwargs, "django_updated_at")
+        super().save(*args, **kwargs)
 
     def validate_for_xero(self):
         """
@@ -338,6 +356,8 @@ class ClientContact(models.Model):
         return f"{self.name} ({self.client.name})"
 
     def save(self, *args, **kwargs):
+        _include_auto_now_update_field(kwargs, "updated_at")
+
         # If this contact is being set as primary, ensure no other contacts
         # for this client are marked as primary
         if self.is_primary:

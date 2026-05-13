@@ -254,6 +254,7 @@ class KanbanService:
             "speed_quality_tradeoff": job.speed_quality_tradeoff,
             "created_by_id": str(job.created_by.id) if job.created_by else None,
             "created_at": job.created_at.isoformat() if job.created_at else None,
+            "updated_at": job.updated_at.isoformat() if job.updated_at else None,
             "delivery_date": (
                 job.delivery_date.isoformat() if job.delivery_date else None
             ),

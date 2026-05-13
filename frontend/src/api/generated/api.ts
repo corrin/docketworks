@@ -1046,7 +1046,7 @@ const SettingsSection = z.object({
   fields: z.array(SettingsField),
 })
 const CompanyDefaultsSchema = z.object({ sections: z.array(SettingsSection) })
-const DataVersions = z.object({ stock: z.string() })
+const DataVersions = z.object({ stock: z.string(), kanban: z.string() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),
@@ -1768,6 +1768,7 @@ const KanbanJob = z.object({
   speed_quality_tradeoff: z.string(),
   created_by_id: z.string().uuid().nullable(),
   created_at: z.string().nullable(),
+  updated_at: z.string().nullable(),
   delivery_date: z.string().nullable(),
   priority: z.number(),
   shop_job: z.boolean(),
@@ -1833,6 +1834,7 @@ const KanbanColumnJob = z.object({
   speed_quality_tradeoff: z.string(),
   created_by_id: z.string().nullable(),
   created_at: z.string().nullable(),
+  updated_at: z.string().nullable(),
   delivery_date: z.string().nullable(),
   priority: z.number(),
   shop_job: z.boolean(),
@@ -5046,7 +5048,7 @@ DELETE: Clear a logo field and remove the file from disk.`,
     alias: 'data_versions_retrieve',
     description: `Return a flat dict of dataset version strings.`,
     requestFormat: 'json',
-    response: z.object({ stock: z.string() }),
+    response: DataVersions,
   },
   {
     method: 'get',

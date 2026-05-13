@@ -10555,7 +10555,10 @@ components:
       properties:
         stock:
           type: string
+        kanban:
+          type: string
       required:
+        - kanban
         - stock
     Day:
       type: object
@@ -13522,6 +13525,9 @@ components:
         created_at:
           type: string
           nullable: true
+        updated_at:
+          type: string
+          nullable: true
         delivery_date:
           type: string
           nullable: true
@@ -13572,6 +13578,7 @@ components:
         - status
         - status_key
         - time_and_materials_revenue
+        - updated_at
     KanbanErrorResponse:
       type: object
       description: Serializer for error kanban operation response.
@@ -13626,6 +13633,9 @@ components:
         created_at:
           type: string
           nullable: true
+        updated_at:
+          type: string
+          nullable: true
         delivery_date:
           type: string
           nullable: true
@@ -13670,6 +13680,7 @@ components:
         - status
         - status_key
         - time_and_materials_revenue
+        - updated_at
     KanbanJobPerson:
       type: object
       description: Serializer for person data in kanban job context.

@@ -138,14 +138,19 @@ def recalculate_job_invoicing_state(job_id: str, staff) -> None:
 
 class JobStaffService:
     @staticmethod
+    def _touch_job_for_assignment_change(job):
+        Job.objects.filter(id=job.id).update(updated_at=timezone.now())
+
+    @staticmethod
     def assign_staff_to_job(job_id, staff_id):
         """Assign a staff member to a job"""
         try:
             job = Job.objects.get(id=job_id)
             staff = Staff.objects.get(id=staff_id)
 
-            if staff not in job.people.all():
+            if not job.people.filter(id=staff.id).exists():
                 job.people.add(staff)
+                JobStaffService._touch_job_for_assignment_change(job)
 
             return True, None
         except Job.DoesNotExist:
@@ -162,8 +167,9 @@ class JobStaffService:
             job = Job.objects.get(id=job_id)
             staff = Staff.objects.get(id=staff_id)
 
-            if staff in job.people.all():
+            if job.people.filter(id=staff.id).exists():
                 job.people.remove(staff)
+                JobStaffService._touch_job_for_assignment_change(job)
 
             return True, None
         except Job.DoesNotExist:
