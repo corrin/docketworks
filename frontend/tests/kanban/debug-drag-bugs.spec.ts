@@ -236,6 +236,11 @@ test.describe('debug: drag-and-drop bugs', () => {
 
         await dragCardToColumn(page, jobCard, targetColumn1)
         await statusResponse1
+        // Exactly one card on the board for this job — guards against SortableJS
+        // leaving an orphaned DOM node alongside Vue's re-rendered card after a drop.
+        await expect(page.locator(`[data-job-id="${jobId}"]:visible`)).toHaveCount(1, {
+          timeout: 15000,
+        })
         console.log(`[DEBUG] First drag succeeded: ${sourceStatus1} → ${targetStatus1}`)
       },
     )
@@ -280,9 +285,12 @@ test.describe('debug: drag-and-drop bugs', () => {
 
         await dragCardToColumn(page, jobCard2, targetColumn2)
         await statusResponse2
+        // Exactly one card for this job in the target column — a stale SortableJS
+        // instance after the layout switch would leave an orphaned DOM node here
+        // next to Vue's re-rendered card.
         await expect(
           page.locator(`[data-status="${targetStatus2}"] [data-job-id="${jobId}"]:visible`),
-        ).toBeVisible({ timeout: 15000 })
+        ).toHaveCount(1, { timeout: 15000 })
         return true
       },
     ).catch((error: unknown) => {

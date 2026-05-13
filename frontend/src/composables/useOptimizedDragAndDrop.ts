@@ -72,43 +72,53 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
         // Clean up SortableJS CSS classes that persist on the dragged element
         const jobElement = evt.item as HTMLElement
         jobElement.classList.remove('sortable-chosen', 'sortable-drag', 'sortable-ghost')
+
         const jobId = jobElement.dataset.jobId
-        if (!jobId) return
+        const fromStatus = (evt.from.closest('[data-status]') as HTMLElement | null)?.dataset.status
+        const toStatus = (evt.to.closest('[data-status]') as HTMLElement | null)?.dataset.status
 
-        const fromCol = evt.from.closest('[data-status]') as HTMLElement
-        const toCol = evt.to.closest('[data-status]') as HTMLElement
-        const fromStatus = fromCol?.dataset.status
-        const toStatus = toCol?.dataset.status
-        if (!fromStatus || !toStatus) return
+        // Capture the drop position from the DOM *before* detaching the node —
+        // Sortable's newIndex counts the moved element among its new siblings.
+        let beforeId: string | undefined
+        let afterId: string | undefined
+        if (jobId && fromStatus && toStatus) {
+          const newIndex = evt.newIndex ?? 0
+          // Only draggable job-card elements, to keep indices aligned with Sortable's newIndex
+          const targetColumnJobs: string[] = Array.from(
+            evt.to.querySelectorAll<HTMLElement>('.job-card'),
+          )
+            .map((el) => el.dataset.jobId)
+            .filter((id): id is string => !!id)
+          beforeId = newIndex > 0 ? targetColumnJobs[newIndex - 1] : undefined
+          afterId =
+            newIndex < targetColumnJobs.length - 1 ? targetColumnJobs[newIndex + 1] : undefined
 
-        const newIndex = evt.newIndex ?? 0
+          debugLog(`DRAG POSITIONING: ${fromStatus} -> ${toStatus}`, {
+            jobId,
+            newIndex,
+            beforeId,
+            afterId,
+            totalChildren: evt.to.children.length,
+            targetColumnJobs,
+            draggedJobInArray: targetColumnJobs[newIndex],
+          })
+        } else {
+          debugLog('DRAG END -- missing jobId/from/to status; skipping move event', {
+            jobId,
+            fromStatus,
+            toStatus,
+          })
+        }
 
-        // Get all job IDs from the target column's DOM elements (current state)
-        // Use only draggable job-card elements to keep indices aligned with Sortable's newIndex
-        const targetColumnJobs: string[] = Array.from(
-          evt.to.querySelectorAll<HTMLElement>('.job-card'),
-        )
-          .map((el) => el.dataset.jobId)
-          .filter((id): id is string => !!id)
-
-        // Calculate beforeId and afterId based on the new position in the array
-        const beforeId = newIndex > 0 ? targetColumnJobs[newIndex - 1] : undefined
-        const afterId =
-          newIndex < targetColumnJobs.length - 1 ? targetColumnJobs[newIndex + 1] : undefined
-
-        // Debug positioning for ALL columns to see what's happening
-        debugLog(`DRAG POSITIONING: ${fromStatus} -> ${toStatus}`, {
-          jobId,
-          newIndex,
-          beforeId,
-          afterId,
-          totalChildren: evt.to.children.length,
-          targetColumnJobs,
-          draggedJobInArray: targetColumnJobs[newIndex],
-        })
+        // SortableJS physically relocated this node into the target column. Vue
+        // owns the kanban DOM and re-renders the job into its new column from the
+        // optimistic update below; leaving Sortable's copy in place yields two
+        // elements for the same job until the next full revalidation. Detach it
+        // unconditionally so Vue's render stays the single source of truth.
+        jobElement.remove()
 
         // Call the drag event handler (which should handle optimistic updates)
-        if (onDragEvent) {
+        if (jobId && fromStatus && toStatus && onDragEvent) {
           onDragEvent('job-moved', { jobId, fromStatus, toStatus, beforeId, afterId })
         }
 
