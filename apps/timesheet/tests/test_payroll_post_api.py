@@ -24,7 +24,16 @@ class PayrollPostStartApiTests(BaseTestCase):
             is_superuser=True,
             is_office_staff=True,
         )
+        # Two auth setups: the POST endpoint is a DRF view (uses
+        # force_authenticate, which bypasses DRF's auth chain entirely), and the
+        # stream endpoint is a plain Django view gated by _require_authenticated_api
+        # (needs a real session). Doing both keeps the test working under either
+        # ENABLE_JWT_AUTH=True (local) or =False (CI / .env.precommit), since
+        # the custom JWTAuthentication returns None unconditionally when JWT auth
+        # is disabled and the session-fallback path is therefore unreachable.
+        # Sibling: test_permissions.test_stream_payroll_blocked_for_normal_user.
         self.client_api.force_authenticate(user=self.superuser)
+        self.client_api.force_login(self.superuser)
 
     @patch("apps.timesheet.views.api.uuid_module.uuid4")
     def test_post_staff_week_returns_task_id_and_stream_url(self, mock_uuid4):
@@ -58,10 +67,12 @@ class PayrollPostStartApiTests(BaseTestCase):
     @patch("apps.timesheet.views.api.post_staff_week_to_xero")
     @patch("apps.timesheet.views.api.get_all_timesheets_for_week")
     @patch("apps.timesheet.views.api.ensure_pay_run_for_week")
+    @patch("apps.timesheet.views.api.reconcile_leave_for_week_for_staff")
     @patch("apps.timesheet.views.api.validate_pay_items_for_week")
     def test_stream_aborts_before_employee_posts_when_ensure_pay_run_fails(
         self,
         mock_validate_pay_items,
+        mock_reconcile_leave,
         mock_ensure_pay_run,
         mock_get_all_timesheets,
         mock_post_staff_week,
@@ -86,6 +97,7 @@ class PayrollPostStartApiTests(BaseTestCase):
         self.assertIn("pay run week is invalid in Xero", payload)
         self.assertIn('"failed": 1', payload)
         mock_validate_pay_items.assert_called_once()
+        mock_reconcile_leave.assert_called_once()
         mock_ensure_pay_run.assert_called_once()
         mock_get_all_timesheets.assert_not_called()
         mock_post_staff_week.assert_not_called()
@@ -93,14 +105,23 @@ class PayrollPostStartApiTests(BaseTestCase):
     @patch("apps.timesheet.views.api.post_staff_week_to_xero")
     @patch("apps.timesheet.views.api.get_all_timesheets_for_week")
     @patch("apps.timesheet.views.api.ensure_pay_run_for_week")
+    @patch("apps.timesheet.views.api.reconcile_leave_for_week_for_staff")
     @patch("apps.timesheet.views.api.validate_pay_items_for_week")
     def test_stream_ensures_pay_run_before_fetching_timesheets(
         self,
         mock_validate_pay_items,
+        mock_reconcile_leave,
         mock_ensure_pay_run,
         mock_get_all_timesheets,
         mock_post_staff_week,
     ):
+        # Pin date_joined to before the test week (Staff.date_joined defaults to
+        # `now`, which would put a freshly-created superuser AFTER the test's
+        # 2026-05-04 → 2026-05-10 window once "now" is past 2026-05-10, and the
+        # view would correctly skip them as joined-after-the-week.
+        Staff.objects.filter(pk=self.superuser.pk).update(
+            date_joined=timezone.make_aware(datetime(2026, 1, 1)),
+        )
         task_id = "33333333-3333-3333-3333-333333333333"
         cache.set(
             f"payroll_task_{task_id}",
@@ -115,6 +136,9 @@ class PayrollPostStartApiTests(BaseTestCase):
         def record_validate(*args, **kwargs):
             call_order.append("validate")
 
+        def record_reconcile(*args, **kwargs):
+            call_order.append("reconcile")
+
         def record_ensure(*args, **kwargs):
             call_order.append("ensure")
 
@@ -127,6 +151,7 @@ class PayrollPostStartApiTests(BaseTestCase):
             return {"success": True, "work_hours": "8"}
 
         mock_validate_pay_items.side_effect = record_validate
+        mock_reconcile_leave.side_effect = record_reconcile
         mock_ensure_pay_run.side_effect = record_ensure
         mock_get_all_timesheets.side_effect = record_fetch
         mock_post_staff_week.side_effect = record_post
@@ -139,16 +164,18 @@ class PayrollPostStartApiTests(BaseTestCase):
         self.assertIn('"event": "done"', payload)
         self.assertEqual(
             call_order,
-            ["validate", "ensure", "fetch_timesheets", "post_staff"],
+            ["validate", "reconcile", "ensure", "fetch_timesheets", "post_staff"],
         )
 
     @patch("apps.timesheet.views.api.post_staff_week_to_xero")
     @patch("apps.timesheet.views.api.get_all_timesheets_for_week")
     @patch("apps.timesheet.views.api.ensure_pay_run_for_week")
+    @patch("apps.timesheet.views.api.reconcile_leave_for_week_for_staff")
     @patch("apps.timesheet.views.api.validate_pay_items_for_week")
     def test_stream_posts_staff_who_left_after_posted_week_started(
         self,
         mock_validate_pay_items,
+        mock_reconcile_leave,
         mock_ensure_pay_run,
         mock_get_all_timesheets,
         mock_post_staff_week,
@@ -181,10 +208,12 @@ class PayrollPostStartApiTests(BaseTestCase):
     @patch("apps.timesheet.views.api.post_staff_week_to_xero")
     @patch("apps.timesheet.views.api.get_all_timesheets_for_week")
     @patch("apps.timesheet.views.api.ensure_pay_run_for_week")
+    @patch("apps.timesheet.views.api.reconcile_leave_for_week_for_staff")
     @patch("apps.timesheet.views.api.validate_pay_items_for_week")
     def test_stream_skips_staff_who_left_before_posted_week(
         self,
         mock_validate_pay_items,
+        mock_reconcile_leave,
         mock_ensure_pay_run,
         mock_get_all_timesheets,
         mock_post_staff_week,
