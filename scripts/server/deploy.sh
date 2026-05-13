@@ -217,11 +217,14 @@ for instance in "${TARGETS[@]}"; do
 
     log "--- Processing instance: $instance ---"
 
-    # Build frontend
+    # Build frontend (main app + VitePress training manual). manual:build is
+    # also run by instance.sh at creation time; running it here too means
+    # manual content changes ship on deploy and pre-manual instances catch up.
     log "  Building frontend..."
     sudo -u "$inst_user" bash -c "
         cd '$instance_dir/frontend'
         npm run build
+        npm run manual:build
     "
 
     # Collect static files + run migrations

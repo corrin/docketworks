@@ -85,6 +85,15 @@ export default defineConfig(({ mode }) => {
           target: 'http://localhost:8000',
           changeOrigin: true,
         },
+        // VitePress training manual dev server (npm run manual:dev). In prod
+        // nginx serves /manual/ from dist-manual/; in dev we proxy to the
+        // VitePress dev server so the navbar "App Training" link works and
+        // manual content hot-reloads. ws:true keeps VitePress HMR alive.
+        '/manual': {
+          target: 'http://localhost:5174',
+          changeOrigin: true,
+          ws: true,
+        },
       },
     },
   }

@@ -87,7 +87,8 @@ def geocode_address(address: str, api_key: str | None = None) -> GeocodingResult
         logger.error(
             f"Google Address Validation API error: {response.status_code} - {response.text}"
         )
-        raise GeocodingError(f"Google API returned {response.status_code}")
+        detail = response.text
+        raise GeocodingError(f"Google API returned {response.status_code}: {detail}")
 
     data = response.json()
     return _parse_validation_result(data)
