@@ -571,6 +571,15 @@ class Job(models.Model):
         # Track original values for change detection
         if not is_new:
             original_job = Job.objects.get(pk=self.pk)
+            if update_fields is not None:
+                update_field_names = (
+                    [update_fields]
+                    if isinstance(update_fields, str)
+                    else list(update_fields)
+                )
+                if update_field_names and "updated_at" not in update_field_names:
+                    kwargs["update_fields"] = [*update_field_names, "updated_at"]
+                    update_fields = kwargs["update_fields"]
 
         if is_new or not self.created_by:
             self.created_by = staff

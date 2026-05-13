@@ -1,10 +1,15 @@
 from decimal import Decimal
 
 import pytest
+from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
+from apps.client.models import Client, ClientContact
+from apps.job.models import Job
+from apps.job.services.job_service import JobStaffService
 from apps.purchasing.models import Stock
+from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 
 @pytest.fixture
@@ -38,13 +43,43 @@ def _stock(**overrides):
     return Stock.objects.create(**defaults)
 
 
-def test_get_returns_dict_with_stock_key(auth_client, db):
+@pytest.fixture
+def kanban_prerequisites(db):
+    CompanyDefaults.objects.get_or_create(company_name="Test Co")
+    XeroPayItem.objects.get_or_create(
+        name="Ordinary Time",
+        uses_leave_api=False,
+        defaults={"multiplier": Decimal("1.00")},
+    )
+
+
+def _client(**overrides):
+    defaults = dict(name="Kanban Client", xero_last_modified=timezone.now())
+    defaults.update(overrides)
+    return Client.objects.create(**defaults)
+
+
+def _job(staff, **overrides):
+    defaults = dict(
+        staff=staff,
+        client=_client(),
+        name="Kanban Job",
+        pricing_methodology="time_materials",
+    )
+    defaults.update(overrides)
+    return Job.objects.create(**defaults)
+
+
+def test_get_returns_dict_with_dataset_keys(auth_client, db):
     resp = auth_client.get("/api/data-versions/")
     assert resp.status_code == 200
     body = resp.json()
     assert "stock" in body
+    assert "kanban" in body
     assert isinstance(body["stock"], str)
+    assert isinstance(body["kanban"], str)
     assert body["stock"]
+    assert body["kanban"]
 
 
 def test_response_has_no_store_cache_header(auth_client, db):
@@ -90,3 +125,65 @@ def test_repeat_call_without_changes_returns_same_version(auth_client, db):
     first = auth_client.get("/api/data-versions/").json()["stock"]
     second = auth_client.get("/api/data-versions/").json()["stock"]
     assert first == second
+
+
+def test_creating_job_changes_kanban_version(
+    auth_client, office_staff, kanban_prerequisites
+):
+    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    _job(office_staff)
+    after = auth_client.get("/api/data-versions/").json()["kanban"]
+    assert before != after
+
+
+def test_saving_job_changes_kanban_version(
+    auth_client, office_staff, kanban_prerequisites
+):
+    job = _job(office_staff)
+    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    job.name = "Renamed Kanban Job"
+    job.save(staff=office_staff, update_fields=["name"])
+    after = auth_client.get("/api/data-versions/").json()["kanban"]
+    assert before != after
+
+
+def test_assigning_staff_changes_kanban_version(
+    auth_client, office_staff, kanban_prerequisites
+):
+    job = _job(office_staff)
+    assignee = Staff.objects.create(
+        email="assignee@example.test",
+        first_name="A",
+        last_name="S",
+        password_needs_reset=False,
+    )
+    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    success, error = JobStaffService.assign_staff_to_job(job.id, assignee.id)
+    after = auth_client.get("/api/data-versions/").json()["kanban"]
+    assert success, error
+    assert before != after
+
+
+def test_related_display_changes_change_kanban_version(
+    auth_client, office_staff, kanban_prerequisites
+):
+    client = _client(name="Original Client")
+    contact = ClientContact.objects.create(client=client, name="Original Contact")
+    _job(office_staff, client=client, contact=contact)
+    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    contact.name = "Updated Contact"
+    contact.save(update_fields=["name"])
+    after = auth_client.get("/api/data-versions/").json()["kanban"]
+    assert before != after
+
+
+def test_client_partial_save_changes_kanban_version(
+    auth_client, office_staff, kanban_prerequisites
+):
+    client = _client(name="Original Client")
+    _job(office_staff, client=client)
+    before = auth_client.get("/api/data-versions/").json()["kanban"]
+    client.name = "Updated Client"
+    client.save(update_fields=["name"])
+    after = auth_client.get("/api/data-versions/").json()["kanban"]
+    assert before != after

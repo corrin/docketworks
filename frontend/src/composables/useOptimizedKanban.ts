@@ -3,6 +3,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { useDebounceFn } from '@vueuse/core'
 import { jobService } from '../services/job.service'
 import { useJobsStore } from '../stores/jobs'
+import { dataFreshness } from './useDataFreshness'
 import { KanbanCategorizationService } from '../services/kanban-categorization.service'
 import { schemas } from '../api/generated/api'
 import type { AdvancedFilters } from '../constants/advanced-filters'
@@ -14,9 +15,11 @@ import type { z } from 'zod'
 // Type aliases for better readability
 type KanbanJob = z.infer<typeof schemas.KanbanJob>
 type KanbanJobPerson = z.infer<typeof schemas.KanbanJobPerson>
-type FetchJobsByColumnResponse = z.infer<typeof schemas.FetchJobsByColumnResponse>
 type FetchStatusValuesResponse = z.infer<typeof schemas.FetchStatusValuesResponse>
 type AdvancedSearchResponse = z.infer<typeof schemas.AdvancedSearchResponse>
+type KanbanColumnCacheEntry = Omit<z.infer<typeof schemas.FetchJobsByColumnResponse>, 'jobs'> & {
+  jobIds: string[]
+}
 
 // Column state interface
 interface ColumnState {
@@ -48,6 +51,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const advancedFilters = ref<AdvancedFilters>({ ...DEFAULT_ADVANCED_FILTERS })
   const filteredJobs = ref<KanbanJob[]>([])
   let latestSearchRequestId = 0
+  let initialized = false
 
   // Column-based state management
   const columnStates = reactive<Record<string, ColumnState>>({})
@@ -125,6 +129,46 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     return allJobs
   }
 
+  const applyColumnData = (columnId: string, data: KanbanColumnCacheEntry): void => {
+    if (!columnStates[columnId]) {
+      initializeColumnStates()
+    }
+
+    const columnState = columnStates[columnId]
+    columnState.jobs = jobsStore.getKanbanColumnJobs(columnId) ?? []
+    columnState.loaded = true
+    columnState.hasMore = Boolean(data.has_more)
+    columnState.total = data.total ?? null
+    columnState.error = null
+  }
+
+  const hydrateVisibleColumnsFromCache = (): boolean => {
+    const columns = KanbanCategorizationService.getAllColumns()
+    if (
+      !columns.every(
+        (column) =>
+          jobsStore.hasKanbanColumnCache(column.columnId) &&
+          jobsStore.getKanbanColumnJobs(column.columnId) !== null,
+      )
+    ) {
+      return false
+    }
+
+    columns.forEach((column) => {
+      const cached = jobsStore.getKanbanColumnCache(column.columnId)
+      if (cached) {
+        applyColumnData(column.columnId, cached)
+      }
+    })
+    return true
+  }
+
+  const checkFreshnessInBackground = (): void => {
+    dataFreshness.checkFreshness().catch((err) => {
+      debugLog('Kanban freshness check failed:', err)
+    })
+  }
+
   const searchJobsLocally = (jobs: KanbanJob[], query: string): KanbanJob[] => {
     const normalizedQuery = query.toLowerCase()
     return jobs.filter((job) => {
@@ -161,7 +205,10 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   }
 
   // Load jobs for a specific column
-  const loadColumnJobs = async (columnId: string): Promise<void> => {
+  const loadColumnJobs = async (
+    columnId: string,
+    options: { force?: boolean } = {},
+  ): Promise<void> => {
     if (!columnStates[columnId]) {
       initializeColumnStates()
     }
@@ -175,15 +222,14 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
       debugLog(`Loading jobs for column: ${columnId}`)
 
-      const data: FetchJobsByColumnResponse = await jobService.getJobsByColumn(columnId)
+      const data: KanbanColumnCacheEntry = await jobsStore.loadKanbanColumnWithCache(
+        columnId,
+        () => jobService.getJobsByColumn(columnId),
+        options,
+      )
+      applyColumnData(columnId, data)
 
-      const jobs = data.jobs || []
-      columnState.jobs = jobs as unknown as KanbanJob[]
-      columnState.loaded = true
-      columnState.hasMore = Boolean(data.has_more)
-      columnState.total = data.total ?? null
-
-      debugLog(`Loaded ${jobs.length} jobs for column: ${columnId}`)
+      debugLog(`Loaded ${data.jobIds.length} jobs for column: ${columnId}`)
     } catch (err) {
       columnState.error = err instanceof Error ? err.message : `Failed to load jobs for ${columnId}`
       debugLog(`Error loading jobs for column ${columnId}:`, err)
@@ -193,7 +239,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   }
 
   // Load all visible columns
-  const loadAllColumns = async (): Promise<void> => {
+  const loadAllColumns = async (options: { force?: boolean } = {}): Promise<void> => {
     if (isLoading.value) return
 
     try {
@@ -206,7 +252,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       const columns = KanbanCategorizationService.getAllColumns()
 
       // Load all columns in parallel
-      await Promise.all(columns.map((column) => loadColumnJobs(column.columnId)))
+      await Promise.all(columns.map((column) => loadColumnJobs(column.columnId, options)))
 
       if (onJobsLoaded) {
         onJobsLoaded()
@@ -224,7 +270,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const revalidateColumns = async (columnIds: string[]): Promise<void> => {
     debugLog(`Revalidating columns: ${columnIds.join(', ')}`)
 
-    await Promise.all(columnIds.map((columnId) => loadColumnJobs(columnId)))
+    await Promise.all(columnIds.map((columnId) => loadColumnJobs(columnId, { force: true })))
   }
 
   // Optimistic staff assignment
@@ -629,12 +675,34 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     activeStaffFilters.value = staffIds
   }
 
+  watch(
+    () => jobsStore.kanbanCacheGeneration,
+    async (newGeneration, oldGeneration) => {
+      if (!initialized || newGeneration === oldGeneration) return
+      await loadAllColumns({ force: true })
+    },
+  )
+
   // Initialize
   onMounted(async () => {
     try {
       debugLog('Initializing Kanban...')
       initializeColumnStates()
-      await Promise.all([loadAllColumns(), loadStatusChoices()])
+      jobsStore.setCurrentContext('kanban')
+
+      const hydratedFromCache = hydrateVisibleColumnsFromCache()
+      if (hydratedFromCache) {
+        if (onJobsLoaded) {
+          onJobsLoaded()
+        }
+        await loadStatusChoices()
+        initialized = true
+        checkFreshnessInBackground()
+      } else {
+        await Promise.all([loadAllColumns(), loadStatusChoices()])
+        initialized = true
+        checkFreshnessInBackground()
+      }
 
       // If URL has search query, trigger search after jobs are loaded
       if (searchQuery.value.trim()) {

@@ -9,6 +9,9 @@ const {
   setLoadingKanban,
   getJobsByColumn,
   performAdvancedSearch,
+  checkFreshness,
+  kanbanColumnCache,
+  kanbanJobsById,
 } = vi.hoisted(() => ({
   route: { query: {} as Record<string, string> },
   replaceMock: vi.fn(),
@@ -16,6 +19,9 @@ const {
   setLoadingKanban: vi.fn(),
   getJobsByColumn: vi.fn(),
   performAdvancedSearch: vi.fn(),
+  checkFreshness: vi.fn(),
+  kanbanColumnCache: new Map<string, unknown>(),
+  kanbanJobsById: new Map<string, Record<string, unknown>>(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -41,9 +47,45 @@ vi.mock('@/services/job.service', () => ({
 
 vi.mock('@/stores/jobs', () => ({
   useJobsStore: () => ({
+    kanbanCacheGeneration: 0,
+    getKanbanColumnCache: (columnId: string) => kanbanColumnCache.get(columnId) ?? null,
+    getKanbanColumnJobs: (columnId: string) => {
+      const cached = kanbanColumnCache.get(columnId) as { jobIds?: string[] } | undefined
+      if (!cached) return null
+      const jobs = (cached.jobIds ?? [])
+        .map((jobId) => kanbanJobsById.get(jobId) ?? null)
+        .filter((job): job is Record<string, unknown> => job !== null)
+      return jobs.length === (cached.jobIds ?? []).length ? jobs : null
+    },
+    hasKanbanColumnCache: (columnId: string) => kanbanColumnCache.has(columnId),
+    loadKanbanColumnWithCache: async (
+      columnId: string,
+      load: () => Promise<unknown>,
+      options: { force?: boolean } = {},
+    ) => {
+      if (!options.force && kanbanColumnCache.has(columnId)) {
+        return kanbanColumnCache.get(columnId)
+      }
+      const response = (await load()) as { jobs?: Record<string, unknown>[] }
+      const jobs = response.jobs ?? []
+      jobs.forEach((job) => kanbanJobsById.set(String(job.id), job))
+      const cached = {
+        ...response,
+        jobs: undefined,
+        jobIds: jobs.map((job) => String(job.id)),
+      }
+      kanbanColumnCache.set(columnId, cached)
+      return cached
+    },
     setCurrentContext,
     setLoadingKanban,
   }),
+}))
+
+vi.mock('../useDataFreshness', () => ({
+  dataFreshness: {
+    checkFreshness,
+  },
 }))
 
 vi.mock('@/services/kanban-categorization.service', () => ({
@@ -86,6 +128,7 @@ function buildKanbanJob(overrides: Partial<Record<string, unknown>> = {}) {
     speed_quality_tradeoff: 'balanced',
     created_by_id: null,
     created_at: null,
+    updated_at: overrides.updated_at ?? '2026-05-14T00:00:00Z',
     delivery_date: null,
     priority: 100,
     shop_job: false,
@@ -129,6 +172,9 @@ describe('useOptimizedKanban search reconciliation', () => {
     vi.useFakeTimers()
     vi.clearAllMocks()
     route.query = {}
+    kanbanColumnCache.clear()
+    kanbanJobsById.clear()
+    checkFreshness.mockResolvedValue(undefined)
     getJobsByColumn.mockImplementation(async (columnId: string) => {
       if (columnId === 'in_progress') {
         return {
@@ -145,6 +191,38 @@ describe('useOptimizedKanban search reconciliation', () => {
 
   afterEach(() => {
     vi.useRealTimers()
+  })
+
+  it('hydrates cached columns without refetching them', async () => {
+    const cachedJob = buildKanbanJob()
+    kanbanJobsById.set(cachedJob.id, cachedJob)
+    kanbanColumnCache.set('draft', {
+      success: true,
+      jobIds: [],
+      total: 0,
+      filtered_count: 0,
+      has_more: false,
+    })
+    kanbanColumnCache.set('in_progress', {
+      success: true,
+      jobIds: [cachedJob.id],
+      total: 1,
+      filtered_count: 1,
+      has_more: false,
+    })
+    kanbanColumnCache.set('archived', {
+      success: true,
+      jobIds: [],
+      total: 0,
+      filtered_count: 0,
+      has_more: false,
+    })
+
+    const kanban = await mountHarness()
+
+    expect(getJobsByColumn).not.toHaveBeenCalled()
+    expect(checkFreshness).toHaveBeenCalledOnce()
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-1'])
   })
 
   it('shows immediate local matches, then reconciles with backend results', async () => {
