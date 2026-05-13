@@ -30,6 +30,10 @@ from rest_framework.response import Response
 from xero_python.identity import IdentityApi
 
 from apps.accounting.models import Invoice
+from apps.accounting.services.invoice_calculation import (
+    InvoiceCalculationError,
+    calculate_invoice_amount,
+)
 from apps.job.models import Job
 from apps.job.permissions import IsOfficeStaff
 from apps.purchasing.models import PurchaseOrder
@@ -59,6 +63,7 @@ from apps.workflow.serializers import (
     XeroDocumentErrorResponseSerializer,
     XeroDocumentSuccessResponseSerializer,
     XeroErrorSerializer,
+    XeroInvoiceCreateSerializer,
     XeroPingResponseSerializer,
     XeroQuoteCreateSerializer,
     XeroSseEventSerializer,
@@ -382,7 +387,7 @@ def ensure_xero_authentication():
 @csrf_exempt
 @extend_schema(
     tags=["Xero"],
-    request=None,
+    request=XeroInvoiceCreateSerializer,
     responses={
         201: XeroDocumentSuccessResponseSerializer,
         400: XeroDocumentErrorResponseSerializer,
@@ -397,13 +402,45 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
     """Creates an Invoice in Xero for a given job."""
     tenant_id = ensure_xero_authentication()
     if isinstance(tenant_id, JsonResponse):
-        # Convert JsonResponse to DRF Response
         return Response(json.loads(tenant_id.content), status=tenant_id.status_code)
+
+    request_serializer = XeroInvoiceCreateSerializer(data=request.data)
+    if not request_serializer.is_valid():
+        error_data = {
+            "success": False,
+            "error": "Invalid request data.",
+            "messages": [str(request_serializer.errors)],
+        }
+        return Response(error_data, status=status.HTTP_400_BAD_REQUEST)
+
+    mode = request_serializer.validated_data["mode"]
+    percent = request_serializer.validated_data.get("percent")
+    amount = request_serializer.validated_data.get("amount")
 
     try:
         job = Job.objects.get(id=job_id)
+
+        calc_result = calculate_invoice_amount(
+            job=job, mode=mode, percent=percent, amount=amount
+        )
+
+        billing_metadata = {
+            "mode": calc_result.mode,
+            "target_basis": calc_result.target_basis,
+            "target_total": str(calc_result.target_total),
+            "prior_invoiced_total": str(calc_result.prior_invoiced_total),
+            "calculated_amount": str(calc_result.calculated_amount),
+        }
+        if calc_result.requested_percent is not None:
+            billing_metadata["requested_percent"] = str(calc_result.requested_percent)
+        if calc_result.requested_amount is not None:
+            billing_metadata["requested_amount"] = str(calc_result.requested_amount)
+
         manager = XeroInvoiceManager(client=job.client, job=job, staff=request.user)
-        result_data = manager.create_document()
+        result_data = manager.create_document(
+            total_amount=calc_result.calculated_amount,
+            billing_metadata=billing_metadata,
+        )
 
         if result_data.get("success"):
             messages.success(request, "Invoice created successfully")
@@ -422,6 +459,13 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         error_data = {"success": False, "error": f"Job with ID {job_id} not found."}
         messages.error(request, error_data["error"])
         return Response(error_data, status=status.HTTP_404_NOT_FOUND)
+    except InvoiceCalculationError as exc:
+        error_data = {
+            "success": False,
+            "error": str(exc),
+        }
+        messages.error(request, str(exc))
+        return Response(error_data, status=status.HTTP_400_BAD_REQUEST)
     except AlreadyLoggedException as exc:
         error_data = _build_xero_error_payload(exc)
         messages.error(request, "An unexpected error occurred while creating invoice.")

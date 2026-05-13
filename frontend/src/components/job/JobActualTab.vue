@@ -269,6 +269,174 @@
         </DialogFooter>
       </DialogContent>
     </Dialog>
+
+    <!-- Create Invoice Modal -->
+    <Dialog :open="showInvoiceModal" @update:open="showInvoiceModal = $event">
+      <DialogContent class="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Create Invoice</DialogTitle>
+          <DialogDescription>
+            Choose how to invoice
+            {{
+              props.pricingMethodology === 'fixed_price'
+                ? 'this quoted job'
+                : 'time &amp; materials'
+            }}
+          </DialogDescription>
+        </DialogHeader>
+        <div class="space-y-4 py-4">
+          <!-- Calculation Context -->
+          <div class="rounded-lg bg-slate-50 p-3 text-sm space-y-1">
+            <div class="flex justify-between" v-if="props.pricingMethodology === 'fixed_price'">
+              <span class="text-slate-600">Quote total</span>
+              <span class="font-semibold tabular-nums">{{ formatCurrency(quoteTotal) }}</span>
+            </div>
+            <div class="flex justify-between" v-else>
+              <span class="text-slate-600">Actual revenue to date</span>
+              <span class="font-semibold tabular-nums">{{
+                formatCurrency(actualSummary.rev)
+              }}</span>
+            </div>
+            <div class="flex justify-between">
+              <span class="text-slate-600">Already invoiced</span>
+              <span class="font-semibold tabular-nums">{{ formatCurrency(invoiceTotal) }}</span>
+            </div>
+            <div class="flex justify-between border-t pt-1">
+              <span class="text-slate-700 font-medium">Current amount to invoice</span>
+              <span class="font-bold text-orange-600 tabular-nums">{{
+                formatCurrency(toBeInvoiced)
+              }}</span>
+            </div>
+          </div>
+
+          <!-- Mode Options -->
+          <div class="space-y-3">
+            <!-- Quoted job options -->
+            <template v-if="props.pricingMethodology === 'fixed_price'">
+              <Button
+                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
+                variant="default"
+                @click="executeCreateInvoice('invoice_full')"
+                :disabled="isCreatingInvoice"
+              >
+                <span class="font-semibold">Invoice remaining quote</span>
+                <span class="text-xs font-normal opacity-90">
+                  Invoice the quote balance: {{ formatCurrency(toBeInvoiced) }}
+                </span>
+              </Button>
+
+              <Button
+                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
+                variant="outline"
+                @click="selectInvoiceMode('invoice_percent')"
+                :disabled="isCreatingInvoice"
+              >
+                <span class="font-semibold">Invoice % of quote</span>
+                <span class="text-xs font-normal opacity-70">
+                  Invoice a cumulative percentage of the quoted amount
+                </span>
+              </Button>
+              <div v-if="selectedInvoiceMode === 'invoice_percent'" class="flex gap-2">
+                <Input
+                  v-model="invoicePercentInput"
+                  type="number"
+                  min="1"
+                  max="100"
+                  step="0.1"
+                  placeholder="e.g. 50"
+                  @keydown.enter.prevent="executeCreateInvoice('invoice_percent')"
+                />
+                <Button
+                  @click="executeCreateInvoice('invoice_percent')"
+                  size="sm"
+                  :disabled="isCreatingInvoice"
+                >
+                  Confirm
+                </Button>
+              </div>
+
+              <Button
+                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
+                variant="outline"
+                @click="selectInvoiceMode('invoice_amount')"
+                :disabled="isCreatingInvoice"
+              >
+                <span class="font-semibold">Invoice $ amount</span>
+                <span class="text-xs font-normal opacity-70">
+                  Invoice a specific dollar amount (must not exceed remaining)
+                </span>
+              </Button>
+              <div v-if="selectedInvoiceMode === 'invoice_amount'" class="flex gap-2">
+                <Input
+                  v-model="invoiceAmountInput"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  @keydown.enter.prevent="executeCreateInvoice('invoice_amount')"
+                />
+                <Button
+                  @click="executeCreateInvoice('invoice_amount')"
+                  size="sm"
+                  :disabled="isCreatingInvoice"
+                >
+                  Confirm
+                </Button>
+              </div>
+            </template>
+
+            <!-- T&M job options -->
+            <template v-else>
+              <Button
+                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
+                variant="default"
+                @click="executeCreateInvoice('invoice_costs_to_date')"
+                :disabled="isCreatingInvoice"
+              >
+                <span class="font-semibold">Invoice costs to date</span>
+                <span class="text-xs font-normal opacity-90">
+                  Invoice actual revenue minus already invoiced: {{ formatCurrency(toBeInvoiced) }}
+                </span>
+              </Button>
+
+              <Button
+                class="w-full h-auto py-4 px-4 flex flex-col items-start gap-1"
+                variant="outline"
+                @click="selectInvoiceMode('invoice_amount')"
+                :disabled="isCreatingInvoice"
+              >
+                <span class="font-semibold">Invoice $ amount</span>
+                <span class="text-xs font-normal opacity-70">
+                  Invoice a specific dollar amount (progress/material payment)
+                </span>
+              </Button>
+              <div v-if="selectedInvoiceMode === 'invoice_amount'" class="flex gap-2">
+                <Input
+                  v-model="invoiceAmountInput"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  @keydown.enter.prevent="executeCreateInvoice('invoice_amount')"
+                />
+                <Button
+                  @click="executeCreateInvoice('invoice_amount')"
+                  size="sm"
+                  :disabled="isCreatingInvoice"
+                >
+                  Confirm
+                </Button>
+              </div>
+            </template>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="ghost" @click="showInvoiceModal = false" :disabled="isCreatingInvoice"
+            >Cancel</Button
+          >
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
@@ -305,6 +473,7 @@ import {
 } from '../ui/dialog'
 import { Button } from '../ui/button'
 import { Card, CardHeader, CardFooter, CardContent, CardDescription, CardTitle } from '../ui/card'
+import { Input } from '../ui/input'
 import { ExternalLink, Trash2 } from 'lucide-vue-next'
 import { Badge } from '../ui/badge'
 
@@ -313,6 +482,7 @@ type CostSet = z.infer<typeof schemas.CostSet>
 type KanbanStaff = z.infer<typeof schemas.KanbanStaff>
 type StockConsumeRequest = z.infer<typeof schemas.StockConsumeRequest>
 type Invoice = z.infer<typeof schemas.Invoice>
+type XeroInvoiceCreateRequest = z.infer<typeof schemas.XeroInvoiceCreateRequest>
 
 // Type guard functions to safely access meta and ext_refs
 function isDeliveryReceiptMeta(meta: unknown): meta is { source: string; po_number?: string } {
@@ -406,14 +576,7 @@ const invoiceButtonText = computed(() => {
   if (!xeroConnected.value) {
     return 'Login to Xero first'
   }
-  if (props.pricingMethodology === 'fixed_price') {
-    return 'Create Invoice from Quote'
-  } else if (props.pricingMethodology === 'time_materials') {
-    return 'Create T&M Invoice'
-  } else {
-    console.error(`Unknown pricing methodology: ${props.pricingMethodology}`)
-    return 'Report a bug'
-  }
+  return 'Create Invoice'
 })
 
 const formatDate = (dateString: string | null | undefined) => {
@@ -425,31 +588,80 @@ const formatDate = (dateString: string | null | undefined) => {
   })
 }
 
-// --- INVOICE METHODS ---
-const createInvoice = async () => {
+// --- INVOICE MODAL ---
+const showInvoiceModal = ref(false)
+const selectedInvoiceMode = ref<string | null>(null)
+const invoicePercentInput = ref('')
+const invoiceAmountInput = ref('')
+
+const createInvoice = () => {
+  selectedInvoiceMode.value = null
+  invoicePercentInput.value = ''
+  invoiceAmountInput.value = ''
+  showInvoiceModal.value = true
+}
+
+function selectInvoiceMode(mode: string) {
+  selectedInvoiceMode.value = mode
+  invoicePercentInput.value = ''
+  invoiceAmountInput.value = ''
+}
+
+async function executeCreateInvoice(mode: string) {
   if (!props.jobId || isCreatingInvoice.value) return
+
+  let percent: number | undefined
+  let amount: number | undefined
+
+  if (mode === 'invoice_percent') {
+    const pct = parseFloat(invoicePercentInput.value)
+    if (isNaN(pct) || pct <= 0 || pct > 100) {
+      toast.error('Please enter a valid percentage (1-100)')
+      return
+    }
+    percent = pct
+  }
+
+  if (mode === 'invoice_amount') {
+    const amt = parseFloat(invoiceAmountInput.value)
+    if (isNaN(amt) || amt <= 0) {
+      toast.error('Please enter a valid amount')
+      return
+    }
+    amount = amt
+  }
+
+  showInvoiceModal.value = false
   isCreatingInvoice.value = true
+
   try {
-    const response = await api.xero_create_invoice_create(undefined, {
+    const body = { mode } as XeroInvoiceCreateRequest
+    if (percent !== undefined) body.percent = percent
+    if (amount !== undefined) body.amount = amount
+
+    const response = await api.xero_create_invoice_create(body, {
       params: { job_id: props.jobId },
     })
-    if (!response.success) {
-      const msgs = response.messages?.length ? response.messages : ['Failed to create invoice']
-      msgs.forEach((msg) => toast.error(msg))
+    if (!response?.success) {
+      const msgs = response?.messages?.length ? response.messages : ['Failed to create invoice']
+      msgs.forEach((msg: string) => toast.error(msg))
       return
     }
     toast.success('Invoice created successfully!')
     if (response.messages?.length) {
-      response.messages.forEach((msg) => toast.warning(msg))
+      response.messages.forEach((msg: string) => toast.warning(msg))
     }
     emit('invoice-created')
-    await loadInvoices() // Reload invoices after creation
+    await loadInvoices()
   } catch (err: unknown) {
     let msg = 'Unexpected error while trying to create invoice.'
     debugLog('Error creating invoice:', err)
     if ((err as AxiosError).isAxiosError) {
       const axiosErr = err as AxiosError<{ message: string }>
-      msg = axiosErr.response?.data?.message ?? msg
+      const errorData = axiosErr.response?.data
+      if (typeof errorData === 'object' && errorData !== null && 'error' in errorData) {
+        msg = String((errorData as { error: string }).error)
+      }
     }
     toast.error(`Failed to create invoice: ${msg}`)
   } finally {

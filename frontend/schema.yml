@@ -7830,6 +7830,18 @@ paths:
           required: true
       tags:
         - Xero
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/XeroInvoiceCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/XeroInvoiceCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/XeroInvoiceCreateRequest'
+        required: true
       security:
         - cookieAuth: []
       responses:
@@ -12761,6 +12773,18 @@ components:
           description: Error code for specific error types
       required:
         - error
+    JobQuoteChatInteractionModeEnum:
+      enum:
+        - CALC
+        - PRICE
+        - TABLE
+        - AUTO
+      type: string
+      description: |-
+        * `CALC` - CALC
+        * `PRICE` - PRICE
+        * `TABLE` - TABLE
+        * `AUTO` - AUTO
     JobQuoteChatInteractionRequest:
       type: object
       description: Serializer for chat interaction request data.
@@ -12772,7 +12796,7 @@ components:
           maxLength: 5000
         mode:
           allOf:
-            - $ref: '#/components/schemas/ModeEnum'
+            - $ref: '#/components/schemas/JobQuoteChatInteractionModeEnum'
           default: AUTO
           description: |-
             Operation mode: CALC for calculations, PRICE for pricing, TABLE for summaries, AUTO for automatic detection
@@ -13789,18 +13813,6 @@ components:
         * `galvanized` - Galvanized
         * `unspecified` - Unspecified
         * `other` - Other
-    ModeEnum:
-      enum:
-        - CALC
-        - PRICE
-        - TABLE
-        - AUTO
-      type: string
-      description: |-
-        * `CALC` - CALC
-        * `PRICE` - PRICE
-        * `TABLE` - TABLE
-        * `AUTO` - AUTO
     ModernStaff:
       type: object
       description: Serializer for staff in timesheet context
@@ -20445,6 +20457,53 @@ components:
           maxLength: 200
       required:
         - number
+    XeroInvoiceCreateModeEnum:
+      enum:
+        - invoice_full
+        - invoice_costs_to_date
+        - invoice_percent
+        - invoice_amount
+      type: string
+      description: |-
+        * `invoice_full` - Invoice full remaining amount
+        * `invoice_costs_to_date` - Invoice costs to date
+        * `invoice_percent` - Invoice percent of target
+        * `invoice_amount` - Invoice specific dollar amount
+    XeroInvoiceCreateRequest:
+      type: object
+      description: Request serializer for creating a Xero invoice with partial invoicing
+        support.
+      properties:
+        mode:
+          allOf:
+            - $ref: '#/components/schemas/XeroInvoiceCreateModeEnum'
+          description: |-
+            Invoicing mode that determines how the amount is calculated.
+
+            * `invoice_full` - Invoice full remaining amount
+            * `invoice_costs_to_date` - Invoice costs to date
+            * `invoice_percent` - Invoice percent of target
+            * `invoice_amount` - Invoice specific dollar amount
+        percent:
+          type: number
+          format: double
+          maximum: 10000
+          minimum: -10000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          nullable: true
+          description: Required when mode is invoice_percent (e.g. 50.0 for 50%%).
+        amount:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          nullable: true
+          description: Required when mode is invoice_amount.
+      required:
+        - mode
     XeroPayItem:
       type: object
       properties:
