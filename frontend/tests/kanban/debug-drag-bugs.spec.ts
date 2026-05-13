@@ -126,6 +126,23 @@ const getDragDiagnostics = async (page: Page, jobId?: string) => {
 }
 
 test.describe('debug: drag-and-drop bugs', () => {
+  // These tests exercise the Office-mode kanban board (status columns + drag-and-drop).
+  // Board mode has a device-derived default: narrow viewports — including the tablet
+  // viewport these tests resize to — default to Workshop mode, which renders no board
+  // at all (just a "select a job" pane). Pin Office mode so a viewport resize swaps the
+  // Office grid layout (desktop ⇄ tablet KanbanGridLayout) — the v-if teardown/remount
+  // these tests are about — instead of flipping the whole view to Workshop.
+  // Same approach as tests/kanban/kanban-mobile.spec.ts.
+  test.beforeEach(async ({ authenticatedPage: page }) => {
+    await page.addInitScript(() => {
+      try {
+        window.sessionStorage.setItem('boardMode', 'office')
+      } catch {
+        // sessionStorage may be unavailable in some contexts
+      }
+    })
+  })
+
   test('isDragging stuck after drop', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
 
