@@ -26,6 +26,7 @@ export default defineConfigWithVueTs(
     '**/scripts/**',
     '**/playwright-report/**',
     '**/test-results/**',
+    '**/test-history/**',
   ]),
 
   pluginVue.configs['flat/essential'],
