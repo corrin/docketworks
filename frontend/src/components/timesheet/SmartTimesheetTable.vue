@@ -519,6 +519,21 @@ const columns = computed(() => [
     },
   },
   {
+    id: 'payItem',
+    header: '',
+    cell: ({ row }: RowCtx) => {
+      const entry = displayEntries.value[row.index]
+      return h(
+        'span',
+        {
+          class: 'hidden',
+          'data-automation-id': `SmartTimesheetTable-payItem-${row.index}`,
+        },
+        entry.xero_pay_item_name || '',
+      )
+    },
+  },
+  {
     id: 'billRate',
     header: 'Invoice',
     cell: ({ row }: RowCtx) => {
