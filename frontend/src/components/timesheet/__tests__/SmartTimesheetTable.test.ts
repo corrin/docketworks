@@ -314,20 +314,19 @@ describe('SmartTimesheetTable bill multiplier editing', () => {
 })
 
 describe('SmartTimesheetTable pay item visibility', () => {
-  it('does not render the Xero pay item as a timesheet entry column', async () => {
+  it('renders the hidden Xero pay item column for E2E selectors', async () => {
     const saved = buildSavedEntry({
       xero_pay_item: 'pay-15',
-      xero_pay_item_name: 'Time and one half (old)',
+      xero_pay_item_name: 'Time and one half',
     })
     const wrapper = mount(SmartTimesheetTable, {
       props: { ...baseProps, entries: [saved], payItemsByMultiplier },
     })
     await flushPromises()
 
-    expect(wrapper.find('[data-automation-id="SmartTimesheetTable-payItem-0"]').exists()).toBe(
-      false,
-    )
-    expect(wrapper.text()).not.toContain('Time and one half (old)')
+    const cell = wrapper.find('[data-automation-id="SmartTimesheetTable-payItem-0"]')
+    expect(cell.exists()).toBe(true)
+    expect(cell.classes()).toContain('hidden')
   })
 })
 
