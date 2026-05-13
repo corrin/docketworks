@@ -272,17 +272,21 @@ class RateLimitedRESTClient(RESTClientObject):
         # be persisted.
         if self.app_id is None:
             return
-        # Without X-DayLimit-Remaining there is nothing fresh to record;
-        # writing None would clobber a previously-good count and bumping
-        # snapshot_at would falsely advertise the row as up-to-date.
-        if day_remaining is None:
-            return
-        update_fields = {
-            "day_remaining": day_remaining,
-            "snapshot_at": dj_timezone.now(),
-        }
+
+        # Not every Xero response carries the quota headers — token refreshes
+        # hit identity.xero.com (no rate-limit headers) and minute-limit 429s
+        # omit X-DayLimit-Remaining. A missing header means "no new reading",
+        # not "zero left", so leave the stored value alone rather than
+        # clobbering a known-good count with None.
+        fields = {}
+        if day_remaining is not None:
+            fields["day_remaining"] = day_remaining
         if minute_remaining is not None:
-            update_fields["minute_remaining"] = minute_remaining
+            fields["minute_remaining"] = minute_remaining
+        if not fields:
+            return
+
         from apps.workflow.models import XeroApp
 
-        XeroApp.objects.filter(id=self.app_id).update(**update_fields)
+        fields["snapshot_at"] = dj_timezone.now()
+        XeroApp.objects.filter(id=self.app_id).update(**fields)

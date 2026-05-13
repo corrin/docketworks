@@ -6943,7 +6943,17 @@ paths:
         - cookieAuth: []
       responses:
         '200':
-          description: No response body
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostWeekToXeroStartResponse'
+          description: ''
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientErrorResponse'
+          description: ''
   /api/timesheets/staff/:
     get:
       operationId: timesheets_staff_retrieve
@@ -9299,7 +9309,7 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
-            (8.00 = 8%)
+            (20.00 = 20%)
         workshop_efficiency_factor:
           type: number
           format: double
@@ -9680,7 +9690,7 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
-            (8.00 = 8%)
+            (20.00 = 20%)
         workshop_efficiency_factor:
           type: number
           format: double
@@ -13879,6 +13889,10 @@ components:
         xero_pay_item_id:
           type: string
           format: uuid
+        bill_rate_multiplier:
+          type: number
+          format: double
+          minimum: 0
       required:
         - date
         - description
@@ -14421,7 +14435,7 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           description: Percentage added to base_wage_rate to get costing wage_rate
-            (8.00 = 8%)
+            (20.00 = 20%)
         workshop_efficiency_factor:
           type: number
           format: double
@@ -15221,6 +15235,12 @@ components:
           maximum: 100
           minimum: 0.0
           exclusiveMaximum: true
+        bill_rate_multiplier:
+          type: number
+          format: double
+          maximum: 100
+          minimum: 0.0
+          exclusiveMaximum: true
     PatchedXeroAppRequest:
       type: object
       description: |-
@@ -15299,7 +15319,22 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/PayRunListItem'
+        next_postable_week_start_date:
+          type: string
+          format: date
+          nullable: true
+          description: Monday of the only payroll week that can currently be posted
+            to Xero — Xero processes pay runs in sequence (the open Draft's week,
+            else the week after the latest pay run, else the calendar's anchor week).
+            Null only if no payroll calendar is configured, in which case the client
+            should default to the current week.
+        next_postable_week_end_date:
+          type: string
+          format: date
+          nullable: true
       required:
+        - next_postable_week_end_date
+        - next_postable_week_start_date
         - pay_runs
     PayRunSyncResponse:
       type: object
@@ -15589,6 +15624,20 @@ components:
       required:
         - staff_ids
         - week_start_date
+    PostWeekToXeroStartResponse:
+      type: object
+      description: Response serializer for starting payroll posting SSE workflow.
+      properties:
+        task_id:
+          type: string
+          format: uuid
+          description: Server-side task identifier
+        stream_url:
+          type: string
+          description: SSE endpoint for payroll progress
+      required:
+        - stream_url
+        - task_id
     PreviewQuoteResponse:
       type: object
       description: Serializer for preview quote response.
@@ -19872,6 +19921,14 @@ components:
           exclusiveMaximum: true
           exclusiveMinimum: true
           readOnly: true
+        bill_rate_multiplier:
+          type: number
+          format: double
+          maximum: 100
+          minimum: -100
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
         created_at:
           type: string
           format: date-time
@@ -19882,6 +19939,7 @@ components:
           readOnly: true
       required:
         - accounting_date
+        - bill_rate_multiplier
         - client_name
         - created_at
         - description
@@ -19933,6 +19991,12 @@ components:
           minimum: 0.0
           exclusiveMaximum: true
           default: 1.00
+        bill_rate_multiplier:
+          type: number
+          format: double
+          maximum: 100
+          minimum: 0.0
+          exclusiveMaximum: true
       required:
         - accounting_date
         - hours

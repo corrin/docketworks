@@ -334,7 +334,7 @@ const router = createRouter({
   ],
 })
 
-router.beforeEach(async (to, _from, next) => {
+router.beforeEach(async (to) => {
   const authStore = useAuthStore()
 
   if (to.meta.title) {
@@ -346,16 +346,14 @@ router.beforeEach(async (to, _from, next) => {
       await authStore.initializeAuth()
     }
     if (authStore.isAuthenticated) {
-      next({ name: authStore.defaultRouteName })
-      return
+      return { name: authStore.defaultRouteName }
     }
   }
 
   if (to.meta.requiresAuth) {
     const ok = await authStore.userIsLogged()
     if (!ok) {
-      next({ name: 'login', query: { redirect: to.fullPath } })
-      return
+      return { name: 'login', query: { redirect: to.fullPath } }
     }
   }
 
@@ -363,8 +361,7 @@ router.beforeEach(async (to, _from, next) => {
     toast.error('You are not allowed to visit this page.', {
       description: 'Please try again or contact Corrin if you think this is a mistake.',
     })
-    next('/')
-    return
+    return '/'
   }
 
   // is_office_staff controls PERMISSIONS (what user can access, backend-enforced)
@@ -373,11 +370,8 @@ router.beforeEach(async (to, _from, next) => {
     toast.error('You are not allowed to visit this page.', {
       description: 'Please try again or contact Corrin if you think this is a mistake.',
     })
-    next('/')
-    return
+    return '/'
   }
-
-  next()
 })
 
 router.afterEach((to) => {

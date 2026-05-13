@@ -154,10 +154,9 @@ function goBack() {
   router.push('/admin/company')
 }
 
-onBeforeRouteLeave((_to, _from, next) => {
-  if (!isDirty.value) return next()
-  const confirmed = window.confirm('You have unsaved changes. Discard them and leave this page?')
-  next(confirmed)
+onBeforeRouteLeave(() => {
+  if (!isDirty.value) return true
+  return window.confirm('You have unsaved changes. Discard them and leave this page?')
 })
 
 watch(

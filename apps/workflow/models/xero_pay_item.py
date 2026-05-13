@@ -100,10 +100,26 @@ class XeroPayItem(models.Model):
     @classmethod
     def get_by_multiplier(cls, multiplier: Decimal) -> "XeroPayItem | None":
         """Get a XeroPayItem by rate multiplier."""
-        return cls.objects.filter(
+        queryset = cls.objects.filter(
             uses_leave_api=False,
             multiplier=multiplier,
-        ).first()
+        )
+        if multiplier == Decimal("1.00"):
+            ordinary = queryset.filter(
+                name="Ordinary Time", xero_id__isnull=False
+            ).first()
+            if ordinary is not None:
+                return ordinary
+        if multiplier == Decimal("1.50"):
+            time_and_half = queryset.filter(
+                name="Time and one half", xero_id__isnull=False
+            ).first()
+            if time_and_half is not None:
+                return time_and_half
+        return (
+            queryset.filter(xero_id__isnull=False).order_by("name").first()
+            or queryset.order_by("name").first()
+        )
 
     @classmethod
     def get_ordinary_time(cls) -> "XeroPayItem | None":

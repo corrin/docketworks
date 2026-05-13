@@ -51,3 +51,52 @@ class PayRunListApiTests(BaseTestCase):
         self.assertEqual(len(payload["pay_runs"]), 1)
         self.assertEqual(payload["pay_runs"][0]["xero_id"], str(pay_run.xero_id))
         self.assertEqual(payload["pay_runs"][0]["pay_run_status"], "Draft")
+        # An open Draft → that Draft's week is the only postable one.
+        self.assertEqual(payload["next_postable_week_start_date"], "2026-05-05")
+        self.assertEqual(payload["next_postable_week_end_date"], "2026-05-11")
+
+    @patch("apps.timesheet.views.api.build_xero_payroll_url")
+    def test_next_postable_week_is_after_latest_run_when_no_draft(
+        self, mock_build_xero_payroll_url
+    ):
+        mock_build_xero_payroll_url.return_value = "https://example.test/payrun/1"
+        XeroPayRun.objects.create(
+            xero_id=uuid.uuid4(),
+            xero_tenant_id="tenant-1",
+            payroll_calendar_id=self.calendar_id,
+            period_start_date=date(2026, 4, 27),
+            period_end_date=date(2026, 5, 3),
+            payment_date=date(2026, 5, 6),
+            pay_run_status="Posted",
+            raw_json={},
+            xero_last_modified=datetime(2026, 5, 6, tzinfo=timezone.utc),
+        )
+
+        response = self.client_api.get(reverse("timesheet:api_list_pay_runs"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        # No Draft → the week after the latest pay run is postable.
+        self.assertEqual(payload["next_postable_week_start_date"], "2026-05-04")
+        self.assertEqual(payload["next_postable_week_end_date"], "2026-05-10")
+
+    @patch("apps.workflow.api.xero.payroll.get_payroll_calendars")
+    def test_next_postable_week_uses_calendar_anchor_when_no_pay_runs(
+        self, mock_get_payroll_calendars
+    ):
+        mock_get_payroll_calendars.return_value = [
+            {
+                "id": str(self.calendar_id),
+                "period_start_date": datetime(2026, 4, 13, tzinfo=timezone.utc),
+                "period_end_date": datetime(2026, 4, 19, tzinfo=timezone.utc),
+            }
+        ]
+
+        response = self.client_api.get(reverse("timesheet:api_list_pay_runs"))
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["pay_runs"], [])
+        # No pay runs → the calendar's anchor period is the first postable week.
+        self.assertEqual(payload["next_postable_week_start_date"], "2026-04-13")
+        self.assertEqual(payload["next_postable_week_end_date"], "2026-04-19")

@@ -41,6 +41,11 @@ export interface PostStaffWeekCompleteEvent {
   has_entries?: boolean
 }
 
+export interface PostStaffWeekErrorEvent {
+  event: 'error'
+  message: string
+}
+
 export interface PostStaffWeekDoneEvent {
   event: 'done'
   successful: number
@@ -51,12 +56,14 @@ export type PostStaffWeekSSEEvent =
   | PostStaffWeekStartEvent
   | PostStaffWeekProgressEvent
   | PostStaffWeekCompleteEvent
+  | PostStaffWeekErrorEvent
   | PostStaffWeekDoneEvent
 
 export interface PostStaffWeekCallbacks {
   onStart?: (event: PostStaffWeekStartEvent) => void
   onProgress?: (event: PostStaffWeekProgressEvent) => void
   onComplete?: (event: PostStaffWeekCompleteEvent) => void
+  onStreamError?: (event: PostStaffWeekErrorEvent) => void
   onDone?: (event: PostStaffWeekDoneEvent) => void
   onError?: (error: Error) => void
 }
@@ -128,6 +135,9 @@ export async function postStaffWeek(
             case 'complete':
               callbacks?.onComplete?.(data)
               break
+            case 'error':
+              callbacks?.onStreamError?.(data)
+              break
             case 'done':
               doneEvent = data
               callbacks?.onDone?.(data)
@@ -165,14 +175,18 @@ export async function postStaffWeek(
 
 /**
  * Fetch all pay runs for the configured payroll calendar.
- * Returns pay runs sorted by period_end_date descending (newest first).
+ * Returns pay runs sorted by period_end_date descending (newest first),
+ * plus `next_postable_week_start_date` / `next_postable_week_end_date` — the
+ * single week Xero will accept a pay run for next (or `null` if no calendar is
+ * configured / no pay runs exist yet). The backend is authoritative for this;
+ * the frontend must not recompute it (ADR 0020).
  *
  * Used to determine:
  * 1. Pay run status for a specific week (filter by period dates)
- * 2. Default week to show (latest Draft, or week after latest Posted)
- * 3. Whether current week can have a pay run posted (only weeks after latest Posted)
+ * 2. Default week to show (the postable week, else the current week)
+ * 3. Whether the displayed week can be posted (only the postable week)
  *
- * @returns List of all pay runs
+ * @returns Pay run list response including the postable-week fields
  */
 export async function fetchAllPayRuns(): Promise<PayRunListResponse> {
   const response = await api.timesheets_payroll_pay_runs_retrieve()

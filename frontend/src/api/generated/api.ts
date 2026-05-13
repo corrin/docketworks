@@ -2036,6 +2036,7 @@ const ModernTimesheetEntryPostRequest = z.object({
   is_billable: z.boolean().optional().default(true),
   hourly_rate: z.number().gte(0).optional(),
   xero_pay_item_id: z.string().uuid(),
+  bill_rate_multiplier: z.number().gte(0).optional(),
 })
 const ModernTimesheetEntryPostResponse = z.object({
   success: z.boolean(),
@@ -2064,6 +2065,7 @@ const WorkshopTimesheetEntry = z.object({
   end_time: z.string().nullable(),
   is_billable: z.boolean(),
   wage_rate_multiplier: z.number().gt(-100).lt(100),
+  bill_rate_multiplier: z.number().gt(-100).lt(100),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
@@ -2088,6 +2090,7 @@ const WorkshopTimesheetEntryRequestRequest = z.object({
   end_time: z.string().nullish(),
   is_billable: z.boolean().optional().default(true),
   wage_rate_multiplier: z.number().gte(0).lt(100).optional().default(1),
+  bill_rate_multiplier: z.number().gte(0).lt(100).optional(),
 })
 const PatchedWorkshopTimesheetEntryUpdateRequest = z
   .object({
@@ -2100,6 +2103,7 @@ const PatchedWorkshopTimesheetEntryUpdateRequest = z
     end_time: z.string().nullable(),
     is_billable: z.boolean(),
     wage_rate_multiplier: z.number().gte(0).lt(100),
+    bill_rate_multiplier: z.number().gte(0).lt(100),
   })
   .partial()
 const Day = z.object({
@@ -2852,7 +2856,11 @@ const PayRunListItem = z.object({
   pay_run_status: z.string(),
   xero_url: z.string(),
 })
-const PayRunListResponse = z.object({ pay_runs: z.array(PayRunListItem) })
+const PayRunListResponse = z.object({
+  pay_runs: z.array(PayRunListItem),
+  next_postable_week_start_date: z.string().nullable(),
+  next_postable_week_end_date: z.string().nullable(),
+})
 const CreatePayRunRequest = z.object({ week_start_date: z.string() })
 const CreatePayRunResponse = z.object({
   id: z.string().uuid(),
@@ -2872,6 +2880,10 @@ const PayRunSyncResponse = z.object({
 const PostWeekToXeroRequest = z.object({
   staff_ids: z.array(z.string().uuid()),
   week_start_date: z.string(),
+})
+const PostWeekToXeroStartResponse = z.object({
+  task_id: z.string().uuid(),
+  stream_url: z.string(),
 })
 const ModernStaff = z.object({
   id: z.string(),
@@ -3470,6 +3482,7 @@ export const schemas = {
   CreatePayRunResponse,
   PayRunSyncResponse,
   PostWeekToXeroRequest,
+  PostWeekToXeroStartResponse,
   ModernStaff,
   StaffListResponse,
   WeeklyStaffDataWeeklyHours,
@@ -8270,7 +8283,13 @@ Use GET /api/payroll/post-staff-week/stream/{task_id}/ to receive SSE progress.`
         schema: PostWeekToXeroRequest,
       },
     ],
-    response: z.void(),
+    response: PostWeekToXeroStartResponse,
+    errors: [
+      {
+        status: 400,
+        schema: ClientErrorResponse,
+      },
+    ],
   },
   {
     method: 'get',

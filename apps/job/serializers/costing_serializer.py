@@ -6,6 +6,14 @@ from rest_framework import serializers
 
 from apps.accounts.models import Staff
 from apps.job.models import CostLine, CostSet
+from apps.job.services.time_entry_rates import (
+    calculate_time_unit_rates,
+    get_bill_rate_multiplier,
+    is_leave_pay_item,
+    leave_wage_rate_multiplier,
+    normalize_multiplier,
+    resolve_xero_pay_item_for_job,
+)
 from apps.workflow.models import CompanyDefaults
 
 logger = logging.getLogger(__name__)
@@ -175,12 +183,11 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
         """Override save to auto-calculate unit_cost and unit_rev for timesheet entries"""
         # Check if this is a timesheet entry
         meta = self.validated_data.get("meta", {})
-        kind = self.validated_data.get("kind")
+        kind = self.validated_data.get("kind") or getattr(self.instance, "kind", None)
 
         if kind == "time" and meta.get("created_from_timesheet"):
             line_id = self.validated_data.get("id")
             logger.debug(f"Starting to autocalculate unit cost for cost line {line_id}")
-            # Auto-calculate unit_cost from staff wage_rate and rate multiplier
             staff_id = meta.get("staff_id")
 
             if not staff_id:
@@ -192,6 +199,15 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
             try:
                 staff = Staff.objects.get(id=staff_id)
                 company_defaults = CompanyDefaults.get_solo()
+                cost_set = kwargs.get("cost_set") or getattr(
+                    self.instance, "cost_set", None
+                )
+                if cost_set is None:
+                    exception = serializers.ValidationError(
+                        "Cost set must be available when saving a timesheet entry."
+                    )
+                    raise exception
+                job = cost_set.job
 
                 # Use staff wage_rate or company default
                 wage_rate = (
@@ -205,33 +221,45 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                     )
                     raise exception
 
-                rate_multiplier = Decimal(rate_multiplier_value)
-                final_wage = (wage_rate * rate_multiplier).quantize(Decimal("0.01"))
-                self.validated_data["unit_cost"] = final_wage
+                wage_rate_multiplier = normalize_multiplier(rate_multiplier_value)
+                pay_item = resolve_xero_pay_item_for_job(
+                    job=job,
+                    wage_rate_multiplier=wage_rate_multiplier,
+                )
+                if is_leave_pay_item(pay_item):
+                    wage_rate_multiplier = leave_wage_rate_multiplier(pay_item)
+                    bill_rate_multiplier = Decimal("0.00")
+                else:
+                    bill_rate_multiplier = get_bill_rate_multiplier(
+                        meta, wage_rate_multiplier
+                    )
+                unit_cost, unit_rev, wage_rate, charge_out_rate = (
+                    calculate_time_unit_rates(
+                        wage_rate=wage_rate,
+                        charge_out_rate=job.charge_out_rate,
+                        wage_rate_multiplier=wage_rate_multiplier,
+                        bill_rate_multiplier=bill_rate_multiplier,
+                    )
+                )
+                self.validated_data["unit_cost"] = unit_cost
+                self.validated_data["unit_rev"] = unit_rev
+                self.validated_data["xero_pay_item"] = pay_item
+                meta["wage_rate_multiplier"] = float(wage_rate_multiplier)
+                meta["bill_rate_multiplier"] = float(bill_rate_multiplier)
+                meta["is_billable"] = bill_rate_multiplier > Decimal("0.00")
+                meta["wage_rate"] = float(wage_rate)
+                meta["charge_out_rate"] = float(charge_out_rate)
+                self.validated_data["meta"] = meta
                 logger.debug(
-                    f"Auto-calculated unit_cost: {final_wage} for staff {staff_id}"
+                    f"Auto-calculated time rates for staff {staff_id}: "
+                    f"unit_cost={unit_cost}, unit_rev={unit_rev}"
                 )
 
             except Staff.DoesNotExist:
-                logger.warning(f"Staff not found: {staff_id}")
+                raise serializers.ValidationError(f"Staff not found: {staff_id}")
             except Exception as e:
                 logger.error(f"Error calculating unit_cost: {e}")
-
-            # Auto-calculate unit_rev from job charge_out_rate
-            if hasattr(self, "instance") and self.instance and self.instance.cost_set:
-                job = self.instance.cost_set.job
-                is_billable = meta.get("is_billable", False)
-                if job and job.charge_out_rate and is_billable:
-                    self.validated_data["unit_rev"] = job.charge_out_rate
-
-                    logger.info(
-                        f"Auto-calculated unit_rev: {job.charge_out_rate} from job {job.job_number}"
-                    )
-                else:
-                    self.validated_data["unit_rev"] = Decimal("0.0")
-                    logger.info(
-                        "Auto-calculated unit_rev is 0 because entry is not billable"
-                    )
+                raise
 
         return super().save(**kwargs)
 

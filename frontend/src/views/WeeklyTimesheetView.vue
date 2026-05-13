@@ -125,6 +125,7 @@
           :pay-run-status="payRunStatus"
           :payment-date="paymentDate"
           :xero-url="xeroUrl"
+          :xero-connected="xeroConnected"
           :creating="creatingPayRun"
           :posting="postingAll"
           :posting-progress="postingProgress"
@@ -135,10 +136,13 @@
           :posting-blocked="!canPostCurrentWeek"
           :posting-blocked-reason="postingBlockedReason"
           :draft-week-start="draftWeekStart"
+          :next-postable-week-start="nextPostableWeekStart"
+          :next-postable-week-end="nextPostableWeekEnd"
           @post-all-to-xero="handlePostAllToXero"
           @refresh-pay-runs="handleRefreshPayRuns"
           @dismiss-error="payrollError = null"
           @navigate-to-draft="handleNavigateToDraft"
+          @go-to-postable-week="goToPostableWeek"
         />
 
         <!-- Loading Spinner -->
@@ -323,7 +327,6 @@ import {
 import { fetchWeeklyOverview, formatHours } from '@/services/weekly-timesheet.service'
 import { formatCurrency, humanizeErrorMessage } from '@/utils/string-formatting'
 import {
-  createPayRun,
   postStaffWeek,
   fetchAllPayRuns,
   refreshPayRuns,
@@ -333,6 +336,7 @@ import {
 import { schemas } from '@/api/generated/api'
 import { debugLog } from '../utils/debug'
 import { useTimesheetStore } from '@/stores/timesheet'
+import { useXeroConnection } from '@/composables/useXeroConnection'
 import { toast } from 'vue-sonner'
 import { z } from 'zod'
 
@@ -350,6 +354,7 @@ const weeklyData = ref<WeeklyTimesheetData | null>(null)
 
 const router = useRouter()
 const route = useRoute()
+const { xeroConnected } = useXeroConnection()
 
 function normalizeToWeekStart(dateInput: Date | string): Date {
   const { startDate } = dateService.getWeekRange(dateInput)
@@ -368,6 +373,12 @@ const showWeekPicker = ref(false)
 
 // All pay runs (for default week calculation, current week status, and posting restrictions)
 const allPayRuns = ref<PayRunListItem[]>([])
+
+// The single week Xero will accept a pay run for next (backend-authoritative; ADR 0020).
+// `null` means no payroll calendar configured / no pay runs yet — fall back to the
+// current week and the legacy "not too aggressive" posting guard.
+const nextPostableWeekStart = ref<string | null>(null)
+const nextPostableWeekEnd = ref<string | null>(null)
 
 // Payroll state
 const payRunStatus = ref<string | null>(null)
@@ -423,34 +434,27 @@ async function loadAllPayRuns(): Promise<PayRunListItem[]> {
     throw err
   })
   allPayRuns.value = result.pay_runs
+  nextPostableWeekStart.value = result.next_postable_week_start_date
+  nextPostableWeekEnd.value = result.next_postable_week_end_date
   debugLog('Loaded all pay runs:', result.pay_runs.length, 'items')
   return result.pay_runs
 }
 
-// Calculate the default week based on pay runs
-function calculateDefaultWeek(payRuns: PayRunListItem[]): Date {
-  // If query param exists, use that (user explicitly navigated to a week)
+// Calculate the default week to land on.
+//
+// The backend tells us the single week Xero will accept next
+// (`nextPostableWeekStart`); land there so "Post to Xero" is normally enabled.
+// If the backend has no opinion (null — fresh org), land on the current week.
+// An explicit `?week=` route param always wins (user navigated deliberately).
+function calculateDefaultWeek(): Date {
   if (route.query.week) {
     return normalizeToWeekStart(route.query.week as string)
   }
 
-  // Find the latest Draft pay run (if any)
-  const latestDraft = payRuns.find((pr) => pr.pay_run_status === 'Draft')
-  if (latestDraft) {
-    // Default to the week of the latest Draft
-    return normalizeToWeekStart(latestDraft.period_start_date)
+  if (nextPostableWeekStart.value) {
+    return normalizeToWeekStart(nextPostableWeekStart.value)
   }
 
-  // Find the latest Posted pay run (if any)
-  const latestPosted = payRuns.find((pr) => pr.pay_run_status === 'Posted')
-  if (latestPosted) {
-    // Default to week AFTER the latest Posted
-    const endDate = createLocalDate(latestPosted.period_end_date)
-    endDate.setDate(endDate.getDate() + 1)
-    return normalizeToWeekStart(endDate)
-  }
-
-  // Default to current week
   return normalizeToWeekStart(new Date())
 }
 
@@ -519,24 +523,35 @@ const latestPostedPayRun = computed(() => {
   return allPayRuns.value.find((pr) => pr.pay_run_status === 'Posted') ?? null
 })
 
-// Posting restrictions based on latest posted pay run
+// Posting is allowed only on the single week Xero will accept next.
+// When the backend knows that week (`nextPostableWeekStart`), gate strictly on it.
+// When it doesn't (null — fresh org), fall back to the legacy "not too aggressive"
+// guard so a not-yet-set-up org isn't bricked.
 const canPostCurrentWeek = computed(() => {
-  // If no posted pay runs exist, posting is allowed
+  if (nextPostableWeekStart.value) {
+    return weekStartDate.value === nextPostableWeekStart.value
+  }
+
+  // Legacy fallback: allow unless a newer pay run has already been posted.
   if (!latestPostedPayRun.value) {
     return true
   }
-
-  // Get the end date of the currently selected week
   const currentWeekEnd = dateService.getWeekRange(selectedWeekStart.value).endDate
-
-  // Can post if current week ends AFTER the latest posted period
   return currentWeekEnd > latestPostedPayRun.value.period_end_date
 })
 
 const postingBlockedReason = computed(() => {
   if (canPostCurrentWeek.value) return null
-  if (!latestPostedPayRun.value?.period_end_date) return null
 
+  if (nextPostableWeekStart.value) {
+    const formattedDate = nextPostableWeekEnd.value
+      ? dateService.formatDisplayDate(nextPostableWeekEnd.value)
+      : ''
+    return `Payroll for the week ending ${formattedDate} is next — switch to that week to post it.`
+  }
+
+  // Legacy fallback messaging.
+  if (!latestPostedPayRun.value?.period_end_date) return null
   const latestEndDate = latestPostedPayRun.value.period_end_date
   const formattedDate = dateService.formatDisplayDate(latestEndDate)
   return `Cannot post: A pay run has already been posted for the week ending ${formattedDate}. You can only post pay runs for weeks after this date.`
@@ -658,6 +673,12 @@ function goToCurrentWeek() {
   router.push({ query: { week: weekStartDate.value } })
   loadData()
 }
+function goToPostableWeek() {
+  if (!nextPostableWeekStart.value) return
+  selectedWeekStart.value = createLocalDate(nextPostableWeekStart.value)
+  router.push({ query: { week: weekStartDate.value } })
+  loadData()
+}
 function togglePayrollMode(checked: boolean) {
   payrollMode.value = checked
   debugLog(`Switched to ${payrollMode.value ? 'Loaded Wages' : 'Cash Wages'}`)
@@ -685,35 +706,6 @@ function handleWeekSelect(date: string) {
 }
 
 // Payroll functions
-async function handleCreatePayRun() {
-  creatingPayRun.value = true
-  payrollError.value = null
-  try {
-    const result = await createPayRun(weekStartDate.value)
-
-    payRunStatus.value = result.status
-    paymentDate.value = result.payment_date
-    const xeroUrlRaw = (result as { xero_url?: unknown }).xero_url
-    const xeroUrlValue: string | null = typeof xeroUrlRaw === 'string' ? xeroUrlRaw : null
-    xeroUrl.value = xeroUrlValue
-
-    toast.success('Pay run created successfully', {
-      description: `Payment date: ${result.payment_date}`,
-    })
-
-    debugLog('Pay run created:', result)
-  } catch (err: unknown) {
-    console.error('Create pay run failed:', err)
-
-    payrollError.value = 'Failed to create pay run. Please try again or contact Corrin.'
-    toast.error('Failed to create pay run', {
-      description: 'Something went wrong. Please try again or contact Corrin.',
-    })
-  } finally {
-    creatingPayRun.value = false
-  }
-}
-
 async function handleRefreshPayRuns() {
   refreshingPayRuns.value = true
   payrollError.value = null
@@ -799,6 +791,7 @@ async function handlePostAllToXero() {
   // Track failed and skipped staff for reporting
   const failedStaff: Array<{ staffName: string; error?: string }> = []
   const skippedInactiveWithEntries: string[] = []
+  let streamErrorMessage: string | null = null
 
   try {
     const result = await postStaffWeek(staffIds, weekStart, {
@@ -847,6 +840,10 @@ async function handlePostAllToXero() {
         }
         debugLog('Complete:', event)
       },
+      onStreamError: (event) => {
+        streamErrorMessage = event.message
+        console.error('Payroll stream error:', event.message)
+      },
       onDone: (event) => {
         debugLog('Batch post done:', event)
       },
@@ -855,19 +852,21 @@ async function handlePostAllToXero() {
     const totalPosted = result.successful + result.failed
     if (result.failed > 0) {
       const failedNames = failedStaff.map((s) => s.staffName).join(', ')
-      payrollError.value = `Failed to post ${result.failed} of ${totalPosted} staff members to Xero: ${failedNames}`
+      payrollError.value =
+        streamErrorMessage ||
+        `Failed to post ${result.failed} of ${totalPosted} staff members to Xero: ${failedNames}`
       toast.error('Some staff failed to post', {
-        description: failedNames,
+        description: streamErrorMessage || failedNames,
       })
       postedAllToXero.value = false
     } else {
       toast.success('All staff posted successfully', {
-        description: `${result.successful} staff members posted to Xero. Creating pay run...`,
+        description: `${result.successful} staff members posted to Xero.`,
       })
       postedAllToXero.value = true
 
-      // Automatically create the pay run after successful posting
-      await handleCreatePayRun()
+      await loadAllPayRuns()
+      loadPayRunForCurrentWeek()
     }
 
     // Warn about inactive staff with entries that were skipped
@@ -896,13 +895,13 @@ onMounted(async () => {
 
   // Fetch all pay runs (needed for default week calculation and restrictions)
   console.time('[WeeklyTimesheet] loadAllPayRuns')
-  const payRuns = await loadAllPayRuns()
+  await loadAllPayRuns()
   console.timeEnd('[WeeklyTimesheet] loadAllPayRuns')
 
-  // If no query param, set the default week based on pay runs
+  // If no query param, land on the backend-chosen postable week (else current week)
   if (!route.query.week) {
     console.time('[WeeklyTimesheet] calculateDefaultWeek')
-    const defaultWeek = calculateDefaultWeek(payRuns)
+    const defaultWeek = calculateDefaultWeek()
     console.timeEnd('[WeeklyTimesheet] calculateDefaultWeek')
     selectedWeekStart.value = defaultWeek
     // Update URL to reflect the calculated week

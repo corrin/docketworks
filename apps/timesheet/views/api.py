@@ -36,13 +36,17 @@ from apps.timesheet.serializers.payroll_serializers import (
     PayRunListResponseSerializer,
     PayRunSyncResponseSerializer,
     PostWeekToXeroSerializer,
+    PostWeekToXeroStartResponseSerializer,
 )
 from apps.timesheet.services.weekly_timesheet_service import WeeklyTimesheetService
 from apps.timesheet.views.base import TimesheetBaseView
 from apps.workflow.api.xero.payroll import (
+    ensure_pay_run_for_week,
     get_all_timesheets_for_week,
     get_payroll_calendar_id,
+    next_postable_payroll_week,
     post_staff_week_to_xero,
+    reconcile_leave_for_week_for_staff,
     validate_pay_items_for_week,
 )
 from apps.workflow.api.xero.sync import sync_all_xero_data
@@ -444,6 +448,7 @@ class PayRunListAPIView(TimesheetBaseView):
         pay_runs = XeroPayRun.objects.filter(payroll_calendar_id=calendar_id).order_by(
             "-period_end_date"
         )
+        postable = next_postable_payroll_week()
 
         return Response(
             {
@@ -458,7 +463,9 @@ class PayRunListAPIView(TimesheetBaseView):
                         "xero_url": build_xero_payroll_url(str(pr.xero_id)),
                     }
                     for pr in pay_runs
-                ]
+                ],
+                "next_postable_week_start_date": postable[0] if postable else None,
+                "next_postable_week_end_date": postable[1] if postable else None,
             },
             status=status.HTTP_200_OK,
         )
@@ -509,7 +516,10 @@ class PostWeekToXeroPayrollAPIView(TimesheetBaseView):
     @extend_schema(
         summary="Start posting weekly timesheets to Xero Payroll",
         request=PostWeekToXeroSerializer,
-        responses={200: None},
+        responses={
+            200: PostWeekToXeroStartResponseSerializer,
+            400: ClientErrorResponseSerializer,
+        },
     )
     def post(self, request):
         """
@@ -559,10 +569,12 @@ class PostWeekToXeroPayrollAPIView(TimesheetBaseView):
         cache.set(f"payroll_task_{task_id}", task_data, timeout=PAYROLL_TASK_TIMEOUT)
 
         return Response(
-            {
-                "task_id": task_id,
-                "stream_url": f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/",
-            }
+            PostWeekToXeroStartResponseSerializer(
+                {
+                    "task_id": task_id,
+                    "stream_url": f"/api/timesheets/payroll/post-staff-week/stream/{task_id}/",
+                }
+            ).data
         )
 
 
@@ -619,6 +631,28 @@ def stream_payroll_post(request, task_id):
             yield f"data: {json.dumps({'event': 'done', 'successful': 0, 'failed': total, 'datetime': timezone.now().isoformat()})}\n\n"
             return
 
+        # FAIL EARLY: reconcile Xero Leave API records before creating or reusing
+        # the draft pay run. Xero locks leave deletion once the employee is
+        # included in a draft pay run.
+        try:
+            reconcile_leave_for_week_for_staff(staff_uuids, week_start_date)
+        except Exception as exc:
+            logger.exception("Failed to delete stale Xero leave before posting")
+            persist_app_error(exc)
+            yield f"data: {json.dumps({'event': 'error', 'message': str(exc), 'datetime': timezone.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'event': 'done', 'successful': 0, 'failed': total, 'datetime': timezone.now().isoformat()})}\n\n"
+            return
+
+        # FAIL EARLY: ensure Xero has a valid pay run/pay period for this week
+        try:
+            ensure_pay_run_for_week(week_start_date)
+        except Exception as exc:
+            logger.exception("Failed to ensure pay run exists before posting staff")
+            persist_app_error(exc)
+            yield f"data: {json.dumps({'event': 'error', 'message': str(exc), 'datetime': timezone.now().isoformat()})}\n\n"
+            yield f"data: {json.dumps({'event': 'done', 'successful': 0, 'failed': total, 'datetime': timezone.now().isoformat()})}\n\n"
+            return
+
         # Fetch all existing timesheets for the week in ONE API call
         try:
             existing_timesheets = get_all_timesheets_for_week(week_start_date)
@@ -636,10 +670,14 @@ def stream_payroll_post(request, task_id):
                 staff = Staff.objects.get(id=staff_id)
                 staff_name = staff.get_display_full_name()
 
-                # Skip inactive staff - Xero payroll API rejects them
-                if staff.date_left is not None:
+                week_end_date = week_start_date + timedelta(days=6)
+                joined_after_week = staff.date_joined.date() > week_end_date
+                left_before_week = (
+                    staff.date_left is not None and staff.date_left < week_start_date
+                )
+                # Skip staff outside this payroll week - Xero rejects inactive staff.
+                if joined_after_week or left_before_week:
                     # Only warn if they actually have entries we're skipping
-                    week_end_date = week_start_date + timedelta(days=6)
                     has_entries = CostLine.objects.filter(
                         kind="time",
                         accounting_date__gte=week_start_date,
@@ -670,6 +708,7 @@ def stream_payroll_post(request, task_id):
                     staff_id=staff_id,
                     week_start_date=week_start_date,
                     existing_timesheet=existing,
+                    leave_already_reconciled=True,
                 )
 
                 if result["success"]:

@@ -227,7 +227,7 @@ export function useWorkshopTimesheetForm(options: {
       hours,
       description: formState.description || '',
       is_billable: formState.isBillable,
-      rate_multiplier: multiplierValue(formState.rateMultiplier),
+      wage_rate_multiplier: multiplierValue(formState.rateMultiplier),
     }
 
     try {

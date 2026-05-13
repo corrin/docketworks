@@ -494,7 +494,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
   }
 
   function onRouteLeaveBind(router: Pick<Router, 'beforeEach'>) {
-    const remove = router.beforeEach((_to, _from, next) => {
+    const remove = router.beforeEach(() => {
       if (hasPending()) {
         const snapshot = opts.getSnapshot() ?? {}
         if (opts.canSave ? opts.canSave(snapshot) : true) {
@@ -503,7 +503,6 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
           log('↪️ route-leave skipped (not ready)')
         }
       }
-      next()
     })
     return typeof remove === 'function' ? (remove as () => void) : () => {}
   }

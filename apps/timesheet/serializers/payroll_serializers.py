@@ -35,6 +35,13 @@ class PostWeekToXeroSerializer(serializers.Serializer):
     week_start_date = serializers.DateField(help_text="Monday of the week (YYYY-MM-DD)")
 
 
+class PostWeekToXeroStartResponseSerializer(serializers.Serializer):
+    """Response serializer for starting payroll posting SSE workflow."""
+
+    task_id = serializers.UUIDField(help_text="Server-side task identifier")
+    stream_url = serializers.CharField(help_text="SSE endpoint for payroll progress")
+
+
 class PostWeekToXeroResponseSerializer(serializers.Serializer):
     """Response serializer for posted timesheet"""
 
@@ -66,6 +73,17 @@ class PayRunListResponseSerializer(serializers.Serializer):
     """Response serializer for listing all pay runs."""
 
     pay_runs = PayRunListItemSerializer(many=True)
+    next_postable_week_start_date = serializers.DateField(
+        allow_null=True,
+        help_text=(
+            "Monday of the only payroll week that can currently be posted to "
+            "Xero — Xero processes pay runs in sequence (the open Draft's week, "
+            "else the week after the latest pay run, else the calendar's anchor "
+            "week). Null only if no payroll calendar is configured, in which "
+            "case the client should default to the current week."
+        ),
+    )
+    next_postable_week_end_date = serializers.DateField(allow_null=True)
 
 
 class PayRunSyncResponseSerializer(serializers.Serializer):

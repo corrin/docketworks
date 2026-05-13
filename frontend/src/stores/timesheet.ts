@@ -14,6 +14,7 @@ type CostLineMeta = Record<string, unknown> & {
   staff_id?: string
   is_billable?: boolean
   wage_rate_multiplier?: number
+  bill_rate_multiplier?: number
 }
 type CostLine = z.infer<typeof schemas.CostLine>
 type Staff = z.infer<typeof schemas.ModernStaff>
@@ -243,8 +244,14 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     }
   }
 
-  async function initialize() {
-    await Promise.all([loadStaff(), loadJobs(), loadXeroPayItems(), loadCompanyDefaults()])
+  async function initialize(targetDate: string = selectedDate.value) {
+    selectedDate.value = targetDate
+    await Promise.all([
+      loadStaff(targetDate),
+      loadJobs(),
+      loadXeroPayItems(),
+      loadCompanyDefaults(),
+    ])
 
     if (staff.value.length > 0 && !selectedStaffId.value) {
       selectedStaffId.value = staff.value[0].id
@@ -259,12 +266,14 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     }
   }
 
-  async function loadStaff() {
+  async function loadStaff(targetDate: string = selectedDate.value) {
     loading.value = true
     error.value = null
 
     try {
-      const response = await api.timesheets_staff_retrieve()
+      const response = await api.timesheets_staff_retrieve({
+        queries: { date: targetDate },
+      })
       staff.value = response.staff
     } catch (err) {
       error.value = 'Failed to load staff members'
@@ -379,6 +388,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     wageRate?: number
     chargeOutRate?: number
     rateMultiplier?: number
+    billRateMultiplier?: number
   }) {
     if (!selectedStaffId.value) {
       throw new Error('No staff member selected')
@@ -403,6 +413,13 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         Number.isFinite(entryData.rateMultiplier)
       ) {
         costLineMeta.wage_rate_multiplier = entryData.rateMultiplier
+      }
+      if (
+        typeof entryData.billRateMultiplier === 'number' &&
+        Number.isFinite(entryData.billRateMultiplier)
+      ) {
+        costLineMeta.bill_rate_multiplier = entryData.billRateMultiplier
+        costLineMeta.is_billable = entryData.billRateMultiplier > 0
       }
 
       const costLineData = {
@@ -451,6 +468,7 @@ export const useTimesheetStore = defineStore('timesheet', () => {
       wageRate?: number
       chargeOutRate?: number
       rateMultiplier?: number
+      billRateMultiplier?: number
       jobId?: string
     },
   ) {
@@ -468,7 +486,11 @@ export const useTimesheetStore = defineStore('timesheet', () => {
       if (updates.wageRate !== undefined) updatePayload.unit_cost = updates.wageRate
       if (updates.chargeOutRate !== undefined) updatePayload.unit_rev = updates.chargeOutRate
 
-      if (updates.isBillable !== undefined || updates.rateMultiplier !== undefined) {
+      if (
+        updates.isBillable !== undefined ||
+        updates.rateMultiplier !== undefined ||
+        updates.billRateMultiplier !== undefined
+      ) {
         const existingLine = lines.value.find((line) => line.id === entryId)
         const existingMeta = existingLine?.meta as CostLineMeta | undefined
         const mergedMeta: CostLineMeta = {
@@ -477,6 +499,10 @@ export const useTimesheetStore = defineStore('timesheet', () => {
         }
         if (updates.rateMultiplier !== undefined) {
           mergedMeta.wage_rate_multiplier = updates.rateMultiplier
+        }
+        if (updates.billRateMultiplier !== undefined) {
+          mergedMeta.bill_rate_multiplier = updates.billRateMultiplier
+          mergedMeta.is_billable = updates.billRateMultiplier > 0
         }
         updatePayload.meta = mergedMeta
       }

@@ -20,7 +20,6 @@
 import { computed, h, nextTick, ref, useId } from 'vue'
 import DataTable from '../DataTable.vue'
 import { Textarea } from '../ui/textarea'
-import { Checkbox } from '../ui/checkbox'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
 import TimesheetActionsCell from './TimesheetActionsCell.vue'
 import TimesheetJobPicker from './TimesheetJobPicker.vue'
@@ -37,7 +36,7 @@ import {
   getRateTypeFromMultiplier,
   getMeta,
   getMultiplier,
-  getIsBillable,
+  getBillMultiplier,
   calculatedWage,
   calculatedBill,
   parseHoursInput,
@@ -134,6 +133,14 @@ function resetEmptyEntry(): void {
 
 const displayEntries = computed(() => [...props.entries, emptyEntry.value])
 const createdOnce = new WeakSet<TimesheetCostLine>()
+const billOverrides = new WeakSet<TimesheetCostLine>()
+
+function hasExplicitBillOverride(entry: TimesheetCostLine): boolean {
+  return (
+    billOverrides.has(entry) ||
+    Object.prototype.hasOwnProperty.call(getMeta(entry), 'bill_rate_multiplier')
+  )
+}
 
 function isEntryReady(entry: TimesheetCostLine): boolean {
   const hasJob = Boolean(entry.job_id) || (entry.job_number != null && entry.job_number > 0)
@@ -231,11 +238,16 @@ function setDescription(entry: TimesheetCostLine, val: string): void {
   commit(entry, ['desc'])
 }
 
-function setBillable(entry: TimesheetCostLine, v: boolean): void {
-  if (getIsBillable(entry) === v) return
-  setMeta(entry, { is_billable: v })
-  Object.assign(entry, { total_rev: calculatedBill(entry) })
-  commit(entry, ['meta'])
+function setBill(entry: TimesheetCostLine, rateType: string): void {
+  const mult = getRateMultiplier(rateType)
+  if (getBillMultiplier(entry) === mult && hasExplicitBillOverride(entry)) return
+  billOverrides.add(entry)
+  setMeta(entry, { bill_rate_multiplier: mult, is_billable: mult > 0 })
+  Object.assign(entry, {
+    unit_rev: Math.round((entry.charge_out_rate ?? 0) * mult * 100) / 100,
+    total_rev: calculatedBill(entry),
+  })
+  commit(entry, ['unit_rev', 'meta'])
 }
 
 function setRate(entry: TimesheetCostLine, rateType: string): void {
@@ -243,7 +255,11 @@ function setRate(entry: TimesheetCostLine, rateType: string): void {
   if (getMultiplier(entry) === mult) return
   // The backend rejects extra meta keys; rate_type is derived from
   // wage_rate_multiplier (see getRateTypeFromMultiplier) and not stored.
-  setMeta(entry, { wage_rate_multiplier: mult })
+  const shouldMirrorBill = !hasExplicitBillOverride(entry)
+  setMeta(entry, {
+    wage_rate_multiplier: mult,
+    ...(shouldMirrorBill && { bill_rate_multiplier: mult, is_billable: mult > 0 }),
+  })
   if (mult === 1.0) {
     // Switching back to Ord: restore the job's default pay item rather than
     // leaving the previous multiplier's pay item attached.
@@ -256,6 +272,11 @@ function setRate(entry: TimesheetCostLine, rateType: string): void {
     // Non-Ord: use the dedicated Xero pay item registered for that multiplier.
     const payItem = props.payItemsByMultiplier?.[String(mult)]
     if (payItem) {
+      debugLog('SmartTimesheetTable: resolved Xero pay item for pay rate', {
+        multiplier: mult,
+        payItemId: payItem.id,
+        payItemName: payItem.name,
+      })
       Object.assign(entry, {
         xero_pay_item: payItem.id,
         xero_pay_item_name: payItem.name,
@@ -263,10 +284,14 @@ function setRate(entry: TimesheetCostLine, rateType: string): void {
     }
   }
   Object.assign(entry, {
+    unit_cost: Math.round((entry.wage_rate ?? 0) * mult * 100) / 100,
+    ...(shouldMirrorBill && {
+      unit_rev: Math.round((entry.charge_out_rate ?? 0) * mult * 100) / 100,
+    }),
     total_cost: calculatedWage(entry),
     total_rev: calculatedBill(entry),
   })
-  commit(entry, ['meta', 'xero_pay_item'])
+  commit(entry, ['unit_cost', 'unit_rev', 'meta', 'xero_pay_item'])
 }
 
 function isJobNonBillable(job: Job): boolean {
@@ -274,6 +299,11 @@ function isJobNonBillable(job: Job): boolean {
   // 'special' status (rejected/internal). ModernTimesheetJob now exposes
   // `shop_job` directly via the timesheet job serializer.
   return !!job.shop_job || job.status === 'special'
+}
+
+function isEntryShopJob(entry: TimesheetCostLine): boolean {
+  const job = props.jobs.find((j) => j.id === entry.job_id || j.job_number === entry.job_number)
+  return !!job?.shop_job
 }
 
 function setJob(entry: TimesheetCostLine, job: Job): void {
@@ -295,7 +325,7 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
   // Shop jobs and 'special' status jobs are non-billable; force the meta flag
   // so the user (and the backend) see a consistent state.
   if (isJobNonBillable(job)) {
-    setMeta(entry, { is_billable: false })
+    setMeta(entry, { is_billable: false, bill_rate_multiplier: 0.0 })
   }
   Object.assign(entry, { total_rev: calculatedBill(entry) })
   commit(entry, ['unit_rev', 'meta', 'xero_pay_item'])
@@ -417,21 +447,6 @@ const columns = computed(() => [
     },
   },
   {
-    id: 'billable',
-    header: () => h('div', { class: 'text-center' }, 'Billable'),
-    cell: ({ row }: RowCtx) => {
-      const entry = displayEntries.value[row.index]
-      return h('div', { class: 'flex justify-center' }, [
-        h(Checkbox, {
-          modelValue: getIsBillable(entry),
-          disabled: props.readOnly,
-          'data-automation-id': `SmartTimesheetTable-billable-${row.index}`,
-          'onUpdate:modelValue': (v: boolean | 'indeterminate') => setBillable(entry, v === true),
-        }),
-      ])
-    },
-  },
-  {
     id: 'description',
     header: () => h('div', { class: 'text-left min-w-[28ch]' }, 'Description'),
     cell: ({ row }: RowCtx) => {
@@ -469,7 +484,7 @@ const columns = computed(() => [
   },
   {
     id: 'rate',
-    header: 'Rate',
+    header: 'Wage',
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
       const rateType = getRateTypeFromMultiplier(getMultiplier(entry))
@@ -504,23 +519,50 @@ const columns = computed(() => [
     },
   },
   {
-    id: 'xeroPayItemName',
-    header: 'Pay Item',
+    id: 'billRate',
+    header: 'Invoice',
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
+      const billRateType = getRateTypeFromMultiplier(getBillMultiplier(entry))
+      const invoiceDiffersFromWage =
+        getBillMultiplier(entry) !== getMultiplier(entry) && !isEntryShopJob(entry)
       return h(
-        'span',
+        Select,
         {
-          class: 'text-sm text-slate-500',
-          'data-automation-id': `SmartTimesheetTable-payItem-${row.index}`,
+          modelValue: billRateType,
+          disabled: props.readOnly,
+          'onUpdate:modelValue': (v: unknown) => {
+            if (typeof v === 'string') setBill(entry, v)
+          },
         },
-        entry.xero_pay_item_name || '',
+        {
+          default: () => [
+            h(
+              SelectTrigger,
+              {
+                class: [
+                  'h-8 text-sm',
+                  invoiceDiffersFromWage &&
+                    'border-red-500 text-red-700 focus:ring-red-500 [&>span]:text-red-700',
+                ],
+                'data-automation-id': `SmartTimesheetTable-billRate-${row.index}`,
+              },
+              () => [h(SelectValue)],
+            ),
+            h(SelectContent, {}, () => [
+              h(SelectItem, { value: 'Ord' }, () => 'Ord'),
+              h(SelectItem, { value: '1.5' }, () => '1.5x'),
+              h(SelectItem, { value: '2.0' }, () => '2.0x'),
+              h(SelectItem, { value: 'Unpaid' }, () => 'Unpaid'),
+            ]),
+          ],
+        },
       )
     },
   },
   {
     id: 'wage',
-    header: () => h('div', { class: 'text-right' }, 'Wage'),
+    header: () => h('div', { class: 'text-right' }, 'Wage $'),
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
       return h(
@@ -535,7 +577,7 @@ const columns = computed(() => [
   },
   {
     id: 'bill',
-    header: () => h('div', { class: 'text-right' }, 'Bill'),
+    header: () => h('div', { class: 'text-right' }, 'Invoice $'),
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
       return h(

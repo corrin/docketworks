@@ -5,7 +5,7 @@ import time
 from collections import defaultdict
 from datetime import date, datetime, timedelta
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Tuple
 from uuid import UUID
 
 from xero_python.payrollnz import PayrollNzApi
@@ -27,8 +27,9 @@ from xero_python.payrollnz.models import (
 )
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.api.xero.transforms import transform_pay_run
 from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.models import CompanyDefaults, XeroPayItem
+from apps.workflow.models import CompanyDefaults, XeroPayItem, XeroPayRun
 from apps.workflow.services.error_persistence import (
     persist_and_raise,
     persist_app_error,
@@ -39,6 +40,11 @@ logger = logging.getLogger("xero.payroll")
 # Sleep after every API call to avoid hitting rate limits
 # Xero has per-minute, per-hour, and per-day limits - be patient
 SLEEP_TIME = 3
+
+
+class DraftPayRunBlocksLeaveDeletion(ValueError):
+    """Xero refuses leave deletion while the employee is in a draft pay run."""
+
 
 # Monkeypatch for Xero Python NZ Payroll API (dev-only, does not affect PROD)
 # Problem: when fetching employees, we get an error because the SDK expects all employees to have date of birth,
@@ -792,47 +798,258 @@ def get_pay_run(pay_run_id: str):
         persist_and_raise(exc)
 
 
-def get_pay_run_for_week(week_start_date: date) -> Optional[Dict[str, Any]]:
+def _pay_run_payload_from_object(pay_run: Any, *, status: str) -> PayRun:
+    return PayRun(
+        pay_run_id=str(pay_run.pay_run_id),
+        payroll_calendar_id=str(pay_run.payroll_calendar_id),
+        period_start_date=_coerce_xero_date(pay_run.period_start_date),
+        period_end_date=_coerce_xero_date(pay_run.period_end_date),
+        payment_date=_coerce_xero_date(pay_run.payment_date),
+        pay_run_status=status,
+        pay_run_type=getattr(pay_run, "pay_run_type", None),
+    )
+
+
+def _update_pay_run(pay_run_id: str, pay_run: PayRun) -> Any:
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        raise ValueError("No Xero tenant ID configured")
+
+    payroll_api = PayrollNzApi(api_client)
+    path_params = {"PayRunID": pay_run_id}
+    header_params = {
+        "Xero-Tenant-Id": tenant_id,
+        "Accept": api_client.select_header_accept(["application/json"]),
+        "Content-Type": api_client.select_header_content_type(["application/json"]),
+    }
+    try:
+        return api_client.call_api(
+            payroll_api.get_resource_url("/PayRuns/{PayRunID}"),
+            "PUT",
+            path_params,
+            [],
+            header_params,
+            body=pay_run,
+            post_params=[],
+            files={},
+            response_type="PayRunObject",
+            response_model_finder=payroll_api.get_model_finder(),
+            auth_settings=["OAuth2"],
+            _return_http_data_only=True,
+            _preload_content=True,
+            _request_timeout=None,
+            collection_formats={},
+        )
+    except Exception as exc:
+        logger.error("Failed to update Xero pay run %s: %s", pay_run_id, exc)
+        persist_and_raise(
+            exc,
+            additional_context={
+                "operation": "update_pay_run",
+                "pay_run_id": pay_run_id,
+                "pay_run_status": pay_run.pay_run_status,
+            },
+        )
+
+
+def _find_same_week_draft_pay_run(week_start_date: date) -> Any | None:
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        raise ValueError("No Xero tenant ID configured")
+
+    week_end_date = week_start_date + timedelta(days=6)
+    local_draft = XeroPayRun.objects.filter(
+        period_start_date=week_start_date,
+        period_end_date=week_end_date,
+        pay_run_status="Draft",
+    ).first()
+    if local_draft is not None:
+        return PayRun(
+            pay_run_id=str(local_draft.xero_id),
+            payroll_calendar_id=str(local_draft.payroll_calendar_id),
+            period_start_date=local_draft.period_start_date,
+            period_end_date=local_draft.period_end_date,
+            payment_date=local_draft.payment_date,
+            pay_run_status=local_draft.pay_run_status,
+            pay_run_type=local_draft.pay_run_type,
+        )
+
+    payroll_api = PayrollNzApi(api_client)
+    response = payroll_api.get_pay_runs(xero_tenant_id=tenant_id, status="Draft")
+    for pay_run in getattr(response, "pay_runs", []) or []:
+        if (
+            _coerce_xero_date(pay_run.period_start_date) == week_start_date
+            and _coerce_xero_date(pay_run.period_end_date) == week_end_date
+            and getattr(pay_run, "pay_run_status", None) == "Draft"
+        ):
+            return pay_run
+    return None
+
+
+def delete_same_week_draft_pay_run(week_start_date: date) -> str:
+    pay_run = _find_same_week_draft_pay_run(week_start_date)
+    if pay_run is None:
+        raise ValueError(
+            "Xero blocked leave deletion because of a draft pay run, but no "
+            f"same-week draft pay run was found for week {week_start_date}."
+        )
+
+    pay_run_id = str(pay_run.pay_run_id)
+    logger.warning(
+        "Deleting same-week draft pay run %s so stale Xero leave can be reconciled",
+        pay_run_id,
+    )
+    response = _update_pay_run(
+        pay_run_id,
+        _pay_run_payload_from_object(pay_run, status="Deleted"),
+    )
+    XeroPayRun.objects.filter(xero_id=pay_run_id).update(pay_run_status="Deleted")
+    time.sleep(SLEEP_TIME)
+    if response and getattr(response, "pay_run", None):
+        transform_pay_run(response.pay_run, str(response.pay_run.pay_run_id))
+    return pay_run_id
+
+
+def ensure_pay_run_for_week(week_start_date: date) -> Dict[str, Any]:
     """
-    Get a single pay run that matches the provided week.
+    Ensure a Draft pay run exists in Xero for the given payroll week and return it.
 
-    Args:
-        week_start_date: Monday of the week to search for
+    Reuses the locally mirrored same-week Draft pay run if present. Otherwise, if a
+    Draft pay run for a *different* week is already open on the configured payroll
+    calendar, raises — Xero allows only one Draft pay run per calendar, so that one
+    must be completed or deleted first. Otherwise creates the pay run in Xero and
+    mirrors it locally before returning.
 
-    Returns:
-        Pay run dictionary if found, otherwise None
-
-    Raises:
-    ValueError: If week_start_date is not a Monday
-        Exception: If fetching pay runs fails
+    The local XeroPayRun mirror is kept consistent with Xero by create_pay_run
+    (which mirrors the pay run it creates even when the period doesn't match the
+    request) and by start_xero_sync, so this function trusts it.
     """
     if week_start_date.weekday() != 0:
         raise ValueError("week_start_date must be a Monday")
-
-    pay_runs = get_pay_runs()
     week_end_date = week_start_date + timedelta(days=6)
 
-    for pay_run in pay_runs:
-        start_date = _coerce_xero_date(pay_run.get("period_start_date"))
-        end_date = _coerce_xero_date(pay_run.get("period_end_date"))
-
-        logger.info(
-            "Evaluating pay run %s: start=%s end=%s status=%s",
-            pay_run.get("pay_run_id"),
-            start_date,
-            end_date,
-            pay_run.get("pay_run_status"),
+    calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
+    if not calendar_id:
+        raise ValueError(
+            "xero_payroll_calendar_id is not configured in CompanyDefaults"
         )
 
-        if start_date == week_start_date and end_date == week_end_date:
-            return pay_run
-
-    logger.info(
-        "No pay run matched week %s-%s (checked %s runs)",
-        week_start_date,
-        week_end_date,
-        len(pay_runs),
+    # Xero allows exactly one Draft pay run per calendar. The local XeroPayRun
+    # mirror is kept consistent with Xero by create_pay_run (which mirrors the
+    # pay run it creates even when the period doesn't match the request) and by
+    # start_xero_sync, so trust it here.
+    open_drafts = list(
+        XeroPayRun.objects.filter(
+            payroll_calendar_id=calendar_id, pay_run_status="Draft"
+        )
     )
+    same_week = next(
+        (
+            draft
+            for draft in open_drafts
+            if draft.period_start_date == week_start_date
+            and draft.period_end_date == week_end_date
+        ),
+        None,
+    )
+    if same_week is not None:
+        logger.warning(
+            "Reusing draft pay run %s for week %s-%s; staff timesheets will overwrite its contents",
+            same_week.xero_id,
+            week_start_date,
+            week_end_date,
+        )
+        return {
+            "pay_run_id": str(same_week.xero_id),
+            "payroll_calendar_id": str(same_week.payroll_calendar_id),
+            "period_start_date": same_week.period_start_date,
+            "period_end_date": same_week.period_end_date,
+            "payment_date": same_week.payment_date,
+            "pay_run_status": same_week.pay_run_status,
+            "pay_run_type": same_week.pay_run_type,
+        }
+    if open_drafts:
+        blocking = open_drafts[0]
+        raise ValueError(
+            f"A draft pay run for week {blocking.period_start_date}–"
+            f"{blocking.period_end_date} is already open on the payroll calendar; "
+            f"complete or delete it in Xero before posting week "
+            f"{week_start_date}–{week_end_date} (Xero allows only one draft pay "
+            f"run per calendar)."
+        )
+
+    created_pay_run = create_pay_run(week_start_date)
+    pay_run_id = created_pay_run["pay_run_id"]
+    pay_run = get_pay_run(pay_run_id)
+    if not pay_run:
+        raise ValueError(f"Created pay run {pay_run_id} could not be fetched from Xero")
+
+    local_pay_run, _ = transform_pay_run(pay_run, pay_run_id)
+    logger.info(
+        "Created new pay run %s for week %s and mirrored locally as %s",
+        pay_run_id,
+        week_start_date,
+        local_pay_run.id,
+    )
+    return {
+        "pay_run_id": pay_run_id,
+        "payroll_calendar_id": created_pay_run["payroll_calendar_id"],
+        "period_start_date": local_pay_run.period_start_date,
+        "period_end_date": local_pay_run.period_end_date,
+        "payment_date": local_pay_run.payment_date,
+        "pay_run_status": local_pay_run.pay_run_status,
+        "pay_run_type": local_pay_run.pay_run_type,
+    }
+
+
+def next_postable_payroll_week() -> Optional[Tuple[date, date]]:
+    """The (Monday, Sunday) of the only week that can currently be posted to the
+    configured Xero payroll calendar.
+
+    Xero processes pay runs in sequence, so the postable week is: the open Draft
+    pay run's period if there is one; otherwise the week after the latest pay run
+    on the calendar; otherwise the calendar's own anchor period (no pay runs yet —
+    e.g. a freshly set-up org). ``None`` only when no calendar is configured.
+
+    Reads the local ``XeroPayRun`` mirror; only hits Xero (``get_payroll_calendars``)
+    in the no-pay-runs case, which lasts until the first pay run exists.
+    """
+    calendar_id = CompanyDefaults.get_solo().xero_payroll_calendar_id
+    if not calendar_id:
+        return None
+
+    open_draft = (
+        XeroPayRun.objects.filter(
+            payroll_calendar_id=calendar_id, pay_run_status="Draft"
+        )
+        .order_by("-period_start_date")
+        .first()
+    )
+    if open_draft is not None:
+        return open_draft.period_start_date, open_draft.period_end_date
+
+    latest = (
+        XeroPayRun.objects.filter(payroll_calendar_id=calendar_id)
+        .order_by("-period_end_date")
+        .first()
+    )
+    if latest is not None:
+        start = latest.period_end_date + timedelta(days=1)
+        return start, start + timedelta(days=6)
+
+    # No pay runs on the calendar yet — its anchor period is the first postable
+    # week. The calendar's reported period_start/end advances as pay runs are
+    # processed, so with none it's the anchor.
+    for cal in get_payroll_calendars():
+        if str(cal.get("id")) == str(calendar_id):
+            start = cal.get("period_start_date")
+            end = cal.get("period_end_date")
+            if start is None or end is None:
+                return None
+            return (
+                start.date() if hasattr(start, "date") else start,
+                end.date() if hasattr(end, "date") else end,
+            )
     return None
 
 
@@ -1120,6 +1337,24 @@ def create_pay_run(
         if not response or not response.pay_run:
             raise Exception("Failed to create pay run")
 
+        actual_start_date = _coerce_xero_date(response.pay_run.period_start_date)
+        actual_end_date = _coerce_xero_date(response.pay_run.period_end_date)
+        if actual_start_date != week_start_date or actual_end_date != week_end_date:
+            # Xero creates the calendar's next unprocessed period regardless of
+            # the dates we asked for. The pay run now exists in Xero, so mirror
+            # it locally before bailing — otherwise the next post for that week
+            # would try to create a second draft and hit Xero's "one draft pay
+            # run per calendar" 409.
+            transform_pay_run(response.pay_run, str(response.pay_run.pay_run_id))
+            raise ValueError(
+                "Xero created pay run "
+                f"{actual_start_date} to {actual_end_date} on calendar "
+                f"'{target_calendar_name}' instead of requested "
+                f"{week_start_date} to {week_end_date}. "
+                "Docketworks currently requires the Xero payroll calendar period "
+                "to match the selected week exactly."
+            )
+
         pay_run_id = str(response.pay_run.pay_run_id)
         logger.info(f"Successfully created pay run: {pay_run_id}")
 
@@ -1128,6 +1363,8 @@ def create_pay_run(
             "payroll_calendar_id": payroll_calendar_id,
         }
 
+    except ValueError:
+        raise
     except Exception as exc:
         logger.error(
             f"Failed to create pay run for week {week_start_date}: {exc}", exc_info=True
@@ -1683,6 +1920,7 @@ def post_staff_week_to_xero(
     staff_id: UUID,
     week_start_date: date,
     existing_timesheet: Optional[Any] = None,
+    leave_already_reconciled: bool = False,
 ) -> Dict[str, Any]:
     """
     Post a week's timesheet to Xero Payroll for a specific staff member.
@@ -1811,17 +2049,20 @@ def post_staff_week_to_xero(
             xero_timesheet_id = str(timesheet.timesheet_id)
             logger.info(f"Successfully posted timesheet {xero_timesheet_id}")
 
-        # Post leave entries using Leave API (annual/sick only)
-        # Uses upsert pattern: deletes existing leave for the week first
         if leave_api_entries:
-            leave_ids = _post_leave_entries(
-                xero_employee_id, leave_api_entries, week_start_date, week_end_date
-            )
+            if leave_already_reconciled:
+                leave_ids = []
+            else:
+                leave_ids = reconcile_leave_for_staff_week(
+                    xero_employee_id,
+                    leave_api_entries,
+                    week_start_date,
+                    week_end_date,
+                )
             logger.info(f"Successfully posted {len(leave_ids)} leave records")
         else:
-            # No leave this week — clean up any previously posted leave
-            _delete_existing_leave_for_week(
-                xero_employee_id, week_start_date, week_end_date
+            reconcile_leave_for_staff_week(
+                xero_employee_id, [], week_start_date, week_end_date
             )
 
         # Calculate hours by all four categories
@@ -1974,22 +2215,280 @@ def _delete_existing_leave_for_week(
 
     deleted_count = 0
     for leave in response.leave:
+        leave_start_date = _coerce_xero_date(leave.start_date)
+        leave_end_date = _coerce_xero_date(leave.end_date)
+        if leave_start_date is None or leave_end_date is None:
+            raise ValueError(
+                f"Xero leave {leave.leave_id} has invalid date range: "
+                f"{leave.start_date!r} to {leave.end_date!r}"
+            )
+
         # Only delete leave fully within the week
-        if leave.start_date >= week_start_date and leave.end_date <= week_end_date:
+        if leave_start_date >= week_start_date and leave_end_date <= week_end_date:
             logger.info(
                 f"Deleting existing leave {leave.leave_id} "
-                f"({leave.start_date} to {leave.end_date})"
+                f"({leave_start_date} to {leave_end_date})"
             )
-            payroll_api.delete_employee_leave(
-                xero_tenant_id=tenant_id,
-                employee_id=str(employee_id),
-                leave_id=str(leave.leave_id),
-            )
+            try:
+                payroll_api.delete_employee_leave(
+                    xero_tenant_id=tenant_id,
+                    employee_id=str(employee_id),
+                    leave_id=str(leave.leave_id),
+                )
+            except Exception as exc:
+                if _is_draft_pay_run_leave_delete_block(exc):
+                    raise DraftPayRunBlocksLeaveDeletion(
+                        "Xero has an existing leave request "
+                        f"{leave.leave_id} for employee {employee_id} "
+                        f"({leave_start_date} to {leave_end_date}), but Xero "
+                        "will not let Docketworks delete it while that employee "
+                        "is in a draft pay run."
+                    ) from exc
+                raise
             deleted_count += 1
             time.sleep(SLEEP_TIME)
 
     logger.info(f"Deleted {deleted_count} existing leave records")
     return deleted_count
+
+
+def _is_draft_pay_run_leave_delete_block(exc: Exception) -> bool:
+    """Return whether Xero blocked leave deletion because of a draft pay run."""
+    message = str(exc).lower()
+    return "delete the leave request" in message and "draft pay run" in message
+
+
+def _leave_units_per_day(leave: Any) -> Decimal | None:
+    periods = getattr(leave, "periods", None) or []
+    units = []
+    for period in periods:
+        value = getattr(period, "number_of_units", None)
+        if value is None:
+            value = getattr(period, "number_of_units_taken", None)
+        if value is not None:
+            units.append(Decimal(str(value)).quantize(Decimal("0.001")))
+    if not units:
+        return None
+    first = units[0]
+    if any(unit != first for unit in units):
+        return None
+    return first
+
+
+def _leave_request_key(
+    leave_type_id: str,
+    start_date: date,
+    end_date: date,
+    hours_per_day: Decimal,
+) -> tuple[str, date, date, Decimal]:
+    return (
+        str(leave_type_id),
+        start_date,
+        end_date,
+        Decimal(str(hours_per_day)).quantize(Decimal("0.001")),
+    )
+
+
+def _build_leave_requests(entries: List) -> List[Dict[str, Any]]:
+    grouped = defaultdict(list)
+    pay_items = {}
+    for entry in entries:
+        pay_item = entry.xero_pay_item
+        if pay_item is None:
+            raise ValueError(f"CostLine {entry.id} has no xero_pay_item set")
+        grouped[pay_item.xero_id].append(entry)
+        pay_items[pay_item.xero_id] = pay_item
+
+    requests = []
+    for leave_type_id, type_entries in grouped.items():
+        pay_item = pay_items[leave_type_id]
+        type_entries.sort(key=lambda e: e.accounting_date)
+        if not type_entries:
+            continue
+
+        current_start = type_entries[0].accounting_date
+        current_end = type_entries[0].accounting_date
+        current_hours = Decimal(str(type_entries[0].quantity)).quantize(
+            Decimal("0.001")
+        )
+
+        for entry in type_entries[1:]:
+            entry_hours = Decimal(str(entry.quantity)).quantize(Decimal("0.001"))
+            expected_next = current_end + timedelta(days=1)
+            if entry.accounting_date == expected_next and entry_hours == current_hours:
+                current_end = entry.accounting_date
+            else:
+                requests.append(
+                    {
+                        "leave_type_id": pay_item.xero_id,
+                        "start_date": current_start,
+                        "end_date": current_end,
+                        "hours_per_day": current_hours,
+                        "description": pay_item.name,
+                    }
+                )
+                current_start = entry.accounting_date
+                current_end = entry.accounting_date
+                current_hours = entry_hours
+
+        requests.append(
+            {
+                "leave_type_id": pay_item.xero_id,
+                "start_date": current_start,
+                "end_date": current_end,
+                "hours_per_day": current_hours,
+                "description": pay_item.name,
+            }
+        )
+    return requests
+
+
+def reconcile_leave_for_staff_week(
+    employee_id: UUID,
+    entries: List,
+    week_start_date: date,
+    week_end_date: date,
+) -> List[str]:
+    tenant_id = get_tenant_id()
+    if not tenant_id:
+        raise ValueError("No Xero tenant ID configured")
+
+    payroll_api = PayrollNzApi(api_client)
+    response = payroll_api.get_employee_leaves(
+        xero_tenant_id=tenant_id,
+        employee_id=str(employee_id),
+    )
+    existing_leaves = getattr(response, "leave", None) or []
+    desired_by_key = {
+        _leave_request_key(
+            request["leave_type_id"],
+            request["start_date"],
+            request["end_date"],
+            request["hours_per_day"],
+        ): request
+        for request in _build_leave_requests(entries)
+    }
+
+    kept_leave_ids = []
+    for leave in existing_leaves:
+        leave_start_date = _coerce_xero_date(leave.start_date)
+        leave_end_date = _coerce_xero_date(leave.end_date)
+        if leave_start_date is None or leave_end_date is None:
+            raise ValueError(
+                f"Xero leave {leave.leave_id} has invalid date range: "
+                f"{leave.start_date!r} to {leave.end_date!r}"
+            )
+        if not (
+            leave_start_date >= week_start_date and leave_end_date <= week_end_date
+        ):
+            continue
+
+        hours_per_day = _leave_units_per_day(leave)
+        existing_key = None
+        if hours_per_day is not None:
+            existing_key = _leave_request_key(
+                leave.leave_type_id,
+                leave_start_date,
+                leave_end_date,
+                hours_per_day,
+            )
+        if existing_key in desired_by_key:
+            kept_leave_ids.append(str(leave.leave_id))
+            del desired_by_key[existing_key]
+            continue
+
+        logger.info(
+            f"Deleting obsolete leave {leave.leave_id} "
+            f"({leave_start_date} to {leave_end_date})"
+        )
+        try:
+            payroll_api.delete_employee_leave(
+                xero_tenant_id=tenant_id,
+                employee_id=str(employee_id),
+                leave_id=str(leave.leave_id),
+            )
+        except Exception as exc:
+            if _is_draft_pay_run_leave_delete_block(exc):
+                raise DraftPayRunBlocksLeaveDeletion(
+                    "Xero has an obsolete leave request "
+                    f"{leave.leave_id} for employee {employee_id} "
+                    f"({leave_start_date} to {leave_end_date}), but Xero "
+                    "will not let Docketworks delete it while that employee "
+                    "is in a draft pay run."
+                ) from exc
+            raise
+        time.sleep(SLEEP_TIME)
+
+    created_leave_ids = []
+    for request in desired_by_key.values():
+        created_leave_ids.append(
+            create_employee_leave(
+                employee_id=employee_id,
+                leave_type_id=request["leave_type_id"],
+                start_date=request["start_date"],
+                end_date=request["end_date"],
+                hours_per_day=float(request["hours_per_day"]),
+                description=request["description"],
+            )
+        )
+    return kept_leave_ids + created_leave_ids
+
+
+def reconcile_leave_for_week_for_staff(
+    staff_ids: List[UUID],
+    week_start_date: date,
+    *,
+    allow_draft_rebuild: bool = True,
+) -> int:
+    """Reconcile Xero leave for selected staff before pay-run creation."""
+    from apps.accounts.models import Staff
+    from apps.job.models.costing import CostLine
+
+    week_end_date = week_start_date + timedelta(days=6)
+    leave_ids = []
+    staff_by_id = Staff.objects.in_bulk(staff_ids)
+    try:
+        for staff_id in staff_ids:
+            staff = staff_by_id.get(staff_id)
+            if staff is None:
+                raise ValueError(f"Staff member {staff_id} not found")
+            if not staff.xero_user_id:
+                raise ValueError(
+                    f"Staff member {staff.email} does not have a xero_user_id configured"
+                )
+            entries = [
+                entry
+                for entry in CostLine.objects.filter(
+                    cost_set__kind="actual",
+                    kind="time",
+                    accounting_date__gte=week_start_date,
+                    accounting_date__lte=week_end_date,
+                    xero_pay_item__uses_leave_api=True,
+                ).select_related("xero_pay_item")
+                if entry.meta.get("staff_id") == str(staff_id)
+            ]
+            leave_ids.extend(
+                reconcile_leave_for_staff_week(
+                    UUID(staff.xero_user_id),
+                    entries,
+                    week_start_date,
+                    week_end_date,
+                )
+            )
+    except DraftPayRunBlocksLeaveDeletion:
+        if not allow_draft_rebuild:
+            raise
+        deleted_pay_run_id = delete_same_week_draft_pay_run(week_start_date)
+        logger.warning(
+            "Deleted draft pay run %s; retrying stale Xero leave cleanup",
+            deleted_pay_run_id,
+        )
+        return reconcile_leave_for_week_for_staff(
+            staff_ids,
+            week_start_date,
+            allow_draft_rebuild=False,
+        )
+    return leave_ids
 
 
 def _post_leave_entries(
@@ -2097,7 +2596,9 @@ def sync_xero_pay_items() -> Dict[str, Any]:
     - Earnings Rates (uses_leave_api=False)
 
     Returns:
-        Dict with sync results: created, updated counts
+        Dict with sync results: created, updated counts and a top-level
+        ``records_updated`` total (sum across leave types and earnings rates)
+        so the SSE orchestrator doesn't have to know the result shape.
 
     Raises:
         ValueError: If no Xero tenant ID configured
@@ -2112,7 +2613,7 @@ def sync_xero_pay_items() -> Dict[str, Any]:
     if not tenant_id:
         raise ValueError("No Xero tenant ID configured")
 
-    results = {
+    results: Dict[str, Any] = {
         "leave_types": {"created": 0, "updated": 0},
         "earnings_rates": {"created": 0, "updated": 0},
     }
@@ -2212,4 +2713,10 @@ def sync_xero_pay_items() -> Dict[str, Any]:
                 f"Xero: {orphaned_names}"
             )
 
+    results["records_updated"] = (
+        results["leave_types"]["created"]
+        + results["leave_types"]["updated"]
+        + results["earnings_rates"]["created"]
+        + results["earnings_rates"]["updated"]
+    )
     return results

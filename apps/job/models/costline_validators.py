@@ -48,6 +48,7 @@ TIME_META_SCHEMA: dict[str, Any] = {
         "start_time": STRING_OR_NULL,
         "end_time": STRING_OR_NULL,
         "wage_rate_multiplier": NUMBER_OR_NULL,
+        "bill_rate_multiplier": NUMBER_OR_NULL,
         "note": STRING_OR_NULL,
         "created_from_timesheet": BOOLEAN_OR_NULL,
         "wage_rate": NUMBER_OR_NULL,

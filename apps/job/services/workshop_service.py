@@ -9,6 +9,12 @@ from django.utils.dateparse import parse_date
 
 from apps.job.models import CostLine, CostSet, Job
 from apps.job.models.costing import get_default_cost_set_summary
+from apps.job.services.time_entry_rates import (
+    calculate_time_unit_rates,
+    get_bill_rate_multiplier,
+    normalize_multiplier,
+    resolve_xero_pay_item,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -56,24 +62,30 @@ class WorkshopTimesheetService:
 
         with transaction.atomic():
             cost_set = self._get_or_create_actual_cost_set(job)
-            rate_multiplier = self._to_decimal(
+            wage_rate_multiplier = self._to_decimal(
                 data.get("wage_rate_multiplier", Decimal("1.0")), default="1.0"
             )
-            is_billable = data.get("is_billable", True)
+            bill_rate_multiplier = get_bill_rate_multiplier(
+                data,
+                normalize_multiplier(wage_rate_multiplier),
+            )
+            is_billable = bill_rate_multiplier > Decimal("0.00")
             start_time = data.get("start_time")
             end_time = data.get("end_time")
 
             unit_cost, unit_rev, wage_rate, charge_out_rate = self._calculate_rates(
                 job=job,
-                rate_multiplier=rate_multiplier,
-                is_billable=is_billable,
+                wage_rate_multiplier=wage_rate_multiplier,
+                bill_rate_multiplier=bill_rate_multiplier,
             )
+            xero_pay_item = resolve_xero_pay_item(wage_rate_multiplier)
 
             meta = {
                 "staff_id": str(self.staff.id),
                 "date": data["accounting_date"].isoformat(),
                 "is_billable": is_billable,
-                "wage_rate_multiplier": float(rate_multiplier),
+                "wage_rate_multiplier": float(wage_rate_multiplier),
+                "bill_rate_multiplier": float(bill_rate_multiplier),
                 "created_from_timesheet": True,
                 "wage_rate": float(wage_rate),
                 "charge_out_rate": float(charge_out_rate),
@@ -91,7 +103,7 @@ class WorkshopTimesheetService:
                 unit_cost=unit_cost,
                 unit_rev=unit_rev,
                 accounting_date=data["accounting_date"],
-                xero_pay_item=job.default_xero_pay_item,
+                xero_pay_item=xero_pay_item,
                 ext_refs={},
                 meta=meta,
                 approved=self.staff.is_office_staff,
@@ -146,11 +158,32 @@ class WorkshopTimesheetService:
                     recalc_rates = True
 
             if "is_billable" in data:
+                if data["is_billable"]:
+                    meta["bill_rate_multiplier"] = float(
+                        get_bill_rate_multiplier(
+                            meta,
+                            self._to_decimal(
+                                meta.get("wage_rate_multiplier", 1.0), default="1.0"
+                            ),
+                        )
+                    )
+                else:
+                    meta["bill_rate_multiplier"] = 0.0
                 meta["is_billable"] = data["is_billable"]
+                recalc_rates = True
+
+            if "bill_rate_multiplier" in data:
+                bill_multiplier = self._to_decimal(
+                    data["bill_rate_multiplier"], default="1.0"
+                )
+                meta["bill_rate_multiplier"] = float(bill_multiplier)
+                meta["is_billable"] = bill_multiplier > Decimal("0.00")
                 recalc_rates = True
 
             if "wage_rate_multiplier" in data:
                 meta["wage_rate_multiplier"] = float(data["wage_rate_multiplier"])
+                if "bill_rate_multiplier" not in data:
+                    meta["bill_rate_multiplier"] = float(data["wage_rate_multiplier"])
                 recalc_rates = True
 
             if "start_time" in data:
@@ -172,21 +205,27 @@ class WorkshopTimesheetService:
             cost_line.meta = meta
 
             if recalc_rates:
-                rate_multiplier = self._to_decimal(
+                wage_rate_multiplier = self._to_decimal(
                     data.get("wage_rate_multiplier")
                     or meta.get("wage_rate_multiplier", 1.0),
                     default="1.0",
                 )
-                is_billable = meta.get("is_billable", True)
+                bill_rate_multiplier = get_bill_rate_multiplier(
+                    meta,
+                    normalize_multiplier(wage_rate_multiplier),
+                )
                 unit_cost, unit_rev, wage_rate, charge_out_rate = self._calculate_rates(
                     job=cost_line.cost_set.job,
-                    rate_multiplier=rate_multiplier,
-                    is_billable=is_billable,
+                    wage_rate_multiplier=wage_rate_multiplier,
+                    bill_rate_multiplier=bill_rate_multiplier,
                 )
                 cost_line.unit_cost = unit_cost
                 cost_line.unit_rev = unit_rev
+                cost_line.xero_pay_item = resolve_xero_pay_item(wage_rate_multiplier)
                 meta["wage_rate"] = float(wage_rate)
                 meta["charge_out_rate"] = float(charge_out_rate)
+                meta["bill_rate_multiplier"] = float(bill_rate_multiplier)
+                meta["is_billable"] = bill_rate_multiplier > Decimal("0.00")
                 cost_line.meta = meta
                 has_updates = True
 
@@ -248,25 +287,19 @@ class WorkshopTimesheetService:
         )
         return cost_set
 
-    def _calculate_rates(self, *, job, rate_multiplier: Decimal, is_billable: bool):
-        wage_rate = self._to_decimal(
-            getattr(self.staff, "wage_rate", None), default="0"
-        ).quantize(Decimal("0.01"))
-        charge_out_rate = self._to_decimal(
-            getattr(job, "charge_out_rate", None), default="0"
-        ).quantize(Decimal("0.01"))
-        rate_multiplier = self._to_decimal(rate_multiplier, default="1.0")
-        unit_cost = self._to_decimal(wage_rate * rate_multiplier, default="0").quantize(
-            Decimal("0.01")
+    def _calculate_rates(
+        self,
+        *,
+        job,
+        wage_rate_multiplier: Decimal,
+        bill_rate_multiplier: Decimal,
+    ):
+        return calculate_time_unit_rates(
+            wage_rate=getattr(self.staff, "wage_rate", None),
+            charge_out_rate=getattr(job, "charge_out_rate", None),
+            wage_rate_multiplier=wage_rate_multiplier,
+            bill_rate_multiplier=bill_rate_multiplier,
         )
-        unit_rev = (
-            self._to_decimal(charge_out_rate * rate_multiplier, default="0").quantize(
-                Decimal("0.01")
-            )
-            if is_billable
-            else Decimal("0.00")
-        )
-        return unit_cost, unit_rev, wage_rate, charge_out_rate
 
     @staticmethod
     def _update_latest_actual(job: Job, cost_set: CostSet, staff):

@@ -20,11 +20,13 @@ class CompanyDefaults(SingletonModel):
     wage_rate = models.DecimalField(
         max_digits=6, decimal_places=2, default=32.00
     )  # rate per hour
+    # Approximate payroll loading: 8% annual leave, ~6% public holidays,
+    # ~4% sick leave, ~2% ACC, 0% ESCT.
     annual_leave_loading = models.DecimalField(
         max_digits=5,
         decimal_places=2,
-        default=8.00,
-        help_text="Percentage added to base_wage_rate to get costing wage_rate (8.00 = 8%)",
+        default=20.00,
+        help_text="Percentage added to base_wage_rate to get costing wage_rate (20.00 = 20%)",
     )
     workshop_efficiency_factor = models.DecimalField(
         max_digits=4,

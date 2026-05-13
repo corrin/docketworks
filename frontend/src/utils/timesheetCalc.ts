@@ -2,7 +2,8 @@
  * Pure calculation helpers for timesheet entries.
  *
  * Backend types use snake_case (`quantity`, `unit_cost`, `total_cost`) and the
- * rate multiplier lives in `meta.wage_rate_multiplier`. These helpers operate
+ * rate multipliers live in `meta.wage_rate_multiplier` and
+ * `meta.bill_rate_multiplier`. These helpers operate
  * directly on the wire shape so SmartTimesheetTable can render derived columns
  * (Wage, Bill) without inventing camelCase aliases.
  */
@@ -46,6 +47,14 @@ export function getIsBillable(entry: TimesheetCostLine): boolean {
   return typeof v === 'boolean' ? v : true
 }
 
+export function getBillMultiplier(entry: TimesheetCostLine): number {
+  const meta = getMeta(entry)
+  const m = meta.bill_rate_multiplier
+  if (typeof m === 'number' && Number.isFinite(m)) return m
+  if (meta.is_billable === false) return 0.0
+  return getMultiplier(entry)
+}
+
 /**
  * Wage for a time entry: hours × rate-multiplier × staff wage rate.
  * Returns 0 when hours or wage rate is non-positive.
@@ -61,14 +70,14 @@ export function calculatedWage(entry: TimesheetCostLine): number {
 }
 
 /**
- * Bill for a time entry: hours × charge-out rate (only when billable).
+ * Bill for a time entry: hours × charge-out rate × bill multiplier.
  */
 export function calculatedBill(entry: TimesheetCostLine): number {
-  const billable = getIsBillable(entry)
   const rate = entry.charge_out_rate ?? entry.unit_rev ?? 0
   const hours = entry.quantity ?? 0
-  if (!billable || hours <= 0 || rate <= 0) return 0
-  return Math.round(hours * rate * 100) / 100
+  const mult = getBillMultiplier(entry)
+  if (hours <= 0 || rate <= 0 || mult <= 0) return 0
+  return Math.round(hours * mult * rate * 100) / 100
 }
 
 /**

@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import {
   calculatedBill,
   calculatedWage,
+  getBillMultiplier,
   getRateMultiplier,
   getRateTypeFromMultiplier,
   parseHoursInput,
@@ -90,27 +91,42 @@ describe('timesheetCalc', () => {
   })
 
   describe('calculatedBill', () => {
-    it('returns hours × charge_out_rate when billable', () => {
+    it('returns hours × charge_out_rate × bill multiplier', () => {
       const entry = makeEntry({
         quantity: 2,
         charge_out_rate: 100,
-        meta: { is_billable: true },
+        meta: { is_billable: true, bill_rate_multiplier: 1.5 },
       })
-      expect(calculatedBill(entry)).toBe(200)
+      expect(calculatedBill(entry)).toBe(300)
     })
 
-    it('returns 0 when not billable', () => {
+    it('returns 0 when bill multiplier is unpaid', () => {
       const entry = makeEntry({
         quantity: 2,
         charge_out_rate: 100,
-        meta: { is_billable: false },
+        meta: { is_billable: false, bill_rate_multiplier: 0.0 },
       })
       expect(calculatedBill(entry)).toBe(0)
     })
 
-    it('defaults to billable when meta omits is_billable', () => {
-      const entry = makeEntry({ quantity: 1, charge_out_rate: 75, meta: {} })
-      expect(calculatedBill(entry)).toBe(75)
+    it('defaults missing bill multiplier to wage multiplier for legacy rows', () => {
+      const entry = makeEntry({
+        quantity: 1,
+        charge_out_rate: 75,
+        meta: { wage_rate_multiplier: 2.0 },
+      })
+      expect(getBillMultiplier(entry)).toBe(2.0)
+      expect(calculatedBill(entry)).toBe(150)
+    })
+
+    it('defaults legacy non-billable rows to a zero bill multiplier', () => {
+      const entry = makeEntry({
+        quantity: 1,
+        charge_out_rate: 75,
+        meta: { is_billable: false, wage_rate_multiplier: 2.0 },
+      })
+      expect(getBillMultiplier(entry)).toBe(0.0)
+      expect(calculatedBill(entry)).toBe(0)
     })
   })
 

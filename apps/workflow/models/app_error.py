@@ -56,9 +56,6 @@ class AppError(models.Model):
                 fields=["resolved", "timestamp"]
             ),  # Common: unresolved errors chronologically
             models.Index(fields=["app", "severity"]),  # Common: errors by app section
-            models.Index(
-                fields=["resolved", "message"], name="app_error_resolved_msg_idx"
-            ),
         ]
 
 
