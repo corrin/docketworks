@@ -19,6 +19,7 @@ from .purchasing_rest_views import (
     SupplierPriceStatusAPIView,
 )
 from .stock_search_rest_view import StockSearchRestView
+from .supplier_search_rest_view import SupplierSearchRestView
 
 # Conditional imports (only when Django is ready)
 try:
@@ -49,4 +50,5 @@ __all__ = [
     "StockSearchRestView",
     "StockViewSet",
     "SupplierPriceStatusAPIView",
+    "SupplierSearchRestView",
 ]

@@ -8,7 +8,13 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .models import Client, ClientContact, Supplier, SupplierPickupAddress
+        from .models import (
+            Client,
+            ClientContact,
+            Supplier,
+            SupplierPickupAddress,
+            SupplierSearchAlias,
+        )
         from .serializers import (
             ClientContactSerializer,
             ClientCreateResponseSerializer,
@@ -29,6 +35,8 @@ try:
             JobContactUpdateSerializer,
             StandardErrorSerializer,
             SupplierPickupAddressSerializer,
+            SupplierSearchAliasCreateSerializer,
+            SupplierSearchAliasSerializer,
         )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -59,5 +67,8 @@ __all__ = [
     "Supplier",
     "SupplierPickupAddress",
     "SupplierPickupAddressSerializer",
+    "SupplierSearchAlias",
+    "SupplierSearchAliasCreateSerializer",
+    "SupplierSearchAliasSerializer",
     "date_to_datetime",
 ]

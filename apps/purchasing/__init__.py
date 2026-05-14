@@ -62,6 +62,8 @@ try:
             StockSearchResponseSerializer,
             SupplierPriceStatusItemSerializer,
             SupplierPriceStatusResponseSerializer,
+            SupplierSearchResponseSerializer,
+            SupplierSearchResultSerializer,
         )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -120,6 +122,8 @@ __all__ = [
     "StockSearchResponseSerializer",
     "SupplierPriceStatusItemSerializer",
     "SupplierPriceStatusResponseSerializer",
+    "SupplierSearchResponseSerializer",
+    "SupplierSearchResultSerializer",
     "generate_po_etag",
     "normalize_etag",
 ]

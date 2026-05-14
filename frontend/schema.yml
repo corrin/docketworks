@@ -1175,6 +1175,65 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
+  /api/clients/{client_id}/supplier-aliases/:
+    get:
+      operationId: clients_supplier_aliases_list
+      description: List and create search aliases for a client/supplier contact.
+      summary: List supplier search aliases
+      parameters:
+        - in: path
+          name: client_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Clients
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SupplierSearchAlias'
+          description: ''
+    post:
+      operationId: clients_supplier_aliases_create
+      description: List and create search aliases for a client/supplier contact.
+      summary: Create supplier search alias
+      parameters:
+        - in: path
+          name: client_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Clients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SupplierSearchAliasCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SupplierSearchAliasCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SupplierSearchAliasCreateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierSearchAlias'
+          description: ''
   /api/clients/{client_id}/update/:
     put:
       operationId: clients_update_update
@@ -1996,6 +2055,25 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
+  /api/clients/supplier-aliases/{alias_id}/:
+    delete:
+      operationId: clients_supplier_aliases_destroy
+      description: Deactivate a supplier search alias.
+      summary: Deactivate supplier search alias
+      parameters:
+        - in: path
+          name: alias_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - Clients
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/company-defaults/:
     get:
       operationId: company_defaults_retrieve
@@ -6653,6 +6731,38 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SupplierPriceStatusResponse'
+          description: ''
+  /api/purchasing/suppliers/search/:
+    get:
+      operationId: purchasing_suppliers_search_retrieve
+      description: REST view for PO supplier lookup.
+      summary: Search purchase-order suppliers
+      parameters:
+        - in: query
+          name: page
+          schema:
+            type: integer
+          description: Page number (default 1)
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+          description: Results per page (default 50)
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Supplier search query.
+      tags:
+        - Purchasing
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupplierSearchResponse'
           description: ''
   /api/quoting/scheduled-task-executions/:
     get:
@@ -18888,6 +18998,114 @@ components:
       required:
         - items
         - total_count
+    SupplierSearchAlias:
+      type: object
+      description: Supplier search alias attached to a client/contact.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        client:
+          type: string
+          format: uuid
+          readOnly: true
+        alias:
+          type: string
+          maxLength: 255
+        is_active:
+          type: boolean
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - alias
+        - client
+        - created_at
+        - id
+        - is_active
+        - updated_at
+    SupplierSearchAliasCreateRequest:
+      type: object
+      description: Create supplier search alias request.
+      properties:
+        alias:
+          type: string
+          minLength: 1
+          maxLength: 255
+      required:
+        - alias
+    SupplierSearchResponse:
+      type: object
+      description: Paginated supplier lookup response.
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupplierSearchResult'
+        count:
+          type: integer
+        page:
+          type: integer
+        page_size:
+          type: integer
+        total_pages:
+          type: integer
+      required:
+        - count
+        - page
+        - page_size
+        - results
+        - total_pages
+    SupplierSearchResult:
+      type: object
+      description: Supplier candidate returned by PO supplier lookup.
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        address:
+          type: string
+        is_account_customer:
+          type: boolean
+        is_supplier:
+          type: boolean
+        allow_jobs:
+          type: boolean
+        xero_contact_id:
+          type: string
+        last_invoice_date:
+          type: string
+          format: date-time
+          nullable: true
+        total_spend:
+          type: string
+        recent_purchase_count:
+          type: integer
+      required:
+        - address
+        - allow_jobs
+        - email
+        - id
+        - is_account_customer
+        - is_supplier
+        - last_invoice_date
+        - name
+        - phone
+        - recent_purchase_count
+        - total_spend
+        - xero_contact_id
     TimelineEntry:
       type: object
       description: Serializer for unified timeline entry (JobEvent or CostLine)

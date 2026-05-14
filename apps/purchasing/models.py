@@ -4,6 +4,8 @@ import uuid
 from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector
 from django.db import IntegrityError, models
 from django.db.models import IntegerField, Max
 from django.db.models.functions import Cast, Substr
@@ -683,6 +685,17 @@ class Stock(models.Model):
             models.UniqueConstraint(
                 fields=["active_source_purchase_order_line_id"],
                 name="unique_active_stock_per_po_line",
+            ),
+        ]
+        indexes = [
+            GinIndex(
+                SearchVector("description", weight="A", config="english")
+                + SearchVector("item_code", weight="A", config="english")
+                + SearchVector("metal_type", weight="B", config="english")
+                + SearchVector("alloy", weight="B", config="english")
+                + SearchVector("specifics", weight="B", config="english")
+                + SearchVector("location", weight="C", config="english"),
+                name="stock_fts_idx",
             ),
         ]
 

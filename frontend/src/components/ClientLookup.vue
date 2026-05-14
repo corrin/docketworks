@@ -151,7 +151,7 @@ const {
   selectClient: selectClientFromComposable,
   hideSuggestions,
   preserveSelectedClient,
-} = useClientLookup()
+} = useClientLookup({ supplierLookup: props.supplierLookup })
 
 // Simple check: does the selected client have a Xero ID?
 const xeroValid = computed(() => hasValidXeroId.value)

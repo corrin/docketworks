@@ -669,6 +669,17 @@ const ClientJobHeader = z.object({
   max_people: z.number().int(),
 })
 const ClientJobsResponse = z.object({ results: z.array(ClientJobHeader) })
+const SupplierSearchAlias = z.object({
+  id: z.string().uuid(),
+  client: z.string().uuid(),
+  alias: z.string().max(255),
+  is_active: z.boolean(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const SupplierSearchAliasCreateRequest = z.object({
+  alias: z.string().min(1).max(255),
+})
 const ClientUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
@@ -2729,6 +2740,27 @@ const SupplierPriceStatusResponse = z.object({
   items: z.array(SupplierPriceStatusItem),
   total_count: z.number().int(),
 })
+const SupplierSearchResult = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string(),
+  phone: z.string(),
+  address: z.string(),
+  is_account_customer: z.boolean(),
+  is_supplier: z.boolean(),
+  allow_jobs: z.boolean(),
+  xero_contact_id: z.string(),
+  last_invoice_date: z.string().datetime({ offset: true }).nullable(),
+  total_spend: z.string(),
+  recent_purchase_count: z.number().int(),
+})
+const SupplierSearchResponse = z.object({
+  results: z.array(SupplierSearchResult),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
+})
 const ScheduledTaskExecution = z.object({
   id: z.number().int(),
   task_id: z.string().max(255),
@@ -3210,6 +3242,8 @@ export const schemas = {
   ClientErrorResponse,
   ClientJobHeader,
   ClientJobsResponse,
+  SupplierSearchAlias,
+  SupplierSearchAliasCreateRequest,
   ClientUpdateRequest,
   ClientUpdateResponse,
   PatchedClientUpdateRequest,
@@ -3464,6 +3498,8 @@ export const schemas = {
   StockSearchResponse,
   SupplierPriceStatusItem,
   SupplierPriceStatusResponse,
+  SupplierSearchResult,
+  SupplierSearchResponse,
   ScheduledTaskExecution,
   PaginatedScheduledTaskExecutionList,
   ScheduledTask,
@@ -4352,6 +4388,41 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
     ],
   },
   {
+    method: 'get',
+    path: '/api/clients/:client_id/supplier-aliases/',
+    alias: 'clients_supplier_aliases_list',
+    description: `List and create search aliases for a client/supplier contact.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'client_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.array(SupplierSearchAlias),
+  },
+  {
+    method: 'post',
+    path: '/api/clients/:client_id/supplier-aliases/',
+    alias: 'clients_supplier_aliases_create',
+    description: `List and create search aliases for a client/supplier contact.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ alias: z.string().min(1).max(255) }),
+      },
+      {
+        name: 'client_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: SupplierSearchAlias,
+  },
+  {
     method: 'put',
     path: '/api/clients/:client_id/update/',
     alias: 'clients_update_update',
@@ -4919,6 +4990,21 @@ Query Parameters:
         schema: ClientErrorResponse,
       },
     ],
+  },
+  {
+    method: 'delete',
+    path: '/api/clients/supplier-aliases/:alias_id/',
+    alias: 'clients_supplier_aliases_destroy',
+    description: `Deactivate a supplier search alias.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'alias_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
   },
   {
     method: 'get',
@@ -8091,6 +8177,31 @@ Minimal-impact: read-only query over existing Client and SupplierPriceList
 models. No migrations required.`,
     requestFormat: 'json',
     response: SupplierPriceStatusResponse,
+  },
+  {
+    method: 'get',
+    path: '/api/purchasing/suppliers/search/',
+    alias: 'purchasing_suppliers_search_retrieve',
+    description: `REST view for PO supplier lookup.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'q',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: SupplierSearchResponse,
   },
   {
     method: 'get',

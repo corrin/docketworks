@@ -38,6 +38,11 @@ try:
         )
         from .stock_search_service import list_stock, search_stock
         from .stock_service import consume_stock, merge_stock_into
+        from .supplier_search_service import (
+            _CandidateScore,
+            list_suppliers,
+            normalize_supplier_phrase,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -49,6 +54,7 @@ __all__ = [
     "DeliveryReceiptValidationError",
     "PurchaseOrderPDFGenerator",
     "PurchasingRestService",
+    "_CandidateScore",
     "calculate_unit_cost",
     "clean_json_response",
     "consume_stock",
@@ -61,9 +67,11 @@ __all__ = [
     "extract_data_from_supplier_quote_gemini",
     "fuzzy_find_supplier",
     "list_stock",
+    "list_suppliers",
     "log_token_usage",
     "merge_stock_into",
     "normalize",
+    "normalize_supplier_phrase",
     "process_delivery_receipt",
     "process_supplier_data",
     "read_file_content",

@@ -45,3 +45,8 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/supplier-price-status/` | `purchasing_rest_views.SupplierPriceStatusAPIView` | `purchasing:supplier_price_status_rest` | Return latest price upload status per supplier. |
+
+### Suppliers Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/suppliers/search/` | `supplier_search_rest_view.SupplierSearchRestView` | `purchasing:supplier_search_rest` | REST view for PO supplier lookup. |

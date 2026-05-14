@@ -1,6 +1,11 @@
 from rest_framework import serializers
 
-from apps.client.models import Client, ClientContact, SupplierPickupAddress
+from apps.client.models import (
+    Client,
+    ClientContact,
+    SupplierPickupAddress,
+    SupplierSearchAlias,
+)
 
 
 class ClientContactSerializer(serializers.ModelSerializer):
@@ -124,6 +129,27 @@ class ClientSearchResponseSerializer(serializers.Serializer):
     page = serializers.IntegerField()
     page_size = serializers.IntegerField()
     total_pages = serializers.IntegerField()
+
+
+class SupplierSearchAliasSerializer(serializers.ModelSerializer):
+    """Supplier search alias attached to a client/contact."""
+
+    class Meta:
+        model = SupplierSearchAlias
+        fields = ["id", "client", "alias", "is_active", "created_at", "updated_at"]
+        read_only_fields = ["id", "client", "is_active", "created_at", "updated_at"]
+
+
+class SupplierSearchAliasCreateSerializer(serializers.Serializer):
+    """Create supplier search alias request."""
+
+    alias = serializers.CharField(max_length=255, trim_whitespace=True)
+
+    def validate_alias(self, value: str) -> str:
+        alias = value.strip()
+        if not alias:
+            raise serializers.ValidationError("Alias is required")
+        return alias
 
 
 class ClientCreateSerializer(serializers.Serializer):
