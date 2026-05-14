@@ -287,6 +287,52 @@ def _extract_required_fields_xero(doc_type, xero_obj, xero_id):
     return required_fields
 
 
+def _log_invoice_sync_events(
+    invoice, old_total, old_status, changed_fields, status_changed=False
+):
+    """Create JobEvents when Xero sync changes invoice totals or status."""
+    from apps.accounts.models import Staff
+    from apps.job.models import JobEvent
+
+    automation_user = Staff.get_automation_user()
+
+    if "total_excl_tax" in changed_fields and old_total is not None:
+        new_total = invoice.total_excl_tax
+        JobEvent.objects.create(
+            job=invoice.job,
+            staff=automation_user,
+            event_type="invoice_amount_changed",
+            detail={
+                "xero_invoice_number": invoice.number,
+                "old_total_excl_tax": str(old_total),
+                "new_total_excl_tax": str(new_total),
+            },
+        )
+
+    if status_changed and old_status is not None:
+        new_status = invoice.status
+        if new_status == "VOIDED":
+            JobEvent.objects.create(
+                job=invoice.job,
+                staff=automation_user,
+                event_type="invoice_voided",
+                detail={
+                    "xero_invoice_number": invoice.number,
+                    "total_excl_tax": str(invoice.total_excl_tax),
+                },
+            )
+        elif new_status == "DELETED":
+            JobEvent.objects.create(
+                job=invoice.job,
+                staff=automation_user,
+                event_type="invoice_deleted",
+                detail={
+                    "xero_invoice_number": invoice.number,
+                    "total_excl_tax": str(invoice.total_excl_tax),
+                },
+            )
+
+
 def transform_invoice(xero_invoice, xero_id):
     """Convert a Xero invoice into an Invoice instance.
 
@@ -301,12 +347,29 @@ def transform_invoice(xero_invoice, xero_id):
     if not fields:
         return None
     invoice, created = Invoice.objects.get_or_create(xero_id=xero_id, defaults=fields)
+
+    old_total_excl_tax = invoice.total_excl_tax if not created else None
+    old_status = invoice.status if not created else None
+
     changed_fields = _track_and_apply_changes(invoice, fields) if not created else []
     if changed_fields:
         invoice.save()
     set_invoice_or_bill_fields(invoice, "INVOICE")
     if created:
         invoice.save()
+
+    # Check if status was changed by set_invoice_or_bill_fields
+    status_changed = (
+        not created and old_status is not None and invoice.status != old_status
+    )
+    if status_changed:
+        invoice.save(update_fields=["status"])
+
+    # Log job events for significant sync changes
+    if invoice.job and (changed_fields or status_changed):
+        _log_invoice_sync_events(
+            invoice, old_total_excl_tax, old_status, changed_fields, status_changed
+        )
 
     # Recalculate job state if invoice is linked to a job
     if invoice.job:

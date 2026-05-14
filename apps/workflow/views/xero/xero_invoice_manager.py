@@ -270,11 +270,26 @@ class XeroInvoiceManager(XeroDocumentManager):
             from apps.job.models import JobEvent
 
             try:
+                event_detail: dict = {
+                    "xero_invoice_number": invoice.number,
+                    "total_excl_tax": str(invoice.total_excl_tax),
+                }
+                if billing_metadata:
+                    target = Decimal(billing_metadata.get("target_total", "0"))
+                    prior = Decimal(billing_metadata.get("prior_invoiced_total", "0"))
+                    remaining = (
+                        target
+                        - prior
+                        - Decimal(billing_metadata.get("calculated_amount", "0"))
+                    )
+                    event_detail["target_total"] = str(target)
+                    event_detail["remaining_to_invoice"] = str(remaining)
+
                 JobEvent.objects.create(
                     job=self.job,
                     staff=self.staff,
                     event_type="invoice_created",
-                    detail={"xero_invoice_number": invoice.number},
+                    detail=event_detail,
                 )
             except Exception as exc:
                 persist_app_error(exc)

@@ -558,7 +558,9 @@ const timeAndExpenses = computed(() => actualSummary.value.rev)
 
 const invoiceTotal = computed(() => {
   if (!invoices.value.length) return 0
-  return invoices.value.reduce((sum, invoice) => sum + (invoice.total_excl_tax || 0), 0)
+  return invoices.value
+    .filter((inv) => inv.status !== 'VOIDED' && inv.status !== 'DELETED')
+    .reduce((sum, inv) => sum + (inv.total_excl_tax || 0), 0)
 })
 
 const toBeInvoiced = computed(() => {
@@ -569,7 +571,7 @@ const toBeInvoiced = computed(() => {
       ? quoteTotal.value
       : actualSummary.value.rev
 
-  return Math.max(0, amountToInvoice - invoiceTotal.value)
+  return amountToInvoice - invoiceTotal.value
 })
 
 const invoiceButtonText = computed(() => {
