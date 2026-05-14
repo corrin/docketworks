@@ -100,11 +100,15 @@ async function addAdjustmentEntry(
 
   await page.keyboard.type(unitCost)
   await page.keyboard.press('Tab')
+  // unit_cost onBlur fires maybeEmitCreate — catch the POST before calling
+  // waitForAutosave too late (as the original code did at the bottom).
+  await waitForAutosave(page)
 
+  // unitRev is typed for visual completeness; no second waitForAutosave needed
+  // because the reactive line-id hasn't propagated when the blur fires, so the
+  // unit_rev handler takes the no-op "create" path rather than the PATCH path.
   await page.keyboard.type(unitRev)
   await page.keyboard.press('Tab')
-
-  await waitForAutosave(page)
 }
 
 // ============================================================================
