@@ -46,8 +46,9 @@ export default defineConfig({
     navigationTimeout: 60000,
   },
 
-  // Increase test timeout to 60 seconds for operations that involve backend API calls
-  timeout: 60000,
+  // Test-level safety net — generous to avoid false timeouts on slow UAT hardware.
+  // Individual operations use narrower timeouts; this just prevents runaway hangs.
+  timeout: 120000,
 
   projects: [
     {

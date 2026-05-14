@@ -14,7 +14,7 @@ import AdmZip from 'adm-zip'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-type CompletedStatus = 'passed' | 'failed' | 'timedOut' | 'interrupted'
+type CompletedStatus = 'passed' | 'failed' | 'timedOut' | 'interrupted' | 'perf-fail'
 
 interface CompletedTest {
   file: string
@@ -39,6 +39,21 @@ interface CompletedStep {
 }
 
 const TEST_RUNS_HEADER = 'run_id,run_date,test_file,test_path,duration_ms,status\n'
+
+// Tests that complete but exceed their threshold are tagged "perf-fail".
+// Default 30s; override by test file path prefix for suites that load large
+// datasets (reports, bulk operations, etc.).
+const DEFAULT_SLOW_MS = 30000
+const SLOW_OVERRIDES: Record<string, number> = {
+  'tests/reports/': 60000,
+}
+
+function getSlowThreshold(file: string): number {
+  for (const [prefix, ms] of Object.entries(SLOW_OVERRIDES)) {
+    if (file.startsWith(prefix)) return ms
+  }
+  return DEFAULT_SLOW_MS
+}
 
 interface TraceEntry {
   type: string
@@ -178,26 +193,36 @@ export default class HistoryReporter implements Reporter {
       for (const t of s.tests) {
         const result = t.results[t.results.length - 1]
         if (!result) continue
-        if (result.status === 'passed') {
+        // titlePath: ['', projectName, file, ...describes, testTitle]
+        const parts = t.titlePath()
+        const file = parts[2] || ''
+        const testPath = parts.slice(3).join(' > ')
+
+        let status: CompletedStatus = result.status
+
+        // Tag passing tests that ran longer than their threshold as "perf-fail"
+        // so downstream tooling can distinguish slow-but-correct from broken.
+        if (status === 'passed' && result.duration > getSlowThreshold(file)) {
+          status = 'perf-fail'
+        }
+
+        if (status === 'passed' || status === 'perf-fail') {
           // always recorded
         } else if (
-          (result.status === 'failed' || result.status === 'timedOut') &&
+          (status === 'failed' || status === 'timedOut') &&
           result.duration >= FLAKE_MIN_DURATION_MS
         ) {
           // real flake/timeout
         } else {
           continue
         }
-        // titlePath: ['', projectName, file, ...describes, testTitle]
-        const parts = t.titlePath()
-        const file = parts[2] || ''
-        const testPath = parts.slice(3).join(' > ')
+
         const trace = result.attachments.find((a) => a.name === 'trace')
         completed.push({
           file,
           testPath,
           durationMs: result.duration,
-          status: result.status,
+          status,
           retry: result.retry,
           projectName: parts[1] || '',
           tracePath: trace?.path,
@@ -287,9 +312,11 @@ export default class HistoryReporter implements Reporter {
     }
 
     const passCount = completed.filter((c) => c.status === 'passed').length
-    const failCount = completed.length - passCount
+    const perfFailCount = completed.filter((c) => c.status === 'perf-fail').length
+    const failCount = completed.length - passCount - perfFailCount
     console.log(
-      `[history] Run ${this.runId}: ${passCount} passing, ${failCount} non-passing tests, ` +
+      `[history] Run ${this.runId}: ${passCount} passed, ${perfFailCount} perf-fail, ` +
+        `${failCount} failed, ` +
         `${actionRows.length} actions, ${this.completedSteps.length} semantic steps -> ${historyDir}/`,
     )
   }
