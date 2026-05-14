@@ -111,6 +111,7 @@ class Invoice(BaseXeroInvoiceDocument):
         blank=True,
     )
     online_url = models.URLField(null=True, blank=True)
+    billing_metadata = models.JSONField(default=dict, blank=True)
 
     class Meta:
         verbose_name = "Invoice"

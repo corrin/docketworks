@@ -40,6 +40,14 @@ test.describe('job xero invoice', () => {
     )
 
     await createInvoiceButton.click()
+
+    // Modal should appear — select the primary invoice mode
+    const invoiceRemainingButton = page.getByRole('button', {
+      name: /Invoice remaining quote/,
+    })
+    await expect(invoiceRemainingButton).toBeVisible({ timeout: 10000 })
+    await invoiceRemainingButton.click()
+
     const response = await responsePromise
     if (!response.ok()) {
       const body = await response.text()

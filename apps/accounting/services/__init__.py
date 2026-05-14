@@ -6,6 +6,12 @@ try:
 
     if apps.ready:
         from .core import JobAgingService, KPIService, StaffPerformanceService
+        from .invoice_calculation import (
+            InvoiceCalculationError,
+            InvoiceCalculationResult,
+            calculate_invoice_amount,
+            get_prior_valid_invoice_total,
+        )
         from .payroll_reconciliation_service import PayrollReconciliationService
         from .rdti_spend_service import RDTISpendService
         from .sales_pipeline_service import SalesPipelineService
@@ -15,6 +21,8 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "InvoiceCalculationError",
+    "InvoiceCalculationResult",
     "JobAgingService",
     "KPIService",
     "PayrollReconciliationService",
@@ -22,4 +30,6 @@ __all__ = [
     "SalesPipelineService",
     "StaffPerformanceService",
     "WIPService",
+    "calculate_invoice_amount",
+    "get_prior_valid_invoice_total",
 ]

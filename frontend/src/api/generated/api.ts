@@ -1557,10 +1557,10 @@ const PatchedJobQuoteChatUpdateRequest = z
   .object({ content: z.string().min(1), metadata: z.unknown() })
   .partial()
 const JobQuoteChatUpdate = z.object({ content: z.string(), metadata: z.unknown() }).partial()
-const ModeEnum = z.enum(['CALC', 'PRICE', 'TABLE', 'AUTO'])
+const JobQuoteChatInteractionModeEnum = z.enum(['CALC', 'PRICE', 'TABLE', 'AUTO'])
 const JobQuoteChatInteractionRequest = z.object({
   message: z.string().min(1).max(5000),
-  mode: ModeEnum.optional().default('AUTO'),
+  mode: JobQuoteChatInteractionModeEnum.optional().default('AUTO'),
 })
 const JobQuoteChatInteractionErrorResponse = z.object({
   success: z.boolean().optional().default(false),
@@ -3101,6 +3101,17 @@ const PaginatedXeroErrorList = z.object({
   previous: z.string().url().nullish(),
   results: z.array(XeroError),
 })
+const XeroInvoiceCreateModeEnum = z.enum([
+  'invoice_full',
+  'invoice_costs_to_date',
+  'invoice_percent',
+  'invoice_amount',
+])
+const XeroInvoiceCreateRequest = z.object({
+  mode: XeroInvoiceCreateModeEnum,
+  percent: z.number().gt(-10000).lt(10000).nullish(),
+  amount: z.number().gt(-100000000).lt(100000000).nullish(),
+})
 const XeroDocumentSuccessResponse = z.object({
   success: z.boolean().optional().default(true),
   xero_id: z.string().uuid(),
@@ -3316,7 +3327,7 @@ export const schemas = {
   JobQuoteChatInteractionSuccessResponse,
   PatchedJobQuoteChatUpdateRequest,
   JobQuoteChatUpdate,
-  ModeEnum,
+  JobQuoteChatInteractionModeEnum,
   JobQuoteChatInteractionRequest,
   JobQuoteChatInteractionErrorResponse,
   JobQuoteAcceptanceRequest,
@@ -3508,6 +3519,8 @@ export const schemas = {
   XeroPayItem,
   XeroError,
   PaginatedXeroErrorList,
+  XeroInvoiceCreateModeEnum,
+  XeroInvoiceCreateRequest,
   XeroDocumentSuccessResponse,
   XeroDocumentErrorResponse,
   XeroQuoteCreateRequest,
@@ -8894,6 +8907,11 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
     description: `Creates an invoice in Xero for the specified job`,
     requestFormat: 'json',
     parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: XeroInvoiceCreateRequest,
+      },
       {
         name: 'job_id',
         type: 'Path',

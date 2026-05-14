@@ -252,6 +252,49 @@ class XeroQuoteCreateSerializer(serializers.Serializer):
     )
 
 
+class XeroInvoiceCreateSerializer(serializers.Serializer):
+    """
+    Request serializer for creating a Xero invoice with partial invoicing support.
+    """
+
+    mode = serializers.ChoiceField(
+        choices=[
+            ("invoice_full", "Invoice full remaining amount"),
+            ("invoice_costs_to_date", "Invoice costs to date"),
+            ("invoice_percent", "Invoice percent of target"),
+            ("invoice_amount", "Invoice specific dollar amount"),
+        ],
+        required=True,
+        help_text="Invoicing mode that determines how the amount is calculated.",
+    )
+    percent = serializers.DecimalField(
+        max_digits=5,
+        decimal_places=1,
+        required=False,
+        allow_null=True,
+        help_text="Required when mode is invoice_percent (e.g. 50.0 for 50%%).",
+    )
+    amount = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        required=False,
+        allow_null=True,
+        help_text="Required when mode is invoice_amount.",
+    )
+
+    def validate(self, data):
+        mode = data.get("mode")
+        if mode == "invoice_percent" and data.get("percent") is None:
+            raise serializers.ValidationError(
+                {"percent": "percent is required when mode is invoice_percent."}
+            )
+        if mode == "invoice_amount" and data.get("amount") is None:
+            raise serializers.ValidationError(
+                {"amount": "amount is required when mode is invoice_amount."}
+            )
+        return data
+
+
 class XeroDocumentSuccessResponseSerializer(serializers.Serializer):
     """
     Standardized serializer for a successful Xero document operation.

@@ -78,47 +78,41 @@ class XeroInvoiceManager(XeroDocumentManager):
         """
         return not self.job.paid
 
-    def get_line_items(self) -> list[DocumentLineItem]:
+    def get_line_items(
+        self, total_amount: Decimal | None = None
+    ) -> list[DocumentLineItem]:
         """
-        Generate invoice line items using only CostSet/CostLine.
-        Uses the latest CostSet of kind 'quote' for fixed price jobs,
-        or 'actual' for time & materials jobs.
+        Generate invoice line items.
+
+        When ``total_amount`` is provided it is used as the line item value.
+        Otherwise (legacy fallback) the amount is derived from the job's CostSet.
         """
         if not self.job:
             raise ValueError("Job is required to generate invoice line items.")
 
-        # Determine which CostSet kind to use based on pricing methodology
-        cost_set_kind = (
-            "quote" if self.job.pricing_methodology == "fixed_price" else "actual"
-        )
-
-        latest_cost_set = (
-            CostSet.objects.filter(job=self.job, kind=cost_set_kind)
-            .order_by("-rev", "-created")
-            .first()
-        )
-        if not latest_cost_set:
-            raise ValueError(
-                f"Job {self.job.id} does not have a '{cost_set_kind}' CostSet for invoicing."
+        if total_amount is None:
+            cost_set_kind = (
+                "quote" if self.job.pricing_methodology == "fixed_price" else "actual"
             )
-
-        # Try to get total revenue from summary, otherwise sum unit_rev from cost lines
-        total_revenue = None
-        if latest_cost_set.summary and isinstance(latest_cost_set.summary, dict):
-            total_revenue = latest_cost_set.summary.get("rev")
-        if total_revenue is None:
-            total_revenue = sum(cl.unit_rev for cl in latest_cost_set.cost_lines.all())
-        total_revenue = float(total_revenue or 0.0)
-
-        # Apply price cap if set - invoice should not exceed the cap
-        if self.job.price_cap is not None:
-            price_cap = float(self.job.price_cap)
-            if total_revenue > price_cap:
-                logger.info(
-                    f"Job {self.job.job_number}: Capping invoice from ${total_revenue:.2f} "
-                    f"to price cap ${price_cap:.2f}"
+            latest_cost_set = (
+                CostSet.objects.filter(job=self.job, kind=cost_set_kind)
+                .order_by("-rev", "-created")
+                .first()
+            )
+            if not latest_cost_set:
+                raise ValueError(
+                    f"Job {self.job.id} does not have a '{cost_set_kind}' CostSet for invoicing."
                 )
-                total_revenue = price_cap
+            rev = None
+            if latest_cost_set.summary and isinstance(latest_cost_set.summary, dict):
+                rev = latest_cost_set.summary.get("rev")
+            if rev is None:
+                rev = sum(cl.unit_rev for cl in latest_cost_set.cost_lines.all())
+            amount = Decimal(str(rev or 0))
+            if self.job.price_cap is not None:
+                amount = min(amount, Decimal(str(self.job.price_cap)))
+        else:
+            amount = total_amount
 
         description = f"Job: {self.job.job_number}"
         if self.job.description:
@@ -130,7 +124,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             DocumentLineItem(
                 description=description,
                 quantity=Decimal("1"),
-                unit_amount=Decimal(str(total_revenue)),
+                unit_amount=amount,
                 account_code=self._get_account_code(),
             )
         ]
@@ -149,12 +143,12 @@ class XeroInvoiceManager(XeroDocumentManager):
             due_date = invoice_date
         return invoice_date, due_date
 
-    def build_payload(self) -> InvoicePayload:
+    def build_payload(self, total_amount: Decimal | None = None) -> InvoicePayload:
         """Build a provider-agnostic invoice payload from the job and client."""
         if not self.job:
             raise ValueError("Job is required to build invoice payload.")
 
-        line_items = self.get_line_items()
+        line_items = self.get_line_items(total_amount)
         invoice_date, due_date = self._compute_invoice_dates()
 
         payload = InvoicePayload(
@@ -196,15 +190,25 @@ class XeroInvoiceManager(XeroDocumentManager):
             )
             return "Workshop PDF could not be attached to the invoice"
 
-    def create_document(self):
-        """Creates an invoice via the provider, processes result, and stores locally."""
+    def create_document(
+        self,
+        total_amount: Decimal | None = None,
+        billing_metadata: dict | None = None,
+    ):
+        """Creates an invoice via the provider, processes result, and stores locally.
+
+        Args:
+            total_amount: Pre-calculated invoice amount. When ``None`` the amount
+                is derived from the job's CostSet (legacy fallback).
+            billing_metadata: Calculation metadata to persist on the Invoice record.
+        """
         try:
             self.validate_client()
 
             if not self.state_valid_for_xero():
                 raise ValueError("Document is not in a valid state for submission.")
 
-            payload = self.build_payload()
+            payload = self.build_payload(total_amount)
             result = self.provider.create_invoice(payload)
 
             if not result.success:
@@ -222,23 +226,27 @@ class XeroInvoiceManager(XeroDocumentManager):
             )
             raw = result.raw_response or {}
 
-            invoice = Invoice.objects.create(
-                xero_id=result.external_id,
-                job=self.job,
-                client=self.client,
-                number=result.number,
-                date=payload.date,
-                due_date=payload.due_date,
-                status=InvoiceStatus.SUBMITTED,
-                total_excl_tax=Decimal(str(raw.get("sub_total", 0))),
-                tax=Decimal(str(raw.get("total_tax", 0))),
-                total_incl_tax=Decimal(str(raw.get("total", 0))),
-                amount_due=Decimal(str(raw.get("amount_due", 0))),
-                xero_last_synced=timezone.now(),
-                xero_last_modified=timezone.now(),
-                online_url=result.online_url,
-                raw_json=invoice_json,
-            )
+            invoice_kwargs = {
+                "xero_id": result.external_id,
+                "job": self.job,
+                "client": self.client,
+                "number": result.number,
+                "date": payload.date,
+                "due_date": payload.due_date,
+                "status": InvoiceStatus.SUBMITTED,
+                "total_excl_tax": Decimal(str(raw.get("sub_total", 0))),
+                "tax": Decimal(str(raw.get("total_tax", 0))),
+                "total_incl_tax": Decimal(str(raw.get("total", 0))),
+                "amount_due": Decimal(str(raw.get("amount_due", 0))),
+                "xero_last_synced": timezone.now(),
+                "xero_last_modified": timezone.now(),
+                "online_url": result.online_url,
+                "raw_json": invoice_json,
+            }
+            if billing_metadata is not None:
+                invoice_kwargs["billing_metadata"] = billing_metadata
+
+            invoice = Invoice.objects.create(**invoice_kwargs)
 
             # Update job.updated_at to invalidate ETags and prevent 304 responses
             self.job.save(
@@ -262,11 +270,26 @@ class XeroInvoiceManager(XeroDocumentManager):
             from apps.job.models import JobEvent
 
             try:
+                event_detail: dict = {
+                    "xero_invoice_number": invoice.number,
+                    "total_excl_tax": str(invoice.total_excl_tax),
+                }
+                if billing_metadata:
+                    target = Decimal(billing_metadata.get("target_total", "0"))
+                    prior = Decimal(billing_metadata.get("prior_invoiced_total", "0"))
+                    remaining = (
+                        target
+                        - prior
+                        - Decimal(billing_metadata.get("calculated_amount", "0"))
+                    )
+                    event_detail["target_total"] = str(target)
+                    event_detail["remaining_to_invoice"] = str(remaining)
+
                 JobEvent.objects.create(
                     job=self.job,
                     staff=self.staff,
                     event_type="invoice_created",
-                    detail={"xero_invoice_number": invoice.number},
+                    detail=event_detail,
                 )
             except Exception as exc:
                 persist_app_error(exc)
