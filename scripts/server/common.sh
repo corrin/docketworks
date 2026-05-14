@@ -10,7 +10,7 @@ SHARED_PLAYWRIGHT_BROWSERS="$BASE_DIR/.playwright-browsers"
 LOCAL_REPO="$BASE_DIR/repo"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 
-VALID_ENVS="dev uat staging prod"
+VALID_ENVS="dev uat staging prod demo"
 
 # Per-instance disk quotas (requires filesystem quotas enabled on /opt or /)
 QUOTA_SOFT="2G"
