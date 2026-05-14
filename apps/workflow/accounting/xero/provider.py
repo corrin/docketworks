@@ -7,6 +7,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING
 
 from apps.workflow.accounting.registry import register_provider
+from apps.workflow.api.xero.transforms import process_xero_data
 from apps.workflow.services.error_persistence import persist_app_error
 
 if TYPE_CHECKING:
@@ -216,13 +217,7 @@ class XeroAccountingProvider:
                 external_id=invoice_id,
                 number=created.invoice_number,
                 online_url=online_url,
-                raw_response={
-                    "sub_total": str(created.sub_total),
-                    "total_tax": str(created.total_tax),
-                    "total": str(created.total),
-                    "amount_due": str(created.amount_due),
-                    "full": created.to_dict(),
-                },
+                raw_response=process_xero_data(created),
             )
         except Exception as exc:
             persist_app_error(exc)
@@ -290,7 +285,7 @@ class XeroAccountingProvider:
                 external_id=quote_id,
                 number=created.quote_number,
                 online_url=online_url,
-                raw_response=created.to_dict(),
+                raw_response=process_xero_data(created),
             )
         except Exception as exc:
             persist_app_error(exc)

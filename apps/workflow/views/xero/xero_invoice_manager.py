@@ -1,5 +1,4 @@
 # workflow/views/xero_invoice_manager.py
-import json
 import logging
 from datetime import date
 from decimal import Decimal
@@ -218,12 +217,6 @@ class XeroInvoiceManager(XeroDocumentManager):
                     "status": result.status_code or 400,
                 }
 
-            # Create local Invoice record from result
-            invoice_json = (
-                json.dumps(result.raw_response, default=str)
-                if result.raw_response
-                else "{}"
-            )
             raw = result.raw_response or {}
 
             invoice_kwargs = {
@@ -234,14 +227,14 @@ class XeroInvoiceManager(XeroDocumentManager):
                 "date": payload.date,
                 "due_date": payload.due_date,
                 "status": InvoiceStatus.SUBMITTED,
-                "total_excl_tax": Decimal(str(raw.get("sub_total", 0))),
-                "tax": Decimal(str(raw.get("total_tax", 0))),
-                "total_incl_tax": Decimal(str(raw.get("total", 0))),
-                "amount_due": Decimal(str(raw.get("amount_due", 0))),
+                "total_excl_tax": Decimal(str(raw.get("_sub_total", 0))),
+                "tax": Decimal(str(raw.get("_total_tax", 0))),
+                "total_incl_tax": Decimal(str(raw.get("_total", 0))),
+                "amount_due": Decimal(str(raw.get("_amount_due", 0))),
                 "xero_last_synced": timezone.now(),
                 "xero_last_modified": timezone.now(),
                 "online_url": result.online_url,
-                "raw_json": invoice_json,
+                "raw_json": raw,
             }
             if billing_metadata is not None:
                 invoice_kwargs["billing_metadata"] = billing_metadata
