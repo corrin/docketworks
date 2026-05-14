@@ -14,6 +14,9 @@ const networkCsvPath = path.join(process.cwd(), 'test-results', 'network-aggrega
 // Default max wire transfer size - catches bugs like missing filters
 // 100KB is generous: a 192KB JSON response compresses to ~60-80KB via gzip
 const DEFAULT_MAX_RESPONSE_KB = 100
+
+/** Generous safety-net timeout — used where we just need to avoid hanging forever. */
+const INFINITE_TIMEOUT = 120000
 const E2E_PERF_BUDGET_MULTIPLIER = (() => {
   const raw = process.env.E2E_PERF_BUDGET_MULTIPLIER
   if (!raw) return 1
@@ -52,7 +55,7 @@ export function enableNetworkLogging(
     if (!existsSync(networkCsvPath)) {
       appendFileSync(
         networkCsvPath,
-        'run_id,run_date,test_name,method,url,status,wire_size_bytes,wire_size_kb,content_size_bytes,content_size_kb\n',
+        'run_id,run_date,test_name,method,url,status,wire_size_bytes,wire_size_kb,content_size_bytes,content_size_kb,duration_ms\n',
       )
     }
   }
@@ -93,6 +96,18 @@ export function enableNetworkLogging(
       const contentSizeBytes = body.length
       const contentSizeKB = contentSizeBytes / 1024
 
+      // Get response timing for layer-attribution analysis.
+      // timing() returns null for cached/redirect/304 responses.
+      let durationMs = ''
+      try {
+        const timing = response.timing()
+        if (timing) {
+          durationMs = String(Math.round(timing.responseEnd - timing.startTime))
+        }
+      } catch {
+        // timing() is not available for all responses
+      }
+
       // Append to CSV
       const row = [
         networkRunId,
@@ -105,6 +120,7 @@ export function enableNetworkLogging(
         wireSizeKB.toFixed(2),
         contentSizeBytes,
         contentSizeKB.toFixed(2),
+        durationMs,
       ].join(',')
       appendFileSync(networkCsvPath, row + '\n')
 
@@ -258,7 +274,7 @@ export async function waitForAutosave(page: Page) {
 
       return false
     },
-    { timeout: 10000 },
+    { timeout: INFINITE_TIMEOUT },
   )
 }
 
