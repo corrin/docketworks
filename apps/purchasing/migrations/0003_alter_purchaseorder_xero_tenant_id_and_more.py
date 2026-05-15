@@ -22,7 +22,7 @@ class Migration(migrations.Migration):
                 choices=[
                     ("stainless_steel", "Stainless Steel"),
                     ("mild_steel", "Mild Steel"),
-                    ("aluminum", "Aluminum"),
+                    ("aluminium", "Aluminium"),
                     ("brass", "Brass"),
                     ("copper", "Copper"),
                     ("titanium", "Titanium"),

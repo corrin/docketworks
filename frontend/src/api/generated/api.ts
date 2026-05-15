@@ -2492,7 +2492,7 @@ const PurchaseOrderDetailStatusEnum = z.enum([
 const MetalTypeEnum = z.enum([
   'stainless_steel',
   'mild_steel',
-  'aluminum',
+  'aluminium',
   'brass',
   'copper',
   'titanium',

@@ -13868,7 +13868,7 @@ components:
       enum:
         - stainless_steel
         - mild_steel
-        - aluminum
+        - aluminium
         - brass
         - copper
         - titanium
@@ -13880,7 +13880,7 @@ components:
       description: |-
         * `stainless_steel` - Stainless Steel
         * `mild_steel` - Mild Steel
-        * `aluminum` - Aluminum
+        * `aluminium` - Aluminium
         * `brass` - Brass
         * `copper` - Copper
         * `titanium` - Titanium
@@ -15208,7 +15208,7 @@ components:
 
             * `stainless_steel` - Stainless Steel
             * `mild_steel` - Mild Steel
-            * `aluminum` - Aluminum
+            * `aluminium` - Aluminium
             * `brass` - Brass
             * `copper` - Copper
             * `titanium` - Titanium
@@ -18602,7 +18602,7 @@ components:
 
             * `stainless_steel` - Stainless Steel
             * `mild_steel` - Mild Steel
-            * `aluminum` - Aluminum
+            * `aluminium` - Aluminium
             * `brass` - Brass
             * `copper` - Copper
             * `titanium` - Titanium
@@ -18705,7 +18705,7 @@ components:
 
             * `stainless_steel` - Stainless Steel
             * `mild_steel` - Mild Steel
-            * `aluminum` - Aluminum
+            * `aluminium` - Aluminium
             * `brass` - Brass
             * `copper` - Copper
             * `titanium` - Titanium

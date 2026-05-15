@@ -407,6 +407,7 @@ class Stock(models.Model):
         "xero_last_synced",
         "raw_json",
         "xero_inventory_tracked",
+        "parser_attempted_at",
         "parsed_at",
         "parser_version",
         "parser_confidence",
@@ -543,6 +544,11 @@ class Stock(models.Model):
     )
 
     # Parser tracking fields
+    parser_attempted_at = models.DateTimeField(
+        blank=True,
+        null=True,
+        help_text="When this inventory item was last attempted by the LLM parser",
+    )
     parsed_at = models.DateTimeField(
         blank=True, null=True, help_text="When this inventory item was parsed by LLM"
     )

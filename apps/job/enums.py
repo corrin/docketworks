@@ -28,7 +28,7 @@ class MetalType(models.TextChoices):
 
     STAINLESS_STEEL = "stainless_steel", "Stainless Steel"
     MILD_STEEL = "mild_steel", "Mild Steel"
-    ALUMINUM = "aluminum", "Aluminum"
+    ALUMINIUM = "aluminium", "Aluminium"
     BRASS = "brass", "Brass"
     COPPER = "copper", "Copper"
     TITANIUM = "titanium", "Titanium"

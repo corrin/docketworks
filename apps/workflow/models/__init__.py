@@ -6,7 +6,6 @@ from .company_defaults import CompanyDefaults
 from .service_api_key import ServiceAPIKey
 from .xero_account import XeroAccount
 from .xero_app import XeroApp
-from .xero_journal import XeroJournal, XeroJournalLineItem
 from .xero_pay_item import XeroPayItem
 from .xero_payroll import XeroPayRun, XeroPaySlip
 from .xero_sync_cursor import XeroSyncCursor
@@ -19,8 +18,6 @@ __all__ = [
     "XeroAccount",
     "XeroApp",
     "XeroError",
-    "XeroJournal",
-    "XeroJournalLineItem",
     "XeroPayItem",
     "XeroPayRun",
     "XeroPaySlip",

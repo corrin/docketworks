@@ -39,7 +39,7 @@ from apps.quoting.models import (
     SupplierPriceList,
     SupplierProduct,
 )
-from apps.workflow.models import AppError, XeroAccount, XeroJournalLineItem
+from apps.workflow.models import AppError, XeroAccount
 from apps.workflow.services.error_persistence import persist_and_raise
 
 
@@ -89,7 +89,6 @@ class DataIntegrityService:
         issues.extend(DataIntegrityService._check_quote_fks())
 
         # Workflow App
-        issues.extend(DataIntegrityService._check_xerojournallineitem_fks())
         issues.extend(DataIntegrityService._check_apperror_fks())
 
         # Client App
@@ -520,40 +519,6 @@ class DataIntegrityService:
                         "field": "client",
                         "target_model": "Client",
                         "target_id": str(quote.client_id),
-                    }
-                )
-
-        return issues
-
-    # Workflow App FK Checks
-    @staticmethod
-    def _check_xerojournallineitem_fks() -> list[dict[str, Any]]:
-        """Check XeroJournalLineItem FK references."""
-        issues = []
-        from apps.workflow.models import XeroJournal
-
-        valid_journal_ids = set(XeroJournal.objects.values_list("id", flat=True))
-        valid_account_ids = set(XeroAccount.objects.values_list("id", flat=True))
-
-        for lineitem in XeroJournalLineItem.objects.all():
-            if lineitem.journal_id not in valid_journal_ids:
-                issues.append(
-                    {
-                        "model": "XeroJournalLineItem",
-                        "record_id": str(lineitem.id),
-                        "field": "journal",
-                        "target_model": "XeroJournal",
-                        "target_id": str(lineitem.journal_id),
-                    }
-                )
-            if lineitem.account_id and lineitem.account_id not in valid_account_ids:
-                issues.append(
-                    {
-                        "model": "XeroJournalLineItem",
-                        "record_id": str(lineitem.id),
-                        "field": "account",
-                        "target_model": "XeroAccount",
-                        "target_id": str(lineitem.account_id),
                     }
                 )
 

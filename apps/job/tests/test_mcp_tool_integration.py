@@ -83,13 +83,13 @@ class QuotingToolTests(BaseTestCase):
         self.product3 = SupplierProduct.objects.create(
             supplier=self.supplier2,
             price_list=self.price_list2,
-            product_name="Aluminum Sheet 3mm",
-            description="Aluminum alloy sheet",
+            product_name="Aluminium Sheet 3mm",
+            description="Aluminium alloy sheet",
             item_no="AS-3",
             variant_id="AS-3-V1",
             variant_price="89.00",
             price_unit="per sheet",
-            parsed_metal_type="aluminum",
+            parsed_metal_type="aluminium",
         )
 
         self.product4 = SupplierProduct.objects.create(
@@ -347,7 +347,7 @@ class MCPToolIntegrationTests(BaseTestCase):
         tool = QuotingTool()
 
         # Should not raise exception
-        result = tool.search_products(query="steel & aluminum 50%")
+        result = tool.search_products(query="steel & aluminium 50%")
         self.assertIsInstance(result, str)
 
     def test_tool_handles_empty_query(self):

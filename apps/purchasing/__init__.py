@@ -65,6 +65,13 @@ try:
             SupplierSearchResponseSerializer,
             SupplierSearchResultSerializer,
         )
+        from .tasks import (
+            ParseStockItemTask,
+            ParseUnparsedStockItemsTask,
+            enqueue_stock_metadata_parse,
+            stock_metadata_incomplete,
+            stock_metadata_parse_eligible,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -80,6 +87,8 @@ __all__ = [
     "DeliveryReceiptResponseSerializer",
     "DeliveryReceiptSerializer",
     "JobForPurchasingSerializer",
+    "ParseStockItemTask",
+    "ParseUnparsedStockItemsTask",
     "PreconditionFailedError",
     "ProductMappingListResponseSerializer",
     "ProductMappingSerializer",
@@ -124,6 +133,9 @@ __all__ = [
     "SupplierPriceStatusResponseSerializer",
     "SupplierSearchResponseSerializer",
     "SupplierSearchResultSerializer",
+    "enqueue_stock_metadata_parse",
     "generate_po_etag",
     "normalize_etag",
+    "stock_metadata_incomplete",
+    "stock_metadata_parse_eligible",
 ]

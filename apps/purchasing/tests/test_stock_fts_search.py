@@ -89,6 +89,40 @@ def test_search_matches_alloy_field(db):
     assert "Other sheet" not in descriptions
 
 
+def test_numeric_query_matches_embedded_alloy_code_in_description(db):
+    """`5005` must find legacy rows that only contain `5005H32` in description."""
+    legacy = _stock(
+        description="2.0X1200X3000 5005H32 AL SHTPE",
+        item_code="0025084",
+        alloy=None,
+    )
+    _stock(description="2.0X1200X3000 5052H32 AL SHTPE", item_code="0025085")
+
+    result = list_stock(query="5005", page=1, page_size=10)
+    descriptions = [r["description"] for r in result["results"]]
+
+    assert legacy.description in descriptions
+    assert "2.0X1200X3000 5052H32 AL SHTPE" not in descriptions
+
+
+def test_numeric_query_boosts_alloy_and_item_code_matches(db):
+    enriched = _stock(
+        description="1.6X1200X2400 5005H32 AL SHT",
+        item_code="SHT-1.6-AL5005H32-1200x2400",
+        alloy="5005",
+    )
+    legacy = _stock(
+        description="2.0X1200X3000 5005H32 AL SHTPE",
+        item_code="0025084",
+        alloy=None,
+    )
+
+    assert _top_descriptions("5005", top_n=2) == [
+        enriched.description,
+        legacy.description,
+    ]
+
+
 def test_search_matches_specifics_field(db):
     """Specifics field participates in the search vector."""
     _stock(

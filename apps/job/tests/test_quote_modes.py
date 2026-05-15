@@ -191,7 +191,7 @@ class TestQuoteModeController(BaseTestCase):
 
         test_inputs = [
             "What's the price for 304 stainless?",
-            "Find suppliers for aluminum sheet",
+            "Find suppliers for aluminium sheet",
             "Get pricing for steel angle",
             "Compare costs from different suppliers",
         ]

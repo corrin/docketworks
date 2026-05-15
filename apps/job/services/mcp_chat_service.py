@@ -62,7 +62,7 @@ You have access to the following tools to help with quoting and material sourcin
 
 2. **get_pricing_for_material**: Get pricing information for specific materials with dimensions
    - Use this to get current market pricing
-   - Example: get_pricing_for_material("aluminum", "4x8")
+   - Example: get_pricing_for_material("aluminium", "4x8")
 
 3. **create_quote_estimate**: Create a detailed quote estimate for a job
    - Use this to generate comprehensive quotes with materials and labor
@@ -114,7 +114,7 @@ supplier information."""
                         "properties": {
                             "material_type": {
                                 "type": "string",
-                                "description": "Type of material (e.g., steel, aluminum)",
+                                "description": "Type of material (e.g., steel, aluminium)",
                             },
                             "dimensions": {
                                 "type": "string",

@@ -5,6 +5,9 @@ ViewSet for Stock CRUD operations using DRF's ModelViewSet.
 Provides list, create, retrieve, update, partial_update, and destroy actions.
 """
 
+from typing import Any
+
+from django.db.models import QuerySet
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
 from rest_framework import permissions, status, viewsets
@@ -19,9 +22,13 @@ from apps.purchasing.serializers import (
     StockItemSerializer,
 )
 from apps.purchasing.services.stock_service import consume_stock
+from apps.purchasing.tasks import (
+    enqueue_stock_metadata_parse,
+    stock_metadata_parse_eligible,
+)
 
 
-class StockViewSet(viewsets.ModelViewSet):
+class StockViewSet(viewsets.ModelViewSet[Stock]):
     """
     ViewSet for Stock CRUD operations.
 
@@ -41,18 +48,31 @@ class StockViewSet(viewsets.ModelViewSet):
     serializer_class = StockItemSerializer
     permission_classes = [permissions.IsAuthenticated]
 
-    def get_queryset(self):
+    def get_queryset(self) -> QuerySet[Stock]:
         """
         Filter to only active stock items.
         """
         return Stock.objects.filter(is_active=True).order_by("-date")
 
-    def perform_destroy(self, instance):
+    def perform_destroy(self, instance: Stock) -> None:
         """
         Soft delete - set is_active=False instead of actually deleting.
         """
-        instance.is_active = False
-        instance.save(update_fields=["is_active"])
+        Stock.objects.filter(id=instance.id).update(is_active=False)
+
+    def perform_create(self, serializer: Any) -> None:
+        stock = serializer.save()
+        if stock_metadata_parse_eligible(stock):
+            enqueue_stock_metadata_parse(stock.id)
+        else:
+            pass  # Metadata was supplied explicitly; no parser task needed.
+
+    def perform_update(self, serializer: Any) -> None:
+        stock = serializer.save()
+        if stock_metadata_parse_eligible(stock):
+            enqueue_stock_metadata_parse(stock.id)
+        else:
+            pass  # Metadata was supplied explicitly; no parser task needed.
 
     @extend_schema(
         request=StockConsumeSerializer,
@@ -61,7 +81,7 @@ class StockViewSet(viewsets.ModelViewSet):
         description="Consume stock for a job, reducing available quantity.",
     )
     @action(detail=True, methods=["post"])
-    def consume(self, request, pk=None):
+    def consume(self, request: Any, pk: str | None = None) -> Response:
         """
         Consume stock for a job, reducing available quantity.
         """

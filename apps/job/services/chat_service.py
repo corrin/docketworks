@@ -101,7 +101,7 @@ pricing, and suppliers."""
                         "properties": {
                             "material_type": {
                                 "type": "string",
-                                "description": "Type of material (e.g., steel, aluminum)",
+                                "description": "Type of material (e.g., steel, aluminium)",
                             },
                             "dimensions": {
                                 "type": "string",

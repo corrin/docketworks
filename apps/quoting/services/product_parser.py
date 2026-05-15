@@ -16,6 +16,8 @@ from apps.workflow.services.llm_service import LLMService
 
 logger = logging.getLogger(__name__)
 
+ParsedProductResult = Tuple[Dict[str, Any], bool]
+
 
 class ProductParser:
     """
@@ -26,7 +28,7 @@ class ProductParser:
     PARSER_VERSION = "1.1.0"
     BATCH_SIZE = 100
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize parser with LLM service."""
         # Use the shared LLMService - prefer Google/Gemini Flash models for parsing
         # as they are cheaper and faster while sufficient for this task
@@ -113,7 +115,9 @@ OUTPUT: {
 }
 """
 
-    def _create_parsing_prompt(self, product_data_list: list) -> str:
+    def _create_parsing_prompt(
+        self, product_data_list: Dict[str, Any] | list[Dict[str, Any]]
+    ) -> str:
         """Create LLM prompt for parsing product data (single item or batch)."""
         metal_types = [choice[0] for choice in MetalType.choices]
 
@@ -273,7 +277,9 @@ Price: {product_data.get("variant_price", "N/A")} \
 
         return mapping
 
-    def parse_products_batch(self, product_data_list: list) -> list:
+    def parse_products_batch(
+        self, product_data_list: list[Dict[str, Any]]
+    ) -> list[ParsedProductResult]:
         """
         Parse multiple products in a single LLM call for efficiency.
 
@@ -289,7 +295,7 @@ Price: {product_data.get("variant_price", "N/A")} \
         # Group products by those that need parsing vs those already cached
         uncached_products = []
         uncached_indices = []
-        results = [None] * len(product_data_list)
+        results: list[ParsedProductResult | None] = [None] * len(product_data_list)
 
         for i, product_data in enumerate(product_data_list):
             input_hash = self._calculate_input_hash(product_data)
@@ -356,7 +362,7 @@ Price: {product_data.get("variant_price", "N/A")} \
                     original_index = uncached_indices[j]
                     results[original_index] = self.parse_product(product_data)
 
-        return results
+        return [result if result is not None else ({}, False) for result in results]
 
     def parse_product(
         self, product_data: Dict[str, Any]
@@ -439,7 +445,7 @@ def parse_supplier_product(product_data: Dict[str, Any]) -> Tuple[Dict[str, Any]
     return parser.parse_product(product_data)
 
 
-def create_mapping_record(instance):
+def create_mapping_record(instance: SupplierProduct) -> None:
     """Create mapping record and set hash on SupplierProduct."""
     # Set mapping_hash on SupplierProduct
     mapping_hash = calculate_supplier_product_hash(instance)
@@ -465,7 +471,7 @@ def create_mapping_record(instance):
         logging.info(f"Updated some shite:  {ppm}")
 
 
-def populate_all_mappings_with_llm():
+def populate_all_mappings_with_llm() -> None:
     """Batch process all unpopulated ProductParsingMapping records with LLM."""
     # Find all unpopulated mappings
     unpopulated_mappings = ProductParsingMapping.objects.filter(
@@ -484,12 +490,19 @@ def populate_all_mappings_with_llm():
     parser = ProductParser()
 
     # Prepare product data for all mappings
-    product_data_list = []
+    product_data_list: list[Dict[str, Any]] = []
     for mapping in unpopulated_mappings:
+        input_data = mapping.input_data if isinstance(mapping.input_data, dict) else {}
         product_data = {
-            "product_name": mapping.input_product_name,
-            "description": mapping.input_description,
-            "specifications": mapping.input_specifications,
+            "product_name": input_data.get("product_name")
+            or input_data.get("input_product_name")
+            or "",
+            "description": input_data.get("description")
+            or input_data.get("input_description")
+            or "",
+            "specifications": input_data.get("specifications")
+            or input_data.get("input_specifications")
+            or "",
         }
         product_data_list.append(product_data)
 

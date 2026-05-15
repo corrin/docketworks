@@ -1,13 +1,10 @@
 from datetime import datetime, timedelta
 
 from dateutil.relativedelta import relativedelta
-from django.db.models import Sum
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework.response import Response
 from rest_framework.views import APIView
-
-from apps.workflow.models import XeroJournalLineItem
 
 
 class CompanyProfitAndLossReport(APIView):
@@ -42,20 +39,7 @@ class CompanyProfitAndLossReport(APIView):
         """
         Roll up line items for all document types into a single dictionary.
         """
-        journal_rollup = (
-            XeroJournalLineItem.objects.filter(
-                journal__journal_date__range=[period_start, period_end]
-            )
-            .values("account__account_type", "account__account_name")
-            .annotate(total=Sum("net_amount"))
-        )
-
-        consolidated_rollup = {}
-        for item in journal_rollup:
-            key = (item["account__account_type"], item["account__account_name"])
-            consolidated_rollup[key] = consolidated_rollup.get(key, 0) + item["total"]
-
-        return consolidated_rollup
+        return {}
 
     def calculate_totals(self, report, compare_periods, period_index):
         """

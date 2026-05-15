@@ -303,12 +303,15 @@
                 >
                   <Scale class="w-4 h-4 mr-2" /> Payroll (Xero)
                 </router-link>
-                <router-link
-                  to="/reports/profit-and-loss"
-                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
-                >
-                  <FileText class="w-4 h-4 mr-2" /> Profit & Loss (Xero)
-                </router-link>
+                <!-- Hidden until P&L is rebuilt against the Xero Report API. -->
+                <!--
+                  <router-link
+                    to="/reports/profit-and-loss"
+                    class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                  >
+                    <FileText class="w-4 h-4 mr-2" /> Profit & Loss (Xero)
+                  </router-link>
+                -->
                 <div class="border-t border-gray-200 my-1"></div>
                 <div
                   class="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
@@ -788,13 +791,16 @@
                       >
                         <Scale class="w-4 h-4 mr-2" /> Payroll (Xero)
                       </router-link>
-                      <router-link
-                        to="/reports/profit-and-loss"
-                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                        @click="closeMobileMenu"
-                      >
-                        <FileText class="w-4 h-4 mr-2" /> Profit & Loss (Xero)
-                      </router-link>
+                      <!-- Hidden until P&L is rebuilt against the Xero Report API. -->
+                      <!--
+                        <router-link
+                          to="/reports/profit-and-loss"
+                          class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                          @click="closeMobileMenu"
+                        >
+                          <FileText class="w-4 h-4 mr-2" /> Profit & Loss (Xero)
+                        </router-link>
+                      -->
                       <div class="border-t border-gray-200 mt-2 mb-1"></div>
                       <div
                         class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider"

@@ -26,4 +26,4 @@ Each installation has exactly one active backend, so a runtime-resolved registry
 
 ## Consequences
 
-MYOB can be added without touching business logic; SDK types stay inside the Xero provider once Phase 2 lands. Cost: another layer of indirection for Xero-only reads; new code needs review to ensure callers don't import `xero_python` directly. Some surfaces stay Xero-specific forever (webhooks, management commands, `XeroPayRun`/`XeroJournal` models, OAuth scopes) — that's deliberate.
+MYOB can be added without touching business logic; SDK types stay inside the Xero provider once Phase 2 lands. Cost: another layer of indirection for Xero-only reads; new code needs review to ensure callers don't import `xero_python` directly. Some surfaces stay Xero-specific forever (webhooks, management commands, `XeroPayRun` models, OAuth scopes) — that's deliberate.
