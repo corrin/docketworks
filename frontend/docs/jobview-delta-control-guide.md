@@ -31,7 +31,6 @@ Every PATCH/POST that mutates a job must send a JSON payload in the following sh
 ### Canonicalisation Rules
 
 - Compute `before_checksum` using the shared canonical function (mirrors `apps/job/services/delta_checksum.py`):
-
   - Sort field keys alphabetically.
   - Convert `None` to the literal string `"__NULL__"`.
   - Trim whitespace for string comparisons.
@@ -240,7 +239,6 @@ Every PATCH/POST that mutates a job must send a JSON payload in the following sh
 
 ## Coordination Notes
 
-- The backend roadmap lives in `.kilocode/tasks/job_delta_integrity_plan.md`; keep both documents in sync as implementation details evolve.
 - All integrations (CLI scripts, schedulers, etc.) must adopt the same envelope or route writes through backend services that construct it server-side.
 - Continue to reference `docs/frontend-etag-optimistic-concurrency.md` for ETag semantics and ensure the queue respects those guarantees.
 - The backend captures rejected envelopes in `JobDeltaRejection` for diagnostics. When you surface error banners, include the `change_id` so support can cross-reference those records if necessary.
