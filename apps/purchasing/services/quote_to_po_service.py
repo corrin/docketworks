@@ -4,8 +4,8 @@ import logging
 import os
 from typing import Optional, Tuple
 
+import anthropic
 import pdfplumber
-import requests
 from django.conf import settings
 from google import genai
 from rapidfuzz import fuzz, process
@@ -261,69 +261,45 @@ def extract_data_from_supplier_quote(
         }}
         """
 
-        # Call Claude API
-        response = requests.post(
-            "https://api.anthropic.com/v1/messages",
-            headers={
-                "x-api-key": api_key,
-                "anthropic-version": "2023-06-01",
-                "content-type": "application/json",
-            },
-            json={
-                "model": default_ai_provider.model_name,
-                "max_tokens": 4000,
-                "messages": [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": prompt},
+        # Call Claude API via the SDK. Cache the prompt block (large, identical
+        # across every quote) so the second+ extraction within ~5 min pays ~10%
+        # of the input cost.
+        client = anthropic.Anthropic(api_key=api_key)
+        response = client.messages.create(
+            model=default_ai_provider.model_name,
+            max_tokens=4000,
+            messages=[
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": prompt,
+                            "cache_control": {"type": "ephemeral"},
+                        },
+                    ]
+                    + (
+                        # If we have extracted text, send it as text
+                        [{"type": "text", "text": extracted_text}]
+                        if extracted_text
+                        # Otherwise send the file
+                        else [
+                            {
+                                "type": api_content_type,
+                                "source": {
+                                    "type": "base64",
+                                    "media_type": media_type,
+                                    "data": file_b64,
+                                },
+                            }
                         ]
-                        + (
-                            # If we have extracted text, send it as text
-                            [{"type": "text", "text": extracted_text}]
-                            if extracted_text
-                            # Otherwise send the file
-                            else [
-                                {
-                                    "type": api_content_type,
-                                    "source": {
-                                        "type": "base64",
-                                        "media_type": media_type,
-                                        "data": file_b64,
-                                    },
-                                }
-                            ]
-                        ),
-                    }
-                ],
-            },
+                    ),
+                }
+            ],
         )
 
-        if response.status_code != 200:
-            try:
-                error_details = response.json()
-                error_message = error_details.get("error", {}).get(
-                    "message", "Unknown error"
-                )
-                logger.error(
-                    f"Anthropic API error: {response.status_code} - {error_message}"
-                )
-                logger.error(f"Full error response: {error_details}")
-                return (
-                    None,
-                    f"Error from Anthropic API: {response.status_code} - {error_message}",
-                )
-            except Exception as e:
-                logger.error(f"Failed to parse Anthropic API error response: {e}")
-                logger.error(f"Raw response: {response.text}")
-                return None, f"Error from Anthropic API: {response.status_code}"
-
-        # Extract JSON from response
-        response_data = response.json()
-
-        # Log token usage
-        input_tokens = response_data.get("usage", {}).get("input_tokens", 0)
-        output_tokens = response_data.get("usage", {}).get("output_tokens", 0)
+        input_tokens = response.usage.input_tokens
+        output_tokens = response.usage.output_tokens
         total_tokens = input_tokens + output_tokens
 
         logger.info(
@@ -331,12 +307,10 @@ def extract_data_from_supplier_quote(
             f"Input: {input_tokens}, Output: {output_tokens}, Total: {total_tokens}"
         )
 
-        content = response_data.get("content", [])
-
         json_text = ""
-        for block in content:
-            if block.get("type") == "text":
-                json_text += block.get("text", "")
+        for block in response.content:
+            if block.type == "text":
+                json_text += block.text
 
         # Clean up JSON text
         json_text = json_text.strip()
