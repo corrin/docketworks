@@ -26,6 +26,15 @@ class Command(BaseCommand):
         )
         parser.add_argument("--sample-size", type=int, default=50)
         parser.add_argument("--model-filter", type=str)
+        parser.add_argument(
+            "--output",
+            type=str,
+            default=None,
+            help=(
+                "Write the scrubbed dump to this exact path. "
+                "Default: <BASE_DIR>/restore/scrubbed_<DB_NAME>_<timestamp>.dump"
+            ),
+        )
 
     def handle(self, *args, **options):
         if options.get("analyze_fields"):
@@ -54,13 +63,19 @@ class Command(BaseCommand):
                 "refusing to run."
             )
 
-        ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-        backup_dir = os.path.join(settings.BASE_DIR, "restore")
-        os.makedirs(backup_dir, exist_ok=True)
-
-        scrubbed_dump = os.path.join(
-            backup_dir, f"scrubbed_{default_db['NAME']}_{ts}.dump"
-        )
+        explicit_output = options.get("output")
+        if explicit_output:
+            scrubbed_dump = explicit_output
+            parent = os.path.dirname(scrubbed_dump) or "."
+            if not os.path.isdir(parent):
+                raise RuntimeError(f"--output parent dir does not exist: {parent}")
+        else:
+            ts = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+            backup_dir = os.path.join(settings.BASE_DIR, "restore")
+            os.makedirs(backup_dir, exist_ok=True)
+            scrubbed_dump = os.path.join(
+                backup_dir, f"scrubbed_{default_db['NAME']}_{ts}.dump"
+            )
 
         env = os.environ.copy()
         env["PGPASSWORD"] = default_db["PASSWORD"]

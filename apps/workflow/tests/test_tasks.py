@@ -16,9 +16,13 @@ from unittest.mock import MagicMock, patch
 from django.core.cache import caches
 from django.test import TestCase
 
-from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.exceptions import AlreadyLoggedException, XeroQuotaFloorReached
 from apps.workflow.models import AppError
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
+from apps.workflow.services.xero_sync_service import (
+    XeroSyncService,
+    XeroSyncStartResult,
+)
 from apps.workflow.tasks import xero_regular_sync_task, xero_sync_task
 
 # Sync state lives on the "shared" alias (Redis in prod, LocMem in tests via
@@ -61,8 +65,138 @@ class XeroSyncTaskFailureTests(TestCase):
 
         # Exactly one AppError row — no double-persist from a wrapping handler.
         self.assertEqual(AppError.objects.count(), before + 1)
+        messages = _shared.get(f"xero_sync_messages_{task_id}", [])
+        self.assertEqual(messages[-2]["severity"], "error")
+        self.assertEqual(
+            messages[-2]["message"], "Error during sync: xero blew up mid-stream"
+        )
+        self.assertTrue(messages[-2]["error_id"])
+        self.assertEqual(messages[-1]["message"], "Sync stream ended")
+        self.assertEqual(messages[-1]["sync_status"], "error")
         # Lock released by the finally block.
         self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
+
+    def test_prelogged_sync_failure_surfaces_without_duplicate_app_error(self):
+        task_id = "test-prelogged-failure"
+        _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
+        _shared.set(SYNC_STATUS_KEY, task_id, timeout=60)
+
+        persisted = AppError.objects.create(
+            message="No Xero tenants found.",
+            app="workflow",
+        )
+
+        def boom():
+            raise AlreadyLoggedException(
+                RuntimeError("No Xero tenants found."),
+                persisted.id,
+            )
+            yield
+
+        provider = MagicMock()
+        provider.run_full_sync.return_value = boom()
+        provider.get_sync_entity_count.return_value = 5
+
+        before = AppError.objects.count()
+        with patch(
+            "apps.workflow.accounting.registry.get_provider",
+            return_value=provider,
+        ):
+            with self.assertRaises(AlreadyLoggedException):
+                xero_sync_task(task_id)
+
+        self.assertEqual(AppError.objects.count(), before)
+        messages = _shared.get(f"xero_sync_messages_{task_id}", [])
+        self.assertEqual(messages[-2]["severity"], "error")
+        self.assertEqual(
+            messages[-2]["message"], "Error during sync: No Xero tenants found."
+        )
+        self.assertEqual(messages[-2]["error_id"], str(persisted.id))
+        self.assertEqual(messages[-1]["sync_status"], "error")
+        self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
+
+    def test_quota_floor_aborts_without_app_error(self):
+        task_id = "test-quota-abort"
+        _shared.set(f"xero_sync_messages_{task_id}", [], timeout=60)
+        _shared.set(SYNC_STATUS_KEY, task_id, timeout=60)
+
+        def abort():
+            raise XeroQuotaFloorReached("Skipping sync: Xero day quota at floor (100)")
+            yield
+
+        provider = MagicMock()
+        provider.run_full_sync.return_value = abort()
+        provider.get_sync_entity_count.return_value = 5
+
+        before = AppError.objects.count()
+        with patch(
+            "apps.workflow.accounting.registry.get_provider",
+            return_value=provider,
+        ):
+            xero_sync_task(task_id)
+
+        self.assertEqual(AppError.objects.count(), before)
+        messages = _shared.get(f"xero_sync_messages_{task_id}", [])
+        self.assertEqual(messages[-2]["severity"], "error")
+        self.assertEqual(messages[-1]["sync_status"], "aborted")
+        self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
+
+
+class XeroSyncStartResultTests(TestCase):
+    def setUp(self):
+        _shared.delete(SYNC_STATUS_KEY)
+
+    def tearDown(self):
+        _shared.delete(SYNC_STATUS_KEY)
+
+    def test_start_sync_reports_already_running_without_exception(self):
+        _shared.set(SYNC_STATUS_KEY, "existing-task", timeout=60)
+
+        result = XeroSyncService.start_sync()
+
+        self.assertEqual(
+            result,
+            XeroSyncStartResult(
+                started=False,
+                reason="already_running",
+                task_id="existing-task",
+            ),
+        )
+
+    def test_start_sync_reports_no_valid_token_without_exception(self):
+        provider = MagicMock()
+        provider.get_valid_token.return_value = None
+
+        with patch(
+            "apps.workflow.services.xero_sync_service.get_provider",
+            return_value=provider,
+        ):
+            result = XeroSyncService.start_sync()
+
+        self.assertEqual(result.started, False)
+        self.assertEqual(result.reason, "no_valid_token")
+        self.assertIsNone(result.task_id)
+        self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
+
+    def test_start_sync_reports_started_task_id(self):
+        provider = MagicMock()
+        provider.get_valid_token.return_value = {"access_token": "token"}
+
+        with (
+            patch(
+                "apps.workflow.services.xero_sync_service.get_provider",
+                return_value=provider,
+            ),
+            patch(
+                "apps.workflow.services.xero_sync_service.xero_sync_task.delay"
+            ) as delay,
+        ):
+            result = XeroSyncService.start_sync()
+
+        self.assertTrue(result.started)
+        self.assertEqual(result.reason, "started")
+        self.assertTrue(result.task_id)
+        delay.assert_called_once_with(result.task_id)
 
 
 class XeroRegularSyncSkipTests(TestCase):

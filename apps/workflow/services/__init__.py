@@ -29,7 +29,7 @@ try:
         from .llm_service import LLMService, quick_completion, quick_json_completion
         from .search import apply_text_search
         from .validation import to_decimal, validate_required_fields
-        from .xero_sync_service import XeroSyncService
+        from .xero_sync_service import XeroSyncService, XeroSyncStartResult
         from .xero_sync_worker import xero_sync_task
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -38,6 +38,7 @@ except (ImportError, RuntimeError):
 __all__ = [
     "LLMService",
     "XeroSyncService",
+    "XeroSyncStartResult",
     "apply_text_search",
     "extract_job_context",
     "extract_request_context",

@@ -50,8 +50,6 @@ from apps.workflow.api.xero.auth import (
 from apps.workflow.api.xero.sync import ENTITY_CONFIGS
 from apps.workflow.exceptions import (
     AlreadyLoggedException,
-    NoValidXeroTokenError,
-    XeroSyncAlreadyRunningError,
 )
 from apps.workflow.models import XeroError, XeroPayItem
 from apps.workflow.serializers import (
@@ -1017,32 +1015,27 @@ def start_xero_sync(request):
     """
     View function to start a Xero sync as a background task.
     """
-    try:
-        try:
-            task_id = XeroSyncService.start_sync()
-            response_data = {
-                "status": "success",
-                "message": "Started new Xero sync",
-                "task_id": task_id,
-            }
-        except XeroSyncAlreadyRunningError as exc:
-            response_data = {
-                "status": "success",
-                "message": "A sync is already running",
-                "task_id": exc.active_task_id,
-            }
-        except NoValidXeroTokenError:
-            error_response = {"error": "No valid token. Please authenticate."}
-            error_serializer = XeroSyncStartResponseSerializer(error_response)
-            return JsonResponse(error_serializer.data, status=401)
-
-        response_serializer = XeroSyncStartResponseSerializer(response_data)
-        return JsonResponse(response_serializer.data)
-    except Exception as e:
-        logger.error(f"Error starting Xero sync: {str(e)}")
-        error_response = {"error": str(e)}
+    result = XeroSyncService.start_sync()
+    if result.reason == "no_valid_token":
+        error_response = {"error": "No valid token. Please authenticate."}
         error_serializer = XeroSyncStartResponseSerializer(error_response)
-        return JsonResponse(error_serializer.data, status=500)
+        return JsonResponse(error_serializer.data, status=401)
+
+    if result.reason == "already_running":
+        response_data = {
+            "status": "success",
+            "message": "A sync is already running",
+            "task_id": result.task_id,
+        }
+    else:
+        response_data = {
+            "status": "success",
+            "message": "Started new Xero sync",
+            "task_id": result.task_id,
+        }
+
+    response_serializer = XeroSyncStartResponseSerializer(response_data)
+    return JsonResponse(response_serializer.data)
 
 
 @csrf_exempt
@@ -1057,23 +1050,23 @@ def trigger_xero_sync(request):
     if isinstance(tenant, JsonResponse):
         return tenant
 
-    try:
-        task_id = XeroSyncService.start_sync()
-        response_data = {"success": True, "task_id": task_id, "started": True}
-    except XeroSyncAlreadyRunningError as exc:
+    result = XeroSyncService.start_sync()
+    if result.reason == "already_running":
         response_data = {
             "success": True,
-            "task_id": exc.active_task_id,
+            "task_id": result.task_id,
             "started": False,
             "message": "A sync is already running",
         }
-    except NoValidXeroTokenError:
+    elif result.reason == "no_valid_token":
         error_response = {
             "success": False,
             "message": "Unable to start sync — no valid Xero token.",
         }
         error_serializer = XeroTriggerSyncResponseSerializer(error_response)
         return JsonResponse(error_serializer.data, status=400)
+    else:
+        response_data = {"success": True, "task_id": result.task_id, "started": True}
 
     response_serializer = XeroTriggerSyncResponseSerializer(response_data)
     return JsonResponse(response_serializer.data)
