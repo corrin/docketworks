@@ -429,7 +429,10 @@ class WebhookTaskGateTests(TestCase):
             patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
             patch(
                 "apps.workflow.tasks.CompanyDefaults.get_solo",
-                return_value=SimpleNamespace(xero_tenant_id="tenant-abc"),
+                return_value=SimpleNamespace(
+                    xero_tenant_id="tenant-abc",
+                    enable_xero_sync=True,
+                ),
             ),
         ):
             process_xero_webhook_event("tenant-abc", self._event())

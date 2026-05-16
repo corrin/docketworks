@@ -1,1 +1,7 @@
 .codesight/
+dist/
+dist-manual/
+playwright-report/
+test-history/
+test-results/
+manual/.vitepress/cache/
