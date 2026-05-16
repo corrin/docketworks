@@ -308,6 +308,8 @@
                 :accounting-date="currentDate"
                 :jobs="timesheetStore.jobs"
                 :pay-items-by-multiplier="payItemsByMultiplier"
+                :create-pending="createPending"
+                :focus-phantom-token="focusPhantomToken"
                 @create-entry="handleCreateEntry"
                 @delete-entry="handleDeleteEntryById"
                 @approve-entry="handleApproveCostLine"
@@ -618,6 +620,8 @@ const companyDefaultsStore = useCompanyDefaultsStore()
 
 const loading = ref(false)
 const error = ref<string | null>(null)
+const createPending = ref(false)
+const focusPhantomToken = ref(0)
 const showHelpModal = ref(false)
 
 const todayDate = toLocalDateString()
@@ -931,6 +935,8 @@ const payItemsByMultiplier = computed(() => {
 })
 
 async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
+  if (createPending.value) return
+
   const job = timesheetStore.jobs.find((j: ModernTimesheetJob) => j.id === entry.job_id)
   if (!job) {
     toast.error('Cannot save entry — job not found')
@@ -966,6 +972,8 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
     },
   }
   debugLog('[handleCreateEntry] POST payload:', payload, 'jobId:', job.id)
+  let savedSuccessfully = false
+  createPending.value = true
   try {
     const saved = await costlineService.createCostLine(job.id, 'actual', payload)
     // Reload to get the canonical row (with id, total_cost, etc) from the backend
@@ -978,6 +986,7 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
       // Fallback: refresh from backend
       await loadTimesheetData()
     }
+    savedSuccessfully = true
     toast.success('Entry saved')
   } catch (err) {
     // Log the request payload + the response body so the validation rejection
@@ -993,6 +1002,11 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
       responseBody: responseBody?.data,
     })
     toast.error(`Failed to save entry: ${extractErrorMessage(err)}`)
+  } finally {
+    createPending.value = false
+    if (savedSuccessfully) {
+      focusPhantomToken.value += 1
+    }
   }
 }
 
@@ -1220,9 +1234,13 @@ const loadTimesheetData = async () => {
     debugLog('Cost lines from API:', response.cost_lines)
     debugLog('Number of cost lines:', response.cost_lines?.length || 0)
 
-    // Sort by creation time so entries stay in the order they were entered
+    // Sort by canonical backend sequence so the visible order matches the
+    // order enforced for this staff member and date.
     const lines = [...response.cost_lines]
     lines.sort((a, b) => {
+      const aSeq = a.entry_seq ?? Number.MAX_SAFE_INTEGER
+      const bSeq = b.entry_seq ?? Number.MAX_SAFE_INTEGER
+      if (aSeq !== bSeq) return aSeq - bSeq
       const aTime = a.created_at ?? ''
       const bTime = b.created_at ?? ''
       return aTime < bTime ? -1 : aTime > bTime ? 1 : 0

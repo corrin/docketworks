@@ -4,6 +4,30 @@ import { getCompanyDefaults, getTimesheetStaff } from '../fixtures/api'
 import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
+type CreatedCostLineResponse = Record<string, unknown>
+
+async function expectCreatedCostLine(
+  response: Response,
+  expected: {
+    entrySeq: number
+    description: string
+    hours: number
+    totalCost: number
+    totalRevenue: number
+    staffId: string
+  },
+): Promise<void> {
+  const body = (await response.json()) as CreatedCostLineResponse
+  expect(body.entry_seq).toBe(expected.entrySeq)
+  expect(body.desc).toBe(expected.description)
+  expect(Number(body.quantity)).toBeCloseTo(expected.hours, 2)
+  expect(Number(body.total_cost)).toBeCloseTo(expected.totalCost, 1)
+  expect(Number(body.total_rev)).toBeCloseTo(expected.totalRevenue, 1)
+
+  const meta = body.meta
+  expect(meta).toEqual(expect.objectContaining({ staff_id: expected.staffId }))
+}
+
 test.describe('keyboard Tab entry flow', () => {
   let staffId: string
   let staffWageRate: number
@@ -50,57 +74,25 @@ test.describe('keyboard Tab entry flow', () => {
     await context.close()
   })
 
-  test('job, tab, hours, tab, description, tab — two rows with verified data', async ({
+  test('keyboard-only job, tab, hours, tab, description, tab — two rows with verified data', async ({
     authenticatedPage: page,
   }) => {
+    let delayedFirstCreate = false
+    await page.route(/\/cost_lines\/?/, async (route) => {
+      if (route.request().method() === 'POST' && !delayedFirstCreate) {
+        delayedFirstCreate = true
+        await page.waitForTimeout(700)
+      }
+      await route.continue()
+    })
+
     await page.goto(`/timesheets/entry?date=${getLatestWeekdayDate()}&staffId=${staffId}`)
     await page.waitForLoadState('networkidle')
 
     const r0 = await getPhantomRowIndex(page)
+    const firstSeq = r0 + 1
+    const secondSeq = firstSeq + 1
 
-    // Row 1
-    await autoId(page, `SmartTimesheetTable-jobPicker-${r0}-trigger`).click()
-    await autoId(page, `SmartTimesheetTable-jobPicker-${r0}-search`).fill(jobNumber1)
-    await autoId(page, `SmartTimesheetTable-jobPicker-${r0}-option-${jobNumber1}`).click()
-    await expect(autoId(page, `SmartTimesheetTable-hours-${r0}`)).toBeFocused({ timeout: 3000 })
-
-    await autoId(page, `SmartTimesheetTable-hours-${r0}`).fill('2')
-    await page.keyboard.press('Tab')
-    await expect(autoId(page, `SmartTimesheetTable-description-${r0}`)).toBeFocused({
-      timeout: 3000,
-    })
-
-    await autoId(page, `SmartTimesheetTable-description-${r0}`).fill('Cutting')
-    await page.keyboard.press('Tab')
-    await page.waitForResponse(
-      (res: Response) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
-      { timeout: 15000 },
-    )
-
-    // Row 2
-    const r1 = await getPhantomRowIndex(page)
-    await autoId(page, `SmartTimesheetTable-jobPicker-${r1}-trigger`).waitFor({ timeout: 5000 })
-    await autoId(page, `SmartTimesheetTable-jobPicker-${r1}-trigger`).click()
-    await autoId(page, `SmartTimesheetTable-jobPicker-${r1}-search`).fill(jobNumber2)
-    await autoId(page, `SmartTimesheetTable-jobPicker-${r1}-option-${jobNumber2}`).click()
-    await expect(autoId(page, `SmartTimesheetTable-hours-${r1}`)).toBeFocused({ timeout: 3000 })
-
-    await autoId(page, `SmartTimesheetTable-hours-${r1}`).fill('3.5')
-    await page.keyboard.press('Tab')
-    await expect(autoId(page, `SmartTimesheetTable-description-${r1}`)).toBeFocused({
-      timeout: 3000,
-    })
-
-    await autoId(page, `SmartTimesheetTable-description-${r1}`).fill('Welding')
-    await page.keyboard.press('Tab')
-    await page.waitForResponse(
-      (res: Response) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
-      { timeout: 15000 },
-    )
-
-    await page.waitForLoadState('networkidle')
-
-    // Assert via entry_seq
     const assertRow = async (
       seq: number,
       jobNum: string,
@@ -113,11 +105,19 @@ test.describe('keyboard Tab entry flow', () => {
       await expect(row.locator(`[data-automation-id$="-trigger"]`)).toHaveText(
         new RegExp(`#${jobNum}`),
       )
-      await expect(row.locator(`[data-automation-id$="-hours"]`)).toHaveValue(hoursText)
-      await expect(row.locator(`[data-automation-id$="-description"]`)).toHaveValue(desc)
+      await expect(row.locator(`[data-automation-id^="SmartTimesheetTable-hours-"]`)).toHaveValue(
+        hoursText,
+      )
+      await expect(
+        row.locator(`[data-automation-id^="SmartTimesheetTable-description-"]`),
+      ).toHaveValue(desc)
 
-      const wageText = await row.locator(`[data-automation-id$="-wage"]`).textContent()
-      const billText = await row.locator(`[data-automation-id$="-bill"]`).textContent()
+      const wageText = await row
+        .locator(`[data-automation-id^="SmartTimesheetTable-wage-"]`)
+        .textContent()
+      const billText = await row
+        .locator(`[data-automation-id^="SmartTimesheetTable-bill-"]`)
+        .textContent()
       const wageVal = parseFloat(
         (wageText?.match(/\$?([\d,]+\.?\d*)/) ?? ['0'])[1].replace(/,/g, ''),
       )
@@ -129,7 +129,89 @@ test.describe('keyboard Tab entry flow', () => {
       expect(billVal).toBeCloseTo(hrs * chargeOutRate, 1)
     }
 
-    await test.step('row 1 data', () => assertRow(1, jobNumber1, '2', 'Cutting', 2))
-    await test.step('row 2 data', () => assertRow(2, jobNumber2, '3h 30m', 'Welding', 3.5))
+    // One mouse action is allowed to place the cursor in the first blank row.
+    // From here until both rows are saved, this workflow must be keyboard-only.
+    await autoId(page, `SmartTimesheetTable-jobPicker-${r0}-trigger`).click()
+    await expect(autoId(page, `SmartTimesheetTable-jobPicker-${r0}-search`)).toBeFocused({
+      timeout: 3000,
+    })
+    await page.keyboard.type(jobNumber1)
+    await expect(
+      autoId(page, `SmartTimesheetTable-jobPicker-${r0}-option-${jobNumber1}`),
+    ).toBeVisible()
+    await page.keyboard.press('Tab')
+    await expect(autoId(page, `SmartTimesheetTable-hours-${r0}`)).toBeFocused({ timeout: 3000 })
+
+    await page.keyboard.type('2')
+    await page.keyboard.press('Tab')
+    await expect(autoId(page, `SmartTimesheetTable-description-${r0}`)).toBeFocused({
+      timeout: 3000,
+    })
+
+    await page.keyboard.type('Cutting')
+    const row1Post = page.waitForResponse(
+      (res: Response) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
+      { timeout: 15000 },
+    )
+    await page.keyboard.press('Tab')
+
+    const blockedPhantom = autoId(page, `SmartTimesheetTable-jobPicker-${r0 + 1}-trigger`)
+    await blockedPhantom.waitFor({ timeout: 3000 })
+    await expect(blockedPhantom).toBeDisabled({ timeout: 3000 })
+
+    const row1Response = await row1Post
+    await expectCreatedCostLine(row1Response, {
+      entrySeq: firstSeq,
+      description: 'Cutting',
+      hours: 2,
+      totalCost: 2 * staffWageRate,
+      totalRevenue: 2 * chargeOutRate,
+      staffId,
+    })
+
+    const r1 = r0 + 1
+    const row2Trigger = autoId(page, `SmartTimesheetTable-jobPicker-${r1}-trigger`)
+    await expect(row2Trigger).toBeEnabled({ timeout: 5000 })
+    await expect(autoId(page, `SmartTimesheetTable-jobPicker-${r1}-search`)).toBeFocused({
+      timeout: 5000,
+    })
+
+    await test.step('row 1 rendered from backend response', () =>
+      assertRow(firstSeq, jobNumber1, '2h', 'Cutting', 2))
+
+    // Row 2 continues from the automatic focus handoff, still keyboard only.
+    await page.keyboard.type(jobNumber2)
+    await expect(
+      autoId(page, `SmartTimesheetTable-jobPicker-${r1}-option-${jobNumber2}`),
+    ).toBeVisible()
+    await page.keyboard.press('Tab')
+    await expect(autoId(page, `SmartTimesheetTable-hours-${r1}`)).toBeFocused({ timeout: 3000 })
+
+    await page.keyboard.type('3.5')
+    await page.keyboard.press('Tab')
+    await expect(autoId(page, `SmartTimesheetTable-description-${r1}`)).toBeFocused({
+      timeout: 3000,
+    })
+
+    await page.keyboard.type('Welding')
+    const row2Post = page.waitForResponse(
+      (res: Response) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
+      { timeout: 15000 },
+    )
+    await page.keyboard.press('Tab')
+    const row2Response = await row2Post
+    await expectCreatedCostLine(row2Response, {
+      entrySeq: secondSeq,
+      description: 'Welding',
+      hours: 3.5,
+      totalCost: 3.5 * staffWageRate,
+      totalRevenue: 3.5 * chargeOutRate,
+      staffId,
+    })
+
+    await page.waitForLoadState('networkidle')
+
+    await test.step('row 1 data', () => assertRow(firstSeq, jobNumber1, '2h', 'Cutting', 2))
+    await test.step('row 2 data', () => assertRow(secondSeq, jobNumber2, '3h 30m', 'Welding', 3.5))
   })
 })

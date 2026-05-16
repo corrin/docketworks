@@ -151,6 +151,11 @@ function pickJob(job: Job) {
   open.value = false
 }
 
+function openEmptyPicker(): void {
+  if (props.disabled || selectedJob.value) return
+  open.value = true
+}
+
 function onKeyDown(e: KeyboardEvent) {
   if (filtered.value.length === 0) return
   switch (e.key) {
@@ -200,6 +205,7 @@ function onKeyDown(e: KeyboardEvent) {
             ? gridCellAttrs(props.gridRowIndex, props.gridCol ?? 'jobNumber')
             : {}
         "
+        @focus="openEmptyPicker"
         @keydown="(e) => emit('gridKeydown', e)"
       >
         {{ triggerLabel }}
