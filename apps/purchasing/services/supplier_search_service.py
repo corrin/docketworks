@@ -15,6 +15,7 @@ from django.utils import timezone
 from apps.client.models import Client, SupplierSearchAlias
 
 MAX_PAGE_SIZE = 100
+MAX_SEARCH_CANDIDATES = 500
 MAX_SEARCH_QUERY_LENGTH = 255
 RECENT_PURCHASE_WINDOW_DAYS = 730
 
@@ -69,6 +70,23 @@ def _name_match_score(candidate_terms: list[str], query_norm: str) -> float:
     for term in candidate_terms:
         best = max(best, _phrase_match_score(term, query_norm))
     return best
+
+
+def _contains_all_tokens_q(field_name: str, tokens: list[str]) -> Q:
+    query = Q()
+    for token in tokens:
+        query &= Q(**{f"{field_name}__icontains": token})
+    return query
+
+
+def _supplier_candidate_filter(query: str, query_norm: str) -> Q:
+    tokens = query_norm.split()
+    name_filter = Q(name__icontains=query) | _contains_all_tokens_q("name", tokens)
+    alias_filter = Q(supplier_search_aliases__is_active=True) & (
+        Q(supplier_search_aliases__alias__icontains=query)
+        | _contains_all_tokens_q("supplier_search_aliases__alias", tokens)
+    )
+    return name_filter | alias_filter
 
 
 def _format_supplier(client: Client, score: _CandidateScore) -> dict[str, Any]:
@@ -155,26 +173,32 @@ def list_suppliers(
     else:
         query_norm = normalize_supplier_phrase(query)
         scores = []
-        for supplier in queryset:
-            candidate_terms = [normalize_supplier_phrase(supplier.name)]
-            candidate_terms.extend(
-                normalize_supplier_phrase(alias.alias)
-                for alias in supplier.active_supplier_search_aliases
-            )
-            name_score = _name_match_score(candidate_terms, query_norm)
-            if name_score < 250.0:
-                continue
-
-            recent_purchase_count = supplier.recent_purchase_count
-            purchase_boost = min(recent_purchase_count, 50) * 5.0
-            scores.append(
-                _CandidateScore(
-                    client=supplier,
-                    score=name_score + purchase_boost,
-                    name_score=name_score,
-                    recent_purchase_count=recent_purchase_count,
+        if query_norm:
+            queryset = queryset.filter(
+                _supplier_candidate_filter(query, query_norm)
+            ).distinct()[:MAX_SEARCH_CANDIDATES]
+            for supplier in queryset:
+                candidate_terms = [normalize_supplier_phrase(supplier.name)]
+                candidate_terms.extend(
+                    normalize_supplier_phrase(alias.alias)
+                    for alias in supplier.active_supplier_search_aliases
                 )
-            )
+                name_score = _name_match_score(candidate_terms, query_norm)
+                if name_score < 250.0:
+                    continue
+
+                recent_purchase_count = supplier.recent_purchase_count
+                purchase_boost = min(recent_purchase_count, 50) * 5.0
+                scores.append(
+                    _CandidateScore(
+                        client=supplier,
+                        score=name_score + purchase_boost,
+                        name_score=name_score,
+                        recent_purchase_count=recent_purchase_count,
+                    )
+                )
+        else:
+            pass  # Stop-word-only searches have no meaningful supplier query.
 
         scores.sort(
             key=lambda score: (

@@ -14,6 +14,7 @@ from apps.workflow.services.error_persistence import persist_app_error
 logger = logging.getLogger(__name__)
 
 METAL_TYPE_ALIASES = {
+    "aluminum": MetalType.ALUMINIUM,
     "aluminium": MetalType.ALUMINIUM,
     "stainless steel": MetalType.STAINLESS_STEEL,
     "stainless_steel": MetalType.STAINLESS_STEEL,
@@ -120,9 +121,6 @@ def auto_parse_stock_item(stock_instance: Stock, *, force: bool = False) -> None
 
         # Parse the stock item
         parser = ProductParser()
-        Stock.objects.filter(id=stock_instance.id).update(
-            parser_attempted_at=attempted_at
-        )
         parsed_data, was_cached = parser.parse_product(stock_data)
 
         if parsed_data:
@@ -197,6 +195,9 @@ def auto_parse_stock_item(stock_instance: Stock, *, force: bool = False) -> None
                 accepted_metadata_fields,
             )
         else:
+            Stock.objects.filter(id=stock_instance.id).update(
+                parser_attempted_at=attempted_at
+            )
             logger.warning("Failed to parse stock item %s", stock_instance.id)
 
     except AlreadyLoggedException:

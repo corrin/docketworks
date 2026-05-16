@@ -211,6 +211,7 @@ paths:
   /api/accounting/reports/profit-and-loss/:
     get:
       operationId: accounting_reports_profit_and_loss_retrieve
+      description: Unavailable until rebuilt against the Xero Reports API.
       parameters:
         - in: query
           name: compare
@@ -242,7 +243,7 @@ paths:
       security:
         - cookieAuth: []
       responses:
-        '200':
+        '501':
           content:
             application/json:
               schema:
@@ -1228,7 +1229,7 @@ paths:
       security:
         - cookieAuth: []
       responses:
-        '200':
+        '201':
           content:
             application/json:
               schema:

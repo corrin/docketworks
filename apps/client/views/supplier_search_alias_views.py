@@ -48,7 +48,7 @@ def _build_server_error_response(*, message: str, exc: Exception) -> Response:
     post=extend_schema(
         summary="Create supplier search alias",
         request=SupplierSearchAliasCreateSerializer,
-        responses=SupplierSearchAliasSerializer,
+        responses={status.HTTP_201_CREATED: SupplierSearchAliasSerializer},
         tags=["Clients"],
     ),
 )

@@ -525,7 +525,7 @@ async function loadClientData() {
     // Load client details
     await clientStore.fetchClientDetail(props.id)
 
-    // Load contacts
+    // Load supplier aliases
     await loadSupplierAliases()
 
     // Load contacts

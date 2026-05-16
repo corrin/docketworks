@@ -3727,6 +3727,7 @@ Returns:
     method: 'get',
     path: '/api/accounting/reports/profit-and-loss/',
     alias: 'accounting_reports_profit_and_loss_retrieve',
+    description: `Unavailable until rebuilt against the Xero Reports API.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -3750,7 +3751,13 @@ Returns:
         schema: z.string(),
       },
     ],
-    response: z.object({}).partial().passthrough(),
+    response: z.void(),
+    errors: [
+      {
+        status: 501,
+        schema: z.object({}).partial().passthrough(),
+      },
+    ],
   },
   {
     method: 'get',

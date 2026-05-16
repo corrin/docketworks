@@ -26,6 +26,7 @@ from apps.purchasing.tasks import (
 )
 from apps.quoting.services.stock_parser import auto_parse_stock_item
 from apps.workflow.api.xero.transforms import transform_stock
+from apps.workflow.exceptions import AlreadyLoggedException
 
 _transform_stock = cast(Callable[[Any, str], tuple[Stock, str]], transform_stock)
 
@@ -198,6 +199,25 @@ def test_auto_parse_stock_item_saves_valid_metadata_and_attempt() -> None:
 
 
 @pytest.mark.django_db
+def test_auto_parse_stock_item_normalises_gemini_american_metal_spelling() -> None:
+    stock = _stock(metal_type="unspecified", alloy="", specifics="")
+    parsed_data = {
+        "metal_type": "aluminum",
+        "alloy": "5005",
+        "specifics": "H32 temper",
+        "confidence": "0.95",
+        "parser_version": "1.1.0",
+    }
+
+    with patch("apps.quoting.services.stock_parser.ProductParser") as parser_class:
+        parser_class.return_value.parse_product.return_value = (parsed_data, False)
+        auto_parse_stock_item(stock)
+
+    stock.refresh_from_db()
+    assert stock.metal_type == "aluminium"
+
+
+@pytest.mark.django_db
 def test_auto_parse_stock_item_records_attempt_without_retrying_empty_result() -> None:
     stock = _stock(metal_type="unspecified", alloy="", specifics="")
 
@@ -209,6 +229,26 @@ def test_auto_parse_stock_item_records_attempt_without_retrying_empty_result() -
     assert stock.parser_attempted_at is not None
     assert stock.parsed_at is None
     assert stock_metadata_parse_eligible(stock) is False
+
+
+@pytest.mark.django_db
+def test_auto_parse_stock_item_does_not_record_attempt_on_parser_exception() -> None:
+    stock = _stock(metal_type="unspecified", alloy="", specifics="")
+
+    with (
+        patch("apps.quoting.services.stock_parser.ProductParser") as parser_class,
+        patch("apps.quoting.services.stock_parser.persist_app_error") as persist_error,
+    ):
+        persist_error.return_value.id = uuid4()
+        parser_class.return_value.parse_product.side_effect = TimeoutError(
+            "Gemini timeout"
+        )
+        with pytest.raises(AlreadyLoggedException):
+            auto_parse_stock_item(stock)
+
+    stock.refresh_from_db()
+    assert stock.parser_attempted_at is None
+    assert stock_metadata_parse_eligible(stock) is True
 
 
 @pytest.mark.django_db
