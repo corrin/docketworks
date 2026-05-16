@@ -3,7 +3,8 @@ import uuid
 from decimal import Decimal
 
 from django.core.exceptions import ValidationError
-from django.db import models
+from django.db import connection, models, transaction
+from django.db.models import Q
 from django.utils import timezone
 
 from .costline_validators import (
@@ -95,7 +96,7 @@ class CostLine(models.Model):
     Meta Field Structure by Kind:
 
     TIME (kind='time'):
-        - staff_id (str, UUID): Reference to Staff member who performed the work
+        - staff_id (str, UUID): Legacy Staff reference; use staff FK instead
         - date (str, ISO date): Date the work was performed (legacy, use accounting_date field)
         - is_billable (bool): Whether this time is billable to the client
         - start_time (str, ISO time): Start time of the timesheet entry
@@ -155,6 +156,8 @@ class CostLine(models.Model):
         "xero_last_synced",
         "approved",
         "xero_pay_item",
+        "staff",
+        "entry_seq",
     ]
 
     # Internal fields not exposed in API
@@ -218,6 +221,22 @@ class CostLine(models.Model):
         help_text="Indicates whether this line is approved or not by an office staff (when the line is created by a workshop worker)",
     )
 
+    staff = models.ForeignKey(
+        "accounts.Staff",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="cost_lines",
+        help_text="Staff member for actual time entries.",
+    )
+
+    # Sequence number - auto-assigned within (staff, accounting_date) for actual time entries
+    entry_seq = models.PositiveIntegerField(
+        null=True,
+        blank=True,
+        help_text="Sequence number within a staff member's daily actual time entries.",
+    )
+
     # Xero pay item - determines how this time entry is paid (leave type, overtime, etc.)
     xero_pay_item = models.ForeignKey(
         "workflow.XeroPayItem",
@@ -233,6 +252,25 @@ class CostLine(models.Model):
             models.Index(fields=["cost_set_id", "kind"]),
             models.Index(fields=["cost_set_id", "created_at"]),
             models.Index(fields=["cost_set_id", "kind", "created_at"]),
+            models.Index(fields=["staff", "accounting_date", "entry_seq"]),
+        ]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["staff", "accounting_date", "entry_seq"],
+                condition=Q(
+                    kind="time",
+                    staff__isnull=False,
+                    entry_seq__isnull=False,
+                ),
+                name="unique_time_entry_staff_day_seq",
+            ),
+            models.CheckConstraint(
+                condition=(
+                    Q(staff__isnull=True, entry_seq__isnull=True)
+                    | Q(staff__isnull=False, entry_seq__isnull=False)
+                ),
+                name="costline_staff_entry_seq_pair",
+            ),
         ]
         ordering = ["-created_at", "-id"]
 
@@ -264,8 +302,81 @@ class CostLine(models.Model):
         ):
             raise ValidationError("Actual time entries must have xero_pay_item set.")
 
+        if self.kind == "time" and self.cost_set.kind == "actual":
+            if self.staff_id is None:
+                raise ValidationError("Actual time entries must have staff set.")
+            if self.entry_seq is None:
+                raise ValidationError("Actual time entries must have entry_seq set.")
+
         validate_costline_meta(self.meta, self.kind)
         validate_costline_ext_refs(self.ext_refs)
+
+    def _actual_time_entry_requires_sequence(self) -> bool:
+        if self.kind != "time":
+            return False
+        if self.cost_set_id is None:
+            return False
+        return self.cost_set.kind == "actual"
+
+    def _set_staff_from_legacy_meta(self) -> None:
+        if self.staff_id is not None:
+            return
+        if not isinstance(self.meta, dict):
+            return
+        legacy_staff_id = self.meta.get("staff_id") or self.meta.get("consumed_by")
+        if legacy_staff_id:
+            self.staff_id = legacy_staff_id
+
+    def _sequence_group_changed(self) -> bool:
+        if self._state.adding or self.pk is None:
+            return True
+        previous = CostLine.objects.only("staff_id", "accounting_date").get(pk=self.pk)
+        return (
+            previous.staff_id != self.staff_id
+            or previous.accounting_date != self.accounting_date
+        )
+
+    def _lock_sequence_group(self) -> None:
+        if connection.vendor != "postgresql":
+            return
+        lock_key = f"costline-entry-seq:{self.staff_id}:{self.accounting_date}"
+        with connection.cursor() as cursor:
+            cursor.execute("SELECT pg_advisory_xact_lock(hashtext(%s))", [lock_key])
+
+    def _assign_entry_seq(self) -> None:
+        if not self._actual_time_entry_requires_sequence():
+            return
+
+        self._set_staff_from_legacy_meta()
+        if self.staff_id is None:
+            return
+
+        should_assign = self.entry_seq is None or self._sequence_group_changed()
+        if not should_assign:
+            return
+
+        self._lock_sequence_group()
+        previous_max = (
+            CostLine.objects.filter(
+                kind="time",
+                staff_id=self.staff_id,
+                accounting_date=self.accounting_date,
+                entry_seq__isnull=False,
+            )
+            .exclude(pk=self.pk)
+            .aggregate(max_seq=models.Max("entry_seq"))["max_seq"]
+        )
+        self.entry_seq = (previous_max or 0) + 1
+
+    @staticmethod
+    def _with_sequence_update_fields(update_fields, staff_was_set: bool):
+        if update_fields is None:
+            return None
+        fields = set(update_fields)
+        fields.add("entry_seq")
+        if staff_was_set:
+            fields.add("staff")
+        return fields
 
     def _update_cost_set_summary(self) -> None:
         """Update cost set summary with aggregated data - PRESERVE existing data"""
@@ -299,6 +410,17 @@ class CostLine(models.Model):
         )
 
     def save(self, *args, **kwargs):
+        staff_was_set = self.staff_id is not None
+        with transaction.atomic():
+            self._assign_entry_seq()
+            staff_was_set = self.staff_id is not None and not staff_was_set
+            kwargs["update_fields"] = self._with_sequence_update_fields(
+                kwargs.get("update_fields"), staff_was_set
+            )
+
+            self._save_with_summary_update(*args, **kwargs)
+
+    def _save_with_summary_update(self, *args, **kwargs):
         # Fail fast if trying to set revenue on shop jobs
         job = self.cost_set.job
         if job.shop_job:

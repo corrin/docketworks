@@ -393,7 +393,7 @@ class Command(BaseCommand):
                 cost_set__job__status="special",
                 accounting_date__gte=week_start,
                 accounting_date__lte=week_end,
-                meta__staff_id=staff_id,
+                staff_id=staff_id,
             )
             .exclude(cost_set__job__name__in=LEAVE_JOB_NAMES)
             .exclude(
@@ -437,6 +437,7 @@ class Command(BaseCommand):
             unit_cost=costline.unit_cost,
             unit_rev=costline.unit_rev,
             accounting_date=costline.accounting_date,
+            staff=costline.staff,
             xero_pay_item=ot_pay_item,
             meta=meta,
         )

@@ -249,12 +249,12 @@ def map_costline_to_time_entry(costline, task_id: str) -> TimeEntryCreateOrUpdat
     """
     Map a CostLine (kind='time') to Xero TimeEntryCreateOrUpdate object.
 
-    Converts hours (quantity) to minutes, validates staff reference in meta,
+    Converts hours (quantity) to minutes, validates the staff reference,
     and creates proper Xero Python library object for API calls.
     """
-    staff_id = costline.meta.get("staff_id")
+    staff_id = costline.staff_id
     if not staff_id:
-        error = ValueError(f"CostLine {costline.id} has no staff_id in meta")
+        error = ValueError(f"CostLine {costline.id} has no staff set")
         raise error
 
     try:

@@ -1076,6 +1076,7 @@ const PatchedCostLineCreateUpdateRequest = z
     ext_refs: z.object({}).partial().passthrough(),
     meta: z.object({}).partial().passthrough(),
     xero_pay_item: z.string().uuid().nullable(),
+    staff: z.string().uuid().nullable(),
   })
   .partial()
 const CostLine = z.object({
@@ -1096,6 +1097,8 @@ const CostLine = z.object({
   xero_last_synced: z.string().datetime({ offset: true }).nullish(),
   approved: z.boolean().optional(),
   xero_pay_item: z.string().uuid().nullish(),
+  staff: z.string().uuid().nullish(),
+  entry_seq: z.number().int().gte(0).lte(2147483647).nullish(),
   total_cost: z.number(),
   total_rev: z.number(),
 })
@@ -1406,6 +1409,7 @@ const CostLineCreateUpdateRequest = z.object({
   ext_refs: z.object({}).partial().passthrough().optional(),
   meta: z.object({}).partial().passthrough().optional(),
   xero_pay_item: z.string().uuid().nullish(),
+  staff: z.string().uuid().nullish(),
 })
 const QuoteRevisionsList = z.object({
   job_id: z.string(),
@@ -2008,6 +2012,8 @@ const TimesheetCostLine = z.object({
   xero_last_synced: z.string().datetime({ offset: true }).nullable(),
   approved: z.boolean(),
   xero_pay_item: z.string().uuid().nullable(),
+  staff: z.string().uuid().nullable(),
+  entry_seq: z.number().int().nullable(),
   total_cost: z.number(),
   total_rev: z.number(),
   job_id: z.string(),

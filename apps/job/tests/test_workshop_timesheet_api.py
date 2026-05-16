@@ -3,6 +3,7 @@ from __future__ import annotations
 from datetime import date
 from decimal import Decimal
 
+from django.db import IntegrityError, transaction
 from django.urls import reverse
 
 from apps.accounts.models import Staff
@@ -78,6 +79,41 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
         )
         self.assertEqual(resp.status_code, 201, resp.data)
         self.assertEqual(resp.data["job_number"], self.job.job_number)
+
+    def test_create_assigns_staff_day_sequence(self) -> None:
+        first = self._create_entry()
+        second = self._create_entry()
+
+        first_line = CostLine.objects.get(id=first["id"])
+        second_line = CostLine.objects.get(id=second["id"])
+
+        self.assertEqual(first_line.staff, self.staff)
+        self.assertEqual(second_line.staff, self.staff)
+        self.assertEqual(first_line.entry_seq, 1)
+        self.assertEqual(second_line.entry_seq, 2)
+
+        self.client.force_authenticate(user=self.staff)
+        resp = self.client.get(self.url, {"date": self.today})
+        self.assertEqual(resp.status_code, 200, resp.data)
+        self.assertEqual(
+            [entry["entry_seq"] for entry in resp.data["entries"]],
+            [1, 2],
+        )
+
+    def test_database_rejects_duplicate_staff_day_sequence(self) -> None:
+        first = self._create_entry()
+        second = self._create_entry()
+
+        first_line = CostLine.objects.get(id=first["id"])
+        second_line = CostLine.objects.get(id=second["id"])
+
+        with self.assertRaises(IntegrityError):
+            with transaction.atomic():
+                CostLine.objects.filter(pk=second_line.pk).update(
+                    staff=first_line.staff,
+                    accounting_date=first_line.accounting_date,
+                    entry_seq=first_line.entry_seq,
+                )
 
     def test_create_can_pay_overtime_and_bill_ordinary_time(self) -> None:
         self.client.force_authenticate(user=self.staff)

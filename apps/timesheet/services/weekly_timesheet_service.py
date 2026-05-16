@@ -98,7 +98,6 @@ class WeeklyTimesheetService:
         # ONE query for ALL time entries for ALL staff for the entire week
         all_cost_lines = list(
             CostLine.objects.annotate(
-                staff_id_meta=KeyTextTransform("staff_id", "meta"),
                 wage_rate_multiplier=KeyTextTransform("wage_rate_multiplier", "meta"),
                 is_billable=KeyTextTransform("is_billable", "meta"),
             )
@@ -114,7 +113,7 @@ class WeeklyTimesheetService:
         # Group by staff_id and day
         lines_by_staff_day = {}
         for line in all_cost_lines:
-            key = (line.staff_id_meta, line.accounting_date)
+            key = (str(line.staff_id), line.accounting_date)
             if key not in lines_by_staff_day:
                 lines_by_staff_day[key] = []
             lines_by_staff_day[key].append(line)

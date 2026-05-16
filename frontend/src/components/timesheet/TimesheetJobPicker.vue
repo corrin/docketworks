@@ -18,6 +18,7 @@ const props = withDefaults(
     automationIdPrefix?: string
     gridRowIndex?: number
     gridCol?: string
+    entrySeq?: number | null
   }>(),
   {
     disabled: false,
@@ -193,6 +194,7 @@ function onKeyDown(e: KeyboardEvent) {
         :class="{ 'text-slate-400': !selectedJob }"
         :data-automation-id="`${automationIdPrefix}-trigger`"
         :title="triggerLabel"
+        :data-entry-seq="props.entrySeq"
         v-bind="
           props.gridRowIndex != null
             ? gridCellAttrs(props.gridRowIndex, props.gridCol ?? 'jobNumber')

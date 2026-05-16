@@ -1886,8 +1886,8 @@ def validate_pay_items_for_week(
     ).select_related("cost_set__job", "cost_set__job__default_xero_pay_item")
 
     # Filter to only the staff we're posting
-    staff_id_strs = {str(sid) for sid in staff_ids}
-    entries = [e for e in all_entries if e.meta.get("staff_id") in staff_id_strs]
+    staff_id_set = set(staff_ids)
+    entries = [e for e in all_entries if e.staff_id in staff_id_set]
 
     if not entries:
         return  # No entries to validate
@@ -1983,16 +1983,12 @@ def post_staff_week_to_xero(
         # Collect time entries for the week
         time_entries = CostLine.objects.filter(
             kind="time",
+            staff_id=staff_id,
             accounting_date__gte=week_start_date,
             accounting_date__lte=week_end_date,
         ).select_related("cost_set__job")
 
-        # Filter to entries for this staff
-        staff_entries = [
-            entry
-            for entry in time_entries
-            if entry.meta.get("staff_id") == str(staff_id)
-        ]
+        staff_entries = list(time_entries)
 
         if not staff_entries:
             # Post empty timesheet to override Xero's Pay Template default (40 hrs)
@@ -2461,11 +2457,11 @@ def reconcile_leave_for_week_for_staff(
                 for entry in CostLine.objects.filter(
                     cost_set__kind="actual",
                     kind="time",
+                    staff_id=staff_id,
                     accounting_date__gte=week_start_date,
                     accounting_date__lte=week_end_date,
                     xero_pay_item__uses_leave_api=True,
                 ).select_related("xero_pay_item")
-                if entry.meta.get("staff_id") == str(staff_id)
             ]
             leave_ids.extend(
                 reconcile_leave_for_staff_week(

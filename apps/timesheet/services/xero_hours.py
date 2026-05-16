@@ -138,7 +138,7 @@ def get_jm_hours_for_staff_week(staff_id: str, week_start: date) -> dict:
         cost_set__kind="actual",
         accounting_date__gte=week_start,
         accounting_date__lte=week_end,
-        meta__staff_id=str(staff_id),
+        staff_id=staff_id,
     )
 
     jm_total = jm_lines.aggregate(s=Sum("quantity"))["s"] or Decimal("0")

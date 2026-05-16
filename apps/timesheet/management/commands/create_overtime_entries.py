@@ -379,6 +379,7 @@ class Command(BaseCommand):
                     unit_cost=entry["unit_cost"],
                     unit_rev=Decimal("0"),
                     accounting_date=entry["accounting_date"],
+                    staff=staff,
                     xero_pay_item=pay_item,
                     meta={
                         "staff_id": str(staff.id),
@@ -469,7 +470,7 @@ class Command(BaseCommand):
                     cost_set__kind="actual",
                     cost_set__job__status="special",
                     accounting_date__gte=CUTOFF_DATE,
-                    meta__staff_id=str(staff.id),
+                    staff=staff,
                 )
                 .exclude(cost_set__job__name__in=LEAVE_JOB_NAMES)
                 .values("cost_set__job__id", "cost_set__job__name")

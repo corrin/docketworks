@@ -862,32 +862,28 @@ class DataIntegrityService:
             str(pid) for pid in PurchaseOrderLine.objects.values_list("id", flat=True)
         )
 
-        # Check CostLine.meta.staff_id for ACTUAL time entries only
+        # Check CostLine.staff for ACTUAL time entries only
         # (estimates and quotes are projections, don't need staff_id)
         # Use join to filter at database level instead of loading IDs into memory
         for costline in CostLine.objects.filter(
             kind="time", cost_set__kind="actual"
         ).select_related("cost_set"):
-            if not costline.meta:
-                continue
-
-            staff_id = costline.meta.get("staff_id")
-            if not staff_id:
+            if costline.staff_id is None:
                 issues.append(
                     {
                         "model": "CostLine",
                         "record_id": str(costline.id),
-                        "field": "meta.staff_id",
+                        "field": "staff",
                         "issue": "missing_staff_id",
                     }
                 )
-            elif str(staff_id) not in valid_staff_ids:
+            elif str(costline.staff_id) not in valid_staff_ids:
                 issues.append(
                     {
                         "model": "CostLine",
                         "record_id": str(costline.id),
-                        "field": "meta.staff_id",
-                        "staff_id": str(staff_id),
+                        "field": "staff",
+                        "staff_id": str(costline.staff_id),
                     }
                 )
 

@@ -278,6 +278,7 @@ class WorkshopTimesheetEntrySerializer(serializers.Serializer):
             "is_billable": bool(meta.get("is_billable", True)),
             "wage_rate_multiplier": float(rate_multiplier),
             "bill_rate_multiplier": float(bill_rate_multiplier),
+            "entry_seq": instance.entry_seq,
             "created_at": instance.created_at,
             "updated_at": instance.updated_at,
         }

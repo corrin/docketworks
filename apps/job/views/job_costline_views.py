@@ -111,7 +111,6 @@ class CostLineCreateView(APIView):
                         serializer.errors, status=status.HTTP_400_BAD_REQUEST
                     )
 
-                # Create the cost line
                 cost_line = serializer.save(cost_set=cost_set)
 
                 # Return created cost line

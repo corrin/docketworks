@@ -10242,6 +10242,17 @@ components:
           nullable: true
           description: The Xero pay item for this time entry (leave type, earnings
             rate, etc.)
+        staff:
+          type: string
+          format: uuid
+          nullable: true
+          description: Staff member for actual time entries.
+        entry_seq:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          nullable: true
+          description: Sequence number within a staff member's daily actual time entries.
         total_cost:
           type: number
           format: double
@@ -10324,6 +10335,11 @@ components:
           nullable: true
           description: The Xero pay item for this time entry (leave type, earnings
             rate, etc.)
+        staff:
+          type: string
+          format: uuid
+          nullable: true
+          description: Staff member for actual time entries.
       required:
         - accounting_date
         - kind
@@ -14907,6 +14923,11 @@ components:
           nullable: true
           description: The Xero pay item for this time entry (leave type, earnings
             rate, etc.)
+        staff:
+          type: string
+          format: uuid
+          nullable: true
+          description: Staff member for actual time entries.
     PatchedFormEntryRequest:
       type: object
       description: Serializer for FormEntry — filled-in instances of forms.
@@ -19340,6 +19361,17 @@ components:
           nullable: true
           description: The Xero pay item for this time entry (leave type, earnings
             rate, etc.)
+        staff:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: Staff member for actual time entries.
+        entry_seq:
+          type: integer
+          readOnly: true
+          nullable: true
+          description: Sequence number within a staff member's daily actual time entries.
         total_cost:
           type: number
           format: double
@@ -19374,7 +19406,7 @@ components:
         wage_rate:
           type: number
           format: double
-          description: Get staff wage rate from metadata staff_id
+          description: Get staff wage rate for a time entry.
           readOnly: true
         xero_pay_item_name:
           type: string
@@ -19387,6 +19419,7 @@ components:
         - client_name
         - created_at
         - desc
+        - entry_seq
         - ext_refs
         - id
         - job_id
@@ -19395,6 +19428,7 @@ components:
         - kind
         - meta
         - quantity
+        - staff
         - total_cost
         - total_rev
         - unit_cost

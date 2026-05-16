@@ -412,6 +412,7 @@ const columns = computed(() => [
         automationIdPrefix: `SmartTimesheetTable-jobPicker-${row.index}`,
         gridRowIndex: row.index,
         gridCol: 'jobNumber',
+        entrySeq: entry.entry_seq ?? null,
         onGridKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'jobNumber'),
         onSelect: (job: Job) => setJob(entry, job),
       })

@@ -682,7 +682,7 @@ def stream_payroll_post(request, task_id):
                         kind="time",
                         accounting_date__gte=week_start_date,
                         accounting_date__lte=week_end_date,
-                        meta__staff_id=str(staff_id),
+                        staff_id=staff_id,
                     ).exists()
                     if has_entries:
                         logger.warning(
