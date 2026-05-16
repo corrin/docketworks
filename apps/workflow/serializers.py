@@ -376,6 +376,7 @@ class XeroSseEventSerializer(serializers.Serializer):
     error_messages = serializers.ListField(
         child=serializers.CharField(), required=False
     )
+    error_id = serializers.CharField(required=False, allow_null=True)
     missing_fields = serializers.ListField(
         child=serializers.CharField(), required=False
     )

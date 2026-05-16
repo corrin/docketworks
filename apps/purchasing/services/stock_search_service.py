@@ -6,7 +6,7 @@ import re
 from typing import Any, Dict, Iterable, List
 
 from django.contrib.postgres.search import SearchVector
-from django.db.models import Count
+from django.db.models import Count, Q
 
 from apps.job.models.costing import CostLine
 from apps.purchasing.models import Stock
@@ -143,6 +143,14 @@ def _extract_numeric_tokens(text: str) -> tuple[set[str], list[float]]:
     return tokens, values
 
 
+def _candidate_numeric_terms(text: str) -> set[str]:
+    terms = set()
+    for raw in NUMBER_RE.findall(_expand_aliases(text)):
+        if len(raw.replace(".", "")) >= 3:
+            terms.add(raw)
+    return terms
+
+
 def _build_features(text: str) -> dict[str, Any]:
     normalized_text = _expand_aliases(text)
     numeric_tokens, numeric_values = _extract_numeric_tokens(normalized_text)
@@ -255,6 +263,25 @@ def _form_score(
     return 0.0
 
 
+def _structured_field_score(
+    stock: Stock,
+    query_features: dict[str, Any],
+) -> float:
+    score = 0.0
+    item_code_text = _expand_aliases(stock.item_code or "")
+    alloy_text = _expand_aliases(stock.alloy or "")
+    alloy_tokens = set(TOKEN_RE.findall(alloy_text))
+    query_terms = query_features["tokens"] | query_features["numeric_tokens"]
+
+    for token in query_terms:
+        if token in alloy_tokens:
+            score += 16.0
+        if token and token in item_code_text:
+            score += 10.0
+
+    return score
+
+
 def _measurement_score(
     query_features: dict[str, Any], stock_features: dict[str, Any]
 ) -> float:
@@ -322,6 +349,7 @@ def _score_stock(
         return 0.0
     score = _token_score(query_features, stock_features)
     score += _form_score(query_features, stock_features)
+    score += _structured_field_score(stock, query_features)
     score += _measurement_score(query_features, stock_features)
     score += _usage_score(stock, usage_counts)
     return score
@@ -341,6 +369,17 @@ def _candidate_queryset(query: str):
             apply_text_search(
                 queryset, expanded_query, STOCK_SEARCH_VECTOR
             ).values_list("id", flat=True)
+        )
+    numeric_terms = _candidate_numeric_terms(expanded_query)
+    if numeric_terms:
+        numeric_filter = Q()
+        for term in numeric_terms:
+            numeric_filter |= Q(description__icontains=term)
+            numeric_filter |= Q(item_code__icontains=term)
+            numeric_filter |= Q(alloy__icontains=term)
+            numeric_filter |= Q(specifics__icontains=term)
+        candidate_ids.update(
+            queryset.filter(numeric_filter).values_list("id", flat=True)
         )
     if candidate_ids:
         return queryset.filter(id__in=candidate_ids)

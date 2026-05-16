@@ -1,6 +1,8 @@
 import logging
 import uuid
 
+from django.contrib.postgres.indexes import GinIndex
+from django.contrib.postgres.search import SearchVector
 from django.db import models
 from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
@@ -128,6 +130,12 @@ class Client(models.Model):
 
     class Meta:
         ordering = ["name"]
+        indexes = [
+            GinIndex(
+                SearchVector("name", config="english"),
+                name="client_name_fts_idx",
+            ),
+        ]
 
     def __str__(self):
         return self.name
@@ -375,6 +383,33 @@ class Supplier(Client):
     class Meta:
         proxy = True
         db_table = "client_client"
+
+
+class SupplierSearchAlias(models.Model):
+    """Editable search alias attached to a client/supplier contact."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        related_name="supplier_search_aliases",
+    )
+    alias = models.CharField(max_length=255)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["alias"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["client", "alias"],
+                name="unique_supplier_search_alias_per_client",
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.alias} ({self.client.name})"
 
 
 class SupplierPickupAddress(models.Model):

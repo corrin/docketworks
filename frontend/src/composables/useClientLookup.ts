@@ -9,7 +9,11 @@ import { debugLog } from '@/utils/debug'
 export type Client = z.infer<typeof schemas.ClientSearchResult>
 export type ClientContact = z.infer<typeof schemas.ClientContact>
 
-export function useClientLookup() {
+type UseClientLookupOptions = {
+  supplierLookup?: { value: boolean }
+}
+
+export function useClientLookup(options: UseClientLookupOptions = {}) {
   const searchQuery = ref('')
   const suggestions = ref<Client[]>([])
   const isLoading = ref(false)
@@ -38,9 +42,13 @@ export function useClientLookup() {
     isLoading.value = true
 
     try {
-      const response = await api.clients_search_retrieve({
-        queries: { q: query },
-      })
+      const response = options.supplierLookup?.value
+        ? await api.purchasing_suppliers_search_retrieve({
+            queries: { q: query },
+          })
+        : await api.clients_search_retrieve({
+            queries: { q: query },
+          })
 
       suggestions.value = response.results
       showSuggestions.value = true

@@ -198,7 +198,7 @@ python scripts/fix_test_client.py
 
 #### Connect to Xero OAuth
 
-**Dev only:** Before this step, start ngrok, the backend, and the frontend — see [development_session.md](development_session.md).
+**Dev only:** Before this step, **the user** must start ngrok, the backend, and the frontend in separate terminals. The agent must NEVER start these services on the user's behalf. See [development_session.md](development_session.md).
 
 ```bash
 (cd frontend && npx tsx tests/scripts/xero-login.ts)

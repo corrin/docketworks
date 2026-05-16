@@ -96,6 +96,68 @@
             </CardContent>
           </Card>
 
+          <!-- Supplier Search Aliases -->
+          <Card>
+            <CardHeader>
+              <CardTitle>Supplier Search Aliases</CardTitle>
+            </CardHeader>
+            <CardContent class="space-y-4">
+              <div class="flex gap-2">
+                <Input
+                  v-model="newAlias"
+                  placeholder="Add supplier search alias"
+                  data-automation-id="ClientDetailView-alias-input"
+                  @keydown.enter.prevent="createSupplierAlias"
+                />
+                <Button
+                  type="button"
+                  :disabled="isSavingAlias || !newAlias.trim()"
+                  data-automation-id="ClientDetailView-alias-add"
+                  @click="createSupplierAlias"
+                >
+                  <Plus class="w-4 h-4 mr-2" />
+                  Add
+                </Button>
+              </div>
+
+              <div
+                v-if="isLoadingAliases"
+                class="flex items-center justify-center py-4"
+                data-automation-id="ClientDetailView-alias-loading"
+              >
+                <Loader2 class="w-5 h-5 animate-spin text-indigo-600" />
+              </div>
+              <div
+                v-else-if="supplierAliases.length === 0"
+                class="text-sm text-gray-500"
+                data-automation-id="ClientDetailView-alias-empty"
+              >
+                No supplier search aliases
+              </div>
+              <div v-else class="flex flex-wrap gap-2">
+                <div
+                  v-for="alias in supplierAliases"
+                  :key="alias.id"
+                  class="inline-flex items-center gap-2 rounded-md border border-gray-200 bg-gray-50 px-2 py-1 text-sm"
+                  :data-automation-id="`ClientDetailView-alias-${alias.id}`"
+                >
+                  <span>{{ alias.alias }}</span>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    class="h-6 w-6 p-0"
+                    :aria-label="`Remove alias ${alias.alias}`"
+                    :data-automation-id="`ClientDetailView-alias-remove-${alias.id}`"
+                    @click="deleteSupplierAlias(alias.id)"
+                  >
+                    <X class="w-3 h-3" />
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <!-- Contact Persons -->
           <Card>
             <CardHeader>
@@ -295,6 +357,7 @@ import { useRouter } from 'vue-router'
 import { useClientStore } from '@/stores/clientStore'
 import AppLayout from '@/components/AppLayout.vue'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Switch } from '@/components/ui/switch'
@@ -309,9 +372,13 @@ import {
   AlertCircle,
   CheckCircle2,
   UserCircle,
+  Plus,
+  X,
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { api } from '@/api/client'
+import { schemas } from '@/api/generated/api'
+import type { z } from 'zod'
 
 interface Props {
   id: string
@@ -320,12 +387,17 @@ interface Props {
 const props = defineProps<Props>()
 const router = useRouter()
 const clientStore = useClientStore()
+type SupplierSearchAlias = z.infer<typeof schemas.SupplierSearchAlias>
 
 // State
 const activeTab = ref('details')
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const isSavingAllowJobs = ref(false)
+const isLoadingAliases = ref(false)
+const isSavingAlias = ref(false)
+const newAlias = ref('')
+const supplierAliases = ref<SupplierSearchAlias[]>([])
 
 // Computed
 const client = computed(() => {
@@ -392,6 +464,58 @@ async function onAllowJobsToggle(nextValue: boolean) {
   }
 }
 
+async function loadSupplierAliases() {
+  isLoadingAliases.value = true
+  try {
+    supplierAliases.value = await api.clients_supplier_aliases_list({
+      params: { client_id: props.id },
+    })
+  } catch (err) {
+    console.error('Failed to load supplier aliases:', err)
+    supplierAliases.value = []
+    toast.error('Failed to load supplier aliases')
+  } finally {
+    isLoadingAliases.value = false
+  }
+}
+
+async function createSupplierAlias() {
+  const alias = newAlias.value.trim()
+  if (!alias || isSavingAlias.value) return
+
+  isSavingAlias.value = true
+  try {
+    const created = await api.clients_supplier_aliases_create(
+      { alias },
+      { params: { client_id: props.id } },
+    )
+    supplierAliases.value = [
+      ...supplierAliases.value.filter((existing) => existing.id !== created.id),
+      created,
+    ].sort((a, b) => a.alias.localeCompare(b.alias))
+    newAlias.value = ''
+    toast.success('Supplier alias added')
+  } catch (err) {
+    console.error('Failed to add supplier alias:', err)
+    toast.error('Failed to add supplier alias')
+  } finally {
+    isSavingAlias.value = false
+  }
+}
+
+async function deleteSupplierAlias(aliasId: string) {
+  try {
+    await api.clients_supplier_aliases_destroy(undefined, {
+      params: { alias_id: aliasId },
+    })
+    supplierAliases.value = supplierAliases.value.filter((alias) => alias.id !== aliasId)
+    toast.success('Supplier alias removed')
+  } catch (err) {
+    console.error('Failed to remove supplier alias:', err)
+    toast.error('Failed to remove supplier alias')
+  }
+}
+
 // Methods
 async function loadClientData() {
   isLoading.value = true
@@ -400,6 +524,9 @@ async function loadClientData() {
   try {
     // Load client details
     await clientStore.fetchClientDetail(props.id)
+
+    // Load supplier aliases
+    await loadSupplierAliases()
 
     // Load contacts
     try {

@@ -33,6 +33,12 @@
 |-------------|------|------|-------------|
 | `/search/` | `client_rest_views.ClientSearchRestView` | `clients:client_search_rest` | REST view for client search with pagination and sorting. |
 
+### Supplier-Aliases Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/<uuid:client_id>/supplier-aliases/` | `supplier_search_alias_views.ClientSupplierAliasListCreateView` | `clients:client_supplier_aliases_rest` | List and create search aliases for a client/supplier contact. |
+| `/supplier-aliases/<uuid:alias_id>/` | `supplier_search_alias_views.SupplierAliasDetailView` | `clients:supplier_alias_detail_rest` | Deactivate a supplier search alias. |
+
 ### Update Management
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|

@@ -207,7 +207,6 @@ def sync_xero_data(
 
     # Fetch and process data
     page = 1
-    offset = 0
     total_processed = 0
     max_updated_date_utc = None
 
@@ -226,9 +225,7 @@ def sync_xero_data(
             )
 
         # Update pagination params
-        if pagination_mode == "offset":
-            params["offset"] = offset
-        elif pagination_mode == "page":
+        if pagination_mode == "page":
             params["page"] = page
 
         # Fetch data
@@ -281,8 +278,6 @@ def sync_xero_data(
         # Update pagination
         if pagination_mode == "page":
             page += 1
-        elif pagination_mode == "offset":
-            offset = max(item.journal_number for item in items) + 1
 
     # Update the sync cursor if we processed items and have a valid timestamp
     if entity_key and total_processed > 0 and not max_updated_date_utc:
@@ -303,7 +298,7 @@ def sync_xero_data(
     }
 
 
-# Entity configurations - ordered by business importance (accounts first, journals last)
+# Entity configurations - ordered by business importance.
 ENTITY_CONFIGS = {
     "accounts": (
         "accounts",

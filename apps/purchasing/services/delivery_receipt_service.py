@@ -12,6 +12,10 @@ from apps.job.models import CostLine, CostSet, Job
 from apps.purchasing.etag import generate_po_etag, normalize_etag
 from apps.purchasing.exceptions import PreconditionFailedError
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.tasks import (
+    enqueue_stock_metadata_parse,
+    stock_metadata_parse_eligible,
+)
 from apps.workflow.models.company_defaults import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.validation import to_decimal
@@ -202,10 +206,10 @@ def _create_stock_from_allocation(
         source_purchase_order_line=line,
     )
 
-    # Parse extra metadata
-    from apps.quoting.services.stock_parser import auto_parse_stock_item
-
-    auto_parse_stock_item(stock)
+    if stock_metadata_parse_eligible(stock):
+        enqueue_stock_metadata_parse(stock.id)
+    else:
+        pass  # Receipt metadata was complete enough to skip parser enrichment.
 
     logger.info(
         "Created Stock %s for line %s, job %s, qty %s.", stock.id, line.id, job.id, qty

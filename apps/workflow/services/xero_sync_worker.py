@@ -28,6 +28,40 @@ _sync_cache = caches["shared"]
 scheduler_logger = logging.getLogger("apps.workflow.tasks")
 
 
+def _append_sync_failure_messages(
+    *,
+    messages_key: str,
+    task_id: str,
+    message: str,
+    sync_status: str,
+    app_error_id: str | None = None,
+) -> None:
+    msgs = _sync_cache.get(messages_key, [])
+    error_payload = {
+        "datetime": timezone.now().isoformat(),
+        "entity": "sync",
+        "severity": "error",
+        "message": message,
+        "progress": None,
+        "task_id": task_id,
+    }
+    if app_error_id:
+        error_payload["error_id"] = app_error_id
+    msgs.append(error_payload)
+    msgs.append(
+        {
+            "datetime": timezone.now().isoformat(),
+            "entity": "sync",
+            "severity": "info",
+            "message": "Sync stream ended",
+            "sync_status": sync_status,
+            "progress": None,
+            "task_id": task_id,
+        }
+    )
+    _sync_cache.set(messages_key, msgs, timeout=86400)
+
+
 @shared_task(name="apps.workflow.tasks.xero_sync_task")
 def xero_sync_task(task_id: str) -> None:
     """Execute one Xero sync run end-to-end.
@@ -47,13 +81,13 @@ def xero_sync_task(task_id: str) -> None:
     """
     from apps.workflow.accounting.registry import get_provider
 
-    provider = get_provider()
     messages_key = f"xero_sync_messages_{task_id}"
     current_key = f"xero_sync_current_entity_{task_id}"
     progress_key = f"xero_sync_entity_progress_{task_id}"
     overall_key = f"xero_sync_overall_progress_{task_id}"
 
     try:
+        provider = get_provider()
         msgs = _sync_cache.get(messages_key, [])
         processed = 0
         total_entities = provider.get_sync_entity_count()
@@ -105,59 +139,36 @@ def xero_sync_task(task_id: str) -> None:
         # sync_status:"aborted" — distinct from "success" so the UI,
         # scheduler, and monitoring don't mistake this for a clean run.
         scheduler_logger.warning("Xero sync %s aborted: %s", task_id, exc)
-        msgs = _sync_cache.get(messages_key, [])
-        msgs.append(
-            {
-                "datetime": timezone.now().isoformat(),
-                "entity": "sync",
-                "severity": "error",
-                "message": f"Sync aborted: {exc}",
-                "progress": None,
-                "task_id": task_id,
-            }
+        _append_sync_failure_messages(
+            messages_key=messages_key,
+            task_id=task_id,
+            message=f"Sync aborted: {exc}",
+            sync_status="aborted",
         )
-        msgs.append(
-            {
-                "datetime": timezone.now().isoformat(),
-                "entity": "sync",
-                "severity": "info",
-                "message": "Sync stream ended",
-                "sync_status": "aborted",
-                "progress": None,
-                "task_id": task_id,
-            }
-        )
-        _sync_cache.set(messages_key, msgs, timeout=86400)
         # Do not re-raise; abort is operational and the finally clears the
         # lock cleanly. TaskResult records SUCCESS, which is correct for
         # "the task ran and decided to abort cleanly".
 
-    except AlreadyLoggedException:
-        raise
     except Exception as exc:
-        msgs = _sync_cache.get(messages_key, [])
-        msgs.append(
-            {
-                "datetime": timezone.now().isoformat(),
-                "entity": "sync",
-                "severity": "error",
-                "message": f"Error during sync: {exc}",
-                "progress": None,
-                "task_id": task_id,
-            }
-        )
-        msgs.append(
-            {
-                "datetime": timezone.now().isoformat(),
-                "entity": "sync",
-                "severity": "info",
-                "message": "Sync stream ended",
-                "progress": None,
-                "task_id": task_id,
-            }
-        )
-        _sync_cache.set(messages_key, msgs, timeout=86400)
+        if isinstance(exc, AlreadyLoggedException):
+            app_error_id = exc.app_error_id
+            _append_sync_failure_messages(
+                messages_key=messages_key,
+                task_id=task_id,
+                message=f"Error during sync: {exc}",
+                sync_status="error",
+                app_error_id=app_error_id,
+            )
+            raise
+
         err = persist_app_error(exc)
+        _append_sync_failure_messages(
+            messages_key=messages_key,
+            task_id=task_id,
+            message=f"Error during sync: {exc}",
+            sync_status="error",
+            app_error_id=str(err.id),
+        )
         raise AlreadyLoggedException(exc, err.id) from exc
 
     finally:

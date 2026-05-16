@@ -33,7 +33,7 @@
 | `/reports/job-movement/` | `JobMovementMetricsView` | `accounting:api_job_movement` | API endpoint for job movement and conversion metrics. |
 | `/reports/payroll-date-range/` | `PayrollDateRangeView` | `accounting:api_payroll_date_range` | Snap arbitrary dates to pay-period-aligned week boundaries. |
 | `/reports/payroll-reconciliation/` | `PayrollReconciliationReport` | `accounting:api_payroll_reconciliation` | Weekly payroll reconciliation: Xero pay runs vs JM time CostLines. |
-| `/reports/profit-and-loss/` | `CompanyProfitAndLossReport` | `accounting:api_profit_and_loss` | No description available |
+| `/reports/profit-and-loss/` | `CompanyProfitAndLossReport` | `accounting:api_profit_and_loss` | Unavailable until rebuilt against the Xero Reports API. |
 
 ### Rest Management
 | URL Pattern | View | Name | Description |

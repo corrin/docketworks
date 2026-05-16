@@ -1,4 +1,5 @@
 from typing import List, Optional
+from uuid import UUID
 
 
 class XeroValidationError(Exception):
@@ -26,10 +27,10 @@ class AlreadyLoggedException(Exception):
     def __init__(
         self,
         original_exception: Exception,
-        app_error_id: Optional[str] = None,
+        app_error_id: Optional[str | UUID] = None,
     ) -> None:
         self.original = original_exception
-        self.app_error_id = app_error_id
+        self.app_error_id = str(app_error_id) if app_error_id is not None else None
         super().__init__(str(original_exception))
 
 

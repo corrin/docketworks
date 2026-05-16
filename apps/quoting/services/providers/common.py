@@ -20,7 +20,7 @@ def create_extraction_prompt() -> str:
     "unit_price": "123.45",
     "supplier_item_code": "Item code/SKU if available",
     "variant_id": "Unique identifier for this specific variant",
-    "metal_type": "Steel, Aluminum, Galvanised Steel, Stainless Steel, etc.",
+    "metal_type": "Steel, Aluminium, Galvanised Steel, Stainless Steel, etc.",
     "dimensions": "Dimensions as shown",
     "specifications": "Technical specs like alloy, temper, finish"
     }

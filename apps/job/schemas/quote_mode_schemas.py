@@ -77,7 +77,7 @@ PRICE_SCHEMA = {
             "properties": {
                 "family": {
                     "type": "string",
-                    "description": "Material family (e.g., stainless, aluminum)",
+                    "description": "Material family (e.g., stainless, aluminium)",
                 },
                 "grade": {
                     "type": "string",

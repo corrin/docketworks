@@ -20,6 +20,7 @@ from apps.purchasing.views.purchasing_rest_views import (
 )
 from apps.purchasing.views.stock_search_rest_view import StockSearchRestView
 from apps.purchasing.views.stock_viewset import StockViewSet
+from apps.purchasing.views.supplier_search_rest_view import SupplierSearchRestView
 
 # Router for ViewSet-based endpoints
 router = DefaultRouter()
@@ -30,6 +31,11 @@ urlpatterns = [
         "supplier-price-status/",
         SupplierPriceStatusAPIView.as_view(),
         name="supplier_price_status_rest",
+    ),
+    path(
+        "suppliers/search/",
+        SupplierSearchRestView.as_view(),
+        name="supplier_search_rest",
     ),
     path("all-jobs/", AllJobsAPIView.as_view(), name="purchasing_all_jobs_rest"),
     path("jobs/", PurchasingJobsAPIView.as_view(), name="purchasing_jobs_rest"),

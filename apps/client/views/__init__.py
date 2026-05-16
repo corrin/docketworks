@@ -10,6 +10,10 @@ from .client_rest_views import (
     ClientUpdateRestView,
     JobContactRestView,
 )
+from .supplier_search_alias_views import (
+    ClientSupplierAliasListCreateView,
+    SupplierAliasDetailView,
+)
 
 # Conditional imports (only when Django is ready)
 try:
@@ -30,7 +34,9 @@ __all__ = [
     "ClientListAllRestView",
     "ClientRetrieveRestView",
     "ClientSearchRestView",
+    "ClientSupplierAliasListCreateView",
     "ClientUpdateRestView",
     "JobContactRestView",
+    "SupplierAliasDetailView",
     "SupplierPickupAddressViewSet",
 ]

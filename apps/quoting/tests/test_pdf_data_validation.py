@@ -2,7 +2,6 @@ from apps.client.models import Client
 from apps.quoting.models import SupplierPriceList, SupplierProduct
 from apps.quoting.services.pdf_data_validation import PDFDataValidationService
 from apps.testing import BaseTestCase
-from apps.workflow.models import CompanyDefaults
 
 
 class PDFDataValidationServiceTest(BaseTestCase):
@@ -11,9 +10,6 @@ class PDFDataValidationServiceTest(BaseTestCase):
     def setUp(self):
         """Set up test data."""
         self.service = PDFDataValidationService()
-
-        # Get company defaults (singleton, loaded from fixture)
-        self.company = CompanyDefaults.get_solo()
 
         # Create test supplier
         self.supplier = Client.objects.create(
@@ -30,11 +26,11 @@ class PDFDataValidationServiceTest(BaseTestCase):
     def test_validate_extracted_data_valid(self):
         """Test validation of valid extracted data."""
         data = {
-            "supplier": {"name": self.company.company_name},
+            "supplier": {"name": "Test Supplier"},
             "items": [
                 {
-                    "product_name": "Aluminum Angle",
-                    "description": "25x25x3mm aluminum angle",
+                    "product_name": "Aluminium Angle",
+                    "description": "25x25x3mm aluminium angle",
                     "item_no": "AL-ANG-001",
                     "unit_price": 12.50,
                     "price_unit": "per metre",
@@ -64,7 +60,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
 
     def test_validate_extracted_data_no_items(self):
         """Test validation with no items."""
-        data = {"supplier": {"name": self.company.company_name}, "items": []}
+        data = {"supplier": {"name": "Test Supplier"}, "items": []}
 
         is_valid, errors, warnings = self.service.validate_extracted_data(data)
 
@@ -74,7 +70,7 @@ class PDFDataValidationServiceTest(BaseTestCase):
     def test_validate_extracted_data_invalid_items(self):
         """Test validation with invalid items."""
         data = {
-            "supplier": {"name": self.company.company_name},
+            "supplier": {"name": "Test Supplier"},
             "items": [
                 {
                     # Missing both product_name and description
@@ -138,8 +134,8 @@ class PDFDataValidationServiceTest(BaseTestCase):
         """Test product data sanitization."""
         products = [
             {
-                "product_name": "  Aluminum Angle  ",
-                "description": "25x25x3mm\taluminum\tangle",
+                "product_name": "  Aluminium Angle  ",
+                "description": "25x25x3mm\taluminium\tangle",
                 "item_no": "AL-ANG-001",
                 "unit_price": "$12.50",
                 "price_unit": "per metre",
@@ -160,8 +156,8 @@ class PDFDataValidationServiceTest(BaseTestCase):
         self.assertEqual(len(sanitized), 2)  # Third product should be filtered out
 
         # Check first product
-        self.assertEqual(sanitized[0]["product_name"], "Aluminum Angle")
-        self.assertEqual(sanitized[0]["description"], "25x25x3mm aluminum angle")
+        self.assertEqual(sanitized[0]["product_name"], "Aluminium Angle")
+        self.assertEqual(sanitized[0]["description"], "25x25x3mm aluminium angle")
         self.assertEqual(sanitized[0]["unit_price"], 12.50)
 
         # Check second product (description used as product name)

@@ -24,6 +24,10 @@ from apps.client.views.client_rest_views import (
 from apps.client.views.supplier_pickup_address_viewset import (
     SupplierPickupAddressViewSet,
 )
+from apps.client.views.supplier_search_alias_views import (
+    ClientSupplierAliasListCreateView,
+    SupplierAliasDetailView,
+)
 
 app_name = "clients_rest"
 
@@ -70,6 +74,16 @@ urlpatterns = [
         "<uuid:client_id>/jobs/",
         ClientJobsRestView.as_view(),
         name="client_jobs_rest",
+    ),
+    path(
+        "<uuid:client_id>/supplier-aliases/",
+        ClientSupplierAliasListCreateView.as_view(),
+        name="client_supplier_aliases_rest",
+    ),
+    path(
+        "supplier-aliases/<uuid:alias_id>/",
+        SupplierAliasDetailView.as_view(),
+        name="supplier_alias_detail_rest",
     ),
     # Job contact REST endpoint
     path(

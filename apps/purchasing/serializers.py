@@ -31,6 +31,33 @@ class SupplierPriceStatusResponseSerializer(serializers.Serializer):
     total_count = serializers.IntegerField()
 
 
+class SupplierSearchResultSerializer(serializers.Serializer):
+    """Supplier candidate returned by PO supplier lookup."""
+
+    id = serializers.CharField()
+    name = serializers.CharField()
+    email = serializers.CharField(allow_blank=True)
+    phone = serializers.CharField(allow_blank=True)
+    address = serializers.CharField(allow_blank=True)
+    is_account_customer = serializers.BooleanField()
+    is_supplier = serializers.BooleanField()
+    allow_jobs = serializers.BooleanField()
+    xero_contact_id = serializers.CharField(allow_blank=True)
+    last_invoice_date = serializers.DateTimeField(allow_null=True)
+    total_spend = serializers.CharField()
+    recent_purchase_count = serializers.IntegerField()
+
+
+class SupplierSearchResponseSerializer(serializers.Serializer):
+    """Paginated supplier lookup response."""
+
+    results = SupplierSearchResultSerializer(many=True)
+    count = serializers.IntegerField()
+    page = serializers.IntegerField()
+    page_size = serializers.IntegerField()
+    total_pages = serializers.IntegerField()
+
+
 class JobForPurchasingSerializer(serializers.ModelSerializer):
     """Serializer for Job model in purchasing contexts."""
 

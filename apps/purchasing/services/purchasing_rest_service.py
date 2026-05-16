@@ -23,7 +23,10 @@ from apps.purchasing.services.delivery_receipt_service import (
     _create_costline_from_allocation,
     _create_stock_from_allocation,
 )
-from apps.quoting.services.stock_parser import auto_parse_stock_item
+from apps.purchasing.tasks import (
+    enqueue_stock_metadata_parse,
+    stock_metadata_parse_eligible,
+)
 from apps.workflow.models import CompanyDefaults
 
 logger = logging.getLogger(__name__)
@@ -497,8 +500,9 @@ class PurchasingRestService:
             is_active=True,
         )
 
-        # Parse the stock item to extract additional metadata
-
-        auto_parse_stock_item(stock_item)
+        if stock_metadata_parse_eligible(stock_item):
+            enqueue_stock_metadata_parse(stock_item.id)
+        else:
+            pass  # Metadata was supplied explicitly; no parser task needed.
 
         return stock_item

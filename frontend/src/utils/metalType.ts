@@ -8,7 +8,7 @@ type MetalType = z.infer<typeof schemas.MetalTypeEnum>
 export const metalTypeOptions: Array<{ value: MetalType; label: string }> = [
   { value: 'stainless_steel', label: 'Stainless Steel' },
   { value: 'mild_steel', label: 'Mild Steel' },
-  { value: 'aluminum', label: 'Aluminum' },
+  { value: 'aluminium', label: 'Aluminium' },
   { value: 'brass', label: 'Brass' },
   { value: 'copper', label: 'Copper' },
   { value: 'titanium', label: 'Titanium' },

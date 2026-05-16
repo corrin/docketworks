@@ -11,17 +11,19 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
+from apps.purchasing.tasks import (
+    enqueue_stock_metadata_parse,
+    stock_metadata_parse_eligible,
+)
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.reprocess_xero import (
     set_client_fields,
     set_invoice_or_bill_fields,
-    set_journal_fields,
 )
 from apps.workflow.exceptions import XeroValidationError
 from apps.workflow.models import (
     XeroAccount,
     XeroError,
-    XeroJournal,
     XeroPayRun,
     XeroPaySlip,
 )
@@ -441,50 +443,6 @@ def transform_credit_note(xero_note, xero_id):
     return note, _build_sync_status(created, changed_fields)
 
 
-def transform_journal(xero_journal, xero_id):
-    """Convert a Xero journal into a XeroJournal instance.
-
-    Args:
-        xero_journal: Journal object from Xero.
-        xero_id: Identifier of the journal in Xero.
-
-    Returns:
-        The saved XeroJournal model.
-    """
-    journal_date = getattr(xero_journal, "journal_date", None)
-    created_date_utc = getattr(xero_journal, "created_date_utc", None)
-    journal_number = getattr(xero_journal, "journal_number", None)
-    raw_json = process_xero_data(xero_journal)
-    validate_required_fields(
-        {
-            "journal_date": journal_date,
-            "created_date_utc": created_date_utc,
-            "journal_number": journal_number,
-        },
-        "journal",
-        xero_id,
-    )
-
-    defaults = {
-        "journal_date": journal_date,
-        "created_date_utc": created_date_utc,
-        "journal_number": journal_number,
-        "raw_json": raw_json,
-        # CREATED is correct! Xero journals are non-editable
-        "xero_last_modified": created_date_utc,
-    }
-    journal, created = XeroJournal.objects.get_or_create(
-        xero_id=xero_id,
-        defaults=defaults,
-    )
-    # Journals are non-editable in Xero, so changed_fields will always be empty
-    changed_fields = _track_and_apply_changes(journal, defaults)
-    set_journal_fields(journal)
-    if created or changed_fields:
-        journal.save()
-    return journal, _build_sync_status(created, changed_fields)
-
-
 def transform_stock(xero_item, xero_id):
     """Convert a Xero item into a Stock instance.
 
@@ -571,6 +529,14 @@ def transform_stock(xero_item, xero_id):
         changed_fields.append("xero_id")
     if changed_fields:
         stock.save()
+    relevant_parse_fields = {"description", "item_code", "specifics"}
+    if created or relevant_parse_fields.intersection(changed_fields):
+        if stock_metadata_parse_eligible(stock):
+            enqueue_stock_metadata_parse(stock.id)
+        else:
+            pass  # Existing metadata is complete; no parser task needed.
+    else:
+        pass  # No parser-relevant Xero fields changed.
     return stock, _build_sync_status(created, changed_fields)
 
 

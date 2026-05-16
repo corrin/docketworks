@@ -143,6 +143,7 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.sites",
     "django.contrib.humanize",
+    "django.contrib.postgres",
     "rest_framework",
     "simple_history",
     "apps.workflow.apps.WorkflowConfig",

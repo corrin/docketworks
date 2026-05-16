@@ -1,7 +1,6 @@
 # workflow/xero/reprocess_xero.py
 import logging
 import uuid
-from decimal import Decimal
 
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
@@ -15,7 +14,7 @@ from apps.accounting.models import (
     InvoiceLineItem,
 )
 from apps.client.models import Client, ClientContact, SupplierPickupAddress
-from apps.workflow.models import XeroAccount, XeroJournal, XeroJournalLineItem
+from apps.workflow.models import XeroAccount
 from apps.workflow.services.error_persistence import persist_and_raise
 
 logger = logging.getLogger("xero")
@@ -422,87 +421,6 @@ def set_client_fields(client, new_from_xero=False):
             )
 
 
-def set_journal_fields(journal: XeroJournal):
-    """
-    Read the raw_json from a XeroJournal record and set all fields and line items.
-    Similar to set_invoice_or_bill_fields, but for journals.
-    """
-    raw_data = journal.raw_json
-    if not raw_data:
-        raise ValueError("Journal raw_json is empty. Cannot process fields.")
-
-    # Adjust keys to match the underscore-prefixed structure you provided
-    xero_id = raw_data.get("_journal_id")
-    created_date_utc = raw_data.get("_created_date_utc")
-    journal_number = raw_data.get("_journal_number")
-    journal_date = raw_data.get("_journal_date")
-    reference = raw_data.get("_reference")
-    source_id = raw_data.get("_source_id")
-    source_type = raw_data.get("_source_type")
-
-    # Use created_date_utc as xero_last_modified if no separate field
-    # Keeping consistent with other models
-    xero_last_modified = created_date_utc
-
-    # Verify xero_id matches the journal's stored xero_id
-    if xero_id and str(journal.xero_id) != str(xero_id):
-        # This would be unusual. Raise an error to detect data mismatches early.
-        raise ValueError(
-            f"XeroJournal {journal.id} has xero_id={journal.xero_id}, "
-            f"but raw_json has {xero_id}."
-        )
-
-    journal.journal_date = journal_date
-    journal.created_date_utc = created_date_utc
-    journal.journal_number = journal_number
-    journal.reference = reference
-    journal.source_id = source_id
-    journal.source_type = source_type
-    journal.xero_last_modified = xero_last_modified
-
-    # Save changes to the journal before processing line items
-    journal.save()
-
-    # Handle JournalLines
-    line_items_data = raw_data.get("_journal_lines", [])
-
-    for line_item_data in line_items_data:
-        line_id = line_item_data.get("_journal_line_id")
-
-        # Convert amounts from strings to Decimal
-        net_amount_str = line_item_data.get("_net_amount", "0")
-        gross_amount_str = line_item_data.get("_gross_amount", "0")
-        tax_amount_str = line_item_data.get("_tax_amount", "0")
-
-        # Convert to Decimal
-        net_amount = Decimal(net_amount_str)
-        gross_amount = Decimal(gross_amount_str)
-        tax_amount = Decimal(tax_amount_str)
-
-        account_code = line_item_data.get("_account_code")
-        description = line_item_data.get("_description")
-        tax_type = line_item_data.get("_tax_type")
-        tax_name = line_item_data.get("_tax_name")
-
-        # Fetch the account if available
-        account = XeroAccount.objects.filter(account_code=account_code).first()
-
-        XeroJournalLineItem.objects.update_or_create(
-            xero_line_id=line_id,
-            journal=journal,
-            defaults={
-                "account": account,
-                "description": description,
-                "net_amount": net_amount,
-                "gross_amount": gross_amount,
-                "tax_amount": tax_amount,
-                "tax_type": tax_type,
-                "tax_name": tax_name,
-                "raw_json": line_item_data,
-            },
-        )
-
-
 def reprocess_invoices():
     """Reprocess all existing invoices to set fields based on raw JSON."""
     for invoice in Invoice.objects.all():
@@ -545,25 +463,6 @@ def reprocess_clients():
             logger.error(f"Error reprocessing client {client.name}: {str(e)}")
 
 
-def reprocess_journals():
-    """
-    Iterate over all XeroJournal records and re-run the set_journal_fields().
-    Useful if we've tweaked mapping logic and want to re-derive fields from stored
-    raw_json.
-    """
-    from apps.workflow.models import XeroJournal
-
-    for jrnl in XeroJournal.objects.all():
-        try:
-            set_journal_fields(jrnl)
-            logger.info(f"Reprocessed journal: {jrnl.journal_number or jrnl.xero_id}")
-        except Exception as e:
-            logger.error(
-                f"Error reprocessing journal "
-                f"{jrnl.journal_number or jrnl.xero_id}: {str(e)}"
-            )
-
-
 def reprocess_all():
     """Reprocesses all data to set fields based on raw JSON."""
     # NOte, we don't have a reprocess accounts because it just feels too weird.
@@ -572,4 +471,3 @@ def reprocess_all():
     reprocess_invoices()
     reprocess_bills()
     reprocess_credit_notes()
-    reprocess_journals()

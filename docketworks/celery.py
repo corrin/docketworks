@@ -7,6 +7,7 @@ Django settings under the `CELERY_` namespace (see `docketworks/settings.py`).
 
 import logging
 import os
+from typing import Any
 
 from celery import Celery
 from celery.signals import task_unknown
@@ -22,7 +23,13 @@ logger = logging.getLogger("celery")
 
 
 @task_unknown.connect
-def _persist_unknown_task(sender=None, name=None, id=None, message=None, **_):
+def _persist_unknown_task(
+    sender: Any = None,
+    name: str | None = None,
+    id: str | None = None,
+    message: Any = None,
+    **_: Any,
+) -> None:
     """Make Celery's silent ack-discard of unregistered tasks loud.
 
     By default a worker that receives a message for a task it doesn't know
