@@ -26,7 +26,11 @@ import TimesheetJobPicker from './TimesheetJobPicker.vue'
 import HoursCell from './HoursCell.vue'
 
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
-import { useGridKeyboardNav } from '../../composables/useGridKeyboardNav'
+import {
+  gridCellAttrs,
+  handleGridCellKeydown,
+  useGridKeyboardNav,
+} from '../../composables/useGridKeyboardNav'
 import { costlineService } from '../../services/costline.service'
 import { formatCurrency } from '../../utils/string-formatting'
 import { logError } from '../../utils/error-handler'
@@ -225,7 +229,9 @@ function setHours(entry: TimesheetCostLine, raw: string): void {
     total_cost: calculatedWage(entry),
     total_rev: calculatedBill(entry),
   })
-  commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
+  if (entry.id) {
+    commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
+  }
 }
 
 function setDescription(entry: TimesheetCostLine, val: string): void {
@@ -375,6 +381,14 @@ function handleRowClick(entry: TimesheetCostLine): void {
 
 const tableId = useId()
 
+function handleCellNav(e: KeyboardEvent, rowIndex: number, columnId: string): boolean {
+  return handleGridCellKeydown(e, {
+    container: containerRef.value,
+    rowIndex,
+    columnId,
+  })
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Column defs
 // ────────────────────────────────────────────────────────────────────────────
@@ -396,6 +410,9 @@ const columns = computed(() => [
         jobs: props.jobs,
         disabled: props.readOnly || !!entry.id,
         automationIdPrefix: `SmartTimesheetTable-jobPicker-${row.index}`,
+        gridRowIndex: row.index,
+        gridCol: 'jobNumber',
+        onGridKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'jobNumber'),
         onSelect: (job: Job) => setJob(entry, job),
       })
     },
@@ -442,7 +459,9 @@ const columns = computed(() => [
         hours: entry.quantity ?? 0,
         disabled: props.readOnly,
         automationId: `SmartTimesheetTable-hours-${row.index}`,
+        ...gridCellAttrs(row.index, 'hours'),
         onCommit: (raw: string) => setHours(entry, raw),
+        onKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'hours'),
       })
     },
   },
@@ -455,24 +474,26 @@ const columns = computed(() => [
         modelValue: entry.desc ?? '',
         disabled: props.readOnly,
         rows: 1,
-        // Browser autocomplete is opt-in via a feature flag that does not yet
-        // exist (see Trello follow-up). Default to off so we don't surface
-        // typing history without an explicit user choice.
         autocomplete: 'off',
         class: 'w-full min-w-[28ch] min-h-[2.25rem] text-sm',
         'data-automation-id': `SmartTimesheetTable-description-${row.index}`,
+        ...gridCellAttrs(row.index, 'description'),
         onKeydown: (e: KeyboardEvent) => {
-          // Plain Enter blurs to commit instead of inserting a newline.
-          if (e.key === 'Enter' && !(e.metaKey || e.ctrlKey || e.shiftKey)) {
+          if (
+            e.key === 'Tab' ||
+            (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey)
+          ) {
             e.preventDefault()
             ;(e.target as HTMLElement).blur()
+            window.setTimeout(() => {
+              const nextRow = Math.min(row.index + 1, displayEntries.value.length - 1)
+              const el = containerRef.value?.querySelector(
+                `[data-grid-nav-cell="true"][data-grid-row="${nextRow}"][data-grid-col="jobNumber"]:not([disabled])`,
+              )
+              if (el instanceof HTMLElement) el.focus()
+            }, 0)
             return
           }
-          // Everything else is intentionally swallowed: cell-level edits stay
-          // insulated from grid-level shortcuts. Ctrl+Backspace must mean
-          // "delete previous word" inside text, not deleteSelected; Ctrl/Cmd+
-          // Enter must not surface row operations from inside an active edit.
-          // Row-level keyboard nav lives on the container (Trello #308).
           e.stopPropagation()
         },
         'onUpdate:modelValue': (v: string | number) => {
@@ -504,6 +525,7 @@ const columns = computed(() => [
               {
                 class: 'h-8 text-sm',
                 'data-automation-id': `SmartTimesheetTable-rate-${row.index}`,
+                ...gridCellAttrs(row.index, 'rate'),
               },
               () => [h(SelectValue)],
             ),
@@ -561,6 +583,7 @@ const columns = computed(() => [
                     'border-red-500 text-red-700 focus:ring-red-500 [&>span]:text-red-700',
                 ],
                 'data-automation-id': `SmartTimesheetTable-billRate-${row.index}`,
+                ...gridCellAttrs(row.index, 'billRate'),
               },
               () => [h(SelectValue)],
             ),

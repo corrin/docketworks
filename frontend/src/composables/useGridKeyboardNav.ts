@@ -57,6 +57,69 @@ function isMac(): boolean {
   return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
 }
 
+export function gridCellAttrs(rowIndex: number, columnId: string) {
+  return {
+    'data-grid-nav-cell': 'true',
+    'data-grid-row': String(rowIndex),
+    'data-grid-col': columnId,
+  }
+}
+
+function getNavigableCells(container: HTMLElement): HTMLElement[] {
+  return Array.from(
+    container.querySelectorAll<HTMLElement>(
+      '[data-grid-nav-cell="true"]:not([disabled]):not([aria-disabled="true"])',
+    ),
+  )
+}
+
+function focusElement(element: Element | null): boolean {
+  if (!(element instanceof HTMLElement)) return false
+  element.focus()
+  return document.activeElement === element
+}
+
+export function handleGridCellKeydown(
+  e: KeyboardEvent,
+  opts: {
+    container: HTMLElement | null
+    rowIndex: number
+    columnId: string
+  },
+): boolean {
+  const target = e.currentTarget
+  if (!(target instanceof HTMLElement)) return false
+
+  if (e.key === 'Tab') {
+    e.preventDefault()
+    target.blur()
+    const cells = getNavigableCells(opts.container!)
+    const idx = cells.indexOf(target)
+    if (idx >= 0) {
+      const next = cells[idx + (e.shiftKey ? -1 : 1)]
+      if (next) window.setTimeout(() => focusElement(next), 0)
+    }
+    return true
+  }
+
+  if (e.key === 'Enter') {
+    if (e.shiftKey && target instanceof HTMLTextAreaElement) return false
+    if (e.metaKey || e.ctrlKey || e.altKey) return false
+    e.preventDefault()
+    target.blur()
+    if (opts.container) {
+      const selector = `[data-grid-nav-cell="true"][data-grid-row="${opts.rowIndex + 1}"][data-grid-col="${opts.columnId}"]:not([disabled]):not([aria-disabled="true"])`
+      window.setTimeout(() => {
+        const next = opts.container!.querySelector(selector)
+        if (next instanceof HTMLElement) focusElement(next)
+      }, 0)
+    }
+    return true
+  }
+
+  return false
+}
+
 export function useGridKeyboardNav(opts: Options) {
   const platformIsMac = isMac()
 
@@ -106,6 +169,12 @@ export function useGridKeyboardNav(opts: Options) {
         }
         return
       case 'Tab':
+        console.log('[A] grid Tab', {
+          shift: e.shiftKey,
+          target: (e.target as HTMLElement)?.tagName,
+          moveCellR: !!opts.moveCellRight,
+          moveCellL: !!opts.moveCellLeft,
+        })
         if (!e.shiftKey && opts.moveCellRight) {
           e.preventDefault()
           opts.moveCellRight()
