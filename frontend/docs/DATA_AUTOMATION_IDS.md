@@ -21,7 +21,6 @@ This document defines the naming convention for `data-automation-id` attributes.
 ### Components
 
 1. **ComponentName** (required): The exact Vue component name (PascalCase)
-
    - Must match the component's filename (e.g., `AdminCompanyView.vue` → `AdminCompanyView`)
    - This makes it trivial to find the source file
 

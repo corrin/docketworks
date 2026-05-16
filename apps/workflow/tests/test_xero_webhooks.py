@@ -288,7 +288,10 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
 
         return patch(
             "apps.workflow.tasks.CompanyDefaults.get_solo",
-            return_value=SimpleNamespace(xero_tenant_id=configured_tenant_id),
+            return_value=SimpleNamespace(
+                xero_tenant_id=configured_tenant_id,
+                enable_xero_sync=True,
+            ),
         )
 
     def _patch_sync_service(self):

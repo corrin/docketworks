@@ -79,6 +79,9 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
         )
         return
 
+    if not company_defaults.enable_xero_sync:
+        return
+
     try:
         sync_service = XeroSyncService(tenant_id=tenant_id)
         if event_category == "CONTACT":
