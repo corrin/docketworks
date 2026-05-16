@@ -44,6 +44,8 @@ class CostLineSchemaValidationTests(BaseTestCase):
             "meta": {},
             "ext_refs": {},
             "xero_pay_item": self.xero_pay_item,
+            "staff": self.test_staff,
+            "entry_seq": 1,
         }
         base_kwargs.update(overrides)
         return CostLine(**base_kwargs)
@@ -100,7 +102,12 @@ class CostLineSchemaValidationTests(BaseTestCase):
         # Job.save() auto-creates estimate, quote, and actual CostSets
         estimate_cost_set = self.job.latest_estimate
         self.assertEqual(estimate_cost_set.kind, "estimate")
-        line = self._build_cost_line(cost_set=estimate_cost_set, xero_pay_item=None)
+        line = self._build_cost_line(
+            cost_set=estimate_cost_set,
+            xero_pay_item=None,
+            staff=None,
+            entry_seq=None,
+        )
         # Should not raise ValidationError
         line.full_clean()
 
@@ -109,6 +116,11 @@ class CostLineSchemaValidationTests(BaseTestCase):
         # Job.save() auto-creates estimate, quote, and actual CostSets
         quote_cost_set = self.job.latest_quote
         self.assertEqual(quote_cost_set.kind, "quote")
-        line = self._build_cost_line(cost_set=quote_cost_set, xero_pay_item=None)
+        line = self._build_cost_line(
+            cost_set=quote_cost_set,
+            xero_pay_item=None,
+            staff=None,
+            entry_seq=None,
+        )
         # Should not raise ValidationError
         line.full_clean()
