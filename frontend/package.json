@@ -92,7 +92,7 @@
     "jiti": "^2.4.2",
     "lint-staged": "^17.0.3",
     "npm-run-all2": "^8.0.4",
-    "prettier": "3.5.3",
+    "prettier": "3.8.3",
     "puppeteer": "^24.40.0",
     "tsx": "^4.21.0",
     "typescript": "~6.0.3",
