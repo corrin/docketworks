@@ -57,6 +57,54 @@ export function useCostLineAutosave(opts: Options) {
   const prevSnapshot = new WeakMap<CostLine, Partial<CostLine>>() // for rollback
   const pendingPatches = new WeakMap<CostLine, PatchedCostLineCreateUpdate>() // accumulated patches
 
+  async function runSave(line: CostLine, fallbackPatch: PatchedCostLineCreateUpdate) {
+    const patchToSave = pendingPatches.get(line) || fallbackPatch
+    try {
+      console.log('Autosave: Starting save for line', line.id, patchToSave)
+      const result = await opts.saveFn(String(line.id), patchToSave)
+
+      // Sync timestamps from the server response (if available)
+      if (result && typeof result === 'object') {
+        const response = result as Partial<CostLine>
+        if (response.created_at !== undefined) {
+          line.created_at = response.created_at
+        }
+        if (response.updated_at !== undefined) {
+          line.updated_at = response.updated_at
+        }
+      }
+
+      status.set(line, 'saved')
+      lastError.delete(line)
+      prevSnapshot.delete(line)
+      pendingPatches.delete(line)
+      console.log('Autosave: Successfully saved line', line.id)
+
+      // Show success notification
+      const { toast } = await import('vue-sonner')
+      toast.success('Changes saved', { duration: 2000 })
+    } catch (e: unknown) {
+      console.error('❌ Autosave: Failed to save line', line.id, e)
+      status.set(line, 'error')
+      const errorMsg = (e as Error)?.message || 'Save failed'
+      lastError.set(line, errorMsg)
+
+      // Show error notification
+      const { toast } = await import('vue-sonner')
+      toast.error(`Save failed: ${errorMsg}`, { duration: 4000 })
+
+      // Rollback optimistic patch
+      const snap = prevSnapshot.get(line)
+      if (snap && opts.onRollback) {
+        opts.onRollback(line, snap)
+      }
+      pendingPatches.delete(line)
+      throw e
+    } finally {
+      timers.delete(line)
+    }
+  }
+
   /**
    * Read current status for a line (defaults to 'idle')
    */
@@ -126,55 +174,22 @@ export function useCostLineAutosave(opts: Options) {
     lastError.delete(line)
 
     const timer = window.setTimeout(async () => {
-      // Get the accumulated patch to save
-      const patchToSave = pendingPatches.get(line) || mergedPatch
-      try {
-        console.log('Autosave: Starting save for line', line.id, patchToSave)
-        const result = await opts.saveFn(String(line.id), patchToSave)
-
-        // Sync timestamps from the server response (if available)
-        if (result && typeof result === 'object') {
-          const response = result as Partial<CostLine>
-          if (response.created_at !== undefined) {
-            line.created_at = response.created_at
-          }
-          if (response.updated_at !== undefined) {
-            line.updated_at = response.updated_at
-          }
-        }
-
-        status.set(line, 'saved')
-        lastError.delete(line)
-        prevSnapshot.delete(line)
-        pendingPatches.delete(line)
-        console.log('Autosave: Successfully saved line', line.id)
-
-        // Show success notification
-        const { toast } = await import('vue-sonner')
-        toast.success('Changes saved', { duration: 2000 })
-      } catch (e: unknown) {
-        console.error('❌ Autosave: Failed to save line', line.id, e)
-        status.set(line, 'error')
-        const errorMsg = (e as Error)?.message || 'Save failed'
-        lastError.set(line, errorMsg)
-
-        // Show error notification
-        const { toast } = await import('vue-sonner')
-        toast.error(`Save failed: ${errorMsg}`, { duration: 4000 })
-
-        // Rollback optimistic patch
-        const snap = prevSnapshot.get(line)
-        if (snap && opts.onRollback) {
-          opts.onRollback(line, snap)
-        }
-        pendingPatches.delete(line)
-      } finally {
-        // Clear timer handle
-        timers.delete(line)
-      }
+      await runSave(line, mergedPatch).catch(() => undefined)
     }, debounceMs)
 
     timers.set(line, timer)
+  }
+
+  async function saveNow(
+    line: CostLine,
+    apiPatch: PatchedCostLineCreateUpdate,
+    optimisticPatch?: Partial<CostLine>,
+  ) {
+    if (!line.id) return
+    scheduleSave(line, apiPatch, optimisticPatch)
+    cancel(line)
+    status.set(line, 'saving')
+    await runSave(line, pendingPatches.get(line) || apiPatch)
   }
 
   /**
@@ -208,6 +223,7 @@ export function useCostLineAutosave(opts: Options) {
   return {
     // API
     scheduleSave,
+    saveNow,
     retry,
     cancel,
     onBlurSave,

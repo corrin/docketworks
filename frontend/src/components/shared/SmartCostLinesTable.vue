@@ -789,7 +789,7 @@ const columns = computed(() => {
                       selectedItemMap.set(line, null)
                     }
 
-                    // Save immediately for existing lines
+                    // Explicit item replacement should be durable before the UI moves on.
                     if (line.id && isLineReadyForSave(line)) {
                       const patch: PatchedCostLineCreateUpdate = {
                         desc: line.desc || '',
@@ -798,7 +798,7 @@ const columns = computed(() => {
                         ext_refs: { stock_id: val },
                       }
                       const optimistic: Partial<CostLine> = { ...patch }
-                      autosave.scheduleSave(line, patch, optimistic)
+                      await autosave.saveNow(line, patch, optimistic)
                     }
                   },
                   'onUpdate:description': (desc: string) =>

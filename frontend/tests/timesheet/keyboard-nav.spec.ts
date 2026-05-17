@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Response } from '@playwright/test'
-import { getCompanyDefaults, getTimesheetStaff } from '../fixtures/api'
+import { getTimesheetJobs, getTimesheetStaff } from '../fixtures/api'
 import { autoId, createTestJob, getPhantomRowIndex } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
@@ -31,7 +31,8 @@ async function expectCreatedCostLine(
 test.describe('keyboard Tab entry flow', () => {
   let staffId: string
   let staffWageRate: number
-  let chargeOutRate: number
+  let job1ChargeOutRate: number
+  let job2ChargeOutRate: number
   let jobNumber1: string
   let jobNumber2: string
 
@@ -46,9 +47,6 @@ test.describe('keyboard Tab entry flow', () => {
     await page.locator('#password').fill(password!)
     await page.getByRole('button', { name: 'Sign In' }).click()
     await page.waitForURL('**/kanban')
-
-    const defaults = await getCompanyDefaults(page)
-    chargeOutRate = defaults.charge_out_rate ?? 100
 
     const date = getLatestWeekdayDate()
     const timesheetStaff = await getTimesheetStaff(page, date)
@@ -70,6 +68,14 @@ test.describe('keyboard Tab entry flow', () => {
 
     expect(jobNumber1).toBeTruthy()
     expect(jobNumber2).toBeTruthy()
+
+    const jobs = await getTimesheetJobs(page)
+    const timesheetJob1 = jobs.find((job) => String(job.job_number) === jobNumber1)
+    const timesheetJob2 = jobs.find((job) => String(job.job_number) === jobNumber2)
+    expect(timesheetJob1).toBeTruthy()
+    expect(timesheetJob2).toBeTruthy()
+    job1ChargeOutRate = timesheetJob1!.charge_out_rate
+    job2ChargeOutRate = timesheetJob2!.charge_out_rate
 
     await context.close()
   })
@@ -126,7 +132,8 @@ test.describe('keyboard Tab entry flow', () => {
       )
 
       expect(wageVal).toBeCloseTo(hrs * staffWageRate, 1)
-      expect(billVal).toBeCloseTo(hrs * chargeOutRate, 1)
+      const expectedRate = jobNum === jobNumber1 ? job1ChargeOutRate : job2ChargeOutRate
+      expect(billVal).toBeCloseTo(hrs * expectedRate, 1)
     }
 
     // One mouse action is allowed to place the cursor in the first blank row.
@@ -165,7 +172,7 @@ test.describe('keyboard Tab entry flow', () => {
       description: 'Cutting',
       hours: 2,
       totalCost: 2 * staffWageRate,
-      totalRevenue: 2 * chargeOutRate,
+      totalRevenue: 2 * job1ChargeOutRate,
       staffId,
     })
 
@@ -205,7 +212,7 @@ test.describe('keyboard Tab entry flow', () => {
       description: 'Welding',
       hours: 3.5,
       totalCost: 3.5 * staffWageRate,
-      totalRevenue: 3.5 * chargeOutRate,
+      totalRevenue: 3.5 * job2ChargeOutRate,
       staffId,
     })
 
