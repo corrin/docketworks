@@ -12,7 +12,7 @@ import { useStockStore, type StockItem } from '../../stores/stockStore'
 import { useCompanyDefaultsStore } from '../../stores/companyDefaults'
 import { api } from '@/api/client'
 import { useDebounceFn } from '@vueuse/core'
-import { computed, nextTick, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatCurrency } from '@/utils/string-formatting'
 
 type LabourItem = {
@@ -203,6 +203,10 @@ watch(
     if (nextOpen) void focusSearchInput()
   },
 )
+
+onMounted(() => {
+  if (props.open) void focusSearchInput()
+})
 </script>
 
 <template>

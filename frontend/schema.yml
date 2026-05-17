@@ -16570,6 +16570,10 @@ components:
           type: string
           readOnly: true
           nullable: true
+        times_used:
+          type: integer
+          description: Always emit a numeric usage count for generated client validation.
+          readOnly: true
       required:
         - client_name
         - description
@@ -16578,6 +16582,7 @@ components:
         - job_name
         - job_number
         - quantity
+        - times_used
     PurchaseOrderLineCreateRequest:
       type: object
       description: Serializer for creating purchase order lines.

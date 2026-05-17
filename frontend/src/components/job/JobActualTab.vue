@@ -91,7 +91,6 @@
               :allowTypeEdit="true"
               :negativeStockIds="negativeStockIds"
               @delete-line="handleSmartDelete"
-              @add-line="handleAddLine"
               @duplicate-line="() => {}"
               @move-line="() => {}"
               @create-line="handleCreateLine"
@@ -454,7 +453,6 @@ import { fetchCostSet } from '../../services/costing.service'
 import { costlineService } from '../../services/costline.service'
 import { schemas } from '../../api/generated/api'
 import { useSmartCostLineDelete } from '../../composables/useSmartCostLineDelete'
-import { useAddEmptyCostLine } from '../../composables/useAddEmptyCostLine'
 import { useCostSummary } from '../../composables/useCostSummary'
 import { useXeroConnection } from '../../composables/useXeroConnection'
 import { api } from '../../api/client'
@@ -905,22 +903,6 @@ async function handleCreateLine(line: CostLine) {
     }
   }
   // For material, table already handled consumption, so no-op or reload
-}
-
-// Use the composable for adding empty lines
-const { pushEmptyLine } = useAddEmptyCostLine({
-  costLines,
-  onLineAdded: (line) => {
-    // For material in actual, fields are blocked until selection in table
-    if (line.kind === 'material') {
-      // Table will handle unblock after consume
-    }
-  },
-})
-
-// Handler for add line (only 'material' or 'adjust')
-function handleAddLine(kind: 'material' | 'adjust' = 'material') {
-  pushEmptyLine(kind)
 }
 
 onMounted(async () => {

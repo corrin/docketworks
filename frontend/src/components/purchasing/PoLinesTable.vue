@@ -4,13 +4,7 @@ import DataTable from '@/components/DataTable.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Checkbox } from '@/components/ui/checkbox'
-import Dialog from '@/components/ui/dialog/Dialog.vue'
-import DialogContent from '@/components/ui/dialog/DialogContent.vue'
-import DialogDescription from '@/components/ui/dialog/DialogDescription.vue'
-import DialogHeader from '@/components/ui/dialog/DialogHeader.vue'
-import DialogTitle from '@/components/ui/dialog/DialogTitle.vue'
-import { Trash2, Settings2 } from 'lucide-vue-next'
-import { metalTypeOptions } from '@/utils/metalType'
+import { Trash2 } from 'lucide-vue-next'
 import ItemSelect from '@/views/purchasing/ItemSelect.vue'
 import JobSelect from './JobSelect.vue'
 import AllocationCellEditor from '@/components/purchasing/AllocationCellEditor.vue'
@@ -24,6 +18,7 @@ import {
   handleGridCellKeydown,
   useGridKeyboardNav,
 } from '@/composables/useGridKeyboardNav'
+import { usePhantomRow } from '@/composables/usePhantomRow'
 
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
 type JobForPurchasing = z.infer<typeof schemas.JobForPurchasing>
@@ -43,7 +38,6 @@ type Props = {
 
 type Emits = {
   (e: 'update:lines', lines: PurchaseOrderLine[]): void
-  (e: 'add-line'): void
   (e: 'delete-line', id: string | number): void
   (e: 'receipt:save', payload: { lineId: string; editorState: LineEditorState }): void
   (e: 'allocation-deleted', data: { allocationId: string; allocationType: string }): void
@@ -82,6 +76,7 @@ function isSelectableStockItem(value: unknown): value is {
   specifics?: string | null
   location?: string
   item_code?: string | null
+  times_used?: number
   id: string
 } {
   if (!value || typeof value !== 'object') return false
@@ -94,71 +89,51 @@ const emit = defineEmits<Emits>()
 
 type RowContext = DataTableRowContext<PurchaseOrderLine>
 
-const showAdditionalFieldsModal = ref(false)
-const editingLineIndex = ref<number>(-1)
 const openItemSelectIndex = ref<number>(-1)
 const containerRef = ref<HTMLElement | null>(null)
 const selectedRowIndex = ref<number>(-1)
-const additionalFields = ref({
-  metal_type: '',
-  alloy: '',
-  specifics: '',
-  location: '',
-  dimensions: '',
+
+function makeEmptyLine(): PurchaseOrderLine {
+  return {
+    id: '',
+    description: '',
+    quantity: 1,
+    dimensions: undefined,
+    unit_cost: 0,
+    price_tbc: false,
+    supplier_item_code: undefined,
+    item_code: '',
+    received_quantity: undefined,
+    metal_type: undefined,
+    alloy: undefined,
+    specifics: undefined,
+    location: undefined,
+    job_id: null,
+    job_number: null,
+    client_name: null,
+    job_name: null,
+    times_used: 0,
+  }
+}
+
+const {
+  displayRows: displayLines,
+  isPhantomIndex,
+  promotePhantom,
+  selectPhantom,
+} = usePhantomRow<PurchaseOrderLine>({
+  rows: () => props.lines,
+  makePhantom: makeEmptyLine,
 })
 
-const openAdditionalFieldsModal = (lineIndex: number) => {
-  if (props.readOnly) return
-
-  editingLineIndex.value = lineIndex
-  const line = props.lines[lineIndex]
-
-  additionalFields.value = {
-    metal_type: String(line.metal_type || ''),
-    alloy: String(line.alloy || ''),
-    specifics: String(line.specifics || ''),
-    location: String(line.location || ''),
-    dimensions: String(line.dimensions || ''),
-  }
-
-  showAdditionalFieldsModal.value = true
-}
-
-const saveAdditionalFields = () => {
-  if (editingLineIndex.value === -1) return
-
-  const updated = props.lines.map((line, idx) =>
-    idx === editingLineIndex.value
-      ? {
-          ...line,
-          metal_type: additionalFields.value.metal_type || undefined,
-          alloy: additionalFields.value.alloy || undefined,
-          specifics: additionalFields.value.specifics || undefined,
-          location: additionalFields.value.location || undefined,
-          dimensions: additionalFields.value.dimensions || undefined,
-        }
-      : line,
-  )
-
-  emit('update:lines', updated)
-  closeAdditionalFieldsModal()
-}
-
-const closeAdditionalFieldsModal = () => {
-  showAdditionalFieldsModal.value = false
-  editingLineIndex.value = -1
-  additionalFields.value = {
-    metal_type: '',
-    alloy: '',
-    specifics: '',
-    location: '',
-    dimensions: '',
-  }
-}
-
 const updateLine = (index: number, updates: Partial<PurchaseOrderLine>) => {
-  const updated = props.lines.map((line, idx) => (idx === index ? { ...line, ...updates } : line))
-  emit('update:lines', updated)
+  if (index < props.lines.length) {
+    const updated = props.lines.map((line, idx) => (idx === index ? { ...line, ...updates } : line))
+    emit('update:lines', updated)
+    return
+  }
+
+  emit('update:lines', [...props.lines, promotePhantom(updates)])
 }
 
 const handleAddLine = () => {
@@ -166,14 +141,14 @@ const handleAddLine = () => {
     return
   }
 
-  emit('add-line')
+  selectPhantom((index) => (selectedRowIndex.value = index))
 }
 
 const isPoSubmitted = computed(() => props.poStatus === 'submitted_to_supplier')
 const isColumnDisabled = computed(() => props.readOnly || isPoSubmitted.value)
 
 const { onKeydown } = useGridKeyboardNav({
-  getRowCount: () => props.lines.length,
+  getRowCount: () => displayLines.value.length,
   getSelectedIndex: () => selectedRowIndex.value,
   setSelectedIndex: (index) => (selectedRowIndex.value = index),
   addLine: handleAddLine,
@@ -268,6 +243,7 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
                     specifics: selected.specifics,
                     location: selected.location,
                     item_code: selected.item_code || null,
+                    times_used: selected.times_used ?? 0,
                   }),
                 })
 
@@ -276,6 +252,16 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
         })
       },
       meta: { editable: !isColumnDisabled.value },
+    },
+    {
+      id: 'times_used',
+      header: 'Times Used',
+      cell: (context: RowContext) =>
+        h(
+          'div',
+          { class: 'text-center tabular-nums text-sm text-gray-700' },
+          String(context.row.original.times_used ?? 0),
+        ),
     },
     {
       id: 'description',
@@ -400,33 +386,6 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
       meta: { editable: !isColumnDisabled.value },
     },
     {
-      id: 'additional_fields',
-      header: 'Additional Fields',
-      cell: (context: RowContext) => {
-        const hasAdditionalData = !!(
-          context.row.original.metal_type ||
-          context.row.original.alloy ||
-          context.row.original.specifics ||
-          context.row.original.location ||
-          context.row.original.dimensions
-        )
-
-        return h(
-          Button,
-          {
-            variant: hasAdditionalData ? 'default' : 'outline',
-            size: 'sm',
-            disabled: isColumnDisabled.value,
-            onClick: isColumnDisabled.value
-              ? undefined
-              : () => openAdditionalFieldsModal(context.row.index),
-          },
-          () => [h(Settings2, { class: 'w-4 h-4 mr-1' }), hasAdditionalData ? 'Edit' : 'Add'],
-        )
-      },
-      meta: { editable: !isColumnDisabled.value },
-    },
-    {
       id: 'receipt',
       header: 'Receipt',
       cell: (context: RowContext) => {
@@ -471,16 +430,17 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
           {
             variant: 'destructive',
             size: 'icon',
-            disabled: isColumnDisabled.value,
-            onClick: isColumnDisabled.value
-              ? undefined
-              : () => {
-                  if (context.row.original.id) {
-                    emit('delete-line', context.row.original.id)
-                  } else {
-                    emit('delete-line', context.row.index)
-                  }
-                },
+            disabled: isColumnDisabled.value || isPhantomIndex(context.row.index),
+            onClick:
+              isColumnDisabled.value || isPhantomIndex(context.row.index)
+                ? undefined
+                : () => {
+                    if (context.row.original.id) {
+                      emit('delete-line', context.row.original.id)
+                    } else {
+                      emit('delete-line', context.row.index)
+                    }
+                  },
           },
           () => h(Trash2, { class: 'w-4 h-4' }),
         ),
@@ -506,90 +466,11 @@ onMounted(() => {
     <div class="flex-1 overflow-y-auto max-h-[60vh]">
       <DataTable
         :columns="columns"
-        :data="props.lines"
-        @rowClick="(line) => (selectedRowIndex = props.lines.indexOf(line))"
+        :data="displayLines"
+        @rowClick="(line) => (selectedRowIndex = displayLines.indexOf(line))"
         :page-size="1000"
         :hide-footer="true"
       />
     </div>
-    <div class="sticky bottom-0 bg-white z-10 p-2 border-t">
-      <Button
-        class="w-full"
-        :disabled="isColumnDisabled"
-        @click="handleAddLine"
-        data-automation-id="PoLinesTable-add-line"
-      >
-        ＋ Add line
-      </Button>
-    </div>
-
-    <!-- Additional Fields Modal using Dialog component -->
-    <Dialog v-model:open="showAdditionalFieldsModal">
-      <DialogContent class="max-w-md">
-        <DialogHeader>
-          <DialogTitle>Additional Fields</DialogTitle>
-          <DialogDescription>
-            Fill in additional details for this purchase order line.
-          </DialogDescription>
-        </DialogHeader>
-
-        <div class="space-y-4 py-4">
-          <!-- Metal Type -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1"> Metal Type </label>
-            <select
-              v-model="additionalFields.metal_type"
-              class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            >
-              <option value="">Select metal type...</option>
-              <option v-for="option in metalTypeOptions" :key="option.value" :value="option.value">
-                {{ option.label }}
-              </option>
-            </select>
-          </div>
-
-          <!-- Alloy -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1"> Alloy </label>
-            <Input v-model="additionalFields.alloy" type="text" placeholder="e.g., 304, 6061" />
-          </div>
-
-          <!-- Specifics -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1"> Specifics </label>
-            <Input
-              v-model="additionalFields.specifics"
-              type="text"
-              placeholder="e.g., m8 countersunk socket screw"
-            />
-          </div>
-
-          <!-- Location -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1"> Location </label>
-            <Input
-              v-model="additionalFields.location"
-              type="text"
-              placeholder="Where this item will be stored"
-            />
-          </div>
-
-          <!-- Dimensions -->
-          <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1"> Dimensions </label>
-            <Input
-              v-model="additionalFields.dimensions"
-              type="text"
-              placeholder="Product dimensions"
-            />
-          </div>
-        </div>
-
-        <div class="flex justify-end space-x-3">
-          <Button variant="outline" @click="closeAdditionalFieldsModal"> Cancel </Button>
-          <Button @click="saveAdditionalFields"> Save </Button>
-        </div>
-      </DialogContent>
-    </Dialog>
   </div>
 </template>
