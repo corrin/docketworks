@@ -121,6 +121,59 @@ describe('ItemSelect server-side search and rendering', () => {
     expect(wrapper.emitted('update:kind')?.at(-1)).toEqual(['time'])
   })
 
+  it('focuses the search field when opened', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+
+    const wrapper = mount(ItemSelect, {
+      attachTo: document.body,
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    wrapper.vm.handleOpenUpdate(true)
+    await flushPromises()
+    await vi.runOnlyPendingTimersAsync()
+
+    expect(document.activeElement).toBe(wrapper.find('input').element)
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
+  it('lets Escape leave the search field for the select to close', async () => {
+    const wrapper = mount(ItemSelect, {
+      attachTo: document.body,
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    const bubbled = vi.fn()
+    document.body.addEventListener('keydown', bubbled)
+    await wrapper.find('input').trigger('keydown', { key: 'Escape' })
+
+    expect(bubbled).toHaveBeenCalledTimes(1)
+    document.body.removeEventListener('keydown', bubbled)
+    wrapper.unmount()
+  })
+
+  it('keeps search typing inside the search field', async () => {
+    const wrapper = mount(ItemSelect, {
+      attachTo: document.body,
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    const bubbled = vi.fn()
+    document.body.addEventListener('keydown', bubbled)
+    await wrapper.find('input').trigger('keydown', { key: 's' })
+
+    expect(bubbled).not.toHaveBeenCalled()
+    document.body.removeEventListener('keydown', bubbled)
+    wrapper.unmount()
+  })
+
   it('renders the full description, structured-fields signature, and usage count from server results', async () => {
     vi.useFakeTimers()
     const store = useStockStore()

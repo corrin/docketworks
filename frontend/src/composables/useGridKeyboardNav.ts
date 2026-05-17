@@ -52,6 +52,19 @@ interface Options {
   moveCellRight?: () => void
 }
 
+export type GridFocusTarget =
+  | { kind: 'relativeCell'; delta: 1 | -1 }
+  | { kind: 'sameColumnNextRow' }
+  | { kind: 'column'; rowIndex: number; columnId: string }
+
+export type GridCellKeydownOptions = {
+  container: HTMLElement | null
+  rowIndex: number
+  columnId: string
+  tabTarget?: GridFocusTarget
+  enterTarget?: GridFocusTarget
+}
+
 function isMac(): boolean {
   if (typeof navigator === 'undefined') return false
   return /Mac|iPod|iPhone|iPad/.test(navigator.platform)
@@ -73,32 +86,49 @@ function getNavigableCells(container: HTMLElement): HTMLElement[] {
   )
 }
 
+function isNavigableCell(element: HTMLElement): boolean {
+  if (element.hasAttribute('disabled')) return false
+  if (element.getAttribute('aria-disabled') === 'true') return false
+  return true
+}
+
 function focusElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false
   element.focus()
   return document.activeElement === element
 }
 
-export function handleGridCellKeydown(
-  e: KeyboardEvent,
-  opts: {
-    container: HTMLElement | null
-    rowIndex: number
-    columnId: string
-  },
-): boolean {
+export function handleGridCellKeydown(e: KeyboardEvent, opts: GridCellKeydownOptions): boolean {
+  if (!(e.currentTarget instanceof HTMLElement)) return false
   const target = e.currentTarget
-  if (!(target instanceof HTMLElement)) return false
+
+  function focusTarget(focusTarget: GridFocusTarget): void {
+    const container = opts.container
+    if (!container) return
+
+    if (focusTarget.kind === 'relativeCell') {
+      const cells = getNavigableCells(container)
+      const idx = cells.indexOf(target)
+      if (idx < 0) return
+      const next = cells[idx + focusTarget.delta]
+      if (next) window.setTimeout(() => focusElement(next), 0)
+      return
+    }
+
+    const rowIndex =
+      focusTarget.kind === 'sameColumnNextRow' ? opts.rowIndex + 1 : focusTarget.rowIndex
+    const columnId = focusTarget.kind === 'sameColumnNextRow' ? opts.columnId : focusTarget.columnId
+    const selector = `[data-grid-nav-cell="true"][data-grid-row="${rowIndex}"][data-grid-col="${columnId}"]:not([disabled]):not([aria-disabled="true"])`
+    window.setTimeout(() => {
+      const next = container.querySelector(selector)
+      if (next instanceof HTMLElement && isNavigableCell(next)) focusElement(next)
+    }, 0)
+  }
 
   if (e.key === 'Tab') {
     e.preventDefault()
     target.blur()
-    const cells = getNavigableCells(opts.container!)
-    const idx = cells.indexOf(target)
-    if (idx >= 0) {
-      const next = cells[idx + (e.shiftKey ? -1 : 1)]
-      if (next) window.setTimeout(() => focusElement(next), 0)
-    }
+    focusTarget(opts.tabTarget ?? { kind: 'relativeCell', delta: e.shiftKey ? -1 : 1 })
     return true
   }
 
@@ -107,13 +137,7 @@ export function handleGridCellKeydown(
     if (e.metaKey || e.ctrlKey || e.altKey) return false
     e.preventDefault()
     target.blur()
-    if (opts.container) {
-      const selector = `[data-grid-nav-cell="true"][data-grid-row="${opts.rowIndex + 1}"][data-grid-col="${opts.columnId}"]:not([disabled]):not([aria-disabled="true"])`
-      window.setTimeout(() => {
-        const next = opts.container!.querySelector(selector)
-        if (next instanceof HTMLElement) focusElement(next)
-      }, 0)
-    }
+    focusTarget(opts.enterTarget ?? { kind: 'sameColumnNextRow' })
     return true
   }
 
@@ -169,12 +193,6 @@ export function useGridKeyboardNav(opts: Options) {
         }
         return
       case 'Tab':
-        console.log('[A] grid Tab', {
-          shift: e.shiftKey,
-          target: (e.target as HTMLElement)?.tagName,
-          moveCellR: !!opts.moveCellRight,
-          moveCellL: !!opts.moveCellLeft,
-        })
         if (!e.shiftKey && opts.moveCellRight) {
           e.preventDefault()
           opts.moveCellRight()

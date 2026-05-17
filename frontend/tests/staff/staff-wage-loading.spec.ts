@@ -121,14 +121,15 @@ test.describe.serial('staff wage loading', () => {
     const hoursInput = autoId(page, `SmartTimesheetTable-hours-${rowIndex}`)
     await hoursInput.click()
     await page.keyboard.type('1')
+    const createEntryPromise = page.waitForResponse(
+      (res) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
+      { timeout: 15000 },
+    )
     await page.keyboard.press('Enter')
 
     // Wait for the create-entry POST to complete and the row to materialise
     // with an `id` (the toast confirms persistence).
-    await page.waitForResponse(
-      (res) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
-      { timeout: 15000 },
-    )
+    await createEntryPromise
 
     // Read the rendered wage cell on the same row
     const wageCell = autoId(page, `SmartTimesheetTable-wage-${rowIndex}`)

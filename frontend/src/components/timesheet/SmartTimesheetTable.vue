@@ -27,6 +27,7 @@ import HoursCell from './HoursCell.vue'
 
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
 import {
+  type GridCellKeydownOptions,
   gridCellAttrs,
   handleGridCellKeydown,
   useGridKeyboardNav,
@@ -433,11 +434,17 @@ watch(
   },
 )
 
-function handleCellNav(e: KeyboardEvent, rowIndex: number, columnId: string): boolean {
+function handleCellNav(
+  e: KeyboardEvent,
+  rowIndex: number,
+  columnId: string,
+  options?: Partial<GridCellKeydownOptions>,
+): boolean {
   return handleGridCellKeydown(e, {
     container: containerRef.value,
     rowIndex,
     columnId,
+    ...options,
   })
 }
 
@@ -532,21 +539,17 @@ const columns = computed(() => [
         'data-automation-id': `SmartTimesheetTable-description-${row.index}`,
         ...gridCellAttrs(row.index, 'description'),
         onKeydown: (e: KeyboardEvent) => {
+          const nextRow = Math.min(row.index + 1, displayEntries.value.length - 1)
           if (
-            e.key === 'Tab' ||
-            (e.key === 'Enter' && !e.shiftKey && !e.metaKey && !e.ctrlKey && !e.altKey)
-          ) {
-            e.preventDefault()
-            ;(e.target as HTMLElement).blur()
-            window.setTimeout(() => {
-              const nextRow = Math.min(row.index + 1, displayEntries.value.length - 1)
-              const el = containerRef.value?.querySelector(
-                `[data-grid-nav-cell="true"][data-grid-row="${nextRow}"][data-grid-col="jobNumber"]:not([disabled])`,
-              )
-              if (el instanceof HTMLElement) el.focus()
-            }, 0)
+            handleCellNav(e, row.index, 'description', {
+              container: containerRef.value,
+              rowIndex: row.index,
+              columnId: 'description',
+              tabTarget: { kind: 'column', rowIndex: nextRow, columnId: 'jobNumber' },
+              enterTarget: { kind: 'column', rowIndex: nextRow, columnId: 'jobNumber' },
+            })
+          )
             return
-          }
           e.stopPropagation()
         },
         'onUpdate:modelValue': (v: string | number) => {

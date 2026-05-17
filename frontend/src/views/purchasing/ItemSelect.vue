@@ -12,7 +12,7 @@ import { useStockStore, type StockItem } from '../../stores/stockStore'
 import { useCompanyDefaultsStore } from '../../stores/companyDefaults'
 import { api } from '@/api/client'
 import { useDebounceFn } from '@vueuse/core'
-import { computed, ref, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { formatCurrency } from '@/utils/string-formatting'
 
 type LabourItem = {
@@ -62,6 +62,7 @@ const companyDefaultsStore = useCompanyDefaultsStore()
 const searchTerm = ref('')
 const serverResults = ref<StockItem[]>([])
 const isSearching = ref(false)
+const searchInput = ref<{ $el?: HTMLInputElement } | HTMLInputElement | null>(null)
 
 // Mocked Labour item for time entries
 const mockedLabourItem = computed<LabourItem>(() => ({
@@ -177,13 +178,38 @@ function handleSelectedValue(val: string | null): void {
     emit('update:kind', null)
   }
 }
+
+async function focusSearchInput(): Promise<void> {
+  await nextTick()
+  window.setTimeout(() => {
+    const input =
+      searchInput.value instanceof HTMLInputElement ? searchInput.value : searchInput.value?.$el
+    input?.focus()
+  }, 0)
+}
+
+function handleOpenUpdate(nextOpen: boolean): void {
+  emit('update:open', nextOpen)
+  if (nextOpen) void focusSearchInput()
+}
+
+function handleSearchKeydown(event: KeyboardEvent): void {
+  if (event.key !== 'Escape') event.stopPropagation()
+}
+
+watch(
+  () => props.open,
+  (nextOpen) => {
+    if (nextOpen) void focusSearchInput()
+  },
+)
 </script>
 
 <template>
   <Select
     v-bind="selectProps"
     class="!w-full min-w-64"
-    @update:open="(nextOpen) => emit('update:open', nextOpen)"
+    @update:open="handleOpenUpdate"
     @update:model-value="(val) => handleSelectedValue(val as string | null)"
   >
     <SelectTrigger class="h-10 item-select-trigger" data-automation-id="ItemSelect-trigger">
@@ -194,11 +220,12 @@ function handleSelectedValue(val: string | null): void {
       <!-- Search input -->
       <div class="p-3 border-b bg-muted/50">
         <Input
+          ref="searchInput"
           v-model="searchTerm"
           placeholder="Search items by description, code, or type..."
           class="h-9 text-sm"
           @click.stop
-          @keydown.stop
+          @keydown="handleSearchKeydown"
         />
       </div>
 
