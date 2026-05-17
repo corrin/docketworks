@@ -2527,6 +2527,7 @@ const PurchaseOrderLine = z.object({
   job_number: z.number().int().nullable(),
   client_name: z.string().nullable(),
   job_name: z.string().nullable(),
+  times_used: z.number().int(),
 })
 const PurchaseOrderDetail = z.object({
   id: z.string().uuid(),

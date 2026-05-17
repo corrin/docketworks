@@ -4,7 +4,7 @@ import logging
 import traceback
 
 from django.core.exceptions import ValidationError
-from django.db.models import OuterRef, Subquery
+from django.db.models import Count, OuterRef, Subquery
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from drf_spectacular.types import OpenApiTypes
@@ -14,6 +14,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.job.models import Job
+from apps.job.models.costing import CostLine
 from apps.purchasing.etag import generate_po_etag, normalize_etag
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderEvent, Stock
 from apps.purchasing.serializers import (
@@ -439,7 +440,19 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
             .prefetch_related("po_lines__job__client")
         )
         po = get_object_or_404(queryset, id=po_id)
-        serializer = PurchaseOrderDetailSerializer(po)
+        item_codes = [line.item_code for line in po.po_lines.all() if line.item_code]
+        usage_counts = {
+            item_code: count
+            for item_code, count in (
+                CostLine.objects.filter(kind="material", meta__item_code__in=item_codes)
+                .values_list("meta__item_code")
+                .annotate(count=Count("id"))
+            )
+        }
+        serializer = PurchaseOrderDetailSerializer(
+            po,
+            context={"line_usage_counts": usage_counts},
+        )
         etag = generate_po_etag(po)
         if_none_match = self._get_if_none_match(request)
         if if_none_match and if_none_match == self._normalize_etag(etag):

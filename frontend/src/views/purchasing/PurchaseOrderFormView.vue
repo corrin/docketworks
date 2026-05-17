@@ -59,7 +59,6 @@ s
               :po-status="po.status"
               :po-id="po.id"
               @update:lines="canEditLineItems || canEditJobs ? (po.lines = $event) : null"
-              @add-line="handleAddLineEvent"
               @delete-line="deleteLine"
               @receipt:save="handleReceiptSave"
               @allocation-deleted="handleAllocationDeleted"
@@ -419,66 +418,6 @@ function handleStatusChange(newStatus: PurchaseOrderStatus) {
   }
 
   po.value.status = newStatus
-}
-
-const handleAddLineEvent = () => {
-  debugLog('handleAddLineEvent triggered from PoLinesTable')
-  debugLog('canEditLineItems:', canEditLineItems.value)
-
-  if (!canEditLineItems.value) {
-    debugLog('Cannot edit line items - permission denied')
-    return
-  }
-
-  addLine()
-}
-
-function addLine() {
-  debugLog('addLine function called')
-  debugLog('Current PO lines:', po.value.lines.length)
-  debugLog('Is PO deleted:', isPoDeleted.value)
-  debugLog('Is PO submitted:', isPoSubmitted.value)
-
-  if (isPoDeleted.value) {
-    debugLog('Blocked: PO is deleted')
-    toast.error('Cannot add lines - this purchase order has been deleted')
-    return
-  }
-  if (isPoSubmitted.value) {
-    debugLog('Blocked: PO is submitted')
-    toast.error('Cannot add lines - this purchase order has been submitted to supplier')
-    return
-  }
-
-  const newLine: PurchaseOrderLine = {
-    id: '',
-    description: '',
-    quantity: 1,
-    dimensions: undefined,
-    unit_cost: 0,
-    price_tbc: false,
-    supplier_item_code: undefined,
-    item_code: '',
-    received_quantity: undefined,
-    metal_type: undefined,
-    alloy: undefined,
-    specifics: undefined,
-    location: undefined,
-    job_id: null,
-    job_number: null,
-    client_name: null,
-    job_name: null,
-  }
-
-  debugLog('Adding new line:', newLine)
-
-  try {
-    po.value.lines = [...po.value.lines, newLine]
-    debugLog('Line added successfully. New count:', po.value.lines.length)
-  } catch (error) {
-    debugLog('Error adding line:', error)
-    toast.error('Failed to add line: ' + error)
-  }
 }
 
 function deleteLine(idOrIdx: string | number) {

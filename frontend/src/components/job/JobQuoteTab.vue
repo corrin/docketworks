@@ -46,7 +46,6 @@
               :showItemColumn="true"
               :showSourceColumn="false"
               @delete-line="handleSmartDelete"
-              @add-line="handleAddEmptyLine"
               @duplicate-line="(line) => handleAddMaterial(line as any)"
               @create-line="handleCreateFromEmpty"
             />
@@ -790,18 +789,17 @@ async function onCreateNewRevision() {
   }
 }
 
-const { handleAddMaterial, handleSmartDelete, handleAddEmptyLine, handleCreateFromEmpty } =
-  useCostLinesActions({
-    costLines,
-    jobId: props.jobId,
-    costSetKind: 'quote',
-    isLoading,
-    onCostLinesChanged: async () => {
-      // Refresh quote data to update summary from API
-      emit('cost-line-changed')
-      await refreshQuoteData()
-    },
-  })
+const { handleAddMaterial, handleSmartDelete, handleCreateFromEmpty } = useCostLinesActions({
+  costLines,
+  jobId: props.jobId,
+  costSetKind: 'quote',
+  isLoading,
+  onCostLinesChanged: async () => {
+    // Refresh quote data to update summary from API
+    emit('cost-line-changed')
+    await refreshQuoteData()
+  },
+})
 
 // --- QUOTE METHODS ---
 const createQuote = () => {

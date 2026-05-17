@@ -32,6 +32,7 @@ import {
   handleGridCellKeydown,
   useGridKeyboardNav,
 } from '../../composables/useGridKeyboardNav'
+import { usePhantomRow } from '../../composables/usePhantomRow'
 import { costlineService } from '../../services/costline.service'
 import { formatCurrency } from '../../utils/string-formatting'
 import { logError } from '../../utils/error-handler'
@@ -135,14 +136,17 @@ function makeEmptyEntry(): TimesheetCostLine {
   } as TimesheetCostLine
 }
 
-const emptyEntry = ref<TimesheetCostLine>(makeEmptyEntry())
 const pendingCreateEntry = ref<TimesheetCostLine | null>(null)
-
-const displayEntries = computed(() => [
-  ...props.entries,
-  ...(pendingCreateEntry.value ? [pendingCreateEntry.value] : []),
-  emptyEntry.value,
-])
+const {
+  phantomRow: emptyEntry,
+  displayRows: displayEntries,
+  resetPhantom,
+  selectPhantom,
+} = usePhantomRow<TimesheetCostLine>({
+  rows: () => props.entries,
+  extraRows: () => (pendingCreateEntry.value ? [pendingCreateEntry.value] : []),
+  makePhantom: makeEmptyEntry,
+})
 const createdOnce = new Set<TimesheetCostLine>()
 const billOverrides = new WeakSet<TimesheetCostLine>()
 
@@ -168,7 +172,7 @@ function maybeEmitCreate(entry: TimesheetCostLine): void {
     pendingCreateEntry.value = entry
   }
   emit('create-entry', entry)
-  if (entry === emptyEntry.value) emptyEntry.value = makeEmptyEntry()
+  if (entry === emptyEntry.value) resetPhantom()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -384,7 +388,7 @@ const { onKeydown } = useGridKeyboardNav({
   setSelectedIndex: (i) => (selectedRowIndex.value = i),
   addLine: () => {
     // Phantom row is always present. Ctrl/Cmd+Enter selects it.
-    selectedRowIndex.value = displayEntries.value.length - 1
+    selectPhantom((index) => (selectedRowIndex.value = index))
   },
   deleteSelected: () => {
     const i = selectedRowIndex.value
