@@ -17,7 +17,7 @@ def backfill_actual_time_staff_and_sequence(apps, schema_editor):
             JOIN job_costset cs ON cl.cost_set_id = cs.id
             WHERE cs.kind = 'actual'
               AND cl.kind = 'time'
-              AND COALESCE(cl.meta->>'staff_id', cl.meta->>'consumed_by') IS NULL
+              AND cl.meta->>'staff_id' IS NULL
             """)
         missing_staff_ref = cursor.fetchone()[0]
         if missing_staff_ref:
@@ -31,7 +31,7 @@ def backfill_actual_time_staff_and_sequence(apps, schema_editor):
             FROM job_costline cl
             JOIN job_costset cs ON cl.cost_set_id = cs.id
             LEFT JOIN accounts_staff staff
-              ON COALESCE(cl.meta->>'staff_id', cl.meta->>'consumed_by')::uuid = staff.id
+              ON (cl.meta->>'staff_id')::uuid = staff.id
             WHERE cs.kind = 'actual'
               AND cl.kind = 'time'
               AND staff.id IS NULL
@@ -45,7 +45,7 @@ def backfill_actual_time_staff_and_sequence(apps, schema_editor):
 
         cursor.execute("""
             UPDATE job_costline cl
-            SET staff_id = COALESCE(cl.meta->>'staff_id', cl.meta->>'consumed_by')::uuid
+            SET staff_id = (cl.meta->>'staff_id')::uuid
             FROM job_costset cs
             WHERE cl.cost_set_id = cs.id
               AND cs.kind = 'actual'
@@ -107,8 +107,6 @@ def backfill_actual_time_staff_and_sequence(apps, schema_editor):
 
 
 class Migration(migrations.Migration):
-    atomic = False
-
     dependencies = [
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
         ("job", "0086_repoint_stale_time_pay_items"),

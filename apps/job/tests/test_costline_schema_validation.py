@@ -85,6 +85,19 @@ class CostLineSchemaValidationTests(BaseTestCase):
         with self.assertRaises(ValidationError):
             line.save()
 
+    def test_actual_time_does_not_treat_consumed_by_as_staff(self) -> None:
+        line = self._build_cost_line(
+            staff=None,
+            entry_seq=None,
+            meta={"consumed_by": str(self.test_staff.id)},
+        )
+        with self.assertRaises(ValidationError) as exc:
+            line.save()
+        self.assertIn(
+            "Actual time entries must have staff set.",
+            str(exc.exception),
+        )
+
     def test_time_entry_without_xero_pay_item_fails_for_actual(self) -> None:
         """Actual CostSet time entries MUST have xero_pay_item."""
         # self.cost_set is already an actual CostSet from setUp

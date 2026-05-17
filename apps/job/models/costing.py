@@ -323,7 +323,7 @@ class CostLine(models.Model):
             return
         if not isinstance(self.meta, dict):
             return
-        legacy_staff_id = self.meta.get("staff_id") or self.meta.get("consumed_by")
+        legacy_staff_id = self.meta.get("staff_id")
         if legacy_staff_id:
             self.staff_id = legacy_staff_id
 
@@ -369,12 +369,15 @@ class CostLine(models.Model):
         self.entry_seq = (previous_max or 0) + 1
 
     @staticmethod
-    def _with_sequence_update_fields(update_fields, staff_was_set: bool):
+    def _with_sequence_update_fields(
+        update_fields, *, requires_sequence: bool, staff_newly_set: bool
+    ):
         if update_fields is None:
             return None
         fields = set(update_fields)
-        fields.add("entry_seq")
-        if staff_was_set:
+        if requires_sequence:
+            fields.add("entry_seq")
+        if staff_newly_set:
             fields.add("staff")
         return fields
 
@@ -410,12 +413,17 @@ class CostLine(models.Model):
         )
 
     def save(self, *args, **kwargs):
-        staff_was_set = self.staff_id is not None
+        staff_was_already_set = self.staff_id is not None
+        requires_sequence = self._actual_time_entry_requires_sequence()
         with transaction.atomic():
             self._assign_entry_seq()
-            staff_was_set = self.staff_id is not None and not staff_was_set
+            staff_newly_set_from_legacy_meta = (
+                self.staff_id is not None and not staff_was_already_set
+            )
             kwargs["update_fields"] = self._with_sequence_update_fields(
-                kwargs.get("update_fields"), staff_was_set
+                kwargs.get("update_fields"),
+                requires_sequence=requires_sequence,
+                staff_newly_set=staff_newly_set_from_legacy_meta,
             )
 
             self._save_with_summary_update(*args, **kwargs)
