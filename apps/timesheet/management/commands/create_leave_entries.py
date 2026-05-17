@@ -181,7 +181,7 @@ class Command(BaseCommand):
                 cost_set=cost_set,
                 kind="time",
                 accounting_date=entry_date,
-                meta__staff_id=str(staff.id),
+                staff=staff,
             ).exists()
             if existing:
                 self.stdout.write(
@@ -195,7 +195,7 @@ class Command(BaseCommand):
                 kind="time",
                 cost_set__kind="actual",
                 accounting_date=entry_date,
-                meta__contains=str(staff.id),
+                staff=staff,
             )
             other_hours = sum(float(cl.quantity) for cl in other_entries)
             if other_hours + float(hours) > 24:
@@ -237,6 +237,7 @@ class Command(BaseCommand):
                 unit_cost=wage,
                 unit_rev=Decimal("0"),
                 accounting_date=entry_date,
+                staff=staff,
                 xero_pay_item=job.default_xero_pay_item,
                 meta={
                     "staff_id": str(staff.id),

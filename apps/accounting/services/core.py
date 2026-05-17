@@ -165,8 +165,6 @@ class KPIService:
         # Get cost lines for the target date from 'actual' cost sets
         cost_lines = (
             CostLine.objects.annotate(
-                # Extract staff_id and is_billable from meta JSONField
-                staff_id=KeyTextTransform("staff_id", "meta"),
                 is_billable=KeyTextTransform("is_billable", "meta"),
             )
             .filter(
@@ -178,7 +176,7 @@ class KPIService:
 
         # For time entries, exclude staff that shouldn't be included
         time_lines = cost_lines.filter(kind="time").exclude(
-            staff_id__in=[str(sid) for sid in excluded_staff_ids]
+            staff_id__in=excluded_staff_ids
         )
 
         # Material and adjustment lines don't need staff filtering
@@ -366,10 +364,8 @@ class KPIService:
         # Get time entries aggregated by date
         time_entries_by_date = {}
 
-        # Extract staff_id and is_billable from meta JSONField
         cost_lines_time = (
             CostLine.objects.annotate(
-                staff_id=KeyTextTransform("staff_id", "meta"),
                 is_billable=KeyTextTransform("is_billable", "meta"),
             )
             .filter(
@@ -378,7 +374,7 @@ class KPIService:
                 accounting_date__gte=start_date,
                 accounting_date__lte=end_date,
             )
-            .exclude(staff_id__in=[str(sid) for sid in excluded_staff_ids])
+            .exclude(staff_id__in=excluded_staff_ids)
             .select_related("cost_set__job")
         )
 
@@ -1081,8 +1077,9 @@ class JobAgingService:
                     # Only actual time entries have staff - estimates/quotes are planning entries
                     if cost_line.kind == "time" and cost_set.kind == "actual":
                         try:
-                            staff_id = cost_line.meta.get("staff_id")
-                            staff = Staff.objects.get(id=staff_id)
+                            staff = cost_line.staff
+                            if staff is None:
+                                raise Staff.DoesNotExist
                             description = (
                                 f"Time added by {staff.get_display_full_name()}"
                             )
@@ -1090,7 +1087,7 @@ class JobAgingService:
                             message = (
                                 "Corrupted cost line staff reference detected "
                                 f"(job_id={job.id}, cost_line_id={cost_line.id}, "
-                                f"staff_id={staff_id})"
+                                f"staff_id={cost_line.staff_id})"
                             )
                             logger.error(message)
                             logged_exc = ValueError(message)
@@ -1100,7 +1097,7 @@ class JobAgingService:
                                 additional_context={
                                     "operation": "cost_line_staff_resolution",
                                     "cost_line_id": cost_line.id,
-                                    "staff_id": staff_id,
+                                    "staff_id": cost_line.staff_id,
                                 },
                             )
                             raise AlreadyLoggedException(
@@ -1189,7 +1186,6 @@ class StaffPerformanceService:
             # Get time entries from CostLine
             cost_lines = (
                 CostLine.objects.annotate(
-                    staff_id_meta=KeyTextTransform("staff_id", "meta"),
                     is_billable_meta=KeyTextTransform("is_billable", "meta"),
                 )
                 .filter(
@@ -1212,7 +1208,7 @@ class StaffPerformanceService:
             include_job_breakdown = staff_id is not None
 
             for staff in all_staff:
-                staff_cost_lines = cost_lines.filter(staff_id_meta=str(staff.id))
+                staff_cost_lines = cost_lines.filter(staff=staff)
                 staff_metrics = StaffPerformanceService._calculate_staff_metrics(
                     staff, staff_cost_lines, include_job_breakdown
                 )

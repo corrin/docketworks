@@ -17,7 +17,7 @@
  * pairs). When the parent needs camelCase, it does the mapping.
  */
 
-import { computed, h, nextTick, ref, useId } from 'vue'
+import { computed, h, nextTick, ref, useId, watch } from 'vue'
 import DataTable from '../DataTable.vue'
 import { Textarea } from '../ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
@@ -26,7 +26,12 @@ import TimesheetJobPicker from './TimesheetJobPicker.vue'
 import HoursCell from './HoursCell.vue'
 
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
-import { useGridKeyboardNav } from '../../composables/useGridKeyboardNav'
+import {
+  type GridCellKeydownOptions,
+  gridCellAttrs,
+  handleGridCellKeydown,
+  useGridKeyboardNav,
+} from '../../composables/useGridKeyboardNav'
 import { costlineService } from '../../services/costline.service'
 import { formatCurrency } from '../../utils/string-formatting'
 import { logError } from '../../utils/error-handler'
@@ -67,9 +72,13 @@ const props = withDefaults(
     /** Map of multiplier (as string, e.g. "1.5") → pay item, used when rate changes. */
     payItemsByMultiplier?: Record<string, PayItem | undefined>
     readOnly?: boolean
+    createPending?: boolean
+    focusPhantomToken?: number
   }>(),
   {
     readOnly: false,
+    createPending: false,
+    focusPhantomToken: 0,
     payItemsByMultiplier: () => ({}),
   },
 )
@@ -127,12 +136,14 @@ function makeEmptyEntry(): TimesheetCostLine {
 }
 
 const emptyEntry = ref<TimesheetCostLine>(makeEmptyEntry())
-function resetEmptyEntry(): void {
-  emptyEntry.value = makeEmptyEntry()
-}
+const pendingCreateEntry = ref<TimesheetCostLine | null>(null)
 
-const displayEntries = computed(() => [...props.entries, emptyEntry.value])
-const createdOnce = new WeakSet<TimesheetCostLine>()
+const displayEntries = computed(() => [
+  ...props.entries,
+  ...(pendingCreateEntry.value ? [pendingCreateEntry.value] : []),
+  emptyEntry.value,
+])
+const createdOnce = new Set<TimesheetCostLine>()
 const billOverrides = new WeakSet<TimesheetCostLine>()
 
 function hasExplicitBillOverride(entry: TimesheetCostLine): boolean {
@@ -149,11 +160,15 @@ function isEntryReady(entry: TimesheetCostLine): boolean {
 }
 
 function maybeEmitCreate(entry: TimesheetCostLine): void {
+  if (props.createPending) return
   if (createdOnce.has(entry)) return
   if (!isEntryReady(entry)) return
   createdOnce.add(entry)
+  if (entry === emptyEntry.value) {
+    pendingCreateEntry.value = entry
+  }
   emit('create-entry', entry)
-  if (entry === emptyEntry.value) resetEmptyEntry()
+  if (entry === emptyEntry.value) emptyEntry.value = makeEmptyEntry()
 }
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -216,7 +231,12 @@ function commit(entry: TimesheetCostLine, fields: (keyof PatchedCostLineCreateUp
 // Mutations
 // ────────────────────────────────────────────────────────────────────────────
 
+function isCreateLocked(entry: TimesheetCostLine): boolean {
+  return props.createPending && !entry.id
+}
+
 function setHours(entry: TimesheetCostLine, raw: string): void {
+  if (isCreateLocked(entry)) return
   const fallback = entry.quantity ?? 0
   const v = parseHoursInput(raw, fallback)
   if (v === fallback) return
@@ -225,10 +245,13 @@ function setHours(entry: TimesheetCostLine, raw: string): void {
     total_cost: calculatedWage(entry),
     total_rev: calculatedBill(entry),
   })
-  commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
+  if (entry.id) {
+    commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
+  }
 }
 
 function setDescription(entry: TimesheetCostLine, val: string): void {
+  if (isCreateLocked(entry)) return
   // No equality check: the description's onUpdate:modelValue handler already
   // pre-mutates entry.desc on each keystroke (unlike Hours/Rate which keep a
   // local string until blur), so by the time onBlur calls us entry.desc and
@@ -239,6 +262,7 @@ function setDescription(entry: TimesheetCostLine, val: string): void {
 }
 
 function setBill(entry: TimesheetCostLine, rateType: string): void {
+  if (isCreateLocked(entry)) return
   const mult = getRateMultiplier(rateType)
   if (getBillMultiplier(entry) === mult && hasExplicitBillOverride(entry)) return
   billOverrides.add(entry)
@@ -251,6 +275,7 @@ function setBill(entry: TimesheetCostLine, rateType: string): void {
 }
 
 function setRate(entry: TimesheetCostLine, rateType: string): void {
+  if (isCreateLocked(entry)) return
   const mult = getRateMultiplier(rateType)
   if (getMultiplier(entry) === mult) return
   // The backend rejects extra meta keys; rate_type is derived from
@@ -307,6 +332,7 @@ function isEntryShopJob(entry: TimesheetCostLine): boolean {
 }
 
 function setJob(entry: TimesheetCostLine, job: Job): void {
+  if (isCreateLocked(entry)) return
   Object.assign(entry, {
     job_id: job.id,
     job_number: job.job_number,
@@ -375,6 +401,53 @@ function handleRowClick(entry: TimesheetCostLine): void {
 
 const tableId = useId()
 
+function focusPhantomJobPicker(): void {
+  void nextTick(() => {
+    const idx = displayEntries.value.indexOf(emptyEntry.value)
+    if (idx < 0) return
+    const el = containerRef.value?.querySelector(
+      `[data-automation-id="SmartTimesheetTable-jobPicker-${idx}-trigger"]`,
+    )
+    if (el instanceof HTMLElement) el.focus()
+  })
+}
+
+watch(
+  () => props.createPending,
+  (pending) => {
+    if (pending || !pendingCreateEntry.value) return
+    const entry = pendingCreateEntry.value
+    const token = props.focusPhantomToken
+    void nextTick(() => {
+      if (pendingCreateEntry.value === entry && props.focusPhantomToken === token) {
+        createdOnce.delete(entry)
+      }
+    })
+  },
+)
+
+watch(
+  () => props.focusPhantomToken,
+  () => {
+    pendingCreateEntry.value = null
+    focusPhantomJobPicker()
+  },
+)
+
+function handleCellNav(
+  e: KeyboardEvent,
+  rowIndex: number,
+  columnId: string,
+  options?: Partial<GridCellKeydownOptions>,
+): boolean {
+  return handleGridCellKeydown(e, {
+    container: containerRef.value,
+    rowIndex,
+    columnId,
+    ...options,
+  })
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Column defs
 // ────────────────────────────────────────────────────────────────────────────
@@ -394,8 +467,12 @@ const columns = computed(() => [
       return h(TimesheetJobPicker, {
         modelValue: entry.job_number || null,
         jobs: props.jobs,
-        disabled: props.readOnly || !!entry.id,
+        disabled: props.readOnly || !!entry.id || isCreateLocked(entry),
         automationIdPrefix: `SmartTimesheetTable-jobPicker-${row.index}`,
+        gridRowIndex: row.index,
+        gridCol: 'jobNumber',
+        entrySeq: entry.entry_seq ?? null,
+        onGridKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'jobNumber'),
         onSelect: (job: Job) => setJob(entry, job),
       })
     },
@@ -440,9 +517,11 @@ const columns = computed(() => [
       const entry = displayEntries.value[row.index]
       return h(HoursCell, {
         hours: entry.quantity ?? 0,
-        disabled: props.readOnly,
+        disabled: props.readOnly || isCreateLocked(entry),
         automationId: `SmartTimesheetTable-hours-${row.index}`,
+        ...gridCellAttrs(row.index, 'hours'),
         onCommit: (raw: string) => setHours(entry, raw),
+        onKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'hours'),
       })
     },
   },
@@ -453,26 +532,24 @@ const columns = computed(() => [
       const entry = displayEntries.value[row.index]
       return h(Textarea, {
         modelValue: entry.desc ?? '',
-        disabled: props.readOnly,
+        disabled: props.readOnly || isCreateLocked(entry),
         rows: 1,
-        // Browser autocomplete is opt-in via a feature flag that does not yet
-        // exist (see Trello follow-up). Default to off so we don't surface
-        // typing history without an explicit user choice.
         autocomplete: 'off',
         class: 'w-full min-w-[28ch] min-h-[2.25rem] text-sm',
         'data-automation-id': `SmartTimesheetTable-description-${row.index}`,
+        ...gridCellAttrs(row.index, 'description'),
         onKeydown: (e: KeyboardEvent) => {
-          // Plain Enter blurs to commit instead of inserting a newline.
-          if (e.key === 'Enter' && !(e.metaKey || e.ctrlKey || e.shiftKey)) {
-            e.preventDefault()
-            ;(e.target as HTMLElement).blur()
+          const nextRow = Math.min(row.index + 1, displayEntries.value.length - 1)
+          if (
+            handleCellNav(e, row.index, 'description', {
+              container: containerRef.value,
+              rowIndex: row.index,
+              columnId: 'description',
+              tabTarget: { kind: 'column', rowIndex: nextRow, columnId: 'jobNumber' },
+              enterTarget: { kind: 'column', rowIndex: nextRow, columnId: 'jobNumber' },
+            })
+          )
             return
-          }
-          // Everything else is intentionally swallowed: cell-level edits stay
-          // insulated from grid-level shortcuts. Ctrl+Backspace must mean
-          // "delete previous word" inside text, not deleteSelected; Ctrl/Cmd+
-          // Enter must not surface row operations from inside an active edit.
-          // Row-level keyboard nav lives on the container (Trello #308).
           e.stopPropagation()
         },
         'onUpdate:modelValue': (v: string | number) => {
@@ -492,7 +569,7 @@ const columns = computed(() => [
         Select,
         {
           modelValue: rateType,
-          disabled: props.readOnly,
+          disabled: props.readOnly || isCreateLocked(entry),
           'onUpdate:modelValue': (v: unknown) => {
             if (typeof v === 'string') setRate(entry, v)
           },
@@ -504,6 +581,7 @@ const columns = computed(() => [
               {
                 class: 'h-8 text-sm',
                 'data-automation-id': `SmartTimesheetTable-rate-${row.index}`,
+                ...gridCellAttrs(row.index, 'rate'),
               },
               () => [h(SelectValue)],
             ),
@@ -545,7 +623,7 @@ const columns = computed(() => [
         Select,
         {
           modelValue: billRateType,
-          disabled: props.readOnly,
+          disabled: props.readOnly || isCreateLocked(entry),
           'onUpdate:modelValue': (v: unknown) => {
             if (typeof v === 'string') setBill(entry, v)
           },
@@ -561,6 +639,7 @@ const columns = computed(() => [
                     'border-red-500 text-red-700 focus:ring-red-500 [&>span]:text-red-700',
                 ],
                 'data-automation-id': `SmartTimesheetTable-billRate-${row.index}`,
+                ...gridCellAttrs(row.index, 'billRate'),
               },
               () => [h(SelectValue)],
             ),

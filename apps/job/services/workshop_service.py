@@ -3,7 +3,6 @@ from decimal import Decimal, InvalidOperation
 from typing import Iterable, Tuple
 
 from django.db import transaction
-from django.db.models.fields.json import KeyTextTransform
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
@@ -39,17 +38,14 @@ class WorkshopTimesheetService:
     def list_entries(self, entry_date) -> Tuple[list[CostLine], dict]:
         """Fetch cost lines and summary for the staff member on a date."""
         queryset = (
-            CostLine.objects.annotate(
-                staff_id_meta=KeyTextTransform("staff_id", "meta"),
-            )
-            .filter(
+            CostLine.objects.filter(
                 cost_set__kind="actual",
                 kind="time",
-                staff_id_meta=str(self.staff.id),
+                staff=self.staff,
                 accounting_date=entry_date,
             )
             .select_related("cost_set__job")
-            .order_by("created_at")
+            .order_by("entry_seq")
         )
 
         entries = list(queryset)
@@ -103,6 +99,7 @@ class WorkshopTimesheetService:
                 unit_cost=unit_cost,
                 unit_rev=unit_rev,
                 accounting_date=data["accounting_date"],
+                staff=self.staff,
                 xero_pay_item=xero_pay_item,
                 ext_refs={},
                 meta=meta,

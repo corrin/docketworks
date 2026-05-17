@@ -17,3 +17,12 @@ export async function getStaffList(page: Page) {
   })
   return response.json()
 }
+
+export async function getTimesheetStaff(page: Page, date?: string) {
+  const params = date ? `?date=${date}` : ''
+  const response = await page.request.get(`/api/timesheets/staff/${params}`, {
+    headers: { Accept: 'application/json' },
+  })
+  const data = (await response.json()) as { staff: Array<{ id: string; wageRate: number }> }
+  return data.staff
+}

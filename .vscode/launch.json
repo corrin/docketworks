@@ -6,7 +6,7 @@
       "type": "debugpy",
       "request": "launch",
       "program": "${workspaceFolder}/manage.py",
-      "args": ["runserver"],
+      "args": ["runserver", "--noreload"],
       "django": true,
       "justMyCode": true,
       "python": "${workspaceFolder}/.venv/bin/python",

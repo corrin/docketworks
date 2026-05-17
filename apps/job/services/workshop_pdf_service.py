@@ -101,23 +101,19 @@ def get_time_breakdown(job: Job) -> dict:
         time_lines = (
             job.latest_actual.cost_lines.filter(kind="time")
             .exclude(desc__iendswith=" office time")
-            .select_related("cost_set")
+            .select_related("cost_set", "staff")
         )
 
         # Group by staff
         staff_hours = defaultdict(float)
         for line in time_lines:
-            staff_id = line.meta.get("staff_id")
-            if not staff_id:
+            staff = line.staff
+            if staff is None:
                 exc = ValueError(
-                    f"CostLine {line.id} for job {job.job_number} has no staff_id in meta"
+                    f"CostLine {line.id} for job {job.job_number} has no staff set"
                 )
                 raise exc
 
-            # Trust the data - staff must exist
-            from apps.accounts.models import Staff
-
-            staff = Staff.objects.get(id=staff_id)
             staff_name = f"{staff.first_name} {staff.last_name}"
             staff_hours[staff_name] += float(line.quantity)
 

@@ -82,7 +82,6 @@ async function addAdjustmentEntry(
   description: string,
   quantity: string,
   unitCost: string,
-  unitRev: string,
 ): Promise<void> {
   const rowId = await clickAddRow(page)
   await page.keyboard.press('Escape')
@@ -91,24 +90,24 @@ async function addAdjustmentEntry(
   const newRow = getRowById(page, rowId)
 
   const descInput = newRow.locator('textarea').first()
+  const quantityInput = newRow.locator('[data-automation-id^="SmartCostLinesTable-quantity-"]')
+  const unitCostInput = newRow.locator('[data-automation-id^="SmartCostLinesTable-unit-cost-"]')
+
   await descInput.click()
   await descInput.fill(description)
   await page.keyboard.press('Tab')
+  await expect(quantityInput).toBeFocused()
 
-  await page.keyboard.type(quantity)
+  await quantityInput.fill(quantity)
   await page.keyboard.press('Tab')
+  await expect(unitCostInput).toBeFocused()
 
-  await page.keyboard.type(unitCost)
+  await unitCostInput.fill(unitCost)
+  const savePromise = waitForAutosave(page)
   await page.keyboard.press('Tab')
   // unit_cost onBlur fires maybeEmitCreate — catch the POST before calling
   // waitForAutosave too late (as the original code did at the bottom).
-  await waitForAutosave(page)
-
-  // unitRev is typed for visual completeness; no second waitForAutosave needed
-  // because the reactive line-id hasn't propagated when the blur fires, so the
-  // unit_rev handler takes the no-op "create" path rather than the PATCH path.
-  await page.keyboard.type(unitRev)
-  await page.keyboard.press('Tab')
+  await savePromise
 }
 
 // ============================================================================
@@ -205,7 +204,7 @@ test.describe.serial('estimate operations', () => {
   test('add Adjustment entry', async ({ authenticatedPage: page }) => {
     await navigateToEstimateTab(page, jobUrl)
 
-    await addAdjustmentEntry(page, 'Discount - repeat customer', '1', '-50', '-50')
+    await addAdjustmentEntry(page, 'Discount - repeat customer', '1', '-50')
 
     // Verify persistence
     await navigateToEstimateTab(page, jobUrl)
@@ -232,7 +231,7 @@ test.describe.serial('estimate operations', () => {
     await navigateToEstimateTab(page, jobUrl)
 
     // Add a new adjustment for editing tests
-    await addAdjustmentEntry(page, 'Test Adjustment for Editing', '1', '10', '10')
+    await addAdjustmentEntry(page, 'Test Adjustment for Editing', '1', '10')
 
     const rowIndex = await findRowIndexByDescription(page, 'Test Adjustment for Editing')
     expect(rowIndex).toBeGreaterThanOrEqual(0)
@@ -338,7 +337,7 @@ test.describe.serial('estimate operations', () => {
     await navigateToEstimateTab(page, jobUrl)
 
     // Add a row specifically for deletion
-    await addAdjustmentEntry(page, 'Row to be deleted', '1', '100', '100')
+    await addAdjustmentEntry(page, 'Row to be deleted', '1', '100')
 
     const rowsBefore = await page.locator('[data-automation-id^="DataTable-row-"]').count()
     const deleteRowIndex = await findRowIndexByDescription(page, 'Row to be deleted')

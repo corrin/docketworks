@@ -2,7 +2,7 @@
 Reassign time entries from one staff member to another.
 
 Common use case: timesheet entries accidentally logged under the wrong person.
-Updates meta.staff_id, unit_cost (to match new staff's wage rate), and desc.
+Updates staff, unit_cost (to match new staff's wage rate), and desc.
 
 Usage:
     # Dry run — show what would change
@@ -83,7 +83,6 @@ class Command(BaseCommand):
             )
 
         for entry in entries:
-            entry.meta.get("staff_id", "?")
             old_cost = entry.unit_cost
             new_cost = to_staff.base_wage_rate
             cost_change = (new_cost - old_cost) * entry.quantity
@@ -104,9 +103,11 @@ class Command(BaseCommand):
 
         with transaction.atomic():
             for entry in entries:
+                entry.meta = dict(entry.meta or {})
                 entry.meta["staff_id"] = str(to_staff.id)
+                entry.staff = to_staff
                 entry.unit_cost = to_staff.base_wage_rate
-                entry.save(update_fields=["meta", "unit_cost", "updated_at"])
+                entry.save(update_fields=["meta", "staff", "unit_cost", "updated_at"])
 
         self.stdout.write(
             self.style.SUCCESS(
@@ -157,8 +158,8 @@ class Command(BaseCommand):
                 kind="time",
                 cost_set__kind="actual",
                 accounting_date=entry_date,
-                meta__staff_id=str(staff.id),
-            ).order_by("created_at")
+                staff=staff,
+            ).order_by("entry_seq")
         )
 
     @staticmethod

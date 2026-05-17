@@ -14,6 +14,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   commit: [raw: string]
+  keydown: [event: KeyboardEvent]
 }>()
 
 // Local string state so the user can freely type "1 1/4", "3/4", "1.5" etc.
@@ -40,6 +41,6 @@ const isOvertime = () => props.hours > 8
     :class="isOvertime() ? 'text-red-600 font-semibold' : 'text-slate-700'"
     :data-automation-id="automationId"
     @blur="emit('commit', local)"
-    @keydown.enter.prevent="($event.target as HTMLInputElement).blur()"
+    @keydown="emit('keydown', $event)"
   />
 </template>

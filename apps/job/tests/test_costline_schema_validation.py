@@ -44,6 +44,8 @@ class CostLineSchemaValidationTests(BaseTestCase):
             "meta": {},
             "ext_refs": {},
             "xero_pay_item": self.xero_pay_item,
+            "staff": self.test_staff,
+            "entry_seq": 1,
         }
         base_kwargs.update(overrides)
         return CostLine(**base_kwargs)
@@ -83,6 +85,19 @@ class CostLineSchemaValidationTests(BaseTestCase):
         with self.assertRaises(ValidationError):
             line.save()
 
+    def test_actual_time_does_not_treat_consumed_by_as_staff(self) -> None:
+        line = self._build_cost_line(
+            staff=None,
+            entry_seq=None,
+            meta={"consumed_by": str(self.test_staff.id)},
+        )
+        with self.assertRaises(ValidationError) as exc:
+            line.save()
+        self.assertIn(
+            "Actual time entries must have staff set.",
+            str(exc.exception),
+        )
+
     def test_time_entry_without_xero_pay_item_fails_for_actual(self) -> None:
         """Actual CostSet time entries MUST have xero_pay_item."""
         # self.cost_set is already an actual CostSet from setUp
@@ -100,7 +115,12 @@ class CostLineSchemaValidationTests(BaseTestCase):
         # Job.save() auto-creates estimate, quote, and actual CostSets
         estimate_cost_set = self.job.latest_estimate
         self.assertEqual(estimate_cost_set.kind, "estimate")
-        line = self._build_cost_line(cost_set=estimate_cost_set, xero_pay_item=None)
+        line = self._build_cost_line(
+            cost_set=estimate_cost_set,
+            xero_pay_item=None,
+            staff=None,
+            entry_seq=None,
+        )
         # Should not raise ValidationError
         line.full_clean()
 
@@ -109,6 +129,11 @@ class CostLineSchemaValidationTests(BaseTestCase):
         # Job.save() auto-creates estimate, quote, and actual CostSets
         quote_cost_set = self.job.latest_quote
         self.assertEqual(quote_cost_set.kind, "quote")
-        line = self._build_cost_line(cost_set=quote_cost_set, xero_pay_item=None)
+        line = self._build_cost_line(
+            cost_set=quote_cost_set,
+            xero_pay_item=None,
+            staff=None,
+            entry_seq=None,
+        )
         # Should not raise ValidationError
         line.full_clean()

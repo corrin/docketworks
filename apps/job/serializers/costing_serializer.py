@@ -99,15 +99,12 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
         return ""
 
     def get_wage_rate(self, obj) -> float:
-        """Get staff wage rate from metadata staff_id"""
+        """Get staff wage rate for a time entry."""
         try:
-            # Get staff_id from metadata
-            staff_id = obj.meta.get("staff_id") if obj.meta else None
-            if not staff_id:
+            staff = obj.staff
+            if staff is None:
                 return 0.0
 
-            # Get staff and return wage_rate
-            staff = Staff.objects.get(id=staff_id)
             return float(staff.wage_rate) if staff.wage_rate else 0.0
 
         except (Staff.DoesNotExist, ValueError, AttributeError):
@@ -153,6 +150,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
             "created_at",
             "updated_at",
             "xero_pay_item",
+            "staff",
         ]
 
     def validate(self, data):
@@ -198,6 +196,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
 
             try:
                 staff = Staff.objects.get(id=staff_id)
+                self.validated_data["staff"] = staff
                 company_defaults = CompanyDefaults.get_solo()
                 cost_set = kwargs.get("cost_set") or getattr(
                     self.instance, "cost_set", None

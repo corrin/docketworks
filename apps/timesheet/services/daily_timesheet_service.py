@@ -12,8 +12,6 @@ from datetime import date
 from decimal import Decimal
 from typing import Dict, List
 
-from django.db.models.fields.json import KeyTextTransform
-
 from apps.accounts.models import Staff
 from apps.accounts.utils import get_displayable_staff
 from apps.job.models.costing import CostLine
@@ -102,13 +100,9 @@ class DailyTimesheetService:
             )
             # Get cost lines for this staff and date (kind='time')
 
-            qs = CostLine.objects.annotate(
-                staff_id=KeyTextTransform("staff_id", "meta"),
-            )
-
-            cost_lines = qs.filter(
+            cost_lines = CostLine.objects.filter(
                 kind="time",
-                staff_id=str(staff.id),
+                staff=staff,
                 accounting_date=target_date,
             ).select_related("cost_set__job")
 

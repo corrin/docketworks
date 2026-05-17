@@ -42,7 +42,11 @@ import { useStockStore } from '../../stores/stockStore'
 import { dataFreshness } from '../../composables/useDataFreshness'
 import { useCostLineCalculations } from '../../composables/useCostLineCalculations'
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
-import { useGridKeyboardNav } from '../../composables/useGridKeyboardNav'
+import {
+  gridCellAttrs,
+  handleGridCellKeydown,
+  useGridKeyboardNav,
+} from '../../composables/useGridKeyboardNav'
 import { costlineService } from '../../services/costline.service'
 
 import { schemas } from '../../api/generated/api'
@@ -422,6 +426,7 @@ const { onKeydown } = useGridKeyboardNav({
 
       if (line.id) {
         debugLog('Keyboard emitting delete-line with line.id:', line.id)
+        autosave.cancel(line)
         loggedEmit('delete-line', line.id as string)
       } else {
         // Find the actual index in the original props.lines array
@@ -433,6 +438,7 @@ const { onKeydown } = useGridKeyboardNav({
 
         if (actualIndex >= 0) {
           debugLog('Keyboard emitting delete-line with actualIndex:', actualIndex)
+          autosave.cancel(line)
           loggedEmit('delete-line', actualIndex)
         } else {
           debugLog('Keyboard: Auto-generated empty line - cannot delete, ignoring')
@@ -449,6 +455,14 @@ const { onKeydown } = useGridKeyboardNav({
     if (i >= 0 && i < displayLines.value.length - 1) emit('move-line', i, 'down')
   },
 })
+
+function handleCellNav(e: KeyboardEvent, rowIndex: number, columnId: string): boolean {
+  return handleGridCellKeydown(e, {
+    container: containerRef.value,
+    rowIndex,
+    columnId,
+  })
+}
 
 function handleRowClick(line: CostLine, index: number) {
   selectedRowIndex.value = index
@@ -730,8 +744,13 @@ const columns = computed(() => {
                         item_code: found.item_code,
                         description: found.description,
                       })
+                      const stockUnitCost = Number(found.unit_cost ?? 0)
+                      const stockUnitRevenue =
+                        found.unit_revenue === null || found.unit_revenue === undefined
+                          ? null
+                          : Number(found.unit_revenue)
                       Object.assign(line, { desc: found.description || '' })
-                      Object.assign(line, { unit_cost: Number(found.unit_cost ?? 0) })
+                      Object.assign(line, { unit_cost: stockUnitCost })
                       // Update ext_refs.stock_id to reference the selected item
                       Object.assign(line, {
                         ext_refs: { ...((line.ext_refs as object) || {}), stock_id: val },
@@ -749,8 +768,14 @@ const columns = computed(() => {
                       })
                       // Ensure quantity is set for new lines
                       if (line.quantity == null) Object.assign(line, { quantity: 1 })
-                      if (kind !== 'time')
-                        Object.assign(line, { unit_rev: apply(line).derived.unit_rev })
+                      if (kind !== 'time') {
+                        if (stockUnitRevenue !== null) {
+                          Object.assign(line, { unit_rev: stockUnitRevenue })
+                          onUnitRevenueManuallyEdited(line)
+                        } else {
+                          Object.assign(line, { unit_rev: apply(line).derived.unit_rev })
+                        }
+                      }
 
                       // For phantom rows (no ID), emit create-line if ready after fetch
                       if (!line.id && isLineReadyForSave(line)) {
@@ -821,12 +846,14 @@ const columns = computed(() => {
             disabled: !canEdit,
             class: 'w-full min-h-[2.25rem] text-sm',
             rows: 1,
+            ...gridCellAttrs(row.index, 'desc'),
             onClick: (e: Event) => {
               // Stop propagation to grid; fully inline editing
               e.stopPropagation()
             },
             onKeydown: (e: KeyboardEvent) => {
               const ctrlOrCmd = e.metaKey || e.ctrlKey
+              if (handleCellNav(e, row.index, 'desc')) return
               if (e.key === 'Enter' && ctrlOrCmd) {
                 e.preventDefault()
                 e.stopPropagation()
@@ -900,7 +927,9 @@ const columns = computed(() => {
               class: 'w-full text-right numeric-input',
               inputmode: 'decimal',
               'data-automation-id': `SmartCostLinesTable-quantity-${row.index}`,
+              ...gridCellAttrs(row.index, 'quantity'),
               onClick: (e: Event) => e.stopPropagation(),
+              onKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'quantity'),
               'onUpdate:modelValue': (val: string | number) => {
                 const num = Number(val)
                 if (!Number.isNaN(num)) Object.assign(line, { quantity: num })
@@ -966,7 +995,9 @@ const columns = computed(() => {
               class: 'w-full text-right numeric-input',
               inputmode: 'decimal',
               'data-automation-id': `SmartCostLinesTable-unit-cost-${row.index}`,
+              ...gridCellAttrs(row.index, 'unit_cost'),
               onClick: (e: Event) => e.stopPropagation(),
+              onKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'unit_cost'),
               'onUpdate:modelValue': (val: string | number) => {
                 if (!editable) return
                 if (val === '') {
@@ -1058,6 +1089,7 @@ const columns = computed(() => {
               class: 'w-full text-right numeric-input',
               inputmode: 'decimal',
               'data-automation-id': `SmartCostLinesTable-unit-rev-${row.index}`,
+              ...gridCellAttrs(row.index, 'unit_rev'),
               onClick: (e: Event) => e.stopPropagation(),
               'onUpdate:modelValue': (val: string | number) => {
                 if (!editable) return
@@ -1073,6 +1105,7 @@ const columns = computed(() => {
                 onUnitRevenueManuallyEdited(line)
               },
               onKeydown: (e: KeyboardEvent) => {
+                if (handleCellNav(e, row.index, 'unit_rev')) return
                 if (
                   (e.key === 'Tab' || e.key === 'Enter') &&
                   row.index === displayLines.value.length - 1
@@ -1349,6 +1382,7 @@ const columns = computed(() => {
 
                   if (actualIndex >= 0) {
                     debugLog('Emitting delete-line with actualIndex:', actualIndex)
+                    autosave.cancel(line)
                     loggedEmit('delete-line', actualIndex)
                   } else {
                     // This is the auto-generated empty line - don't delete it, just clear it
@@ -1362,6 +1396,7 @@ const columns = computed(() => {
                 const confirmed = window.confirm('Delete this line? This action cannot be undone.')
                 if (!confirmed) return
                 debugLog('Emitting delete-line with line.id:', line.id)
+                autosave.cancel(line)
                 loggedEmit('delete-line', line.id as string)
               },
             },

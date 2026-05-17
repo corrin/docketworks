@@ -184,17 +184,13 @@ def _get_jm_week_data(week_start: date, week_end: date) -> dict[str, dict[str, f
         accounting_date__lte=week_end,
     )
 
-    staff_by_id = {str(s.id): s for s in Staff.objects.all()}
+    staff_by_id = Staff.objects.in_bulk(lines.values_list("staff_id", flat=True))
 
     by_name: dict[str, dict[str, Decimal]] = defaultdict(
         lambda: {"hours": ZERO, "cost": ZERO}
     )
     for line in lines:
-        meta = line.meta or {}
-        staff_id = meta.get("staff_id")
-        if not staff_id:
-            continue
-        staff = staff_by_id.get(staff_id)
+        staff = staff_by_id.get(line.staff_id)
         if not staff:
             continue
         name = staff.get_display_name()

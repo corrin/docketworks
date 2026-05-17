@@ -19,6 +19,11 @@ import type { DataTableRowContext } from '@/utils/data-table-types'
 import type { ColumnDef } from '@tanstack/vue-table'
 import { z } from 'zod'
 import { debugLog } from '../../utils/debug'
+import {
+  gridCellAttrs,
+  handleGridCellKeydown,
+  useGridKeyboardNav,
+} from '@/composables/useGridKeyboardNav'
 
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
 type JobForPurchasing = z.infer<typeof schemas.JobForPurchasing>
@@ -92,6 +97,8 @@ type RowContext = DataTableRowContext<PurchaseOrderLine>
 const showAdditionalFieldsModal = ref(false)
 const editingLineIndex = ref<number>(-1)
 const openItemSelectIndex = ref<number>(-1)
+const containerRef = ref<HTMLElement | null>(null)
+const selectedRowIndex = ref<number>(-1)
 const additionalFields = ref({
   metal_type: '',
   alloy: '',
@@ -164,6 +171,27 @@ const handleAddLine = () => {
 
 const isPoSubmitted = computed(() => props.poStatus === 'submitted_to_supplier')
 const isColumnDisabled = computed(() => props.readOnly || isPoSubmitted.value)
+
+const { onKeydown } = useGridKeyboardNav({
+  getRowCount: () => props.lines.length,
+  getSelectedIndex: () => selectedRowIndex.value,
+  setSelectedIndex: (index) => (selectedRowIndex.value = index),
+  addLine: handleAddLine,
+  deleteSelected: () => {
+    const index = selectedRowIndex.value
+    if (index < 0 || index >= props.lines.length || isColumnDisabled.value) return
+    const line = props.lines[index]
+    emit('delete-line', line.id || index)
+  },
+})
+
+function handleCellNav(e: KeyboardEvent, rowIndex: number, columnId: string): boolean {
+  return handleGridCellKeydown(e, {
+    container: containerRef.value,
+    rowIndex,
+    columnId,
+  })
+}
 
 // Check if Receipt column should be visible based on PO status
 const isReceiptColumnVisible = computed(() => {
@@ -258,7 +286,9 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
           disabled: isColumnDisabled.value,
           class: 'w-full',
           'data-automation-id': `PoLinesTable-description-${context.row.index}`,
+          ...gridCellAttrs(context.row.index, 'description'),
           onClick: (e: Event) => e.stopPropagation(),
+          onKeydown: (e: KeyboardEvent) => handleCellNav(e, context.row.index, 'description'),
           'onUpdate:modelValue': isColumnDisabled.value
             ? undefined
             : (val: string | number) => {
@@ -312,7 +342,9 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
           disabled: isColumnDisabled.value,
           class: 'w-20 text-right',
           'data-automation-id': `PoLinesTable-quantity-${context.row.index}`,
+          ...gridCellAttrs(context.row.index, 'quantity'),
           onClick: (e: Event) => e.stopPropagation(),
+          onKeydown: (e: KeyboardEvent) => handleCellNav(e, context.row.index, 'quantity'),
           'onUpdate:modelValue': isColumnDisabled.value
             ? undefined
             : (val: string | number) => {
@@ -335,7 +367,9 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
           disabled: context.row.original.price_tbc || isColumnDisabled.value,
           class: 'w-24 text-right',
           'data-automation-id': `PoLinesTable-unit-cost-${context.row.index}`,
+          ...gridCellAttrs(context.row.index, 'unit_cost'),
           onClick: (e: Event) => e.stopPropagation(),
+          onKeydown: (e: KeyboardEvent) => handleCellNav(e, context.row.index, 'unit_cost'),
           'onUpdate:modelValue': isColumnDisabled.value
             ? undefined
             : (val: string | number) => {
@@ -468,12 +502,12 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-col h-full">
+  <div ref="containerRef" class="flex flex-col h-full" tabindex="0" @keydown="onKeydown">
     <div class="flex-1 overflow-y-auto max-h-[60vh]">
       <DataTable
         :columns="columns"
         :data="props.lines"
-        @rowClick="() => {}"
+        @rowClick="(line) => (selectedRowIndex = props.lines.indexOf(line))"
         :page-size="1000"
         :hide-footer="true"
       />

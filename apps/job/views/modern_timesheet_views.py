@@ -10,7 +10,6 @@ import traceback
 from decimal import Decimal
 
 from django.db import models, transaction
-from django.db.models.fields.json import KeyTextTransform
 from django.shortcuts import get_object_or_404
 from django.utils.dateparse import parse_date
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -146,21 +145,19 @@ class ModernTimesheetEntryView(APIView):
                 f"Starting timesheet entries fetch for staff {staff_id}, date {entry_date}"
             )
 
-            # Query CostLines with kind='time' for the staff/date
             cost_lines = (
                 CostLine.objects.annotate(
-                    staff_id_meta=KeyTextTransform("staff_id", "meta"),
                     calculated_total_cost=models.F("quantity") * models.F("unit_cost"),
                     calculated_total_rev=models.F("quantity") * models.F("unit_rev"),
                 )
                 .filter(
                     cost_set__kind="actual",
                     kind="time",
-                    staff_id_meta=str(staff_id),
+                    staff_id=staff_id,
                     accounting_date=parsed_date,
                 )
                 .select_related("cost_set__job")
-                .order_by("id")
+                .order_by("entry_seq")
             )
 
             logger.debug(f"Query SQL: {cost_lines.query}")
@@ -426,6 +423,7 @@ class ModernTimesheetEntryView(APIView):
                     unit_cost=unit_cost,
                     unit_rev=unit_rev,
                     accounting_date=entry_date,
+                    staff=staff,
                     xero_pay_item=xero_pay_item,
                     ext_refs={},
                     meta={
@@ -510,18 +508,17 @@ class ModernTimesheetDayView(APIView):
             # Find all cost lines for this staff on this date
             cost_lines = (
                 CostLine.objects.annotate(
-                    staff_id_meta=KeyTextTransform("staff_id", "meta"),
                     calculated_total_cost=models.F("quantity") * models.F("unit_cost"),
                     calculated_total_rev=models.F("quantity") * models.F("unit_rev"),
                 )
                 .filter(
                     cost_set__kind="actual",
                     kind="time",
-                    staff_id_meta=str(staff_id),
+                    staff_id=staff_id,
                     accounting_date=parsed_date,
                 )
                 .select_related("cost_set__job")
-                .order_by("id")
+                .order_by("entry_seq")
             )
 
             logger.info(f"Found {cost_lines.count()} cost lines for staff timesheet")

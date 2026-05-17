@@ -2,6 +2,7 @@
 import { computed, nextTick, ref, watch } from 'vue'
 import { Popover, PopoverContent, PopoverTrigger } from '../ui/popover'
 import { Input } from '../ui/input'
+import { gridCellAttrs } from '../../composables/useGridKeyboardNav'
 
 import { schemas } from '../../api/generated/api'
 import type { z } from 'zod'
@@ -15,6 +16,9 @@ const props = withDefaults(
     disabled?: boolean
     placeholder?: string
     automationIdPrefix?: string
+    gridRowIndex?: number
+    gridCol?: string
+    entrySeq?: number | null
   }>(),
   {
     disabled: false,
@@ -25,6 +29,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   select: [job: Job]
+  gridKeydown: [event: KeyboardEvent]
 }>()
 
 const open = ref(false)
@@ -146,6 +151,11 @@ function pickJob(job: Job) {
   open.value = false
 }
 
+function openEmptyPicker(): void {
+  if (props.disabled || selectedJob.value) return
+  open.value = true
+}
+
 function onKeyDown(e: KeyboardEvent) {
   if (filtered.value.length === 0) return
   switch (e.key) {
@@ -189,6 +199,14 @@ function onKeyDown(e: KeyboardEvent) {
         :class="{ 'text-slate-400': !selectedJob }"
         :data-automation-id="`${automationIdPrefix}-trigger`"
         :title="triggerLabel"
+        :data-entry-seq="props.entrySeq"
+        v-bind="
+          props.gridRowIndex != null
+            ? gridCellAttrs(props.gridRowIndex, props.gridCol ?? 'jobNumber')
+            : {}
+        "
+        @focus="openEmptyPicker"
+        @keydown="(e) => emit('gridKeydown', e)"
       >
         {{ triggerLabel }}
       </button>
