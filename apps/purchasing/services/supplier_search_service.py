@@ -15,7 +15,6 @@ from django.utils import timezone
 from apps.client.models import Client, SupplierSearchAlias
 
 MAX_PAGE_SIZE = 100
-MAX_SEARCH_CANDIDATES = 500
 MAX_SEARCH_QUERY_LENGTH = 255
 RECENT_PURCHASE_WINDOW_DAYS = 730
 
@@ -37,6 +36,25 @@ def normalize_supplier_phrase(value: str) -> str:
     tokens = [token for token in _TOKEN_RE.findall(normalized)]
     meaningful_tokens = [token for token in tokens if token not in _STOP_WORDS]
     return " ".join(meaningful_tokens)
+
+
+def _normalize_literal_phrase(value: str) -> str:
+    normalized = value.lower().replace("&", " and ")
+    return " ".join(_TOKEN_RE.findall(normalized))
+
+
+def _literal_query_variants(query: str) -> list[str]:
+    variants = [query]
+    expanded = query.replace("&", " and ")
+    if expanded != query:
+        variants.append(expanded)
+
+    tokens = _TOKEN_RE.findall(query.lower())
+    if len(tokens) == 2 and all(len(token) == 1 for token in tokens):
+        variants.append(f"{tokens[1]}&{tokens[0]}")
+        variants.append(f"{tokens[1]} and {tokens[0]}")
+
+    return list(dict.fromkeys(variant for variant in variants if variant))
 
 
 def _compact(value: str) -> str:
@@ -73,17 +91,30 @@ def _name_match_score(candidate_terms: list[str], query_norm: str) -> float:
 
 
 def _contains_all_tokens_q(field_name: str, tokens: list[str]) -> Q:
+    tokens = [token for token in tokens if len(token) > 1]
+    if not tokens:
+        return Q(pk__in=[])
+
     query = Q()
     for token in tokens:
         query &= Q(**{f"{field_name}__icontains": token})
     return query
 
 
+def _literal_variants_q(field_name: str, query: str) -> Q:
+    filter_q = Q()
+    for variant in _literal_query_variants(query):
+        filter_q |= Q(**{f"{field_name}__icontains": variant})
+    return filter_q
+
+
 def _supplier_candidate_filter(query: str, query_norm: str) -> Q:
     tokens = query_norm.split()
-    name_filter = Q(name__icontains=query) | _contains_all_tokens_q("name", tokens)
+    name_filter = _literal_variants_q("name", query) | _contains_all_tokens_q(
+        "name", tokens
+    )
     alias_filter = Q(supplier_search_aliases__is_active=True) & (
-        Q(supplier_search_aliases__alias__icontains=query)
+        _literal_variants_q("supplier_search_aliases__alias", query)
         | _contains_all_tokens_q("supplier_search_aliases__alias", tokens)
     )
     return name_filter | alias_filter
@@ -172,18 +203,26 @@ def list_suppliers(
         ]
     else:
         query_norm = normalize_supplier_phrase(query)
+        score_query_norm = query_norm or _normalize_literal_phrase(query)
         scores = []
-        if query_norm:
+        if score_query_norm:
             queryset = queryset.filter(
                 _supplier_candidate_filter(query, query_norm)
-            ).distinct()[:MAX_SEARCH_CANDIDATES]
+            ).distinct()
             for supplier in queryset:
-                candidate_terms = [normalize_supplier_phrase(supplier.name)]
+                candidate_terms = [
+                    normalize_supplier_phrase(supplier.name),
+                    _normalize_literal_phrase(supplier.name),
+                ]
                 candidate_terms.extend(
-                    normalize_supplier_phrase(alias.alias)
+                    term
                     for alias in supplier.active_supplier_search_aliases
+                    for term in (
+                        normalize_supplier_phrase(alias.alias),
+                        _normalize_literal_phrase(alias.alias),
+                    )
                 )
-                name_score = _name_match_score(candidate_terms, query_norm)
+                name_score = _name_match_score(candidate_terms, score_query_norm)
                 if name_score < 250.0:
                     continue
 
@@ -198,7 +237,7 @@ def list_suppliers(
                     )
                 )
         else:
-            pass  # Stop-word-only searches have no meaningful supplier query.
+            pass  # Punctuation-only searches have no meaningful supplier query.
 
         scores.sort(
             key=lambda score: (
