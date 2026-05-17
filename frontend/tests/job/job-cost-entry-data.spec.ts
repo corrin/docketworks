@@ -172,6 +172,24 @@ function waitForCostLinePatch(page: Page): Promise<Response> {
   )
 }
 
+function waitForCostLineStockPatch(page: Page, stockId: string): Promise<Response> {
+  return page.waitForResponse(
+    (res) => {
+      if (
+        !res.url().includes('/api/job/cost_lines/') ||
+        res.request().method() !== 'PATCH' ||
+        res.status() !== 200
+      ) {
+        return false
+      }
+
+      const body = res.request().postDataJSON() as { ext_refs?: { stock_id?: string } } | null
+      return body?.ext_refs?.stock_id === stockId
+    },
+    { timeout: 15000 },
+  )
+}
+
 function waitForCostLineDelete(page: Page): Promise<Response> {
   return page.waitForResponse(
     (res) =>
@@ -304,7 +322,7 @@ test.describe('job cost entry data-first scenarios', () => {
     const replaceSearch = page.getByPlaceholder('Search items by description, code, or type...')
     await replaceSearch.waitFor({ timeout: 10000 })
     await replaceSearch.fill('M10 X 25 BLACK')
-    const replacePatch = waitForCostLinePatch(page)
+    const replacePatch = waitForCostLineStockPatch(page, stockB.id)
     await page
       .locator('[data-automation-id^="ItemSelect-option-"]')
       .filter({ hasText: stockB.description })

@@ -270,8 +270,14 @@ function setHours(
     total_cost: calculatedWage(entry),
     total_rev: calculatedBill(entry),
   })
-  if (shouldDeferCreateForDescription(entry, event, reason)) return
-  commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
+  if (shouldDeferCreateForDescription(entry, event, reason)) {
+    createOnHoursCommit.delete(entry)
+    return
+  }
+  if (entry.id || createOnHoursCommit.has(entry) || String(entry.desc ?? '').trim()) {
+    createOnHoursCommit.delete(entry)
+    commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
+  }
 }
 
 function setDescription(entry: TimesheetCostLine, val: string): void {
@@ -401,6 +407,7 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
 
 const containerRef = ref<HTMLElement | null>(null)
 const selectedRowIndex = ref<number>(-1)
+const createOnHoursCommit = new WeakSet<TimesheetCostLine>()
 
 const { onKeydown } = useGridKeyboardNav({
   getRowCount: () => displayEntries.value.length,
@@ -546,7 +553,10 @@ const columns = computed(() => [
         ...gridCellAttrs(row.index, 'hours'),
         onCommit: (raw: string, event: FocusEvent, reason: 'forward-tab' | null) =>
           setHours(entry, raw, event, reason),
-        onKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'hours'),
+        onKeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') createOnHoursCommit.add(entry)
+          return handleCellNav(e, row.index, 'hours')
+        },
       })
     },
   },
