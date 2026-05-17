@@ -685,6 +685,7 @@ class Job(models.Model):
                         staff,
                         enrichment,
                     )
+                    self._clear_assigned_staff_on_archive(changes_after)
 
     # ── Field change tracking ──────────────────────────────────────────
     #
@@ -819,6 +820,12 @@ class Job(models.Model):
                 self.completed_at = None
                 mutated.add("completed_at")
         return mutated
+
+    def _clear_assigned_staff_on_archive(self, changes_after):
+        if changes_after.get("status") != "archived":
+            return
+
+        self.people.clear()
 
     @staticmethod
     def _infer_event_type(event_types, changes_after):

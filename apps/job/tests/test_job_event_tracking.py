@@ -53,6 +53,20 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertEqual(event.delta_before["status"], "draft")
         self.assertEqual(event.delta_after["status"], "in_progress")
 
+    def test_status_change_to_archived_clears_assigned_staff(self):
+        assigned_staff = Staff.objects.create_user(
+            email="assigned@example.com",
+            password="testpass123",
+            first_name="Assigned",
+            last_name="Staff",
+        )
+        self.job.people.add(assigned_staff)
+
+        self.job.status = "archived"
+        self.job.save(staff=self.user, update_fields=["status"])
+
+        self.assertFalse(self.job.people.exists())
+
     def test_name_change_creates_event(self):
         self.job.name = "Renamed Job"
         self.job.save(staff=self.user)
