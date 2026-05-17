@@ -9,7 +9,11 @@ from rest_framework.test import APIClient
 from apps.accounts.models import Staff
 from apps.client.models import Client, SupplierSearchAlias
 from apps.purchasing.models import PurchaseOrder
-from apps.purchasing.services.supplier_search_service import list_suppliers
+from apps.purchasing.services.supplier_search_service import (
+    _name_match_score,
+    list_suppliers,
+    normalize_supplier_phrase,
+)
 
 
 def _make_client(name: str, **overrides):
@@ -36,6 +40,13 @@ def _names(query: str) -> list[str]:
     return [item["name"] for item in result["results"]]
 
 
+def _supplier_name_score(name: str, query: str) -> float:
+    return _name_match_score(
+        [normalize_supplier_phrase(name)],
+        normalize_supplier_phrase(query),
+    )
+
+
 @pytest.fixture
 def auth_api(db):
     staff = Staff.objects.create(
@@ -55,6 +66,35 @@ def test_s_and_t_matches_s_t_supplier_name():
     _make_client("S&T Stainless Limited")
 
     assert _names("S&T")[0] == "S&T Stainless Limited"
+
+
+def test_s_and_t_scores_substring_match_above_reversed_initials():
+    assert _supplier_name_score(
+        "S&T Stainless Limited",
+        "S&T",
+    ) > _supplier_name_score(
+        "T&S Stainless Limited",
+        "S&T",
+    )
+
+
+@pytest.mark.django_db
+def test_s_and_t_prefers_s_t_supplier_after_broad_single_letter_matches():
+    for index in range(550):
+        _make_client(f"Stainless Test Distractor {index:03d}")
+
+    supplier = _make_client("S&T Stainless Limited - acct 2003173")
+    for _ in range(112):
+        _make_po(supplier)
+
+    result = list_suppliers(query="S&T", page=1, page_size=50)
+
+    assert result["results"][0]["name"] == "S&T Stainless Limited - acct 2003173"
+    assert result["results"][0]["recent_purchase_count"] == 112
+    assert all(
+        not item["name"].startswith("Stainless Test Distractor")
+        for item in result["results"]
+    )
 
 
 @pytest.mark.django_db
@@ -128,6 +168,14 @@ def test_deleted_purchase_orders_do_not_boost_supplier():
     _make_po(deleted_po_supplier, status="deleted")
 
     assert _names("Steel Supplier")[0] == "Steel Supplier Active"
+
+
+@pytest.mark.django_db
+def test_stop_word_only_query_falls_back_to_literal_name_match():
+    _make_client("The Tool Shed")
+    _make_client("The Metal Company")
+
+    assert _names("The") == ["The Metal Company", "The Tool Shed"]
 
 
 @pytest.mark.django_db
