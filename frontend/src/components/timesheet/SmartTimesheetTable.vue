@@ -245,7 +245,8 @@ function setHours(entry: TimesheetCostLine, raw: string): void {
     total_cost: calculatedWage(entry),
     total_rev: calculatedBill(entry),
   })
-  if (entry.id) {
+  if (entry.id || createOnHoursCommit.has(entry) || String(entry.desc ?? '').trim()) {
+    createOnHoursCommit.delete(entry)
     commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
   }
 }
@@ -377,6 +378,7 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
 
 const containerRef = ref<HTMLElement | null>(null)
 const selectedRowIndex = ref<number>(-1)
+const createOnHoursCommit = new WeakSet<TimesheetCostLine>()
 
 const { onKeydown } = useGridKeyboardNav({
   getRowCount: () => displayEntries.value.length,
@@ -521,7 +523,10 @@ const columns = computed(() => [
         automationId: `SmartTimesheetTable-hours-${row.index}`,
         ...gridCellAttrs(row.index, 'hours'),
         onCommit: (raw: string) => setHours(entry, raw),
-        onKeydown: (e: KeyboardEvent) => handleCellNav(e, row.index, 'hours'),
+        onKeydown: (e: KeyboardEvent) => {
+          if (e.key === 'Enter') createOnHoursCommit.add(entry)
+          return handleCellNav(e, row.index, 'hours')
+        },
       })
     },
   },
