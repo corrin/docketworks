@@ -15,7 +15,7 @@
  * - Persist changes using existing services/endpoints; do not change API contracts
  */
 
-import { computed, h, onMounted, ref, nextTick, watch } from 'vue'
+import { computed, h, onMounted, ref, nextTick } from 'vue'
 import DataTable from '../DataTable.vue'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
@@ -27,7 +27,7 @@ import { toast } from 'vue-sonner'
 import { debugLog } from '../../utils/debug'
 import { formatCurrency } from '../../utils/string-formatting'
 import { roundToDecimalPlaces } from '@/utils/number'
-import { HelpCircle, Trash2, Plus, AlertTriangle, Check } from 'lucide-vue-next'
+import { HelpCircle, Trash2, AlertTriangle, Check } from 'lucide-vue-next'
 import {
   Dialog,
   DialogContent,
@@ -42,6 +42,7 @@ import { useStockStore } from '../../stores/stockStore'
 import { dataFreshness } from '../../composables/useDataFreshness'
 import { useCostLineCalculations } from '../../composables/useCostLineCalculations'
 import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
+import { usePhantomRow } from '../../composables/usePhantomRow'
 import {
   gridCellAttrs,
   handleGridCellKeydown,
@@ -105,7 +106,6 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'delete-line': [idOrIndex: string | number]
-  'add-line': []
   'duplicate-line': [line: CostLine]
   'move-line': [index: number, direction: 'up' | 'down']
   'create-line': [line: CostLine]
@@ -122,33 +122,8 @@ const loggedEmit = (event: string, ...args: unknown[]) => {
 const selectedRowIndex = ref<number>(-1)
 const containerRef = ref<HTMLElement | null>(null)
 const showShortcuts = ref(false)
-const pendingFocusNewRow = ref(false)
 const openItemSelect = ref(false)
 const approvingId = ref<string | null>(null)
-
-// Focus on ItemSelect trigger and open popover after a row has been added
-watch(
-  () => props.lines.length,
-  async (len, prev) => {
-    if (pendingFocusNewRow.value && len > prev) {
-      pendingFocusNewRow.value = false
-      selectedRowIndex.value = len - 1
-      await nextTick()
-      const itemTrigger = containerRef.value?.querySelector(
-        '.item-select-trigger',
-      ) as HTMLElement | null
-      if (itemTrigger) {
-        itemTrigger.focus()
-        openItemSelect.value = true
-      }
-    }
-  },
-)
-
-function handleAddLine() {
-  pendingFocusNewRow.value = true
-  loggedEmit('add-line')
-}
 
 // Local UI-only mapping: selected Item data per line (not persisted)
 const selectedItemMap = new WeakMap<
@@ -161,29 +136,8 @@ const createdOnce = new WeakSet<CostLine>()
 /**
  * Ensure there's always at least one empty line for editing
  */
-const emptyLine = ref<CostLine>({
-  id: '',
-  kind: 'material',
-  desc: '',
-  quantity: 1,
-  unit_cost: undefined,
-  unit_rev: undefined,
-  ext_refs: {},
-  meta: {},
-  total_cost: 0,
-  created_at: '',
-  updated_at: '',
-  accounting_date: '',
-  total_rev: 0,
-})
-
-const displayLines = computed(() => [...props.lines, emptyLine.value])
-
-const negativeIdsSig = computed(() => props.negativeStockIds?.slice().sort().join('|') || '')
-
-function resetEmptyLine(kind: KindOption = 'material') {
-  debugLog('resetEmptyLine called with kind:', kind)
-  emptyLine.value = {
+function makeEmptyLine(kind: KindOption = 'material'): CostLine {
+  return {
     id: '',
     kind,
     desc: '',
@@ -200,6 +154,27 @@ function resetEmptyLine(kind: KindOption = 'material') {
   }
 }
 
+const {
+  phantomRow: emptyLine,
+  displayRows: displayLines,
+  resetPhantom,
+  selectPhantom,
+} = usePhantomRow<CostLine>({
+  rows: () => props.lines,
+  makePhantom: makeEmptyLine,
+})
+
+function selectEmptyLine(): void {
+  selectPhantom((index) => (selectedRowIndex.value = index))
+}
+
+const negativeIdsSig = computed(() => props.negativeStockIds?.slice().sort().join('|') || '')
+
+function resetEmptyLine(kind: KindOption = 'material') {
+  debugLog('resetEmptyLine called with kind:', kind)
+  resetPhantom(makeEmptyLine(kind))
+}
+
 function maybeEmitCreate(line: CostLine) {
   if (createdOnce.has(line)) return
   createdOnce.add(line)
@@ -207,7 +182,7 @@ function maybeEmitCreate(line: CostLine) {
   const payload = line
   loggedEmit('create-line', payload)
 
-  if (line === emptyLine.value) resetEmptyLine(line.kind as KindOption)
+  if (line === emptyLine.value) resetEmptyLine()
 }
 
 function updateLineKind(line: CostLine, newKind: KindOption) {
@@ -400,7 +375,7 @@ const { onKeydown } = useGridKeyboardNav({
     // No stateful edit buffers here; UI uses immediate binding. Intentionally no-op.
   },
 
-  addLine: () => emit('add-line'),
+  addLine: selectEmptyLine,
   duplicateSelected: () => {
     const i = selectedRowIndex.value
     if (i >= 0 && i < displayLines.value.length) {
@@ -857,7 +832,7 @@ const columns = computed(() => {
               if (e.key === 'Enter' && ctrlOrCmd) {
                 e.preventDefault()
                 e.stopPropagation()
-                loggedEmit('add-line')
+                selectEmptyLine()
                 return
               }
               // Allow line breaks in textarea and prevent bubbling to the grid
@@ -1444,17 +1419,6 @@ const columns = computed(() => {
       />
     </div>
 
-    <div v-if="!props.readOnly" class="px-4 py-2">
-      <Button
-        variant="default"
-        size="sm"
-        @click="handleAddLine"
-        aria-label="Add Row"
-        data-automation-id="SmartCostLinesTable-add-row"
-      >
-        <Plus class="w-4 h-4 mr-1" /> Add row
-      </Button>
-    </div>
     <!-- Shortcuts Help Dialog -->
     <Dialog :open="showShortcuts" @update:open="showShortcuts = $event">
       <DialogContent class="sm:max-w-md">

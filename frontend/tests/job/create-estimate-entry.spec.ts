@@ -52,25 +52,17 @@ async function navigateToEstimateTab(page: Page, jobUrl: string): Promise<void> 
   await tab.waitFor({ state: 'visible' })
   await tab.click()
   await page.waitForLoadState('networkidle')
-  await autoId(page, 'SmartCostLinesTable-add-row').waitFor({ state: 'visible', timeout: 3000 })
+  await page.locator('[data-row-id]').last().waitFor({ state: 'visible', timeout: 3000 })
 }
 
 async function clickAddRow(page: Page): Promise<string> {
-  const existingIds = new Set(
-    await page
-      .locator('[data-row-id]')
-      .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-row-id'))),
-  )
-  await autoId(page, 'SmartCostLinesTable-add-row').waitFor({ timeout: 10000 })
-  await autoId(page, 'SmartCostLinesTable-add-row').click()
-  // Wait for the new row to appear
-  await expect(page.locator('[data-row-id]')).toHaveCount(existingIds.size + 1, { timeout: 5000 })
-  const allIds = await page
-    .locator('[data-row-id]')
-    .evaluateAll((nodes) => nodes.map((n) => n.getAttribute('data-row-id')))
-  const newId = allIds.find((id) => id && !existingIds.has(id))
-  if (!newId) throw new Error('Could not find newly added row')
-  return newId
+  const selectItemButton = page.getByRole('button', { name: 'Select Item' }).last()
+  await selectItemButton.waitFor({ timeout: 10000 })
+  const row = selectItemButton.locator('xpath=ancestor::*[@data-row-id][1]')
+  const rowId = await row.getAttribute('data-row-id')
+  if (!rowId) throw new Error('Could not find phantom row')
+  await selectItemButton.click()
+  return rowId
 }
 
 function getRowById(page: Page, rowId: string): Locator {

@@ -43,7 +43,6 @@
             :showItemColumn="true"
             :showSourceColumn="false"
             @delete-line="handleSmartDelete"
-            @add-line="handleAddEmptyLine"
             @duplicate-line="(line) => handleAddMaterial(line as any)"
             @move-line="(index, direction) => {}"
             @create-line="handleCreateFromEmpty"
@@ -184,7 +183,6 @@ const { summary: estimateSummary } = useCostSummary({
 
 const {
   handleSmartDelete,
-  handleAddEmptyLine,
   handleAddMaterial: addMaterialInternal,
   handleCreateFromEmpty: createFromEmptyInternal,
 } = useCostLinesActions({

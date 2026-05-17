@@ -87,11 +87,9 @@ test.describe.serial('purchase order operations', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
-    // Click Add line button to create a new line
-    await autoId(page, 'PoLinesTable-add-line').click()
-    await page.waitForTimeout(1000)
+    await expect(autoId(page, 'PoLinesTable-add-line')).toHaveCount(0)
 
-    // Wait for the description input to appear (indicates line was added)
+    // The first editable row is autocreated, matching the timesheet entry flow.
     const descriptionInput = autoId(page, 'PoLinesTable-description-0')
     await descriptionInput.waitFor({ timeout: 10000 })
 
@@ -100,6 +98,7 @@ test.describe.serial('purchase order operations', () => {
 
     const searchInput = page.getByPlaceholder('Search items by description, code, or type...')
     await searchInput.waitFor({ timeout: 10000 })
+    await expect(searchInput).toBeFocused({ timeout: 5000 })
     const openMs = Date.now() - openStartedAt
 
     const searchStartedAt = Date.now()
@@ -151,8 +150,10 @@ test.describe.serial('purchase order operations', () => {
     await page.waitForLoadState('networkidle')
     await page.waitForTimeout(1000)
 
-    // Find the job select input (should be in the line we added)
-    const jobSearchInput = autoId(page, 'JobSelect-job-search')
+    // Target the saved PO line; the phantom row also has a JobSelect.
+    const jobSearchInput = autoId(page, 'DataTable-row-0').locator(
+      '[data-automation-id="JobSelect-job-search"]',
+    )
     await jobSearchInput.waitFor({ timeout: 10000 })
 
     // Click to focus and open dropdown

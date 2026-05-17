@@ -142,6 +142,24 @@ describe('ItemSelect server-side search and rendering', () => {
     vi.useRealTimers()
   })
 
+  it('focuses the search field when mounted already open', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+
+    const wrapper = mount(ItemSelect, {
+      attachTo: document.body,
+      props: { modelValue: null, open: true, tabKind: 'estimate' },
+    })
+    await flushPromises()
+    await vi.runOnlyPendingTimersAsync()
+
+    expect(document.activeElement).toBe(wrapper.find('input').element)
+    wrapper.unmount()
+    vi.useRealTimers()
+  })
+
   it('lets Escape leave the search field for the select to close', async () => {
     const wrapper = mount(ItemSelect, {
       attachTo: document.body,

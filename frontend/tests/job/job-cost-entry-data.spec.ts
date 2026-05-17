@@ -57,7 +57,7 @@ async function navigateToCostTab(
   await page.waitForLoadState('networkidle')
   await autoId(page, `JobViewTabs-${tab}`).click()
   await page.waitForLoadState('networkidle')
-  await autoId(page, 'SmartCostLinesTable-add-row').waitFor({ timeout: 10000 })
+  await page.locator('[data-row-id]').last().waitFor({ timeout: 10000 })
 }
 
 async function fetchCostSet(page: Page, jobId: string, kind: 'estimate' | 'actual') {
@@ -130,8 +130,9 @@ async function createTimesheetLabourByApi(
 }
 
 async function clickAddRow(page: Page): Promise<void> {
-  await autoId(page, 'SmartCostLinesTable-add-row').click()
-  await page.locator('[data-automation-id^="DataTable-row-"]').last().waitFor({ timeout: 5000 })
+  const selectItemButton = page.getByRole('button', { name: 'Select Item' }).last()
+  await selectItemButton.waitFor({ timeout: 5000 })
+  await selectItemButton.click()
 }
 
 async function findRowIndexByDescription(page: Page, description: string): Promise<number> {

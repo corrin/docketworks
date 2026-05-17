@@ -119,12 +119,12 @@ test.describe.serial('staff wage loading', () => {
     // Type 1 hour and blur (Enter blurs the input, committing the value, which
     // causes the parent to POST the new entry and replace the phantom row).
     const hoursInput = autoId(page, `SmartTimesheetTable-hours-${rowIndex}`)
-    await hoursInput.click()
-    await page.keyboard.type('1')
     const createEntryPromise = page.waitForResponse(
       (res) => res.url().includes('/cost_lines/') && res.request().method() === 'POST',
       { timeout: 15000 },
     )
+    await hoursInput.click()
+    await page.keyboard.type('1')
     await page.keyboard.press('Enter')
 
     // Wait for the create-entry POST to complete and the row to materialise

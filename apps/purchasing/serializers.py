@@ -4,6 +4,7 @@ from rest_framework import serializers
 
 from apps.client.serializers import SupplierPickupAddressSerializer
 from apps.job.models import Job
+from apps.job.models.costing import CostLine
 from apps.job.serializers.costing_serializer import CostLineSerializer
 from apps.purchasing.models import (
     PurchaseOrder,
@@ -99,6 +100,7 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
         source="job.client.name", read_only=True, allow_null=True
     )
     job_name = serializers.CharField(source="job.name", read_only=True, allow_null=True)
+    times_used = serializers.SerializerMethodField()
 
     class Meta:
         model = PurchaseOrderLine
@@ -107,7 +109,23 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
             "job_number",
             "client_name",
             "job_name",
+            "times_used",
         ]
+
+    def get_times_used(self, obj: PurchaseOrderLine) -> int:
+        """Always emit a numeric usage count for generated client validation."""
+        if not obj.item_code:
+            return 0
+
+        usage_counts = self.context.get("line_usage_counts")
+        if usage_counts is not None:
+            return int(usage_counts.get(obj.item_code, 0) or 0)
+
+        return int(
+            CostLine.objects.filter(
+                kind="material", meta__item_code=obj.item_code
+            ).count()
+        )
 
 
 class PurchaseOrderDetailSerializer(serializers.ModelSerializer):
