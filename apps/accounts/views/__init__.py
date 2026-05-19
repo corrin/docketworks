@@ -2,7 +2,7 @@
 
 from .password_views import SecurityPasswordChangeView
 from .staff_views import StaffListAPIView, get_staff_rates
-from .token_view import CustomTokenObtainPairView, CustomTokenRefreshView, get_client_ip
+from .token_view import CustomTokenObtainPairView, CustomTokenRefreshView
 from .user_profile_view import GetCurrentUserAPIView, LogoutUserAPIView
 
 # Conditional imports (only when Django is ready)
@@ -24,6 +24,5 @@ __all__ = [
     "StaffListAPIView",
     "StaffListCreateAPIView",
     "StaffRetrieveUpdateDestroyAPIView",
-    "get_client_ip",
     "get_staff_rates",
 ]

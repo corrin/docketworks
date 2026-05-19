@@ -584,7 +584,6 @@ paths:
       tags:
         - accounts
       security:
-        - cookieAuth: []
         - {}
       responses:
         '200':

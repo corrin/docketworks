@@ -5,7 +5,11 @@ Custom DRF exception handlers for the application.
 import logging
 from typing import Optional
 
-from rest_framework.exceptions import PermissionDenied
+from rest_framework.exceptions import (
+    AuthenticationFailed,
+    NotAuthenticated,
+    PermissionDenied,
+)
 from rest_framework.response import Response
 from rest_framework.views import exception_handler
 
@@ -55,6 +59,33 @@ def custom_exception_handler(exc: Exception, context: dict) -> Optional[Response
             endpoint,
             method,
             view_name,
+        )
+
+    if isinstance(exc, (AuthenticationFailed, NotAuthenticated)):
+        request = context.get("request")
+        view = context.get("view")
+
+        endpoint = request.path if request else "unknown"
+        method = request.method if request else "unknown"
+        view_name = (
+            f"{view.__class__.__module__}.{view.__class__.__name__}"
+            if view
+            else "unknown"
+        )
+        access_cookie_present = False
+        refresh_cookie_present = False
+        if request:
+            access_cookie_present = "access_token" in request.COOKIES
+            refresh_cookie_present = "refresh_token" in request.COOKIES
+
+        auth_logger.warning(
+            "Authentication rejected: endpoint=%s method=%s view=%s access_cookie_present=%s refresh_cookie_present=%s error=%s",
+            endpoint,
+            method,
+            view_name,
+            access_cookie_present,
+            refresh_cookie_present,
+            exc,
         )
 
     return response
