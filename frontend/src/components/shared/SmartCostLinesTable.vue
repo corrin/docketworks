@@ -182,7 +182,7 @@ function maybeEmitCreate(line: CostLine) {
   const payload = line
   loggedEmit('create-line', payload)
 
-  if (line === emptyLine.value) resetEmptyLine(line.kind as KindOption)
+  if (line === emptyLine.value) resetEmptyLine()
 }
 
 function updateLineKind(line: CostLine, newKind: KindOption) {

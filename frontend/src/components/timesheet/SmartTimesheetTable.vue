@@ -239,7 +239,28 @@ function isCreateLocked(entry: TimesheetCostLine): boolean {
   return props.createPending && !entry.id
 }
 
-function setHours(entry: TimesheetCostLine, raw: string): void {
+function shouldDeferCreateForDescription(
+  entry: TimesheetCostLine,
+  event?: FocusEvent,
+  reason?: 'forward-tab' | null,
+): boolean {
+  if (entry.id) return false
+  if (!isEntryReady(entry)) return false
+  if (reason === 'forward-tab') return true
+  const relatedTarget = event?.relatedTarget
+  if (!(relatedTarget instanceof HTMLElement)) return false
+  const idx = displayEntries.value.indexOf(entry)
+  return (
+    relatedTarget.dataset.gridRow === String(idx) && relatedTarget.dataset.gridCol === 'description'
+  )
+}
+
+function setHours(
+  entry: TimesheetCostLine,
+  raw: string,
+  event?: FocusEvent,
+  reason?: 'forward-tab' | null,
+): void {
   if (isCreateLocked(entry)) return
   const fallback = entry.quantity ?? 0
   const v = parseHoursInput(raw, fallback)
@@ -249,6 +270,10 @@ function setHours(entry: TimesheetCostLine, raw: string): void {
     total_cost: calculatedWage(entry),
     total_rev: calculatedBill(entry),
   })
+  if (shouldDeferCreateForDescription(entry, event, reason)) {
+    createOnHoursCommit.delete(entry)
+    return
+  }
   if (entry.id || createOnHoursCommit.has(entry) || String(entry.desc ?? '').trim()) {
     createOnHoursCommit.delete(entry)
     commit(entry, ['quantity', 'unit_cost', 'unit_rev', 'meta'])
@@ -526,7 +551,8 @@ const columns = computed(() => [
         disabled: props.readOnly || isCreateLocked(entry),
         automationId: `SmartTimesheetTable-hours-${row.index}`,
         ...gridCellAttrs(row.index, 'hours'),
-        onCommit: (raw: string) => setHours(entry, raw),
+        onCommit: (raw: string, event: FocusEvent, reason: 'forward-tab' | null) =>
+          setHours(entry, raw, event, reason),
         onKeydown: (e: KeyboardEvent) => {
           if (e.key === 'Enter') createOnHoursCommit.add(entry)
           return handleCellNav(e, row.index, 'hours')

@@ -56,11 +56,12 @@ async function navigateToEstimateTab(page: Page, jobUrl: string): Promise<void> 
 }
 
 async function clickAddRow(page: Page): Promise<string> {
-  const row = page.locator('[data-row-id]').last()
-  await row.waitFor({ timeout: 10000 })
+  const selectItemButton = page.getByRole('button', { name: 'Select Item' }).last()
+  await selectItemButton.waitFor({ timeout: 10000 })
+  const row = selectItemButton.locator('xpath=ancestor::*[@data-row-id][1]')
   const rowId = await row.getAttribute('data-row-id')
   if (!rowId) throw new Error('Could not find phantom row')
-  await row.locator('[data-automation-id^="SmartCostLinesTable-item-"] button').click()
+  await selectItemButton.click()
   return rowId
 }
 

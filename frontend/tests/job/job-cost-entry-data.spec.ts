@@ -130,9 +130,9 @@ async function createTimesheetLabourByApi(
 }
 
 async function clickAddRow(page: Page): Promise<void> {
-  const row = page.locator('[data-row-id]').last()
-  await row.waitFor({ timeout: 5000 })
-  await row.locator('[data-automation-id^="SmartCostLinesTable-item-"] button').click()
+  const selectItemButton = page.getByRole('button', { name: 'Select Item' }).last()
+  await selectItemButton.waitFor({ timeout: 5000 })
+  await selectItemButton.click()
 }
 
 async function findRowIndexByDescription(page: Page, description: string): Promise<number> {
