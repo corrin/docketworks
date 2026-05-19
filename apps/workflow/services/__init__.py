@@ -27,6 +27,7 @@ try:
             persist_xero_error,
         )
         from .llm_service import LLMService, quick_completion, quick_json_completion
+        from .request import get_client_ip
         from .search import apply_text_search
         from .validation import to_decimal, validate_required_fields
         from .xero_sync_service import XeroSyncService, XeroSyncStartResult
@@ -42,6 +43,7 @@ __all__ = [
     "apply_text_search",
     "extract_job_context",
     "extract_request_context",
+    "get_client_ip",
     "list_app_errors",
     "list_grouped_app_errors",
     "list_grouped_xero_errors",

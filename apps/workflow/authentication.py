@@ -10,9 +10,15 @@ from rest_framework_simplejwt.authentication import (
 )
 from rest_framework_simplejwt.exceptions import InvalidToken, TokenError
 
+from apps.workflow.services.request import get_client_ip
+
 from .models import ServiceAPIKey
 
 logger = logging.getLogger(__name__)
+
+
+def _is_xero_webhook_request(request) -> bool:
+    return request.path == "/api/xero/webhook/"
 
 
 class JWTAuthentication(BaseJWTAuthentication):
@@ -37,6 +43,9 @@ class JWTAuthentication(BaseJWTAuthentication):
         ):
             return (request._force_auth_user, None)
 
+        if _is_xero_webhook_request(request):
+            return None
+
         try:
             # Only look at cookies, not Authorization header
             raw_token = self.get_raw_token_from_cookie(request)
@@ -49,11 +58,19 @@ class JWTAuthentication(BaseJWTAuthentication):
                 cookie_name = getattr(settings, "SIMPLE_JWT", {}).get(
                     "AUTH_COOKIE", "access_token"
                 )
+                refresh_cookie_name = getattr(settings, "SIMPLE_JWT", {}).get(
+                    "REFRESH_COOKIE", "refresh_token"
+                )
                 has_cookie = cookie_name in request.COOKIES
+                has_refresh_cookie = refresh_cookie_name in request.COOKIES
                 logger.info(
-                    "JWT authentication failed: no valid token found (cookie '%s' present: %s)",
+                    "JWT AUTH MISS - method=%s path=%s ip=%s access_cookie=%s access_cookie_present=%s refresh_cookie_present=%s",
+                    request.method,
+                    request.path,
+                    get_client_ip(request),
                     cookie_name,
                     has_cookie,
+                    has_refresh_cookie,
                 )
                 return None
             user, token = result
@@ -68,7 +85,17 @@ class JWTAuthentication(BaseJWTAuthentication):
                 )
             return result
         except (InvalidToken, TokenError) as e:
-            logger.info("JWT authentication failed: %s", e)
+            refresh_cookie_name = getattr(settings, "SIMPLE_JWT", {}).get(
+                "REFRESH_COOKIE", "refresh_token"
+            )
+            logger.info(
+                "JWT AUTH INVALID - method=%s path=%s ip=%s refresh_cookie_present=%s error=%s",
+                request.method,
+                request.path,
+                get_client_ip(request),
+                refresh_cookie_name in request.COOKIES,
+                e,
+            )
             if settings.DEBUG:
                 return None
             raise exceptions.AuthenticationFailed(str(e))

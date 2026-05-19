@@ -2,7 +2,6 @@ import logging
 
 from django.conf import settings
 from django.contrib.auth import get_user_model
-from django.http import HttpRequest
 from django.urls import reverse
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
@@ -15,52 +14,9 @@ from apps.accounts.serializers import (
     TokenObtainPairResponseSerializer,
     TokenRefreshResponseSerializer,
 )
+from apps.workflow.services.request import get_client_ip
 
 logger = logging.getLogger(__name__)
-
-
-def get_client_ip(request: HttpRequest) -> str:
-    """
-    Extract client IP address from request.
-
-    Production path (behind nginx reverse proxy):
-        - nginx receives client connection, knows real client IP
-        - nginx sets X-Forwarded-For header with client's real IP
-        - We read X-Forwarded-For
-
-    Development path (direct connection to Django):
-        - No nginx, browser connects directly to Django dev server
-        - Django receives connection, REMOTE_ADDR contains real client IP
-        - X-Forwarded-For not set, so we fall back to REMOTE_ADDR
-
-    These are fundamentally different network topologies requiring different
-    code paths. Both paths are tested: production via nginx config,
-    development via direct connection.
-
-    Args:
-        request: Django HTTP request
-
-    Returns:
-        str: Client IP address
-    """
-    # Production: nginx sets X-Forwarded-For
-    x_forwarded_for = request.META.get("HTTP_X_FORWARDED_FOR")
-    remote_addr = request.META.get("REMOTE_ADDR")
-
-    logger.debug(
-        f"IP headers - X-Forwarded-For: {x_forwarded_for}, REMOTE_ADDR: {remote_addr}"
-    )
-
-    if x_forwarded_for:
-        # First IP in comma-separated list is the original client
-        client_ip = x_forwarded_for.split(",")[0].strip()
-        logger.debug(f"Using X-Forwarded-For: {client_ip}")
-        return client_ip
-    elif remote_addr:
-        logger.debug(f"Using REMOTE_ADDR: {remote_addr}")
-        return remote_addr
-    else:
-        raise ValueError("Unable to determine client IP address")
 
 
 @extend_schema(

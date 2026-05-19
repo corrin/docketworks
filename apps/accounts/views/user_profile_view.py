@@ -13,8 +13,12 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.serializers import UserProfileSerializer
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.request import get_client_ip
 
 logger = getLogger(__name__)
+auth_logger = getLogger("auth")
 
 
 class GetCurrentUserAPIView(APIView):
@@ -48,6 +52,7 @@ class LogoutUserAPIView(APIView):
     Custom logout view that clears JWT httpOnly cookies
     """
 
+    authentication_classes = []
     permission_classes = [AllowAny]
 
     @extend_schema(
@@ -58,6 +63,17 @@ class LogoutUserAPIView(APIView):
     def post(self, request: Request) -> Response:
         try:
             simple_jwt_settings = getattr(settings, "SIMPLE_JWT", {})
+            access_cookie_name = simple_jwt_settings.get("AUTH_COOKIE", "access_token")
+            refresh_cookie_name = simple_jwt_settings.get(
+                "REFRESH_COOKIE", "refresh_token"
+            )
+
+            auth_logger.info(
+                "JWT LOGOUT REQUEST - ip=%s access_cookie_present=%s refresh_cookie_present=%s",
+                get_client_ip(request),
+                access_cookie_name in request.COOKIES,
+                refresh_cookie_name in request.COOKIES,
+            )
 
             response = Response(
                 {"success": True, "message": "Successfully logged out"},
@@ -65,7 +81,6 @@ class LogoutUserAPIView(APIView):
             )
 
             # Clear access token cookie
-            access_cookie_name = simple_jwt_settings.get("AUTH_COOKIE", "access_token")
             response.delete_cookie(
                 access_cookie_name,
                 domain=simple_jwt_settings.get("AUTH_COOKIE_DOMAIN"),
@@ -73,9 +88,6 @@ class LogoutUserAPIView(APIView):
             )
 
             # Clear refresh token cookie
-            refresh_cookie_name = simple_jwt_settings.get(
-                "REFRESH_COOKIE", "refresh_token"
-            )
             response.delete_cookie(
                 refresh_cookie_name,
                 domain=simple_jwt_settings.get("AUTH_COOKIE_DOMAIN"),
@@ -84,8 +96,14 @@ class LogoutUserAPIView(APIView):
 
             return response
 
+        except AlreadyLoggedException:
+            raise
         except Exception as e:
+            app_error = persist_app_error(e)
             return Response(
-                {"error": f"Error during logout: {str(e)}"},
+                {
+                    "error": f"Error during logout: {str(e)}",
+                    "details": {"error_id": str(app_error.id)},
+                },
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
