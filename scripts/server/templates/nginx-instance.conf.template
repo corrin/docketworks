@@ -1,6 +1,6 @@
 server {
     server_name __FQDN__;
-    client_max_body_size 20M;
+    client_max_body_size 50M;
 
     # Django backend — API only (no Django admin is registered)
     location /api/ {

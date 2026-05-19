@@ -49,7 +49,7 @@
                   </span>
                   or drag and drop
                 </p>
-                <p class="text-sm text-gray-500 mt-1">PNG, JPG, PDF up to 10MB</p>
+                <p class="text-sm text-gray-500 mt-1">PNG, JPG, PDF up to 50MB</p>
               </div>
             </div>
           </div>
@@ -63,23 +63,6 @@
             accept="image/*,.pdf,.doc,.docx,.txt"
             class="hidden"
           />
-
-          <!-- Upload Progress -->
-          <div
-            v-if="uploadProgress > 0 && uploadProgress < 100"
-            class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm mt-6"
-          >
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-sm font-medium text-gray-700">Uploading files...</span>
-              <span class="text-sm text-gray-500">{{ uploadProgress.toFixed(2) }}%</span>
-            </div>
-            <div class="w-full bg-gray-200 rounded-full h-2">
-              <div
-                class="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
-                :style="{ width: `${uploadProgress}%` }"
-              ></div>
-            </div>
-          </div>
         </div>
 
         <!-- Right Column: Attached Files -->
@@ -108,6 +91,7 @@
                   v-for="file in files"
                   :key="file.id"
                   class="flex items-center justify-between p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors duration-200"
+                  :data-automation-id="`JobAttachmentsTab-file-row-${file.id}`"
                 >
                   <div class="flex items-center space-x-4 min-w-0 flex-1">
                     <!-- File Thumbnail/Icon -->
@@ -144,7 +128,31 @@
                       <p class="text-sm font-medium text-gray-900 truncate">
                         {{ file.filename }}
                       </p>
-                      <div class="flex items-center space-x-2 text-xs text-gray-500 mt-1">
+                      <div
+                        v-if="isPendingUpload(file)"
+                        class="mt-2 space-y-1"
+                        :data-automation-id="`JobAttachmentsTab-upload-status-${file.id}`"
+                      >
+                        <div class="flex items-center justify-between text-xs text-gray-500">
+                          <span>{{ uploadStatusLabel(file) }}</span>
+                          <span v-if="file.uploadStatus === 'uploading'">
+                            {{ Math.round(file.uploadProgress ?? 0) }}%
+                          </span>
+                        </div>
+                        <div
+                          v-if="file.uploadStatus !== 'failed'"
+                          class="w-full bg-gray-200 rounded-full h-2"
+                        >
+                          <div
+                            class="bg-blue-600 h-2 rounded-full transition-all duration-300 ease-out"
+                            :style="{ width: `${file.uploadProgress ?? 0}%` }"
+                          ></div>
+                        </div>
+                        <p v-else class="text-xs text-red-600 truncate">
+                          {{ file.uploadError || 'Upload failed' }}
+                        </p>
+                      </div>
+                      <div v-else class="flex items-center space-x-2 text-xs text-gray-500 mt-1">
                         <span>{{ formatFileSize(file.size || 0) }}</span>
                         <span>•</span>
                         <span>{{ formatDate(file.uploaded_at) }}</span>
@@ -154,7 +162,23 @@
 
                   <!-- File Actions -->
                   <div class="flex items-center space-x-3">
-                    <label class="flex items-center">
+                    <template v-if="isPendingUpload(file)">
+                      <button
+                        v-if="file.uploadStatus === 'failed'"
+                        @click="retryUpload(file)"
+                        class="px-3 py-1.5 text-xs font-medium text-blue-700 bg-blue-50 rounded-md hover:bg-blue-100 transition-colors duration-200"
+                      >
+                        Retry
+                      </button>
+                      <button
+                        v-if="file.uploadStatus === 'failed'"
+                        @click="removePendingUpload(file.id)"
+                        class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-200 rounded-md hover:bg-gray-50 transition-colors duration-200"
+                      >
+                        Remove
+                      </button>
+                    </template>
+                    <label v-else class="flex items-center">
                       <input
                         v-model="file.print_on_jobsheet"
                         @change="updatePrintSetting(file)"
@@ -165,16 +189,20 @@
                     </label>
 
                     <button
+                      v-if="!isPendingUpload(file)"
                       @click="downloadFile(file)"
                       class="p-2 text-gray-400 hover:text-blue-600 transition-colors duration-200"
+                      aria-label="Download"
                       title="Download"
                     >
                       <Download class="w-4 h-4" />
                     </button>
 
                     <button
+                      v-if="!isPendingUpload(file)"
                       @click="deleteFile(file.id)"
                       class="p-2 text-gray-400 hover:text-red-600 transition-colors duration-200"
+                      aria-label="Delete"
                       title="Delete"
                     >
                       <Trash2 class="w-4 h-4" />
@@ -223,7 +251,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { toast } from 'vue-sonner'
 import { Camera, Upload, FileText, File as FileIcon, Download, Trash2 } from 'lucide-vue-next'
 import {
@@ -247,7 +275,18 @@ type JobFile = z.infer<typeof schemas.JobFile> & {
   thumbnailError?: boolean
   downloadError?: boolean
 }
-type UploadedFileSummary = z.infer<typeof schemas.UploadedFile>
+
+type UploadStatus = 'preparing' | 'uploading' | 'saving' | 'failed'
+
+type AttachmentRow = JobFile & {
+  clientUploadId?: string
+  uploadStatus?: UploadStatus
+  uploadProgress?: number
+  uploadError?: string
+  sourceFile?: File
+}
+
+const MAX_ATTACHMENT_SIZE_BYTES = 50 * 1024 * 1024
 
 interface Props {
   jobId: string
@@ -262,13 +301,19 @@ const emit = defineEmits<{
 }>()
 
 // State
-const files = ref<JobFile[]>([])
-const uploadProgress = ref(0)
+const files = ref<AttachmentRow[]>([])
 const fileInput = ref<HTMLInputElement>()
-const isUploading = ref(false)
 const isLoading = ref(false)
 const isCameraModalOpen = ref(false)
 const isDragOver = ref(false)
+const isUploading = computed(() =>
+  files.value.some(
+    (file) =>
+      file.uploadStatus === 'preparing' ||
+      file.uploadStatus === 'uploading' ||
+      file.uploadStatus === 'saving',
+  ),
+)
 
 // Image preview modal
 const previewImage = ref<JobFile | null>(null)
@@ -281,7 +326,17 @@ async function loadFiles() {
   isLoading.value = true
   try {
     const response = await jobService.listJobFiles(props.jobId)
-    files.value = Array.isArray(response) ? response : []
+    const serverFiles = Array.isArray(response) ? response : []
+    const serverFileIds = new Set(serverFiles.map((file) => file.id))
+    const localOnlyFiles = files.value.filter(
+      (file) => isPendingUpload(file) || !serverFileIds.has(file.id),
+    )
+    files.value = [
+      ...localOnlyFiles,
+      ...serverFiles.filter((serverFile) =>
+        localOnlyFiles.every((localFile) => localFile.id !== serverFile.id),
+      ),
+    ]
     debugLog('Files loaded successfully:', files.value.length, 'files')
   } catch (error) {
     console.error('❌ Failed to load files:', error)
@@ -303,6 +358,7 @@ const handleFileChange = (event: Event) => {
   const target = event.target as HTMLInputElement
   if (target.files) {
     handleFiles(Array.from(target.files))
+    target.value = ''
   }
 }
 
@@ -348,9 +404,8 @@ const handleFiles = async (fileList: File[]) => {
       debugLog(`File ${file.name} has 0 bytes and will be ignored`)
       return false
     }
-    if (file.size > 10 * 1024 * 1024) {
-      // 10MB limit
-      toast.error(`File ${file.name} is too large (max 10MB)`)
+    if (file.size > MAX_ATTACHMENT_SIZE_BYTES) {
+      toast.error(`File ${file.name} is too large (max 50MB)`)
       return false
     }
     return true
@@ -358,23 +413,31 @@ const handleFiles = async (fileList: File[]) => {
 
   if (validFiles.length === 0) return
 
+  const pendingUploads = validFiles.map((file) => addPendingUpload(file))
+
   for (const file of validFiles) {
-    await processAndUploadFile(file)
+    const pendingUpload = pendingUploads.find((pending) => pending.sourceFile === file)
+    if (!pendingUpload) {
+      throw new Error(`Pending upload missing for ${file.name}`)
+    }
+    await processAndUploadFile(file, pendingUpload.id)
   }
 }
 
-const processAndUploadFile = async (file: File) => {
+const processAndUploadFile = async (file: File, pendingId: string) => {
   try {
     let fileToUpload = file
 
     if (isImageFile(file)) {
+      updatePendingUpload(pendingId, { uploadStatus: 'preparing', uploadProgress: 0 })
       debugLog(`Compressing image before upload: ${file.name}`)
       fileToUpload = await compressImage(file)
     }
 
-    await uploadFile(fileToUpload)
+    await uploadFile(fileToUpload, pendingId)
   } catch (error) {
     debugLog(`Error processing file ${file.name}:`, error)
+    markUploadFailed(pendingId, error)
     toast.error(`Failed to upload ${file.name}`)
   }
 }
@@ -451,55 +514,115 @@ const compressImage = (
   })
 }
 
-const uploadFile = async (file: File) => {
+const createClientUploadId = (): string => {
+  return globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`
+}
+
+const addPendingUpload = (file: File): AttachmentRow => {
+  const clientUploadId = createClientUploadId()
+  const pendingUpload: AttachmentRow = {
+    id: `pending-${clientUploadId}`,
+    filename: file.name,
+    mime_type: file.type || undefined,
+    uploaded_at: new Date().toISOString(),
+    status: 'active',
+    print_on_jobsheet: true,
+    size: file.size,
+    download_url: '',
+    thumbnail_url: null,
+    clientUploadId,
+    uploadStatus: 'uploading',
+    uploadProgress: 0,
+    sourceFile: file,
+    thumbnailError: false,
+    downloadError: false,
+  }
+
+  files.value = [pendingUpload, ...files.value]
+  return pendingUpload
+}
+
+const updatePendingUpload = (pendingId: string, updates: Partial<AttachmentRow>) => {
+  files.value = files.value.map((file) =>
+    file.id === pendingId
+      ? {
+          ...file,
+          ...updates,
+        }
+      : file,
+  )
+}
+
+const replacePendingUpload = (pendingId: string, uploadedFile: JobFile) => {
+  files.value = files.value.map((file) => (file.id === pendingId ? uploadedFile : file))
+}
+
+const markUploadFailed = (pendingId: string, error: unknown) => {
+  const message = error instanceof Error ? error.message : 'Upload failed'
+  updatePendingUpload(pendingId, {
+    uploadStatus: 'failed',
+    uploadProgress: 0,
+    uploadError: message,
+  })
+}
+
+const removePendingUpload = (pendingId: string) => {
+  files.value = files.value.filter((file) => file.id !== pendingId)
+}
+
+const retryUpload = async (file: AttachmentRow) => {
+  if (!file.sourceFile) {
+    toast.error('Original file is no longer available for retry')
+    return
+  }
+
+  await processAndUploadFile(file.sourceFile, file.id)
+}
+
+const uploadFile = async (file: File, pendingId: string) => {
   if (!props.jobId) {
     throw new Error('Job ID is required')
   }
 
-  uploadProgress.value = 0
-  isUploading.value = true
+  updatePendingUpload(pendingId, {
+    uploadStatus: 'uploading',
+    uploadProgress: 0,
+    uploadError: undefined,
+  })
 
   try {
     debugLog('Uploading file:', file.name)
 
-    // Simulate upload progress for better UX
-    const progressInterval = setInterval(() => {
-      if (uploadProgress.value < 90) {
-        uploadProgress.value += Math.random() * 20
+    const response = await jobService.uploadJobFiles(props.jobId, [file], (progressEvent) => {
+      if (!progressEvent.total) {
+        return
       }
-    }, 200)
-
-    const response = await jobService.uploadJobFiles(props.jobId, [file])
-
-    clearInterval(progressInterval)
-    uploadProgress.value = 100
+      const progress = Math.min(100, (progressEvent.loaded / progressEvent.total) * 100)
+      updatePendingUpload(pendingId, {
+        uploadStatus: progress >= 100 ? 'saving' : 'uploading',
+        uploadProgress: progress,
+      })
+    })
 
     debugLog('File uploaded successfully:', response)
     toast.success(`File "${file.name}" uploaded successfully`)
 
-    await loadFiles()
-
     if (response.uploaded.length > 0) {
-      const uploadedDescriptor = response.uploaded[0]
-      const jobFile = files.value.find((f) => f.id === uploadedDescriptor.id)
-      emit('file-uploaded', jobFile ?? mapUploadedToJobFile(uploadedDescriptor))
+      const uploadedFile = response.uploaded[0]
+      replacePendingUpload(pendingId, uploadedFile)
+      emit('file-uploaded', uploadedFile)
+    } else {
+      throw new Error('Upload response did not include the saved file')
     }
-
-    // Reset progress after a short delay
-    setTimeout(() => {
-      uploadProgress.value = 0
-    }, 1000)
   } catch (error) {
     debugLog('Error uploading file:', error)
-    toast.error(`Failed to upload ${file.name}`)
+    markUploadFailed(pendingId, error)
     throw error
-  } finally {
-    isUploading.value = false
   }
 }
 
 // File actions
-async function downloadFile(file: JobFile) {
+async function downloadFile(file: AttachmentRow) {
   if (!file.download_url) {
     toast.error('Download URL not available')
     return
@@ -579,7 +702,7 @@ async function deleteFile(id: string) {
   }
 }
 
-async function updatePrintSetting(file: JobFile) {
+async function updatePrintSetting(file: AttachmentRow) {
   // Store original value for rollback
   const originalValue = file.print_on_jobsheet
 
@@ -626,7 +749,8 @@ const handlePhotoCaptured = async (photo: File) => {
       type: photo.type,
     })
 
-    await processAndUploadFile(photo)
+    const pendingUpload = addPendingUpload(photo)
+    await processAndUploadFile(photo, pendingUpload.id)
     toast.success('Photo uploaded successfully!')
   } catch (error) {
     debugLog('Error uploading captured photo:', error)
@@ -635,7 +759,9 @@ const handlePhotoCaptured = async (photo: File) => {
 }
 
 // Image preview
-const openImagePreview = (file: JobFile) => {
+const openImagePreview = (file: AttachmentRow) => {
+  if (isPendingUpload(file)) return
+
   previewImage.value = file
   isImagePreviewOpen.value = true
 }
@@ -645,7 +771,7 @@ const closeImagePreview = () => {
   isImagePreviewOpen.value = false
 }
 
-const onImageError = (file: JobFile, type: 'thumbnail' | 'download') => {
+const onImageError = (file: AttachmentRow, type: 'thumbnail' | 'download') => {
   if (type === 'thumbnail') {
     file.thumbnailError = true
   } else {
@@ -655,33 +781,45 @@ const onImageError = (file: JobFile, type: 'thumbnail' | 'download') => {
 }
 
 // Helper functions
-const isImageJobFile = (file: JobFile): boolean => {
+const isPendingUpload = (file: AttachmentRow): boolean => {
+  return (
+    file.uploadStatus === 'preparing' ||
+    file.uploadStatus === 'uploading' ||
+    file.uploadStatus === 'saving' ||
+    file.uploadStatus === 'failed'
+  )
+}
+
+const uploadStatusLabel = (file: AttachmentRow): string => {
+  switch (file.uploadStatus) {
+    case 'preparing':
+      return 'Preparing...'
+    case 'uploading':
+      return 'Uploading...'
+    case 'saving':
+      return 'Saving...'
+    case 'failed':
+      return 'Upload failed'
+    default:
+      return ''
+  }
+}
+
+const isImageJobFile = (file: AttachmentRow): boolean => {
   return file.mime_type?.startsWith('image/') || false
 }
 
-const isPdfFile = (file: JobFile): boolean => {
+const isPdfFile = (file: AttachmentRow): boolean => {
   return file.mime_type === 'application/pdf'
 }
 
-const openPdfPreview = (file: JobFile) => {
+const openPdfPreview = (file: AttachmentRow) => {
+  if (isPendingUpload(file)) return
+
   if (isPdfFile(file) && file.download_url) {
     window.open(file.download_url, '_blank', 'noopener,noreferrer')
   }
 }
-
-const mapUploadedToJobFile = (uploaded: UploadedFileSummary): JobFile => ({
-  id: uploaded.id,
-  filename: uploaded.filename,
-  mime_type: undefined,
-  uploaded_at: new Date().toISOString(),
-  status: undefined,
-  print_on_jobsheet: uploaded.print_on_jobsheet,
-  size: null,
-  download_url: '',
-  thumbnail_url: null,
-  thumbnailError: false,
-  downloadError: false,
-})
 
 // Lifecycle
 onMounted(() => {

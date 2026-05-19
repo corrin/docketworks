@@ -12402,7 +12402,7 @@ components:
         uploaded:
           type: array
           items:
-            $ref: '#/components/schemas/UploadedFile'
+            $ref: '#/components/schemas/JobFile'
         errors:
           type: array
           items:
@@ -12437,7 +12437,7 @@ components:
         uploaded:
           type: array
           items:
-            $ref: '#/components/schemas/UploadedFile'
+            $ref: '#/components/schemas/JobFile'
         message:
           type: string
       required:
@@ -19528,23 +19528,6 @@ components:
         - name
         - reason
         - remaining_hours
-    UploadedFile:
-      type: object
-      description: Serializer for file upload response.
-      properties:
-        id:
-          type: string
-        filename:
-          type: string
-        file_path:
-          type: string
-        print_on_jobsheet:
-          type: boolean
-      required:
-        - file_path
-        - filename
-        - id
-        - print_on_jobsheet
     UserProfile:
       type: object
       description: Serializer for user profile information returned by /accounts/me/

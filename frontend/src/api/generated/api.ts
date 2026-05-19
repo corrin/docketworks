@@ -1476,20 +1476,14 @@ const JobFileUploadRequest = z.object({
   files: z.array(z.instanceof(File)),
   print_on_jobsheet: z.boolean().optional().default(true),
 })
-const UploadedFile = z.object({
-  id: z.string(),
-  filename: z.string(),
-  file_path: z.string(),
-  print_on_jobsheet: z.boolean(),
-})
 const JobFileUploadSuccessResponse = z.object({
   status: z.string().optional().default('success'),
-  uploaded: z.array(UploadedFile),
+  uploaded: z.array(JobFile),
   message: z.string(),
 })
 const JobFileUploadPartialResponse = z.object({
   status: z.string(),
-  uploaded: z.array(UploadedFile),
+  uploaded: z.array(JobFile),
   errors: z.array(z.string()),
 })
 const JobFileRequest = z.object({
@@ -3352,7 +3346,6 @@ export const schemas = {
   JobEventCreateResponse,
   JobFileErrorResponse,
   JobFileUploadRequest,
-  UploadedFile,
   JobFileUploadSuccessResponse,
   JobFileUploadPartialResponse,
   JobFileRequest,

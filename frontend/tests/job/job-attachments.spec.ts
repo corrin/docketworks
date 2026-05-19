@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'crypto'
 import fs from 'fs'
 import path from 'path'
+import type { Response } from '@playwright/test'
 import { test, expect } from '../fixtures/auth'
 import { autoId } from '../fixtures/helpers'
 
@@ -140,6 +141,93 @@ test.describe('job attachments', () => {
     // from a clean attachment list.
     page.once('dialog', (dialog) => dialog.accept())
     await fileRow.getByRole('button', { name: 'Delete' }).click()
+    await expect(page.getByText(fileName, { exact: true })).toHaveCount(0)
+    fs.unlinkSync(tmpPath)
+  })
+
+  test('20MB attachment shows upload progress and appears without refresh', async ({
+    authenticatedPage: page,
+    sharedEditJobUrl,
+  }) => {
+    const jobId = getJobIdFromUrl(sharedEditJobUrl)
+
+    await page.goto(sharedEditJobUrl)
+    await page.waitForLoadState('networkidle')
+
+    await autoId(page, 'JobViewTabs-attachments').click()
+    await expect(page.getByText('Job Attachments')).toBeVisible({ timeout: 10000 })
+
+    const timestamp = Date.now()
+    const fileName = `large-upload-${timestamp}.txt`
+    const tmpDir = path.join(process.cwd(), 'test-results', 'tmp-uploads')
+    fs.mkdirSync(tmpDir, { recursive: true })
+    const tmpPath = path.join(tmpDir, fileName)
+    fs.writeFileSync(tmpPath, Buffer.alloc(20 * 1024 * 1024, 7))
+
+    const fileInput = autoId(page, 'JobAttachmentsTab-file-input')
+    await fileInput.waitFor({ state: 'attached' })
+
+    const cdpSession = await page.context().newCDPSession(page)
+    await cdpSession.send('Network.enable')
+    await cdpSession.send('Network.emulateNetworkConditions', {
+      offline: false,
+      latency: 0,
+      downloadThroughput: -1,
+      uploadThroughput: 5 * 1024 * 1024,
+      connectionType: 'ethernet',
+    })
+
+    const startedAt = Date.now()
+    const uploadResponsePromise = page.waitForResponse(
+      (response) =>
+        response.url().includes(`/api/job/jobs/${jobId}/files/`) &&
+        response.request().method() === 'POST',
+      { timeout: 30000 },
+    )
+
+    let uploadResponse: Response | undefined
+    try {
+      await fileInput.setInputFiles(tmpPath)
+
+      const pendingRow = page
+        .locator('div', { has: page.getByText(fileName, { exact: true }) })
+        .first()
+      await expect(pendingRow).toBeVisible({ timeout: 5000 })
+      await expect(pendingRow.getByText(/Uploading|Saving/)).toBeVisible({ timeout: 5000 })
+
+      uploadResponse = await uploadResponsePromise
+      expect(Date.now() - startedAt).toBeLessThan(30000)
+      expect(uploadResponse.status()).toBeGreaterThanOrEqual(200)
+      expect(uploadResponse.status()).toBeLessThan(300)
+    } finally {
+      await cdpSession
+        .send('Network.emulateNetworkConditions', {
+          offline: false,
+          latency: 0,
+          downloadThroughput: -1,
+          uploadThroughput: -1,
+          connectionType: 'ethernet',
+        })
+        .catch(() => undefined)
+      await cdpSession.detach().catch(() => undefined)
+    }
+
+    if (!uploadResponse) {
+      throw new Error('Upload did not produce a response')
+    }
+    const uploadPayload = await uploadResponse.json()
+    const uploadedFileId: string | undefined = uploadPayload?.uploaded?.[0]?.id
+    if (!uploadedFileId) {
+      throw new Error(`Upload response missing uploaded[0].id: ${JSON.stringify(uploadPayload)}`)
+    }
+
+    await expect(page.getByText(fileName, { exact: true })).toBeVisible({ timeout: 10000 })
+    const savedRow = autoId(page, `JobAttachmentsTab-file-row-${uploadedFileId}`)
+    await expect(savedRow).toBeVisible({ timeout: 10000 })
+    await expect(savedRow.getByText(/Uploading|Saving/)).toHaveCount(0)
+
+    page.once('dialog', (dialog) => dialog.accept())
+    await savedRow.getByRole('button', { name: 'Delete' }).click()
     await expect(page.getByText(fileName, { exact: true })).toHaveCount(0)
     fs.unlinkSync(tmpPath)
   })

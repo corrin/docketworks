@@ -3,7 +3,7 @@ import { api } from '../api/client'
 import axios from '../plugins/axios'
 import { z } from 'zod'
 import { type AdvancedFilters } from '../constants/advanced-filters'
-import { AxiosError } from 'axios'
+import { AxiosError, type AxiosProgressEvent } from 'axios'
 import { debugLog } from '../utils/debug'
 import { buildJobDeltaEnvelope, useJobDeltaQueue } from '../composables/useJobDelta'
 import { useAuthStore } from '../stores/auth'
@@ -427,6 +427,7 @@ export const jobService = {
   async uploadJobFiles(
     jobId: string,
     files: File[],
+    onUploadProgress?: (progressEvent: AxiosProgressEvent) => void,
   ): Promise<z.infer<typeof schemas.JobFileUploadSuccessResponse>> {
     try {
       const formData = new FormData()
@@ -439,6 +440,7 @@ export const jobService = {
         headers: {
           'Content-Type': 'multipart/form-data',
         },
+        onUploadProgress,
       })
 
       return schemas.JobFileUploadSuccessResponse.parse(response.data)
