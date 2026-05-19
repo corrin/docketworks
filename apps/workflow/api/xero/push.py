@@ -528,7 +528,7 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
             time.sleep(SLEEP_TIME)
 
             # Map response back to clients by submission order. Verified
-            # against dev Xero by scripts/verify_xero_batch_order.py.
+            # against dev Xero by scripts/integration/verify_xero_batch_order.py.
             for idx, (client, created_contact) in enumerate(
                 zip(batch, response.contacts, strict=True)
             ):
@@ -537,7 +537,7 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
                         f"Xero response order mismatch at position {idx}: "
                         f"sent {client.name!r} but received "
                         f"{created_contact.name!r}. Re-run "
-                        f"scripts/verify_xero_batch_order.py to confirm "
+                        f"scripts/integration/verify_xero_batch_order.py to confirm "
                         f"Xero is still preserving submission order."
                     )
                 client.xero_contact_id = created_contact.contact_id
