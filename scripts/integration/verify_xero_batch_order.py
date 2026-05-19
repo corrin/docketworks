@@ -8,7 +8,7 @@ sent. The Xero SDK does not document this guarantee, so we validate it
 on demand against a real dev tenant.
 
 Usage:
-    python scripts/verify_xero_batch_order.py [--count 10]
+    python scripts/integration/verify_xero_batch_order.py [--count 10]
 
 Run before relying on bulk_create_contacts_in_xero (e.g. after a Xero
 API release, or quarterly as a health check). Exits 0 on pass; non-zero
