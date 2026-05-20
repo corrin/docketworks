@@ -139,3 +139,13 @@ See ADR 0020. Backend owns data, calculations, and external systems; frontend ow
 ### Service Layer Patterns
 
 - Keep business logic in explicit service classes; keep views thin.
+
+## E2E Test Runs
+
+`npm run test:e2e` (from `frontend/`) runs Playwright tests against live HTTP endpoints. The suite takes ~15 minutes.
+
+**CRITICAL: The global teardown (`global-teardown.ts`) MUST always run to completion.** It restores the database from backup, saves/reinjects Xero tokens, removes the lock file, and runs integrity checks. If the bash process is killed (timeout, SIGTERM, etc.) the teardown never executes and the database is left polluted with `[TEST]` data.
+
+- **Never set a bash timeout on the E2E command.** A timeout (or SIGTERM) kills the node process before Playwright calls `globalTeardown`, leaving the DB polluted with `[TEST]` data and a stale lock file. The teardown is NOT a signal handler — it only fires on normal exit.
+- Always run E2E detached from the shell session: `nohup npm run test:e2e > /tmp/e2e-output.log 2>&1 &`. Then tail the log with a separate bash call (no timeout on the tail either — just read the log).
+- If the teardown does get skipped: save the current Xero token, restore from `restore/e2e/backup_*.sql`, reinject the token, sync sequences, then delete the lock and backup. Match `global-teardown.ts` step for step.

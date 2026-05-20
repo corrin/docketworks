@@ -573,6 +573,14 @@ LOGGING = {
             "backupCount": 5,
             "formatter": "access",
         },
+        "kanban_search_file": {
+            "level": "INFO",
+            "class": "concurrent_log_handler.ConcurrentRotatingFileHandler",
+            "filename": os.path.join(LOG_DIR, "kanban_search.log"),
+            "maxBytes": 10 * 1024 * 1024,
+            "backupCount": 10,
+            "formatter": "access",
+        },
         "mail_admins": {
             "level": "ERROR",
             "class": "django.utils.log.AdminEmailHandler",
@@ -660,6 +668,11 @@ LOGGING = {
         },
         "access": {
             "handlers": ["access_file"],
+            "level": "INFO",
+            "propagate": False,
+        },
+        "kanban_search": {
+            "handlers": ["kanban_search_file"],
             "level": "INFO",
             "propagate": False,
         },
