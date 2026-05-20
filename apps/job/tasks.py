@@ -11,7 +11,6 @@ from celery import shared_task
 from django.conf import settings
 from django.db import close_old_connections
 
-from apps.job.services.file_service import create_thumbnail, get_thumbnail_folder
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_and_raise
 
@@ -25,6 +24,10 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
     try:
         close_old_connections()
         from apps.job.models import JobFile
+        from apps.job.services.file_service import (
+            create_thumbnail,
+            get_thumbnail_folder,
+        )
 
         job_file = JobFile.objects.select_related("job").get(id=job_file_id)
         if job_file.status != "active":
@@ -40,7 +43,8 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
             raise FileNotFoundError(f"Job file does not exist: {source_path}")
 
         thumb_folder = get_thumbnail_folder(job_file.job.job_number)
-        thumb_path = os.path.join(thumb_folder, f"{job_file.filename}.thumb.jpg")
+        safe_filename = os.path.basename(job_file.filename)
+        thumb_path = os.path.join(thumb_folder, f"{safe_filename}.thumb.jpg")
         if os.path.exists(thumb_path):
             logger.info("Thumbnail already exists for job file %s.", job_file_id)
             return

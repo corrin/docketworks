@@ -37,15 +37,6 @@ class JobFileSerializer(serializers.ModelSerializer):
         )
 
 
-class UploadedFileSerializer(serializers.Serializer):
-    """Serializer for file upload response."""
-
-    id = serializers.CharField()
-    filename = serializers.CharField()
-    file_path = serializers.CharField()
-    print_on_jobsheet = serializers.BooleanField()
-
-
 class JobFileUploadSerializer(serializers.Serializer):
     """Serializer for job file upload requests."""
 

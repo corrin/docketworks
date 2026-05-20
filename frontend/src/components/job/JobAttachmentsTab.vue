@@ -49,7 +49,7 @@
                   </span>
                   or drag and drop
                 </p>
-                <p class="text-sm text-gray-500 mt-1">PNG, JPG, PDF up to 50MB</p>
+                <p class="text-sm text-gray-500 mt-1">Files up to 50MB</p>
               </div>
             </div>
           </div>
@@ -425,19 +425,25 @@ const handleFiles = async (fileList: File[]) => {
 }
 
 const processAndUploadFile = async (file: File, pendingId: string) => {
-  try {
-    let fileToUpload = file
+  let fileToUpload = file
 
-    if (isImageFile(file)) {
-      updatePendingUpload(pendingId, { uploadStatus: 'preparing', uploadProgress: 0 })
-      debugLog(`Compressing image before upload: ${file.name}`)
+  if (isImageFile(file)) {
+    updatePendingUpload(pendingId, { uploadStatus: 'preparing', uploadProgress: 0 })
+    debugLog(`Compressing image before upload: ${file.name}`)
+    try {
       fileToUpload = await compressImage(file)
+    } catch (error) {
+      debugLog(`Error compressing image ${file.name}:`, error)
+      markUploadFailed(pendingId, error)
+      toast.error(`Failed to prepare ${file.name}`)
+      return
     }
+  }
 
+  try {
     await uploadFile(fileToUpload, pendingId)
   } catch (error) {
     debugLog(`Error processing file ${file.name}:`, error)
-    markUploadFailed(pendingId, error)
     toast.error(`Failed to upload ${file.name}`)
   }
 }

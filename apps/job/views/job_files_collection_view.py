@@ -55,7 +55,8 @@ class JobFilesCollectionView(APIView):
             settings.DROPBOX_WORKFLOW_FOLDER, f"Job-{job.job_number}"
         )
         os.makedirs(job_folder, exist_ok=True)
-        file_path = os.path.join(job_folder, file_obj.name)
+        safe_filename = os.path.basename(file_obj.name)
+        file_path = os.path.join(job_folder, safe_filename)
 
         # Fail early if empty
         if file_obj.size == 0:
@@ -71,7 +72,7 @@ class JobFilesCollectionView(APIView):
             relative_path = os.path.relpath(file_path, settings.DROPBOX_WORKFLOW_FOLDER)
             job_file, created = JobFile.objects.update_or_create(
                 job=job,
-                filename=file_obj.name,
+                filename=safe_filename,
                 defaults={
                     "file_path": relative_path,
                     "mime_type": file_obj.content_type,

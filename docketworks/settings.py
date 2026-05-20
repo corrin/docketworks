@@ -759,9 +759,9 @@ DROPBOX_WORKFLOW_FOLDER = os.getenv("DROPBOX_WORKFLOW_FOLDER")
 
 SITE_ID = 1
 
-# File upload limits (50MB)
+# File upload limits (50MB request body; stream files >2.5MB to disk)
 DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
-FILE_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 2.5 * 1024 * 1024
 
 # EMAIL CONFIGURATION
 EMAIL_BACKEND = "django.core.mail.backends.smtp.EmailBackend"

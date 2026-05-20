@@ -11,7 +11,7 @@ class JobFile(models.Model):
     # CHECKLIST - when adding a new field or property to JobFile, check these locations:
     #   1. JOBFILE_API_FIELDS or JOBFILE_INTERNAL_FIELDS below (if it's a model field)
     #   2. JobFileSerializer in apps/job/serializers/job_file_serializer.py (uses JOBFILE_API_FIELDS)
-    #   3. UploadedFileSerializer in apps/job/serializers/job_file_serializer.py (upload response)
+    #   3. JobFileSerializer in apps/job/serializers/job_file_serializer.py (upload response)
     #   4. sync_job_files() in apps/job/services/file_service.py (creates JobFile records)
     #   5. create_delivery_docket() in apps/job/services/delivery_docket_service.py (creates JobFile)
     #   6. _add_images_to_pdf() in apps/job/services/workshop_pdf_service.py (uses file_path, filename)
