@@ -278,7 +278,7 @@ class KanbanService:
             (
                 (
                     KanbanService.SEARCH_SCORE_JOB_NUMBER_CONTAINS
-                    if token in job_number and not job_number.endswith(token)
+                    if token in job_number
                     else 0.0
                 ),
                 "job_number_contains",

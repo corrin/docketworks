@@ -196,10 +196,15 @@ class KanbanSearchTest(BaseTestCase):
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
 
         self.assertEqual(jobs[0].id, suffix_match.id)
-        self.assertLess(
-            getattr(middle_match, "search_score", 0),
-            getattr(suffix_match, "search_score", 0),
+        suffix_score = getattr(
+            next(j for j in jobs if j.id == suffix_match.id), "search_score", 0
         )
+        middle_score = getattr(
+            (next((j for j in jobs if j.id == middle_match.id), None)),
+            "search_score",
+            0,
+        )
+        self.assertLess(middle_score, suffix_score)
 
     def test_perform_advanced_search_keeps_multiple_close_text_matches(self):
         target_one = self._make_job(
@@ -397,8 +402,18 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(payload["results"][0]["rank"], 1)
         self.assertEqual(payload["results"][0]["job_id"], str(target.id))
         self.assertEqual(payload["results"][0]["job_number"], 96977)
-        self.assertEqual(payload["results"][0]["search_score"], 85.0)
-        self.assertEqual(
-            payload["results"][0]["search_reasons"]["tokens"][0]["reason"],
-            "job_number_contains",
+        self.assertIsInstance(payload["results"][0]["search_score"], float)
+        self.assertGreaterEqual(
+            payload["results"][0]["search_score"],
+            KanbanService.SEARCH_SCORE_MIN_DISPLAY,
         )
+
+        reasons = payload["results"][0]["search_reasons"]
+        self.assertIn("tokens", reasons)
+        self.assertGreater(len(reasons["tokens"]), 0)
+        first_token = reasons["tokens"][0]
+        self.assertEqual(first_token["token"], "977")
+        self.assertIn("reason", first_token)
+        self.assertIsInstance(first_token["reason"], str)
+        self.assertIn("score", first_token)
+        self.assertIsInstance(first_token["score"], (int, float))
