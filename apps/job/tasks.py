@@ -5,14 +5,62 @@ idempotent; failures persist via AppError (ADR 0019).
 """
 
 import logging
+import os
 
 from celery import shared_task
+from django.conf import settings
 from django.db import close_old_connections
 
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_and_raise
 
 logger = logging.getLogger("apps.job.tasks")
+
+
+@shared_task(name="apps.job.tasks.create_job_file_thumbnail_task")
+def create_job_file_thumbnail_task(job_file_id: str) -> None:
+    """Create a thumbnail for a job file after the upload response returns."""
+    logger.info("Creating thumbnail for job file %s.", job_file_id)
+    try:
+        close_old_connections()
+        from apps.job.models import JobFile
+        from apps.job.services.file_service import (
+            create_thumbnail,
+            get_thumbnail_folder,
+        )
+
+        job_file = JobFile.objects.select_related("job").get(id=job_file_id)
+        if job_file.status != "active":
+            logger.info("Skipping thumbnail for inactive job file %s.", job_file_id)
+            return
+
+        if not job_file.mime_type.startswith("image/"):
+            logger.info("Skipping thumbnail for non-image job file %s.", job_file_id)
+            return
+
+        source_path = os.path.join(settings.DROPBOX_WORKFLOW_FOLDER, job_file.file_path)
+        if not os.path.exists(source_path):
+            raise FileNotFoundError(f"Job file does not exist: {source_path}")
+
+        thumb_folder = get_thumbnail_folder(job_file.job.job_number)
+        safe_filename = os.path.basename(job_file.filename)
+        thumb_path = os.path.join(thumb_folder, f"{safe_filename}.thumb.jpg")
+        if os.path.exists(thumb_path):
+            logger.info("Thumbnail already exists for job file %s.", job_file_id)
+            return
+
+        create_thumbnail(source_path, thumb_path)
+        logger.info("Created thumbnail for job file %s.", job_file_id)
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        logger.error(
+            "Error creating thumbnail for job file %s: %s",
+            job_file_id,
+            exc,
+            exc_info=True,
+        )
+        persist_and_raise(exc, additional_context={"job_file_id": job_file_id})
 
 
 @shared_task(name="apps.job.tasks.set_paid_flag_task")

@@ -12,7 +12,11 @@ try:
         from .diff import DiffResult, apply_diff, diff_costset
         from .mixins import JobLookupMixin, JobNumberLookupMixin
         from .permissions import IsOfficeStaff, IsStaffUser
-        from .tasks import auto_archive_completed_jobs_task, set_paid_flag_task
+        from .tasks import (
+            auto_archive_completed_jobs_task,
+            create_job_file_thumbnail_task,
+            set_paid_flag_task,
+        )
         from .utils import get_active_jobs, get_jobs_data
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -30,6 +34,7 @@ __all__ = [
     "SpeedQualityTradeoff",
     "apply_diff",
     "auto_archive_completed_jobs_task",
+    "create_job_file_thumbnail_task",
     "diff_costset",
     "get_active_jobs",
     "get_job_folder_path",

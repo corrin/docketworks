@@ -40,7 +40,6 @@ try:
             JobFileUploadSerializer,
             JobFileUploadSuccessResponseSerializer,
             JobFileUploadViewResponseSerializer,
-            UploadedFileSerializer,
         )
         from .job_profitability_report_serializers import (
             CostSetMetricsSerializer,
@@ -283,7 +282,6 @@ __all__ = [
     "QuoteSyncErrorResponseSerializer",
     "TimelineEntrySerializer",
     "TimesheetCostLineSerializer",
-    "UploadedFileSerializer",
     "ValidationReportSerializer",
     "WeeklyMetricsSerializer",
     "WorkshopJobSerializer",

@@ -37,15 +37,6 @@ class JobFileSerializer(serializers.ModelSerializer):
         )
 
 
-class UploadedFileSerializer(serializers.Serializer):
-    """Serializer for file upload response."""
-
-    id = serializers.CharField()
-    filename = serializers.CharField()
-    file_path = serializers.CharField()
-    print_on_jobsheet = serializers.BooleanField()
-
-
 class JobFileUploadSerializer(serializers.Serializer):
     """Serializer for job file upload requests."""
 
@@ -65,7 +56,7 @@ class JobFileUploadSuccessResponseSerializer(serializers.Serializer):
     """Serializer for successful file upload response."""
 
     status = serializers.CharField(default="success")
-    uploaded = UploadedFileSerializer(many=True)
+    uploaded = JobFileSerializer(many=True)
     message = serializers.CharField()
 
 
@@ -73,7 +64,7 @@ class JobFileUploadPartialResponseSerializer(serializers.Serializer):
     """Serializer for partial success file upload response."""
 
     status = serializers.CharField()
-    uploaded = UploadedFileSerializer(many=True)
+    uploaded = JobFileSerializer(many=True)
     errors = serializers.ListField(child=serializers.CharField())
 
 

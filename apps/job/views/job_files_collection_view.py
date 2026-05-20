@@ -27,10 +27,13 @@ from apps.job.serializers.job_file_serializer import (
     JobFileUploadPartialResponseSerializer,
     JobFileUploadSerializer,
     JobFileUploadSuccessResponseSerializer,
-    UploadedFileSerializer,
 )
-from apps.job.services.file_service import create_thumbnail, get_thumbnail_folder
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.job.tasks import create_job_file_thumbnail_task
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.error_persistence import (
+    persist_and_raise,
+    persist_app_error,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,7 +55,8 @@ class JobFilesCollectionView(APIView):
             settings.DROPBOX_WORKFLOW_FOLDER, f"Job-{job.job_number}"
         )
         os.makedirs(job_folder, exist_ok=True)
-        file_path = os.path.join(job_folder, file_obj.name)
+        safe_filename = os.path.basename(file_obj.name)
+        file_path = os.path.join(job_folder, safe_filename)
 
         # Fail early if empty
         if file_obj.size == 0:
@@ -68,7 +72,7 @@ class JobFilesCollectionView(APIView):
             relative_path = os.path.relpath(file_path, settings.DROPBOX_WORKFLOW_FOLDER)
             job_file, created = JobFile.objects.update_or_create(
                 job=job,
-                filename=file_obj.name,
+                filename=safe_filename,
                 defaults={
                     "file_path": relative_path,
                     "mime_type": file_obj.content_type,
@@ -84,14 +88,37 @@ class JobFilesCollectionView(APIView):
                 job.job_number,
             )
 
-            # Generate thumbnail for images
-            if file_obj.content_type and file_obj.content_type.startswith("image/"):
-                thumb_folder = get_thumbnail_folder(job.job_number)
-                thumb_path = os.path.join(thumb_folder, f"{file_obj.name}.thumb.jpg")
-                create_thumbnail(file_path, thumb_path)
+            serialized_file = JobFileSerializer(
+                job_file, context={"request": request}
+            ).data
 
-            # Upload response uses UploadedFileSerializer schema (includes file_path)
-            return UploadedFileSerializer(job_file).data
+            # Generate thumbnails asynchronously so uploads are not blocked by
+            # image processing.
+            if file_obj.content_type and file_obj.content_type.startswith("image/"):
+                try:
+                    create_job_file_thumbnail_task.delay(str(job_file.id))
+                except AlreadyLoggedException:
+                    logger.exception(
+                        "Thumbnail generation failed after upload for file %s",
+                        job_file.id,
+                    )
+                except Exception as thumb_exc:
+                    logger.exception(
+                        "Could not enqueue thumbnail generation for file %s",
+                        job_file.id,
+                    )
+                    persist_app_error(
+                        thumb_exc,
+                        job_id=str(job.id),
+                        user_id=(
+                            str(request.user.id)
+                            if getattr(request.user, "is_authenticated", False)
+                            else None
+                        ),
+                        additional_context={"file_id": str(job_file.id)},
+                    )
+
+            return serialized_file
 
         except Exception as e:
             logger.error("Error saving file %s: %s", file_obj.name, str(e))
