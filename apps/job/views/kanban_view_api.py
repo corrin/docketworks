@@ -244,7 +244,9 @@ class FetchJobsAPIView(APIView):
             search_term = request.GET.get("search", "").strip()
             search_terms = search_term.split() if search_term else []
 
-            jobs = KanbanService.get_jobs_by_status(status, search_terms)
+            jobs = KanbanService.get_jobs_by_status(
+                status, search_terms, request=request
+            )
             total_jobs = Job.objects.filter(status=status).count()
 
             job_data = [
@@ -431,6 +433,13 @@ class AdvancedSearchAPIView(APIView):
             filters["status"] = raw.split(",") if raw else []
 
             jobs = KanbanService.perform_advanced_search(filters)
+            KanbanService.log_kanban_search_results(
+                request=request,
+                source="advanced",
+                query=filters["universal_search"],
+                jobs=list(jobs),
+                filters=filters,
+            )
 
             job_data = [
                 KanbanService.serialize_job_for_api(job, request) for job in jobs
@@ -473,7 +482,7 @@ class FetchJobsByColumnAPIView(APIView):
 
             # Use the new categorized kanban service
             result = KanbanService.get_jobs_by_kanban_column(
-                column_id, max_jobs, search_term
+                column_id, max_jobs, search_term, request=request
             )
 
             # Serialize the response

@@ -1,7 +1,9 @@
+import json
 import uuid
 from datetime import date
 from decimal import Decimal
 
+from django.test import RequestFactory
 from django.utils import timezone
 
 from apps.accounting.models import Invoice
@@ -49,6 +51,11 @@ class KanbanSearchTest(BaseTestCase):
             default_xero_pay_item=self.xero_pay_item,
         )
 
+    def _set_job_number(self, job: Job, job_number: int) -> Job:
+        Job.objects.filter(pk=job.pk).untracked_update(job_number=job_number)
+        job.refresh_from_db()
+        return job
+
     def _make_invoice(self, job: Job, *, number: str) -> Invoice:
         return Invoice.objects.create(
             xero_id=uuid.uuid4(),
@@ -91,6 +98,126 @@ class KanbanSearchTest(BaseTestCase):
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "910"}))
 
         self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_numeric_query_prefers_job_number_over_long_description_substring(self):
+        target = self._set_job_number(
+            self._make_job(
+                name="Workshop Closed due to new roof",
+                client_name="Weaver, Decker and Schultz",
+            ),
+            96977,
+        )
+        description_match = self._make_job(
+            name="Auckland airport - bag drop",
+            client_name="Other Client",
+        )
+        description_match.description = "quote for bag drop components\n2-3977"
+        description_match.save(staff=self.test_staff, update_fields=["description"])
+        for index in range(100):
+            noisy_job = self._make_job(
+                name=f"Noise job {index}",
+                client_name=f"Noise Client {index}",
+            )
+            self._set_job_number(noisy_job, 70000 + index)
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
+
+        self.assertEqual(jobs[0].id, target.id)
+        self.assertIn(description_match.id, [job.id for job in jobs])
+
+    def test_get_jobs_by_kanban_column_exact_job_number_suppresses_distant_noise(self):
+        target = self._set_job_number(
+            self._make_job(
+                name="Best matching job",
+                client_name="Weaver, Decker and Schultz",
+                status="in_progress",
+            ),
+            78941,
+        )
+        self._set_job_number(
+            self._make_job(
+                name="Adjacent but weaker job",
+                client_name="Other Client",
+                status="in_progress",
+            ),
+            78940,
+        )
+        for index in range(100):
+            noisy_job = self._make_job(
+                name=f"Noise job {index}",
+                client_name=f"Noise Client {index}",
+                status="in_progress",
+            )
+            self._set_job_number(noisy_job, 70000 + index)
+
+        result = KanbanService.get_jobs_by_kanban_column(
+            "in_progress", max_jobs=200, search_term="78941"
+        )
+
+        self.assertTrue(result["success"])
+        self.assertEqual([job["id"] for job in result["jobs"]], [str(target.id)])
+
+    def test_perform_advanced_search_keeps_plausible_short_job_number_match(
+        self,
+    ):
+        near_match = self._set_job_number(
+            self._make_job(
+                name="Best approximate job",
+                client_name="Other Client",
+            ),
+            96977,
+        )
+        self._make_job(
+            name="Auckland airport - bag drop",
+            client_name="Another Client",
+            contact_name="Alice Brown",
+        )
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
+
+        self.assertIn(near_match.id, [job.id for job in jobs])
+
+    def test_numeric_query_prefers_job_number_suffix_over_middle_substring(self):
+        suffix_match = self._set_job_number(
+            self._make_job(
+                name="Suffix match",
+                client_name="Other Client",
+            ),
+            96977,
+        )
+        middle_match = self._set_job_number(
+            self._make_job(
+                name="Middle match",
+                client_name="Other Client",
+            ),
+            97701,
+        )
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
+
+        self.assertEqual(jobs[0].id, suffix_match.id)
+        self.assertLess(
+            getattr(middle_match, "search_score", 0),
+            getattr(suffix_match, "search_score", 0),
+        )
+
+    def test_perform_advanced_search_keeps_multiple_close_text_matches(self):
+        target_one = self._make_job(
+            name="Kick plates",
+            client_name="Weaver, Decker and Schultz",
+        )
+        target_two = self._make_job(
+            name="Kick rails",
+            client_name="Other Client",
+        )
+        self._make_job(
+            name="Aluminium handrail",
+            client_name="Distant Client",
+        )
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
+
+        self.assertEqual({job.id for job in jobs}, {target_one.id, target_two.id})
 
     def test_perform_advanced_search_matches_client_tokens_in_any_order(self):
         target = self._make_job(
@@ -157,6 +284,24 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertEqual(jobs, [])
 
+    def test_perform_advanced_search_returns_empty_for_only_weak_trigram_matches(self):
+        weak_match = self._make_job(
+            name="5x swaged ends",
+            client_name="Other Client",
+        )
+        setattr(
+            weak_match,
+            "trigram_score",
+            (KanbanService.SEARCH_SCORE_MIN_DISPLAY - 1)
+            / KanbanService.SEARCH_SCORE_TRIGRAM_MULTIPLIER,
+        )
+
+        ranked_jobs = KanbanService._rank_kanban_search_candidates(
+            [weak_match], "weavr"
+        )
+
+        self.assertEqual(ranked_jobs, [])
+
     def test_perform_advanced_search_recovers_typo_tolerance(self):
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
@@ -220,3 +365,40 @@ class KanbanSearchTest(BaseTestCase):
         )
 
         self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_kanban_search_logging_records_ranked_results_and_reasons(self):
+        target = self._set_job_number(
+            self._make_job(
+                name="Workshop Closed due to new roof",
+                client_name="Weaver, Decker and Schultz",
+            ),
+            96977,
+        )
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
+        request = RequestFactory().get("/api/job/jobs/advanced-search/", {"q": "977"})
+        request.user = self.test_staff
+
+        with self.assertLogs("kanban_search", level="INFO") as captured:
+            KanbanService.log_kanban_search_results(
+                request=request,
+                source="advanced",
+                query="977",
+                jobs=jobs,
+                filters={"universal_search": "977"},
+            )
+
+        payload = json.loads(captured.output[0].partition("kanban_search:")[2])
+
+        self.assertEqual(payload["event"], "kanban_search_results")
+        self.assertEqual(payload["query"], "977")
+        self.assertEqual(payload["query_string"], "q=977")
+        self.assertEqual(payload["user_email"], self.test_staff.email)
+        self.assertEqual(payload["result_count"], len(jobs))
+        self.assertEqual(payload["results"][0]["rank"], 1)
+        self.assertEqual(payload["results"][0]["job_id"], str(target.id))
+        self.assertEqual(payload["results"][0]["job_number"], 96977)
+        self.assertEqual(payload["results"][0]["search_score"], 85.0)
+        self.assertEqual(
+            payload["results"][0]["search_reasons"]["tokens"][0]["reason"],
+            "job_number_contains",
+        )
