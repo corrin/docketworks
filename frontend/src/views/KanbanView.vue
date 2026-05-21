@@ -514,7 +514,7 @@ const { isDragging, initializeSortable, destroyAllSortables } = useOptimizedDrag
       if (fromStatus !== toStatus) {
         const actualStatus = KanbanCategorizationService.getDefaultStatusForColumn(toStatus)
         // Fire-and-forget: updateJobStatus handles errors internally and revalidates columns
-        void updateJobStatus(jobId, actualStatus)
+        void updateJobStatus(jobId, actualStatus, { beforeId, afterId })
         if (beforeId || afterId) {
           setTimeout(() => {
             reorderJob(jobId, beforeId, afterId, toStatus)

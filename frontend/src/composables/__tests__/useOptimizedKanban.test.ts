@@ -8,6 +8,7 @@ const {
   setCurrentContext,
   setLoadingKanban,
   getJobsByColumn,
+  updateJobStatus,
   performAdvancedSearch,
   checkFreshness,
   kanbanColumnCache,
@@ -18,6 +19,7 @@ const {
   setCurrentContext: vi.fn(),
   setLoadingKanban: vi.fn(),
   getJobsByColumn: vi.fn(),
+  updateJobStatus: vi.fn(),
   performAdvancedSearch: vi.fn(),
   checkFreshness: vi.fn(),
   kanbanColumnCache: new Map<string, unknown>(),
@@ -42,6 +44,7 @@ vi.mock('@/services/job.service', () => ({
       tooltips: {},
     }),
     performAdvancedSearch,
+    updateJobStatus,
   },
 }))
 
@@ -76,6 +79,43 @@ vi.mock('@/stores/jobs', () => ({
       }
       kanbanColumnCache.set(columnId, cached)
       return cached
+    },
+    updateKanbanJob: (jobId: string, updates: Record<string, unknown>) => {
+      const existing = kanbanJobsById.get(jobId)
+      if (existing) {
+        kanbanJobsById.set(jobId, { ...existing, ...updates })
+      }
+    },
+    moveKanbanJobInColumnCache: (
+      jobId: string,
+      sourceColumnId: string,
+      targetColumnId: string,
+      beforeId?: string,
+      afterId?: string,
+    ) => {
+      const sourceCache = kanbanColumnCache.get(sourceColumnId) as { jobIds?: string[] } | undefined
+      if (sourceCache) {
+        sourceCache.jobIds = (sourceCache.jobIds ?? []).filter(
+          (cachedJobId) => cachedJobId !== jobId,
+        )
+      }
+
+      const targetCache = kanbanColumnCache.get(targetColumnId) as { jobIds?: string[] } | undefined
+      if (targetCache) {
+        const withoutMovedJob = (targetCache.jobIds ?? []).filter(
+          (cachedJobId) => cachedJobId !== jobId,
+        )
+        let insertIndex = withoutMovedJob.length
+        if (beforeId) {
+          const beforeIndex = withoutMovedJob.indexOf(beforeId)
+          if (beforeIndex !== -1) insertIndex = beforeIndex + 1
+        } else if (afterId) {
+          const afterIndex = withoutMovedJob.indexOf(afterId)
+          if (afterIndex !== -1) insertIndex = afterIndex
+        }
+        withoutMovedJob.splice(insertIndex, 0, jobId)
+        targetCache.jobIds = withoutMovedJob
+      }
     },
     setCurrentContext,
     setLoadingKanban,
@@ -175,6 +215,7 @@ describe('useOptimizedKanban search reconciliation', () => {
     kanbanColumnCache.clear()
     kanbanJobsById.clear()
     checkFreshness.mockResolvedValue(undefined)
+    updateJobStatus.mockResolvedValue({ success: true })
     getJobsByColumn.mockImplementation(async (columnId: string) => {
       if (columnId === 'in_progress') {
         return {
@@ -383,5 +424,41 @@ describe('useOptimizedKanban search reconciliation', () => {
       xero_invoice_params: '',
     })
     expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-3'])
+  })
+
+  it('moves a job locally between columns before status update revalidation completes', async () => {
+    const pendingStatusUpdate = deferred<{ success: boolean }>()
+    updateJobStatus.mockReturnValueOnce(pendingStatusUpdate.promise)
+
+    const kanban = await mountHarness()
+
+    const updatePromise = kanban.updateJobStatus('job-1', 'draft')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-1'])
+
+    pendingStatusUpdate.resolve({ success: true })
+    await updatePromise
+  })
+
+  it('keeps a filtered single visible job visible in its new column after a drag status update', async () => {
+    const pendingStatusUpdate = deferred<{ success: boolean }>()
+    updateJobStatus.mockReturnValueOnce(pendingStatusUpdate.promise)
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-1'])
+
+    const updatePromise = kanban.updateJobStatus('job-1', 'draft')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-1'])
+    expect(kanban.filteredJobs.value).toMatchObject([{ id: 'job-1', status: 'draft' }])
+
+    pendingStatusUpdate.resolve({ success: true })
+    await updatePromise
   })
 })

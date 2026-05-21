@@ -373,8 +373,81 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     return filteredJobs.value.length > 0 || searchQuery.value.trim() !== ''
   })
 
+  const insertJobInColumn = (
+    jobs: KanbanJob[],
+    job: KanbanJob,
+    beforeId?: string,
+    afterId?: string,
+  ): KanbanJob[] => {
+    const withoutMovedJob = jobs.filter((existingJob) => existingJob.id !== job.id)
+    let insertIndex = withoutMovedJob.length
+
+    if (beforeId) {
+      const beforeIndex = withoutMovedJob.findIndex((existingJob) => existingJob.id === beforeId)
+      if (beforeIndex !== -1) {
+        insertIndex = beforeIndex + 1
+      }
+    } else if (afterId) {
+      const afterIndex = withoutMovedJob.findIndex((existingJob) => existingJob.id === afterId)
+      if (afterIndex !== -1) {
+        insertIndex = afterIndex
+      }
+    }
+
+    return [...withoutMovedJob.slice(0, insertIndex), job, ...withoutMovedJob.slice(insertIndex)]
+  }
+
+  const applyLocalJobStatusMove = (
+    jobId: string,
+    job: KanbanJob,
+    sourceColumnId: string,
+    targetColumnId: string,
+    newStatus: string,
+    beforeId?: string,
+    afterId?: string,
+  ): void => {
+    const movedJob: KanbanJob = {
+      ...job,
+      status: newStatus,
+      status_key: newStatus,
+    }
+
+    Object.values(columnStates).forEach((columnState) => {
+      columnState.jobs = columnState.jobs.filter((existingJob) => existingJob.id !== jobId)
+    })
+
+    if (!columnStates[targetColumnId]) {
+      initializeColumnStates()
+    }
+
+    columnStates[targetColumnId].jobs = insertJobInColumn(
+      columnStates[targetColumnId].jobs,
+      movedJob,
+      beforeId,
+      afterId,
+    )
+
+    jobsStore.updateKanbanJob(jobId, {
+      status: newStatus,
+      status_key: newStatus,
+    })
+    jobsStore.moveKanbanJobInColumnCache(jobId, sourceColumnId, targetColumnId, beforeId, afterId)
+
+    if (filteredJobs.value.some((filteredJob) => filteredJob.id === jobId)) {
+      filteredJobs.value = filteredJobs.value.map((filteredJob) =>
+        filteredJob.id === jobId
+          ? { ...filteredJob, status: newStatus, status_key: newStatus }
+          : filteredJob,
+      )
+    }
+  }
+
   // Optimistic job status update
-  const updateJobStatusOptimistic = async (jobId: string, newStatus: string): Promise<boolean> => {
+  const updateJobStatusOptimistic = async (
+    jobId: string,
+    newStatus: string,
+    options: { beforeId?: string; afterId?: string } = {},
+  ): Promise<boolean> => {
     debugLog(`Starting status update: Job ${jobId} -> ${newStatus}`)
 
     error.value = null
@@ -401,6 +474,16 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     // Determine target column
     const targetColumnId = KanbanCategorizationService.getColumnForStatus(newStatus)
     debugLog(`Moving from column ${sourceColumnId} to ${targetColumnId}`)
+
+    applyLocalJobStatusMove(
+      jobId,
+      job,
+      sourceColumnId,
+      targetColumnId,
+      newStatus,
+      options.beforeId,
+      options.afterId,
+    )
 
     try {
       // Make API call first
