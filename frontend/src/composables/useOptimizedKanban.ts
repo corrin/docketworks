@@ -56,22 +56,6 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   // Column-based state management
   const columnStates = reactive<Record<string, ColumnState>>({})
 
-  // URL sync for search query - debounced to avoid URL pollution during typing
-  const updateUrlWithSearch = useDebounceFn((query: string) => {
-    const newQuery = { ...route.query }
-    if (query.trim()) {
-      newQuery.q = query
-    } else {
-      delete newQuery.q
-    }
-    router.replace({ query: newQuery })
-  }, 500)
-
-  // Watch searchQuery and update URL
-  watch(searchQuery, (newQuery) => {
-    updateUrlWithSearch(newQuery)
-  })
-
   // Watch URL for browser back/forward navigation
   watch(
     () => route.query.q,
@@ -660,6 +644,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const backToKanban = (): void => {
     searchQuery.value = ''
     filteredJobs.value = []
+    const newQuery = { ...route.query }
+    delete newQuery.q
+    router.replace({ query: newQuery })
   }
 
   const loadMoreJobs = (columnId: string): void => {

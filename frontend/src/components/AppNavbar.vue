@@ -923,9 +923,11 @@ import WorkshopOfficeToggle from '@/components/board/WorkshopOfficeToggle.vue'
 const router = useRouter()
 const route = useRoute()
 const searchInput = ref((route.query.q as string) || '')
+const lastSubmittedQuery = ref((route.query.q as string) || '')
 
 const submitSearch = () => {
   const q = searchInput.value.trim()
+  lastSubmittedQuery.value = q
   if (route.path === '/kanban') {
     router.replace({ path: '/kanban', query: q ? { q } : {} })
   } else {
@@ -957,7 +959,10 @@ const openAdvancedSearch = () => {
 watch(
   () => route.query.q,
   (newQ) => {
-    searchInput.value = (newQ as string) || ''
+    const parsed = (newQ as string) || ''
+    if (parsed === searchInput.value) return
+    if (parsed === lastSubmittedQuery.value && searchInput.value.startsWith(parsed)) return
+    searchInput.value = parsed
   },
 )
 
