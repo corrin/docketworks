@@ -51,6 +51,68 @@ class KanbanService:
     SEARCH_SCORE_TRIGRAM_MULTIPLIER = 30.0
     SEARCH_SCORE_FALLBACK_RATIO = 0.5
     SEARCH_SCORE_MIN_DISPLAY = 15.0
+    SEARCH_SCORE_ORDER_NUMBER_MATCH = 75.0
+
+    TEXT_SEARCH_FIELDS: List[Dict[str, Any]] = [
+        {
+            "db_path": "name",
+            "expression": Coalesce("name", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_NAME_CONTAINS,
+            "reason": "name_contains",
+        },
+        {
+            "db_path": "client__name",
+            "expression": Coalesce("client__name", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_CLIENT_CONTAINS,
+            "reason": "client_contains",
+        },
+        {
+            "db_path": "contact__name",
+            "expression": Coalesce(
+                "contact__name", Value(""), output_field=TextField()
+            ),
+            "score": SEARCH_SCORE_CONTACT_CONTAINS,
+            "reason": "contact_contains",
+        },
+        {
+            "db_path": "description",
+            "expression": Coalesce("description", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_DESCRIPTION_CONTAINS,
+            "reason": "description_contains",
+        },
+        {
+            "db_path": "job_number",
+            "expression": Coalesce(
+                Cast("job_number", output_field=TextField()),
+                Value(""),
+                output_field=TextField(),
+            ),
+            "score": SEARCH_SCORE_JOB_NUMBER_CONTAINS,
+            "reason": "job_number_contains",
+        },
+        {
+            "db_path": "quote__number",
+            "expression": Coalesce(
+                "quote__number", Value(""), output_field=TextField()
+            ),
+            "score": SEARCH_SCORE_QUOTE_CONTAINS,
+            "reason": "quote_contains",
+        },
+        {
+            "db_path": "order_number",
+            "expression": Coalesce("order_number", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_ORDER_NUMBER_MATCH,
+            "reason": "order_number_contains",
+        },
+        {
+            "db_path": "invoices__number",
+            "expression": Coalesce(
+                "invoices__number", Value(""), output_field=TextField()
+            ),
+            "score": SEARCH_SCORE_QUOTE_CONTAINS,
+            "reason": "invoice_contains",
+        },
+    ]
 
     @staticmethod
     def get_jobs_by_status(
@@ -105,52 +167,24 @@ class KanbanService:
             return list(jobs_query)
 
         tokens = normalized_query.split()
-        searchable_fields = [
-            (
-                "name",
-                Coalesce("name", Value(""), output_field=TextField()),
-            ),
-            (
-                "client__name",
-                Coalesce("client__name", Value(""), output_field=TextField()),
-            ),
-            (
-                "contact__name",
-                Coalesce("contact__name", Value(""), output_field=TextField()),
-            ),
-            (
-                "description",
-                Coalesce("description", Value(""), output_field=TextField()),
-            ),
-            (
-                "job_number",
-                Coalesce(
-                    Cast("job_number", output_field=TextField()),
-                    Value(""),
-                    output_field=TextField(),
-                ),
-            ),
-            (
-                "quote__number",
-                Coalesce("quote__number", Value(""), output_field=TextField()),
-            ),
-        ]
 
         annotations: Dict[str, Any] = {}
         token_aliases: List[str] = []
         for index, token in enumerate(tokens):
             alias = f"search_token_score_{index}"
             substring_whens = [
-                When(**{f"{lookup}__icontains": token}, then=Value(1.0))
-                for lookup, _ in searchable_fields
-                if lookup != "job_number"
+                When(**{f"{spec['db_path']}__icontains": token}, then=Value(1.0))
+                for spec in KanbanService.TEXT_SEARCH_FIELDS
+                if spec["db_path"] != "job_number"
             ]
             field_scores = [
-                TrigramSimilarity(expression, token)
-                for _, expression in searchable_fields
+                TrigramSimilarity(spec["expression"], token)
+                for spec in KanbanService.TEXT_SEARCH_FIELDS
+                if spec["db_path"] != "invoices__number"
             ] + [
-                TrigramWordSimilarity(token, expression)
-                for _, expression in searchable_fields
+                TrigramWordSimilarity(token, spec["expression"])
+                for spec in KanbanService.TEXT_SEARCH_FIELDS
+                if spec["db_path"] != "invoices__number"
             ]
             annotations[alias] = Greatest(
                 Case(
@@ -181,6 +215,7 @@ class KanbanService:
         candidates = list(
             jobs_query.filter(token_filter)
             .select_related("client", "contact", "quote")
+            .prefetch_related("invoices")
             .order_by("-trigram_score", "-created_at")
         )
         return KanbanService._rank_kanban_search_candidates(
@@ -249,16 +284,9 @@ class KanbanService:
         job: Job, token: str
     ) -> Tuple[float, Dict[str, Any]]:
         job_number = str(job.job_number)
-        name = (job.name or "").lower()
-        client_name = (job.client.name if job.client_id and job.client else "").lower()
-        contact_name = (
-            job.contact.name if job.contact_id and job.contact else ""
-        ).lower()
-        description = (job.description or "").lower()
-        quote_number = KanbanService._job_quote_number(job).lower()
         trigram_score = float(getattr(job, "trigram_score", 0.0) or 0.0)
 
-        scored_reasons = [
+        scored_reasons: List[Tuple[float, str]] = [
             (
                 (
                     KanbanService.SEARCH_SCORE_EXACT_JOB_NUMBER
@@ -275,55 +303,22 @@ class KanbanService:
                 ),
                 "job_number_suffix",
             ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_JOB_NUMBER_CONTAINS
-                    if token in job_number
-                    else 0.0
-                ),
-                "job_number_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_QUOTE_CONTAINS
-                    if token in quote_number
-                    else 0.0
-                ),
-                "quote_contains",
-            ),
-            (
-                KanbanService.SEARCH_SCORE_NAME_CONTAINS if token in name else 0.0,
-                "name_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_CLIENT_CONTAINS
-                    if token in client_name
-                    else 0.0
-                ),
-                "client_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_CONTACT_CONTAINS
-                    if token in contact_name
-                    else 0.0
-                ),
-                "contact_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_DESCRIPTION_CONTAINS
-                    if token in description
-                    else 0.0
-                ),
-                "description_contains",
-            ),
+        ]
+
+        for spec in KanbanService.TEXT_SEARCH_FIELDS:
+            value = KanbanService._get_search_field_value(job, spec["db_path"])
+            if value and token in value:
+                scored_reasons.append((spec["score"], spec["reason"]))
+            else:
+                scored_reasons.append((0.0, spec["reason"]))
+
+        scored_reasons.append(
             (
                 trigram_score * KanbanService.SEARCH_SCORE_TRIGRAM_MULTIPLIER,
-                "trigram",
-            ),
-        ]
+                "misspelling",
+            )
+        )
+
         score, reason = max(scored_reasons, key=lambda scored: scored[0])
         return score, {"token": token, "reason": reason, "score": score}
 
@@ -334,6 +329,30 @@ class KanbanService:
         except ObjectDoesNotExist:
             return ""
         return quote.number or ""
+
+    @staticmethod
+    def _get_search_field_value(job: Job, db_path: str) -> str:
+        match db_path:
+            case "name":
+                return (job.name or "").lower()
+            case "client__name":
+                return (job.client.name if job.client_id and job.client else "").lower()
+            case "contact__name":
+                return (
+                    job.contact.name if job.contact_id and job.contact else ""
+                ).lower()
+            case "description":
+                return (job.description or "").lower()
+            case "job_number":
+                return str(job.job_number)
+            case "quote__number":
+                return KanbanService._job_quote_number(job).lower()
+            case "order_number":
+                return (job.order_number or "").lower()
+            case "invoices__number":
+                return " ".join(inv.number for inv in job.invoices.all()).lower()
+            case _:
+                return ""
 
     @staticmethod
     def explain_kanban_search(query: str, limit: int = 20) -> List[Dict[str, Any]]:
@@ -782,7 +801,6 @@ class KanbanService:
             QuerySet of filtered jobs
         """
         jobs_query = Job.objects.all()
-        logger.info(f"Performing advanced search with filters: {filters}")
 
         # Apply filters with early returns for invalid data
         if number := filters.get("job_number", "").strip():
@@ -800,6 +818,9 @@ class KanbanService:
         if contact_person := filters.get("contact_person", "").strip():
             jobs_query = jobs_query.filter(contact__name__icontains=contact_person)
 
+        if order_number := filters.get("order_number", "").strip():
+            jobs_query = jobs_query.filter(order_number__icontains=order_number)
+
         if created_by := filters.get("created_by", "").strip():
             jobs_query = jobs_query.filter(events__staff=created_by)
 
@@ -813,11 +834,15 @@ class KanbanService:
             jobs_query = jobs_query.filter(status__in=statuses)
 
         if xero_invoice_params := filters.get("xero_invoice_params", "").strip():
+            if xero_invoice_params.isdigit():
+                xero_invoice_params = f"INV-{xero_invoice_params}"
             match xero_invoice_params:
                 case param if is_valid_uuid(param):
                     jobs_query = jobs_query.filter(invoices__xero_id=param)
                 case param if is_valid_invoice_number(param):
                     jobs_query = jobs_query.filter(invoices__number=param)
+                case _:
+                    jobs_query = Job.objects.none()
 
         # Handle paid filter with match-case
         paid_filter = filters.get("paid", "")

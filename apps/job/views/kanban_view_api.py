@@ -359,6 +359,13 @@ class AdvancedSearchAPIView(APIView):
                 description="Filter by contact person",
             ),
             OpenApiParameter(
+                name="order_number",
+                type=str,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Filter by customer order number",
+            ),
+            OpenApiParameter(
                 name="created_by",
                 type=str,
                 location=OpenApiParameter.QUERY,
@@ -420,6 +427,7 @@ class AdvancedSearchAPIView(APIView):
                 "description": request.GET.get("description", ""),
                 "client_name": request.GET.get("client_name", ""),
                 "contact_person": request.GET.get("contact_person", ""),
+                "order_number": request.GET.get("order_number", ""),
                 "created_by": request.GET.get("created_by", ""),
                 "created_after": request.GET.get("created_after", ""),
                 "created_before": request.GET.get("created_before", ""),

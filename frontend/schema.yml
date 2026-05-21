@@ -4193,6 +4193,11 @@ paths:
             type: string
           description: Filter by job name
         - in: query
+          name: order_number
+          schema:
+            type: string
+          description: Filter by customer order number
+        - in: query
           name: paid
           schema:
             type: string
