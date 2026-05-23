@@ -115,12 +115,16 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
           onDragEvent('job-moved', { jobId, fromStatus, toStatus, beforeId, afterId })
         }
 
-        // SortableJS physically relocated this node into the target column. Vue
-        // owns the kanban DOM and re-renders the job into its new column from the
-        // optimistic update above; leaving Sortable's copy in place yields two
-        // elements for the same job until the next full revalidation. Detach it
-        // after the handler has synchronously updated Vue state.
-        jobElement.remove()
+        if (jobId) {
+          debugLog('DRAG END -- post-handler DOM state', {
+            jobId,
+            draggedElementConnected: jobElement.isConnected,
+            matchingCards: document.querySelectorAll(`[data-job-id="${jobId}"]`).length,
+            matchingVisibleCards: document.querySelectorAll(
+              `[data-job-id="${jobId}"]:not([hidden])`,
+            ).length,
+          })
+        }
 
         // Revalidation is handled by the onDragEvent handler (useOptimizedKanban)
         // Removing duplicate revalidation to prevent conflicts and duplications
