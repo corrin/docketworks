@@ -6471,6 +6471,11 @@ Expected JSON:
         schema: z.string().optional(),
       },
       {
+        name: 'order_number',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
         name: 'paid',
         type: 'Query',
         schema: z.string().optional(),

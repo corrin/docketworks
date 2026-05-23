@@ -119,16 +119,12 @@ const dragCardWithinColumn = async (page: Page, card: Locator, column: Locator) 
   await page.waitForTimeout(500)
 }
 
-const assertSingleVisibleInstance = async (
-  page: Page,
-  jobId: string,
-  context: string,
-) => {
+const assertSingleVisibleInstance = async (page: Page, jobId: string, context: string) => {
   const allVisibleCards = page.locator(`[data-job-id="${jobId}"]:visible`)
-  await expect(allVisibleCards, `${context}: Exactly one visible card for job ${jobId}`).toHaveCount(
-    1,
-    { timeout: 15000 },
-  )
+  await expect(
+    allVisibleCards,
+    `${context}: Exactly one visible card for job ${jobId}`,
+  ).toHaveCount(1, { timeout: 15000 })
 }
 
 const assertJobInColumn = async (page: Page, jobId: string, columnStatus: string) => {
@@ -192,7 +188,6 @@ test.describe('kanban drag vanishing', () => {
       ).toHaveCount(0)
     }
   })
-
 
   test('cross-column drag preserves job visibility', async ({
     authenticatedPage: page,
@@ -314,9 +309,7 @@ test.describe('kanban drag vanishing', () => {
 
     if (intermediateStatus && intermediateStatus !== originalStatus) {
       await expect(
-        page.locator(
-          `[data-status="${intermediateStatus}"] [data-job-id="${jobId}"]`,
-        ),
+        page.locator(`[data-status="${intermediateStatus}"] [data-job-id="${jobId}"]`),
       ).toHaveCount(0)
     }
   })
