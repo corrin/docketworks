@@ -224,6 +224,6 @@ class JobFilesCollectionView(APIView):
         job = get_object_or_404(Job, id=job_id)
 
         # Get active files
-        files = JobFile.objects.filter(job=job, status="active")
+        files = JobFile.objects.filter(job=job, status="active").select_related("job")
         serializer = JobFileSerializer(files, many=True, context={"request": request})
         return Response(serializer.data, status=status.HTTP_200_OK)
