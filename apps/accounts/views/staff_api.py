@@ -55,7 +55,7 @@ class StaffListCreateAPIView(generics.ListCreateAPIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
-        return Staff.objects.all()
+        return Staff.objects.prefetch_related("groups", "user_permissions")
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -121,7 +121,7 @@ class StaffRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
     parser_classes = [MultiPartParser, FormParser]
 
     def get_queryset(self):
-        return Staff.objects.all()
+        return Staff.objects.prefetch_related("groups", "user_permissions")
 
     def update(self, request, *args, **kwargs):
         logger = logging.getLogger("workflow")
