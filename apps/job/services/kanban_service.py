@@ -214,8 +214,8 @@ class KanbanService:
 
         candidates = list(
             jobs_query.filter(token_filter)
-            .select_related("client", "contact", "quote")
-            .prefetch_related("invoices")
+            .select_related("client", "contact", "created_by", "quote")
+            .prefetch_related("people", "invoices")
             .order_by("-trigram_score", "-created_at")
         )
         return KanbanService._rank_kanban_search_candidates(
@@ -902,7 +902,9 @@ class KanbanService:
             valid_statuses = [column.status_key]  # Only the column's main status
             jobs_query = (
                 Job.objects.filter(status__in=valid_statuses)
-                .select_related("client", "latest_quote", "latest_actual")
+                .select_related(
+                    "client", "contact", "created_by", "latest_quote", "latest_actual"
+                )
                 .prefetch_related("people")
             )
             jobs_query = KanbanService.filter_kanban_jobs(jobs_query)

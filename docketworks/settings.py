@@ -177,6 +177,17 @@ MIDDLEWARE = [
     "simple_history.middleware.HistoryRequestMiddleware",
 ]
 
+# --- nplusone: N+1 query detection (dev/test only) ---
+# Zero overhead in production: when DEBUG=False, the middleware is never
+# imported and no ORM patches are applied.
+NPLUSONE_ENABLED: bool = DEBUG
+NPLUSONE_LOG: bool = True
+NPLUSONE_RAISE: bool = True
+NPLUSONE_WHITELIST: list[dict[str, str]] = []
+
+if NPLUSONE_ENABLED:
+    MIDDLEWARE.insert(0, "nplusone.ext.django.NPlusOneMiddleware")
+
 # CSRF settings - Load from environment variables
 csrf_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
 csrf_trusted_origins = []

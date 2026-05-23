@@ -11,6 +11,7 @@ from typing import Any
 
 from celery import Celery
 from celery.signals import task_unknown
+from django.conf import settings
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 
@@ -18,6 +19,19 @@ app = Celery("docketworks")
 
 app.config_from_object("django.conf:settings", namespace="CELERY")
 app.autodiscover_tasks()
+
+if getattr(settings, "NPLUSONE_ENABLED", False):
+    from celery.signals import task_postrun, task_prerun
+    from nplusone.core.profiler import setup, teardown
+
+    @task_prerun.connect(weak=False)
+    def _nplusone_setup(**kwargs: Any) -> None:
+        setup()
+
+    @task_postrun.connect(weak=False)
+    def _nplusone_teardown(**kwargs: Any) -> None:
+        teardown()
+
 
 logger = logging.getLogger("celery")
 
