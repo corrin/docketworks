@@ -397,6 +397,72 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     return [...withoutMovedJob.slice(0, insertIndex), job, ...withoutMovedJob.slice(insertIndex)]
   }
 
+  const findLocalJobForKanbanMove = (
+    jobId: string,
+  ): { job: KanbanJob; sourceColumnId: string | null } | null => {
+    for (const [columnId, columnState] of Object.entries(columnStates)) {
+      const job = columnState.jobs.find((existingJob) => existingJob.id === jobId)
+      if (job) {
+        return { job, sourceColumnId: columnId }
+      }
+    }
+
+    const filteredJob = filteredJobs.value.find((job) => job.id === jobId)
+    if (filteredJob) {
+      return {
+        job: filteredJob,
+        sourceColumnId: KanbanCategorizationService.getColumnForStatus(filteredJob.status),
+      }
+    }
+
+    const cachedJob = jobsStore.getKanbanJobById(jobId)
+    if (cachedJob) {
+      return {
+        job: cachedJob,
+        sourceColumnId: KanbanCategorizationService.getColumnForStatus(cachedJob.status),
+      }
+    }
+
+    return null
+  }
+
+  const applyLocalJobReorder = (
+    jobId: string,
+    sourceColumnId: string,
+    targetColumnId: string,
+    beforeId?: string,
+    afterId?: string,
+  ): void => {
+    const localJob = findLocalJobForKanbanMove(jobId)
+    if (!localJob) {
+      return
+    }
+
+    Object.entries(columnStates).forEach(([columnId, columnState]) => {
+      if (columnId === targetColumnId) {
+        return
+      }
+      columnState.jobs = columnState.jobs.filter((existingJob) => existingJob.id !== jobId)
+    })
+
+    if (!columnStates[targetColumnId]) {
+      initializeColumnStates()
+    }
+
+    columnStates[targetColumnId].jobs = insertJobInColumn(
+      columnStates[targetColumnId].jobs,
+      localJob.job,
+      beforeId,
+      afterId,
+    )
+
+    jobsStore.moveKanbanJobInColumnCache(jobId, sourceColumnId, targetColumnId, beforeId, afterId)
+
+    if (filteredJobs.value.some((filteredJob) => filteredJob.id === jobId)) {
+      filteredJobs.value = insertJobInColumn(filteredJobs.value, localJob.job, beforeId, afterId)
+    }
+  }
+
   const applyLocalJobStatusMove = (
     jobId: string,
     job: KanbanJob,
@@ -446,24 +512,20 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const updateJobStatusOptimistic = async (
     jobId: string,
     newStatus: string,
-    options: { beforeId?: string; afterId?: string } = {},
+    options: {
+      beforeId?: string
+      afterId?: string
+      sourceColumnId?: string
+      targetColumnId?: string
+    } = {},
   ): Promise<boolean> => {
     debugLog(`Starting status update: Job ${jobId} -> ${newStatus}`)
 
     error.value = null
     // Find the job in current columns
-    let sourceColumnId: string | null = null
-    let job: KanbanJob | null = null
-
-    for (const [columnId, columnState] of Object.entries(columnStates)) {
-      const jobIndex = columnState.jobs.findIndex((j) => j.id === jobId)
-      if (jobIndex !== -1) {
-        sourceColumnId = columnId
-        job = columnState.jobs[jobIndex]
-        debugLog(`Found job ${jobId} in column ${columnId}`)
-        break
-      }
-    }
+    const localJob = findLocalJobForKanbanMove(jobId)
+    const sourceColumnId = options.sourceColumnId ?? localJob?.sourceColumnId ?? null
+    const job = localJob?.job ?? null
 
     if (!job || !sourceColumnId) {
       debugLog(`Job ${jobId} not found for status update`)
@@ -472,7 +534,8 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     }
 
     // Determine target column
-    const targetColumnId = KanbanCategorizationService.getColumnForStatus(newStatus)
+    const targetColumnId =
+      options.targetColumnId ?? KanbanCategorizationService.getColumnForStatus(newStatus)
     debugLog(`Moving from column ${sourceColumnId} to ${targetColumnId}`)
 
     applyLocalJobStatusMove(
@@ -530,6 +593,13 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       afterId,
       status,
     })
+
+    if (status) {
+      const targetColumnId = KanbanCategorizationService.getColumnForStatus(status)
+      const localJob = findLocalJobForKanbanMove(jobId)
+      const sourceColumnId = localJob?.sourceColumnId ?? targetColumnId
+      applyLocalJobReorder(jobId, sourceColumnId, targetColumnId, beforeId, afterId)
+    }
 
     try {
       debugLog(`Calling reorderJob API with:`, {
