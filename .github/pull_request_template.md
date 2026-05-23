@@ -28,3 +28,14 @@ Closes #[issue-number]
 - [ ] Passes ESLint with zero warnings (`npx eslint . --ext .js,.ts,.vue`)
 - [ ] Added JSDoc comments for all props and emitted events
 - [ ] New or updated unit/E2E tests included
+
+**Definition of Done**
+
+- [ ] Browser JavaScript console checked for relevant warnings/errors
+- [ ] Django/server console checked for relevant warnings/errors
+- [ ] Build, type-check, schema, and OpenAPI warnings reviewed; no new unexplained warnings
+- [ ] Weak frontend typing such as avoidable `any` or loose passthrough types reviewed
+- [ ] Affected business workflow regression-tested
+- [ ] User-facing workflow still makes sense for the relevant business user
+
+See [docs/definition-of-done.md](docs/definition-of-done.md).
