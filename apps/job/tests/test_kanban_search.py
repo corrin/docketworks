@@ -3,7 +3,9 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+from django.db import connection
 from django.test import RequestFactory
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounting.models import Invoice
@@ -86,6 +88,25 @@ class KanbanSearchTest(BaseTestCase):
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
 
         self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_preloads_serialize_job_relations(self):
+        target = self._make_job(
+            name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
+            client_name="Weaver, Decker and Schultz",
+        )
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+        with CaptureQueriesContext(connection) as captured:
+            KanbanService.serialize_job_for_api(jobs[0])
+
+        relation_queries = [
+            query["sql"]
+            for query in captured
+            if "job_costset" in query["sql"] or "accounts_staff" in query["sql"]
+        ]
+        self.assertEqual(relation_queries, [])
 
     def test_perform_advanced_search_matches_numeric_substring(self):
         target = self._make_job(

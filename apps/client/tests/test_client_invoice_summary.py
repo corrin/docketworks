@@ -1,16 +1,21 @@
 import uuid
 from datetime import date
 from decimal import Decimal
+from unittest.mock import MagicMock, patch
 
 import pytest
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounting.models import Invoice
 from apps.client.models import Client
 from apps.client.services.client_rest_service import ClientRestService
 from apps.client.utils import date_to_datetime
+from apps.client.views.client_rest_views import ClientCreateRestView
+from apps.testing import BaseTestCase
+from apps.workflow.accounting.types import ContactResult
 
 
 def _make_client(name: str) -> Client:
@@ -102,3 +107,39 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
             "total_spend": "$0.00",
         },
     ]
+
+
+class ClientCreateInvoiceSummaryTests(BaseTestCase):
+    def test_create_client_response_formats_annotated_invoice_summary(self):
+        provider = MagicMock()
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.search_contact_by_name.return_value = None
+        provider.create_contact.return_value = ContactResult(
+            success=True,
+            external_id="xero-contact-id",
+            name="New Client",
+        )
+
+        request = APIRequestFactory().post(
+            "/api/clients/create/",
+            {
+                "name": "New Client",
+                "email": "new@example.test",
+                "phone": "",
+                "address": "",
+                "is_account_customer": True,
+            },
+            format="json",
+        )
+        force_authenticate(request, user=self.test_staff)
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            response = ClientCreateRestView.as_view()(request)
+
+        assert response.status_code == 201
+        assert response.data["client"]["name"] == "New Client"
+        assert response.data["client"]["last_invoice_date"] is None
+        assert response.data["client"]["total_spend"] == "$0.00"

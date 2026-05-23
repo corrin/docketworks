@@ -417,7 +417,7 @@ class JobRestService:
                             else {}
                         ),
                         meta=estimate_line.meta.copy() if estimate_line.meta else {},
-                        xero_pay_item=estimate_line.xero_pay_item,
+                        xero_pay_item_id=estimate_line.xero_pay_item_id,
                     )
 
         return job

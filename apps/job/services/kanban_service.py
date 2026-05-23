@@ -214,7 +214,9 @@ class KanbanService:
 
         candidates = list(
             jobs_query.filter(token_filter)
-            .select_related("client", "contact", "created_by", "quote")
+            .select_related(
+                "client", "contact", "created_by", "latest_quote", "latest_actual"
+            )
             .prefetch_related("people", "invoices")
             .order_by("-trigram_score", "-created_at")
         )
