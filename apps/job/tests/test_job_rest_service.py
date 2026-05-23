@@ -2,10 +2,12 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.client.models import Client, ClientContact
+from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostLine
 from apps.job.services.job_rest_service import JobRestService
 from apps.testing import BaseTestCase
+from apps.workflow.models import XeroPayItem
 
 
 class JobRestServiceCreateJobTests(BaseTestCase):
@@ -39,3 +41,30 @@ class JobRestServiceCreateJobTests(BaseTestCase):
 
         self.assertEqual(len(quote_lines), len(estimate_lines))
         self.assertEqual(quote_pay_items, estimate_pay_items)
+
+
+class JobRestServiceEditTests(BaseTestCase):
+    def test_get_job_for_edit_serializes_event_staff(self):
+        client = Client.objects.create(
+            name="Edit Job Client",
+            xero_last_modified=timezone.now(),
+        )
+        contact = ClientContact.objects.create(client=client, name="Site Contact")
+        job = Job.objects.create(
+            name="Editable Job",
+            client=client,
+            contact=contact,
+            created_by=self.test_staff,
+            default_xero_pay_item=XeroPayItem.get_ordinary_time(),
+            staff=self.test_staff,
+        )
+        JobEvent.objects.create(
+            job=job,
+            staff=self.test_staff,
+            event_type="job_created",
+            detail={"job_name": job.name},
+        )
+
+        result = JobRestService.get_job_for_edit(job.id, request=None)
+
+        self.assertEqual(result["events"][0]["staff"], "Test Staff")

@@ -670,7 +670,11 @@ class JobRestService:
         # Serialise main data
         job_data = JobSerializer(job, context={"request": request}).data
 
-        events = JobEvent.objects.filter(job=job).order_by("-timestamp")
+        events = (
+            JobEvent.objects.filter(job=job)
+            .select_related("staff")
+            .order_by("-timestamp")
+        )
         events_data = JobEventSerializer(
             events, many=True, context={"request": request}
         ).data

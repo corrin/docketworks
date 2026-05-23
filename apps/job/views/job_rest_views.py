@@ -1189,7 +1189,7 @@ class JobEventListRestView(BaseJobRestView):
         """
         try:
             job = Job.objects.get(id=job_id)
-            events = job.events.all().order_by("-timestamp")
+            events = job.events.select_related("staff").order_by("-timestamp")
 
             serializer = JobEventsResponseSerializer({"events": events})
             return Response(serializer.data, status=status.HTTP_200_OK)

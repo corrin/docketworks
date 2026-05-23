@@ -2,6 +2,7 @@
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
@@ -11,6 +12,7 @@ from apps.job.models.job_event import (
     _truncate,
     _truthy,
 )
+from apps.job.views.job_rest_views import JobEventListRestView
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
 
@@ -52,6 +54,21 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertEqual(event.staff, self.user)
         self.assertEqual(event.delta_before["status"], "draft")
         self.assertEqual(event.delta_after["status"], "in_progress")
+
+    def test_event_list_serializes_staff(self):
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="job_created",
+            detail={"job_name": self.job.name},
+        )
+        request = APIRequestFactory().get(f"/api/job/jobs/{self.job.id}/events/")
+        force_authenticate(request, user=self.user)
+
+        response = JobEventListRestView.as_view()(request, job_id=self.job.id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["events"][0]["staff"], "Test Tracker")
 
     def test_status_change_to_archived_clears_assigned_staff(self):
         assigned_staff = Staff.objects.create_user(
