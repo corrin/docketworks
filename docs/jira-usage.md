@@ -15,31 +15,30 @@ considered complete and ready to close.
 Archived Jira work items are retained for history but removed from active
 planning and engineering queues.
 
-## Migration Labels
+## Labels
 
-- `trello-migration`: created during the Trello-to-Jira migration.
-- `trello-reviewed-active`: reviewed during migration and carried forward as
-  active or partially remaining work.
-- `trello-completed-after-review`: reviewed during migration and retained as
-  completed history rather than active work.
+Use labels to show the affected workflow or audience. Think first about who is
+impacted by the ticket: workshop staff, a workshop supervisor, office admin, an
+estimator, DocketWorks sales, or the people responsible for accounts,
+governance, and technical upkeep.
 
-## Outcome Labels
-
-Use outcome labels to describe why the work matters. Prefer one or two labels
-that explain the main product outcome rather than tagging every possible effect.
+Prefer one label. Use two labels only when both workflows are genuinely central
+to the ticket. Do not stack labels just because several benefits are possible.
 
 | Label | Meaning |
 | --- | --- |
-| `system-trust` | Makes system state, calculations, sync, auditability, or error handling easier to trust. |
-| `less-admin` | Removes manual office/admin effort or repeated workaround steps. |
-| `clearer-workshop` | Makes workshop/job execution clearer for staff, scheduling, time, status, or next action. |
-| `safer-billing` | Reduces invoicing, quote, payroll, or customer-charging mistakes. |
-| `faster-quoting` | Speeds quote creation, quote review, supplier pricing, or quote decisions. |
-| `customer-context` | Improves access to customer/job history, files, notes, references, or communication context. |
-| `self-serve-control` | Lets users/admins configure, recover, or resolve something without developer intervention. |
-| `new-customer-readiness` | Helps onboard new customers, instances, users, integrations, or production environments. |
-| `stock-confidence` | Improves stock accuracy, movement traceability, allocation, or stock search confidence. |
-| `mobile-usability` | Improves phone/tablet usability, touch workflows, or mobile layout reliability. |
+| `workshop-process` | Impacts workshop staff, workshop supervisors, production flow, Kanban, scheduling, job status, shop-floor mobile/tablet use, or workshop clarity. |
+| `office-process` | Impacts office admin workflows, general admin effort, internal coordination, records, files, or non-workshop operational screens. |
+| `faster-quoting` | Impacts estimators, quote creation, quote revision, quote follow-up, supplier pricing, or quote decisions. |
+| `stock-management` | Impacts stock accuracy, purchasing, purchase orders, receiving, allocation, stock search, or stock traceability. |
+| `docketworks-sales` | Impacts DocketWorks' own sales, onboarding, demos, setup, prospect management, or new customer readiness. |
+| `tech-debt` | Internal technical upkeep, maintainability, data cleanup, type safety, architecture, tests, developer tooling, or non-user-facing reliability work. |
+| `crm` | Work whose task is to integrate DocketWorks with a CRM, including customer communications, leads, sales pipeline, quote follow-up, and related customer relationship workflows. |
+| `from-trello` | Created or retained during the Trello-to-Jira migration. |
+| `roadmap` | Large, unrefined roadmap-level work that needs to stay distinguishable from smaller tasks until it is broken down. |
+| `governance` | Impacts workflows or reports the business owner uses to inspect, control, approve, or manage the business. |
+| `timesheets` | Impacts staff time entry, labour costing, payroll, wage rates, charge-out rates, or timesheet review. |
+| `accounting-integration` | Impacts Xero, invoices, accounting reports, payroll posting, financial sync, or accounting reconciliation. |
 
 ## Required Checks
 
