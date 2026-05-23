@@ -93,7 +93,7 @@ class WeeklyTimesheetService:
 
         # Get annual leave loading multiplier for base cost calculation
         loading = CompanyDefaults.get_solo().annual_leave_loading
-        loading_multiplier = Decimal("1") + loading / Decimal("100")
+        loading_multiplier = Decimal("1") + Decimal(str(loading)) / Decimal("100")
 
         # ONE query for ALL time entries for ALL staff for the entire week
         all_cost_lines = list(

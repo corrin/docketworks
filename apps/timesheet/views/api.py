@@ -215,8 +215,12 @@ class JobsAPIView(TimesheetBaseView):
                         completed_at__gte=recent_cutoff,
                     )
                 )
-                .select_related("client")
-                .prefetch_related("cost_sets")  # Prefetch cost sets for efficiency
+                .select_related(
+                    "client",
+                    "default_xero_pay_item",
+                    "latest_actual",
+                    "latest_estimate",
+                )
                 .order_by("job_number")
             )
 

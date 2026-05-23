@@ -44,7 +44,7 @@ class WorkshopTimesheetService:
                 staff=self.staff,
                 accounting_date=entry_date,
             )
-            .select_related("cost_set__job")
+            .select_related("cost_set__job__client")
             .order_by("entry_seq")
         )
 
@@ -112,7 +112,7 @@ class WorkshopTimesheetService:
 
     def update_entry(self, data) -> CostLine:
         """Update an existing CostLine belonging to the staff member."""
-        cost_line = CostLine.objects.select_related("cost_set__job").get(
+        cost_line = CostLine.objects.select_related("cost_set__job__client").get(
             id=data["entry_id"], kind="time"
         )
 
@@ -237,9 +237,7 @@ class WorkshopTimesheetService:
 
     def delete_entry(self, entry_id: str) -> CostLine:
         """Delete a CostLine belonging to the staff member."""
-        cost_line = CostLine.objects.select_related("cost_set__job").get(
-            id=entry_id, kind="time"
-        )
+        cost_line = CostLine.objects.get(id=entry_id, kind="time")
 
         if (cost_line.meta or {}).get("staff_id") != str(self.staff.id):
             raise PermissionError("You can only delete your own timesheet entries.")
