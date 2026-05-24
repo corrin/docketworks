@@ -315,6 +315,58 @@ describe('useOptimizedKanban search reconciliation', () => {
     expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-1', 'job-2'])
   })
 
+  it('renders filtered kanban columns by priority order after backend search reconciliation', async () => {
+    performAdvancedSearch.mockResolvedValue({
+      jobs: [
+        buildKanbanJob({
+          id: 'job-96990',
+          job_number: 96990,
+          status: 'approved',
+          status_key: 'approved',
+          priority: 5600,
+          created_at: '2026-04-22T21:54:41Z',
+        }),
+        buildKanbanJob({
+          id: 'job-96477',
+          job_number: 96477,
+          status: 'approved',
+          status_key: 'approved',
+          priority: 5800,
+          created_at: '2025-12-10T23:47:12Z',
+        }),
+      ],
+    })
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'Mayer'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-96477', 'job-96990'])
+    expect(kanban.getJobsByStatus.value('approved').map((job) => job.id)).toEqual([
+      'job-96477',
+      'job-96990',
+    ])
+    expect(debugLog).toHaveBeenCalledWith(
+      'kanban.search.reconciled-order',
+      expect.objectContaining({
+        query: 'Mayer',
+        rawOrder: expect.arrayContaining([
+          expect.objectContaining({ jobNumber: 96990, priority: 5600 }),
+          expect.objectContaining({ jobNumber: 96477, priority: 5800 }),
+        ]),
+        renderedColumnOrder: expect.objectContaining({
+          approved: [
+            expect.objectContaining({ jobNumber: 96477, priority: 5800 }),
+            expect.objectContaining({ jobNumber: 96990, priority: 5600 }),
+          ],
+        }),
+      }),
+    )
+  })
+
   it('ignores stale backend responses when the user keeps typing', async () => {
     const first = deferred<{ jobs: ReturnType<typeof buildKanbanJob>[] }>()
     const second = deferred<{ jobs: ReturnType<typeof buildKanbanJob>[] }>()

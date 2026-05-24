@@ -194,6 +194,44 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     return isAssignedToActiveStaff || isCreatedByActiveStaff
   }
 
+  const compareByKanbanOrder = (left: KanbanJob, right: KanbanJob): number => {
+    const priorityDelta = (right.priority ?? 0) - (left.priority ?? 0)
+    if (priorityDelta !== 0) {
+      return priorityDelta
+    }
+
+    const rightCreatedAt = right.created_at ? Date.parse(right.created_at) : 0
+    const leftCreatedAt = left.created_at ? Date.parse(left.created_at) : 0
+    return rightCreatedAt - leftCreatedAt
+  }
+
+  const summarizeJobsForDebug = (jobs: KanbanJob[]) =>
+    jobs.map((job) => ({
+      id: job.id,
+      jobNumber: job.job_number,
+      status: job.status,
+      priority: job.priority,
+    }))
+
+  const summarizeFilteredColumnOrder = (jobs: KanbanJob[]) => {
+    const grouped: Record<string, KanbanJob[]> = {}
+    jobs.forEach((job) => {
+      const columnId = KanbanCategorizationService.getColumnForStatus(job.status)
+      if (!grouped[columnId]) grouped[columnId] = []
+      grouped[columnId].push(job)
+    })
+
+    return Object.fromEntries(
+      Object.entries(grouped).map(([columnId, columnJobs]) => [
+        columnId,
+        summarizeJobsForDebug([...columnJobs].sort(compareByKanbanOrder)),
+      ]),
+    )
+  }
+
+  const sortJobsForKanbanDisplay = (jobs: KanbanJob[]): KanbanJob[] =>
+    [...jobs].sort(compareByKanbanOrder)
+
   // Load jobs for a specific column
   const loadColumnJobs = async (
     columnId: string,
@@ -875,8 +913,14 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         return
       }
 
-      filteredJobs.value = response.jobs || []
+      const rawJobs = response.jobs || []
+      filteredJobs.value = sortJobsForKanbanDisplay(rawJobs)
       debugLog(`Search reconciled from backend: ${filteredJobs.value.length} jobs for "${query}"`)
+      debugLog('kanban.search.reconciled-order', {
+        query,
+        rawOrder: summarizeJobsForDebug(rawJobs),
+        renderedColumnOrder: summarizeFilteredColumnOrder(filteredJobs.value),
+      })
     } catch (err) {
       if (requestId !== latestSearchRequestId || searchQuery.value.trim() !== query) {
         return
