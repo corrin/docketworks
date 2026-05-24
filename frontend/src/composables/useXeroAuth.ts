@@ -47,6 +47,13 @@ const currentEntity = ref('')
 const syncStatus = ref<string | null>(null)
 const syncErrorMessages = ref<string[]>([])
 
+export function clampSyncProgress(progress: number): number {
+  if (!Number.isFinite(progress) || progress < 0) {
+    return 0
+  }
+  return Math.min(progress, 1)
+}
+
 export function loginXero() {
   const frontendUrl = window.location.origin + router.currentRoute.value.fullPath
   const next = encodeURIComponent(frontendUrl)
@@ -275,7 +282,7 @@ export function useXeroAuth() {
         return
       }
       if (typeof data.overall_progress === 'number') {
-        overallProgress.value = Math.min(data.overall_progress, 100)
+        overallProgress.value = clampSyncProgress(data.overall_progress)
       }
       if (data.entity && data.entity !== 'sync') {
         if (!entities.value.includes(data.entity)) {
@@ -288,7 +295,7 @@ export function useXeroAuth() {
         }
         currentEntity.value = data.entity
         if (typeof data.entity_progress === 'number') {
-          entityProgress.value = Math.min(data.entity_progress, 100)
+          entityProgress.value = clampSyncProgress(data.entity_progress)
           entityStats[data.entity].status = data.status || 'In Progress'
         }
         if (typeof data.records_updated === 'number') {
