@@ -71,6 +71,7 @@ describe('useOptimizedDragAndDrop', () => {
       toStatus: 'in_progress',
       anchorJobId: 'job-anchor',
       placement: 'below',
+      dragId: expect.any(String),
     })
   })
 
@@ -93,6 +94,7 @@ describe('useOptimizedDragAndDrop', () => {
       toStatus: 'in_progress',
       anchorJobId: 'job-anchor',
       placement: 'above',
+      dragId: expect.any(String),
     })
   })
 

@@ -9,6 +9,7 @@ export interface OptimizedDragEventPayload {
   toStatus: string
   anchorJobId?: string
   placement?: 'above' | 'below'
+  dragId: string
 }
 
 export type OptimizedDragEventHandler = (event: string, payload: OptimizedDragEventPayload) => void
@@ -53,23 +54,44 @@ function getVisibleJobAnchor(
 export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler) {
   const isDragging = ref(false)
   const sortableInstances = ref<Map<string, Sortable>>(new Map())
-  let idleCleanupTimer: ReturnType<typeof setInterval> | null = null
+  let stuckDragTimer: ReturnType<typeof setTimeout> | null = null
+  let activeDragId: string | null = null
 
-  // Periodically check for stuck drag state and log diagnostics
-  const startIdleCleanup = () => {
-    if (idleCleanupTimer) return
-    idleCleanupTimer = setInterval(() => {
+  const getVisibleJobIds = (container: HTMLElement): string[] =>
+    Array.from(container.querySelectorAll<HTMLElement>('.job-card'))
+      .map((el) => el.dataset.jobId)
+      .filter((id): id is string => !!id)
+
+  const createDragId = (): string =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  const clearStuckDragTimer = () => {
+    if (stuckDragTimer) {
+      clearTimeout(stuckDragTimer)
+      stuckDragTimer = null
+    }
+  }
+
+  const startStuckDragWarning = (dragId: string) => {
+    clearStuckDragTimer()
+    stuckDragTimer = setTimeout(() => {
+      if (!isDragging.value || activeDragId !== dragId) {
+        return
+      }
       const ghostEls = document.querySelectorAll('.sortable-ghost')
       const chosenEls = document.querySelectorAll('.sortable-chosen')
       const dragEls = document.querySelectorAll('.sortable-drag')
-      debugLog('IDLE CHECK', {
+      debugLog('kanban.drag.stuck-warning', {
+        dragId,
         isDraggingRef: isDragging.value,
         sortableGhosts: ghostEls.length,
         sortableChosen: chosenEls.length,
         sortableDrag: dragEls.length,
         bodyHasDragging: document.body.classList.contains('is-dragging'),
       })
-    }, 5_000)
+    }, 3_000)
   }
 
   const initializeSortable = (element: HTMLElement, status: string) => {
@@ -93,16 +115,29 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
       forceFallback: false,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      onStart: () => {
-        debugLog('DRAG START -- setting isDragging=true')
+      onStart: (evt: SortableEvent) => {
+        activeDragId = createDragId()
         isDragging.value = true
         document.body.classList.add('is-dragging')
+        startStuckDragWarning(activeDragId)
+
+        const jobElement = evt.item as HTMLElement | undefined
+        const sourceStatus = (evt.from?.closest('[data-status]') as HTMLElement | null)?.dataset
+          .status
+        debugLog('kanban.drag.start', {
+          dragId: activeDragId,
+          jobId: jobElement?.dataset.jobId,
+          sourceStatus,
+          sourceOrder: evt.from ? getVisibleJobIds(evt.from) : [],
+        })
       },
       onMove: () => {
         return true
       },
       onEnd: async (evt: SortableEvent) => {
-        debugLog('DRAG END -- setting isDragging=false')
+        const dragId = activeDragId ?? createDragId()
+        activeDragId = null
+        clearStuckDragTimer()
         isDragging.value = false
         document.body.classList.remove('is-dragging')
 
@@ -126,8 +161,11 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
           placement = anchor.placement
           targetColumnJobs = anchor.targetColumnJobs
 
-          debugLog(`DRAG POSITIONING: ${fromStatus} -> ${toStatus}`, {
+          debugLog('kanban.drag.anchor', {
+            dragId,
             jobId,
+            fromStatus,
+            toStatus,
             newIndex,
             anchorJobId,
             placement,
@@ -136,7 +174,9 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
             draggedJobInArray: targetColumnJobs[newIndex],
           })
         } else {
-          debugLog('DRAG END -- missing jobId/from/to status; skipping move event', {
+          debugLog('kanban.drag.skip', {
+            dragId,
+            reason: 'missing jobId/from/to status',
             jobId,
             fromStatus,
             toStatus,
@@ -145,11 +185,19 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
 
         // Call the drag event handler (which should handle optimistic updates)
         if (jobId && fromStatus && toStatus && onDragEvent) {
-          onDragEvent('job-moved', { jobId, fromStatus, toStatus, anchorJobId, placement })
+          onDragEvent('job-moved', {
+            jobId,
+            fromStatus,
+            toStatus,
+            anchorJobId,
+            placement,
+            dragId,
+          })
         }
 
         if (jobId) {
-          debugLog('DRAG END -- post-handler DOM state', {
+          debugLog('kanban.drag.dom.after-handler', {
+            dragId,
             jobId,
             draggedElementConnected: jobElement.isConnected,
             matchingCards: document.querySelectorAll(`[data-job-id="${jobId}"]`).length,
@@ -167,14 +215,10 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
     const sortable = Sortable.create(element, sortableConfig)
 
     sortableInstances.value.set(status, sortable)
-    startIdleCleanup()
   }
 
   const destroyAllSortables = () => {
-    if (idleCleanupTimer) {
-      clearInterval(idleCleanupTimer)
-      idleCleanupTimer = null
-    }
+    clearStuckDragTimer()
     sortableInstances.value.forEach((sortable) => sortable.destroy())
     sortableInstances.value.clear()
     isDragging.value = false

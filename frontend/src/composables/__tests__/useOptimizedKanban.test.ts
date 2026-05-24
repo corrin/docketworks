@@ -154,6 +154,7 @@ vi.mock('@/utils/debug', () => ({
 }))
 
 import { useOptimizedKanban } from '../useOptimizedKanban'
+import { debugLog } from '@/utils/debug'
 
 type HarnessState = ReturnType<typeof useOptimizedKanban>
 
@@ -497,6 +498,63 @@ describe('useOptimizedKanban search reconciliation', () => {
 
     pendingReorder.resolve({ success: true })
     await reorderPromise
+  })
+
+  it('moves a cross-column reorder locally and updates filtered status before persistence completes', async () => {
+    const pendingReorder = deferred<{ success: boolean }>()
+    reorderJob.mockReturnValueOnce(pendingReorder.promise)
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+
+    const reorderPromise = kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-123')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-1'])
+    expect(kanban.filteredJobs.value).toMatchObject([
+      { id: 'job-1', status: 'draft', status_key: 'draft' },
+    ])
+
+    pendingReorder.resolve({ success: true })
+    await reorderPromise
+
+    expect(getJobsByColumn).toHaveBeenCalledTimes(3)
+    expect(reorderJob).toHaveBeenCalledWith('job-1', undefined, undefined, 'draft')
+  })
+
+  it('does not force column revalidation after a successful reorder persistence', async () => {
+    const kanban = await mountHarness()
+
+    await kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-456')
+
+    expect(getJobsByColumn).toHaveBeenCalledTimes(3)
+    expect(debugLog).toHaveBeenCalledWith('kanban.drag.persist.success', {
+      dragId: 'drag-456',
+      jobId: 'job-1',
+      revalidated: false,
+    })
+  })
+
+  it('rolls back local drag state and revalidates affected columns when reorder persistence fails', async () => {
+    reorderJob.mockRejectedValueOnce(new Error('nope'))
+
+    const kanban = await mountHarness()
+
+    await kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-789')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-1'])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual([])
+    expect(getJobsByColumn).toHaveBeenCalledTimes(5)
+    expect(debugLog).toHaveBeenCalledWith(
+      'kanban.drag.rollback.revalidate',
+      expect.objectContaining({
+        dragId: 'drag-789',
+        jobId: 'job-1',
+        columnIds: ['in_progress', 'draft'],
+      }),
+    )
   })
 
   it('keeps a search-only job visible after a drag status update', async () => {

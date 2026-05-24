@@ -81,6 +81,23 @@ const dragCardToColumn = async (page: Page, card: Locator, column: Locator) => {
   await page.waitForTimeout(500)
 }
 
+const captureDragConsoleIssues = (page: Page): string[] => {
+  const issues: string[] = []
+  page.on('console', (message) => {
+    if (!['error', 'warning'].includes(message.type())) {
+      return
+    }
+    const text = message.text()
+    if (text.includes('[Vue warn]') || text.includes('Unhandled error during execution')) {
+      issues.push(text)
+    }
+  })
+  page.on('pageerror', (error) => {
+    issues.push(error.message)
+  })
+  return issues
+}
+
 const pickAssignableStaff = async (card: Locator, staffItems: Locator) => {
   const assignedIds = new Set(
     await card
@@ -107,6 +124,7 @@ const pickAssignableStaff = async (card: Locator, staffItems: Locator) => {
 test.describe.serial('kanban desktop', () => {
   test('change status via drag and drop', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+    const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
     await page.waitForLoadState('networkidle')
@@ -123,9 +141,9 @@ test.describe.serial('kanban desktop', () => {
       sourceStatus,
     )
 
-    const statusResponse = page.waitForResponse((response) => {
+    const reorderResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300
@@ -133,11 +151,12 @@ test.describe.serial('kanban desktop', () => {
     })
 
     await dragCardToColumn(page, jobCard, targetColumn)
-    await statusResponse
+    await reorderResponse
 
     await expect(
       page.locator(`[data-status="${targetStatus}"] [data-job-id="${jobId}"]:visible`),
     ).toBeVisible({ timeout: 15000 })
+    expect(consoleIssues).toEqual([])
   })
 
   test('assign staff to job card via drag', async ({

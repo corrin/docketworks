@@ -134,12 +134,30 @@ const assertJobInColumn = async (page: Page, jobId: string, columnStatus: string
   ).toBeVisible({ timeout: 15000 })
 }
 
+const captureDragConsoleIssues = (page: Page): string[] => {
+  const issues: string[] = []
+  page.on('console', (message) => {
+    if (!['error', 'warning'].includes(message.type())) {
+      return
+    }
+    const text = message.text()
+    if (text.includes('[Vue warn]') || text.includes('Unhandled error during execution')) {
+      issues.push(text)
+    }
+  })
+  page.on('pageerror', (error) => {
+    issues.push(error.message)
+  })
+  return issues
+}
+
 test.describe('kanban drag vanishing', () => {
   test('search then drag preserves job visibility', async ({
     authenticatedPage: page,
     sharedEditJobUrl,
   }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+    const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
     await page.waitForLoadState('networkidle')
@@ -165,9 +183,9 @@ test.describe('kanban drag vanishing', () => {
       sourceStatus,
     )
 
-    const statusResponse = page.waitForResponse((response) => {
+    const reorderResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300
@@ -175,9 +193,10 @@ test.describe('kanban drag vanishing', () => {
     })
 
     await dragCardToColumn(page, jobCard, targetColumn)
-    await statusResponse
+    await reorderResponse
 
     await assertSingleVisibleInstance(page, jobId, 'search then drag')
+    expect(consoleIssues).toEqual([])
 
     await assertJobInColumn(page, jobId, targetStatus)
 
@@ -194,6 +213,7 @@ test.describe('kanban drag vanishing', () => {
     sharedEditJobUrl,
   }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+    const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
     await page.waitForLoadState('networkidle')
@@ -210,9 +230,9 @@ test.describe('kanban drag vanishing', () => {
       sourceStatus,
     )
 
-    const statusResponse = page.waitForResponse((response) => {
+    const reorderResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300
@@ -220,9 +240,10 @@ test.describe('kanban drag vanishing', () => {
     })
 
     await dragCardToColumn(page, jobCard, targetColumn)
-    await statusResponse
+    await reorderResponse
 
     await assertSingleVisibleInstance(page, jobId, 'cross-column drag')
+    expect(consoleIssues).toEqual([])
 
     await assertJobInColumn(page, jobId, targetStatus)
 
@@ -239,6 +260,7 @@ test.describe('kanban drag vanishing', () => {
     sharedEditJobUrl,
   }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+    const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
     await page.waitForLoadState('networkidle')
@@ -257,7 +279,7 @@ test.describe('kanban drag vanishing', () => {
 
     const firstResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300
@@ -291,7 +313,7 @@ test.describe('kanban drag vanishing', () => {
 
     const secondResponse = page.waitForResponse((response) => {
       return (
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300
@@ -302,6 +324,7 @@ test.describe('kanban drag vanishing', () => {
     await secondResponse
 
     await assertSingleVisibleInstance(page, jobId, 'second drag back')
+    expect(consoleIssues).toEqual([])
 
     if (originalStatus) {
       await assertJobInColumn(page, jobId, originalStatus)
@@ -319,6 +342,7 @@ test.describe('kanban drag vanishing', () => {
     sharedEditJobUrl,
   }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+    const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
     await page.waitForLoadState('networkidle')
@@ -350,6 +374,7 @@ test.describe('kanban drag vanishing', () => {
     }
 
     await assertSingleVisibleInstance(page, jobId, 'intra-column reorder')
+    expect(consoleIssues).toEqual([])
 
     if (sourceStatus) {
       await assertJobInColumn(page, jobId, sourceStatus)

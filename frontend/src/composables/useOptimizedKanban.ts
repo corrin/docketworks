@@ -31,6 +31,12 @@ interface ColumnState {
   error: string | null
 }
 
+interface KanbanMoveSnapshot {
+  columns: Record<string, KanbanJob[]>
+  filteredJobs: KanbanJob[]
+  movedJob: KanbanJob | null
+}
+
 export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const router = useRouter()
   const route = useRoute()
@@ -257,6 +263,43 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     await Promise.all(columnIds.map((columnId) => loadColumnJobs(columnId, { force: true })))
   }
 
+  const getColumnJobIds = (columnId: string): string[] =>
+    (columnStates[columnId]?.jobs ?? []).map((job) => job.id)
+
+  const getFilteredJobIds = (): string[] => filteredJobs.value.map((job) => job.id)
+
+  const captureMoveSnapshot = (
+    columnIds: string[],
+    movedJob: KanbanJob | null,
+  ): KanbanMoveSnapshot => {
+    const uniqueColumnIds = columnIds.filter(
+      (columnId, index, arr) => arr.indexOf(columnId) === index,
+    )
+    return {
+      columns: Object.fromEntries(
+        uniqueColumnIds.map((columnId) => [columnId, [...(columnStates[columnId]?.jobs ?? [])]]),
+      ),
+      filteredJobs: [...filteredJobs.value],
+      movedJob,
+    }
+  }
+
+  const restoreMoveSnapshot = (snapshot: KanbanMoveSnapshot): void => {
+    Object.entries(snapshot.columns).forEach(([columnId, jobs]) => {
+      if (!columnStates[columnId]) {
+        initializeColumnStates()
+      }
+      columnStates[columnId].jobs = [...jobs]
+    })
+    filteredJobs.value = [...snapshot.filteredJobs]
+    if (snapshot.movedJob) {
+      jobsStore.updateKanbanJob(snapshot.movedJob.id, {
+        status: snapshot.movedJob.status,
+        status_key: snapshot.movedJob.status_key,
+      })
+    }
+  }
+
   // Optimistic staff assignment
   const handleStaffAssignedOptimistic = (payload: {
     staffId: string
@@ -396,6 +439,19 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     return [...withoutMovedJob.slice(0, insertIndex), job, ...withoutMovedJob.slice(insertIndex)]
   }
 
+  const insertJobInFilteredResults = (
+    jobs: KanbanJob[],
+    job: KanbanJob,
+    anchorJobId?: string,
+    placement?: 'above' | 'below',
+  ): KanbanJob[] => {
+    if (!jobs.some((existingJob) => existingJob.id === job.id)) {
+      return jobs
+    }
+
+    return insertJobInColumn(jobs, job, anchorJobId, placement)
+  }
+
   const findLocalJobForKanbanMove = (
     jobId: string,
   ): { job: KanbanJob; sourceColumnId: string | null } | null => {
@@ -429,12 +485,18 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     jobId: string,
     sourceColumnId: string,
     targetColumnId: string,
+    targetStatus: string,
     anchorJobId?: string,
     placement?: 'above' | 'below',
   ): void => {
     const localJob = findLocalJobForKanbanMove(jobId)
     if (!localJob) {
       return
+    }
+    const movedJob: KanbanJob = {
+      ...localJob.job,
+      status: targetStatus,
+      status_key: targetStatus,
     }
 
     Object.entries(columnStates).forEach(([columnId, columnState]) => {
@@ -450,11 +512,15 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
     columnStates[targetColumnId].jobs = insertJobInColumn(
       columnStates[targetColumnId].jobs,
-      localJob.job,
+      movedJob,
       anchorJobId,
       placement,
     )
 
+    jobsStore.updateKanbanJob(jobId, {
+      status: targetStatus,
+      status_key: targetStatus,
+    })
     jobsStore.moveKanbanJobInColumnCache(
       jobId,
       sourceColumnId,
@@ -464,9 +530,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     )
 
     if (filteredJobs.value.some((filteredJob) => filteredJob.id === jobId)) {
-      filteredJobs.value = insertJobInColumn(
+      filteredJobs.value = insertJobInFilteredResults(
         filteredJobs.value,
-        localJob.job,
+        movedJob,
         anchorJobId,
         placement,
       )
@@ -602,56 +668,119 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     anchorJobId?: string,
     placement?: 'above' | 'below',
     status?: string,
+    dragId?: string,
   ): Promise<void> => {
-    debugLog(`REORDER JOB: ${jobId} in ${status}`, {
+    debugLog('kanban.drag.local.request', {
+      dragId,
       jobId,
       anchorJobId,
       placement,
       status,
     })
 
-    let sourceColumnIdForRevalidation: string | null = null
-    let targetColumnIdForRevalidation: string | null = null
-    if (status) {
-      const targetColumnId = KanbanCategorizationService.getColumnForStatus(status)
-      const localJob = findLocalJobForKanbanMove(jobId)
-      const sourceColumnId = localJob?.sourceColumnId ?? targetColumnId
-      sourceColumnIdForRevalidation = sourceColumnId
-      targetColumnIdForRevalidation = targetColumnId
-      applyLocalJobReorder(jobId, sourceColumnId, targetColumnId, anchorJobId, placement)
+    const targetStatus = status
+    const targetColumnId = targetStatus
+      ? KanbanCategorizationService.getColumnForStatus(targetStatus)
+      : null
+    const localJob = findLocalJobForKanbanMove(jobId)
+    const sourceColumnId = localJob?.sourceColumnId ?? targetColumnId
+    const columnIds = [sourceColumnId, targetColumnId].filter(
+      (columnId, index, columnIds): columnId is string =>
+        Boolean(columnId) && columnIds.indexOf(columnId) === index,
+    )
+    const snapshot = captureMoveSnapshot(columnIds, localJob?.job ?? null)
+
+    if (targetStatus && targetColumnId && sourceColumnId && localJob) {
+      debugLog('kanban.drag.local.before', {
+        dragId,
+        jobId,
+        sourceColumnId,
+        targetColumnId,
+        sourceOrder: getColumnJobIds(sourceColumnId),
+        targetOrder: getColumnJobIds(targetColumnId),
+        filteredOrder: getFilteredJobIds(),
+        isSearchActive: isSearchActive.value,
+        currentStatus: localJob.job.status,
+        targetStatus,
+      })
+
+      applyLocalJobReorder(
+        jobId,
+        sourceColumnId,
+        targetColumnId,
+        targetStatus,
+        anchorJobId,
+        placement,
+      )
+
+      debugLog('kanban.drag.local.after', {
+        dragId,
+        jobId,
+        sourceColumnId,
+        targetColumnId,
+        sourceOrder: getColumnJobIds(sourceColumnId),
+        targetOrder: getColumnJobIds(targetColumnId),
+        filteredOrder: getFilteredJobIds(),
+        movedJobStatus: jobsStore.getKanbanJobById(jobId)?.status ?? targetStatus,
+      })
+    } else {
+      debugLog('kanban.drag.local.skip', {
+        dragId,
+        jobId,
+        reason: 'missing local job, source column, target column, or target status',
+        hasLocalJob: Boolean(localJob),
+        sourceColumnId,
+        targetColumnId,
+        targetStatus,
+      })
     }
 
     try {
-      debugLog(`Calling reorderJob API with:`, {
+      debugLog('kanban.drag.persist.request', {
+        dragId,
         jobId,
-        anchorJobId,
-        placement,
-        status,
+        payload: {
+          anchorJobId,
+          placement,
+          status,
+        },
       })
 
       await jobService.reorderJob(jobId, anchorJobId, placement, status)
-      debugLog(`Job ${jobId} reordered successfully`)
-
-      // Revalidate the affected column to get correct positioning
-      if (targetColumnIdForRevalidation) {
-        const columnIds = [sourceColumnIdForRevalidation, targetColumnIdForRevalidation].filter(
-          (columnId, index, columnIds): columnId is string =>
-            Boolean(columnId) && columnIds.indexOf(columnId) === index,
-        )
-        debugLog(`Revalidating columns: ${columnIds.join(', ')}`)
-        await revalidateColumns(columnIds)
-      }
+      debugLog('kanban.drag.persist.success', {
+        dragId,
+        jobId,
+        revalidated: false,
+      })
     } catch (err) {
-      debugLog(`Failed to reorder job ${jobId}:`, err)
+      debugLog('kanban.drag.persist.error', {
+        dragId,
+        jobId,
+        error: err instanceof Error ? err.message : String(err),
+        payload: {
+          anchorJobId,
+          placement,
+          status,
+        },
+      })
       error.value = err instanceof Error ? err.message : 'Failed to reorder job'
+      restoreMoveSnapshot(snapshot)
+      debugLog('kanban.drag.rollback.after', {
+        dragId,
+        jobId,
+        sourceColumnId,
+        targetColumnId,
+        sourceOrder: sourceColumnId ? getColumnJobIds(sourceColumnId) : [],
+        targetOrder: targetColumnId ? getColumnJobIds(targetColumnId) : [],
+        filteredOrder: getFilteredJobIds(),
+      })
 
-      // Revalidate the affected column on error too
-      if (targetColumnIdForRevalidation) {
-        const columnIds = [sourceColumnIdForRevalidation, targetColumnIdForRevalidation].filter(
-          (columnId, index, columnIds): columnId is string =>
-            Boolean(columnId) && columnIds.indexOf(columnId) === index,
-        )
-        debugLog(`Revalidating columns on error: ${columnIds.join(', ')}`)
+      if (columnIds.length > 0) {
+        debugLog('kanban.drag.rollback.revalidate', {
+          dragId,
+          jobId,
+          columnIds,
+        })
         await revalidateColumns(columnIds)
       }
     }
