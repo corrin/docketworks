@@ -231,8 +231,8 @@ export const useJobsStore = defineStore('jobs', () => {
     jobId: string,
     sourceColumnId: string,
     targetColumnId: string,
-    beforeId?: string,
-    afterId?: string,
+    anchorJobId?: string,
+    placement?: 'above' | 'below',
   ): void {
     const nextCache = { ...kanbanColumnCache.value }
 
@@ -247,18 +247,16 @@ export const useJobsStore = defineStore('jobs', () => {
     const targetCache = nextCache[targetColumnId]
     if (targetCache) {
       const withoutMovedJob = targetCache.jobIds.filter((cachedJobId) => cachedJobId !== jobId)
-      let insertIndex = withoutMovedJob.length
+      let insertIndex = 0
 
-      if (beforeId) {
-        const beforeIndex = withoutMovedJob.indexOf(beforeId)
-        if (beforeIndex !== -1) {
-          insertIndex = beforeIndex + 1
+      if (anchorJobId && placement) {
+        const anchorIndex = withoutMovedJob.indexOf(anchorJobId)
+        if (anchorIndex === -1) {
+          delete nextCache[targetColumnId]
+          kanbanColumnCache.value = nextCache
+          return
         }
-      } else if (afterId) {
-        const afterIndex = withoutMovedJob.indexOf(afterId)
-        if (afterIndex !== -1) {
-          insertIndex = afterIndex
-        }
+        insertIndex = placement === 'above' ? anchorIndex : anchorIndex + 1
       }
 
       const jobIds = [...withoutMovedJob]

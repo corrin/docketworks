@@ -1597,10 +1597,11 @@ const QuoteImportStatusResponse = z.object({
   created: z.string().datetime({ offset: true }).optional(),
   summary: z.unknown().optional(),
 })
+const PlacementEnum = z.enum(['above', 'below'])
 const JobReorderRequest = z
   .object({
-    before_id: z.string().uuid().nullable(),
-    after_id: z.string().uuid().nullable(),
+    anchor_job_id: z.string().uuid().nullable(),
+    placement: z.union([PlacementEnum, NullEnum]).nullable(),
     status: z.string().min(1).nullable(),
   })
   .partial()
@@ -3367,6 +3368,7 @@ export const schemas = {
   JobQuoteAcceptanceRequest,
   JobQuoteAcceptance,
   QuoteImportStatusResponse,
+  PlacementEnum,
   JobReorderRequest,
   KanbanSuccessResponse,
   KanbanErrorResponse,

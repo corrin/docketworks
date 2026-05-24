@@ -249,6 +249,27 @@ class JobEvent(models.Model):
         return ""
 
     @staticmethod
+    def _build_status_changed_description(detail: dict) -> str:
+        position = detail.get("position") or {}
+        if position:
+            old_pos = position.get("old_position")
+            new_pos = position.get("new_position")
+            old_status = position.get("old_status")
+            new_status = position.get("new_status")
+            old_total = position.get("old_total")
+            new_total = position.get("new_total")
+
+            if old_status and new_status and old_status != new_status:
+                old_label = _format_status(old_status)
+                new_label = _format_status(new_status)
+                return (
+                    f"Moved from {old_label} ({_format_ordinal(old_pos)} of {old_total}) "
+                    f"to {new_label} ({_format_ordinal(new_pos)} of {new_total})"
+                )
+
+        return JobEvent._build_changes_description(detail)
+
+    @staticmethod
     def _build_job_created_description(detail: dict) -> str:
         job_name = detail.get("job_name", "Unknown")
         client_name = detail.get("client_name", "Unknown")
@@ -304,7 +325,7 @@ class JobEvent(models.Model):
 
     _DESCRIPTION_BUILDERS = {
         "job_created": _build_job_created_description.__func__,
-        "status_changed": _build_changes_description.__func__,
+        "status_changed": _build_status_changed_description.__func__,
         "job_updated": _build_changes_description.__func__,
         "client_changed": _build_changes_description.__func__,
         "contact_changed": _build_changes_description.__func__,

@@ -490,7 +490,10 @@ class PriorityPositionCaptureTest(BaseTestCase):
         # Each save assigns priority via _calculate_next_priority_for_status
         # → C is highest, A is lowest. Drag A to the top (above C).
         KanbanService.reorder_job(
-            job_id=job_a.pk, before_id=str(job_c.pk), after_id=None, staff=self.user
+            job_id=job_a.pk,
+            anchor_job_id=str(job_c.pk),
+            placement="above",
+            staff=self.user,
         )
 
         event = (
@@ -550,30 +553,14 @@ class PriorityPositionCaptureTest(BaseTestCase):
         # Move the "Mover" from in_progress to quoting (top of quoting)
         KanbanService.reorder_job(
             job_id=in_progress_job.pk,
-            before_id=None,
-            after_id=None,
             new_status="quoting",
             staff=self.user,
         )
 
         event = (
-            JobEvent.objects.filter(job=in_progress_job, event_type="priority_changed")
-            .order_by("-timestamp")
-            .first()
+            JobEvent.objects.filter(job=in_progress_job).order_by("-timestamp").first()
         )
-        # Note: cross-column moves may emit either priority_changed or
-        # status_changed depending on _infer_event_type; if status_changed
-        # wins, the position info is still attached only when the inferred
-        # type is priority_changed. Adjust the assertion accordingly.
-        if event is None:
-            event = (
-                JobEvent.objects.filter(job=in_progress_job)
-                .order_by("-timestamp")
-                .first()
-            )
-            self.assertEqual(event.event_type, "status_changed")
-            # status_changed events don't carry detail.position by design
-            return
+        self.assertEqual(event.event_type, "status_changed")
 
         position = event.detail.get("position")
         self.assertIsNotNone(position)
@@ -581,6 +568,10 @@ class PriorityPositionCaptureTest(BaseTestCase):
         self.assertEqual(position["new_status"], "quoting")
         self.assertEqual(position["old_total"], 3)
         self.assertEqual(position["new_total"], 5)
+        self.assertEqual(
+            event.description,
+            "Moved from In Progress (3rd of 3) to Quoting (1st of 5)",
+        )
 
 
 class QuerySetGuardTest(BaseTestCase):

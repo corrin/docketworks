@@ -94,8 +94,8 @@ vi.mock('@/stores/jobs', () => ({
       jobId: string,
       sourceColumnId: string,
       targetColumnId: string,
-      beforeId?: string,
-      afterId?: string,
+      anchorJobId?: string,
+      placement?: 'above' | 'below',
     ) => {
       const sourceCache = kanbanColumnCache.get(sourceColumnId) as { jobIds?: string[] } | undefined
       if (sourceCache) {
@@ -109,13 +109,15 @@ vi.mock('@/stores/jobs', () => ({
         const withoutMovedJob = (targetCache.jobIds ?? []).filter(
           (cachedJobId) => cachedJobId !== jobId,
         )
-        let insertIndex = withoutMovedJob.length
-        if (beforeId) {
-          const beforeIndex = withoutMovedJob.indexOf(beforeId)
-          if (beforeIndex !== -1) insertIndex = beforeIndex + 1
-        } else if (afterId) {
-          const afterIndex = withoutMovedJob.indexOf(afterId)
-          if (afterIndex !== -1) insertIndex = afterIndex
+        let insertIndex = 0
+        if (anchorJobId && placement) {
+          const anchorIndex = withoutMovedJob.indexOf(anchorJobId)
+          if (anchorIndex !== -1) {
+            insertIndex = placement === 'above' ? anchorIndex : anchorIndex + 1
+          } else {
+            kanbanColumnCache.delete(targetColumnId)
+            return
+          }
         }
         withoutMovedJob.splice(insertIndex, 0, jobId)
         targetCache.jobIds = withoutMovedJob
@@ -486,7 +488,7 @@ describe('useOptimizedKanban search reconciliation', () => {
 
     const kanban = await mountHarness()
 
-    const reorderPromise = kanban.reorderJob('job-1', 'job-2', undefined, 'in_progress')
+    const reorderPromise = kanban.reorderJob('job-1', 'job-2', 'below', 'in_progress')
 
     expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([
       'job-2',

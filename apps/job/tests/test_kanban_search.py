@@ -8,7 +8,7 @@ from django.test import RequestFactory
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from apps.accounting.models import Invoice
+from apps.accounting.models import Invoice, Quote
 from apps.client.models import Client, ClientContact
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
@@ -75,6 +75,19 @@ class KanbanSearchTest(BaseTestCase):
             raw_json={},
         )
 
+    def _make_quote(self, job: Job, *, number: str) -> Quote:
+        return Quote.objects.create(
+            xero_id=uuid.uuid4(),
+            number=number,
+            client=job.client,
+            job=job,
+            date=date.today(),
+            total_excl_tax=Decimal("100.00"),
+            total_incl_tax=Decimal("115.00"),
+            xero_last_modified=timezone.now(),
+            raw_json={},
+        )
+
     def test_perform_advanced_search_matches_single_token_job_name_substring(self):
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
@@ -107,6 +120,49 @@ class KanbanSearchTest(BaseTestCase):
             if "job_costset" in query["sql"] or "accounts_staff" in query["sql"]
         ]
         self.assertEqual(relation_queries, [])
+
+    def test_perform_advanced_search_preloads_quote_for_ranking(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        other = self._make_job(
+            name="Cool Store",
+            client_name="Cool Stores Ltd",
+        )
+        self._make_quote(target, number="QU-56005")
+        self._make_quote(other, number="QU-99999")
+
+        with CaptureQueriesContext(connection) as captured:
+            jobs = list(
+                KanbanService.perform_advanced_search({"universal_search": "cool"})
+            )
+
+        self.assertEqual({job.id for job in jobs}, {target.id, other.id})
+        direct_quote_queries = [
+            query["sql"]
+            for query in captured
+            if 'FROM "accounting_quote"' in query["sql"]
+        ]
+        self.assertEqual(direct_quote_queries, [])
+
+    def test_perform_advanced_search_matches_quote_number(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        other = self._make_job(
+            name="Other work",
+            client_name="Other Client",
+        )
+        self._make_quote(target, number="QU-56005")
+        self._make_quote(other, number="QU-99999")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "56005"})
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_matches_numeric_substring(self):
         target = self._make_job(

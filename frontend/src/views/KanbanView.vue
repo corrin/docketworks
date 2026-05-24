@@ -510,23 +510,12 @@ const handleAdvancedSearchFromDialog = async (filters: AdvancedFilters) => {
 const { isDragging, initializeSortable, destroyAllSortables } = useOptimizedDragAndDrop(
   (event, payload) => {
     if (event === 'job-moved') {
-      const { jobId, fromStatus, toStatus, beforeId, afterId } = payload
+      const { jobId, fromStatus, toStatus, anchorJobId, placement } = payload
       if (fromStatus !== toStatus) {
         const actualStatus = KanbanCategorizationService.getDefaultStatusForColumn(toStatus)
-        // Fire-and-forget: updateJobStatus handles errors internally and revalidates columns
-        void updateJobStatus(jobId, actualStatus, {
-          beforeId,
-          afterId,
-          sourceColumnId: fromStatus,
-          targetColumnId: toStatus,
-        })
-        if (beforeId || afterId) {
-          setTimeout(() => {
-            reorderJob(jobId, beforeId, afterId, toStatus)
-          }, 500)
-        }
+        reorderJob(jobId, anchorJobId, placement, actualStatus)
       } else {
-        reorderJob(jobId, beforeId, afterId, toStatus)
+        reorderJob(jobId, anchorJobId, placement, toStatus)
       }
     }
   },

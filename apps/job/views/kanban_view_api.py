@@ -200,12 +200,16 @@ class ReorderJobAPIView(APIView):
                 )
 
             validated_data = serializer.validated_data
-            before_id = validated_data.get("before_id")
-            after_id = validated_data.get("after_id")
+            anchor_job_id = validated_data.get("anchor_job_id")
+            placement = validated_data.get("placement")
             new_status = validated_data.get("status")
 
             KanbanService.reorder_job(
-                job_id, before_id, after_id, new_status, staff=request.user
+                job_id,
+                anchor_job_id=anchor_job_id,
+                placement=placement,
+                new_status=new_status,
+                staff=request.user,
             )
 
             # Return success response
@@ -222,6 +226,13 @@ class ReorderJobAPIView(APIView):
             error_serializer = KanbanErrorResponseSerializer(data=error_response)
             error_serializer.is_valid(raise_exception=True)
             return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
+
+        except ValueError as e:
+            logger.warning("Invalid reorder request for job %s: %s", job_id, e)
+            error_response = {"success": False, "error": str(e)}
+            error_serializer = KanbanErrorResponseSerializer(data=error_response)
+            error_serializer.is_valid(raise_exception=True)
+            return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
             logger.error(f"Error reordering job: {e}")

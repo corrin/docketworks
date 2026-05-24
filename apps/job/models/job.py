@@ -765,14 +765,14 @@ class Job(models.Model):
 
         detail = {"changes": detail_changes}
         priority_position = enrichment.get("priority_position")
-        if event_type == "priority_changed" and priority_position:
+        if event_type in {"priority_changed", "status_changed"} and priority_position:
             # Float changed but rank didn't — drag was a no-op visually.
             # Skip the JobEvent so we don't pollute the audit log. Log a
             # warning so we can spot it if it starts happening unexpectedly
             # (e.g. a UI bug that fires reorder requests on every click).
-            if priority_position.get("old_position") == priority_position.get(
-                "new_position"
-            ):
+            if event_type == "priority_changed" and priority_position.get(
+                "old_position"
+            ) == priority_position.get("new_position"):
                 logger.warning(
                     "Suppressed no-op priority_changed event for job %s "
                     "(rank unchanged at %s of %s in %s)",

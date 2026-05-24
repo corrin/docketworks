@@ -353,42 +353,13 @@ export const jobService = {
   // Reorder job
   reorderJob(
     jobId: string,
-    beforeId?: string,
-    afterId?: string,
+    anchorJobId?: string,
+    placement?: 'above' | 'below',
     status?: string,
   ): Promise<z.infer<typeof schemas.KanbanSuccessResponse>> {
-    // Defensive guards to avoid self-referencing or contradictory hints
-    if (beforeId && beforeId === jobId) {
-      debugLog('[jobService.reorderJob] adjusted beforeId equals jobId, clearing beforeId', {
-        jobId,
-        beforeId,
-        afterId,
-        status,
-      })
-      beforeId = undefined
-    }
-    if (afterId && afterId === jobId) {
-      debugLog('[jobService.reorderJob] adjusted afterId equals jobId, clearing afterId', {
-        jobId,
-        beforeId,
-        afterId,
-        status,
-      })
-      afterId = undefined
-    }
-    if (beforeId && afterId && beforeId === afterId) {
-      debugLog('[jobService.reorderJob] beforeId === afterId, clearing afterId', {
-        jobId,
-        beforeId,
-        afterId,
-        status,
-      })
-      afterId = undefined
-    }
-
     const payload: JobReorderPayload = {}
-    if (beforeId) payload.before_id = beforeId
-    if (afterId) payload.after_id = afterId
+    if (anchorJobId) payload.anchor_job_id = anchorJobId
+    if (placement) payload.placement = placement
     if (status) payload.status = status
 
     debugLog('[jobService.reorderJob] ->', { jobId, payload })

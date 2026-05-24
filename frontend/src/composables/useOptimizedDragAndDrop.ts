@@ -7,11 +7,48 @@ export interface OptimizedDragEventPayload {
   jobId: string
   fromStatus: string
   toStatus: string
-  beforeId?: string
-  afterId?: string
+  anchorJobId?: string
+  placement?: 'above' | 'below'
 }
 
 export type OptimizedDragEventHandler = (event: string, payload: OptimizedDragEventPayload) => void
+
+function getVisibleJobAnchor(
+  container: HTMLElement,
+  movedElement: HTMLElement,
+  movedJobId: string,
+): { anchorJobId?: string; placement?: 'above' | 'below'; targetColumnJobs: string[] } {
+  const jobElements = Array.from(container.querySelectorAll<HTMLElement>('.job-card')).filter(
+    (el) => el.dataset.jobId,
+  )
+  const targetColumnJobs = jobElements
+    .map((el) => el.dataset.jobId)
+    .filter((id): id is string => !!id)
+  const movedIndex = jobElements.findIndex(
+    (el) => el === movedElement || el.dataset.jobId === movedJobId,
+  )
+
+  if (movedIndex === -1) {
+    return { targetColumnJobs }
+  }
+
+  const previousJobId = [...jobElements]
+    .slice(0, movedIndex)
+    .reverse()
+    .find((el) => el.dataset.jobId && el.dataset.jobId !== movedJobId)?.dataset.jobId
+  if (previousJobId) {
+    return { anchorJobId: previousJobId, placement: 'below', targetColumnJobs }
+  }
+
+  const nextJobId = jobElements
+    .slice(movedIndex + 1)
+    .find((el) => el.dataset.jobId && el.dataset.jobId !== movedJobId)?.dataset.jobId
+  if (nextJobId) {
+    return { anchorJobId: nextJobId, placement: 'above', targetColumnJobs }
+  }
+
+  return { targetColumnJobs }
+}
 
 export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler) {
   const isDragging = ref(false)
@@ -79,25 +116,21 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
 
         // Capture the drop position from the DOM *before* detaching the node —
         // Sortable's newIndex counts the moved element among its new siblings.
-        let beforeId: string | undefined
-        let afterId: string | undefined
+        let anchorJobId: string | undefined
+        let placement: 'above' | 'below' | undefined
+        let targetColumnJobs: string[] = []
         if (jobId && fromStatus && toStatus) {
           const newIndex = evt.newIndex ?? 0
-          // Only draggable job-card elements, to keep indices aligned with Sortable's newIndex
-          const targetColumnJobs: string[] = Array.from(
-            evt.to.querySelectorAll<HTMLElement>('.job-card'),
-          )
-            .map((el) => el.dataset.jobId)
-            .filter((id): id is string => !!id)
-          beforeId = newIndex > 0 ? targetColumnJobs[newIndex - 1] : undefined
-          afterId =
-            newIndex < targetColumnJobs.length - 1 ? targetColumnJobs[newIndex + 1] : undefined
+          const anchor = getVisibleJobAnchor(evt.to, jobElement, jobId)
+          anchorJobId = anchor.anchorJobId
+          placement = anchor.placement
+          targetColumnJobs = anchor.targetColumnJobs
 
           debugLog(`DRAG POSITIONING: ${fromStatus} -> ${toStatus}`, {
             jobId,
             newIndex,
-            beforeId,
-            afterId,
+            anchorJobId,
+            placement,
             totalChildren: evt.to.children.length,
             targetColumnJobs,
             draggedJobInArray: targetColumnJobs[newIndex],
@@ -112,7 +145,7 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
 
         // Call the drag event handler (which should handle optimistic updates)
         if (jobId && fromStatus && toStatus && onDragEvent) {
-          onDragEvent('job-moved', { jobId, fromStatus, toStatus, beforeId, afterId })
+          onDragEvent('job-moved', { jobId, fromStatus, toStatus, anchorJobId, placement })
         }
 
         if (jobId) {

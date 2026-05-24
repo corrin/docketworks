@@ -215,7 +215,12 @@ class KanbanService:
         candidates = list(
             jobs_query.filter(token_filter)
             .select_related(
-                "client", "contact", "created_by", "latest_quote", "latest_actual"
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+                "quote",
             )
             .prefetch_related("people", "invoices")
             .order_by("-trigram_score", "-created_at")
@@ -556,31 +561,31 @@ class KanbanService:
             raise
 
     @staticmethod
-    def get_adjacent_priorities(
-        before_id: Optional[str], after_id: Optional[str]
-    ) -> Tuple[Optional[int], Optional[int]]:
+    def get_reorder_anchor(
+        anchor_job_id: Optional[str], target_status: str
+    ) -> Optional[Job]:
         """
-        Get priorities of adjacent jobs.
+        Fetch and validate the visible anchor for a reorder request.
 
         Args:
-            before_id: ID of job before the target position
-            after_id: ID of job after the target position
+            anchor_job_id: ID of the visible job used as the drop anchor
+            target_status: Status/column the moved job is being placed into
 
         Returns:
-            Tuple of (before_priority, after_priority)
+            Anchor job, or None when the request targets an empty visible list.
 
         Raises:
             Job.DoesNotExist: If referenced job not found
+            ValueError: If the anchor is not in the target status
         """
-        before_prio = None
-        after_prio = None
+        if not anchor_job_id:
+            return None
 
-        if before_id:
-            before_prio = Job.objects.get(pk=before_id).priority
-        if after_id:
-            after_prio = Job.objects.get(pk=after_id).priority
+        anchor = Job.objects.get(pk=anchor_job_id)
+        if anchor.status != target_status:
+            raise ValueError("Reorder anchor must be in the target status")
 
-        return before_prio, after_prio
+        return anchor
 
     @staticmethod
     def rebalance_column(status: str, staff) -> None:
@@ -605,59 +610,55 @@ class KanbanService:
 
     @staticmethod
     def calculate_priority(
-        before_prio: Optional[int],
-        after_prio: Optional[int],
         status: str,
         staff,
-        before_id: Optional[str] = None,
-        after_id: Optional[str] = None,
-    ) -> int:
+        job_id: UUID,
+        anchor: Optional[Job] = None,
+        placement: Optional[str] = None,
+    ) -> float:
+        """Calculate the internal priority for a single-anchor reorder request."""
         increment = Job.PRIORITY_INCREMENT
-        match (before_prio, after_prio):
-            case (None, None):
-                max_prio = (
-                    Job.objects.filter(status=status).aggregate(Max("priority"))[
-                        "priority__max"
-                    ]
-                    or 0
-                )
-                return max_prio + increment
 
-            case (None, after) if after is not None:
-                # Insert at top: place above the current highest-priority job
-                new_prio = after + increment
-                return new_prio
+        if anchor is None:
+            max_prio = (
+                Job.objects.filter(status=status)
+                .exclude(pk=job_id)
+                .aggregate(Max("priority"))["priority__max"]
+                or 0
+            )
+            return max_prio + increment
 
-            case (before, None) if before is not None:
-                # Insert at bottom: place just below the 'before' job
-                return before + increment
+        if placement == "above":
+            higher_job = (
+                Job.objects.filter(status=status, priority__gt=anchor.priority)
+                .exclude(pk=job_id)
+                .order_by("priority")
+                .first()
+            )
+            if higher_job:
+                return (higher_job.priority + anchor.priority) / 2
 
-            case (before, after) if before is not None and after is not None:
-                gap = after - before
-                if gap > 1:
-                    return (before + after) // 2
+            return anchor.priority + increment
 
-                # Gap too small → rebalance first, then recompute
-                KanbanService.rebalance_column(status, staff)
+        if placement == "below":
+            lower_job = (
+                Job.objects.filter(status=status, priority__lt=anchor.priority)
+                .exclude(pk=job_id)
+                .order_by("-priority")
+                .first()
+            )
+            if lower_job:
+                return (anchor.priority + lower_job.priority) / 2
 
-                new_before_prio = Job.objects.get(pk=before_id).priority
-                new_after_prio = Job.objects.get(pk=after_id).priority
-                return (new_before_prio + new_after_prio) // 2
+            return anchor.priority - increment
 
-            case _:
-                max_prio = (
-                    Job.objects.filter(status=status).aggregate(Max("priority"))[
-                        "priority__max"
-                    ]
-                    or 0
-                )
-                return max_prio + increment
+        raise ValueError("placement must be 'above' or 'below'")
 
     @staticmethod
     def reorder_job(
         job_id: UUID,
-        before_id: Optional[str] = None,
-        after_id: Optional[str] = None,
+        anchor_job_id: Optional[str] = None,
+        placement: Optional[str] = None,
         new_status: Optional[str] = None,
         staff=None,
     ) -> bool:
@@ -666,8 +667,8 @@ class KanbanService:
 
         Args:
             job_id: UUID of job to reorder
-            before_id: ID of job before target position
-            after_id: ID of job after target position
+            anchor_job_id: Visible job used as the destination anchor
+            placement: Place moved job above or below the anchor
             new_status: New status if moving between columns
 
         Returns:
@@ -685,25 +686,34 @@ class KanbanService:
             logger.error(f"Job {job_id} not found for reordering")
             raise
 
-        try:
-            before_prio, after_prio = KanbanService.get_adjacent_priorities(
-                before_id, after_id
-            )
-            logger.info(
-                f"Adjacent priorities - before: {before_prio}, after: {after_prio}"
-            )
-        except Job.DoesNotExist:
-            logger.error(f"Adjacent job not found for reordering job {job_id}")
-            raise
+        if anchor_job_id and str(anchor_job_id) == str(job_id):
+            raise ValueError("Reorder anchor cannot be the moved job")
+        if anchor_job_id and placement not in {"above", "below"}:
+            raise ValueError("placement must be 'above' or 'below'")
+        if placement and not anchor_job_id:
+            raise ValueError("anchor_job_id is required when placement is supplied")
 
         # Determine target status for priority calculation
         target_status = new_status if new_status else job.status
         old_status = job.status
         old_priority = job.priority
 
+        try:
+            anchor = KanbanService.get_reorder_anchor(anchor_job_id, target_status)
+            logger.info(
+                f"Reorder anchor - job: {anchor_job_id}, placement: {placement}"
+            )
+        except Job.DoesNotExist:
+            logger.error(f"Anchor job not found for reordering job {job_id}")
+            raise
+
         # Calculate new priority
         new_priority = KanbanService.calculate_priority(
-            before_prio, after_prio, target_status, staff, before_id, after_id
+            target_status,
+            staff,
+            job_id,
+            anchor=anchor,
+            placement=placement,
         )
         logger.info(
             f"Calculated new priority for job {job.job_number}: {new_priority} (was {old_priority})"
