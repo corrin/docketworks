@@ -59,12 +59,6 @@ class StaffListCreateAPIView(generics.ListCreateAPIView):
             "groups",
             "user_permissions",
         )
-        # ^ The prefetch for groups/user_permissions is consumed by DRF's
-        # PrimaryKeyRelatedField(many=True) during serialization.  The data
-        # is accessed correctly (the test at test_staff_api.py:46-52 proves
-        # single-query behaviour), but nplusone reports a false-positive
-        # "unnecessary eager load" because the M2M cache path bypasses the
-        # `touch` signal (see NPLUSONE_WHITELIST in settings.py for details).
 
     def get_serializer_class(self):
         if self.request.method == "POST":
@@ -134,7 +128,6 @@ class StaffRetrieveUpdateDestroyAPIView(generics.RetrieveUpdateDestroyAPIView):
             "groups",
             "user_permissions",
         )
-        # ^ See note on StaffListCreateAPIView.get_queryset re: NPLUSONE_WHITELIST.
 
     def update(self, request, *args, **kwargs):
         logger = logging.getLogger("workflow")

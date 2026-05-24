@@ -4084,14 +4084,14 @@ files = [
 
 [[package]]
 name = "nplus1"
-version = "1.0.0"
+version = "1.1.1"
 description = "nplusone is a library for detecting the n+1 queries problem in Python ORMs, including SQLAlchemy, Peewee, and the Django ORM"
 optional = false
 python-versions = "<4.0,>=3.11"
 groups = ["dev"]
 files = [
-    {file = "nplus1-1.0.0-py3-none-any.whl", hash = "sha256:0ef89db1d1a0bc9e1f5776a4b3abd49591cb003835913db3804e32c58b985ce1"},
-    {file = "nplus1-1.0.0.tar.gz", hash = "sha256:469f9db6c9221f2e3fe0b1695146d552d430697f697e3e63db61d33e7f1f3e6b"},
+    {file = "nplus1-1.1.1-py3-none-any.whl", hash = "sha256:403f9438944671dd0272270ca508a37e50d8486b5c4047a92a08c9c0162b2155"},
+    {file = "nplus1-1.1.1.tar.gz", hash = "sha256:8e0929b1a5b564ff025c16a79da38e323c18dd1c4cb3180edcdb1a5cf993c9e2"},
 ]
 
 [package.dependencies]
@@ -7420,4 +7420,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "3668ae7daea0bd6243fd14f9035c5e65e23d0d7b72402d034a1d8d6893eb61d6"
+content-hash = "7a934822ec3f02a29db9a60833f42eb44cdcf7e82a1b2b974af5ddfd84c62662"

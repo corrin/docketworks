@@ -183,43 +183,6 @@ MIDDLEWARE = [
 NPLUSONE_ENABLED: bool = DEBUG
 NPLUSONE_LOG: bool = True
 NPLUSONE_RAISE: bool = True
-NPLUSONE_WHITELIST: list[dict[str, str]] = [
-    #
-    # Staff.groups and Staff.user_permissions are prefetched via
-    # prefetch_related() in the staff list view (staff_api.py) and
-    # then consumed by DRF's PrimaryKeyRelatedField(many=True) during
-    # serialization.  The data IS accessed and used — the test at
-    # apps/accounts/tests/test_staff_api.py:46-52 proves this by
-    # asserting exactly 1 query for the through table.
-    #
-    # However, nplusone cannot *see* that access because of how it
-    # instruments Django's ORM:
-    #
-    #   1. The `touch` signal (which marks an eager load as "used")
-    #      is emitted from ForwardManyToOneDescriptor.__get__ and
-    #      ReverseOneToOneDescriptor.__get__, but not from
-    #      ManyToManyDescriptor.__get__.  M2M fields go through a
-    #      different descriptor path.
-    #
-    #   2. The `touch` signal inside QuerySet._fetch_all fires only
-    #      when _prefetch_done=True AND the queryset hasn't been
-    #      materialised yet.  After prefetch_related populates the
-    #      cache, Django delivers results straight from _result_cache
-    #      without calling _fetch_all at all.
-    #
-    # The net effect: nplusone registers the eager load (the prefetch
-    # query it sees), never sees a corresponding touch, and reports
-    # a false-positive "unnecessary eager load".  Whitelisting these
-    # two relations avoids that false positive while keeping the
-    # prefetch optimisation intact.
-    #
-    {"label": "unused_eager_load", "model": "accounts.Staff", "field": "groups"},
-    {
-        "label": "unused_eager_load",
-        "model": "accounts.Staff",
-        "field": "user_permissions",
-    },
-]
 
 if NPLUSONE_ENABLED:
     MIDDLEWARE.insert(0, "nplusone.ext.django.NPlusOneMiddleware")
