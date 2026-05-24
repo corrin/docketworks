@@ -132,7 +132,17 @@ class KanbanService:
         Returns:
             QuerySet of filtered jobs
         """
-        jobs_query = Job.objects.filter(status=status)
+        jobs_query = (
+            Job.objects.filter(status=status)
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+            )
+            .prefetch_related("people")
+        )
 
         if search_terms:
             search_query = " ".join(search_terms)
@@ -429,7 +439,18 @@ class KanbanService:
         ordered by priority only.
         """
         # Get non-archived jobs and filter out special jobs for kanban
-        active_jobs = Job.objects.exclude(status="archived").order_by("-priority")
+        active_jobs = (
+            Job.objects.exclude(status="archived")
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+            )
+            .prefetch_related("people")
+            .order_by("-priority")
+        )
         filtered_jobs = KanbanService.filter_kanban_jobs(active_jobs)
         logger.info(
             f"Active jobs fetched (ordered by priority desc): {[f'#{job.job_number}(p:{job.priority})' for job in filtered_jobs[:10]]}"
@@ -439,7 +460,18 @@ class KanbanService:
     @staticmethod
     def get_archived_jobs(limit: int = 50) -> QuerySet[Job]:
         """Get archived jobs with limit."""
-        return Job.objects.filter(status="archived").order_by("-created_at")[:limit]
+        return (
+            Job.objects.filter(status="archived")
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+            )
+            .prefetch_related("people")
+            .order_by("-created_at")[:limit]
+        )
 
     @staticmethod
     def get_status_choices() -> Dict[str, Any]:

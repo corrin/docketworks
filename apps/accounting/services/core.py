@@ -171,7 +171,7 @@ class KPIService:
                 cost_set__kind="actual",
                 accounting_date=target_date,
             )
-            .select_related("cost_set__job")
+            .select_related("cost_set__job__client")
         )
 
         # For time entries, exclude staff that shouldn't be included
@@ -1207,8 +1207,15 @@ class StaffPerformanceService:
             staff_data = []
             include_job_breakdown = staff_id is not None
 
+            lines_by_staff_id: Dict[str, List[CostLine]] = {}
+            for line in cost_lines:
+                if line.staff_id is None:
+                    continue
+                staff_lines = lines_by_staff_id.setdefault(str(line.staff_id), [])
+                staff_lines.append(line)
+
             for staff in all_staff:
-                staff_cost_lines = cost_lines.filter(staff=staff)
+                staff_cost_lines = lines_by_staff_id.get(str(staff.id), [])
                 staff_metrics = StaffPerformanceService._calculate_staff_metrics(
                     staff, staff_cost_lines, include_job_breakdown
                 )
@@ -1252,7 +1259,7 @@ class StaffPerformanceService:
 
     @staticmethod
     def _calculate_staff_metrics(
-        staff: Staff, cost_lines: models.QuerySet, include_job_breakdown: bool = False
+        staff: Staff, cost_lines: List[CostLine], include_job_breakdown: bool = False
     ) -> Dict[str, Any]:
         """
         Calculate performance metrics for a single staff member.
