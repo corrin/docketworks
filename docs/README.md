@@ -93,6 +93,7 @@ Follow these in order:
 | Document | Purpose |
 |----------|---------|
 | [architecture.md](architecture.md) | Technical architecture: apps, data model, integrations, frontend, API |
+| [jira.md](jira.md) | Jira project, board, workflow statuses, labels, and issue-linking conventions |
 
 
 ### Auto-Generated Reference
