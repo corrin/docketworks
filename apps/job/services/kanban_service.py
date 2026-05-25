@@ -15,10 +15,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import (
     Case,
+    Exists,
     ExpressionWrapper,
     F,
     FloatField,
     Max,
+    OuterRef,
     Q,
     QuerySet,
     TextField,
@@ -28,6 +30,7 @@ from django.db.models import (
 from django.db.models.functions import Cast, Coalesce, Greatest
 from django.http import HttpRequest
 
+from apps.accounting.models import Invoice
 from apps.job.models import Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
 from apps.workflow.utils import is_valid_invoice_number, is_valid_uuid
@@ -185,8 +188,11 @@ class KanbanService:
             substring_whens = [
                 When(**{f"{spec['db_path']}__icontains": token}, then=Value(1.0))
                 for spec in KanbanService.TEXT_SEARCH_FIELDS
-                if spec["db_path"] != "job_number"
+                if spec["db_path"] not in {"job_number", "invoices__number"}
             ]
+            invoice_match = Exists(
+                Invoice.objects.filter(job=OuterRef("pk"), number__icontains=token)
+            )
             field_scores = [
                 TrigramSimilarity(spec["expression"], token)
                 for spec in KanbanService.TEXT_SEARCH_FIELDS
@@ -199,6 +205,7 @@ class KanbanService:
             annotations[alias] = Greatest(
                 Case(
                     *substring_whens,
+                    When(invoice_match, then=Value(1.0)),
                     default=Value(0.0),
                     output_field=FloatField(),
                 ),

@@ -961,7 +961,13 @@ watch(
   (newQ) => {
     const parsed = (newQ as string) || ''
     if (parsed === searchInput.value) return
-    if (parsed === lastSubmittedQuery.value && searchInput.value.startsWith(parsed)) return
+    if (
+      parsed.length > 0 &&
+      parsed === lastSubmittedQuery.value &&
+      searchInput.value.startsWith(parsed)
+    ) {
+      return
+    }
     searchInput.value = parsed
   },
 )

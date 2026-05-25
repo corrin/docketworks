@@ -38,4 +38,4 @@ Closes #[issue-number]
 - [ ] Affected business workflow regression-tested
 - [ ] User-facing workflow still makes sense for the relevant business user
 
-See [docs/definition-of-done.md](docs/definition-of-done.md).
+See [docs/jira-usage.md#required-checks](docs/jira-usage.md#required-checks).

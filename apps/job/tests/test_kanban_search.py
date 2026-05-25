@@ -549,6 +549,36 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertEqual([job.id for job in jobs], [target.id])
 
+    def test_perform_advanced_search_invoice_match_returns_job_once_with_multiple_invoices(
+        self,
+    ):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        self._make_invoice(target, number="INV-56005")
+        self._make_invoice(target, number="INV-56005-REV")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "56005"})
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_text_match_returns_job_once_with_multiple_invoices(
+        self,
+    ):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        self._make_invoice(target, number="INV-56005")
+        self._make_invoice(target, number="INV-99999")
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "Cool"}))
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
     def test_perform_advanced_search_invoice_reason_present(self):
         target = self._make_job(
             name="Cool Awnings",
