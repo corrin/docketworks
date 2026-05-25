@@ -8,6 +8,8 @@ const {
   setCurrentContext,
   setLoadingKanban,
   getJobsByColumn,
+  updateJobStatus,
+  reorderJob,
   performAdvancedSearch,
   checkFreshness,
   kanbanColumnCache,
@@ -18,6 +20,8 @@ const {
   setCurrentContext: vi.fn(),
   setLoadingKanban: vi.fn(),
   getJobsByColumn: vi.fn(),
+  updateJobStatus: vi.fn(),
+  reorderJob: vi.fn(),
   performAdvancedSearch: vi.fn(),
   checkFreshness: vi.fn(),
   kanbanColumnCache: new Map<string, unknown>(),
@@ -42,6 +46,8 @@ vi.mock('@/services/job.service', () => ({
       tooltips: {},
     }),
     performAdvancedSearch,
+    updateJobStatus,
+    reorderJob,
   },
 }))
 
@@ -58,6 +64,7 @@ vi.mock('@/stores/jobs', () => ({
       return jobs.length === (cached.jobIds ?? []).length ? jobs : null
     },
     hasKanbanColumnCache: (columnId: string) => kanbanColumnCache.has(columnId),
+    getKanbanJobById: (jobId: string) => kanbanJobsById.get(jobId) ?? null,
     loadKanbanColumnWithCache: async (
       columnId: string,
       load: () => Promise<unknown>,
@@ -76,6 +83,45 @@ vi.mock('@/stores/jobs', () => ({
       }
       kanbanColumnCache.set(columnId, cached)
       return cached
+    },
+    updateKanbanJob: (jobId: string, updates: Record<string, unknown>) => {
+      const existing = kanbanJobsById.get(jobId)
+      if (existing) {
+        kanbanJobsById.set(jobId, { ...existing, ...updates })
+      }
+    },
+    moveKanbanJobInColumnCache: (
+      jobId: string,
+      sourceColumnId: string,
+      targetColumnId: string,
+      anchorJobId?: string,
+      placement?: 'above' | 'below',
+    ) => {
+      const sourceCache = kanbanColumnCache.get(sourceColumnId) as { jobIds?: string[] } | undefined
+      if (sourceCache) {
+        sourceCache.jobIds = (sourceCache.jobIds ?? []).filter(
+          (cachedJobId) => cachedJobId !== jobId,
+        )
+      }
+
+      const targetCache = kanbanColumnCache.get(targetColumnId) as { jobIds?: string[] } | undefined
+      if (targetCache) {
+        const withoutMovedJob = (targetCache.jobIds ?? []).filter(
+          (cachedJobId) => cachedJobId !== jobId,
+        )
+        let insertIndex = 0
+        if (anchorJobId && placement) {
+          const anchorIndex = withoutMovedJob.indexOf(anchorJobId)
+          if (anchorIndex !== -1) {
+            insertIndex = placement === 'above' ? anchorIndex : anchorIndex + 1
+          } else {
+            kanbanColumnCache.delete(targetColumnId)
+            return
+          }
+        }
+        withoutMovedJob.splice(insertIndex, 0, jobId)
+        targetCache.jobIds = withoutMovedJob
+      }
     },
     setCurrentContext,
     setLoadingKanban,
@@ -108,6 +154,7 @@ vi.mock('@/utils/debug', () => ({
 }))
 
 import { useOptimizedKanban } from '../useOptimizedKanban'
+import { debugLog } from '@/utils/debug'
 
 type HarnessState = ReturnType<typeof useOptimizedKanban>
 
@@ -175,6 +222,8 @@ describe('useOptimizedKanban search reconciliation', () => {
     kanbanColumnCache.clear()
     kanbanJobsById.clear()
     checkFreshness.mockResolvedValue(undefined)
+    updateJobStatus.mockResolvedValue({ success: true })
+    reorderJob.mockResolvedValue({ success: true })
     getJobsByColumn.mockImplementation(async (columnId: string) => {
       if (columnId === 'in_progress') {
         return {
@@ -264,6 +313,58 @@ describe('useOptimizedKanban search reconciliation', () => {
       xero_invoice_params: '',
     })
     expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-1', 'job-2'])
+  })
+
+  it('renders filtered kanban columns by priority order after backend search reconciliation', async () => {
+    performAdvancedSearch.mockResolvedValue({
+      jobs: [
+        buildKanbanJob({
+          id: 'job-96990',
+          job_number: 96990,
+          status: 'approved',
+          status_key: 'approved',
+          priority: 5600,
+          created_at: '2026-04-22T21:54:41Z',
+        }),
+        buildKanbanJob({
+          id: 'job-96477',
+          job_number: 96477,
+          status: 'approved',
+          status_key: 'approved',
+          priority: 5800,
+          created_at: '2025-12-10T23:47:12Z',
+        }),
+      ],
+    })
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'Mayer'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-96477', 'job-96990'])
+    expect(kanban.getJobsByStatus.value('approved').map((job) => job.id)).toEqual([
+      'job-96477',
+      'job-96990',
+    ])
+    expect(debugLog).toHaveBeenCalledWith(
+      'kanban.search.reconciled-order',
+      expect.objectContaining({
+        query: 'Mayer',
+        rawOrder: expect.arrayContaining([
+          expect.objectContaining({ jobNumber: 96990, priority: 5600 }),
+          expect.objectContaining({ jobNumber: 96477, priority: 5800 }),
+        ]),
+        renderedColumnOrder: expect.objectContaining({
+          approved: [
+            expect.objectContaining({ jobNumber: 96477, priority: 5800 }),
+            expect.objectContaining({ jobNumber: 96990, priority: 5600 }),
+          ],
+        }),
+      }),
+    )
   })
 
   it('ignores stale backend responses when the user keeps typing', async () => {
@@ -383,5 +484,154 @@ describe('useOptimizedKanban search reconciliation', () => {
       xero_invoice_params: '',
     })
     expect(kanban.filteredJobs.value.map((job) => job.id)).toEqual(['job-3'])
+  })
+
+  it('moves a job locally between columns before status update revalidation completes', async () => {
+    const pendingStatusUpdate = deferred<{ success: boolean }>()
+    updateJobStatus.mockReturnValueOnce(pendingStatusUpdate.promise)
+
+    const kanban = await mountHarness()
+
+    const updatePromise = kanban.updateJobStatus('job-1', 'draft')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-1'])
+
+    pendingStatusUpdate.resolve({ success: true })
+    await updatePromise
+  })
+
+  it('keeps a filtered single visible job visible in its new column after a drag status update', async () => {
+    const pendingStatusUpdate = deferred<{ success: boolean }>()
+    updateJobStatus.mockReturnValueOnce(pendingStatusUpdate.promise)
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-1'])
+
+    const updatePromise = kanban.updateJobStatus('job-1', 'draft')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-1'])
+    expect(kanban.filteredJobs.value).toMatchObject([{ id: 'job-1', status: 'draft' }])
+
+    pendingStatusUpdate.resolve({ success: true })
+    await updatePromise
+  })
+
+  it('keeps a same-column reordered job visible before reorder revalidation completes', async () => {
+    const pendingReorder = deferred<{ success: boolean }>()
+    reorderJob.mockReturnValueOnce(pendingReorder.promise)
+    const secondJob = buildKanbanJob({ id: 'job-2', job_number: 9002 })
+    getJobsByColumn.mockImplementation(async (columnId: string) => {
+      if (columnId === 'in_progress') {
+        return {
+          success: true,
+          jobs: [buildKanbanJob(), secondJob],
+          total: 2,
+          filtered_count: 2,
+          has_more: false,
+        }
+      }
+      return { success: true, jobs: [], total: 0, filtered_count: 0, has_more: false }
+    })
+
+    const kanban = await mountHarness()
+
+    const reorderPromise = kanban.reorderJob('job-1', 'job-2', 'below', 'in_progress')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([
+      'job-2',
+      'job-1',
+    ])
+
+    pendingReorder.resolve({ success: true })
+    await reorderPromise
+  })
+
+  it('moves a cross-column reorder locally and updates filtered status before persistence completes', async () => {
+    const pendingReorder = deferred<{ success: boolean }>()
+    reorderJob.mockReturnValueOnce(pendingReorder.promise)
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'kick'
+    await kanban.handleSearch()
+
+    const reorderPromise = kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-123')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-1'])
+    expect(kanban.filteredJobs.value).toMatchObject([
+      { id: 'job-1', status: 'draft', status_key: 'draft' },
+    ])
+
+    pendingReorder.resolve({ success: true })
+    await reorderPromise
+
+    expect(getJobsByColumn).toHaveBeenCalledTimes(3)
+    expect(reorderJob).toHaveBeenCalledWith('job-1', undefined, undefined, 'draft')
+  })
+
+  it('does not force column revalidation after a successful reorder persistence', async () => {
+    const kanban = await mountHarness()
+
+    await kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-456')
+
+    expect(getJobsByColumn).toHaveBeenCalledTimes(3)
+    expect(debugLog).toHaveBeenCalledWith('kanban.drag.persist.success', {
+      dragId: 'drag-456',
+      jobId: 'job-1',
+      revalidated: false,
+    })
+  })
+
+  it('rolls back local drag state and revalidates affected columns when reorder persistence fails', async () => {
+    reorderJob.mockRejectedValueOnce(new Error('nope'))
+
+    const kanban = await mountHarness()
+
+    await kanban.reorderJob('job-1', undefined, undefined, 'draft', 'drag-789')
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-1'])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual([])
+    expect(getJobsByColumn).toHaveBeenCalledTimes(5)
+    expect(debugLog).toHaveBeenCalledWith(
+      'kanban.drag.rollback.revalidate',
+      expect.objectContaining({
+        dragId: 'drag-789',
+        jobId: 'job-1',
+        columnIds: ['in_progress', 'draft'],
+      }),
+    )
+  })
+
+  it('keeps a search-only job visible after a drag status update', async () => {
+    const pendingStatusUpdate = deferred<{ success: boolean }>()
+    updateJobStatus.mockReturnValueOnce(pendingStatusUpdate.promise)
+    performAdvancedSearch.mockResolvedValue({
+      jobs: [buildKanbanJob({ id: 'job-search-only', status: 'in_progress' })],
+    })
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'search-only'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    const updatePromise = kanban.updateJobStatus('job-search-only', 'draft', {
+      sourceColumnId: 'in_progress',
+      targetColumnId: 'draft',
+    })
+
+    expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual([])
+    expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual(['job-search-only'])
+
+    pendingStatusUpdate.resolve({ success: true })
+    await updatePromise
   })
 })

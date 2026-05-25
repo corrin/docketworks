@@ -383,8 +383,9 @@ class CostLine(models.Model):
 
     def _update_cost_set_summary(self) -> None:
         """Update cost set summary with aggregated data - PRESERVE existing data"""
-        cost_set = self.cost_set
-        cost_lines = cost_set.cost_lines.all()
+        cost_set_id = self.cost_set_id
+        cost_set = CostSet.objects.only("id", "job_id", "summary").get(id=cost_set_id)
+        cost_lines = CostLine.objects.filter(cost_set_id=cost_set_id)
 
         total_cost = sum(line.total_cost for line in cost_lines)
         total_rev = sum(line.total_rev for line in cost_lines)
@@ -402,15 +403,13 @@ class CostLine(models.Model):
             }
         )
 
-        cost_set.summary = current_summary  # Preserves revisions[]
-        cost_set.save()
+        CostSet.objects.filter(id=cost_set_id).update(summary=current_summary)
 
         # Bump job.updated_at via QuerySet.update() so the ETag invalidates
         # without routing through Job.save() — this is a cascade side-effect
         # of a CostLine write, not an attributable action.
-        cost_set.job.__class__.objects.filter(pk=cost_set.job.pk).update(
-            updated_at=timezone.now()
-        )
+        job_model = cost_set._meta.get_field("job").remote_field.model
+        job_model.objects.filter(pk=cost_set.job_id).update(updated_at=timezone.now())
 
     def save(self, *args, **kwargs):
         staff_was_already_set = self.staff_id is not None

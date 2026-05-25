@@ -7,32 +7,91 @@ export interface OptimizedDragEventPayload {
   jobId: string
   fromStatus: string
   toStatus: string
-  beforeId?: string
-  afterId?: string
+  anchorJobId?: string
+  placement?: 'above' | 'below'
+  dragId: string
 }
 
 export type OptimizedDragEventHandler = (event: string, payload: OptimizedDragEventPayload) => void
 
+function getVisibleJobAnchor(
+  container: HTMLElement,
+  movedElement: HTMLElement,
+  movedJobId: string,
+): { anchorJobId?: string; placement?: 'above' | 'below'; targetColumnJobs: string[] } {
+  const jobElements = Array.from(container.querySelectorAll<HTMLElement>('.job-card')).filter(
+    (el) => el.dataset.jobId,
+  )
+  const targetColumnJobs = jobElements
+    .map((el) => el.dataset.jobId)
+    .filter((id): id is string => !!id)
+  const movedIndex = jobElements.findIndex(
+    (el) => el === movedElement || el.dataset.jobId === movedJobId,
+  )
+
+  if (movedIndex === -1) {
+    return { targetColumnJobs }
+  }
+
+  const previousJobId = [...jobElements]
+    .slice(0, movedIndex)
+    .reverse()
+    .find((el) => el.dataset.jobId && el.dataset.jobId !== movedJobId)?.dataset.jobId
+  if (previousJobId) {
+    return { anchorJobId: previousJobId, placement: 'below', targetColumnJobs }
+  }
+
+  const nextJobId = jobElements
+    .slice(movedIndex + 1)
+    .find((el) => el.dataset.jobId && el.dataset.jobId !== movedJobId)?.dataset.jobId
+  if (nextJobId) {
+    return { anchorJobId: nextJobId, placement: 'above', targetColumnJobs }
+  }
+
+  return { targetColumnJobs }
+}
+
 export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler) {
   const isDragging = ref(false)
   const sortableInstances = ref<Map<string, Sortable>>(new Map())
-  let idleCleanupTimer: ReturnType<typeof setInterval> | null = null
+  let stuckDragTimer: ReturnType<typeof setTimeout> | null = null
+  let activeDragId: string | null = null
 
-  // Periodically check for stuck drag state and log diagnostics
-  const startIdleCleanup = () => {
-    if (idleCleanupTimer) return
-    idleCleanupTimer = setInterval(() => {
+  const getVisibleJobIds = (container: HTMLElement): string[] =>
+    Array.from(container.querySelectorAll<HTMLElement>('.job-card'))
+      .map((el) => el.dataset.jobId)
+      .filter((id): id is string => !!id)
+
+  const createDragId = (): string =>
+    typeof crypto !== 'undefined' && 'randomUUID' in crypto
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(36).slice(2)}`
+
+  const clearStuckDragTimer = () => {
+    if (stuckDragTimer) {
+      clearTimeout(stuckDragTimer)
+      stuckDragTimer = null
+    }
+  }
+
+  const startStuckDragWarning = (dragId: string) => {
+    clearStuckDragTimer()
+    stuckDragTimer = setTimeout(() => {
+      if (!isDragging.value || activeDragId !== dragId) {
+        return
+      }
       const ghostEls = document.querySelectorAll('.sortable-ghost')
       const chosenEls = document.querySelectorAll('.sortable-chosen')
       const dragEls = document.querySelectorAll('.sortable-drag')
-      debugLog('IDLE CHECK', {
+      debugLog('kanban.drag.stuck-warning', {
+        dragId,
         isDraggingRef: isDragging.value,
         sortableGhosts: ghostEls.length,
         sortableChosen: chosenEls.length,
         sortableDrag: dragEls.length,
         bodyHasDragging: document.body.classList.contains('is-dragging'),
       })
-    }, 5_000)
+    }, 3_000)
   }
 
   const initializeSortable = (element: HTMLElement, status: string) => {
@@ -56,16 +115,29 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
       forceFallback: false,
       fallbackOnBody: true,
       swapThreshold: 0.65,
-      onStart: () => {
-        debugLog('DRAG START -- setting isDragging=true')
+      onStart: (evt: SortableEvent) => {
+        activeDragId = createDragId()
         isDragging.value = true
         document.body.classList.add('is-dragging')
+        startStuckDragWarning(activeDragId)
+
+        const jobElement = evt.item as HTMLElement | undefined
+        const sourceStatus = (evt.from?.closest('[data-status]') as HTMLElement | null)?.dataset
+          .status
+        debugLog('kanban.drag.start', {
+          dragId: activeDragId,
+          jobId: jobElement?.dataset.jobId,
+          sourceStatus,
+          sourceOrder: evt.from ? getVisibleJobIds(evt.from) : [],
+        })
       },
       onMove: () => {
         return true
       },
       onEnd: async (evt: SortableEvent) => {
-        debugLog('DRAG END -- setting isDragging=false')
+        const dragId = activeDragId ?? createDragId()
+        activeDragId = null
+        clearStuckDragTimer()
         isDragging.value = false
         document.body.classList.remove('is-dragging')
 
@@ -79,47 +151,60 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
 
         // Capture the drop position from the DOM *before* detaching the node —
         // Sortable's newIndex counts the moved element among its new siblings.
-        let beforeId: string | undefined
-        let afterId: string | undefined
+        let anchorJobId: string | undefined
+        let placement: 'above' | 'below' | undefined
+        let targetColumnJobs: string[] = []
         if (jobId && fromStatus && toStatus) {
           const newIndex = evt.newIndex ?? 0
-          // Only draggable job-card elements, to keep indices aligned with Sortable's newIndex
-          const targetColumnJobs: string[] = Array.from(
-            evt.to.querySelectorAll<HTMLElement>('.job-card'),
-          )
-            .map((el) => el.dataset.jobId)
-            .filter((id): id is string => !!id)
-          beforeId = newIndex > 0 ? targetColumnJobs[newIndex - 1] : undefined
-          afterId =
-            newIndex < targetColumnJobs.length - 1 ? targetColumnJobs[newIndex + 1] : undefined
+          const anchor = getVisibleJobAnchor(evt.to, jobElement, jobId)
+          anchorJobId = anchor.anchorJobId
+          placement = anchor.placement
+          targetColumnJobs = anchor.targetColumnJobs
 
-          debugLog(`DRAG POSITIONING: ${fromStatus} -> ${toStatus}`, {
+          debugLog('kanban.drag.anchor', {
+            dragId,
             jobId,
+            fromStatus,
+            toStatus,
             newIndex,
-            beforeId,
-            afterId,
+            anchorJobId,
+            placement,
             totalChildren: evt.to.children.length,
             targetColumnJobs,
             draggedJobInArray: targetColumnJobs[newIndex],
           })
         } else {
-          debugLog('DRAG END -- missing jobId/from/to status; skipping move event', {
+          debugLog('kanban.drag.skip', {
+            dragId,
+            reason: 'missing jobId/from/to status',
             jobId,
             fromStatus,
             toStatus,
           })
         }
 
-        // SortableJS physically relocated this node into the target column. Vue
-        // owns the kanban DOM and re-renders the job into its new column from the
-        // optimistic update below; leaving Sortable's copy in place yields two
-        // elements for the same job until the next full revalidation. Detach it
-        // unconditionally so Vue's render stays the single source of truth.
-        jobElement.remove()
-
         // Call the drag event handler (which should handle optimistic updates)
         if (jobId && fromStatus && toStatus && onDragEvent) {
-          onDragEvent('job-moved', { jobId, fromStatus, toStatus, beforeId, afterId })
+          onDragEvent('job-moved', {
+            jobId,
+            fromStatus,
+            toStatus,
+            anchorJobId,
+            placement,
+            dragId,
+          })
+        }
+
+        if (jobId) {
+          debugLog('kanban.drag.dom.after-handler', {
+            dragId,
+            jobId,
+            draggedElementConnected: jobElement.isConnected,
+            matchingCards: document.querySelectorAll(`[data-job-id="${jobId}"]`).length,
+            matchingVisibleCards: document.querySelectorAll(
+              `[data-job-id="${jobId}"]:not([hidden])`,
+            ).length,
+          })
         }
 
         // Revalidation is handled by the onDragEvent handler (useOptimizedKanban)
@@ -130,14 +215,10 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
     const sortable = Sortable.create(element, sortableConfig)
 
     sortableInstances.value.set(status, sortable)
-    startIdleCleanup()
   }
 
   const destroyAllSortables = () => {
-    if (idleCleanupTimer) {
-      clearInterval(idleCleanupTimer)
-      idleCleanupTimer = null
-    }
+    clearStuckDragTimer()
     sortableInstances.value.forEach((sortable) => sortable.destroy())
     sortableInstances.value.clear()
     isDragging.value = false

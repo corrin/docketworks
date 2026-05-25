@@ -2,6 +2,7 @@
 
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase
+from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
@@ -11,6 +12,7 @@ from apps.job.models.job_event import (
     _truncate,
     _truthy,
 )
+from apps.job.views.job_rest_views import JobEventListRestView
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
 
@@ -52,6 +54,21 @@ class JobEventTrackingTest(BaseTestCase):
         self.assertEqual(event.staff, self.user)
         self.assertEqual(event.delta_before["status"], "draft")
         self.assertEqual(event.delta_after["status"], "in_progress")
+
+    def test_event_list_serializes_staff(self):
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="job_created",
+            detail={"job_name": self.job.name},
+        )
+        request = APIRequestFactory().get(f"/api/job/jobs/{self.job.id}/events/")
+        force_authenticate(request, user=self.user)
+
+        response = JobEventListRestView.as_view()(request, job_id=self.job.id)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["events"][0]["staff"], "Test Tracker")
 
     def test_status_change_to_archived_clears_assigned_staff(self):
         assigned_staff = Staff.objects.create_user(
@@ -473,7 +490,10 @@ class PriorityPositionCaptureTest(BaseTestCase):
         # Each save assigns priority via _calculate_next_priority_for_status
         # → C is highest, A is lowest. Drag A to the top (above C).
         KanbanService.reorder_job(
-            job_id=job_a.pk, before_id=str(job_c.pk), after_id=None, staff=self.user
+            job_id=job_a.pk,
+            anchor_job_id=str(job_c.pk),
+            placement="above",
+            staff=self.user,
         )
 
         event = (
@@ -533,30 +553,14 @@ class PriorityPositionCaptureTest(BaseTestCase):
         # Move the "Mover" from in_progress to quoting (top of quoting)
         KanbanService.reorder_job(
             job_id=in_progress_job.pk,
-            before_id=None,
-            after_id=None,
             new_status="quoting",
             staff=self.user,
         )
 
         event = (
-            JobEvent.objects.filter(job=in_progress_job, event_type="priority_changed")
-            .order_by("-timestamp")
-            .first()
+            JobEvent.objects.filter(job=in_progress_job).order_by("-timestamp").first()
         )
-        # Note: cross-column moves may emit either priority_changed or
-        # status_changed depending on _infer_event_type; if status_changed
-        # wins, the position info is still attached only when the inferred
-        # type is priority_changed. Adjust the assertion accordingly.
-        if event is None:
-            event = (
-                JobEvent.objects.filter(job=in_progress_job)
-                .order_by("-timestamp")
-                .first()
-            )
-            self.assertEqual(event.event_type, "status_changed")
-            # status_changed events don't carry detail.position by design
-            return
+        self.assertEqual(event.event_type, "status_changed")
 
         position = event.detail.get("position")
         self.assertIsNotNone(position)
@@ -564,6 +568,10 @@ class PriorityPositionCaptureTest(BaseTestCase):
         self.assertEqual(position["new_status"], "quoting")
         self.assertEqual(position["old_total"], 3)
         self.assertEqual(position["new_total"], 5)
+        self.assertEqual(
+            event.description,
+            "Moved from In Progress (3rd of 3) to Quoting (1st of 5)",
+        )
 
 
 class QuerySetGuardTest(BaseTestCase):

@@ -33,11 +33,26 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
     if latest_run is None:
         return {"days": [], "jobs": [], "unscheduled_jobs": []}
 
-    projections = (
-        JobProjection.objects.filter(scheduler_run=latest_run)
-        .select_related("job", "job__client")
-        .prefetch_related("job__people")
+    projections = JobProjection.objects.filter(scheduler_run=latest_run).select_related(
+        "job", "job__client"
     )
+    projections = list(projections)
+    scheduled_job_ids = [
+        projection.job_id for projection in projections if not projection.is_unscheduled
+    ]
+    assigned_staff_by_job_id: dict[Any, list[dict[str, Any]]] = {}
+    if scheduled_job_ids:
+        assigned_staff = Staff.objects.filter(
+            assigned_jobs__id__in=scheduled_job_ids
+        ).values("id", "first_name", "last_name", "assigned_jobs__id")
+        for staff in assigned_staff:
+            job_id = staff["assigned_jobs__id"]
+            assigned_staff_by_job_id.setdefault(job_id, []).append(
+                {
+                    "id": staff["id"],
+                    "name": f"{staff['first_name']} {staff['last_name']}",
+                }
+            )
 
     scheduled_jobs = []
     unscheduled_jobs = []
@@ -67,8 +82,6 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
                 {"id": s.id, "name": s.name} for s in anticipated_staff_qs
             ]
 
-            assigned_staff = [{"id": s.id, "name": s.name} for s in job.people.all()]
-
             scheduled_jobs.append(
                 {
                     "id": job.id,
@@ -82,7 +95,7 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
                     "is_late": projection.is_late,
                     "min_people": job.min_people,
                     "max_people": job.max_people,
-                    "assigned_staff": assigned_staff,
+                    "assigned_staff": assigned_staff_by_job_id.get(job.id, []),
                     "anticipated_staff": anticipated_staff,
                 }
             )

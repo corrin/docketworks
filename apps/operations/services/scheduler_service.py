@@ -7,7 +7,7 @@ from django.db import models, transaction
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.job.models import Job
+from apps.job.models import CostLine, Job
 from apps.operations.models import AllocationBlock, JobProjection, SchedulerRun
 from apps.operations.models.job_projection import UnscheduledReason
 from apps.operations.services.capacity import booked_hours_by_staff_date
@@ -39,11 +39,19 @@ class UnschedulableJob:
 
 def _get_actual_hours(job: Job) -> float:
     """Sum quantity of all time CostLines in the latest actual CostSet."""
+    annotated_hours = getattr(job, "actual_time_hours", None)
+    if annotated_hours is not None:
+        return float(annotated_hours)
+
     if not job.latest_actual_id:
         return 0.0
-    time_lines = job.latest_actual.cost_lines.filter(kind="time")
-    total = sum(float(line.quantity) for line in time_lines)
-    return total
+
+    total = (
+        CostLine.objects.filter(cost_set_id=job.latest_actual_id, kind="time")
+        .aggregate(total=models.Sum("quantity"))
+        .get("total")
+    )
+    return float(total or 0.0)
 
 
 def _compute_remaining_hours(
@@ -89,6 +97,7 @@ def _gather_workshop_staff(today: date) -> List[Staff]:
 def _classify_jobs(
     jobs: List[Job],
     staff_count: int,
+    assigned_staff_by_job_id: Dict[object, frozenset],
 ) -> tuple[List[JobScheduleState], List[UnschedulableJob]]:
     """
     Separate jobs into schedulable and unschedulable.
@@ -135,7 +144,7 @@ def _classify_jobs(
                 job=job,
                 remaining_hours=remaining_hours,
                 original_remaining_hours=remaining_hours,
-                assigned_staff_pks=frozenset(p.pk for p in job.people.all()),
+                assigned_staff_pks=assigned_staff_by_job_id.get(job.id, frozenset()),
             )
         )
 
@@ -350,12 +359,33 @@ def run_workshop_schedule() -> SchedulerRun:
     jobs = list(
         Job.objects.filter(status__in=["approved", "in_progress"])
         .select_related("latest_estimate", "latest_quote", "latest_actual")
-        .prefetch_related("latest_actual__cost_lines", "people")
+        .annotate(
+            actual_time_hours=models.Sum(
+                "latest_actual__cost_lines__quantity",
+                filter=models.Q(latest_actual__cost_lines__kind="time"),
+            )
+        )
     )
+    assigned_staff_by_job_id: Dict[object, frozenset] = {
+        job.id: frozenset() for job in jobs
+    }
+    through_model = Job.people.through
+    assignments = through_model.objects.filter(
+        job_id__in=assigned_staff_by_job_id
+    ).values("job_id", "staff_id")
+    for assignment in assignments:
+        job_id = assignment["job_id"]
+        assigned_staff_by_job_id[job_id] = assigned_staff_by_job_id[job_id] | frozenset(
+            [assignment["staff_id"]]
+        )
 
     all_staff = _gather_workshop_staff(today)
 
-    schedulable, unschedulable = _classify_jobs(jobs, len(all_staff))
+    schedulable, unschedulable = _classify_jobs(
+        jobs,
+        len(all_staff),
+        assigned_staff_by_job_id,
+    )
 
     # Sort schedulable jobs descending by priority
     schedulable.sort(key=lambda s: s.job.priority, reverse=True)

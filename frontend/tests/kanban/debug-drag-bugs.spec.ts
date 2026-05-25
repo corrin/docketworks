@@ -159,9 +159,9 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     // Try to catch the API response, but don't hard-fail if drag was too fast for SortableJS
     let dropCompleted = false
-    const statusResponsePromise = page.waitForResponse(
+    const reorderResponsePromise = page.waitForResponse(
       (response) =>
-        response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
         response.request().method() === 'POST' &&
         response.status() >= 200 &&
         response.status() < 300,
@@ -171,7 +171,7 @@ test.describe('debug: drag-and-drop bugs', () => {
 
     try {
       await Promise.race([
-        statusResponsePromise.then(() => {
+        reorderResponsePromise.then(() => {
           dropCompleted = true
         }),
         page.waitForTimeout(5000),
@@ -226,16 +226,16 @@ test.describe('debug: drag-and-drop bugs', () => {
           sourceStatus1,
         )
 
-        const statusResponse1 = page.waitForResponse(
+        const reorderResponse1 = page.waitForResponse(
           (response) =>
-            response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+            response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
             response.request().method() === 'POST' &&
             response.status() >= 200 &&
             response.status() < 300,
         )
 
         await dragCardToColumn(page, jobCard, targetColumn1)
-        await statusResponse1
+        await reorderResponse1
         // Exactly one card on the board for this job — guards against SortableJS
         // leaving an orphaned DOM node alongside Vue's re-rendered card after a drop.
         await expect(page.locator(`[data-job-id="${jobId}"]:visible`)).toHaveCount(1, {
@@ -275,16 +275,16 @@ test.describe('debug: drag-and-drop bugs', () => {
           sourceStatus2,
         )
 
-        const statusResponse2 = page.waitForResponse(
+        const reorderResponse2 = page.waitForResponse(
           (response) =>
-            response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+            response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
             response.request().method() === 'POST' &&
             response.status() >= 200 &&
             response.status() < 300,
         )
 
         await dragCardToColumn(page, jobCard2, targetColumn2)
-        await statusResponse2
+        await reorderResponse2
         // Exactly one card for this job in the target column — a stale SortableJS
         // instance after the layout switch would leave an orphaned DOM node here
         // next to Vue's re-rendered card.
@@ -381,9 +381,9 @@ test.describe('debug: drag-and-drop bugs', () => {
         sourceStatus,
       )
 
-      const statusResponse = page.waitForResponse(
+      const reorderResponse = page.waitForResponse(
         (response) =>
-          response.url().includes(`/api/job/jobs/${jobId}/update-status/`) &&
+          response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
           response.request().method() === 'POST' &&
           response.status() >= 200 &&
           response.status() < 300,
@@ -393,7 +393,7 @@ test.describe('debug: drag-and-drop bugs', () => {
       await dragCardToColumn(page, jobCardAfter, targetColumn)
 
       try {
-        await statusResponse
+        await reorderResponse
         await expect(
           page.locator(`[data-status="${targetStatus}"] [data-job-id="${jobId}"]:visible`),
         ).toHaveCount(1, { timeout: 15000 })

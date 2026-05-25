@@ -15,10 +15,12 @@ from django.core.exceptions import ObjectDoesNotExist
 from django.db import transaction
 from django.db.models import (
     Case,
+    Exists,
     ExpressionWrapper,
     F,
     FloatField,
     Max,
+    OuterRef,
     Q,
     QuerySet,
     TextField,
@@ -28,6 +30,7 @@ from django.db.models import (
 from django.db.models.functions import Cast, Coalesce, Greatest
 from django.http import HttpRequest
 
+from apps.accounting.models import Invoice
 from apps.job.models import Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
 from apps.workflow.utils import is_valid_invoice_number, is_valid_uuid
@@ -51,6 +54,68 @@ class KanbanService:
     SEARCH_SCORE_TRIGRAM_MULTIPLIER = 30.0
     SEARCH_SCORE_FALLBACK_RATIO = 0.5
     SEARCH_SCORE_MIN_DISPLAY = 15.0
+    SEARCH_SCORE_ORDER_NUMBER_MATCH = 75.0
+
+    TEXT_SEARCH_FIELDS: List[Dict[str, Any]] = [
+        {
+            "db_path": "name",
+            "expression": Coalesce("name", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_NAME_CONTAINS,
+            "reason": "name_contains",
+        },
+        {
+            "db_path": "client__name",
+            "expression": Coalesce("client__name", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_CLIENT_CONTAINS,
+            "reason": "client_contains",
+        },
+        {
+            "db_path": "contact__name",
+            "expression": Coalesce(
+                "contact__name", Value(""), output_field=TextField()
+            ),
+            "score": SEARCH_SCORE_CONTACT_CONTAINS,
+            "reason": "contact_contains",
+        },
+        {
+            "db_path": "description",
+            "expression": Coalesce("description", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_DESCRIPTION_CONTAINS,
+            "reason": "description_contains",
+        },
+        {
+            "db_path": "job_number",
+            "expression": Coalesce(
+                Cast("job_number", output_field=TextField()),
+                Value(""),
+                output_field=TextField(),
+            ),
+            "score": SEARCH_SCORE_JOB_NUMBER_CONTAINS,
+            "reason": "job_number_contains",
+        },
+        {
+            "db_path": "quote__number",
+            "expression": Coalesce(
+                "quote__number", Value(""), output_field=TextField()
+            ),
+            "score": SEARCH_SCORE_QUOTE_CONTAINS,
+            "reason": "quote_contains",
+        },
+        {
+            "db_path": "order_number",
+            "expression": Coalesce("order_number", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_ORDER_NUMBER_MATCH,
+            "reason": "order_number_contains",
+        },
+        {
+            "db_path": "invoices__number",
+            "expression": Coalesce(
+                "invoices__number", Value(""), output_field=TextField()
+            ),
+            "score": SEARCH_SCORE_QUOTE_CONTAINS,
+            "reason": "invoice_contains",
+        },
+    ]
 
     @staticmethod
     def get_jobs_by_status(
@@ -70,7 +135,17 @@ class KanbanService:
         Returns:
             QuerySet of filtered jobs
         """
-        jobs_query = Job.objects.filter(status=status)
+        jobs_query = (
+            Job.objects.filter(status=status)
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+            )
+            .prefetch_related("people")
+        )
 
         if search_terms:
             search_query = " ".join(search_terms)
@@ -105,56 +180,32 @@ class KanbanService:
             return list(jobs_query)
 
         tokens = normalized_query.split()
-        searchable_fields = [
-            (
-                "name",
-                Coalesce("name", Value(""), output_field=TextField()),
-            ),
-            (
-                "client__name",
-                Coalesce("client__name", Value(""), output_field=TextField()),
-            ),
-            (
-                "contact__name",
-                Coalesce("contact__name", Value(""), output_field=TextField()),
-            ),
-            (
-                "description",
-                Coalesce("description", Value(""), output_field=TextField()),
-            ),
-            (
-                "job_number",
-                Coalesce(
-                    Cast("job_number", output_field=TextField()),
-                    Value(""),
-                    output_field=TextField(),
-                ),
-            ),
-            (
-                "quote__number",
-                Coalesce("quote__number", Value(""), output_field=TextField()),
-            ),
-        ]
 
         annotations: Dict[str, Any] = {}
         token_aliases: List[str] = []
         for index, token in enumerate(tokens):
             alias = f"search_token_score_{index}"
             substring_whens = [
-                When(**{f"{lookup}__icontains": token}, then=Value(1.0))
-                for lookup, _ in searchable_fields
-                if lookup != "job_number"
+                When(**{f"{spec['db_path']}__icontains": token}, then=Value(1.0))
+                for spec in KanbanService.TEXT_SEARCH_FIELDS
+                if spec["db_path"] not in {"job_number", "invoices__number"}
             ]
+            invoice_match = Exists(
+                Invoice.objects.filter(job=OuterRef("pk"), number__icontains=token)
+            )
             field_scores = [
-                TrigramSimilarity(expression, token)
-                for _, expression in searchable_fields
+                TrigramSimilarity(spec["expression"], token)
+                for spec in KanbanService.TEXT_SEARCH_FIELDS
+                if spec["db_path"] != "invoices__number"
             ] + [
-                TrigramWordSimilarity(token, expression)
-                for _, expression in searchable_fields
+                TrigramWordSimilarity(token, spec["expression"])
+                for spec in KanbanService.TEXT_SEARCH_FIELDS
+                if spec["db_path"] != "invoices__number"
             ]
             annotations[alias] = Greatest(
                 Case(
                     *substring_whens,
+                    When(invoice_match, then=Value(1.0)),
                     default=Value(0.0),
                     output_field=FloatField(),
                 ),
@@ -180,7 +231,15 @@ class KanbanService:
 
         candidates = list(
             jobs_query.filter(token_filter)
-            .select_related("client", "contact", "quote")
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+                "quote",
+            )
+            .prefetch_related("people", "invoices")
             .order_by("-trigram_score", "-created_at")
         )
         return KanbanService._rank_kanban_search_candidates(
@@ -249,16 +308,9 @@ class KanbanService:
         job: Job, token: str
     ) -> Tuple[float, Dict[str, Any]]:
         job_number = str(job.job_number)
-        name = (job.name or "").lower()
-        client_name = (job.client.name if job.client_id and job.client else "").lower()
-        contact_name = (
-            job.contact.name if job.contact_id and job.contact else ""
-        ).lower()
-        description = (job.description or "").lower()
-        quote_number = KanbanService._job_quote_number(job).lower()
         trigram_score = float(getattr(job, "trigram_score", 0.0) or 0.0)
 
-        scored_reasons = [
+        scored_reasons: List[Tuple[float, str]] = [
             (
                 (
                     KanbanService.SEARCH_SCORE_EXACT_JOB_NUMBER
@@ -275,55 +327,22 @@ class KanbanService:
                 ),
                 "job_number_suffix",
             ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_JOB_NUMBER_CONTAINS
-                    if token in job_number
-                    else 0.0
-                ),
-                "job_number_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_QUOTE_CONTAINS
-                    if token in quote_number
-                    else 0.0
-                ),
-                "quote_contains",
-            ),
-            (
-                KanbanService.SEARCH_SCORE_NAME_CONTAINS if token in name else 0.0,
-                "name_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_CLIENT_CONTAINS
-                    if token in client_name
-                    else 0.0
-                ),
-                "client_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_CONTACT_CONTAINS
-                    if token in contact_name
-                    else 0.0
-                ),
-                "contact_contains",
-            ),
-            (
-                (
-                    KanbanService.SEARCH_SCORE_DESCRIPTION_CONTAINS
-                    if token in description
-                    else 0.0
-                ),
-                "description_contains",
-            ),
+        ]
+
+        for spec in KanbanService.TEXT_SEARCH_FIELDS:
+            value = KanbanService._get_search_field_value(job, spec["db_path"])
+            if value and token in value:
+                scored_reasons.append((spec["score"], spec["reason"]))
+            else:
+                scored_reasons.append((0.0, spec["reason"]))
+
+        scored_reasons.append(
             (
                 trigram_score * KanbanService.SEARCH_SCORE_TRIGRAM_MULTIPLIER,
-                "trigram",
-            ),
-        ]
+                "misspelling",
+            )
+        )
+
         score, reason = max(scored_reasons, key=lambda scored: scored[0])
         return score, {"token": token, "reason": reason, "score": score}
 
@@ -334,6 +353,30 @@ class KanbanService:
         except ObjectDoesNotExist:
             return ""
         return quote.number or ""
+
+    @staticmethod
+    def _get_search_field_value(job: Job, db_path: str) -> str:
+        match db_path:
+            case "name":
+                return (job.name or "").lower()
+            case "client__name":
+                return (job.client.name if job.client_id and job.client else "").lower()
+            case "contact__name":
+                return (
+                    job.contact.name if job.contact_id and job.contact else ""
+                ).lower()
+            case "description":
+                return (job.description or "").lower()
+            case "job_number":
+                return str(job.job_number)
+            case "quote__number":
+                return KanbanService._job_quote_number(job).lower()
+            case "order_number":
+                return (job.order_number or "").lower()
+            case "invoices__number":
+                return " ".join(inv.number for inv in job.invoices.all()).lower()
+            case _:
+                return ""
 
     @staticmethod
     def explain_kanban_search(query: str, limit: int = 20) -> List[Dict[str, Any]]:
@@ -403,7 +446,18 @@ class KanbanService:
         ordered by priority only.
         """
         # Get non-archived jobs and filter out special jobs for kanban
-        active_jobs = Job.objects.exclude(status="archived").order_by("-priority")
+        active_jobs = (
+            Job.objects.exclude(status="archived")
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+            )
+            .prefetch_related("people")
+            .order_by("-priority")
+        )
         filtered_jobs = KanbanService.filter_kanban_jobs(active_jobs)
         logger.info(
             f"Active jobs fetched (ordered by priority desc): {[f'#{job.job_number}(p:{job.priority})' for job in filtered_jobs[:10]]}"
@@ -413,7 +467,18 @@ class KanbanService:
     @staticmethod
     def get_archived_jobs(limit: int = 50) -> QuerySet[Job]:
         """Get archived jobs with limit."""
-        return Job.objects.filter(status="archived").order_by("-created_at")[:limit]
+        return (
+            Job.objects.filter(status="archived")
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+            )
+            .prefetch_related("people")
+            .order_by("-created_at")[:limit]
+        )
 
     @staticmethod
     def get_status_choices() -> Dict[str, Any]:
@@ -535,31 +600,31 @@ class KanbanService:
             raise
 
     @staticmethod
-    def get_adjacent_priorities(
-        before_id: Optional[str], after_id: Optional[str]
-    ) -> Tuple[Optional[int], Optional[int]]:
+    def get_reorder_anchor(
+        anchor_job_id: Optional[str], target_status: str
+    ) -> Optional[Job]:
         """
-        Get priorities of adjacent jobs.
+        Fetch and validate the visible anchor for a reorder request.
 
         Args:
-            before_id: ID of job before the target position
-            after_id: ID of job after the target position
+            anchor_job_id: ID of the visible job used as the drop anchor
+            target_status: Status/column the moved job is being placed into
 
         Returns:
-            Tuple of (before_priority, after_priority)
+            Anchor job, or None when the request targets an empty visible list.
 
         Raises:
             Job.DoesNotExist: If referenced job not found
+            ValueError: If the anchor is not in the target status
         """
-        before_prio = None
-        after_prio = None
+        if not anchor_job_id:
+            return None
 
-        if before_id:
-            before_prio = Job.objects.get(pk=before_id).priority
-        if after_id:
-            after_prio = Job.objects.get(pk=after_id).priority
+        anchor = Job.objects.get(pk=anchor_job_id)
+        if anchor.status != target_status:
+            raise ValueError("Reorder anchor must be in the target status")
 
-        return before_prio, after_prio
+        return anchor
 
     @staticmethod
     def rebalance_column(status: str, staff) -> None:
@@ -584,59 +649,55 @@ class KanbanService:
 
     @staticmethod
     def calculate_priority(
-        before_prio: Optional[int],
-        after_prio: Optional[int],
         status: str,
         staff,
-        before_id: Optional[str] = None,
-        after_id: Optional[str] = None,
-    ) -> int:
+        job_id: UUID,
+        anchor: Optional[Job] = None,
+        placement: Optional[str] = None,
+    ) -> float:
+        """Calculate the internal priority for a single-anchor reorder request."""
         increment = Job.PRIORITY_INCREMENT
-        match (before_prio, after_prio):
-            case (None, None):
-                max_prio = (
-                    Job.objects.filter(status=status).aggregate(Max("priority"))[
-                        "priority__max"
-                    ]
-                    or 0
-                )
-                return max_prio + increment
 
-            case (None, after) if after is not None:
-                # Insert at top: place above the current highest-priority job
-                new_prio = after + increment
-                return new_prio
+        if anchor is None:
+            max_prio = (
+                Job.objects.filter(status=status)
+                .exclude(pk=job_id)
+                .aggregate(Max("priority"))["priority__max"]
+                or 0
+            )
+            return max_prio + increment
 
-            case (before, None) if before is not None:
-                # Insert at bottom: place just below the 'before' job
-                return before + increment
+        if placement == "above":
+            higher_job = (
+                Job.objects.filter(status=status, priority__gt=anchor.priority)
+                .exclude(pk=job_id)
+                .order_by("priority")
+                .first()
+            )
+            if higher_job:
+                return (higher_job.priority + anchor.priority) / 2
 
-            case (before, after) if before is not None and after is not None:
-                gap = after - before
-                if gap > 1:
-                    return (before + after) // 2
+            return anchor.priority + increment
 
-                # Gap too small → rebalance first, then recompute
-                KanbanService.rebalance_column(status, staff)
+        if placement == "below":
+            lower_job = (
+                Job.objects.filter(status=status, priority__lt=anchor.priority)
+                .exclude(pk=job_id)
+                .order_by("-priority")
+                .first()
+            )
+            if lower_job:
+                return (anchor.priority + lower_job.priority) / 2
 
-                new_before_prio = Job.objects.get(pk=before_id).priority
-                new_after_prio = Job.objects.get(pk=after_id).priority
-                return (new_before_prio + new_after_prio) // 2
+            return anchor.priority - increment
 
-            case _:
-                max_prio = (
-                    Job.objects.filter(status=status).aggregate(Max("priority"))[
-                        "priority__max"
-                    ]
-                    or 0
-                )
-                return max_prio + increment
+        raise ValueError("placement must be 'above' or 'below'")
 
     @staticmethod
     def reorder_job(
         job_id: UUID,
-        before_id: Optional[str] = None,
-        after_id: Optional[str] = None,
+        anchor_job_id: Optional[str] = None,
+        placement: Optional[str] = None,
         new_status: Optional[str] = None,
         staff=None,
     ) -> bool:
@@ -645,8 +706,8 @@ class KanbanService:
 
         Args:
             job_id: UUID of job to reorder
-            before_id: ID of job before target position
-            after_id: ID of job after target position
+            anchor_job_id: Visible job used as the destination anchor
+            placement: Place moved job above or below the anchor
             new_status: New status if moving between columns
 
         Returns:
@@ -664,25 +725,34 @@ class KanbanService:
             logger.error(f"Job {job_id} not found for reordering")
             raise
 
-        try:
-            before_prio, after_prio = KanbanService.get_adjacent_priorities(
-                before_id, after_id
-            )
-            logger.info(
-                f"Adjacent priorities - before: {before_prio}, after: {after_prio}"
-            )
-        except Job.DoesNotExist:
-            logger.error(f"Adjacent job not found for reordering job {job_id}")
-            raise
+        if anchor_job_id and str(anchor_job_id) == str(job_id):
+            raise ValueError("Reorder anchor cannot be the moved job")
+        if anchor_job_id and placement not in {"above", "below"}:
+            raise ValueError("placement must be 'above' or 'below'")
+        if placement and not anchor_job_id:
+            raise ValueError("anchor_job_id is required when placement is supplied")
 
         # Determine target status for priority calculation
         target_status = new_status if new_status else job.status
         old_status = job.status
         old_priority = job.priority
 
+        try:
+            anchor = KanbanService.get_reorder_anchor(anchor_job_id, target_status)
+            logger.info(
+                f"Reorder anchor - job: {anchor_job_id}, placement: {placement}"
+            )
+        except Job.DoesNotExist:
+            logger.error(f"Anchor job not found for reordering job {job_id}")
+            raise
+
         # Calculate new priority
         new_priority = KanbanService.calculate_priority(
-            before_prio, after_prio, target_status, staff, before_id, after_id
+            target_status,
+            staff,
+            job_id,
+            anchor=anchor,
+            placement=placement,
         )
         logger.info(
             f"Calculated new priority for job {job.job_number}: {new_priority} (was {old_priority})"
@@ -782,7 +852,6 @@ class KanbanService:
             QuerySet of filtered jobs
         """
         jobs_query = Job.objects.all()
-        logger.info(f"Performing advanced search with filters: {filters}")
 
         # Apply filters with early returns for invalid data
         if number := filters.get("job_number", "").strip():
@@ -800,6 +869,9 @@ class KanbanService:
         if contact_person := filters.get("contact_person", "").strip():
             jobs_query = jobs_query.filter(contact__name__icontains=contact_person)
 
+        if order_number := filters.get("order_number", "").strip():
+            jobs_query = jobs_query.filter(order_number__icontains=order_number)
+
         if created_by := filters.get("created_by", "").strip():
             jobs_query = jobs_query.filter(events__staff=created_by)
 
@@ -813,11 +885,15 @@ class KanbanService:
             jobs_query = jobs_query.filter(status__in=statuses)
 
         if xero_invoice_params := filters.get("xero_invoice_params", "").strip():
+            if xero_invoice_params.isdigit():
+                xero_invoice_params = f"INV-{xero_invoice_params}"
             match xero_invoice_params:
                 case param if is_valid_uuid(param):
                     jobs_query = jobs_query.filter(invoices__xero_id=param)
                 case param if is_valid_invoice_number(param):
                     jobs_query = jobs_query.filter(invoices__number=param)
+                case _:
+                    jobs_query = Job.objects.none()
 
         # Handle paid filter with match-case
         paid_filter = filters.get("paid", "")
@@ -877,7 +953,9 @@ class KanbanService:
             valid_statuses = [column.status_key]  # Only the column's main status
             jobs_query = (
                 Job.objects.filter(status__in=valid_statuses)
-                .select_related("client", "latest_quote", "latest_actual")
+                .select_related(
+                    "client", "contact", "created_by", "latest_quote", "latest_actual"
+                )
                 .prefetch_related("people")
             )
             jobs_query = KanbanService.filter_kanban_jobs(jobs_query)

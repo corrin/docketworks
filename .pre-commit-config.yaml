@@ -59,9 +59,11 @@ repos:
       # black - uses poetry-installed version (single source of truth: pyproject.toml)
       - id: black
         name: Format Python code with black
-        entry: poetry run black --quiet
+        entry: poetry run black
         language: system
         files: '^(?:apps/|docketworks/|scripts/).+\.py$|^[^/]+\.py$'
+        exclude: '.*/migrations/.*\.py$'
+        require_serial: true
         types: [python]
 
       # isort - uses poetry-installed version (single source of truth: pyproject.toml)

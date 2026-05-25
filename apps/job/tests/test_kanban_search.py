@@ -3,10 +3,12 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+from django.db import connection
 from django.test import RequestFactory
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from apps.accounting.models import Invoice
+from apps.accounting.models import Invoice, Quote
 from apps.client.models import Client, ClientContact
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
@@ -33,6 +35,7 @@ class KanbanSearchTest(BaseTestCase):
         client_name: str,
         status: str = "in_progress",
         contact_name: str | None = None,
+        order_number: str | None = None,
     ):
         client = self._make_client(client_name)
         contact = None
@@ -49,6 +52,7 @@ class KanbanSearchTest(BaseTestCase):
             job_number=self.job_number,
             created_by=self.test_staff,
             default_xero_pay_item=self.xero_pay_item,
+            order_number=order_number,
         )
 
     def _set_job_number(self, job: Job, job_number: int) -> Job:
@@ -71,6 +75,19 @@ class KanbanSearchTest(BaseTestCase):
             raw_json={},
         )
 
+    def _make_quote(self, job: Job, *, number: str) -> Quote:
+        return Quote.objects.create(
+            xero_id=uuid.uuid4(),
+            number=number,
+            client=job.client,
+            job=job,
+            date=date.today(),
+            total_excl_tax=Decimal("100.00"),
+            total_incl_tax=Decimal("115.00"),
+            xero_last_modified=timezone.now(),
+            raw_json={},
+        )
+
     def test_perform_advanced_search_matches_single_token_job_name_substring(self):
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
@@ -82,6 +99,68 @@ class KanbanSearchTest(BaseTestCase):
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_preloads_serialize_job_relations(self):
+        target = self._make_job(
+            name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
+            client_name="Weaver, Decker and Schultz",
+        )
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+        with CaptureQueriesContext(connection) as captured:
+            KanbanService.serialize_job_for_api(jobs[0])
+
+        relation_queries = [
+            query["sql"]
+            for query in captured
+            if "job_costset" in query["sql"] or "accounts_staff" in query["sql"]
+        ]
+        self.assertEqual(relation_queries, [])
+
+    def test_perform_advanced_search_preloads_quote_for_ranking(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        other = self._make_job(
+            name="Cool Store",
+            client_name="Cool Stores Ltd",
+        )
+        self._make_quote(target, number="QU-56005")
+        self._make_quote(other, number="QU-99999")
+
+        with CaptureQueriesContext(connection) as captured:
+            jobs = list(
+                KanbanService.perform_advanced_search({"universal_search": "cool"})
+            )
+
+        self.assertEqual({job.id for job in jobs}, {target.id, other.id})
+        direct_quote_queries = [
+            query["sql"]
+            for query in captured
+            if 'FROM "accounting_quote"' in query["sql"]
+        ]
+        self.assertEqual(direct_quote_queries, [])
+
+    def test_perform_advanced_search_matches_quote_number(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        other = self._make_job(
+            name="Other work",
+            client_name="Other Client",
+        )
+        self._make_quote(target, number="QU-56005")
+        self._make_quote(other, number="QU-99999")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "56005"})
+        )
 
         self.assertEqual([job.id for job in jobs], [target.id])
 
@@ -370,6 +449,151 @@ class KanbanSearchTest(BaseTestCase):
         )
 
         self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_matches_bare_invoice_number(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        other = self._make_job(
+            name="Other work",
+            client_name="Other Client",
+        )
+        self._make_invoice(target, number="INV-56005")
+        self._make_invoice(other, number="INV-12345")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"xero_invoice_params": "56005"})
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_unrecognised_invoice_returns_empty(self):
+        target = self._make_job(
+            name="Kick plates",
+            client_name="Weaver, Decker and Schultz",
+        )
+        self._make_invoice(target, number="INV-15151")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"xero_invoice_params": "garbage!!!"})
+        )
+
+        self.assertEqual(jobs, [])
+
+    def test_perform_advanced_search_quick_search_matches_order_number(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+            order_number="8057",
+        )
+        self._make_job(
+            name="Other work",
+            client_name="Other Client",
+            order_number="99999",
+        )
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "8057"}))
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_order_number_filter(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+            order_number="8057",
+        )
+        self._make_job(
+            name="Other work",
+            client_name="Other Client",
+            order_number="99999",
+        )
+
+        jobs = list(KanbanService.perform_advanced_search({"order_number": "8057"}))
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_quick_search_matches_invoice_number(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        other = self._make_job(
+            name="Other work",
+            client_name="Other Client",
+        )
+        self._make_invoice(target, number="INV-56005")
+        self._make_invoice(other, number="INV-99999")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "INV-56005"})
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_quick_search_matches_bare_invoice_number(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        other = self._make_job(
+            name="Other work",
+            client_name="Other Client",
+        )
+        self._make_invoice(target, number="INV-56005")
+        self._make_invoice(other, number="INV-99999")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "56005"})
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_invoice_match_returns_job_once_with_multiple_invoices(
+        self,
+    ):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        self._make_invoice(target, number="INV-56005")
+        self._make_invoice(target, number="INV-56005-REV")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "56005"})
+        )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_text_match_returns_job_once_with_multiple_invoices(
+        self,
+    ):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        self._make_invoice(target, number="INV-56005")
+        self._make_invoice(target, number="INV-99999")
+
+        jobs = list(KanbanService.perform_advanced_search({"universal_search": "Cool"}))
+
+        self.assertEqual([job.id for job in jobs], [target.id])
+
+    def test_perform_advanced_search_invoice_reason_present(self):
+        target = self._make_job(
+            name="Cool Awnings",
+            client_name="Cool Awnings Ltd",
+        )
+        self._make_invoice(target, number="INV-56005")
+
+        jobs = list(
+            KanbanService.perform_advanced_search({"universal_search": "56005"})
+        )
+
+        reasons = getattr(jobs[0], "search_reasons", {})
+        token_reasons = reasons.get("tokens", [])
+        reason_names = [t.get("reason") for t in token_reasons]
+        self.assertIn("invoice_contains", reason_names)
 
     def test_kanban_search_logging_records_ranked_results_and_reasons(self):
         target = self._set_job_number(

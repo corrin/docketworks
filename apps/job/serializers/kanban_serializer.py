@@ -8,17 +8,39 @@ from rest_framework import serializers
 class JobReorderSerializer(serializers.Serializer):
     """Serializer for job reorder request data."""
 
-    before_id = serializers.UUIDField(
-        required=False, allow_null=True, help_text="ID of job to place this job before"
+    anchor_job_id = serializers.UUIDField(
+        required=False,
+        allow_null=True,
+        help_text="Visible job used as the reorder anchor",
     )
-    after_id = serializers.UUIDField(
-        required=False, allow_null=True, help_text="ID of job to place this job after"
+    placement = serializers.ChoiceField(
+        choices=["above", "below"],
+        required=False,
+        allow_null=True,
+        help_text="Place the moved job above or below anchor_job_id",
     )
     status = serializers.CharField(
         required=False,
         allow_null=True,
         help_text="New status if moving between columns",
     )
+
+    def validate(self, attrs):
+        anchor_job_id = attrs.get("anchor_job_id")
+        placement = attrs.get("placement")
+
+        if anchor_job_id and not placement:
+            raise serializers.ValidationError(
+                {"placement": "placement is required when anchor_job_id is supplied"}
+            )
+        if placement and not anchor_job_id:
+            raise serializers.ValidationError(
+                {
+                    "anchor_job_id": "anchor_job_id is required when placement is supplied"
+                }
+            )
+
+        return attrs
 
 
 class JobStatusUpdateSerializer(serializers.Serializer):

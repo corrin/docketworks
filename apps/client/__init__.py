@@ -11,6 +11,7 @@ try:
         from .models import (
             Client,
             ClientContact,
+            ClientQuerySet,
             Supplier,
             SupplierPickupAddress,
             SupplierSearchAlias,
@@ -56,6 +57,7 @@ __all__ = [
     "ClientJobsResponseSerializer",
     "ClientListResponseSerializer",
     "ClientNameOnlySerializer",
+    "ClientQuerySet",
     "ClientSearchResponseSerializer",
     "ClientSearchResultSerializer",
     "ClientSerializer",

@@ -1,9 +1,11 @@
 import logging
 import uuid
+from decimal import Decimal
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
 from django.db import models
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
 
@@ -26,6 +28,21 @@ def _include_auto_now_update_field(kwargs, field_name: str) -> None:
     kwargs["update_fields"] = [*update_field_names, field_name]
 
 
+class ClientQuerySet(models.QuerySet):
+    """Custom queryset for Client with precomputed invoice aggregates."""
+
+    def with_invoice_summary(self):
+        output = models.DecimalField(max_digits=12, decimal_places=2)
+        return self.annotate(
+            last_invoice_date=models.Max("invoice__date"),
+            total_spend=Coalesce(
+                models.Sum("invoice__total_excl_tax", output_field=output),
+                models.Value(Decimal("0.00")),
+                output_field=output,
+            ),
+        )
+
+
 class Client(models.Model):
     # CHECKLIST - when adding a new field or property to Client, check these locations:
     #   1. CLIENT_DIRECT_FIELDS below (if it's a model field)
@@ -36,7 +53,9 @@ class Client(models.Model):
     #   6. _update_client_in_xero() in apps/client/services/client_rest_service.py (Xero API format)
     #   7. ClientDetailResponseSerializer in apps/client/serializers.py
     #   8. ClientSearchResultSerializer in apps/client/serializers.py (subset for lists)
-    #
+
+    objects = ClientQuerySet.as_manager()
+
     # Direct scalar model fields (not related objects, not properties).
     CLIENT_DIRECT_FIELDS = [
         "name",
@@ -154,20 +173,30 @@ class Client(models.Model):
             return False
         return True
 
-    def get_last_invoice_date(self):
-        """
-        Get the date of the client's most recent invoice.
-        """
-        last_invoice = self.invoice_set.order_by("-date").first()
-        return last_invoice.date if last_invoice else None
+    @property
+    def last_invoice_date(self):
+        if "_last_invoice_date" not in self.__dict__:
+            raise RuntimeError(
+                "Client.last_invoice_date requires "
+                "Client.objects.with_invoice_summary()."
+            )
+        return self.__dict__["_last_invoice_date"]
 
-    def get_total_spend(self):
-        """
-        Calculate the total amount spent by the client (sum of all invoice totals).
-        """
-        return (
-            self.invoice_set.aggregate(total=models.Sum("total_excl_tax"))["total"] or 0
-        )
+    @last_invoice_date.setter
+    def last_invoice_date(self, value):
+        self.__dict__["_last_invoice_date"] = value
+
+    @property
+    def total_spend(self):
+        if "_total_spend" not in self.__dict__:
+            raise RuntimeError(
+                "Client.total_spend requires Client.objects.with_invoice_summary()."
+            )
+        return self.__dict__["_total_spend"]
+
+    @total_spend.setter
+    def total_spend(self, value):
+        self.__dict__["_total_spend"] = value
 
     def get_client_for_xero(self):
         """

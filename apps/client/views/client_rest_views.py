@@ -23,6 +23,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.client.models import Client
 from apps.client.serializers import (
     ClientCreateResponseSerializer,
     ClientCreateSerializer,
@@ -420,6 +421,9 @@ class ClientCreateRestView(APIView):
 
             validated_data = input_serializer.validated_data
             created_client = ClientRestService.create_client(validated_data)
+            created_client = Client.objects.with_invoice_summary().get(
+                id=created_client.id
+            )
 
             response_data = {
                 "success": True,

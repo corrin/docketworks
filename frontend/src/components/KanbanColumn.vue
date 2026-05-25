@@ -42,18 +42,17 @@
           @status-change="$emit('status-change', $event)"
         />
 
-        <!-- Only show empty state for non-draft columns or when not loading -->
         <div
-          v-if="jobs.length === 0 && !isLoading && normalizedStatus.key !== 'draft'"
+          v-if="jobs.length === 0 && !isLoading"
           class="flex items-center justify-center text-gray-500 h-32"
         >
           <div class="text-center">
-            <div class="text-sm">No jobs in {{ normalizedStatus.label.toLowerCase() }}</div>
-            <div class="text-xs mt-1">Drag jobs here to update status</div>
+            <div class="text-sm">
+              {{ isSearchActive ? 'No matching jobs in ' : 'No jobs in '
+              }}{{ normalizedStatus.label.toLowerCase() }}
+            </div>
           </div>
         </div>
-
-        <!-- No empty state for draft column to prevent SortableJS interference -->
 
         <div
           v-if="jobs.length === 0 && isLoading"
@@ -165,6 +164,7 @@ interface KanbanColumnProps {
   hasMore?: boolean
   total?: number | null
   columnJobCount?: number | null
+  isSearchActive?: boolean
 }
 
 interface KanbanColumnEmits {
@@ -191,6 +191,7 @@ const props = withDefaults(defineProps<KanbanColumnProps>(), {
   hasMore: false,
   total: null,
   columnJobCount: null,
+  isSearchActive: false,
 })
 
 const jobCountDisplay = computed(() => {

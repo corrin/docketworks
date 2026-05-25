@@ -4193,6 +4193,11 @@ paths:
             type: string
           description: Filter by job name
         - in: query
+          name: order_number
+          schema:
+            type: string
+          description: Filter by customer order number
+        - in: query
           name: paid
           schema:
             type: string
@@ -12958,16 +12963,21 @@ components:
       type: object
       description: Serializer for job reorder request data.
       properties:
-        before_id:
+        anchor_job_id:
           type: string
           format: uuid
           nullable: true
-          description: ID of job to place this job before
-        after_id:
-          type: string
-          format: uuid
+          description: Visible job used as the reorder anchor
+        placement:
           nullable: true
-          description: ID of job to place this job after
+          description: |-
+            Place the moved job above or below anchor_job_id
+
+            * `above` - above
+            * `below` - below
+          oneOf:
+            - $ref: '#/components/schemas/PlacementEnum'
+            - $ref: '#/components/schemas/NullEnum'
         status:
           type: string
           nullable: true
@@ -15761,6 +15771,14 @@ components:
         - jm_hours
         - xero_gross
         - xero_hours
+    PlacementEnum:
+      enum:
+        - above
+        - below
+      type: string
+      description: |-
+        * `above` - above
+        * `below` - below
     PostWeekToXeroRequest:
       type: object
       description: Request serializer for posting weekly timesheets to Xero

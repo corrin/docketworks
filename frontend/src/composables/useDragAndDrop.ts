@@ -6,11 +6,45 @@ export interface DragEventPayload {
   jobId: string
   fromStatus: string
   toStatus: string
-  beforeId?: string
-  afterId?: string
+  anchorJobId?: string
+  placement?: 'above' | 'below'
 }
 
 export type DragEventHandler = (event: string, payload: DragEventPayload) => void
+
+function getVisibleJobAnchor(
+  container: HTMLElement,
+  movedElement: HTMLElement,
+  movedJobId: string,
+): { anchorJobId?: string; placement?: 'above' | 'below' } {
+  const jobElements = Array.from(container.querySelectorAll<HTMLElement>('.job-card')).filter(
+    (el) => el.dataset.jobId,
+  )
+  const movedIndex = jobElements.findIndex(
+    (el) => el === movedElement || el.dataset.jobId === movedJobId,
+  )
+
+  if (movedIndex === -1) {
+    return {}
+  }
+
+  const previousJobId = [...jobElements]
+    .slice(0, movedIndex)
+    .reverse()
+    .find((el) => el.dataset.jobId && el.dataset.jobId !== movedJobId)?.dataset.jobId
+  if (previousJobId) {
+    return { anchorJobId: previousJobId, placement: 'below' }
+  }
+
+  const nextJobId = jobElements
+    .slice(movedIndex + 1)
+    .find((el) => el.dataset.jobId && el.dataset.jobId !== movedJobId)?.dataset.jobId
+  if (nextJobId) {
+    return { anchorJobId: nextJobId, placement: 'above' }
+  }
+
+  return {}
+}
 
 export function useDragAndDrop(onDragEvent?: DragEventHandler) {
   const isDragging = ref(false)
@@ -82,15 +116,9 @@ export function useDragAndDrop(onDragEvent?: DragEventHandler) {
         const fromStatus = fromCol?.dataset.status
         const toStatus = toCol?.dataset.status
         if (!fromStatus || !toStatus) return
-        const newIndex = evt.newIndex ?? 0
-        const beforeId =
-          newIndex > 0 ? (evt.to.children[newIndex - 1] as HTMLElement)?.dataset.jobId : undefined
-        const afterId =
-          newIndex < evt.to.children.length - 1
-            ? (evt.to.children[newIndex + 1] as HTMLElement)?.dataset.jobId
-            : undefined
+        const { anchorJobId, placement } = getVisibleJobAnchor(evt.to, jobElement, jobId)
         if (onDragEvent) {
-          onDragEvent('job-moved', { jobId, fromStatus, toStatus, beforeId, afterId })
+          onDragEvent('job-moved', { jobId, fromStatus, toStatus, anchorJobId, placement })
         }
       },
     })

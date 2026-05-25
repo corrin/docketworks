@@ -6,7 +6,6 @@ All business logic for Client REST operations should be implemented here.
 """
 
 import logging
-from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Dict, List
 from uuid import UUID
 
@@ -15,8 +14,6 @@ if TYPE_CHECKING:
 
 from django.contrib.postgres.search import SearchVector
 from django.db import transaction
-from django.db.models import DecimalField, Max, Sum, Value
-from django.db.models.functions import Coalesce
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -135,16 +132,7 @@ class ClientRestService:
                 sort_field = f"-{sort_field}"
 
             # Annotate computed fields for sorting capability
-            # Note: mirrors Client.get_last_invoice_date() and get_total_spend()
-            output = DecimalField(max_digits=12, decimal_places=2)
-            queryset = Client.objects.annotate(
-                last_invoice_date=Max("invoice__date"),
-                total_spend=Coalesce(
-                    Sum("invoice__total_excl_tax", output_field=output),
-                    Value(Decimal("0.00")),
-                    output_field=output,
-                ),
-            ).defer("raw_json")
+            queryset = Client.objects.with_invoice_summary().defer("raw_json")
 
             # Apply search filter if query provided
             if query:
@@ -198,7 +186,7 @@ class ClientRestService:
             ValueError: If client not found
         """
         try:
-            client = Client.objects.get(id=client_id)
+            client = Client.objects.with_invoice_summary().get(id=client_id)
             return ClientRestService._format_client_detail(client)
         except Client.DoesNotExist:
             raise ValueError(f"Client with id {client_id} not found")
@@ -529,23 +517,11 @@ class ClientRestService:
         """
         Executes client search with appropriate filters and annotations.
         """
-        output = DecimalField(max_digits=12, decimal_places=2)
-
         base_qs = Client.objects.filter(allow_jobs=True)
         ranked_qs = apply_text_search(base_qs, query, CLIENT_SEARCH_VECTOR)
 
         return (
-            ranked_qs.annotate(
-                last_invoice_date=Max("invoice__date"),
-                total_spend=Coalesce(
-                    Sum(
-                        "invoice__total_excl_tax",
-                        output_field=output,
-                    ),
-                    Value(Decimal("0.00")),
-                    output_field=output,
-                ),
-            )
+            ranked_qs.with_invoice_summary()
             .defer("raw_json")  # Not needed for search results
             .only(
                 "id",
@@ -566,14 +542,6 @@ class ClientRestService:
         """
         Formats a single client summary for list/search responses.
         """
-        # Use annotated values if available (from search queries), else use model methods
-        last_invoice_date = (
-            getattr(client, "last_invoice_date", None) or client.get_last_invoice_date()
-        )
-        total_spend = getattr(client, "total_spend", None)
-        if total_spend is None:
-            total_spend = client.get_total_spend()
-
         return {
             "id": str(client.id),
             "name": client.name,
@@ -584,8 +552,8 @@ class ClientRestService:
             "is_supplier": client.is_supplier,
             "allow_jobs": client.allow_jobs,
             "xero_contact_id": client.xero_contact_id or "",
-            "last_invoice_date": date_to_datetime(last_invoice_date),
-            "total_spend": f"${total_spend:,.2f}",
+            "last_invoice_date": date_to_datetime(client.last_invoice_date),
+            "total_spend": f"${client.total_spend:,.2f}",
         }
 
     @staticmethod
@@ -622,8 +590,8 @@ class ClientRestService:
             "merged_into": str(client.merged_into.id) if client.merged_into else None,
             "django_created_at": client.django_created_at,
             "django_updated_at": client.django_updated_at,
-            "last_invoice_date": date_to_datetime(client.get_last_invoice_date()),
-            "total_spend": f"${client.get_total_spend():,.2f}",
+            "last_invoice_date": date_to_datetime(client.last_invoice_date),
+            "total_spend": f"${client.total_spend:,.2f}",
         }
 
     @staticmethod

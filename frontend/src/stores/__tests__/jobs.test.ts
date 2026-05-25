@@ -99,4 +99,44 @@ describe('jobs store kanban cache', () => {
 
     expect(store.getKanbanColumnJobs('in_progress')?.[0]?.name).toBe('Updated')
   })
+
+  it('moves cached kanban job ids above or below a visible anchor', async () => {
+    const store = useJobsStore()
+
+    await store.loadKanbanColumnWithCache('in_progress', async () => ({
+      success: true,
+      jobs: [
+        buildKanbanJob({ id: 'job-1' }),
+        buildKanbanJob({ id: 'job-2' }),
+        buildKanbanJob({ id: 'job-3' }),
+      ],
+      total: 3,
+      filtered_count: 3,
+      has_more: false,
+    }))
+
+    store.moveKanbanJobInColumnCache('job-3', 'in_progress', 'in_progress', 'job-1', 'below')
+
+    expect(store.kanbanColumnCache.in_progress.jobIds).toEqual(['job-1', 'job-3', 'job-2'])
+
+    store.moveKanbanJobInColumnCache('job-3', 'in_progress', 'in_progress', 'job-1', 'above')
+
+    expect(store.kanbanColumnCache.in_progress.jobIds).toEqual(['job-3', 'job-1', 'job-2'])
+  })
+
+  it('invalidates a cached target column when the supplied anchor is not cached', async () => {
+    const store = useJobsStore()
+
+    await store.loadKanbanColumnWithCache('in_progress', async () => ({
+      success: true,
+      jobs: [buildKanbanJob({ id: 'job-1' }), buildKanbanJob({ id: 'job-2' })],
+      total: 2,
+      filtered_count: 2,
+      has_more: false,
+    }))
+
+    store.moveKanbanJobInColumnCache('job-1', 'in_progress', 'in_progress', 'job-missing', 'below')
+
+    expect(store.kanbanColumnCache.in_progress).toBeUndefined()
+  })
 })

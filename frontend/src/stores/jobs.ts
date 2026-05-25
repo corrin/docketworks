@@ -227,6 +227,50 @@ export const useJobsStore = defineStore('jobs', () => {
     }
   }
 
+  function moveKanbanJobInColumnCache(
+    jobId: string,
+    sourceColumnId: string,
+    targetColumnId: string,
+    anchorJobId?: string,
+    placement?: 'above' | 'below',
+  ): void {
+    const nextCache = { ...kanbanColumnCache.value }
+
+    const sourceCache = nextCache[sourceColumnId]
+    if (sourceCache) {
+      nextCache[sourceColumnId] = {
+        ...sourceCache,
+        jobIds: sourceCache.jobIds.filter((cachedJobId) => cachedJobId !== jobId),
+      }
+    }
+
+    const targetCache = nextCache[targetColumnId]
+    if (targetCache) {
+      const withoutMovedJob = targetCache.jobIds.filter((cachedJobId) => cachedJobId !== jobId)
+      let insertIndex = 0
+
+      if (anchorJobId && placement) {
+        const anchorIndex = withoutMovedJob.indexOf(anchorJobId)
+        if (anchorIndex === -1) {
+          delete nextCache[targetColumnId]
+          kanbanColumnCache.value = nextCache
+          return
+        }
+        insertIndex = placement === 'above' ? anchorIndex : anchorIndex + 1
+      }
+
+      const jobIds = [...withoutMovedJob]
+      jobIds.splice(insertIndex, 0, jobId)
+
+      nextCache[targetColumnId] = {
+        ...targetCache,
+        jobIds,
+      }
+    }
+
+    kanbanColumnCache.value = nextCache
+  }
+
   function clearKanbanColumnCache(): void {
     kanbanDatasetCache.invalidate()
   }
@@ -582,6 +626,7 @@ export const useJobsStore = defineStore('jobs', () => {
     getKanbanColumnJobs,
     hasKanbanColumnCache,
     setKanbanColumnCache,
+    moveKanbanJobInColumnCache,
     clearKanbanColumnCache,
     loadKanbanColumnWithCache,
     setKanbanJob,

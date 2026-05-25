@@ -87,6 +87,7 @@ Follow these in order:
 | [instance-setup-demo.md](instance-setup-demo.md) | Step-by-step: onboard a prospect with Xero Demo Company |
 | [instance-setup-production.md](instance-setup-production.md) | Step-by-step: set up a production instance with real Xero org |
 | [updating.md](updating.md) | Pulling latest code and deploying updates (dev and server) |
+| [jira-usage.md](jira-usage.md) | Jira workflow, labels, and engineering checklist for closing tickets |
 
 ### Architecture
 

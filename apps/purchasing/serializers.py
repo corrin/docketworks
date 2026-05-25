@@ -356,7 +356,7 @@ class PurchaseOrderAllocationsResponseSerializer(serializers.Serializer):
 class StockItemSerializer(serializers.ModelSerializer):
     """Serializer for individual stock items."""
 
-    job_id = serializers.UUIDField(source="job.id", read_only=True, allow_null=True)
+    job_id = serializers.UUIDField(read_only=True, allow_null=True)
     times_used = serializers.SerializerMethodField()
 
     class Meta:

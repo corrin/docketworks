@@ -9,7 +9,7 @@ from datetime import timedelta
 from difflib import SequenceMatcher
 from typing import Any
 
-from django.db.models import Count, Prefetch, Q
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.client.models import Client, SupplierSearchAlias
@@ -175,15 +175,6 @@ def list_suppliers(
             "allow_jobs",
             "xero_contact_id",
         )
-        .prefetch_related(
-            Prefetch(
-                "supplier_search_aliases",
-                queryset=SupplierSearchAlias.objects.filter(is_active=True).only(
-                    "id", "client_id", "alias"
-                ),
-                to_attr="active_supplier_search_aliases",
-            )
-        )
     )
 
     if not query:
@@ -209,14 +200,25 @@ def list_suppliers(
             queryset = queryset.filter(
                 _supplier_candidate_filter(query, query_norm)
             ).distinct()
-            for supplier in queryset:
+            suppliers = list(queryset)
+            aliases_by_client_id: dict[Any, list[SupplierSearchAlias]] = {
+                supplier.id: [] for supplier in suppliers
+            }
+            aliases = SupplierSearchAlias.objects.filter(
+                is_active=True,
+                client_id__in=aliases_by_client_id,
+            ).only("id", "client_id", "alias")
+            for alias in aliases:
+                aliases_by_client_id[alias.client_id].append(alias)
+
+            for supplier in suppliers:
                 candidate_terms = [
                     normalize_supplier_phrase(supplier.name),
                     _normalize_literal_phrase(supplier.name),
                 ]
                 candidate_terms.extend(
                     term
-                    for alias in supplier.active_supplier_search_aliases
+                    for alias in aliases_by_client_id[supplier.id]
                     for term in (
                         normalize_supplier_phrase(alias.alias),
                         _normalize_literal_phrase(alias.alias),

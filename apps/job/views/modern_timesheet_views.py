@@ -156,7 +156,11 @@ class ModernTimesheetEntryView(APIView):
                     staff_id=staff_id,
                     accounting_date=parsed_date,
                 )
-                .select_related("cost_set__job")
+                .select_related(
+                    "cost_set__job__client",
+                    "staff",
+                    "xero_pay_item",
+                )
                 .order_by("entry_seq")
             )
 
@@ -517,7 +521,11 @@ class ModernTimesheetDayView(APIView):
                     staff_id=staff_id,
                     accounting_date=parsed_date,
                 )
-                .select_related("cost_set__job")
+                .select_related(
+                    "cost_set__job__client",
+                    "staff",
+                    "xero_pay_item",
+                )
                 .order_by("entry_seq")
             )
 
@@ -581,6 +589,11 @@ class ModernTimesheetJobView(APIView):
                     cost_set__kind="actual",
                     kind="time",
                     meta__created_from_timesheet=True,
+                )
+                .select_related(
+                    "cost_set__job__client",
+                    "staff",
+                    "xero_pay_item",
                 )
                 .order_by("id")
             )

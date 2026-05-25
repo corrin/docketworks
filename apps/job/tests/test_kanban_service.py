@@ -2,6 +2,8 @@
 
 from decimal import Decimal
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.client.models import Client
@@ -69,3 +71,61 @@ class TestSerializeJobForApi(BaseTestCase):
         serialized = KanbanService.serialize_job_for_api(job)
 
         self.assertFalse(serialized["over_budget"])
+
+    def test_get_all_active_jobs_preloads_serializer_relations(self):
+        job = self._create_job()
+        self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
+        self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
+
+        jobs = list(KanbanService.get_all_active_jobs())
+
+        self.assertEqual([loaded.id for loaded in jobs], [job.id])
+        with CaptureQueriesContext(connection) as captured:
+            KanbanService.serialize_job_for_api(jobs[0])
+
+        relation_queries = [
+            query["sql"]
+            for query in captured
+            if any(
+                table in query["sql"]
+                for table in [
+                    "accounts_staff",
+                    "job_costset",
+                    "client_clientcontact",
+                ]
+            )
+            or (
+                "client_client" in query["sql"]
+                and "Demo Company Shop" not in query["sql"]
+            )
+        ]
+        self.assertEqual(relation_queries, [])
+
+    def test_get_jobs_by_status_preloads_serializer_relations(self):
+        job = self._create_job()
+        self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
+        self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
+
+        jobs = list(KanbanService.get_jobs_by_status(job.status))
+
+        self.assertEqual([loaded.id for loaded in jobs], [job.id])
+        with CaptureQueriesContext(connection) as captured:
+            KanbanService.serialize_job_for_api(jobs[0])
+
+        relation_queries = [
+            query["sql"]
+            for query in captured
+            if any(
+                table in query["sql"]
+                for table in [
+                    "accounts_staff",
+                    "job_costset",
+                    "client_clientcontact",
+                ]
+            )
+            or (
+                "client_client" in query["sql"]
+                and "Demo Company Shop" not in query["sql"]
+            )
+        ]
+        self.assertEqual(relation_queries, [])
