@@ -64,6 +64,7 @@ def extract_request_context(request: HttpRequest) -> Dict[str, Any]:
         "user_id": request.user.id if request.user.is_authenticated else None,
         "request_path": request.path,
         "request_method": request.method,
+        "session_replay_id": request.headers.get("X-Session-Replay-Id"),
     }
 
 
@@ -96,6 +97,7 @@ def persist_app_error(
     severity: int = logging.ERROR,
     job_id: str = None,
     user_id: str = None,
+    session_replay_id: str = None,
     additional_context: dict = None,
 ) -> AppError:
     """Create and save an AppError with enhanced context.
@@ -111,6 +113,7 @@ def persist_app_error(
         severity: Logging severity level (default: logging.ERROR)
         job_id: Job UUID for job-related errors
         user_id: User UUID for user-related errors
+        session_replay_id: SessionReplayRecording UUID for browser context
         additional_context: Additional context data to store in JSON field
 
     Returns:
@@ -122,6 +125,16 @@ def persist_app_error(
     context_data = {"trace": traceback.format_exc()}
     if additional_context:
         context_data.update(_make_json_serializable(additional_context))
+        session_replay_id = session_replay_id or additional_context.get(
+            "session_replay_id"
+        )
+
+    clean_session_replay_id = None
+    if session_replay_id:
+        try:
+            clean_session_replay_id = UUID(str(session_replay_id))
+        except ValueError:
+            context_data["invalid_session_replay_id"] = str(session_replay_id)
 
     return AppError.objects.create(
         message=str(exception),
@@ -132,6 +145,7 @@ def persist_app_error(
         severity=severity,
         job_id=job_id,
         user_id=user_id,
+        session_replay_id=clean_session_replay_id,
     )
 
 

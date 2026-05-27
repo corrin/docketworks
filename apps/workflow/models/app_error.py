@@ -22,6 +22,13 @@ class AppError(models.Model):
     # Commonly filtered business context (separate fields)
     job_id = models.UUIDField(blank=True, null=True)
     user_id = models.UUIDField(blank=True, null=True)
+    session_replay = models.ForeignKey(
+        "workflow.SessionReplayRecording",
+        on_delete=models.SET_NULL,
+        blank=True,
+        null=True,
+        related_name="app_errors",
+    )
 
     # Error resolution tracking
     resolved = models.BooleanField(default=False)
@@ -56,6 +63,7 @@ class AppError(models.Model):
                 fields=["resolved", "timestamp"]
             ),  # Common: unresolved errors chronologically
             models.Index(fields=["app", "severity"]),  # Common: errors by app section
+            models.Index(fields=["session_replay", "timestamp"]),
         ]
 
 

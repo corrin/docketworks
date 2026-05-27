@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button'
 import { computed } from 'vue'
 import { z } from 'zod'
 import { schemas } from '@/api/generated/api'
+import { RouterLink } from 'vue-router'
 
 type XeroError = z.infer<typeof schemas.XeroError>
 type AppError = z.infer<typeof schemas.AppError>
@@ -157,6 +158,20 @@ const errorTypeLabel = computed(() => {
           "
         >
           Unresolve group
+        </Button>
+        <Button
+          v-if="props.error?.raw.type === 'system' && props.error.raw.record.session_replay"
+          as-child
+          variant="outline"
+        >
+          <RouterLink
+            :to="{
+              name: 'admin-replays',
+              query: { replay: props.error.raw.record.session_replay },
+            }"
+          >
+            Open replay
+          </RouterLink>
         </Button>
         <Button variant="outline" @click="emit('close')">Close</Button>
       </div>

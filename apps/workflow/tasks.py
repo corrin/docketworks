@@ -187,3 +187,28 @@ def xero_30_day_sync_task() -> None:
         )
         app_error = persist_app_error(exc)
         raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+@shared_task(name="apps.workflow.tasks.purge_old_session_replays_task")
+def purge_old_session_replays_task() -> None:
+    """Delete session replay recordings older than the configured retention window."""
+    scheduler_logger.info("Running purge_old_session_replays_task.")
+    try:
+        close_old_connections()
+        from apps.workflow.services.session_replay_service import purge_old_recordings
+
+        retention_days = int(getattr(settings, "SESSION_REPLAY_RETENTION_DAYS", 14))
+        deleted = purge_old_recordings(retention_days=retention_days)
+        scheduler_logger.info(
+            "Deleted %s old session replay rows using %s day retention.",
+            deleted,
+            retention_days,
+        )
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        scheduler_logger.error(
+            "Error during session replay purge: %s", exc, exc_info=True
+        )
+        app_error = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, app_error.id) from exc

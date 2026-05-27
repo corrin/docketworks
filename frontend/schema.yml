@@ -6899,6 +6899,171 @@ paths:
               schema:
                 $ref: '#/components/schemas/AppErrorListResponse'
           description: ''
+  /api/session-replays/frontend-errors/:
+    post:
+      operationId: session_replay_frontend_errors_create
+      tags:
+        - session-replays
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionReplayFrontendErrorRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SessionReplayFrontendErrorRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SessionReplayFrontendErrorRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionReplayFrontendErrorResponse'
+          description: ''
+  /api/session-replays/recordings/:
+    get:
+      operationId: session_replay_recordings_list
+      parameters:
+        - in: query
+          name: job_id
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: started_after
+          schema:
+            type: string
+        - in: query
+          name: started_before
+          schema:
+            type: string
+        - in: query
+          name: user_id
+          schema:
+            type: string
+      tags:
+        - session-replays
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionReplayListResponse'
+          description: ''
+    post:
+      operationId: session_replay_recordings_create
+      tags:
+        - session-replays
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionReplayRecordingCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SessionReplayRecordingCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SessionReplayRecordingCreateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionReplayRecording'
+          description: ''
+  /api/session-replays/recordings/{id}/:
+    get:
+      operationId: session_replay_recordings_retrieve
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - session-replays
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionReplayRecording'
+          description: ''
+  /api/session-replays/recordings/{id}/chunks/:
+    post:
+      operationId: session_replay_recording_chunks_create
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - session-replays
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SessionReplayChunkCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SessionReplayChunkCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SessionReplayChunkCreateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionReplayChunk'
+          description: ''
+  /api/session-replays/recordings/{id}/events/:
+    get:
+      operationId: session_replay_recording_events_retrieve
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - session-replays
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionReplayEventsResponse'
+          description: ''
   /api/timesheets/daily/{target_date}/:
     get:
       operationId: getDailyTimesheetSummaryByDate
@@ -8589,6 +8754,10 @@ components:
           type: string
           format: date-time
           nullable: true
+        session_replay:
+          type: string
+          format: uuid
+          nullable: true
         resolved_by:
           type: string
           format: uuid
@@ -8654,6 +8823,10 @@ components:
         resolved_timestamp:
           type: string
           format: date-time
+          nullable: true
+        session_replay:
+          type: string
+          format: uuid
           nullable: true
         resolved_by:
           type: string
@@ -17768,6 +17941,252 @@ components:
         - id
         - result
         - task_id
+    SessionReplayChunk:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        recording:
+          type: string
+          format: uuid
+          readOnly: true
+        sequence:
+          type: integer
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        first_event_timestamp_ms:
+          type: integer
+          readOnly: true
+        last_event_timestamp_ms:
+          type: integer
+          readOnly: true
+        event_count:
+          type: integer
+          readOnly: true
+        compressed_bytes:
+          type: integer
+          readOnly: true
+        path:
+          type: string
+          readOnly: true
+        job_id:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        viewport_width:
+          type: integer
+          readOnly: true
+          nullable: true
+        viewport_height:
+          type: integer
+          readOnly: true
+          nullable: true
+      required:
+        - compressed_bytes
+        - created_at
+        - event_count
+        - first_event_timestamp_ms
+        - id
+        - job_id
+        - last_event_timestamp_ms
+        - path
+        - recording
+        - sequence
+        - viewport_height
+        - viewport_width
+    SessionReplayChunkCreateRequest:
+      type: object
+      properties:
+        sequence:
+          type: integer
+          minimum: 0
+        events_json:
+          type: string
+          minLength: 1
+        first_event_timestamp_ms:
+          type: integer
+        last_event_timestamp_ms:
+          type: integer
+        path:
+          type: string
+          minLength: 1
+          maxLength: 500
+        job_id:
+          type: string
+          format: uuid
+          nullable: true
+        viewport_width:
+          type: integer
+          minimum: 1
+          nullable: true
+        viewport_height:
+          type: integer
+          minimum: 1
+          nullable: true
+      required:
+        - events_json
+        - first_event_timestamp_ms
+        - last_event_timestamp_ms
+        - path
+        - sequence
+    SessionReplayEventsResponse:
+      type: object
+      properties:
+        recording:
+          $ref: '#/components/schemas/SessionReplayRecording'
+        events: {}
+      required:
+        - events
+        - recording
+    SessionReplayFrontendErrorRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          minLength: 1
+        stack:
+          type: string
+        path:
+          type: string
+          minLength: 1
+          maxLength: 500
+        component:
+          type: string
+        file:
+          type: string
+        function:
+          type: string
+        session_replay_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+        - message
+        - path
+    SessionReplayFrontendErrorResponse:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+      required:
+        - id
+    SessionReplayListResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+        next:
+          type: string
+          nullable: true
+        previous:
+          type: string
+          nullable: true
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/SessionReplayRecording'
+      required:
+        - count
+        - results
+    SessionReplayRecording:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        user:
+          type: string
+          format: uuid
+          readOnly: true
+        user_email:
+          type: string
+          format: email
+          readOnly: true
+        started_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_seen_at:
+          type: string
+          format: date-time
+          readOnly: true
+        ended_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        initial_path:
+          type: string
+          readOnly: true
+        latest_path:
+          type: string
+          readOnly: true
+        job_id:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        user_agent:
+          type: string
+          readOnly: true
+        viewport_width:
+          type: integer
+          readOnly: true
+          nullable: true
+        viewport_height:
+          type: integer
+          readOnly: true
+          nullable: true
+        event_count:
+          type: integer
+          readOnly: true
+        compressed_bytes:
+          type: integer
+          readOnly: true
+      required:
+        - compressed_bytes
+        - ended_at
+        - event_count
+        - id
+        - initial_path
+        - job_id
+        - last_seen_at
+        - latest_path
+        - started_at
+        - user
+        - user_agent
+        - user_email
+        - viewport_height
+        - viewport_width
+    SessionReplayRecordingCreateRequest:
+      type: object
+      properties:
+        initial_path:
+          type: string
+          minLength: 1
+          maxLength: 500
+        viewport_width:
+          type: integer
+          minimum: 1
+          nullable: true
+        viewport_height:
+          type: integer
+          minimum: 1
+          nullable: true
+        job_id:
+          type: string
+          format: uuid
+          nullable: true
+      required:
+        - initial_path
     SettingsField:
       type: object
       description: Serializer for individual field metadata.
@@ -20688,6 +21107,10 @@ components:
         kind:
           type: string
           maxLength: 50
+        session_replay:
+          type: string
+          format: uuid
+          nullable: true
         resolved_by:
           type: string
           format: uuid

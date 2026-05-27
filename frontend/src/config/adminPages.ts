@@ -8,6 +8,7 @@ import {
   Brain,
   ExternalLink,
   KeyRound,
+  MonitorPlay,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { APP_NAME } from '@/config/app'
@@ -47,6 +48,13 @@ const adminPagesConfig = [
     view: 'AdminMonthEnd',
   },
   { key: 'errors', label: 'Errors', title: 'Errors', icon: AlertTriangle, view: 'AdminErrorView' },
+  {
+    key: 'replays',
+    label: 'Replays',
+    title: 'Session Replays',
+    icon: MonitorPlay,
+    view: 'AdminSessionReplayView',
+  },
   {
     key: 'scheduled-tasks',
     label: 'Scheduled Tasks',
