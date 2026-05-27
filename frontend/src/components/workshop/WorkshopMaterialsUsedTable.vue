@@ -28,7 +28,7 @@ import { costlineService } from '@/services/costline.service'
 import { useCostLineAutosave } from '@/composables/useCostLineAutosave'
 import { toast } from 'vue-sonner'
 import { Trash2, Wrench } from 'lucide-vue-next'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
 import { roundToDecimalPlaces } from '@/utils/number'
@@ -89,6 +89,7 @@ function isAdjustLine(line: CostLine): boolean {
 
 const autosave = useCostLineAutosave({
   debounceMs: 600,
+  statusSource: 'workshop-materials',
   saveFn: async (id, patch) => {
     return await costlineService.updateCostLine(id, patch)
   },
@@ -98,6 +99,10 @@ const autosave = useCostLineAutosave({
   onRollback: (line, snap) => {
     Object.assign(line, snap)
   },
+})
+
+onUnmounted(() => {
+  autosave.clearStatus()
 })
 
 async function loadLines() {

@@ -18,6 +18,7 @@
 
 import type { z } from 'zod'
 import { schemas } from '../api/generated/api'
+import { useAutosaveStatusStore } from '@/stores/autosaveStatus'
 
 // Extend CostLine type to include timestamp fields (to be added to backend schema)
 type CostLine = z.infer<typeof schemas.CostLine> & {
@@ -30,6 +31,7 @@ export type SaveStatus = 'idle' | 'saving' | 'saved' | 'error'
 
 interface Options {
   debounceMs?: number
+  statusSource?: string
   /**
    * saveFn - Responsible for calling the backend partial update endpoint.
    * Must accept the cost line id and a PatchedCostLineCreateUpdate payload.
@@ -49,6 +51,8 @@ interface Options {
 
 export function useCostLineAutosave(opts: Options) {
   const debounceMs = opts.debounceMs ?? 600
+  const autosaveStatus = useAutosaveStatusStore()
+  const statusSource = opts.statusSource ?? 'cost-lines'
 
   // Per-line timers and states
   const timers = new WeakMap<CostLine, number>()
@@ -56,9 +60,34 @@ export function useCostLineAutosave(opts: Options) {
   const lastError = new WeakMap<CostLine, string>()
   const prevSnapshot = new WeakMap<CostLine, Partial<CostLine>>() // for rollback
   const pendingPatches = new WeakMap<CostLine, PatchedCostLineCreateUpdate>() // accumulated patches
+  const pendingLineIds = new Set<string>()
+  const savingLineIds = new Set<string>()
+  const errorLineIds = new Set<string>()
+
+  function lineKey(line: CostLine): string {
+    return String(line.id)
+  }
+
+  function syncGlobalStatus(): void {
+    if (savingLineIds.size > 0 || pendingLineIds.size > 0) {
+      autosaveStatus.setSource(statusSource, 'saving')
+      return
+    }
+
+    if (errorLineIds.size > 0) {
+      autosaveStatus.setSource(statusSource, 'error', 'Save failed')
+      return
+    }
+
+    autosaveStatus.setSource(statusSource, 'saved')
+  }
 
   async function runSave(line: CostLine, fallbackPatch: PatchedCostLineCreateUpdate) {
     const patchToSave = pendingPatches.get(line) || fallbackPatch
+    const key = lineKey(line)
+    pendingLineIds.delete(key)
+    savingLineIds.add(key)
+    syncGlobalStatus()
     try {
       console.log('Autosave: Starting save for line', line.id, patchToSave)
       const result = await opts.saveFn(String(line.id), patchToSave)
@@ -76,18 +105,17 @@ export function useCostLineAutosave(opts: Options) {
 
       status.set(line, 'saved')
       lastError.delete(line)
+      errorLineIds.delete(key)
       prevSnapshot.delete(line)
       pendingPatches.delete(line)
       console.log('Autosave: Successfully saved line', line.id)
-
-      // Show success notification
-      const { toast } = await import('vue-sonner')
-      toast.success('Changes saved', { duration: 2000 })
     } catch (e: unknown) {
       console.error('❌ Autosave: Failed to save line', line.id, e)
       status.set(line, 'error')
       const errorMsg = (e as Error)?.message || 'Save failed'
       lastError.set(line, errorMsg)
+      errorLineIds.add(key)
+      autosaveStatus.setSource(statusSource, 'error', 'Save failed')
 
       // Show error notification
       const { toast } = await import('vue-sonner')
@@ -101,7 +129,11 @@ export function useCostLineAutosave(opts: Options) {
       pendingPatches.delete(line)
       throw e
     } finally {
+      savingLineIds.delete(key)
       timers.delete(line)
+      if (status.get(line) !== 'error') {
+        syncGlobalStatus()
+      }
     }
   }
 
@@ -127,6 +159,12 @@ export function useCostLineAutosave(opts: Options) {
     if (t) {
       clearTimeout(t)
       timers.delete(line)
+    }
+    pendingLineIds.delete(lineKey(line))
+    if (pendingLineIds.size > 0 || savingLineIds.size > 0 || errorLineIds.size > 0) {
+      syncGlobalStatus()
+    } else {
+      autosaveStatus.clearSource(statusSource)
     }
   }
 
@@ -172,6 +210,9 @@ export function useCostLineAutosave(opts: Options) {
     cancel(line)
     status.set(line, 'saving')
     lastError.delete(line)
+    errorLineIds.delete(lineKey(line))
+    pendingLineIds.add(lineKey(line))
+    syncGlobalStatus()
 
     const timer = window.setTimeout(async () => {
       await runSave(line, mergedPatch).catch(() => undefined)
@@ -231,5 +272,6 @@ export function useCostLineAutosave(opts: Options) {
     // State readers
     getStatus,
     getError,
+    clearStatus: () => autosaveStatus.clearSource(statusSource),
   }
 }

@@ -1,6 +1,7 @@
 import { ref, type Ref } from 'vue'
 import type { Router } from 'vue-router'
 import { debugLog } from '../utils/debug'
+import { useAutosaveStatusStore } from '@/stores/autosaveStatus'
 
 export type SaveResult = {
   success: boolean
@@ -35,6 +36,7 @@ export type JobAutosaveOptions = {
   debounceMs?: number
   retryPolicy?: RetryPolicy
   devLogging?: boolean
+  statusSource?: string
 }
 
 export type JobAutosaveApi = {
@@ -57,6 +59,7 @@ export type JobAutosaveApi = {
   onVisibilityBind: () => void
   onVisibilityUnbind: () => void
   onRouteLeaveBind: (router: Pick<Router, 'beforeEach'>) => () => void
+  clearStatus: () => void
 }
 
 /**
@@ -75,6 +78,8 @@ export type JobAutosaveApi = {
 export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
   // Defaults
   const debounceMs = Number.isFinite(opts.debounceMs) ? Number(opts.debounceMs) : 500
+  const autosaveStatus = useAutosaveStatusStore()
+  const statusSource = opts.statusSource ?? `job:${opts.jobId}`
   const retry: RetryPolicy = opts.retryPolicy ?? {
     attempts: 3,
     baseDelayMs: 500,
@@ -161,6 +166,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     debounceTimer = window.setTimeout(() => {
       void attemptFlush('debounce')
     }, debounceMs)
+    autosaveStatus.setSource(statusSource, 'pending')
     log('⏳ scheduled debounce', { debounceMs, pendingKeys: [...pendingKeys.value] })
   }
 
@@ -253,6 +259,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
 
     // After handling retry-click re-enqueue, if still empty and not saving, exit
     if (changeBuffer.size === 0 && !isSaving.value) {
+      autosaveStatus.clearSource(statusSource)
       log('🟢 nothing to flush', { reason })
       return
     }
@@ -296,6 +303,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     if (Object.keys(effectivePatch).length === 0) {
       changeBuffer.clear()
       pendingKeys.value.clear()
+      autosaveStatus.clearSource(statusSource)
       log('🟢 noop flush (diff empty)', { reason })
       return
     }
@@ -320,6 +328,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
       retryLatched = false
     }
     isSaving.value = true
+    autosaveStatus.setSource(statusSource, 'saving')
     error.value = null
     pendingAfterFlight = false
     const token = ++inFlightToken.value
@@ -356,6 +365,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
       lastSavedAt.value = new Date()
       error.value = null
       lastConflictPatch = null
+      autosaveStatus.setSource(statusSource, 'saved')
       log('✅ saved', { keys: Object.keys(sendingPatch), reason })
     } catch (e) {
       try {
@@ -370,6 +380,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
       }
       const msg = e instanceof Error ? e.message : 'Save failed'
       error.value = msg
+      autosaveStatus.setSource(statusSource, 'error', 'Save failed')
       log('❌ save failed', { msg, reason })
     } finally {
       isSaving.value = false
@@ -444,11 +455,16 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     changeBuffer.clear()
     pendingKeys.value.clear()
     pendingAfterFlight = false
+    autosaveStatus.clearSource(statusSource)
     log('🧹 canceled (cleared buffer and timers)')
   }
 
   async function flush(reason?: string) {
     await attemptFlush(reason)
+  }
+
+  function clearStatus() {
+    autosaveStatus.clearSource(statusSource)
   }
 
   // -------- Bindings --------
@@ -524,5 +540,6 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     onVisibilityBind,
     onVisibilityUnbind,
     onRouteLeaveBind,
+    clearStatus,
   }
 }
