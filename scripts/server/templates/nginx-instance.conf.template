@@ -46,7 +46,7 @@ server {
     }
 
     error_log /var/log/nginx/docketworks___INSTANCE___error.log;
-    access_log /var/log/nginx/docketworks___INSTANCE___access.log;
+    access_log /var/log/nginx/docketworks___INSTANCE___access.log docketworks_timed_combined;
 
     listen 443 ssl;
     ssl_certificate /etc/letsencrypt/live/__CERT_DOMAIN__/fullchain.pem;
