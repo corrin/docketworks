@@ -24,6 +24,15 @@ const router = createRouter({
       },
     },
     {
+      path: '/session-check',
+      name: 'session-check',
+      component: () => import('@/views/SessionCheckView.vue'),
+      meta: {
+        allowWorkshopStaff: true,
+        title: 'Connection Check - DocketWorks',
+      },
+    },
+    {
       path: '/kanban',
       name: 'kanban',
       component: () => import('@/views/KanbanView.vue'),
@@ -351,9 +360,12 @@ router.beforeEach(async (to) => {
   }
 
   if (to.meta.requiresAuth) {
-    const ok = await authStore.userIsLogged()
-    if (!ok) {
+    const sessionStatus = await authStore.checkSession()
+    if (sessionStatus === 'unauthenticated') {
       return { name: 'login', query: { redirect: to.fullPath } }
+    }
+    if (sessionStatus === 'unknown' && !authStore.user) {
+      return { name: 'session-check', query: { redirect: to.fullPath } }
     }
   }
 

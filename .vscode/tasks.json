@@ -3,9 +3,11 @@
   "tasks": [
     {
       "label": "Frontend Dev Server",
-      "type": "npm",
-      "script": "dev",
-      "path": "frontend",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
       "isBackground": true,
       "problemMatcher": {
         "owner": "vite",
@@ -26,9 +28,11 @@
     },
     {
       "label": "Frontend Manual Dev Server",
-      "type": "npm",
-      "script": "manual:dev",
-      "path": "frontend",
+      "type": "shell",
+      "command": "npm run manual:dev",
+      "options": {
+        "cwd": "${workspaceFolder}/frontend"
+      },
       "isBackground": true,
       "problemMatcher": {
         "owner": "vitepress",

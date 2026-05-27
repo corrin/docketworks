@@ -3,8 +3,6 @@
  */
 
 import axios from 'axios'
-import { useAuthStore } from '@/stores/auth'
-import router from '@/router'
 import { loginXero } from '../composables/useXeroAuth'
 import { debugLog } from '@/utils/debug'
 
@@ -23,40 +21,21 @@ axios.interceptors.request.use(
   (error) => Promise.reject(error),
 )
 
-let isRedirecting = false
-
 axios.interceptors.response.use(
   (response) => {
     return response
   },
   async (error) => {
-    const authStore = useAuthStore()
     const isAuthError = error.response?.status === 401
-    const currentPath = router.currentRoute.value.path
-    const isOnLoginPage = currentPath === '/login'
     if (error.response?.data?.redirect_to_auth) {
       loginXero()
       return Promise.reject(error)
     }
 
-    if (isAuthError && !isOnLoginPage && !isRedirecting) {
-      debugLog('Authentication failed - cookies may have expired')
-
-      isRedirecting = true
-
-      try {
-        await authStore.logout()
-
-        await router.push({ name: 'login', query: { redirect: currentPath } })
-      } catch (redirectError) {
-        debugLog('Error during auth redirect:', redirectError)
-
-        window.location.href = '/login'
-      } finally {
-        setTimeout(() => {
-          isRedirecting = false
-        }, 1000)
-      }
+    if (isAuthError) {
+      debugLog(
+        'API request returned 401; route guard will confirm session state before redirecting',
+      )
     }
 
     return Promise.reject(error)
