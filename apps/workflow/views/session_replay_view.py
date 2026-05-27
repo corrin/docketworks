@@ -1,7 +1,10 @@
+from datetime import datetime
 from uuid import UUID
 
 from django.db import IntegrityError
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
+from django.utils.dateparse import parse_datetime
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -39,6 +42,20 @@ def _parse_uuid_param(value: str | None, field: str) -> str | None:
         raise ValueError(f"Invalid {field} parameter") from exc
 
 
+def _parse_datetime_param(value: str | None, field: str) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = parse_datetime(value)
+    except ValueError as exc:
+        raise ValueError(f"Invalid {field} parameter") from exc
+    if parsed is None:
+        raise ValueError(f"Invalid {field} parameter")
+    if timezone.is_naive(parsed):
+        parsed = timezone.make_aware(parsed, timezone.get_current_timezone())
+    return parsed
+
+
 class SessionReplayRecordingListCreateView(APIView):
     permission_classes = [IsAuthenticated]
 
@@ -67,6 +84,12 @@ class SessionReplayRecordingListCreateView(APIView):
             limit, offset = parse_pagination_params(request)
             user_id = _parse_uuid_param(request.query_params.get("user_id"), "user_id")
             job_id = _parse_uuid_param(request.query_params.get("job_id"), "job_id")
+            started_after = _parse_datetime_param(
+                request.query_params.get("started_after"), "started_after"
+            )
+            started_before = _parse_datetime_param(
+                request.query_params.get("started_before"), "started_before"
+            )
         except ValueError as exc:
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -75,8 +98,8 @@ class SessionReplayRecordingListCreateView(APIView):
             offset=offset,
             user_id=user_id,
             job_id=job_id,
-            started_after=request.query_params.get("started_after"),
-            started_before=request.query_params.get("started_before"),
+            started_after=started_after,
+            started_before=started_before,
         )
         serializer = SessionReplayListResponseSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -172,6 +195,16 @@ class SessionReplayFrontendErrorView(APIView):
         serializer.is_valid(raise_exception=True)
         data = serializer.validated_data
         replay_id = data.get("session_replay_id")
+        recording = None
+        if replay_id:
+            recording = SessionReplayRecording.objects.filter(
+                pk=replay_id, user=request.user
+            ).first()
+            if recording is None:
+                return Response(
+                    {"error": "Invalid session_replay_id parameter"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
         error = AppError.objects.create(
             message=data["message"],
             data={
@@ -184,6 +217,6 @@ class SessionReplayFrontendErrorView(APIView):
             file=data.get("file") or "",
             function=data.get("function") or "",
             user_id=request.user.id,
-            session_replay_id=replay_id,
+            session_replay=recording,
         )
         return Response({"id": str(error.id)}, status=status.HTTP_201_CREATED)

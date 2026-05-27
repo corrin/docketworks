@@ -1,6 +1,6 @@
 import gzip
 import json
-from datetime import timedelta
+from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
@@ -100,8 +100,8 @@ def list_recordings(
     offset: int,
     user_id: str | None = None,
     job_id: str | None = None,
-    started_after: str | None = None,
-    started_before: str | None = None,
+    started_after: datetime | None = None,
+    started_before: datetime | None = None,
 ) -> dict[str, Any]:
     queryset: QuerySet[SessionReplayRecording] = (
         SessionReplayRecording.objects.select_related("user")

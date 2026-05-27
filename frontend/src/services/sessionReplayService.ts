@@ -49,6 +49,7 @@ export async function startSessionReplay(): Promise<void> {
     emit(event) {
       bufferedEvents.push(event)
     },
+    // Full-fidelity capture is intentional for staff-only installs with recording consent.
     checkoutEveryNms: 5 * 60 * 1000,
     recordCanvas: false,
     collectFonts: false,

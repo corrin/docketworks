@@ -1,5 +1,6 @@
 import json
 from datetime import timedelta
+from uuid import uuid4
 
 import pytest
 from django.utils import timezone
@@ -128,6 +129,51 @@ def test_only_office_staff_can_read_replays(office_staff, workshop_staff):
     )
 
 
+def test_replay_list_rejects_invalid_started_filters(office_staff):
+    api = _client(office_staff)
+
+    assert (
+        api.get(
+            "/api/session-replays/recordings/",
+            data={"started_after": "not-a-date"},
+        ).status_code
+        == 400
+    )
+    assert (
+        api.get(
+            "/api/session-replays/recordings/",
+            data={"started_before": "not-a-date"},
+        ).status_code
+        == 400
+    )
+
+
+def test_replay_list_filters_by_started_date(office_staff):
+    old = SessionReplayRecording.objects.create(
+        user=office_staff,
+        initial_path="/old",
+        latest_path="/old",
+    )
+    current = SessionReplayRecording.objects.create(
+        user=office_staff,
+        initial_path="/current",
+        latest_path="/current",
+    )
+    SessionReplayRecording.objects.filter(id=old.id).update(
+        started_at=timezone.now() - timedelta(days=3)
+    )
+
+    response = _client(office_staff).get(
+        "/api/session-replays/recordings/",
+        data={"started_after": (timezone.now() - timedelta(days=1)).isoformat()},
+    )
+
+    assert response.status_code == 200
+    result_ids = {row["id"] for row in response.json()["results"]}
+    assert str(current.id) in result_ids
+    assert str(old.id) not in result_ids
+
+
 def test_frontend_error_creates_apperror_with_replay(office_staff):
     api = _client(office_staff)
     recording = SessionReplayRecording.objects.create(
@@ -151,6 +197,46 @@ def test_frontend_error_creates_apperror_with_replay(office_staff):
     assert error.app == "frontend"
     assert error.session_replay_id == recording.id
     assert error.user_id == office_staff.id
+
+
+def test_frontend_error_rejects_replay_owned_by_another_user(
+    office_staff, workshop_staff
+):
+    recording = SessionReplayRecording.objects.create(
+        user=workshop_staff,
+        initial_path="/kanban",
+        latest_path="/kanban",
+    )
+
+    response = _client(office_staff).post(
+        "/api/session-replays/frontend-errors/",
+        data={
+            "message": "Frontend broke",
+            "path": "/kanban",
+            "session_replay_id": str(recording.id),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert not AppError.objects.filter(session_replay_id=recording.id).exists()
+
+
+def test_frontend_error_rejects_unknown_replay(office_staff):
+    unknown_replay_id = uuid4()
+
+    response = _client(office_staff).post(
+        "/api/session-replays/frontend-errors/",
+        data={
+            "message": "Frontend broke",
+            "path": "/kanban",
+            "session_replay_id": str(unknown_replay_id),
+        },
+        format="json",
+    )
+
+    assert response.status_code == 400
+    assert not AppError.objects.filter(session_replay_id=unknown_replay_id).exists()
 
 
 def test_purge_old_recordings_deletes_cascade(office_staff):
