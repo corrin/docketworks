@@ -7,6 +7,7 @@ import type { z } from 'zod'
 
 type User = z.infer<typeof schemas.UserProfile>
 type LoginCredentials = z.infer<typeof schemas.CustomTokenObtainPairRequest>
+export type SessionCheckStatus = 'authenticated' | 'unauthenticated' | 'unknown'
 
 interface ErrorResponse {
   detail?: string
@@ -25,6 +26,8 @@ export const useAuthStore = defineStore('auth', () => {
   const isLoading = ref(false)
   const error = ref<string | null>(null)
   const hasCheckedSession = ref(false)
+  const sessionCheckError = ref<unknown | null>(null)
+  let sessionCheckInFlight: Promise<SessionCheckStatus> | null = null
 
   const isAuthenticated = computed(() => !!user.value)
 
@@ -51,17 +54,44 @@ export const useAuthStore = defineStore('auth', () => {
     error.value = errorMessage
   }
 
-  const userIsLogged = async (): Promise<boolean> => {
+  const getResponseStatus = (err: unknown): number | undefined => {
+    if (typeof err !== 'object' || err === null || !('response' in err)) return undefined
+    return (err as { response?: AxiosErrorResponse }).response?.status
+  }
+
+  const checkSessionOnce = async (): Promise<SessionCheckStatus> => {
     try {
       const response = await api.accounts_me_retrieve()
       user.value = response
-      return true
-    } catch {
-      user.value = null
-      return false
+      sessionCheckError.value = null
+      return 'authenticated'
+    } catch (err: unknown) {
+      const status = getResponseStatus(err)
+      if (status === 401 || status === 403) {
+        user.value = null
+        sessionCheckError.value = null
+        return 'unauthenticated'
+      }
+
+      sessionCheckError.value = err
+      debugLog('Session check failed without auth rejection:', err)
+      return 'unknown'
     } finally {
       hasCheckedSession.value = true
     }
+  }
+
+  const checkSession = async (): Promise<SessionCheckStatus> => {
+    if (!sessionCheckInFlight) {
+      sessionCheckInFlight = checkSessionOnce().finally(() => {
+        sessionCheckInFlight = null
+      })
+    }
+    return await sessionCheckInFlight
+  }
+
+  const userIsLogged = async (): Promise<boolean> => {
+    return (await checkSession()) === 'authenticated'
   }
 
   const login = async (credentials: LoginCredentials): Promise<boolean> => {
@@ -127,7 +157,7 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const initializeAuth = async (): Promise<boolean> => {
-    return await userIsLogged()
+    return (await checkSession()) === 'authenticated'
   }
 
   return {
@@ -135,6 +165,7 @@ export const useAuthStore = defineStore('auth', () => {
     isLoading,
     error,
     hasCheckedSession,
+    sessionCheckError,
 
     isAuthenticated,
     fullName,
@@ -143,6 +174,7 @@ export const useAuthStore = defineStore('auth', () => {
 
     login,
     logout,
+    checkSession,
     userIsLogged,
     initializeAuth,
   }

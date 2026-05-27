@@ -1,0 +1,96 @@
+import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { createPinia, setActivePinia } from 'pinia'
+
+vi.mock('@/api/client', () => ({
+  api: {
+    accounts_me_retrieve: vi.fn(),
+    accounts_logout_create: vi.fn(),
+  },
+}))
+
+vi.mock('@/utils/debug', () => ({
+  debugLog: vi.fn(),
+}))
+
+vi.mock('vue-sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}))
+
+vi.mock('@/views/KanbanView.vue', () => ({
+  default: {
+    template: '<div />',
+  },
+}))
+
+const user = {
+  id: '11111111-1111-4111-8111-111111111111',
+  username: 'cindy@example.com',
+  email: 'cindy@example.com',
+  first_name: 'Cindy',
+  last_name: 'Admin',
+  preferred_name: null,
+  fullName: 'Cindy Admin',
+  is_office_staff: true,
+  is_superuser: false,
+}
+
+async function setupRouter() {
+  vi.resetModules()
+  setActivePinia(createPinia())
+  const [{ api }, { useAuthStore }, { default: router }] = await Promise.all([
+    import('@/api/client'),
+    import('@/stores/auth'),
+    import('@/router'),
+  ])
+  return { api, authStore: useAuthStore(), router }
+}
+
+describe('router auth guard', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    window.history.replaceState({}, '', '/')
+  })
+
+  it('redirects to login when the session check confirms unauthenticated', async () => {
+    const { api, router } = await setupRouter()
+    vi.mocked(api.accounts_me_retrieve).mockRejectedValue({ response: { status: 401 } })
+
+    await router.push('/kanban')
+    await router.isReady()
+
+    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.query.redirect).toBe('/kanban')
+    expect(api.accounts_logout_create).not.toHaveBeenCalled()
+  })
+
+  it('uses the session-check route instead of login when cold-start auth is unknown', async () => {
+    const { api, router } = await setupRouter()
+    vi.mocked(api.accounts_me_retrieve).mockRejectedValue(
+      Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }),
+    )
+
+    await router.push('/kanban')
+    await router.isReady()
+
+    expect(router.currentRoute.value.name).toBe('session-check')
+    expect(router.currentRoute.value.query.redirect).toBe('/kanban')
+    expect(api.accounts_logout_create).not.toHaveBeenCalled()
+  })
+
+  it('keeps an already loaded user on the protected route when auth is unknown', async () => {
+    const { api, authStore, router } = await setupRouter()
+    authStore.user = user
+    vi.mocked(api.accounts_me_retrieve).mockRejectedValue(
+      Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }),
+    )
+
+    await router.push('/kanban')
+    await router.isReady()
+
+    expect(router.currentRoute.value.name).toBe('kanban')
+    expect(authStore.user).toEqual(user)
+    expect(api.accounts_logout_create).not.toHaveBeenCalled()
+  })
+})
