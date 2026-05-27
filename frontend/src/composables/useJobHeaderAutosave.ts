@@ -2,7 +2,6 @@ import { ref, computed, onMounted, onUnmounted, watch, type Ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createJobAutosave, type SaveResult } from './useJobAutosave'
 import { useJobsStore } from '../stores/jobs'
-import { toast } from 'vue-sonner'
 import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { z } from 'zod'
 import { schemas } from '../api/generated/api'
@@ -247,7 +246,6 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
 
             jobsStore.patchHeader(jobId, headerToPartialHeaderPatch(payloadJob as Partial<Job>))
 
-            toast.success('Job updated successfully')
             return { success: true, serverData: res.data }
           } catch (e) {
             const msg = e instanceof Error ? e.message : String(e)
@@ -256,6 +254,7 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
           }
         },
         devLogging: true,
+        statusSource: `job-header:${header.job_id}`,
       })
 
       isInitialized.value = true
@@ -339,6 +338,7 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
     if (autosave) {
       autosave.onBeforeUnloadUnbind()
       autosave.onVisibilityUnbind()
+      autosave.clearStatus()
     }
     unbindRouteGuard()
     unbindConcurrencyRetry()

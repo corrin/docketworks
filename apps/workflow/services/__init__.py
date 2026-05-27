@@ -29,6 +29,13 @@ try:
         from .llm_service import LLMService, quick_completion, quick_json_completion
         from .request import get_client_ip
         from .search import apply_text_search
+        from .session_replay_service import (
+            append_chunk,
+            create_recording,
+            list_recordings,
+            purge_old_recordings,
+            recording_events,
+        )
         from .validation import to_decimal, validate_required_fields
         from .xero_sync_service import XeroSyncService, XeroSyncStartResult
         from .xero_sync_worker import xero_sync_task
@@ -40,13 +47,16 @@ __all__ = [
     "LLMService",
     "XeroSyncService",
     "XeroSyncStartResult",
+    "append_chunk",
     "apply_text_search",
+    "create_recording",
     "extract_job_context",
     "extract_request_context",
     "get_client_ip",
     "list_app_errors",
     "list_grouped_app_errors",
     "list_grouped_xero_errors",
+    "list_recordings",
     "mark_app_error_group_resolved",
     "mark_app_error_group_resolved_by_fingerprint",
     "mark_app_error_group_unresolved",
@@ -58,8 +68,10 @@ __all__ = [
     "persist_and_raise",
     "persist_app_error",
     "persist_xero_error",
+    "purge_old_recordings",
     "quick_completion",
     "quick_json_completion",
+    "recording_events",
     "scrub",
     "to_decimal",
     "validate_required_fields",

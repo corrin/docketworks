@@ -273,6 +273,8 @@ LOGIN_EXEMPT_URLS = [
 # These paths bypass browser redirect and use DRF/JWT authentication
 API_PATH_PREFIXES = ["/api/"]
 
+SESSION_REPLAY_RETENTION_DAYS = int(os.getenv("SESSION_REPLAY_RETENTION_DAYS", "14"))
+
 # For OpenAPI schema generator
 SPECTACULAR_SETTINGS = {
     "TITLE": "DocketWorks API",

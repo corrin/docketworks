@@ -4,6 +4,7 @@ from .ai_provider import AIProvider
 from .app_error import AppError, XeroError
 from .company_defaults import CompanyDefaults
 from .service_api_key import ServiceAPIKey
+from .session_replay import SessionReplayChunk, SessionReplayRecording
 from .xero_account import XeroAccount
 from .xero_app import XeroApp
 from .xero_pay_item import XeroPayItem
@@ -15,6 +16,8 @@ __all__ = [
     "AppError",
     "CompanyDefaults",
     "ServiceAPIKey",
+    "SessionReplayChunk",
+    "SessionReplayRecording",
     "XeroAccount",
     "XeroApp",
     "XeroError",

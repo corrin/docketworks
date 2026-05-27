@@ -17,7 +17,7 @@
  * pairs). When the parent needs camelCase, it does the mapping.
  */
 
-import { computed, h, nextTick, ref, useId, watch } from 'vue'
+import { computed, h, nextTick, onUnmounted, ref, useId, watch } from 'vue'
 import DataTable from '../DataTable.vue'
 import { Textarea } from '../ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
@@ -181,6 +181,7 @@ function maybeEmitCreate(entry: TimesheetCostLine): void {
 
 const autosave = useCostLineAutosave({
   debounceMs: 600,
+  statusSource: 'timesheet-cost-lines',
   saveFn: async (id: string, patch: PatchedCostLineCreateUpdate) => {
     try {
       return await costlineService.updateCostLine(id, patch)
@@ -208,6 +209,10 @@ const autosave = useCostLineAutosave({
     // simple so users aren't toast-spammed.
     debugLog('SmartTimesheetTable: row rolled back after save failure', { lineId: line.id })
   },
+})
+
+onUnmounted(() => {
+  autosave.clearStatus()
 })
 
 function buildPatch(

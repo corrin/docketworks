@@ -15,6 +15,7 @@ import {
 import { toast } from 'vue-sonner'
 import { emitConcurrencyRetry } from '../composables/useConcurrencyEvents'
 import { emitPoConcurrencyRetry } from '../composables/usePoConcurrencyEvents'
+import { getSessionReplayId } from '@/services/sessionReplayState'
 
 // Global registry for ETag management to avoid circular imports
 let etagManager: {
@@ -84,6 +85,11 @@ axios.interceptors.request.use(
     }
     if (config.params !== undefined) {
       config.params = trimStringsDeep(config.params)
+    }
+
+    const sessionReplayId = getSessionReplayId()
+    if (sessionReplayId) {
+      config.headers['X-Session-Replay-Id'] = sessionReplayId
     }
 
     // Add If-Match header for job mutation endpoints

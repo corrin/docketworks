@@ -540,10 +540,6 @@ const basicInfoHydrated = ref(false)
 const isHydratingBasicInfo = ref(false)
 const isServerSyncingBasicInfo = ref(false)
 
-// Notification debouncing
-const lastNotificationTime = ref(0)
-const NOTIFICATION_DEBOUNCE_MS = 2000 // 2 seconds minimum between notifications
-
 // Typing state tracking to prevent interruption
 const isUserTyping = ref(false)
 const typingTimeout = ref<number | null>(null)
@@ -1107,6 +1103,7 @@ let unbindConcurrencyRetry: () => void = () => {}
 const autosave = createJobAutosave({
   jobId: props.jobId || '',
   debounceMs: 1000, // Increased debounce for text fields to prevent interruption
+  statusSource: `job-settings:${props.jobId}`,
   canSave: () => dataReady.value, // Sync original snapshot for post-hydration diff|readiness barrier
   getSnapshot: () => {
     // Returns original snapshot, not current data
@@ -1515,13 +1512,6 @@ const autosave = createJobAutosave({
         }
       }
 
-      // Debounced success notification
-      const now = Date.now()
-      if (now - lastNotificationTime.value >= NOTIFICATION_DEBOUNCE_MS) {
-        toast.success('Job updated successfully')
-        lastNotificationTime.value = now
-      }
-
       return { success: true, serverData: result.data }
     } catch (e: unknown) {
       const msg = e instanceof Error ? e.message : String(e)
@@ -1609,6 +1599,7 @@ onUnmounted(() => {
 
   autosave.onBeforeUnloadUnbind()
   autosave.onVisibilityUnbind()
+  autosave.clearStatus()
   unbindRouteGuard()
   unbindConcurrencyRetry()
 })

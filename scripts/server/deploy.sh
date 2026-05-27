@@ -134,6 +134,7 @@ SERVER_SETUP_INPUTS=(
     "$SCRIPT_DIR/certbot-dreamhost-auth.sh"
     "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh"
     "$SCRIPT_DIR/templates/logrotate-docketworks.conf"
+    "$SCRIPT_DIR/templates/nginx-instance.conf.template"
 )
 SERVER_SETUP_HASH="$(sha256sum "${SERVER_SETUP_INPUTS[@]}" | sha256sum | awk '{print $1}')"
 SERVER_SETUP_STAMP="/opt/docketworks/.server-setup-hash"

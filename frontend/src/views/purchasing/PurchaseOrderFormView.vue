@@ -1,4 +1,3 @@
-s
 <template>
   <AppLayout>
     <div class="p-4 md:p-8 flex flex-col gap-4">
@@ -139,7 +138,7 @@ s
 <script setup lang="ts">
 import { debugLog } from '@/utils/debug'
 
-import { ref, watch, onMounted, computed } from 'vue'
+import { ref, watch, onMounted, onUnmounted, computed } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Button } from '@/components/ui/button'
@@ -158,6 +157,7 @@ import { schemas } from '@/api/generated/api'
 import { onPoConcurrencyRetry } from '@/composables/usePoConcurrencyEvents'
 import { openGmailCompose } from '@/utils/email'
 import type { z } from 'zod'
+import { useAutosaveStatusStore } from '@/stores/autosaveStatus'
 
 // Import types from generated API schemas
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
@@ -175,6 +175,7 @@ const router = useRouter()
 const orderId = route.params.id as string
 const store = usePurchaseOrderStore()
 const receiptStore = useDeliveryReceiptStore()
+const autosaveStatus = useAutosaveStatusStore()
 const originalLines = ref<PurchaseOrderLine[]>([])
 const isSyncing = ref(false)
 const showPdfDialog = ref(false)
@@ -208,6 +209,64 @@ const po = ref<PurchaseOrder>({
 const linesToDelete = ref<string[]>([])
 const supplierEmailCache = ref<Record<string, string | null>>({})
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
+let debounceTimerPending = false
+let activeAutosaves = 0
+const PO_AUTOSAVE_SOURCE = 'purchase-order'
+
+function syncPoAutosaveStatus(showSaved = true): void {
+  if (activeAutosaves > 0 || debounceTimerPending) {
+    autosaveStatus.setSource(PO_AUTOSAVE_SOURCE, 'saving')
+    return
+  }
+  if (showSaved) {
+    autosaveStatus.setSource(PO_AUTOSAVE_SOURCE, 'saved')
+  } else {
+    autosaveStatus.clearSource(PO_AUTOSAVE_SOURCE)
+  }
+}
+
+function markPoAutosaveError(): void {
+  debounceTimerPending = false
+  autosaveStatus.setSource(PO_AUTOSAVE_SOURCE, 'error', 'Save failed')
+}
+
+function clearPoDebounceTimer(showSaved = false): void {
+  if (debounceTimer) {
+    clearTimeout(debounceTimer)
+    debounceTimer = null
+  }
+  debounceTimerPending = false
+  if (activeAutosaves === 0) {
+    syncPoAutosaveStatus(showSaved)
+  }
+}
+
+function schedulePoAutosave(callback: () => void | Promise<void>, delayMs: number): void {
+  clearPoDebounceTimer(false)
+  debounceTimerPending = true
+  syncPoAutosaveStatus(false)
+  debounceTimer = setTimeout(() => {
+    debounceTimer = null
+    debounceTimerPending = false
+    syncPoAutosaveStatus(false)
+    void callback()
+  }, delayMs)
+}
+
+async function trackPoAutosave<T>(operation: () => Promise<T>): Promise<T> {
+  activeAutosaves += 1
+  syncPoAutosaveStatus(false)
+  try {
+    const result = await operation()
+    activeAutosaves = Math.max(0, activeAutosaves - 1)
+    syncPoAutosaveStatus(true)
+    return result
+  } catch (error) {
+    activeAutosaves = Math.max(0, activeAutosaves - 1)
+    markPoAutosaveError()
+    throw error
+  }
+}
 
 const isPoDeleted = computed(() => po.value.status === 'deleted')
 const isPoSubmitted = computed(() => po.value.status === 'submitted')
@@ -298,8 +357,7 @@ async function load() {
   error.value = null
 
   if (debounceTimer) {
-    clearTimeout(debounceTimer)
-    debounceTimer = null
+    clearPoDebounceTimer(false)
     debugLog('Cancelled pending autosave during reload')
   }
 
@@ -362,8 +420,7 @@ async function saveSummary() {
   }
 
   try {
-    await store.patch(orderId, updateData)
-    toast.success('Summary saved')
+    await trackPoAutosave(() => store.patch(orderId, updateData))
     await load()
     await loadExistingAllocations()
   } catch (err) {
@@ -384,8 +441,7 @@ async function saveSummary() {
       const unsubscribe = onPoConcurrencyRetry(orderId, async () => {
         unsubscribe() // Clean up listener
         try {
-          await store.patch(orderId, updateData)
-          toast.success('Summary saved')
+          await trackPoAutosave(() => store.patch(orderId, updateData))
           await load() // Reload to show latest data
           await loadExistingAllocations()
         } catch (retryErr) {
@@ -433,8 +489,7 @@ function deleteLine(idOrIdx: string | number) {
   debugLog('Deleting line:', idOrIdx)
 
   if (debounceTimer) {
-    clearTimeout(debounceTimer)
-    debounceTimer = null
+    clearPoDebounceTimer(false)
     debugLog('Cancelled pending autosave timer')
   }
 
@@ -565,6 +620,7 @@ async function saveLines() {
         toast.error(
           `${missingPrices.length} line(s) missing price information. Please set unit cost or mark as TBC.`,
         )
+        syncPoAutosaveStatus(false)
         return
       }
     }
@@ -572,6 +628,7 @@ async function saveLines() {
 
   if (!validLines.length && !linesToDelete.value.length) {
     debugLog('No valid lines or deletes to save')
+    syncPoAutosaveStatus(false)
     return
   }
 
@@ -579,6 +636,7 @@ async function saveLines() {
 
   if (!changedLines.length && !linesToDelete.value.length) {
     debugLog('No changes detected - skipping save')
+    syncPoAutosaveStatus(false)
     return
   }
 
@@ -646,10 +704,12 @@ async function saveLines() {
   try {
     const linesToDeleteBackup = [...linesToDelete.value]
 
-    await store.patch(orderId, {
-      lines: transformedLines,
-      lines_to_delete: linesToDelete.value.length ? linesToDelete.value : undefined,
-    })
+    await trackPoAutosave(() =>
+      store.patch(orderId, {
+        lines: transformedLines,
+        lines_to_delete: linesToDelete.value.length ? linesToDelete.value : undefined,
+      }),
+    )
 
     linesToDelete.value = []
 
@@ -662,8 +722,6 @@ async function saveLines() {
       originalLines.value = JSON.parse(JSON.stringify(po.value.lines))
       debugLog('Updated original lines without reload')
     }
-
-    toast.success('Lines saved')
   } catch (error) {
     debugLog('Error saving lines:', error)
     // Rollback on error
@@ -833,8 +891,7 @@ async function close() {
 
     // Clear any pending debounce timers to force immediate save
     if (debounceTimer) {
-      clearTimeout(debounceTimer)
-      debounceTimer = null
+      clearPoDebounceTimer(false)
       debugLog('Cleared pending autosave timer for immediate save')
     }
 
@@ -847,7 +904,6 @@ async function close() {
     await saveSummary()
 
     debugLog('Autosave completed, navigating to PO list')
-    toast.success('Changes saved automatically')
   } catch (error) {
     debugLog('Error during autosave on close:', error)
 
@@ -1122,10 +1178,10 @@ onMounted(async () => {
 
       debugLog('Lines changed, scheduling autosave in 500ms')
       if (debounceTimer) {
-        clearTimeout(debounceTimer)
+        clearPoDebounceTimer(false)
         debugLog('Cleared previous timer')
       }
-      debounceTimer = setTimeout(() => {
+      schedulePoAutosave(() => {
         debugLog('Executing scheduled autosave')
         saveLines()
       }, 500)
@@ -1137,13 +1193,13 @@ onMounted(async () => {
     () => [po.value.supplier, po.value.supplier_id],
     (newVals, oldVals) => {
       if (newVals[0] && (newVals[0] !== oldVals?.[0] || newVals[1] !== oldVals?.[1])) {
-        if (debounceTimer) clearTimeout(debounceTimer)
-        debounceTimer = setTimeout(async () => {
+        schedulePoAutosave(async () => {
           try {
-            await store.patch(orderId, {
-              supplier_id: po.value.supplier_id ?? null,
-            })
-            toast.success('Supplier updated')
+            await trackPoAutosave(() =>
+              store.patch(orderId, {
+                supplier_id: po.value.supplier_id ?? null,
+              }),
+            )
             await load()
           } catch (error) {
             const errorMessage = extractErrorMessage(error, 'Failed to update supplier')
@@ -1154,5 +1210,10 @@ onMounted(async () => {
     },
     { deep: true },
   )
+})
+
+onUnmounted(() => {
+  clearPoDebounceTimer(false)
+  autosaveStatus.clearSource(PO_AUTOSAVE_SOURCE)
 })
 </script>

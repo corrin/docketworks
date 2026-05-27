@@ -2,6 +2,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { ref } from 'vue'
 import { mount } from '@vue/test-utils'
 import { createMemoryHistory, createRouter } from 'vue-router'
+import { createPinia } from 'pinia'
 
 vi.mock('@/composables/useAppLayout', () => ({
   useAppLayout: () => ({
@@ -44,7 +45,7 @@ describe('AppNavbar search URL sync', () => {
 
     const wrapper = mount(AppNavbar, {
       global: {
-        plugins: [router],
+        plugins: [router, createPinia()],
         stubs: {
           WorkshopOfficeToggle: true,
         },

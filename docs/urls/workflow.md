@@ -40,6 +40,15 @@
 |-------------|------|------|-------------|
 | `/rest/app-errors/` | `app_error_view.AppErrorRestListView` | `app-error-rest-list` | REST-style view that exposes AppError telemetry for admin monitoring. |
 
+### Session-Replays Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/session-replays/frontend-errors/` | `session_replay_view.SessionReplayFrontendErrorView` | `session-replay-frontend-error` | No description available |
+| `/session-replays/recordings/` | `session_replay_view.SessionReplayRecordingListCreateView` | `session-replay-recording-list` | No description available |
+| `/session-replays/recordings/<uuid:pk>/` | `session_replay_view.SessionReplayRecordingDetailView` | `session-replay-recording-detail` | No description available |
+| `/session-replays/recordings/<uuid:pk>/chunks/` | `session_replay_view.SessionReplayChunkCreateView` | `session-replay-chunk-create` | No description available |
+| `/session-replays/recordings/<uuid:pk>/events/` | `session_replay_view.SessionReplayEventsView` | `session-replay-events` | No description available |
+
 ### System
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|

@@ -27,12 +27,29 @@ def custom_exception_handler(exc: Exception, context: dict) -> Optional[Response
     haven't already been persisted upstream (detected via AlreadyLoggedException).
     """
     response = exception_handler(exc, context)
+    request = context.get("request")
+    user_id = None
+    session_replay_id = None
+    additional_context = None
+    if request:
+        if getattr(request, "user", None) and request.user.is_authenticated:
+            user_id = str(request.user.id)
+        session_replay_id = request.headers.get("X-Session-Replay-Id")
+        additional_context = {
+            "request_path": request.path,
+            "request_method": request.method,
+            "session_replay_id": session_replay_id,
+        }
 
     if not isinstance(exc, AlreadyLoggedException):
-        persist_app_error(exc)
+        persist_app_error(
+            exc,
+            user_id=user_id,
+            session_replay_id=session_replay_id,
+            additional_context=additional_context,
+        )
 
     if isinstance(exc, PermissionDenied):
-        request = context.get("request")
         view = context.get("view")
 
         user_info = "anonymous"
@@ -62,7 +79,6 @@ def custom_exception_handler(exc: Exception, context: dict) -> Optional[Response
         )
 
     if isinstance(exc, (AuthenticationFailed, NotAuthenticated)):
-        request = context.get("request")
         view = context.get("view")
 
         endpoint = request.path if request else "unknown"

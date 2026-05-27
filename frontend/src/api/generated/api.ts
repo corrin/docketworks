@@ -589,6 +589,7 @@ const AppError = z.object({
   user_id: z.string().uuid().nullish(),
   resolved: z.boolean().optional(),
   resolved_timestamp: z.string().datetime({ offset: true }).nullish(),
+  session_replay: z.string().uuid().nullish(),
   resolved_by: z.string().uuid().nullish(),
 })
 const PaginatedAppErrorList = z.object({
@@ -2806,6 +2807,72 @@ const AppErrorListResponse = z.object({
   previous: z.string().nullish(),
   results: z.array(AppError),
 })
+const SessionReplayFrontendErrorRequest = z.object({
+  message: z.string().min(1),
+  stack: z.string().optional(),
+  path: z.string().min(1).max(500),
+  component: z.string().optional(),
+  file: z.string().optional(),
+  function: z.string().optional(),
+  session_replay_id: z.string().uuid().nullish(),
+})
+const SessionReplayFrontendErrorResponse = z.object({ id: z.string().uuid() })
+const SessionReplayRecording = z.object({
+  id: z.string().uuid(),
+  user: z.string().uuid(),
+  user_email: z.string().email(),
+  started_at: z.string().datetime({ offset: true }),
+  last_seen_at: z.string().datetime({ offset: true }),
+  ended_at: z.string().datetime({ offset: true }).nullable(),
+  initial_path: z.string(),
+  latest_path: z.string(),
+  job_id: z.string().uuid().nullable(),
+  user_agent: z.string(),
+  viewport_width: z.number().int().nullable(),
+  viewport_height: z.number().int().nullable(),
+  event_count: z.number().int(),
+  compressed_bytes: z.number().int(),
+})
+const SessionReplayListResponse = z.object({
+  count: z.number().int(),
+  next: z.string().nullish(),
+  previous: z.string().nullish(),
+  results: z.array(SessionReplayRecording),
+})
+const SessionReplayRecordingCreateRequest = z.object({
+  initial_path: z.string().min(1).max(500),
+  viewport_width: z.number().int().gte(1).nullish(),
+  viewport_height: z.number().int().gte(1).nullish(),
+  job_id: z.string().uuid().nullish(),
+})
+const SessionReplayChunkCreateRequest = z.object({
+  sequence: z.number().int().gte(0),
+  events_json: z.string().min(1),
+  first_event_timestamp_ms: z.number().int(),
+  last_event_timestamp_ms: z.number().int(),
+  path: z.string().min(1).max(500),
+  job_id: z.string().uuid().nullish(),
+  viewport_width: z.number().int().gte(1).nullish(),
+  viewport_height: z.number().int().gte(1).nullish(),
+})
+const SessionReplayChunk = z.object({
+  id: z.string().uuid(),
+  recording: z.string().uuid(),
+  sequence: z.number().int(),
+  created_at: z.string().datetime({ offset: true }),
+  first_event_timestamp_ms: z.number().int(),
+  last_event_timestamp_ms: z.number().int(),
+  event_count: z.number().int(),
+  compressed_bytes: z.number().int(),
+  path: z.string(),
+  job_id: z.string().uuid().nullable(),
+  viewport_width: z.number().int().nullable(),
+  viewport_height: z.number().int().nullable(),
+})
+const SessionReplayEventsResponse = z.object({
+  recording: SessionReplayRecording,
+  events: z.unknown(),
+})
 const JobBreakdown = z.object({
   job_id: z.string(),
   job_number: z.number().int(),
@@ -3043,6 +3110,7 @@ const AppErrorRequest = z.object({
   user_id: z.string().uuid().nullish(),
   resolved: z.boolean().optional(),
   resolved_timestamp: z.string().datetime({ offset: true }).nullish(),
+  session_replay: z.string().uuid().nullish(),
   resolved_by: z.string().uuid().nullish(),
 })
 const XeroApp = z.object({
@@ -3127,6 +3195,7 @@ const XeroError = z.object({
   entity: z.string().max(100),
   reference_id: z.string().max(255),
   kind: z.string().max(50),
+  session_replay: z.string().uuid().nullish(),
   resolved_by: z.string().uuid().nullish(),
 })
 const PaginatedXeroErrorList = z.object({
@@ -3520,6 +3589,14 @@ export const schemas = {
   ScheduledTask,
   PaginatedScheduledTaskList,
   AppErrorListResponse,
+  SessionReplayFrontendErrorRequest,
+  SessionReplayFrontendErrorResponse,
+  SessionReplayRecording,
+  SessionReplayListResponse,
+  SessionReplayRecordingCreateRequest,
+  SessionReplayChunkCreateRequest,
+  SessionReplayChunk,
+  SessionReplayEventsResponse,
   JobBreakdown,
   StaffDailyData,
   DailyTotals,
@@ -8321,6 +8398,120 @@ Supports pagination via &#x60;&#x60;limit&#x60;&#x60;/&#x60;&#x60;offset&#x60;&#
 - &#x60;&#x60;job_id&#x60;&#x60; / &#x60;&#x60;user_id&#x60;&#x60; (UUID strings)`,
     requestFormat: 'json',
     response: AppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/session-replays/frontend-errors/',
+    alias: 'session_replay_frontend_errors_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: SessionReplayFrontendErrorRequest,
+      },
+    ],
+    response: z.object({ id: z.string().uuid() }),
+  },
+  {
+    method: 'get',
+    path: '/api/session-replays/recordings/',
+    alias: 'session_replay_recordings_list',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'job_id',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'offset',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'started_after',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'started_before',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'user_id',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: SessionReplayListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/session-replays/recordings/',
+    alias: 'session_replay_recordings_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: SessionReplayRecordingCreateRequest,
+      },
+    ],
+    response: SessionReplayRecording,
+  },
+  {
+    method: 'get',
+    path: '/api/session-replays/recordings/:id/',
+    alias: 'session_replay_recordings_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: SessionReplayRecording,
+  },
+  {
+    method: 'post',
+    path: '/api/session-replays/recordings/:id/chunks/',
+    alias: 'session_replay_recording_chunks_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: SessionReplayChunkCreateRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: SessionReplayChunk,
+  },
+  {
+    method: 'get',
+    path: '/api/session-replays/recordings/:id/events/',
+    alias: 'session_replay_recording_events_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: SessionReplayEventsResponse,
   },
   {
     method: 'get',

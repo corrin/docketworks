@@ -15,7 +15,7 @@
  * - Persist changes using existing services/endpoints; do not change API contracts
  */
 
-import { computed, h, onMounted, ref, nextTick } from 'vue'
+import { computed, h, onMounted, onUnmounted, ref, nextTick } from 'vue'
 import DataTable from '../DataTable.vue'
 import { Input } from '../ui/input'
 import { Button } from '../ui/button'
@@ -246,6 +246,7 @@ const {
 // Autosave
 const autosave = useCostLineAutosave({
   debounceMs: 600, // within spec 400–800ms
+  statusSource: 'smart-cost-lines',
   saveFn: async (id: string, patch: PatchedCostLineCreateUpdate) => {
     const updated = await costlineService.updateCostLine(id, patch)
     // Return the updated line so timestamps can be synced
@@ -259,6 +260,10 @@ const autosave = useCostLineAutosave({
     Object.assign(line, snap)
     toast.error('Failed to save changes. Restored previous values.')
   },
+})
+
+onUnmounted(() => {
+  autosave.clearStatus()
 })
 
 /**

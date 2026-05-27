@@ -313,6 +313,15 @@ else
     apt install -y nginx
 fi
 log_version "nginx" "$(nginx -v 2>&1)"
+
+cat > /etc/nginx/conf.d/docketworks-log-format.conf <<'EOF'
+log_format docketworks_timed_combined '$remote_addr - $remote_user [$time_local] '
+                                      '"$request" $status $body_bytes_sent '
+                                      '"$http_referer" "$http_user_agent" '
+                                      'rt=$request_time uct=$upstream_connect_time '
+                                      'uht=$upstream_header_time urt=$upstream_response_time';
+EOF
+
 # Write a safe default config before enabling — previous runs may have left
 # a config referencing SSL certs that don't exist yet
 cat > /etc/nginx/sites-available/default <<'EOF'

@@ -126,6 +126,7 @@
         "Celery Worker",
         "Celery Beat"
       ],
+      "dependsOrder": "parallel",
       "problemMatcher": []
     },
     {

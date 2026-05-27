@@ -28,6 +28,13 @@ from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
 from apps.workflow.views.data_versions_view import DataVersionsAPIView
+from apps.workflow.views.session_replay_view import (
+    SessionReplayChunkCreateView,
+    SessionReplayEventsView,
+    SessionReplayFrontendErrorView,
+    SessionReplayRecordingDetailView,
+    SessionReplayRecordingListCreateView,
+)
 from apps.workflow.views.xero import xero_view
 from apps.workflow.views.xero_apps_view import XeroAppViewSet
 from apps.workflow.views.xero_pay_item_viewset import XeroPayItemViewSet
@@ -45,6 +52,31 @@ router.register("xero-apps", XeroAppViewSet, basename="xero-app")
 urlpatterns = [
     path("build-id/", BuildIdAPIView.as_view(), name="build_id"),
     path("data-versions/", DataVersionsAPIView.as_view(), name="data_versions"),
+    path(
+        "session-replays/recordings/",
+        SessionReplayRecordingListCreateView.as_view(),
+        name="session-replay-recording-list",
+    ),
+    path(
+        "session-replays/recordings/<uuid:pk>/",
+        SessionReplayRecordingDetailView.as_view(),
+        name="session-replay-recording-detail",
+    ),
+    path(
+        "session-replays/recordings/<uuid:pk>/chunks/",
+        SessionReplayChunkCreateView.as_view(),
+        name="session-replay-chunk-create",
+    ),
+    path(
+        "session-replays/recordings/<uuid:pk>/events/",
+        SessionReplayEventsView.as_view(),
+        name="session-replay-events",
+    ),
+    path(
+        "session-replays/frontend-errors/",
+        SessionReplayFrontendErrorView.as_view(),
+        name="session-replay-frontend-error",
+    ),
     path("enums/<str:enum_name>/", get_enum_choices, name="get_enum_choices"),
     path(
         "xero/authenticate/",

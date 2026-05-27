@@ -15,6 +15,12 @@ import 'vue-sonner/style.css'
 import { useFeatureFlags } from './stores/feature-flags'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import { dataFreshness } from '@/composables/useDataFreshness'
+import {
+  flushSessionReplay,
+  reportFrontendError,
+  startSessionReplay,
+  stopSessionReplay,
+} from '@/services/sessionReplayService'
 
 const authStore = useAuthStore()
 
@@ -31,10 +37,30 @@ function refreshDataIfVisible(): void {
   })
 }
 
+function flushReplayIfHidden(): void {
+  if (document.visibilityState !== 'hidden') return
+  flushSessionReplay().catch((err) => {
+    debugLog('[App] session replay visibility flush failed:', err)
+  })
+}
+
+function flushReplayBeforeUnload(): void {
+  void flushSessionReplay()
+}
+
+function captureFrontendError(event: ErrorEvent | PromiseRejectionEvent): void {
+  reportFrontendError(event).catch((err) => {
+    debugLog('[App] frontend error replay report failed:', err)
+  })
+}
+
 onMounted(async () => {
   try {
     const isAuthenticated = await authStore.initializeAuth()
     if (isAuthenticated) {
+      await startSessionReplay().catch((err) => {
+        debugLog('[App] session replay start failed:', err)
+      })
       const companyDefaultsStore = useCompanyDefaultsStore()
       debugLog('[App] Before loading company defaults:', companyDefaultsStore.companyDefaults)
       await companyDefaultsStore.loadCompanyDefaults()
@@ -49,9 +75,20 @@ onMounted(async () => {
     debugLog('Failed to initialize auth or company defaults on app start:', error)
   }
   document.addEventListener('visibilitychange', refreshDataIfVisible)
+  document.addEventListener('visibilitychange', flushReplayIfHidden)
+  window.addEventListener('beforeunload', flushReplayBeforeUnload)
+  window.addEventListener('error', captureFrontendError)
+  window.addEventListener('unhandledrejection', captureFrontendError)
 })
 
 onUnmounted(() => {
   document.removeEventListener('visibilitychange', refreshDataIfVisible)
+  document.removeEventListener('visibilitychange', flushReplayIfHidden)
+  window.removeEventListener('beforeunload', flushReplayBeforeUnload)
+  window.removeEventListener('error', captureFrontendError)
+  window.removeEventListener('unhandledrejection', captureFrontendError)
+  stopSessionReplay().catch((err) => {
+    debugLog('[App] session replay stop failed:', err)
+  })
 })
 </script>

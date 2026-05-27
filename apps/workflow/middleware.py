@@ -1,5 +1,6 @@
 import logging
 from datetime import datetime
+from time import perf_counter
 from typing import Callable
 
 from django.conf import settings
@@ -53,6 +54,8 @@ class AccessLoggingMiddleware:
         self.get_response = get_response
 
     def __call__(self, request: HttpRequest) -> HttpResponse:
+        started_at = perf_counter()
+
         # Try to authenticate with JWT if not already authenticated
         if not request.user.is_authenticated:
             jwt_auth = JWTAuthentication()
@@ -68,19 +71,32 @@ class AccessLoggingMiddleware:
         if not request.user.is_authenticated:
             return self.get_response(request)
 
-        # Log authenticated user access
+        response = self.get_response(request)
+        duration_ms = (perf_counter() - started_at) * 1000
+
         try:
             timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             user = getattr(request.user, "email", str(request.user))
             page = request.path
             method = request.method
+            status_code = response.status_code
+            session_replay_id = request.headers.get("X-Session-Replay-Id") or "-"
 
-            access_logger.info(f"{timestamp}\t{method}\t{user}\t{page}")
+            access_logger.info(
+                "%s\tmethod=%s\tstatus=%s\tduration_ms=%.2f\treplay=%s\tuser=%s\tpath=%s",
+                timestamp,
+                method,
+                status_code,
+                duration_ms,
+                session_replay_id,
+                user,
+                page,
+            )
         except Exception as e:
             # Log any errors that occur during logging
             access_logger.error(f"Error logging access: {e}")
             persist_and_raise(e)
-        return self.get_response(request)
+        return response
 
 
 class FrontendRedirectMiddleware:

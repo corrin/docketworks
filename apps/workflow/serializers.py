@@ -12,6 +12,7 @@ from .models import (
     XeroError,
     XeroPayItem,
 )
+from .models.session_replay import SessionReplayChunk, SessionReplayRecording
 from .models.settings_metadata import COMPANY_DEFAULTS_READ_ONLY_FIELDS
 
 
@@ -454,6 +455,103 @@ class AppErrorDetailResponseSerializer(serializers.Serializer):
     resolved = serializers.BooleanField()
     resolved_by = serializers.UUIDField(allow_null=True)
     resolved_timestamp = serializers.DateTimeField(allow_null=True)
+    session_replay = serializers.UUIDField(allow_null=True)
+
+
+class SessionReplayRecordingCreateSerializer(serializers.Serializer):
+    initial_path = serializers.CharField(max_length=500)
+    viewport_width = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+    viewport_height = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+    job_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class SessionReplayRecordingSerializer(serializers.ModelSerializer):
+    user_email = serializers.EmailField(source="user.email", read_only=True)
+
+    class Meta:
+        model = SessionReplayRecording
+        fields = (
+            "id",
+            "user",
+            "user_email",
+            "started_at",
+            "last_seen_at",
+            "ended_at",
+            "initial_path",
+            "latest_path",
+            "job_id",
+            "user_agent",
+            "viewport_width",
+            "viewport_height",
+            "event_count",
+            "compressed_bytes",
+        )
+        read_only_fields = fields
+
+
+class SessionReplayListResponseSerializer(serializers.Serializer):
+    count = serializers.IntegerField()
+    next = serializers.CharField(allow_null=True, required=False)
+    previous = serializers.CharField(allow_null=True, required=False)
+    results = SessionReplayRecordingSerializer(many=True)
+
+
+class SessionReplayChunkCreateSerializer(serializers.Serializer):
+    sequence = serializers.IntegerField(min_value=0)
+    events_json = serializers.CharField()
+    first_event_timestamp_ms = serializers.IntegerField()
+    last_event_timestamp_ms = serializers.IntegerField()
+    path = serializers.CharField(max_length=500)
+    job_id = serializers.UUIDField(required=False, allow_null=True)
+    viewport_width = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+    viewport_height = serializers.IntegerField(
+        required=False, allow_null=True, min_value=1
+    )
+
+
+class SessionReplayChunkSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SessionReplayChunk
+        fields = (
+            "id",
+            "recording",
+            "sequence",
+            "created_at",
+            "first_event_timestamp_ms",
+            "last_event_timestamp_ms",
+            "event_count",
+            "compressed_bytes",
+            "path",
+            "job_id",
+            "viewport_width",
+            "viewport_height",
+        )
+        read_only_fields = fields
+
+
+class SessionReplayEventsResponseSerializer(serializers.Serializer):
+    recording = SessionReplayRecordingSerializer()
+    events = serializers.JSONField()
+
+
+class SessionReplayFrontendErrorSerializer(serializers.Serializer):
+    message = serializers.CharField()
+    stack = serializers.CharField(required=False, allow_blank=True)
+    path = serializers.CharField(max_length=500)
+    component = serializers.CharField(required=False, allow_blank=True)
+    file = serializers.CharField(required=False, allow_blank=True)
+    function = serializers.CharField(required=False, allow_blank=True)
+    session_replay_id = serializers.UUIDField(required=False, allow_null=True)
+
+
+class SessionReplayFrontendErrorResponseSerializer(serializers.Serializer):
+    id = serializers.UUIDField()
 
 
 # ---------------------------------------------------------------------------
