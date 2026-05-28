@@ -9,7 +9,7 @@ from django.db.models import QuerySet
 from django.http import HttpRequest
 
 from apps.workflow.exceptions import AlreadyLoggedException, XeroValidationError
-from apps.workflow.models import AppError, XeroError
+from apps.workflow.models import AppError, SessionReplayRecording, XeroError
 
 
 def _make_json_serializable(obj: Any) -> Any:
@@ -89,6 +89,37 @@ def persist_xero_error(exc: XeroValidationError):
     )
 
 
+def _clean_session_replay_id(
+    *,
+    session_replay_id: str | None,
+    user_id: str | None,
+    context_data: dict[str, Any],
+) -> UUID | None:
+    if not session_replay_id:
+        return None
+
+    try:
+        clean_session_replay_id = UUID(str(session_replay_id))
+    except ValueError:
+        context_data["invalid_session_replay_id"] = str(session_replay_id)
+        return None
+
+    queryset = SessionReplayRecording.objects.filter(id=clean_session_replay_id)
+    if user_id:
+        try:
+            clean_user_id = UUID(str(user_id))
+        except ValueError:
+            context_data["invalid_user_id_for_session_replay"] = str(user_id)
+            return None
+        queryset = queryset.filter(user_id=clean_user_id)
+
+    if not queryset.exists():
+        context_data["unlinked_session_replay_id"] = str(clean_session_replay_id)
+        return None
+
+    return clean_session_replay_id
+
+
 def persist_app_error(
     exception: Exception,
     app: str = None,
@@ -129,12 +160,11 @@ def persist_app_error(
             "session_replay_id"
         )
 
-    clean_session_replay_id = None
-    if session_replay_id:
-        try:
-            clean_session_replay_id = UUID(str(session_replay_id))
-        except ValueError:
-            context_data["invalid_session_replay_id"] = str(session_replay_id)
+    clean_session_replay_id = _clean_session_replay_id(
+        session_replay_id=session_replay_id,
+        user_id=user_id,
+        context_data=context_data,
+    )
 
     return AppError.objects.create(
         message=str(exception),

@@ -1,17 +1,25 @@
 import json
 from datetime import timedelta
+from pathlib import Path
 from uuid import uuid4
 
 import pytest
+from django.conf import settings
 from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.workflow.models import AppError, SessionReplayRecording
+from apps.workflow.models import AppError, SessionReplayChunk, SessionReplayRecording
+from apps.workflow.services.error_persistence import persist_app_error
 from apps.workflow.services.session_replay_service import (
     purge_old_recordings,
     recording_events,
 )
+
+
+@pytest.fixture(autouse=True)
+def session_replay_storage_root(settings, tmp_path):
+    settings.SESSION_REPLAY_STORAGE_ROOT = str(tmp_path / "session-replays")
 
 
 @pytest.fixture
@@ -71,7 +79,66 @@ def test_authenticated_staff_can_create_recording_and_upload_chunk(workshop_staf
     recording = SessionReplayRecording.objects.get(id=recording_id)
     assert recording.event_count == 2
     assert recording.compressed_bytes > 0
+    stored_chunk = SessionReplayChunk.objects.get(recording=recording)
+    chunk_path = Path(settings.SESSION_REPLAY_STORAGE_ROOT) / stored_chunk.storage_path
+    assert chunk_path.exists()
+    assert stored_chunk.sha256
+    assert not hasattr(stored_chunk, "events_gzip")
     assert recording_events(recording) == events
+
+
+def test_replay_events_fail_loudly_when_chunk_file_is_missing(workshop_staff):
+    api = _client(workshop_staff)
+    recording_id = api.post(
+        "/api/session-replays/recordings/",
+        data={"initial_path": "/kanban"},
+        format="json",
+    ).json()["id"]
+    api.post(
+        f"/api/session-replays/recordings/{recording_id}/chunks/",
+        data={
+            "sequence": 0,
+            "events_json": json.dumps([{"type": 4, "timestamp": 1}]),
+            "first_event_timestamp_ms": 1,
+            "last_event_timestamp_ms": 1,
+            "path": "/kanban",
+        },
+        format="json",
+    )
+    recording = SessionReplayRecording.objects.get(id=recording_id)
+    chunk = SessionReplayChunk.objects.get(recording=recording)
+    (Path(settings.SESSION_REPLAY_STORAGE_ROOT) / chunk.storage_path).unlink()
+
+    with pytest.raises(ValueError, match="Replay chunk file missing"):
+        recording_events(recording)
+
+
+def test_replay_events_fail_loudly_when_chunk_file_is_corrupt(workshop_staff):
+    api = _client(workshop_staff)
+    recording_id = api.post(
+        "/api/session-replays/recordings/",
+        data={"initial_path": "/kanban"},
+        format="json",
+    ).json()["id"]
+    api.post(
+        f"/api/session-replays/recordings/{recording_id}/chunks/",
+        data={
+            "sequence": 0,
+            "events_json": json.dumps([{"type": 4, "timestamp": 1}]),
+            "first_event_timestamp_ms": 1,
+            "last_event_timestamp_ms": 1,
+            "path": "/kanban",
+        },
+        format="json",
+    )
+    recording = SessionReplayRecording.objects.get(id=recording_id)
+    chunk = SessionReplayChunk.objects.get(recording=recording)
+    (Path(settings.SESSION_REPLAY_STORAGE_ROOT) / chunk.storage_path).write_bytes(
+        b"corrupt"
+    )
+
+    with pytest.raises(ValueError, match="checksum mismatch"):
+        recording_events(recording)
 
 
 def test_duplicate_chunk_sequence_is_rejected(workshop_staff):
@@ -239,6 +306,66 @@ def test_frontend_error_rejects_unknown_replay(office_staff):
     assert not AppError.objects.filter(session_replay_id=unknown_replay_id).exists()
 
 
+def test_persist_app_error_links_replay_for_matching_user(office_staff):
+    recording = SessionReplayRecording.objects.create(
+        user=office_staff,
+        initial_path="/kanban",
+        latest_path="/kanban",
+    )
+
+    error = persist_app_error(
+        RuntimeError("replay-linked failure"),
+        user_id=str(office_staff.id),
+        session_replay_id=str(recording.id),
+    )
+
+    assert error.session_replay_id == recording.id
+    assert error.data["trace"]
+
+
+def test_persist_app_error_does_not_link_replay_for_other_user(
+    office_staff, workshop_staff
+):
+    recording = SessionReplayRecording.objects.create(
+        user=workshop_staff,
+        initial_path="/kanban",
+        latest_path="/kanban",
+    )
+
+    error = persist_app_error(
+        RuntimeError("foreign replay failure"),
+        user_id=str(office_staff.id),
+        session_replay_id=str(recording.id),
+    )
+
+    assert error.session_replay_id is None
+    assert error.data["unlinked_session_replay_id"] == str(recording.id)
+
+
+def test_persist_app_error_does_not_link_unknown_replay(office_staff):
+    unknown_replay_id = uuid4()
+
+    error = persist_app_error(
+        RuntimeError("unknown replay failure"),
+        user_id=str(office_staff.id),
+        session_replay_id=str(unknown_replay_id),
+    )
+
+    assert error.session_replay_id is None
+    assert error.data["unlinked_session_replay_id"] == str(unknown_replay_id)
+
+
+def test_persist_app_error_preserves_invalid_replay_id(office_staff):
+    error = persist_app_error(
+        RuntimeError("invalid replay id failure"),
+        user_id=str(office_staff.id),
+        session_replay_id="not-a-uuid",
+    )
+
+    assert error.session_replay_id is None
+    assert error.data["invalid_session_replay_id"] == "not-a-uuid"
+
+
 def test_purge_old_recordings_deletes_cascade(office_staff):
     old = SessionReplayRecording.objects.create(
         user=office_staff,
@@ -253,9 +380,26 @@ def test_purge_old_recordings_deletes_cascade(office_staff):
     SessionReplayRecording.objects.filter(id=old.id).update(
         started_at=timezone.now() - timedelta(days=30)
     )
+    old_file = (
+        Path(settings.SESSION_REPLAY_STORAGE_ROOT) / str(old.id) / "000000.json.gz"
+    )
+    old_file.parent.mkdir(parents=True, exist_ok=True)
+    old_file.write_bytes(b"payload")
+    SessionReplayChunk.objects.create(
+        recording=old,
+        sequence=0,
+        first_event_timestamp_ms=1,
+        last_event_timestamp_ms=1,
+        event_count=1,
+        compressed_bytes=len(b"payload"),
+        storage_path=f"{old.id}/000000.json.gz",
+        sha256="sha",
+        path="/old",
+    )
 
     deleted = purge_old_recordings(retention_days=14)
 
     assert deleted >= 1
     assert not SessionReplayRecording.objects.filter(id=old.id).exists()
     assert SessionReplayRecording.objects.filter(id=current.id).exists()
+    assert not old_file.exists()
