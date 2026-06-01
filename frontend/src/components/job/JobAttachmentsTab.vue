@@ -270,6 +270,7 @@ import { formatFileSize, formatDate } from '@/utils/string-formatting'
 import type { z } from 'zod'
 import { debugLog } from '@/utils/debug'
 import axios from '@/plugins/axios'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type JobFile = z.infer<typeof schemas.JobFile> & {
   thumbnailError?: boolean
@@ -294,6 +295,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const printSettingFeedback = useSaveFeedback('job-attachment-print-setting')
 
 const emit = defineEmits<{
   'file-uploaded': [file: JobFile]
@@ -713,6 +715,7 @@ async function updatePrintSetting(file: AttachmentRow) {
   const originalValue = file.print_on_jobsheet
 
   try {
+    printSettingFeedback.saving()
     debugLog('Updating print setting for file:', {
       filename: file.filename,
       print_on_jobsheet: file.print_on_jobsheet,
@@ -728,10 +731,10 @@ async function updatePrintSetting(file: AttachmentRow) {
       throw new Error(result.error || 'Failed to update print setting')
     }
 
-    toast.success(`Print setting updated for "${file.filename}"`)
+    printSettingFeedback.saved()
   } catch (error) {
     console.error('❌ Error updating print setting:', error)
-    toast.error('Failed to update print setting')
+    printSettingFeedback.error('Failed to update print setting')
 
     // Revert the change
     file.print_on_jobsheet = originalValue

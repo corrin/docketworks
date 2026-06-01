@@ -1,9 +1,9 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { AlertCircle, CheckCircle2, Loader2 } from 'lucide-vue-next'
-import { useAutosaveStatusStore } from '@/stores/autosaveStatus'
+import { useSaveStatusStore } from '@/stores/saveStatus'
 
-const store = useAutosaveStatusStore()
+const store = useSaveStatusStore()
 
 const status = computed(() => store.aggregate)
 const isVisible = computed(() => !!status.value)
@@ -19,14 +19,20 @@ const label = computed(() => {
   if (isSaved.value) return 'Saved'
   return ''
 })
+
+const statusClass = computed(() => {
+  if (isError.value) return 'text-red-600'
+  if (isSaved.value) return 'text-emerald-600'
+  return 'text-gray-500'
+})
 </script>
 
 <template>
   <div
-    data-automation-id="AutosaveStatusIndicator"
+    data-automation-id="SaveStatusIndicator"
     aria-live="polite"
     aria-atomic="true"
-    class="hidden sm:flex min-w-[84px] items-center justify-end text-xs"
+    class="flex min-w-6 sm:min-w-[84px] items-center justify-end text-xs"
   >
     <Transition
       enter-active-class="transition-opacity duration-150"
@@ -39,12 +45,13 @@ const label = computed(() => {
       <div
         v-if="isVisible"
         class="flex items-center gap-1.5 whitespace-nowrap"
-        :class="isError ? 'text-red-600' : 'text-gray-500'"
+        :class="statusClass"
+        :aria-label="label"
       >
         <Loader2 v-if="isWorking" class="h-3.5 w-3.5 animate-spin" />
-        <CheckCircle2 v-else-if="isSaved" class="h-3.5 w-3.5 text-emerald-600" />
+        <CheckCircle2 v-else-if="isSaved" class="h-3.5 w-3.5" />
         <AlertCircle v-else-if="isError" class="h-3.5 w-3.5" />
-        <span>{{ label }}</span>
+        <span class="hidden sm:inline">{{ label }}</span>
       </div>
     </Transition>
   </div>

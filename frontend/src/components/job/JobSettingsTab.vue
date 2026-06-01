@@ -4,21 +4,6 @@
     :data-initialized="!isInitializing"
   >
     <div class="max-w-7xl mx-auto">
-      <!-- Header -->
-      <div class="mb-6 flex justify-between items-center">
-        <div class="flex items-center gap-3">
-          <span v-if="saveStatusText" class="text-xs text-gray-500">{{ saveStatusText }}</span>
-          <button
-            v-if="saveHasError"
-            type="button"
-            class="text-xs text-red-600 hover:text-red-700 underline"
-            @click="retrySave"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-
       <!-- Error Messages -->
       <div
         v-if="errorMessages.length > 0"
@@ -1678,22 +1663,4 @@ const handleFieldBlur = () => {
   // Trigger save
   void autosave.flush()
 }
-
-const retrySave = () => {
-  void autosave.flush('retry-click')
-}
-
-const saveHasError = computed(() => !!autosave.error.value)
-const saveStatusText = computed(() => {
-  if (autosave.isSaving.value) return 'Saving...'
-  if (autosave.error.value) return 'Save failed'
-  if (autosave.lastSavedAt.value) {
-    try {
-      return `Saved at ${autosave.lastSavedAt.value.toLocaleTimeString()}`
-    } catch {
-      return 'Saved'
-    }
-  }
-  return ''
-})
 </script>

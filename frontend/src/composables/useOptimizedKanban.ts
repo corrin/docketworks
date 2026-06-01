@@ -11,6 +11,7 @@ import { DEFAULT_ADVANCED_FILTERS } from '../constants/advanced-filters'
 import type { StatusChoice } from '../constants/job-status'
 import { debugLog } from '../utils/debug'
 import type { z } from 'zod'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 // Type aliases for better readability
 type KanbanJob = z.infer<typeof schemas.KanbanJob>
@@ -41,6 +42,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const router = useRouter()
   const route = useRoute()
   const jobsStore = useJobsStore()
+  const kanbanMoveFeedback = useSaveFeedback('kanban-job-move')
 
   // Global state
   const isLoading = ref(false)
@@ -784,7 +786,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         },
       })
 
+      kanbanMoveFeedback.saving()
       await jobService.reorderJob(jobId, anchorJobId, placement, status)
+      kanbanMoveFeedback.saved()
       debugLog('kanban.drag.persist.success', {
         dragId,
         jobId,
@@ -802,6 +806,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         },
       })
       error.value = err instanceof Error ? err.message : 'Failed to reorder job'
+      kanbanMoveFeedback.error('Job move failed. Change reverted.')
       restoreMoveSnapshot(snapshot)
       debugLog('kanban.drag.rollback.after', {
         dragId,

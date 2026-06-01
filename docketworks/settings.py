@@ -60,6 +60,9 @@ def validate_required_settings() -> None:
         "FRONT_END_URL",
         # Cache key isolation between instances sharing a Redis host
         "APP_DOMAIN",
+        # Session replay diagnostics
+        "SESSION_REPLAY_RETENTION_DAYS",
+        "SESSION_REPLAY_STORAGE_ROOT",
     ]
 
     # Check which variables are missing or empty
@@ -273,7 +276,22 @@ LOGIN_EXEMPT_URLS = [
 # These paths bypass browser redirect and use DRF/JWT authentication
 API_PATH_PREFIXES = ["/api/"]
 
-SESSION_REPLAY_RETENTION_DAYS = int(os.getenv("SESSION_REPLAY_RETENTION_DAYS", "14"))
+
+def require_positive_int_env(name: str) -> int:
+    raw_value = os.getenv(name)
+    try:
+        value = int(raw_value)
+    except (TypeError, ValueError) as exc:
+        raise ImproperlyConfigured(f"{name} must be a positive integer") from exc
+    if value <= 0:
+        raise ImproperlyConfigured(f"{name} must be a positive integer")
+    return value
+
+
+SESSION_REPLAY_RETENTION_DAYS = require_positive_int_env(
+    "SESSION_REPLAY_RETENTION_DAYS"
+)
+SESSION_REPLAY_STORAGE_ROOT = os.getenv("SESSION_REPLAY_STORAGE_ROOT")
 
 # For OpenAPI schema generator
 SPECTACULAR_SETTINGS = {

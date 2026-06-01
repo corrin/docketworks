@@ -8,7 +8,7 @@
 <script setup lang="ts">
 import { debugLog } from '@/utils/debug'
 
-import { onMounted, onUnmounted } from 'vue'
+import { onMounted, onUnmounted, watch } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import { Toaster } from '@/components/ui/sonner'
 import 'vue-sonner/style.css'
@@ -54,13 +54,30 @@ function captureFrontendError(event: ErrorEvent | PromiseRejectionEvent): void {
   })
 }
 
+function syncSessionReplayWithAuth(isAuthenticated: boolean): void {
+  if (isAuthenticated) {
+    startSessionReplay().catch((err) => {
+      debugLog('[App] session replay start failed:', err)
+    })
+  } else {
+    stopSessionReplay().catch((err) => {
+      debugLog('[App] session replay stop failed:', err)
+    })
+  }
+}
+
+const stopAuthReplayWatcher = watch(
+  () => authStore.isAuthenticated,
+  (isAuthenticated) => {
+    syncSessionReplayWithAuth(isAuthenticated)
+  },
+  { immediate: true },
+)
+
 onMounted(async () => {
   try {
     const isAuthenticated = await authStore.initializeAuth()
     if (isAuthenticated) {
-      await startSessionReplay().catch((err) => {
-        debugLog('[App] session replay start failed:', err)
-      })
       const companyDefaultsStore = useCompanyDefaultsStore()
       debugLog('[App] Before loading company defaults:', companyDefaultsStore.companyDefaults)
       await companyDefaultsStore.loadCompanyDefaults()
@@ -82,6 +99,7 @@ onMounted(async () => {
 })
 
 onUnmounted(() => {
+  stopAuthReplayWatcher()
   document.removeEventListener('visibilitychange', refreshDataIfVisible)
   document.removeEventListener('visibilitychange', flushReplayIfHidden)
   window.removeEventListener('beforeunload', flushReplayBeforeUnload)

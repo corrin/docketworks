@@ -32,6 +32,7 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
 import { roundToDecimalPlaces } from '@/utils/number'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 
@@ -41,6 +42,9 @@ const props = defineProps<{
 
 const stockStore = useStockStore()
 const companyDefaultsStore = useCompanyDefaultsStore()
+const materialCreateFeedback = useSaveFeedback(`workshop-material-create:${props.jobId}`, {
+  toastErrors: false,
+})
 
 const workshopLines = ref<CostLine[]>([])
 const loading = ref(false)
@@ -162,6 +166,7 @@ async function createFromDraft(selectedStockId: string) {
     const description =
       draft.value.desc?.trim() || stock.description?.trim() || stock.item_code || 'Material'
 
+    materialCreateFeedback.saving()
     const created = await costlineService.createCostLine(props.jobId, 'actual', {
       kind: 'material',
       desc: description,
@@ -175,10 +180,11 @@ async function createFromDraft(selectedStockId: string) {
 
     workshopLines.value = [...workshopLines.value, created].filter(isWorkshopLine)
 
-    toast.success('Material logged for approval')
+    materialCreateFeedback.saved()
     resetDraft('material')
   } catch (error) {
     console.error('Failed to add material line:', error)
+    materialCreateFeedback.error('Failed to add material')
     toast.error('Failed to add material')
   } finally {
     creating.value = false
@@ -215,6 +221,7 @@ async function createAdjustFromDraft(unitRevOverride?: number | null) {
     draft.value.unitCost = normalizedUnitCost
     const now = new Date().toISOString()
 
+    materialCreateFeedback.saving()
     const created = await costlineService.createCostLine(props.jobId, 'actual', {
       kind: 'adjust',
       desc: description,
@@ -226,10 +233,11 @@ async function createAdjustFromDraft(unitRevOverride?: number | null) {
     })
 
     workshopLines.value = [...workshopLines.value, created].filter(isWorkshopLine)
-    toast.success('Adjustment added')
+    materialCreateFeedback.saved()
     resetDraft('adjust')
   } catch (error) {
     console.error('Failed to add adjustment line:', error)
+    materialCreateFeedback.error('Failed to add adjustment')
     toast.error('Failed to add adjustment')
   } finally {
     creating.value = false

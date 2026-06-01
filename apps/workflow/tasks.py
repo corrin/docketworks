@@ -197,7 +197,7 @@ def purge_old_session_replays_task() -> None:
         close_old_connections()
         from apps.workflow.services.session_replay_service import purge_old_recordings
 
-        retention_days = int(getattr(settings, "SESSION_REPLAY_RETENTION_DAYS", 14))
+        retention_days = settings.SESSION_REPLAY_RETENTION_DAYS
         deleted = purge_old_recordings(retention_days=retention_days)
         scheduler_logger.info(
             "Deleted %s old session replay rows using %s day retention.",

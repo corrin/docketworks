@@ -157,7 +157,7 @@ import { schemas } from '@/api/generated/api'
 import { onPoConcurrencyRetry } from '@/composables/usePoConcurrencyEvents'
 import { openGmailCompose } from '@/utils/email'
 import type { z } from 'zod'
-import { useAutosaveStatusStore } from '@/stores/autosaveStatus'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 // Import types from generated API schemas
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
@@ -175,7 +175,6 @@ const router = useRouter()
 const orderId = route.params.id as string
 const store = usePurchaseOrderStore()
 const receiptStore = useDeliveryReceiptStore()
-const autosaveStatus = useAutosaveStatusStore()
 const originalLines = ref<PurchaseOrderLine[]>([])
 const isSyncing = ref(false)
 const showPdfDialog = ref(false)
@@ -211,23 +210,28 @@ const supplierEmailCache = ref<Record<string, string | null>>({})
 let debounceTimer: ReturnType<typeof setTimeout> | null = null
 let debounceTimerPending = false
 let activeAutosaves = 0
-const PO_AUTOSAVE_SOURCE = 'purchase-order'
+const PO_SAVE_SOURCE = 'purchase-order'
+const saveFeedback = useSaveFeedback(PO_SAVE_SOURCE)
 
-function syncPoAutosaveStatus(showSaved = true): void {
-  if (activeAutosaves > 0 || debounceTimerPending) {
-    autosaveStatus.setSource(PO_AUTOSAVE_SOURCE, 'saving')
+function syncPoSaveStatus(showSaved = true): void {
+  if (activeAutosaves > 0) {
+    saveFeedback.saving()
+    return
+  }
+  if (debounceTimerPending) {
+    saveFeedback.pending()
     return
   }
   if (showSaved) {
-    autosaveStatus.setSource(PO_AUTOSAVE_SOURCE, 'saved')
+    saveFeedback.saved()
   } else {
-    autosaveStatus.clearSource(PO_AUTOSAVE_SOURCE)
+    saveFeedback.clear()
   }
 }
 
-function markPoAutosaveError(): void {
+function markPoSaveError(): void {
   debounceTimerPending = false
-  autosaveStatus.setSource(PO_AUTOSAVE_SOURCE, 'error', 'Save failed')
+  saveFeedback.error()
 }
 
 function clearPoDebounceTimer(showSaved = false): void {
@@ -237,33 +241,33 @@ function clearPoDebounceTimer(showSaved = false): void {
   }
   debounceTimerPending = false
   if (activeAutosaves === 0) {
-    syncPoAutosaveStatus(showSaved)
+    syncPoSaveStatus(showSaved)
   }
 }
 
 function schedulePoAutosave(callback: () => void | Promise<void>, delayMs: number): void {
   clearPoDebounceTimer(false)
   debounceTimerPending = true
-  syncPoAutosaveStatus(false)
+  syncPoSaveStatus(false)
   debounceTimer = setTimeout(() => {
     debounceTimer = null
     debounceTimerPending = false
-    syncPoAutosaveStatus(false)
+    syncPoSaveStatus(false)
     void callback()
   }, delayMs)
 }
 
 async function trackPoAutosave<T>(operation: () => Promise<T>): Promise<T> {
   activeAutosaves += 1
-  syncPoAutosaveStatus(false)
+  syncPoSaveStatus(false)
   try {
     const result = await operation()
     activeAutosaves = Math.max(0, activeAutosaves - 1)
-    syncPoAutosaveStatus(true)
+    syncPoSaveStatus(true)
     return result
   } catch (error) {
     activeAutosaves = Math.max(0, activeAutosaves - 1)
-    markPoAutosaveError()
+    markPoSaveError()
     throw error
   }
 }
@@ -620,7 +624,7 @@ async function saveLines() {
         toast.error(
           `${missingPrices.length} line(s) missing price information. Please set unit cost or mark as TBC.`,
         )
-        syncPoAutosaveStatus(false)
+        syncPoSaveStatus(false)
         return
       }
     }
@@ -628,7 +632,7 @@ async function saveLines() {
 
   if (!validLines.length && !linesToDelete.value.length) {
     debugLog('No valid lines or deletes to save')
-    syncPoAutosaveStatus(false)
+    syncPoSaveStatus(false)
     return
   }
 
@@ -636,7 +640,7 @@ async function saveLines() {
 
   if (!changedLines.length && !linesToDelete.value.length) {
     debugLog('No changes detected - skipping save')
-    syncPoAutosaveStatus(false)
+    syncPoSaveStatus(false)
     return
   }
 
@@ -1033,8 +1037,9 @@ const handleReceiptSave = async (payload: {
 
   try {
     debugLog('Saving receipt for line:', lineId, 'with NEW allocations:', consolidated)
+    saveFeedback.saving()
     await receiptStore.submitDeliveryReceipt(po.value.id, request.allocations)
-    toast.success('Receipt saved')
+    saveFeedback.saved()
 
     await Promise.all([load(), loadExistingAllocations()])
     await updatePoStatusAfterReceipt()
@@ -1052,6 +1057,7 @@ const handleReceiptSave = async (payload: {
       errorMessage.includes('This purchase order was updated elsewhere')
 
     if (isConcurrencyError) {
+      saveFeedback.error('Save failed')
       // Immediately reload allocations to show latest data
       await loadExistingAllocations()
       await load()
@@ -1061,20 +1067,18 @@ const handleReceiptSave = async (payload: {
       const unsubscribe = onPoConcurrencyRetry(po.value.id, async () => {
         unsubscribe() // Clean up listener
         try {
+          saveFeedback.saving()
           await receiptStore.submitDeliveryReceipt(po.value.id, request.allocations)
-          toast.success('Receipt saved')
+          saveFeedback.saved()
           await Promise.all([load(), loadExistingAllocations()]) // Reload to show latest data
           await updatePoStatusAfterReceipt()
         } catch (retryErr) {
-          toast.error('Retry failed. Please try again.')
+          saveFeedback.error('Retry failed. Please try again.')
           debugLog('Retry failed:', retryErr)
         }
       })
     } else {
-      // Only show generic error if it's not a concurrency conflict
-      if (!errorMessage.includes('not a valid UUID') && !errorMessage.includes('validation')) {
-        toast.error('Failed to save receipt')
-      }
+      saveFeedback.error('Failed to save receipt')
     }
   }
 }
@@ -1214,6 +1218,6 @@ onMounted(async () => {
 
 onUnmounted(() => {
   clearPoDebounceTimer(false)
-  autosaveStatus.clearSource(PO_AUTOSAVE_SOURCE)
+  saveFeedback.clear()
 })
 </script>

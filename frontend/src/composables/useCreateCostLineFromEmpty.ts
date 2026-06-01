@@ -6,6 +6,7 @@ import type { z } from 'zod'
 import { debugLog } from '../utils/debug'
 import { toLocalDateString } from '../utils/dateUtils'
 import { useJobsStore } from '../stores/jobs'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CostLineCreateUpdate = z.infer<typeof schemas.CostLineCreateUpdateRequest>
@@ -26,6 +27,9 @@ export interface UseCreateCostLineFromEmptyOptions {
 export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOptions) {
   const { costLines, jobId, costSetKind, onSuccess, beforeCreate } = options
   const jobsStore = useJobsStore()
+  const saveFeedback = useSaveFeedback(`job-cost-line-create:${costSetKind}:${jobId}`, {
+    toastErrors: false,
+  })
 
   /**
    * Create a cost line from an empty line that meets baseline criteria
@@ -39,6 +43,7 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
     debugLog(`Creating cost line from empty line (${costSetKind}):`, line)
 
     try {
+      saveFeedback.saving()
       const accountingDate = toLocalDateString()
       const jobHeader = jobsStore.headersById[jobId]
       const createPayload: CostLineCreateUpdate = {
@@ -64,7 +69,7 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
         costLines.value.push(created as CostLine)
       }
 
-      toast.success('Cost line created!')
+      saveFeedback.saved()
       debugLog('Successfully created cost line:', created)
 
       // Call success callback if provided
@@ -75,6 +80,7 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
       return created
     } catch (error) {
       console.error('Failed to create cost line:', error)
+      saveFeedback.error('Failed to create cost line')
       toast.error('Failed to create cost line')
       throw error
     }

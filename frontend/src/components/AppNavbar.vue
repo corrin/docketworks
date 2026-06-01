@@ -405,7 +405,7 @@
       </div>
 
       <div class="flex items-center space-x-3">
-        <AutosaveStatusIndicator />
+        <SaveStatusIndicator />
         <WorkshopOfficeToggle />
 
         <div class="hidden md:flex lg:hidden items-center space-x-2">
@@ -920,7 +920,7 @@ import { useAppLayout } from '@/composables/useAppLayout'
 import { adminPages, adminExternalLinks } from '@/config/adminPages'
 import { useProcessDocumentsStore } from '@/stores/processDocuments'
 import WorkshopOfficeToggle from '@/components/board/WorkshopOfficeToggle.vue'
-import AutosaveStatusIndicator from '@/components/shared/AutosaveStatusIndicator.vue'
+import SaveStatusIndicator from '@/components/shared/SaveStatusIndicator.vue'
 
 const router = useRouter()
 const route = useRoute()

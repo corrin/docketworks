@@ -12,6 +12,7 @@ const {
   reorderJob,
   performAdvancedSearch,
   checkFreshness,
+  saveFeedback,
   kanbanColumnCache,
   kanbanJobsById,
 } = vi.hoisted(() => ({
@@ -24,6 +25,13 @@ const {
   reorderJob: vi.fn(),
   performAdvancedSearch: vi.fn(),
   checkFreshness: vi.fn(),
+  saveFeedback: {
+    pending: vi.fn(),
+    saving: vi.fn(),
+    saved: vi.fn(),
+    error: vi.fn(),
+    clear: vi.fn(),
+  },
   kanbanColumnCache: new Map<string, unknown>(),
   kanbanJobsById: new Map<string, Record<string, unknown>>(),
 }))
@@ -151,6 +159,10 @@ vi.mock('@/api/generated/api', () => ({
 
 vi.mock('@/utils/debug', () => ({
   debugLog: vi.fn(),
+}))
+
+vi.mock('@/composables/useSaveFeedback', () => ({
+  useSaveFeedback: () => saveFeedback,
 }))
 
 import { useOptimizedKanban } from '../useOptimizedKanban'
@@ -547,9 +559,12 @@ describe('useOptimizedKanban search reconciliation', () => {
       'job-2',
       'job-1',
     ])
+    expect(saveFeedback.saving).toHaveBeenCalled()
 
     pendingReorder.resolve({ success: true })
     await reorderPromise
+
+    expect(saveFeedback.saved).toHaveBeenCalled()
   })
 
   it('moves a cross-column reorder locally and updates filtered status before persistence completes', async () => {
@@ -598,6 +613,7 @@ describe('useOptimizedKanban search reconciliation', () => {
 
     expect(kanban.getJobsByStatus.value('in_progress').map((job) => job.id)).toEqual(['job-1'])
     expect(kanban.getJobsByStatus.value('draft').map((job) => job.id)).toEqual([])
+    expect(saveFeedback.error).toHaveBeenCalledWith('Job move failed. Change reverted.')
     expect(getJobsByColumn).toHaveBeenCalledTimes(5)
     expect(debugLog).toHaveBeenCalledWith(
       'kanban.drag.rollback.revalidate',

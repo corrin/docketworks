@@ -56,6 +56,10 @@ GCP_CREDENTIALS=__GCP_CREDENTIALS_PATH__
 # Dropbox Integration (per-instance local storage for job files)
 DROPBOX_WORKFLOW_FOLDER=/opt/docketworks/instances/__INSTANCE__/dropbox
 
+# Session replay diagnostics
+SESSION_REPLAY_RETENTION_DAYS=30
+SESSION_REPLAY_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/session-replays
+
 # Instance-specific paths
 MEDIA_ROOT=/opt/docketworks/instances/__INSTANCE__/mediafiles
 LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs

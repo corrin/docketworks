@@ -17,6 +17,31 @@ let sequence = 0
 let bufferedEvents: eventWithTime[] = []
 let isFlushing = false
 
+function responseStatus(error: unknown): number | null {
+  if (typeof error !== 'object' || error === null || !('response' in error)) return null
+  const response = (error as { response?: { status?: unknown } }).response
+  return typeof response?.status === 'number' ? response.status : null
+}
+
+function isTerminalReplayUploadFailure(error: unknown): boolean {
+  const status = responseStatus(error)
+  return status === 401 || status === 403 || status === 404 || status === 409
+}
+
+function discardRecordingState(): void {
+  if (flushTimer !== null) {
+    window.clearInterval(flushTimer)
+    flushTimer = null
+  }
+  if (stopRecording) {
+    stopRecording()
+    stopRecording = null
+  }
+  setSessionReplayId(null)
+  sequence = 0
+  bufferedEvents = []
+}
+
 function currentPath(): string {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`
 }
@@ -104,6 +129,15 @@ export async function flushSessionReplay(): Promise<void> {
     )
     sequence += 1
   } catch (error) {
+    if (isTerminalReplayUploadFailure(error)) {
+      debugLog('[sessionReplay] discarding terminal replay upload failure:', error)
+      if (responseStatus(error) === 409) {
+        sequence += 1
+        return
+      }
+      discardRecordingState()
+      return
+    }
     bufferedEvents = [...events, ...bufferedEvents]
     throw error
   } finally {
@@ -123,9 +157,7 @@ export async function stopSessionReplay(): Promise<void> {
   try {
     await flushSessionReplay()
   } finally {
-    setSessionReplayId(null)
-    sequence = 0
-    bufferedEvents = []
+    discardRecordingState()
   }
 }
 
