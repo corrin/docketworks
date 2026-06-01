@@ -16,5 +16,16 @@
     },
     "python.useEnvironmentsExtension": false,
     "python.analysis.typeCheckingMode": "off",
-    "python.analysis.autoImportCompletions": true
+    "python.analysis.autoImportCompletions": true,
+    "terminal.integrated.profiles.linux": {
+        "bash tmux": {
+            "path": "bash",
+            "args": [
+                "-l",
+                "-c",
+                "tmux attach || tmux new"
+            ]
+        }
+    },
+    "terminal.integrated.defaultProfile.linux": "bash tmux"
 }

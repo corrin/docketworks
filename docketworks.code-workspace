@@ -29,7 +29,18 @@
     "[javascript]": {
       "editor.defaultFormatter": "esbenp.prettier-vscode",
       "editor.formatOnSave": true
-    }
+    },
+    "terminal.integrated.profiles.linux": {
+      "bash tmux": {
+        "path": "bash",
+        "args": [
+          "-l",
+          "-c",
+          "tmux attach || tmux new"
+        ]
+      }
+    },
+    "terminal.integrated.defaultProfile.linux": "bash tmux"
   },
   "extensions": {
     "recommendations": [
