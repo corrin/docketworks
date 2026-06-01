@@ -55,10 +55,13 @@ The backend (Django) is in the repo root. The frontend and backend are in the sa
 23. Handle 412/428: reload data + notify user
 24. Respect autosave's 500ms debounce
 25. Optimistic updates must have rollback
+26. Core editor persistence uses `useSaveFeedback`: debounced field saves, blur/inline edit saves, autosave queues, drag/drop persistence, and job/PO/timesheet mutations that users experience as saving the current editor.
+27. Do not use save feedback for non-editor commands: create invoice, generate PDF, upload/delete files, submit forms, admin actions, or external sync. Those keep command-specific loading/success/error UI.
+28. Direct `useSaveStatusStore` imports are allowed only in the save feedback helper, the global indicator, and tests.
 
 ### Error Handling
 
-26. Every `console.error` must toast or throw — never silent failures
+29. Every `console.error` must toast or throw — never silent failures
 
 ---
 

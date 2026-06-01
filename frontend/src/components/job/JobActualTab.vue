@@ -474,6 +474,7 @@ import { Card, CardHeader, CardFooter, CardContent, CardDescription, CardTitle }
 import { Input } from '../ui/input'
 import { ExternalLink, Trash2 } from 'lucide-vue-next'
 import { Badge } from '../ui/badge'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CostSet = z.infer<typeof schemas.CostSet>
@@ -528,6 +529,9 @@ const props = defineProps<{
   fullyInvoiced: boolean
   paid?: boolean
 }>()
+const jobActualSaveFeedback = useSaveFeedback(`job-actual:${props.jobId}`, {
+  toastErrors: false,
+})
 
 const emit = defineEmits<{
   'cost-line-changed': []
@@ -812,7 +816,7 @@ async function consumeStockForNewLine(payload: {
   if (!props.jobId) return
 
   try {
-    toast.info('Consuming stock...', { id: 'consume-stock' })
+    jobActualSaveFeedback.saving()
 
     const normalizedUnitCost = normalizeOptionalDecimal(payload.unitCost, {
       decimalPlaces: 2,
@@ -846,7 +850,7 @@ async function consumeStockForNewLine(payload: {
 
     debugLog('[CONSUME-STOCK] New array: ', costLines.value, ' Received line: ', response.line)
 
-    toast.success('Stock consumed successfully!')
+    jobActualSaveFeedback.saved()
     emit('cost-line-changed')
 
     // Refresh stock data and check if resulted in negative
@@ -858,6 +862,7 @@ async function consumeStockForNewLine(payload: {
 
     checkAndUpdateNegativeStocks()
   } catch (error) {
+    jobActualSaveFeedback.error('Failed to consume stock.')
     toast.error('Failed to consume stock.')
     console.error('Failed to consume stock:', error)
     throw error // To prevent unblocking in table
@@ -869,7 +874,7 @@ async function handleCreateLine(line: CostLine) {
   if (line.kind === 'adjust') {
     // For adjustments, create via service as in EstimateTab
     isLoading.value = true
-    toast.info('Creating adjustment...', { id: 'create-adjust' })
+    jobActualSaveFeedback.saving()
     try {
       const createPayload = {
         kind: 'adjust' as const,
@@ -892,14 +897,14 @@ async function handleCreateLine(line: CostLine) {
       } else {
         costLines.value.push(created)
       }
-      toast.success('Adjustment added!')
+      jobActualSaveFeedback.saved()
       emit('cost-line-changed')
     } catch (error) {
+      jobActualSaveFeedback.error('Failed to create adjustment.')
       toast.error('Failed to create adjustment.')
       console.error('Failed to create adjustment:', error)
     } finally {
       isLoading.value = false
-      toast.dismiss('create-adjust')
     }
   }
   // For material, table already handled consumption, so no-op or reload

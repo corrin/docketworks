@@ -478,8 +478,10 @@ import {
   type WorkshopScheduleResponse,
 } from '@/services/workshop-schedule.service'
 import { jobService } from '@/services/job.service'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 const router = useRouter()
+const scheduleEditFeedback = useSaveFeedback('workshop-schedule-job-edit')
 
 const schedule = ref<WorkshopScheduleResponse | null>(null)
 const workshopStaff = ref<Staff[]>([])
@@ -855,6 +857,8 @@ async function patchJobHeader(
     return false
   }
   saving.value = true
+  scheduleEditFeedback.saving()
+  let jobWasUpdated = false
   try {
     const result = await jobService.updateJobHeaderPartial(
       selectedJob.value.id,
@@ -862,16 +866,22 @@ async function patchJobHeader(
       beforeSnapshot,
     )
     if (!result.success) {
-      toast.error(result.error || 'Failed to update job')
+      scheduleEditFeedback.error(result.error || 'Failed to update job')
       return false
     } else {
       // explicit no-op; success path continues below
     }
+    jobWasUpdated = true
+    scheduleEditFeedback.saved()
     await recalculateAfterEdit()
     return true
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Failed to update job'
-    toast.error(msg)
+    if (!jobWasUpdated) {
+      scheduleEditFeedback.error(msg)
+    } else {
+      // recalculateAfterEdit already surfaces refresh failures.
+    }
     return false
   } finally {
     saving.value = false

@@ -4,6 +4,7 @@ import { costlineService } from '../services/costline.service'
 import { schemas } from '../api/generated/api'
 import type { z } from 'zod'
 import { toLocalDateString } from '../utils/dateUtils'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CostLineCreateUpdate = z.infer<typeof schemas.CostLineCreateUpdateRequest>
@@ -24,6 +25,9 @@ export interface UseAddMaterialCostLineOptions {
 
 export function useAddMaterialCostLine(options: UseAddMaterialCostLineOptions) {
   const { costLines, jobId, costSetKind, isLoading, beforeAdd, onSuccess } = options
+  const saveFeedback = useSaveFeedback(`job-material-create:${costSetKind}:${jobId}`, {
+    toastErrors: false,
+  })
 
   /**
    * Add a material cost line
@@ -38,7 +42,7 @@ export function useAddMaterialCostLine(options: UseAddMaterialCostLineOptions) {
     if (!payload || payload.kind !== 'material') return
 
     if (isLoading) isLoading.value = true
-    toast.info('Adding material cost line...', { id: 'add-material' })
+    saveFeedback.saving()
 
     try {
       const accountingDate = toLocalDateString()
@@ -58,7 +62,7 @@ export function useAddMaterialCostLine(options: UseAddMaterialCostLineOptions) {
       // Add to cost lines array
       costLines.value = [...costLines.value, created as CostLine]
 
-      toast.success('Material cost line added!')
+      saveFeedback.saved()
 
       // Call success callback if provided
       if (onSuccess) {
@@ -67,12 +71,12 @@ export function useAddMaterialCostLine(options: UseAddMaterialCostLineOptions) {
 
       return created
     } catch (error) {
+      saveFeedback.error('Failed to add material cost line.')
       toast.error('Failed to add material cost line.')
       console.error('Failed to add material:', error)
       throw error
     } finally {
       if (isLoading) isLoading.value = false
-      toast.dismiss('add-material')
     }
   }
 

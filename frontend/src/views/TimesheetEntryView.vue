@@ -587,6 +587,7 @@ import { z } from 'zod'
 import { debugLog } from '@/utils/debug'
 import { toLocalDateString } from '@/utils/dateUtils'
 import { extractErrorMessage, logError } from '@/utils/error-handler'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type ModernTimesheetJob = z.infer<typeof schemas.ModernTimesheetJob>
 type Staff = z.infer<typeof schemas.ModernStaff>
@@ -617,6 +618,9 @@ const router = useRouter()
 const route = useRoute()
 const timesheetStore = useTimesheetStore()
 const companyDefaultsStore = useCompanyDefaultsStore()
+const createEntrySaveFeedback = useSaveFeedback('timesheet-entry-create', {
+  toastErrors: false,
+})
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -974,6 +978,7 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
   debugLog('[handleCreateEntry] POST payload:', payload, 'jobId:', job.id)
   let savedSuccessfully = false
   createPending.value = true
+  createEntrySaveFeedback.saving()
   try {
     const saved = await costlineService.createCostLine(job.id, 'actual', payload)
     // Reload to get the canonical row (with id, total_cost, etc) from the backend
@@ -987,7 +992,7 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
       await loadTimesheetData()
     }
     savedSuccessfully = true
-    toast.success('Entry saved')
+    createEntrySaveFeedback.saved()
   } catch (err) {
     // Log the request payload + the response body so the validation rejection
     // is visible without DevTools network round-trips.
@@ -1001,6 +1006,7 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
       responseStatus: responseBody?.status,
       responseBody: responseBody?.data,
     })
+    createEntrySaveFeedback.error(`Failed to save entry: ${extractErrorMessage(err)}`)
     toast.error(`Failed to save entry: ${extractErrorMessage(err)}`)
   } finally {
     createPending.value = false

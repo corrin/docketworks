@@ -18,7 +18,7 @@
 
 import type { z } from 'zod'
 import { schemas } from '../api/generated/api'
-import { useAutosaveStatusStore } from '@/stores/autosaveStatus'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 // Extend CostLine type to include timestamp fields (to be added to backend schema)
 type CostLine = z.infer<typeof schemas.CostLine> & {
@@ -51,8 +51,8 @@ interface Options {
 
 export function useCostLineAutosave(opts: Options) {
   const debounceMs = opts.debounceMs ?? 600
-  const autosaveStatus = useAutosaveStatusStore()
   const statusSource = opts.statusSource ?? 'cost-lines'
+  const saveFeedback = useSaveFeedback(statusSource)
 
   // Per-line timers and states
   const timers = new WeakMap<CostLine, number>()
@@ -69,17 +69,22 @@ export function useCostLineAutosave(opts: Options) {
   }
 
   function syncGlobalStatus(): void {
-    if (savingLineIds.size > 0 || pendingLineIds.size > 0) {
-      autosaveStatus.setSource(statusSource, 'saving')
+    if (savingLineIds.size > 0) {
+      saveFeedback.saving()
+      return
+    }
+
+    if (pendingLineIds.size > 0) {
+      saveFeedback.pending()
       return
     }
 
     if (errorLineIds.size > 0) {
-      autosaveStatus.setSource(statusSource, 'error', 'Save failed')
+      saveFeedback.error()
       return
     }
 
-    autosaveStatus.setSource(statusSource, 'saved')
+    saveFeedback.saved()
   }
 
   async function runSave(line: CostLine, fallbackPatch: PatchedCostLineCreateUpdate) {
@@ -115,11 +120,7 @@ export function useCostLineAutosave(opts: Options) {
       const errorMsg = (e as Error)?.message || 'Save failed'
       lastError.set(line, errorMsg)
       errorLineIds.add(key)
-      autosaveStatus.setSource(statusSource, 'error', 'Save failed')
-
-      // Show error notification
-      const { toast } = await import('vue-sonner')
-      toast.error(`Save failed: ${errorMsg}`, { duration: 4000 })
+      saveFeedback.error()
 
       // Rollback optimistic patch
       const snap = prevSnapshot.get(line)
@@ -164,7 +165,7 @@ export function useCostLineAutosave(opts: Options) {
     if (pendingLineIds.size > 0 || savingLineIds.size > 0 || errorLineIds.size > 0) {
       syncGlobalStatus()
     } else {
-      autosaveStatus.clearSource(statusSource)
+      saveFeedback.clear()
     }
   }
 
@@ -272,6 +273,6 @@ export function useCostLineAutosave(opts: Options) {
     // State readers
     getStatus,
     getError,
-    clearStatus: () => autosaveStatus.clearSource(statusSource),
+    clearStatus: saveFeedback.clear,
   }
 }
