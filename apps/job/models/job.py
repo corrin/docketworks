@@ -404,12 +404,8 @@ class Job(models.Model):
             return False
         from apps.client.models import Client
 
-        try:
-            shop_client_id = Client.get_shop_client_id()
-            return str(self.client_id) == shop_client_id
-        except (ValueError, RuntimeError):
-            # shop_client_name not configured - can't determine
-            return False
+        shop_client_id = Client.get_shop_client_id()
+        return str(self.client_id) == shop_client_id
 
     @shop_job.setter
     def shop_job(self, value: bool) -> None:

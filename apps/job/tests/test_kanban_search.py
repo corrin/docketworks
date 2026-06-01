@@ -20,6 +20,7 @@ class KanbanSearchTest(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
+        self.shop_client = self._make_client("Demo Company Shop")
         self.job_number = 9000
 
     def _make_client(self, name: str) -> Client:

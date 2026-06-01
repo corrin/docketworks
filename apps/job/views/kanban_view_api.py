@@ -4,7 +4,6 @@ All business logic delegated to KanbanService.
 """
 
 import logging
-import traceback
 from uuid import UUID
 
 from drf_spectacular.utils import OpenApiParameter, extend_schema
@@ -28,8 +27,16 @@ from apps.job.serializers import (
     KanbanSuccessResponseSerializer,
 )
 from apps.job.services.kanban_service import KanbanService
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
+
+
+def _persist_unexpected_error(exc: Exception) -> None:
+    if isinstance(exc, AlreadyLoggedException):
+        return
+    persist_app_error(exc)
 
 
 class FetchAllJobsAPIView(APIView):
@@ -65,8 +72,8 @@ class FetchAllJobsAPIView(APIView):
             success_serializer.is_valid(raise_exception=True)
             return Response(success_serializer.data)
         except Exception as e:
-            tb = traceback.format_exc()
-            logger.error(f"Error fetching all jobs: {e}\n{tb}")
+            _persist_unexpected_error(e)
+            logger.exception("Error fetching all jobs")
 
             error_response = {
                 "success": False,
@@ -144,7 +151,8 @@ class UpdateJobStatusAPIView(APIView):
             return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
 
         except Exception as e:
-            logger.error(f"Error updating job status: {e}")
+            _persist_unexpected_error(e)
+            logger.exception("Error updating job status")
             error_response = {"success": False, "error": str(e)}
             error_serializer = KanbanErrorResponseSerializer(data=error_response)
             error_serializer.is_valid(raise_exception=True)
@@ -231,7 +239,8 @@ class ReorderJobAPIView(APIView):
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
 
         except Exception as e:
-            logger.error(f"Error reordering job: {e}")
+            _persist_unexpected_error(e)
+            logger.exception("Error reordering job")
             error_response = {"success": False, "error": str(e)}
             error_serializer = KanbanErrorResponseSerializer(data=error_response)
             error_serializer.is_valid(raise_exception=True)
@@ -269,7 +278,8 @@ class FetchJobsAPIView(APIView):
             return Response(success_serializer.data)
 
         except Exception as e:
-            logger.error(f"Error fetching jobs by status {status}: {e}")
+            _persist_unexpected_error(e)
+            logger.exception("Error fetching jobs by status %s", status)
             error_response = {
                 "success": False,
                 "error": str(e),
@@ -299,7 +309,8 @@ class FetchStatusValuesAPIView(APIView):
             return Response(success_serializer.data)
 
         except Exception as e:
-            logger.error(f"Error fetching status values: {e}")
+            _persist_unexpected_error(e)
+            logger.exception("Error fetching status values")
             error_response = {
                 "success": False,
                 "error": str(e),
@@ -466,7 +477,8 @@ class AdvancedSearchAPIView(APIView):
             return Response(success_serializer.data)
 
         except Exception as e:
-            logger.error(f"Error in advanced search: {e}")
+            _persist_unexpected_error(e)
+            logger.exception("Error in advanced search")
             error_response = {
                 "success": False,
                 "error": str(e),
@@ -517,7 +529,8 @@ class FetchJobsByColumnAPIView(APIView):
             error_serializer.is_valid(raise_exception=True)
             return Response(error_serializer.data, status=status.HTTP_400_BAD_REQUEST)
         except Exception as e:
-            logger.error(f"Error fetching jobs for column {column_id}: {e}")
+            _persist_unexpected_error(e)
+            logger.exception("Error fetching jobs for column %s", column_id)
             error_response = {
                 "success": False,
                 "error": str(e),

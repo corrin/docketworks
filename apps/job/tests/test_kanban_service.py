@@ -20,6 +20,10 @@ class TestSerializeJobForApi(BaseTestCase):
             name="Test Client",
             xero_last_modified=timezone.now(),
         )
+        self.shop_client = Client.objects.create(
+            name="Demo Company Shop",
+            xero_last_modified=timezone.now(),
+        )
 
     def _create_job(self, pricing_methodology="time_materials"):
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
@@ -131,12 +135,8 @@ class TestSerializeJobForApi(BaseTestCase):
         self.assertEqual(relation_queries, [])
 
     def test_serialize_jobs_for_api_resolves_shop_client_once_for_batch(self):
-        shop_client = Client.objects.create(
-            name="Demo Company Shop",
-            xero_last_modified=timezone.now(),
-        )
         shop_job = Job(
-            client=shop_client,
+            client=self.shop_client,
             name="Shop Job",
             pricing_methodology="time_materials",
         )
@@ -174,3 +174,30 @@ class TestSerializeJobForApi(BaseTestCase):
             {job["name"]: job["shop_job"] for job in serialized},
             {"Shop Job": True, "Test Job": False},
         )
+
+    def test_serialize_job_for_api_resolves_shop_client_when_called_directly(self):
+        shop_job = Job(
+            client=self.shop_client,
+            name="Shop Job",
+            pricing_methodology="time_materials",
+        )
+        shop_job.save(staff=self.test_staff)
+        self._set_summary_revenue(shop_job.latest_actual, Decimal("0.00"))
+        self._set_summary_revenue(shop_job.latest_quote, Decimal("0.00"))
+
+        serialized = KanbanService.serialize_job_for_api(shop_job)
+
+        self.assertTrue(serialized["shop_job"])
+
+    def test_shop_client_misconfiguration_raises_instead_of_fail_open(self):
+        self.shop_client.delete()
+        job = self._create_job()
+        self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
+        self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
+
+        with self.assertRaises(ValueError):
+            KanbanService.serialize_jobs_for_api([job])
+        with self.assertRaises(ValueError):
+            KanbanService.serialize_job_for_api(job)
+        with self.assertRaises(ValueError):
+            _ = job.shop_job

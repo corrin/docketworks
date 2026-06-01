@@ -505,11 +505,8 @@ class KanbanService:
         return {"statuses": status_choices, "tooltips": status_tooltips}
 
     @staticmethod
-    def _get_shop_client_id_for_kanban() -> Optional[str]:
-        try:
-            return Client.get_shop_client_id()
-        except (ValueError, RuntimeError):
-            return None
+    def _get_shop_client_id_for_kanban() -> str:
+        return Client.get_shop_client_id()
 
     @staticmethod
     def serialize_jobs_for_api(
@@ -543,6 +540,9 @@ class KanbanService:
         Returns:
             Dictionary representation of the job
         """
+        if shop_client_id is None and job.client_id:
+            shop_client_id = KanbanService._get_shop_client_id_for_kanban()
+
         # Get badge info
         badge_info = KanbanCategorizationService.get_badge_info(job.status)
 
@@ -591,11 +591,7 @@ class KanbanService:
                 job.delivery_date.isoformat() if job.delivery_date else None
             ),
             "priority": job.priority,
-            "shop_job": (
-                bool(job.client_id)
-                and shop_client_id is not None
-                and str(job.client_id) == shop_client_id
-            ),
+            "shop_job": (bool(job.client_id) and str(job.client_id) == shop_client_id),
             "over_budget": over_budget,
             "quote_revenue": quote_revenue,
             "time_and_materials_revenue": time_and_materials_revenue,
@@ -1031,15 +1027,9 @@ class KanbanService:
                 "has_more": total_count > len(formatted_jobs),
             }
 
-        except Exception as e:
-            logger.error(f"Error getting jobs for column {column_id}: {e}")
-            return {
-                "success": False,
-                "error": str(e),
-                "jobs": [],
-                "total": 0,
-                "filtered_count": 0,
-            }
+        except Exception:
+            logger.exception("Error getting jobs for column %s", column_id)
+            raise
 
     @staticmethod
     def filter_kanban_jobs(jobs_query):
