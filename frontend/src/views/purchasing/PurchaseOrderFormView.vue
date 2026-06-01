@@ -1074,16 +1074,11 @@ const handleReceiptSave = async (payload: {
           await updatePoStatusAfterReceipt()
         } catch (retryErr) {
           saveFeedback.error('Retry failed. Please try again.')
-          toast.error('Retry failed. Please try again.')
           debugLog('Retry failed:', retryErr)
         }
       })
     } else {
       saveFeedback.error('Failed to save receipt')
-      // Only show generic error if it's not a concurrency conflict
-      if (!errorMessage.includes('not a valid UUID') && !errorMessage.includes('validation')) {
-        toast.error('Failed to save receipt')
-      }
     }
   }
 }
