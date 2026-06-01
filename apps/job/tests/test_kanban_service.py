@@ -129,3 +129,48 @@ class TestSerializeJobForApi(BaseTestCase):
             )
         ]
         self.assertEqual(relation_queries, [])
+
+    def test_serialize_jobs_for_api_resolves_shop_client_once_for_batch(self):
+        shop_client = Client.objects.create(
+            name="Demo Company Shop",
+            xero_last_modified=timezone.now(),
+        )
+        shop_job = Job(
+            client=shop_client,
+            name="Shop Job",
+            pricing_methodology="time_materials",
+        )
+        shop_job.save(staff=self.test_staff)
+        self._set_summary_revenue(shop_job.latest_actual, Decimal("0.00"))
+        self._set_summary_revenue(shop_job.latest_quote, Decimal("0.00"))
+
+        work_job = self._create_job()
+        self._set_summary_revenue(work_job.latest_actual, Decimal("900.00"))
+        self._set_summary_revenue(work_job.latest_quote, Decimal("500.00"))
+
+        jobs = list(
+            Job.objects.filter(id__in=[shop_job.id, work_job.id])
+            .select_related(
+                "client",
+                "contact",
+                "created_by",
+                "latest_quote",
+                "latest_actual",
+            )
+            .prefetch_related("people")
+            .order_by("name")
+        )
+
+        with CaptureQueriesContext(connection) as captured:
+            serialized = KanbanService.serialize_jobs_for_api(jobs)
+
+        shop_client_queries = [
+            query["sql"]
+            for query in captured
+            if "client_client" in query["sql"] and "Demo Company Shop" in query["sql"]
+        ]
+        self.assertLessEqual(len(shop_client_queries), 2)
+        self.assertEqual(
+            {job["name"]: job["shop_job"] for job in serialized},
+            {"Shop Job": True, "Test Job": False},
+        )

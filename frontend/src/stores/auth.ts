@@ -82,6 +82,9 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   const checkSession = async (): Promise<SessionCheckStatus> => {
+    if (user.value && hasCheckedSession.value) {
+      return 'authenticated'
+    }
     if (!sessionCheckInFlight) {
       sessionCheckInFlight = checkSessionOnce().finally(() => {
         sessionCheckInFlight = null
@@ -111,6 +114,8 @@ export const useAuthStore = defineStore('auth', () => {
 
       const userResponse = await api.accounts_me_retrieve()
       user.value = userResponse
+      hasCheckedSession.value = true
+      sessionCheckError.value = null
 
       return true
     } catch (err: unknown) {

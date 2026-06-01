@@ -31,6 +31,7 @@ from django.db.models.functions import Cast, Coalesce, Greatest
 from django.http import HttpRequest
 
 from apps.accounting.models import Invoice
+from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
 from apps.workflow.utils import is_valid_invoice_number, is_valid_uuid
@@ -504,7 +505,34 @@ class KanbanService:
         return {"statuses": status_choices, "tooltips": status_tooltips}
 
     @staticmethod
-    def serialize_job_for_api(job: Job, request: HttpRequest = None) -> Dict[str, Any]:
+    def _get_shop_client_id_for_kanban() -> Optional[str]:
+        try:
+            return Client.get_shop_client_id()
+        except (ValueError, RuntimeError):
+            return None
+
+    @staticmethod
+    def serialize_jobs_for_api(
+        jobs: Union[QuerySet[Job], List[Job], Tuple[Job, ...]],
+        request: HttpRequest = None,
+    ) -> List[Dict[str, Any]]:
+        """Serialize a Kanban job list with per-response context."""
+        shop_client_id = KanbanService._get_shop_client_id_for_kanban()
+        return [
+            KanbanService.serialize_job_for_api(
+                job,
+                request=request,
+                shop_client_id=shop_client_id,
+            )
+            for job in jobs
+        ]
+
+    @staticmethod
+    def serialize_job_for_api(
+        job: Job,
+        request: HttpRequest = None,
+        shop_client_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
         """
         Serialize a job object for API response.
 
@@ -563,7 +591,11 @@ class KanbanService:
                 job.delivery_date.isoformat() if job.delivery_date else None
             ),
             "priority": job.priority,
-            "shop_job": job.shop_job,
+            "shop_job": (
+                bool(job.client_id)
+                and shop_client_id is not None
+                and str(job.client_id) == shop_client_id
+            ),
             "over_budget": over_budget,
             "quote_revenue": quote_revenue,
             "time_and_materials_revenue": time_and_materials_revenue,
@@ -986,7 +1018,7 @@ class KanbanService:
             )
 
             # Format jobs using the unified serializer
-            formatted_jobs = [KanbanService.serialize_job_for_api(job) for job in jobs]
+            formatted_jobs = KanbanService.serialize_jobs_for_api(jobs)
             logger.debug(
                 f"Formatted jobs for column {column_id}: {[job['job_number'] for job in formatted_jobs]}"
             )

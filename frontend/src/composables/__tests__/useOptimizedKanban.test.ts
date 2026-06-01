@@ -254,6 +254,21 @@ describe('useOptimizedKanban search reconciliation', () => {
     vi.useRealTimers()
   })
 
+  it('starts loading columns during setup before mounted work settles', () => {
+    const Harness = defineComponent({
+      setup() {
+        useOptimizedKanban()
+        return () => null
+      },
+    })
+
+    mount(Harness)
+
+    expect(getJobsByColumn).toHaveBeenCalledWith('draft')
+    expect(getJobsByColumn).toHaveBeenCalledWith('in_progress')
+    expect(getJobsByColumn).toHaveBeenCalledWith('archived')
+  })
+
   it('hydrates cached columns without refetching them', async () => {
     const cachedJob = buildKanbanJob()
     kanbanJobsById.set(cachedJob.id, cachedJob)
