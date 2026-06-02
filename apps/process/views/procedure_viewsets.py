@@ -104,11 +104,8 @@ class ProcedureViewSet(
             return ProcedureUpdateSerializer
         return ProcedureDetailSerializer
 
-    def _get_category(self):
-        return self.kwargs.get("category", "")
-
     def get_queryset(self):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         qs = _apply_category_filter(
             Procedure.objects.all(), PROCEDURE_CATEGORIES, category
         )
@@ -132,7 +129,7 @@ class ProcedureViewSet(
         ]
     )
     def list(self, request, *args, **kwargs):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         if category not in PROCEDURE_CATEGORIES:
             return Response(
                 {"error": f"Unknown procedure category: {category}"},
@@ -141,7 +138,7 @@ class ProcedureViewSet(
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         if category not in PROCEDURE_CATEGORIES:
             return Response(
                 {"error": f"Unknown procedure category: {category}"},
@@ -154,7 +151,7 @@ class ProcedureViewSet(
         responses={201: ProcedureDetailSerializer},
     )
     def create(self, request, *args, **kwargs):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         if category not in PROCEDURE_CATEGORIES:
             return Response(
                 {"error": f"Unknown procedure category: {category}"},

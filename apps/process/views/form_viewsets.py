@@ -110,11 +110,8 @@ class FormViewSet(
             return FormUpdateSerializer
         return FormDetailSerializer
 
-    def _get_category(self):
-        return self.kwargs.get("category", "")
-
     def get_queryset(self):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         qs = _apply_category_filter(Form.objects.all(), FORM_CATEGORIES, category)
         if qs is None:
             return Form.objects.none()
@@ -137,7 +134,7 @@ class FormViewSet(
         ]
     )
     def list(self, request, *args, **kwargs):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         if category not in FORM_CATEGORIES:
             return Response(
                 {"error": f"Unknown form category: {category}"},
@@ -146,7 +143,7 @@ class FormViewSet(
         return super().list(request, *args, **kwargs)
 
     def retrieve(self, request, *args, **kwargs):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         if category not in FORM_CATEGORIES:
             return Response(
                 {"error": f"Unknown form category: {category}"},
@@ -159,7 +156,7 @@ class FormViewSet(
         responses={201: FormDetailSerializer},
     )
     def create(self, request, *args, **kwargs):
-        category = self._get_category()
+        category = self.kwargs.get("category", "")
         if category not in FORM_CATEGORIES:
             return Response(
                 {"error": f"Unknown form category: {category}"},

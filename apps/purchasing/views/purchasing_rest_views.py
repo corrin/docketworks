@@ -69,18 +69,15 @@ logger = logging.getLogger(__name__)
 class PurchaseOrderETagMixin:
     """Shared helpers for purchase order ETag handling."""
 
-    def _normalize_etag(self, value):
-        return normalize_etag(value)
-
     def _get_if_match(self, request):
         header = request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
-        return self._normalize_etag(header) if header else None
+        return normalize_etag(header) if header else None
 
     def _get_if_none_match(self, request):
         header = request.headers.get("If-None-Match") or request.META.get(
             "HTTP_IF_NONE_MATCH"
         )
-        return self._normalize_etag(header) if header else None
+        return normalize_etag(header) if header else None
 
     def _precondition_required_response(self):
         error = {"error": "Missing If-Match header (precondition required)"}
@@ -455,7 +452,7 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
         )
         etag = generate_po_etag(po)
         if_none_match = self._get_if_none_match(request)
-        if if_none_match and if_none_match == self._normalize_etag(etag):
+        if if_none_match and if_none_match == normalize_etag(etag):
             return Response(status=status.HTTP_304_NOT_MODIFIED)
         response = Response(serializer.data)
         self._set_etag(response, etag)

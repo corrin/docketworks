@@ -79,7 +79,8 @@ def _build_schedule_response(day_horizon: int) -> dict[str, Any]:
                 allocation_blocks__scheduler_run=latest_run,
             ).distinct()
             anticipated_staff = [
-                {"id": s.id, "name": s.name} for s in anticipated_staff_qs
+                {"id": s.id, "name": s.get_display_full_name()}
+                for s in anticipated_staff_qs
             ]
 
             scheduled_jobs.append(

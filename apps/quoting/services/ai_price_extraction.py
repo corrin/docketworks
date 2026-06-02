@@ -15,6 +15,8 @@ logger = logging.getLogger(__name__)
 class PriceExtractionProvider(abc.ABC):
     """Abstract base class for AI price extraction providers."""
 
+    provider_name: str
+
     @abc.abstractmethod
     def extract_price_data(
         self, file_path: str, content_type: Optional[str] = None
@@ -29,10 +31,6 @@ class PriceExtractionProvider(abc.ABC):
         Returns:
             Tuple containing extracted data dict and error message if any
         """
-
-    @abc.abstractmethod
-    def get_provider_name(self) -> str:
-        """Return the name of this provider."""
 
 
 class PriceExtractionFactory:
@@ -121,11 +119,11 @@ def extract_price_data(
         provider = PriceExtractionFactory.create_provider(
             ai_provider.provider_type, ai_provider.api_key, ai_provider.model_name
         )
-        logger.info(f"Provider created successfully: {provider.get_provider_name()}")
+        logger.info(f"Provider created successfully: {provider.provider_name}")
 
-        logger.info(f"Starting extraction with {provider.get_provider_name()}")
+        logger.info(f"Starting extraction with {provider.provider_name}")
         result = provider.extract_price_data(file_path, content_type)
-        logger.info(f"Extraction completed with {provider.get_provider_name()}")
+        logger.info(f"Extraction completed with {provider.provider_name}")
         return result
     except Exception as e:
         logger.exception(
