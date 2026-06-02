@@ -2,28 +2,6 @@
   "version": "2.0.0",
   "tasks": [
     {
-      "label": "Redis Server",
-      "type": "shell",
-      "command": "REDIS_HOST=\"${env:REDIS_HOST}\"; REDIS_PORT=\"${env:REDIS_PORT}\"; if [ -z \"$REDIS_HOST\" ]; then REDIS_HOST=127.0.0.1; fi; if [ -z \"$REDIS_PORT\" ]; then REDIS_PORT=6379; fi; redis-cli -h \"$REDIS_HOST\" -p \"$REDIS_PORT\" ping || redis-server --port \"$REDIS_PORT\"",
-      "isBackground": true,
-      "problemMatcher": {
-        "owner": "redis",
-        "pattern": {
-          "regexp": "^$"
-        },
-        "background": {
-          "activeOnStart": true,
-          "beginsPattern": ".",
-          "endsPattern": "PONG|Ready to accept connections"
-        }
-      },
-      "presentation": {
-        "group": "dev",
-        "reveal": "always",
-        "panel": "dedicated"
-      }
-    },
-    {
       "label": "Frontend Dev Server",
       "type": "shell",
       "command": "npm run dev",
@@ -142,7 +120,6 @@
     {
       "label": "Start Dev Environment",
       "dependsOn": [
-        "Redis Server",
         "Frontend Dev Server",
         "Frontend Manual Dev Server",
         "Ngrok Tunnels",
