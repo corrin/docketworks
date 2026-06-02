@@ -852,7 +852,6 @@ const CompanyDefaults = z.object({
   id: z.number().int(),
   logo_url: z.string().nullable(),
   logo_wide_url: z.string().nullable(),
-  shop_client_name: z.string(),
   company_name: z.string(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),

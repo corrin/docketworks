@@ -9567,9 +9567,6 @@ components:
           type: string
           nullable: true
           readOnly: true
-        shop_client_name:
-          type: string
-          readOnly: true
         company_name:
           type: string
           readOnly: true
@@ -9914,7 +9911,6 @@ components:
         - logo_url
         - logo_wide_url
         - shop_client
-        - shop_client_name
         - updated_at
     CompanyDefaultsJobDetail:
       type: object

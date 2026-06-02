@@ -51,10 +51,6 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
     logo_wide = serializers.ImageField(required=False, allow_null=True, write_only=True)
     logo_url = serializers.SerializerMethodField(read_only=True)
     logo_wide_url = serializers.SerializerMethodField(read_only=True)
-    shop_client_name = serializers.CharField(
-        source="shop_client.name",
-        read_only=True,
-    )
 
     def get_logo_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo", self.context)
