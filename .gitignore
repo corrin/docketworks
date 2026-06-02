@@ -266,3 +266,4 @@ frontend/dist/
 .codesight/
 docs/.codesight/
 frontend/.codesight/
+*.tsv
