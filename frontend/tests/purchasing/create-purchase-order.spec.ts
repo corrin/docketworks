@@ -99,6 +99,16 @@ test.describe.serial('purchase order operations', () => {
     const searchInput = page.getByPlaceholder('Search items by description, code, or type...')
     await searchInput.waitFor({ timeout: 10000 })
     await expect(searchInput).toBeFocused({ timeout: 5000 })
+    const contextMenuAllowed = await searchInput.evaluate((element) => {
+      const event = new MouseEvent('contextmenu', {
+        bubbles: true,
+        cancelable: true,
+        button: 2,
+      })
+      return element.dispatchEvent(event)
+    })
+    expect(contextMenuAllowed).toBe(true)
+    await expect(searchInput).toBeFocused()
     const openMs = Date.now() - openStartedAt
 
     const searchStartedAt = Date.now()

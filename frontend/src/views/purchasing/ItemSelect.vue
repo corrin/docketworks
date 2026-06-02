@@ -1,13 +1,8 @@
 <script setup lang="ts">
-import {
-  Select,
-  SelectTrigger,
-  SelectValue,
-  SelectContent,
-  SelectItem,
-} from '../../components/ui/select'
+import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover'
 import { Input } from '../../components/ui/input'
 import { Badge } from '../../components/ui/badge'
+import { Button } from '../../components/ui/button'
 import { useStockStore, type StockItem } from '../../stores/stockStore'
 import { useCompanyDefaultsStore } from '../../stores/companyDefaults'
 import { api } from '@/api/client'
@@ -63,6 +58,7 @@ const searchTerm = ref('')
 const serverResults = ref<StockItem[]>([])
 const isSearching = ref(false)
 const searchInput = ref<{ $el?: HTMLInputElement } | HTMLInputElement | null>(null)
+const localOpen = ref(false)
 
 // Mocked Labour item for time entries
 const mockedLabourItem = computed<LabourItem>(() => ({
@@ -116,18 +112,23 @@ const filteredItems = computed<DisplayItem[]>(() => {
   return [...labourItem, ...stockItems]
 })
 
-const selectProps = computed(() => {
-  const base = {
-    modelValue: props.modelValue,
-    disabled: props.disabled,
-  }
+const popoverOpen = computed({
+  get: () => props.open ?? localOpen.value,
+  set: (nextOpen: boolean) => {
+    localOpen.value = nextOpen
+    handleOpenUpdate(nextOpen)
+  },
+})
 
-  if (props.open === undefined) return base
+const selectedDisplay = computed(() => {
+  if (!props.modelValue) return 'Select Item'
+  if (props.modelValue === '__labour__') return mockedLabourItem.value.item_code
 
-  return {
-    ...base,
-    open: props.open,
-  }
+  const found =
+    serverResults.value.find((i: StockItem) => i.id === props.modelValue) ||
+    store.items.find((i: StockItem) => i.id === props.modelValue)
+
+  return found?.item_code || found?.description || 'Select Item'
 })
 
 const displayPrice = (item: DisplayItem) => {
@@ -154,6 +155,7 @@ function usageLabel(item: DisplayItem): string {
 
 function handleSelectedValue(val: string | null): void {
   emit('update:modelValue', val)
+  popoverOpen.value = false
 
   if (val === '__labour__') {
     emit('selectedItem', mockedLabourItem.value)
@@ -194,6 +196,10 @@ function handleOpenUpdate(nextOpen: boolean): void {
 }
 
 function handleSearchKeydown(event: KeyboardEvent): void {
+  if (event.key === 'Escape') {
+    popoverOpen.value = false
+    return
+  }
   if (event.key !== 'Escape') event.stopPropagation()
 }
 
@@ -210,17 +216,20 @@ onMounted(() => {
 </script>
 
 <template>
-  <Select
-    v-bind="selectProps"
-    class="!w-full min-w-64"
-    @update:open="handleOpenUpdate"
-    @update:model-value="(val) => handleSelectedValue(val as string | null)"
-  >
-    <SelectTrigger class="h-10 item-select-trigger" data-automation-id="ItemSelect-trigger">
-      <SelectValue :placeholder="'Select Item'" />
-    </SelectTrigger>
+  <Popover v-model:open="popoverOpen">
+    <PopoverTrigger as-child>
+      <Button
+        type="button"
+        variant="outline"
+        :disabled="disabled"
+        class="h-10 item-select-trigger w-full min-w-64 justify-between font-normal"
+        data-automation-id="ItemSelect-trigger"
+      >
+        <span class="truncate">{{ selectedDisplay }}</span>
+      </Button>
+    </PopoverTrigger>
 
-    <SelectContent class="max-h-80 w-[550px]">
+    <PopoverContent class="max-h-80 w-[550px] overflow-y-auto p-0" align="start">
       <!-- Search input -->
       <div class="p-3 border-b bg-muted/50">
         <Input
@@ -242,12 +251,13 @@ onMounted(() => {
         </span>
       </div>
 
-      <SelectItem
+      <button
         v-for="i in filteredItems"
         :key="i.id || 'unknown'"
-        :value="i.id || ''"
-        class="cursor-pointer p-4 border-b border-border last:border-b-0 hover:bg-accent/50 focus:bg-accent/50 bg-background w-full"
+        type="button"
+        class="cursor-pointer p-4 border-b border-border last:border-b-0 hover:bg-accent/50 focus:bg-accent/50 bg-background w-full text-left"
         :data-automation-id="`ItemSelect-option-${i.id === '__labour__' ? 'labour' : i.item_code || i.id}`"
+        @click="handleSelectedValue(i.id || null)"
       >
         <div class="flex w-full items-start justify-between gap-6 !min-w-[500px]">
           <div class="flex-1 min-w-0">
@@ -287,7 +297,7 @@ onMounted(() => {
             </div>
           </div>
         </div>
-      </SelectItem>
-    </SelectContent>
-  </Select>
+      </button>
+    </PopoverContent>
+  </Popover>
 </template>
