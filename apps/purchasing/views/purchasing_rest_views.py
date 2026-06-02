@@ -16,7 +16,12 @@ from rest_framework.views import APIView
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.etag import generate_po_etag, normalize_etag
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderEvent, Stock
+from apps.purchasing.models import (
+    PurchaseOrder,
+    PurchaseOrderEvent,
+    PurchaseOrderLine,
+    Stock,
+)
 from apps.purchasing.serializers import (
     AllJobsResponseSerializer,
     AllocationDeleteResponseSerializer,
@@ -431,13 +436,14 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
         """Get purchase order details including lines."""
         # Allow fetching PO details regardless of status (including deleted)
         # to match the list endpoint behavior and allow viewing deleted POs
-        queryset = (
-            PurchaseOrder.objects.all()
-            .select_related("supplier")
-            .prefetch_related("po_lines__job__client")
-        )
+        queryset = PurchaseOrder.objects.all().select_related("supplier", "created_by")
         po = get_object_or_404(queryset, id=po_id)
-        item_codes = [line.item_code for line in po.po_lines.all() if line.item_code]
+        po.detail_lines = list(
+            PurchaseOrderLine.objects.filter(purchase_order=po).select_related(
+                "job__client"
+            )
+        )
+        item_codes = [line.item_code for line in po.detail_lines if line.item_code]
         usage_counts = {
             item_code: count
             for item_code, count in (

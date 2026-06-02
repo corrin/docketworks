@@ -2359,7 +2359,7 @@ const JobForPurchasing = z.object({
   id: z.string().uuid(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
   name: z.string().max(100),
-  client_name: z.string(),
+  client_name: z.string().default('No Client'),
   status: JobStatusEnum.optional(),
   is_stock_holding: z.boolean(),
   job_display_name: z.string(),
@@ -2535,12 +2535,12 @@ const PurchaseOrderDetail = z.object({
   xero_id: z.string().uuid().nullish(),
   pickup_address_id: z.string().uuid().nullable(),
   created_by_id: z.string().uuid().nullable(),
-  supplier: z.string(),
-  supplier_id: z.string().nullable(),
+  supplier: z.string().default(''),
+  supplier_id: z.string().uuid().nullable(),
   supplier_has_xero_id: z.boolean(),
   lines: z.array(PurchaseOrderLine),
   pickup_address: SupplierPickupAddress.nullable(),
-  created_by_name: z.string(),
+  created_by_name: z.string().default(''),
 })
 const PurchaseOrderLineUpdateRequest = z
   .object({

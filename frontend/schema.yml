@@ -12640,6 +12640,7 @@ components:
         client_name:
           type: string
           readOnly: true
+          default: No Client
         status:
           $ref: '#/components/schemas/JobStatusEnum'
         is_stock_holding:
@@ -16526,10 +16527,12 @@ components:
         supplier:
           type: string
           readOnly: true
+          default: ''
         supplier_id:
           type: string
-          nullable: true
+          format: uuid
           readOnly: true
+          nullable: true
         supplier_has_xero_id:
           type: boolean
           readOnly: true
@@ -16545,6 +16548,7 @@ components:
         created_by_name:
           type: string
           readOnly: true
+          default: ''
       required:
         - created_by_id
         - created_by_name
