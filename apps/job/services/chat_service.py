@@ -43,10 +43,6 @@ class ChatService:
         self.llm = LLMService()
         logger.info(f"LLM configured for chat session: {self.llm.model_name}")
 
-    def get_llm_service(self) -> LLMService:
-        """Get a configured LLMService instance."""
-        return LLMService()
-
     def _get_system_prompt(self, job: Job) -> str:
         """Generate system prompt with job context."""
         company = CompanyDefaults.get_solo()
@@ -391,7 +387,7 @@ pricing, and suppliers."""
             job = Job.objects.get(id=job_id)
             logger.debug(f"Retrieved job: {job.name} (#{job.job_number})")
 
-            llm = self.get_llm_service()
+            llm = LLMService()
             logger.info(f"LLM configured with model: {llm.model_name}")
 
             # -----------------------------------------------------------------
@@ -554,7 +550,7 @@ pricing, and suppliers."""
 
         try:
             job = Job.objects.get(id=job_id)
-            llm = self.get_llm_service()
+            llm = LLMService()
 
             # Build conversation history from database
             chat_history = []

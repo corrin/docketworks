@@ -3,6 +3,7 @@ import json
 import logging
 import time
 import uuid
+from dataclasses import dataclass
 from urllib.parse import urlencode
 
 from django.conf import settings
@@ -82,6 +83,13 @@ from .xero_po_manager import XeroPurchaseOrderManager
 from .xero_quote_manager import XeroQuoteManager
 
 logger = logging.getLogger("xero")
+
+
+@dataclass(frozen=True)
+class XeroAuthenticationResult:
+    tenant_id: str | None = None
+    error_data: dict | None = None
+    status_code: int = status.HTTP_200_OK
 
 
 def _build_xero_error_payload(
@@ -350,10 +358,10 @@ def stream_xero_sync(request: HttpRequest) -> StreamingHttpResponse:
     return response
 
 
-def ensure_xero_authentication():
+def ensure_xero_authentication() -> XeroAuthenticationResult:
     """
     Ensure the user is authenticated with Xero and retrieves the tenant ID.
-    If authentication is missing, it returns a JSON response prompting login.
+    If authentication is missing, return an explicit error payload.
     """
     token = get_valid_token()
     if not token:
@@ -363,7 +371,10 @@ def ensure_xero_authentication():
             "message": "Your Xero session has expired. Please log in again.",
         }
         error_serializer = XeroAuthenticationErrorResponseSerializer(error_response)
-        return JsonResponse(error_serializer.data, status=401)
+        return XeroAuthenticationResult(
+            error_data=dict(error_serializer.data),
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
 
     tenant_id = cache.get("xero_tenant_id")  # Use consistent cache key
     if not tenant_id:
@@ -378,8 +389,11 @@ def ensure_xero_authentication():
                 "message": "Unable to fetch Xero tenant ID. Please log in Xero again.",
             }
             error_serializer = XeroAuthenticationErrorResponseSerializer(error_response)
-            return JsonResponse(error_serializer.data, status=401)
-    return tenant_id
+            return XeroAuthenticationResult(
+                error_data=dict(error_serializer.data),
+                status_code=status.HTTP_401_UNAUTHORIZED,
+            )
+    return XeroAuthenticationResult(tenant_id=tenant_id)
 
 
 @csrf_exempt
@@ -398,9 +412,9 @@ def ensure_xero_authentication():
 @permission_classes([IsAuthenticated, IsOfficeStaff])
 def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
     """Creates an Invoice in Xero for a given job."""
-    tenant_id = ensure_xero_authentication()
-    if isinstance(tenant_id, JsonResponse):
-        return Response(json.loads(tenant_id.content), status=tenant_id.status_code)
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
 
     request_serializer = XeroInvoiceCreateSerializer(data=request.data)
     if not request_serializer.is_valid():
@@ -503,9 +517,9 @@ def create_xero_purchase_order(
     request: Request, purchase_order_id: uuid.UUID
 ) -> Response:
     """Creates or updates a Purchase Order in Xero for a given purchase order."""
-    tenant_id = ensure_xero_authentication()
-    if isinstance(tenant_id, JsonResponse):
-        return Response(json.loads(tenant_id.content), status=tenant_id.status_code)
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
 
     try:
         purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
@@ -662,9 +676,9 @@ def create_xero_purchase_order(
 @permission_classes([IsAuthenticated, IsOfficeStaff])
 def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
     """Creates a quote in Xero for a given job."""
-    tenant_id = ensure_xero_authentication()
-    if isinstance(tenant_id, JsonResponse):
-        return Response(json.loads(tenant_id.content), status=tenant_id.status_code)
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
 
     # Validate request body
     request_serializer = XeroQuoteCreateSerializer(data=request.data)
@@ -737,9 +751,9 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 @permission_classes([IsAuthenticated, IsOfficeStaff])
 def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
     """Deletes a specific invoice in Xero for a given job, identified by its Xero ID."""
-    tenant_id = ensure_xero_authentication()
-    if isinstance(tenant_id, JsonResponse):
-        return Response(json.loads(tenant_id.content), status=tenant_id.status_code)
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
 
     xero_invoice_id = request.query_params.get("xero_invoice_id")
     if not xero_invoice_id:
@@ -808,9 +822,9 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
 @permission_classes([IsAuthenticated, IsOfficeStaff])
 def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
     """Deletes a quote in Xero for a given job."""
-    tenant_id = ensure_xero_authentication()
-    if isinstance(tenant_id, JsonResponse):
-        return Response(json.loads(tenant_id.content), status=tenant_id.status_code)
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
 
     try:
         job = Job.objects.get(id=job_id)
@@ -866,9 +880,9 @@ def delete_xero_purchase_order(
     request: Request, purchase_order_id: uuid.UUID
 ) -> Response:
     """Deletes a Purchase Order in Xero."""
-    tenant_id = ensure_xero_authentication()
-    if isinstance(tenant_id, JsonResponse):
-        return Response(json.loads(tenant_id.content), status=tenant_id.status_code)
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
 
     try:
         purchase_order = PurchaseOrder.objects.get(id=purchase_order_id)
@@ -1090,9 +1104,9 @@ def trigger_xero_sync(request):
     can connect to the same SSE stream.
     """
     # Ensure user is authenticated with Xero
-    tenant = ensure_xero_authentication()
-    if isinstance(tenant, JsonResponse):
-        return tenant
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return JsonResponse(auth_result.error_data, status=auth_result.status_code)
 
     result = XeroSyncService.start_sync()
     if result.reason == "already_running":

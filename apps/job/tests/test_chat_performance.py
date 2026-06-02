@@ -90,7 +90,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
             )
 
         # Monitor database queries
-        with patch.object(self.service, "get_llm_service") as mock_get_llm:
+        with patch("apps.job.services.chat_service.LLMService") as mock_get_llm:
             mock_llm = create_mock_llm("gemini-pro")
             mock_response = create_text_response("Optimized response")
             mock_llm.completion.return_value = mock_response

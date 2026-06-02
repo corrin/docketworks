@@ -38,10 +38,6 @@ class MCPChatService:
         self.quoting_tool = QuotingTool()
         self.query_tool = SupplierProductQueryTool()
 
-    def get_llm_service(self) -> LLMService:
-        """Get configured LLMService instance."""
-        return LLMService()
-
     def _get_system_prompt(self, job: Job) -> str:
         """Generate system prompt with job context and MCP tool descriptions."""
         company = CompanyDefaults.get_solo()
@@ -238,7 +234,7 @@ supplier information."""
             job = Job.objects.get(id=job_id)
 
             # Get LLM service
-            llm = self.get_llm_service()
+            llm = LLMService()
 
             # Get recent chat history for context
             recent_messages = JobQuoteChat.objects.filter(job=job).order_by(

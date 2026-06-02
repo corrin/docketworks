@@ -24,6 +24,7 @@ from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder
 from apps.testing import BaseAPITestCase
 from apps.workflow.views.xero.xero_po_manager import XeroPurchaseOrderManager
+from apps.workflow.views.xero.xero_view import XeroAuthenticationResult
 
 
 class XeroPurchaseOrderManagerConstructionTests(BaseAPITestCase):
@@ -48,7 +49,7 @@ class XeroPurchaseOrderManagerConstructionTests(BaseAPITestCase):
     def test_create_view_constructs_manager_without_typeerror(
         self, mock_auth, mock_sync
     ):
-        mock_auth.return_value = "tenant-id"
+        mock_auth.return_value = XeroAuthenticationResult(tenant_id="tenant-id")
         mock_sync.return_value = {
             "success": True,
             "xero_id": "00000000-0000-0000-0000-000000000abc",
