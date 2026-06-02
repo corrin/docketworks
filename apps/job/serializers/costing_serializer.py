@@ -1,7 +1,6 @@
 import logging
 from decimal import Decimal
 
-from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.models import Staff
@@ -24,20 +23,12 @@ class CostLineSerializer(serializers.ModelSerializer):
     Serializer for CostLine model - read-only with basic depth
     """
 
-    total_cost = serializers.SerializerMethodField()
-    total_rev = serializers.SerializerMethodField()
+    total_cost = serializers.FloatField(read_only=True)
+    total_rev = serializers.FloatField(read_only=True)
 
     class Meta:
         model = CostLine
         fields = CostLine.COSTLINE_API_FIELDS + ["total_cost", "total_rev"]
-
-    def get_total_cost(self, obj) -> float:
-        """Get total cost (quantity * unit_cost)"""
-        return float(obj.total_cost)
-
-    def get_total_rev(self, obj) -> float:
-        """Get total revenue (quantity * unit_rev)"""
-        return float(obj.total_rev)
 
 
 class TimesheetCostLineSerializer(serializers.ModelSerializer):
@@ -302,13 +293,8 @@ class CostSetSerializer(serializers.ModelSerializer):
     """
 
     cost_lines = CostLineSerializer(many=True, read_only=True)
-    summary = serializers.SerializerMethodField()
+    summary = CostSetSummarySerializer(read_only=True)
     id = serializers.CharField(read_only=True)  # UUID as string
-
-    @extend_schema_field(CostSetSummarySerializer)
-    def get_summary(self, obj):
-        """Get summary data for this cost set"""
-        return obj.summary
 
     def to_representation(self, instance):
         data = super().to_representation(instance)

@@ -10,15 +10,11 @@ class JobFileSerializer(serializers.ModelSerializer):
 
     download_url = serializers.SerializerMethodField()
     thumbnail_url = serializers.SerializerMethodField()
-    size = serializers.SerializerMethodField()
+    size = serializers.IntegerField(read_only=True, allow_null=True)
 
     class Meta:
         model = JobFile
         fields = JobFile.JOBFILE_API_FIELDS + JobFile.JOBFILE_API_PROPERTIES
-
-    def get_size(self, obj: JobFile) -> int | None:
-        """Get file size in bytes"""
-        return obj.size
 
     def get_download_url(self, obj: JobFile) -> str:
         # Relative path so the browser resolves it against the SPA's origin and

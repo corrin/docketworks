@@ -10438,12 +10438,10 @@ components:
         total_cost:
           type: number
           format: double
-          description: Get total cost (quantity * unit_cost)
           readOnly: true
         total_rev:
           type: number
           format: double
-          description: Get total revenue (quantity * unit_rev)
           readOnly: true
       required:
         - accounting_date
@@ -12494,9 +12492,8 @@ components:
           type: boolean
         size:
           type: integer
-          nullable: true
-          description: Get file size in bytes
           readOnly: true
+          nullable: true
         download_url:
           type: string
           readOnly: true
