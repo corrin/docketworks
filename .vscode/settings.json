@@ -18,14 +18,20 @@
     "python.analysis.typeCheckingMode": "off",
     "python.analysis.autoImportCompletions": true,
     "terminal.integrated.profiles.linux": {
+        "bash": {
+            "path": "bash",
+            "args": [
+                "-l"
+            ]
+        },
         "bash tmux": {
             "path": "bash",
             "args": [
                 "-l",
                 "-c",
-                "tmux attach || tmux new"
+                "tmux attach-session -t docketworks || tmux new-session -s docketworks"
             ]
         }
     },
-    "terminal.integrated.defaultProfile.linux": "bash tmux"
+    "terminal.integrated.defaultProfile.linux": "bash"
 }
