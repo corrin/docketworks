@@ -148,4 +148,5 @@ See ADR 0020. Backend owns data, calculations, and external systems; frontend ow
 
 - **Never set a bash timeout on the E2E command.** A timeout (or SIGTERM) kills the node process before Playwright calls `globalTeardown`, leaving the DB polluted with `[TEST]` data and a stale lock file. The teardown is NOT a signal handler — it only fires on normal exit.
 - Always run E2E detached from the shell session: `nohup npm run test:e2e > /tmp/e2e-output.log 2>&1 &`. Then tail the log with a separate bash call (no timeout on the tail either — just read the log).
+- To review E2E timing history after runs, use `npm run test:e2e:trends` from `frontend/`; it reads `frontend/test-history/test-runs.csv` and writes `frontend/test-history/e2e-per-test-plots.html`.
 - If the teardown does get skipped: save the current Xero token, restore from `restore/e2e/backup_*.sql`, reinject the token, sync sequences, then delete the lock and backup. Match `global-teardown.ts` step for step.
