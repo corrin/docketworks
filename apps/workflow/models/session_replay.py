@@ -28,9 +28,18 @@ class SessionReplayRecording(models.Model):
     class Meta:
         ordering = ["-started_at"]
         indexes = [
-            models.Index(fields=["user", "-started_at"]),
-            models.Index(fields=["started_at"]),
-            models.Index(fields=["job_id", "-started_at"]),
+            models.Index(
+                fields=["user", "-started_at"],
+                name="workflow_replay_user_start_idx",
+            ),
+            models.Index(
+                fields=["started_at"],
+                name="workflow_replay_started_idx",
+            ),
+            models.Index(
+                fields=["job_id", "-started_at"],
+                name="workflow_replay_job_start_idx",
+            ),
         ]
 
 
@@ -65,6 +74,12 @@ class SessionReplayChunk(models.Model):
             )
         ]
         indexes = [
-            models.Index(fields=["recording", "sequence"]),
-            models.Index(fields=["created_at"]),
+            models.Index(
+                fields=["recording", "sequence"],
+                name="workflow_chunk_record_seq_idx",
+            ),
+            models.Index(
+                fields=["created_at"],
+                name="workflow_chunk_created_idx",
+            ),
         ]
