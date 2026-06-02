@@ -2267,6 +2267,353 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyDefaults'
           description: ''
+  /api/crm/phone-call-recordings/:
+    get:
+      operationId: crm_phone_call_recordings_list
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum:
+              - file
+              - json
+      tags:
+        - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhoneCallRecording'
+            '*/*':
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhoneCallRecording'
+          description: ''
+  /api/crm/phone-call-recordings/{id}/:
+    get:
+      operationId: crm_phone_call_recordings_retrieve
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum:
+              - file
+              - json
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call recording.
+          required: true
+      tags:
+        - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecording'
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecording'
+          description: ''
+  /api/crm/phone-call-recordings/{id}/download/:
+    get:
+      operationId: downloadPhoneCallRecording
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum:
+              - file
+              - json
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call recording.
+          required: true
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: string
+                format: binary
+            '*/*':
+              schema:
+                type: string
+                format: binary
+          description: Binary recording content
+        '404':
+          description: Recording file not found
+  /api/crm/phone-call-recordings/{id}/local-file/:
+    delete:
+      operationId: deleteLocalPhoneCallRecording
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum:
+              - file
+              - json
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call recording.
+          required: true
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Local recording deleted
+  /api/crm/phone-call-recordings/{id}/provider-file/:
+    delete:
+      operationId: deleteProviderPhoneCallRecording
+      parameters:
+        - in: query
+          name: format
+          schema:
+            type: string
+            enum:
+              - file
+              - json
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call recording.
+          required: true
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: Provider recording deleted
+  /api/crm/phone-calls/:
+    get:
+      operationId: crm_phone_calls_list
+      parameters:
+        - in: query
+          name: client
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: contact
+          schema:
+            type: string
+            format: uuid
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
+  /api/crm/phone-calls/{id}/:
+    get:
+      operationId: crm_phone_calls_retrieve
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call record.
+          required: true
+      tags:
+        - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
+  /api/crm/phone-number-mappings/:
+    get:
+      operationId: crm_phone_number_mappings_list
+      parameters:
+        - in: query
+          name: client
+          schema:
+            type: string
+            format: uuid
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhoneNumberClientMapping'
+          description: ''
+    post:
+      operationId: crm_phone_number_mappings_create
+      tags:
+        - crm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneNumberClientMapping'
+          description: ''
+  /api/crm/phone-number-mappings/{id}/:
+    get:
+      operationId: crm_phone_number_mappings_retrieve
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone number client mapping.
+          required: true
+      tags:
+        - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneNumberClientMapping'
+          description: ''
+    put:
+      operationId: crm_phone_number_mappings_update
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone number client mapping.
+          required: true
+      tags:
+        - crm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneNumberClientMapping'
+          description: ''
+    patch:
+      operationId: crm_phone_number_mappings_partial_update
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone number client mapping.
+          required: true
+      tags:
+        - crm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneNumberClientMappingRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneNumberClientMappingRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneNumberClientMappingRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneNumberClientMapping'
+          description: ''
+    delete:
+      operationId: crm_phone_number_mappings_destroy
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone number client mapping.
+          required: true
+      tags:
+        - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/data-versions/:
     get:
       operationId: data_versions_retrieve
@@ -15189,6 +15536,23 @@ components:
           minLength: 1
         metadata:
           description: Extra data like streaming status, processing time, etc.
+    PatchedPhoneNumberClientMappingRequest:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          minLength: 1
+          maxLength: 150
+        client:
+          type: string
+          format: uuid
+        contact:
+          type: string
+          format: uuid
+          nullable: true
+        label:
+          type: string
+          maxLength: 255
     PatchedProcedureUpdateRequest:
       type: object
       description: Update serializer for procedures.
@@ -15941,6 +16305,261 @@ components:
         - jm_hours
         - xero_gross
         - xero_hours
+    PhoneCallRecord:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        provider_call_id:
+          type: string
+          readOnly: true
+        account_code:
+          type: string
+          readOnly: true
+        call_datetime:
+          type: string
+          format: date-time
+          readOnly: true
+        call_date:
+          type: string
+          format: date
+          readOnly: true
+        call_time:
+          type: string
+          format: time
+          readOnly: true
+        call_type:
+          type: string
+          readOnly: true
+        status:
+          type: string
+          readOnly: true
+        description:
+          type: string
+          readOnly: true
+        origin:
+          type: string
+          readOnly: true
+        destination:
+          type: string
+          readOnly: true
+        direction:
+          type: string
+          readOnly: true
+        our_number:
+          type: string
+          readOnly: true
+        external_number:
+          type: string
+          readOnly: true
+        duration_seconds:
+          type: integer
+          readOnly: true
+        charge:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+          nullable: true
+        client:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        client_name:
+          type: string
+          readOnly: true
+        contact:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        contact_name:
+          type: string
+          readOnly: true
+        recording:
+          allOf:
+            - $ref: '#/components/schemas/PhoneCallRecording'
+          readOnly: true
+          nullable: true
+        imported_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - account_code
+        - call_date
+        - call_datetime
+        - call_time
+        - call_type
+        - charge
+        - client
+        - client_name
+        - contact
+        - contact_name
+        - description
+        - destination
+        - direction
+        - duration_seconds
+        - external_number
+        - id
+        - imported_at
+        - origin
+        - our_number
+        - provider_call_id
+        - recording
+        - status
+        - updated_at
+    PhoneCallRecording:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        provider_recording_id:
+          type: string
+          readOnly: true
+        account_code:
+          type: string
+          readOnly: true
+        filename:
+          type: string
+          readOnly: true
+        storage_path:
+          type: string
+          readOnly: true
+        content_type:
+          type: string
+          readOnly: true
+        byte_size:
+          type: integer
+          readOnly: true
+          nullable: true
+        sha256:
+          type: string
+          readOnly: true
+        archived_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        archive_error:
+          type: string
+          readOnly: true
+        provider_deleted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        provider_delete_error:
+          type: string
+          readOnly: true
+        local_deleted_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        download_url:
+          type: string
+          nullable: true
+          readOnly: true
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - account_code
+        - archive_error
+        - archived_at
+        - byte_size
+        - content_type
+        - created_at
+        - download_url
+        - filename
+        - id
+        - local_deleted_at
+        - provider_delete_error
+        - provider_deleted_at
+        - provider_recording_id
+        - sha256
+        - storage_path
+        - updated_at
+    PhoneNumberClientMapping:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        phone_number:
+          type: string
+          maxLength: 150
+        client:
+          type: string
+          format: uuid
+        client_name:
+          type: string
+          readOnly: true
+        contact:
+          type: string
+          format: uuid
+          nullable: true
+        contact_name:
+          type: string
+          readOnly: true
+        label:
+          type: string
+          maxLength: 255
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - client
+        - client_name
+        - contact_name
+        - created_at
+        - id
+        - phone_number
+        - updated_at
+    PhoneNumberClientMappingRequest:
+      type: object
+      properties:
+        phone_number:
+          type: string
+          minLength: 1
+          maxLength: 150
+        client:
+          type: string
+          format: uuid
+        contact:
+          type: string
+          format: uuid
+          nullable: true
+        label:
+          type: string
+          maxLength: 255
+      required:
+        - client
+        - phone_number
     PlacementEnum:
       enum:
         - above

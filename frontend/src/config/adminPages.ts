@@ -9,6 +9,7 @@ import {
   ExternalLink,
   KeyRound,
   MonitorPlay,
+  PhoneCall,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { APP_NAME } from '@/config/app'
@@ -54,6 +55,13 @@ const adminPagesConfig = [
     title: 'Session Replays',
     icon: MonitorPlay,
     view: 'AdminSessionReplayView',
+  },
+  {
+    key: 'calls',
+    label: 'Calls',
+    title: 'Calls',
+    icon: PhoneCall,
+    view: 'AdminCallsView',
   },
   {
     key: 'scheduled-tasks',

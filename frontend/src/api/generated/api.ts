@@ -1056,6 +1056,74 @@ const SettingsSection = z.object({
   fields: z.array(SettingsField),
 })
 const CompanyDefaultsSchema = z.object({ sections: z.array(SettingsSection) })
+const PhoneCallRecording = z.object({
+  id: z.string().uuid(),
+  provider_recording_id: z.string(),
+  account_code: z.string(),
+  filename: z.string(),
+  storage_path: z.string(),
+  content_type: z.string(),
+  byte_size: z.number().int().nullable(),
+  sha256: z.string(),
+  archived_at: z.string().datetime({ offset: true }).nullable(),
+  archive_error: z.string(),
+  provider_deleted_at: z.string().datetime({ offset: true }).nullable(),
+  provider_delete_error: z.string(),
+  local_deleted_at: z.string().datetime({ offset: true }).nullable(),
+  download_url: z.string().nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const PhoneCallRecord = z.object({
+  id: z.string().uuid(),
+  provider_call_id: z.string(),
+  account_code: z.string(),
+  call_datetime: z.string().datetime({ offset: true }),
+  call_date: z.string(),
+  call_time: z.string(),
+  call_type: z.string(),
+  status: z.string(),
+  description: z.string(),
+  origin: z.string(),
+  destination: z.string(),
+  direction: z.string(),
+  our_number: z.string(),
+  external_number: z.string(),
+  duration_seconds: z.number().int(),
+  charge: z.number().gt(-100000000).lt(100000000).nullable(),
+  client: z.string().uuid().nullable(),
+  client_name: z.string(),
+  contact: z.string().uuid().nullable(),
+  contact_name: z.string(),
+  recording: PhoneCallRecording.nullable(),
+  imported_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const PhoneNumberClientMapping = z.object({
+  id: z.string().uuid(),
+  phone_number: z.string().max(150),
+  client: z.string().uuid(),
+  client_name: z.string(),
+  contact: z.string().uuid().nullish(),
+  contact_name: z.string(),
+  label: z.string().max(255).optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const PhoneNumberClientMappingRequest = z.object({
+  phone_number: z.string().min(1).max(150),
+  client: z.string().uuid(),
+  contact: z.string().uuid().nullish(),
+  label: z.string().max(255).optional(),
+})
+const PatchedPhoneNumberClientMappingRequest = z
+  .object({
+    phone_number: z.string().min(1).max(150),
+    client: z.string().uuid(),
+    contact: z.string().uuid().nullable(),
+    label: z.string().max(255),
+  })
+  .partial()
 const DataVersions = z.object({ stock: z.string(), kanban: z.string() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
@@ -3349,6 +3417,11 @@ export const schemas = {
   SettingsField,
   SettingsSection,
   CompanyDefaultsSchema,
+  PhoneCallRecording,
+  PhoneCallRecord,
+  PhoneNumberClientMapping,
+  PhoneNumberClientMappingRequest,
+  PatchedPhoneNumberClientMappingRequest,
   DataVersions,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
@@ -5224,6 +5297,230 @@ POST: Upload a logo image to a specified field.
 DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
     response: CompanyDefaults,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-call-recordings/',
+    alias: 'crm_phone_call_recordings_list',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'format',
+        type: 'Query',
+        schema: z.enum(['file', 'json']).optional(),
+      },
+    ],
+    response: z.array(PhoneCallRecording),
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-call-recordings/:id/',
+    alias: 'crm_phone_call_recordings_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'format',
+        type: 'Query',
+        schema: z.enum(['file', 'json']).optional(),
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecording,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-call-recordings/:id/download/',
+    alias: 'downloadPhoneCallRecording',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'format',
+        type: 'Query',
+        schema: z.enum(['file', 'json']).optional(),
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.instanceof(File),
+    errors: [
+      {
+        status: 404,
+        description: `Recording file not found`,
+        schema: z.void(),
+      },
+    ],
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-call-recordings/:id/local-file/',
+    alias: 'deleteLocalPhoneCallRecording',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'format',
+        type: 'Query',
+        schema: z.enum(['file', 'json']).optional(),
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-call-recordings/:id/provider-file/',
+    alias: 'deleteProviderPhoneCallRecording',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'format',
+        type: 'Query',
+        schema: z.enum(['file', 'json']).optional(),
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-calls/',
+    alias: 'crm_phone_calls_list',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'client',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'contact',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+    ],
+    response: z.array(PhoneCallRecord),
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-calls/:id/',
+    alias: 'crm_phone_calls_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-number-mappings/',
+    alias: 'crm_phone_number_mappings_list',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'client',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+    ],
+    response: z.array(PhoneNumberClientMapping),
+  },
+  {
+    method: 'post',
+    path: '/api/crm/phone-number-mappings/',
+    alias: 'crm_phone_number_mappings_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PhoneNumberClientMappingRequest,
+      },
+    ],
+    response: PhoneNumberClientMapping,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-number-mappings/:id/',
+    alias: 'crm_phone_number_mappings_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneNumberClientMapping,
+  },
+  {
+    method: 'put',
+    path: '/api/crm/phone-number-mappings/:id/',
+    alias: 'crm_phone_number_mappings_update',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PhoneNumberClientMappingRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneNumberClientMapping,
+  },
+  {
+    method: 'patch',
+    path: '/api/crm/phone-number-mappings/:id/',
+    alias: 'crm_phone_number_mappings_partial_update',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedPhoneNumberClientMappingRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneNumberClientMapping,
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-number-mappings/:id/',
+    alias: 'crm_phone_number_mappings_destroy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
   },
   {
     method: 'get',
