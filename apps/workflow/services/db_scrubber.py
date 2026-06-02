@@ -87,15 +87,9 @@ def _preserved_client_names() -> set[str]:
     Mirrors legacy backport_data_backup._get_preserved_client_names() exactly.
     """
     preserved: set[str] = set()
-    try:
-        cd = CompanyDefaults.objects.using(SCRUB_ALIAS).get()
-    except CompanyDefaults.DoesNotExist:
-        pass
-    else:
-        if cd.shop_client_name:
-            preserved.add(cd.shop_client_name)
-        if cd.test_client_name:
-            preserved.add(cd.test_client_name)
+    cd = CompanyDefaults.objects.using(SCRUB_ALIAS).get()
+    preserved.add(cd.shop_client.name)
+    preserved.add(cd.test_client_name)
 
     from apps.quoting.management.commands.run_scrapers import Command as ScraperCmd
 

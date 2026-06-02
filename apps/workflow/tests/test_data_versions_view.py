@@ -45,7 +45,11 @@ def _stock(**overrides):
 
 @pytest.fixture
 def kanban_prerequisites(db):
-    CompanyDefaults.objects.get_or_create(company_name="Test Co")
+    shop_client = _client(name="Shop Client")
+    CompanyDefaults.objects.get_or_create(
+        company_name="Test Co",
+        defaults={"shop_client": shop_client},
+    )
     XeroPayItem.objects.get_or_create(
         name="Ordinary Time",
         uses_leave_api=False,

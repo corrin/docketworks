@@ -1,5 +1,31 @@
 [
   {
+    "model": "client.client",
+    "pk": "00000000-0000-0000-0000-000000000001",
+    "fields": {
+      "xero_contact_id": null,
+      "xero_tenant_id": null,
+      "name": "Demo Company Shop",
+      "email": "demo@example.com",
+      "phone": null,
+      "address": null,
+      "is_account_customer": false,
+      "is_supplier": false,
+      "allow_jobs": true,
+      "xero_last_modified": "2024-01-01T00:00:00Z",
+      "raw_json": {},
+      "primary_contact_name": null,
+      "primary_contact_email": null,
+      "additional_contact_persons": [],
+      "all_phones": [],
+      "django_created_at": "2024-01-01T00:00:00Z",
+      "django_updated_at": "2024-01-01T00:00:00Z",
+      "xero_last_synced": "2024-01-01T00:00:00Z",
+      "xero_archived": false,
+      "xero_merged_into_id": null
+    }
+  },
+  {
     "model": "workflow.companydefaults",
     "pk": 1,
     "fields": {
@@ -36,7 +62,7 @@
       "updated_at": "2024-01-01T00:00:00Z",
       "last_xero_sync": null,
       "last_xero_deep_sync": null,
-      "shop_client_name": "Demo Company Shop",
+      "shop_client": "00000000-0000-0000-0000-000000000001",
       "test_client_name": "ABC Carpet Cleaning TEST IGNORE",
       "kpi_daily_billable_hours_green": "45.00",
       "kpi_daily_billable_hours_amber": "35.00",

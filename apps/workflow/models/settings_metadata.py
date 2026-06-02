@@ -55,6 +55,7 @@ class SettingsSection:
 # Note: Order matters! More specific types (subclasses) must come before their parent classes.
 # e.g., URLField and EmailField must come before CharField since they inherit from it.
 DJANGO_TO_UI_TYPE: dict[type["models.Field[Any, Any]"], str] = {
+    models.ForeignKey: "foreign_key",
     # ImageField before FileField (more specific first)
     models.ImageField: "image",
     # Specific CharField subclasses first
@@ -135,7 +136,7 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "starting_job_number": "setup",
     "starting_po_number": "setup",
     "po_prefix": "setup",
-    "shop_client_name": "setup",
+    "shop_client": "setup",
     "test_client_name": "setup",
     # Xero integration
     "accounting_provider": "xero",
@@ -160,6 +161,11 @@ def get_ui_type_for_field(field: "models.Field[Any, Any]") -> str:
 
     Returns a string like 'text', 'number', 'boolean', etc.
     """
+    related_model = getattr(field.remote_field, "model", None)
+    related_label = getattr(getattr(related_model, "_meta", None), "label", None)
+    if isinstance(field, models.ForeignKey) and related_label == "client.Client":
+        return "client"
+
     for field_class, ui_type in DJANGO_TO_UI_TYPE.items():
         if isinstance(field, field_class):
             return ui_type

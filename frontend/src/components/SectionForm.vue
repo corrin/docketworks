@@ -86,6 +86,19 @@
           </p>
         </div>
 
+        <select
+          v-else-if="field.type === 'client'"
+          v-model="localForm[field.key] as string"
+          class="h-9 text-sm rounded-md border border-input bg-background px-3 py-1"
+          :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
+          :data-automation-id="`SectionForm-${section}-field-${field.key}`"
+          :disabled="field.readOnly || clientOptionsLoading"
+        >
+          <option v-for="client in clientOptions" :key="client.id" :value="client.id">
+            {{ client.name }}
+          </option>
+        </select>
+
         <Input
           v-else
           v-model="localForm[field.key] as string | number | undefined"
@@ -149,10 +162,15 @@ import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Calendar from '@/components/ui/calendar/Calendar.vue'
 import { Clock, Upload, Trash2 } from 'lucide-vue-next'
 import { ref, computed, watch } from 'vue'
+import { z } from 'zod'
+import { api } from '@/api/client'
+import { schemas } from '@/api/generated/api'
 import { CalendarDateTime, parseDateTime } from '@internationalized/date'
 import { useSettingsSchema } from '@/composables/useSettingsSchema'
 import { uploadLogo, deleteLogo } from '@/services/admin-company-defaults-service'
 import { toast } from 'vue-sonner'
+
+type ClientOption = z.infer<typeof schemas.ClientNameOnly>
 
 const props = defineProps<{ section: string; modelValue: Record<string, unknown> }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: Record<string, unknown>): void }>()
@@ -184,6 +202,8 @@ const FIELD_COL_SPAN_OVERRIDES: Record<string, 2> = {
 }
 
 const logoErrors = ref<Record<string, string>>({})
+const clientOptions = ref<ClientOption[]>([])
+const clientOptionsLoading = ref(false)
 
 const LOGO_ASPECT_RULES: Record<
   string,
@@ -425,6 +445,34 @@ function toCalendarDate(
 
 const sectionFields = computed(() => getFieldsForSection(props.section))
 const isWorkingHours = computed(() => getSpecialHandler(props.section) === 'working_hours')
+
+async function loadClientOptions() {
+  clientOptionsLoading.value = true
+  try {
+    clientOptions.value = await api.clients_all_list()
+  } catch (e) {
+    console.error('Client options load failed:', e)
+    toast.error('Failed to load clients')
+  } finally {
+    clientOptionsLoading.value = false
+  }
+}
+
+watch(
+  sectionFields,
+  (fields) => {
+    if (!fields.some((field) => field.type === 'client')) {
+      return
+    }
+
+    if (clientOptions.value.length > 0) {
+      return
+    }
+
+    void loadClientOptions()
+  },
+  { immediate: true },
+)
 
 function normalizeUrl(url: string): string {
   if (!url) return url

@@ -51,12 +51,16 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
     logo_wide = serializers.ImageField(required=False, allow_null=True, write_only=True)
     logo_url = serializers.SerializerMethodField(read_only=True)
     logo_wide_url = serializers.SerializerMethodField(read_only=True)
+    shop_client_name = serializers.SerializerMethodField(read_only=True)
 
     def get_logo_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo", self.context)
 
     def get_logo_wide_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo_wide", self.context)
+
+    def get_shop_client_name(self, obj: CompanyDefaults) -> str:
+        return obj.shop_client.name
 
     class Meta:
         model = CompanyDefaults

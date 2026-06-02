@@ -2137,6 +2137,7 @@ paths:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/CompanyDefaultsRequest'
+        required: true
       security:
         - cookieAuth: []
       responses:
@@ -2238,6 +2239,7 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/CompanyDefaultsRequest'
+        required: true
       security:
         - cookieAuth: []
       responses:
@@ -9565,6 +9567,9 @@ components:
           type: string
           nullable: true
           readOnly: true
+        shop_client_name:
+          type: string
+          readOnly: true
         company_name:
           type: string
           readOnly: true
@@ -9817,12 +9822,6 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
-        shop_client_name:
-          type: string
-          nullable: true
-          description: Name of the internal shop client for tracking shop work (e.g.,
-            'MSM (Shop)')
-          maxLength: 255
         test_client_name:
           type: string
           nullable: true
@@ -9904,12 +9903,18 @@ components:
           exclusiveMinimum: true
           description: Target daily hours of newly-approved work flowing into the
             shop, used by the Sales Pipeline scoreboard
+        shop_client:
+          type: string
+          format: uuid
+          description: Internal client used for tracking shop work.
       required:
         - company_name
         - created_at
         - id
         - logo_url
         - logo_wide_url
+        - shop_client
+        - shop_client_name
         - updated_at
     CompanyDefaultsJobDetail:
       type: object
@@ -10194,12 +10199,6 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
-        shop_client_name:
-          type: string
-          nullable: true
-          description: Name of the internal shop client for tracking shop work (e.g.,
-            'MSM (Shop)')
-          maxLength: 255
         test_client_name:
           type: string
           nullable: true
@@ -10281,6 +10280,12 @@ components:
           exclusiveMinimum: true
           description: Target daily hours of newly-approved work flowing into the
             shop, used by the Sales Pipeline scoreboard
+        shop_client:
+          type: string
+          format: uuid
+          description: Internal client used for tracking shop work.
+      required:
+        - shop_client
     CompanyDefaultsSchema:
       type: object
       description: Serializer for the complete schema response.
@@ -14971,12 +14976,6 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
-        shop_client_name:
-          type: string
-          nullable: true
-          description: Name of the internal shop client for tracking shop work (e.g.,
-            'MSM (Shop)')
-          maxLength: 255
         test_client_name:
           type: string
           nullable: true
@@ -15058,6 +15057,10 @@ components:
           exclusiveMinimum: true
           description: Target daily hours of newly-approved work flowing into the
             shop, used by the Sales Pipeline scoreboard
+        shop_client:
+          type: string
+          format: uuid
+          description: Internal client used for tracking shop work.
     PatchedCostLineCreateUpdateRequest:
       type: object
       description: Serializer for CostLine creation and updates - full write capabilities

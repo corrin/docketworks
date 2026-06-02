@@ -10,7 +10,6 @@ from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
 from apps.job.models import CostSet, Job
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 
@@ -47,9 +46,7 @@ class Command(BaseCommand):
 
         # Resolve shop client from CompanyDefaults
         defaults = CompanyDefaults.get_solo()
-        if not defaults.shop_client_name:
-            raise CommandError("CompanyDefaults.shop_client_name is not configured.")
-        client = Client.objects.get(name=defaults.shop_client_name)
+        client = defaults.shop_client
 
         # Resolve pay item
         pay_item = XeroPayItem.objects.filter(

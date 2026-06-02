@@ -9,8 +9,6 @@ from django.db.models.functions import Coalesce
 from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
 
-from apps.workflow.models import CompanyDefaults
-
 logger = logging.getLogger(__name__)
 
 
@@ -225,67 +223,6 @@ class Client(models.Model):
             ],
             is_customer=self.is_account_customer,
         )
-
-    @classmethod
-    def get_shop_client_id(cls) -> str:
-        """
-        Get the shop client ID. Enforces singleton pattern -
-        exactly one shop client must exist.
-
-        Returns:
-            str: UUID of the shop client
-
-        Raises:
-            ValueError: If zero or multiple shop clients found,
-                or if shop_client_name not configured
-            RuntimeError: If CompanyDefaults singleton is violated
-        """
-        # Validate CompanyDefaults singleton
-        company_count = CompanyDefaults.objects.count()
-        if company_count == 0:
-            raise ValueError(
-                "No CompanyDefaults found - database not properly initialized"
-            )
-        elif company_count > 1:
-            raise RuntimeError(
-                f"Multiple CompanyDefaults found ({company_count}) - "
-                f"singleton violated!"
-            )
-
-        company_defaults = CompanyDefaults.get_solo()
-
-        # Require explicit shop_client_name configuration
-        if not company_defaults.shop_client_name:
-            raise ValueError(
-                "CompanyDefaults.shop_client_name is not configured. "
-                "Please set the exact name of your shop client."
-            )
-
-        shop_name = company_defaults.shop_client_name
-
-        # Find shop clients with exact name match
-        shop_clients = cls.objects.filter(name=shop_name)
-        shop_count = shop_clients.count()
-
-        if shop_count == 0:
-            raise ValueError(f"No shop client found with name '{shop_name}'")
-        elif shop_count > 1:
-            raise RuntimeError(
-                f"Multiple shop clients found ({shop_count}) with name "
-                f"'{shop_name}' - singleton violated!"
-            )
-
-        shop_client = shop_clients.get()
-
-        # Validate the shop client has proper Xero integration
-        # Commented out for testing purposes
-        # if not shop_client.xero_contact_id:
-        #     raise ValueError(
-        #         f"Shop client '{shop_name}' has no Xero contact ID - "
-        #         f"not properly synced"
-        #     )
-
-        return str(shop_client.id)
 
     def get_final_client(self):
         """

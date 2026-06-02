@@ -402,19 +402,16 @@ class Job(models.Model):
         """Indicates if this is a shop job (belongs to shop client)."""
         if not self.client_id:
             return False
-        from apps.client.models import Client
 
-        shop_client_id = Client.get_shop_client_id()
-        return str(self.client_id) == shop_client_id
+        defaults = CompanyDefaults.get_solo()
+        return self.client_id == defaults.shop_client_id
 
     @shop_job.setter
     def shop_job(self, value: bool) -> None:
         """Sets whether this is a shop job by updating the client ID."""
-        from apps.client.models import Client
-
         if value:
-            shop_client_id = Client.get_shop_client_id()
-            self.client_id = uuid.UUID(shop_client_id)
+            defaults = CompanyDefaults.get_solo()
+            self.client_id = defaults.shop_client_id
         else:
             self.client_id = None
 

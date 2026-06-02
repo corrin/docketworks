@@ -10,6 +10,7 @@ from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
+from apps.workflow.models import CompanyDefaults
 
 
 class TestSerializeJobForApi(BaseTestCase):
@@ -20,10 +21,7 @@ class TestSerializeJobForApi(BaseTestCase):
             name="Test Client",
             xero_last_modified=timezone.now(),
         )
-        self.shop_client = Client.objects.create(
-            name="Demo Company Shop",
-            xero_last_modified=timezone.now(),
-        )
+        self.shop_client = CompanyDefaults.get_solo().shop_client
 
     def _create_job(self, pricing_methodology="time_materials"):
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
@@ -169,7 +167,7 @@ class TestSerializeJobForApi(BaseTestCase):
             for query in captured
             if "client_client" in query["sql"] and "Demo Company Shop" in query["sql"]
         ]
-        self.assertLessEqual(len(shop_client_queries), 2)
+        self.assertEqual(shop_client_queries, [])
         self.assertEqual(
             {job["name"]: job["shop_job"] for job in serialized},
             {"Shop Job": True, "Test Job": False},
@@ -189,15 +187,13 @@ class TestSerializeJobForApi(BaseTestCase):
 
         self.assertTrue(serialized["shop_job"])
 
-    def test_shop_client_misconfiguration_raises_instead_of_fail_open(self):
-        self.shop_client.delete()
+    def test_non_shop_job_serializes_false_when_client_differs_from_configured_shop(
+        self,
+    ):
         job = self._create_job()
         self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
 
-        with self.assertRaises(ValueError):
-            KanbanService.serialize_jobs_for_api([job])
-        with self.assertRaises(ValueError):
-            KanbanService.serialize_job_for_api(job)
-        with self.assertRaises(ValueError):
-            _ = job.shop_job
+        serialized = KanbanService.serialize_jobs_for_api([job])
+
+        self.assertFalse(serialized[0]["shop_job"])

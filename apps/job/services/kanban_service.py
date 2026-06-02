@@ -31,9 +31,9 @@ from django.db.models.functions import Cast, Coalesce, Greatest
 from django.http import HttpRequest
 
 from apps.accounting.models import Invoice
-from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
+from apps.workflow.models import CompanyDefaults
 from apps.workflow.utils import is_valid_invoice_number, is_valid_uuid
 
 logger = logging.getLogger(__name__)
@@ -505,16 +505,13 @@ class KanbanService:
         return {"statuses": status_choices, "tooltips": status_tooltips}
 
     @staticmethod
-    def _get_shop_client_id_for_kanban() -> str:
-        return Client.get_shop_client_id()
-
-    @staticmethod
     def serialize_jobs_for_api(
         jobs: Union[QuerySet[Job], List[Job], Tuple[Job, ...]],
         request: HttpRequest = None,
     ) -> List[Dict[str, Any]]:
         """Serialize a Kanban job list with per-response context."""
-        shop_client_id = KanbanService._get_shop_client_id_for_kanban()
+        defaults = CompanyDefaults.get_solo()
+        shop_client_id = defaults.shop_client_id
         return [
             KanbanService.serialize_job_for_api(
                 job,
@@ -528,7 +525,7 @@ class KanbanService:
     def serialize_job_for_api(
         job: Job,
         request: HttpRequest = None,
-        shop_client_id: Optional[str] = None,
+        shop_client_id: Optional[UUID] = None,
     ) -> Dict[str, Any]:
         """
         Serialize a job object for API response.
@@ -540,8 +537,11 @@ class KanbanService:
         Returns:
             Dictionary representation of the job
         """
-        if shop_client_id is None and job.client_id:
-            shop_client_id = KanbanService._get_shop_client_id_for_kanban()
+        if shop_client_id is None:
+            defaults = CompanyDefaults.get_solo()
+            shop_client_id = defaults.shop_client_id
+        else:
+            pass  # caller supplied the per-response shop client id
 
         # Get badge info
         badge_info = KanbanCategorizationService.get_badge_info(job.status)
@@ -591,7 +591,7 @@ class KanbanService:
                 job.delivery_date.isoformat() if job.delivery_date else None
             ),
             "priority": job.priority,
-            "shop_job": (bool(job.client_id) and str(job.client_id) == shop_client_id),
+            "shop_job": job.client_id == shop_client_id,
             "over_budget": over_budget,
             "quote_revenue": quote_revenue,
             "time_and_materials_revenue": time_and_materials_revenue,

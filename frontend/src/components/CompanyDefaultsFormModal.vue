@@ -35,8 +35,12 @@
             <input v-model="form.po_prefix" class="input" required />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Shop Client Name</label>
-            <input v-model="form.shop_client_name" class="input" />
+            <label class="block text-sm font-medium mb-1">Shop Client</label>
+            <select v-model="form.shop_client" class="input" required>
+              <option v-for="client in clientOptions" :key="client.id" :value="client.id">
+                {{ client.name }}
+              </option>
+            </select>
           </div>
         </div>
         <div class="flex gap-2 justify-end mt-4">
@@ -63,18 +67,29 @@ import DialogContent from '@/components/ui/dialog/DialogContent.vue'
 import DialogHeader from '@/components/ui/dialog/DialogHeader.vue'
 import DialogTitle from '@/components/ui/dialog/DialogTitle.vue'
 import Button from '@/components/ui/button/Button.vue'
-import { ref, watch } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { updateCompanyDefaults } from '@/services/admin-company-defaults-service'
+import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
 
 type CompanyDefaultsForm = z.infer<typeof schemas.CompanyDefaults>
+type ClientOption = z.infer<typeof schemas.ClientNameOnly>
 
 const props = defineProps<{ defaults: CompanyDefaultsForm }>()
 const emit = defineEmits(['close', 'saved'])
 const form = ref<CompanyDefaultsForm>({ ...props.defaults })
+const clientOptions = ref<ClientOption[]>([])
 const error = ref('')
 const isLoading = ref(false)
+
+onMounted(async () => {
+  try {
+    clientOptions.value = await api.clients_all_list()
+  } catch {
+    error.value = 'Failed to load clients.'
+  }
+})
 
 watch(
   () => props.defaults,

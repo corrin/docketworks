@@ -5,9 +5,9 @@ from datetime import date
 from decimal import Decimal
 from typing import Any, Dict, List, Optional
 
-from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.services.job_service import get_job_total_value
+from apps.workflow.models import CompanyDefaults
 
 logger = logging.getLogger(__name__)
 
@@ -69,12 +69,8 @@ class JobProfitabilityReportService:
             completed_at__date__range=(self.start_date, self.end_date),
         )
 
-        # Exclude shop jobs
-        try:
-            shop_client_id = Client.get_shop_client_id()
-            qs = qs.exclude(client_id=shop_client_id)
-        except (ValueError, RuntimeError):
-            logger.warning("Could not determine shop client; skipping exclusion")
+        shop_client_id = CompanyDefaults.get_solo().shop_client_id
+        qs = qs.exclude(client_id=shop_client_id)
 
         if self.pricing_type:
             qs = qs.filter(pricing_methodology=self.pricing_type)
