@@ -204,14 +204,14 @@ class StaffCreateSerializer(BaseStaffSerializer):
 
 
 class KanbanStaffSerializer(serializers.ModelSerializer):
-    display_name = serializers.SerializerMethodField()
+    display_name = serializers.CharField(
+        source="get_display_full_name",
+        read_only=True,
+    )
     icon_url = serializers.SerializerMethodField()
 
     def get_icon_url(self, obj: Staff) -> Optional[str]:
         return _build_icon_url(obj, self.context)
-
-    def get_display_name(self, obj: Staff) -> str:
-        return obj.get_display_full_name()
 
     class Meta:
         model = Staff

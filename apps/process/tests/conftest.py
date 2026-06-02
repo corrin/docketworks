@@ -21,9 +21,15 @@ def test_staff(db):
 
 @pytest.fixture
 def job(db, test_staff):
-    defaults = CompanyDefaults.get_solo()
-    defaults.charge_out_rate = Decimal("105.00")
-    defaults.save()
+    shop_client = Client.objects.create(
+        name="Process Shop Client",
+        xero_last_modified=timezone.now(),
+    )
+    CompanyDefaults.objects.create(
+        company_name="Process Test Co",
+        charge_out_rate=Decimal("105.00"),
+        shop_client=shop_client,
+    )
     client = Client.objects.create(
         name="Test Client",
         xero_last_modified=timezone.now(),

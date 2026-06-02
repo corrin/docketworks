@@ -1,10 +1,8 @@
 import uuid
-from abc import abstractmethod
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from django.db import models
-from django.db.models import QuerySet
 from django.utils import timezone
 
 if TYPE_CHECKING:
@@ -47,16 +45,12 @@ class BaseXeroInvoiceDocument(models.Model):
     def __str__(self) -> str:
         return f"{self.number} - {self.client.name}"
 
-    @abstractmethod
-    def get_line_items(self) -> QuerySet["BaseLineItem"]:
-        """Return the queryset of line items related to this document."""
-
     @property
     def total_amount(self) -> Decimal:
         """Calculate the total amount by summing up the related line items."""
         return sum(
             (item.line_amount_excl_tax or Decimal("0.00"))
-            for item in self.get_line_items()
+            for item in self.line_items.all()
         ) or Decimal("0.00")
 
 
@@ -118,9 +112,6 @@ class Invoice(BaseXeroInvoiceDocument):
         verbose_name_plural = "Invoices"
         ordering = ["-date", "number"]
 
-    def get_line_items(self) -> QuerySet["InvoiceLineItem"]:
-        return self.line_items.all()
-
     @property
     def paid(self) -> bool:
         """Whether this invoice has been paid, as reported by Xero."""
@@ -142,9 +133,6 @@ class Bill(BaseXeroInvoiceDocument):
     def supplier(self, value: "Client") -> None:
         self.client = value
 
-    def get_line_items(self) -> QuerySet["BillLineItem"]:
-        return self.line_items.all()
-
 
 class CreditNote(BaseXeroInvoiceDocument):
     # Note that Xero has a few extra fields we don't have mapped
@@ -159,9 +147,6 @@ class CreditNote(BaseXeroInvoiceDocument):
 
     def __str__(self) -> str:
         return f"Credit Note {self.number} ({self.status})"
-
-    def get_line_items(self) -> QuerySet["CreditNoteLineItem"]:
-        return self.line_items.all()
 
 
 # Concrete Line Item Classes

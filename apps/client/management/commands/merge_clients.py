@@ -29,20 +29,11 @@ class Command(BaseCommand):
         client_name = options.get("name")
 
         if not client_name:
-            # Use shop client name from CompanyDefaults
+            # Use the configured shop client from CompanyDefaults
             company_defaults = CompanyDefaults.get_solo()
-            if not company_defaults:
-                self.stdout.write(self.style.ERROR("CompanyDefaults not found"))
-                return
-
-            client_name = company_defaults.shop_client_name
-            if not client_name:
-                self.stdout.write(
-                    self.style.ERROR(
-                        "shop_client_name not configured in CompanyDefaults"
-                    )
-                )
-                return
+            client_name = company_defaults.shop_client.name
+        else:
+            pass  # explicit client name provided by caller
 
         self.stdout.write(f"Looking for duplicate clients with name: '{client_name}'")
 

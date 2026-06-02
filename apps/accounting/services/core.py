@@ -14,7 +14,6 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.accounts.utils import get_displayable_staff, get_payroll_excluded_staff_ids
-from apps.client.models import Client
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -37,13 +36,6 @@ class KPIService:
     """
 
     nz_timezone = ZoneInfo("Pacific/Auckland")
-    shop_client_id: Optional[str] = None  # Will be set on first access
-
-    @classmethod
-    def _ensure_shop_client_id(cls) -> None:
-        """Ensure shop_client_id is set, initialize if needed"""
-        if cls.shop_client_id is None:
-            cls.shop_client_id = Client.get_shop_client_id()
 
     @staticmethod
     def get_company_thresholds() -> Dict[str, float]:
@@ -159,7 +151,8 @@ class KPIService:
         Returns:
             List of job breakdowns with profit details
         """
-        cls._ensure_shop_client_id()
+        defaults = CompanyDefaults.get_solo()
+        shop_client_id = defaults.shop_client_id
         excluded_staff_ids = get_payroll_excluded_staff_ids()
 
         # Get cost lines for the target date from 'actual' cost sets
@@ -206,7 +199,7 @@ class KPIService:
                 }
 
             # Only count billable time revenue if not shop client
-            if line.is_billable == "true" and str(job.client_id) != cls.shop_client_id:
+            if line.is_billable == "true" and job.client_id != shop_client_id:
                 job_data[job_number]["labour_revenue"] += float(line.total_rev)
 
             job_data[job_number]["labour_cost"] += float(line.total_cost)
@@ -269,7 +262,7 @@ class KPIService:
                 if (
                     line.cost_set.job.job_number == job_number
                     and line.is_billable == "true"
-                    and str(line.cost_set.job.client_id) != cls.shop_client_id
+                    and line.cost_set.job.client_id != shop_client_id
                 ):
                     billable_hours += float(line.quantity)
 
@@ -318,7 +311,8 @@ class KPIService:
         print(f"🔍 KPIService.get_calendar_data called with year={year}, month={month}")
         logger.info(f"Generating KPI calendar data for {year}-{month}")
 
-        cls._ensure_shop_client_id()
+        defaults = CompanyDefaults.get_solo()
+        shop_client_id = defaults.shop_client_id
         thresholds = cls.get_company_thresholds()
         logger.debug(
             f"Using thresholds: green={thresholds['kpi_daily_billable_hours_green']}, "
@@ -397,13 +391,13 @@ class KPIService:
             # Check if billable and not shop client
             if (
                 line.is_billable == "true"
-                and str(line.cost_set.job.client_id) != cls.shop_client_id
+                and line.cost_set.job.client_id != shop_client_id
             ):
                 time_entries_by_date[line_date]["billable_hours"] += hours
                 time_entries_by_date[line_date]["time_revenue"] += line.total_rev
 
             # Check if shop hours
-            if str(line.cost_set.job.client_id) == cls.shop_client_id:
+            if line.cost_set.job.client_id == shop_client_id:
                 time_entries_by_date[line_date]["shop_hours"] += hours
 
             time_entries_by_date[line_date]["staff_cost"] += line.total_cost
@@ -1273,15 +1267,15 @@ class StaffPerformanceService:
             Dict containing staff performance metrics
         """
         total_hours = float(sum(line.quantity for line in cost_lines))
-        # Get shop client ID for filtering
-        shop_client_id = Client.get_shop_client_id()
+        defaults = CompanyDefaults.get_solo()
+        shop_client_id = defaults.shop_client_id
 
         billable_hours = float(
             sum(
                 line.quantity
                 for line in cost_lines
                 if line.is_billable_meta == "true"
-                and str(line.cost_set.job.client_id) != shop_client_id
+                and line.cost_set.job.client_id != shop_client_id
             )
         )
 
@@ -1333,6 +1327,8 @@ class StaffPerformanceService:
             List of job breakdown dictionaries
         """
         job_data = {}
+        defaults = CompanyDefaults.get_solo()
+        shop_client_id = defaults.shop_client_id
 
         for line in cost_lines:
             job = line.cost_set.job
@@ -1352,8 +1348,7 @@ class StaffPerformanceService:
 
             hours = float(line.quantity)
             # Shop jobs are always non-billable regardless of the is_billable flag
-            shop_client_id = Client.get_shop_client_id()
-            is_shop_job = str(line.cost_set.job.client_id) == shop_client_id
+            is_shop_job = line.cost_set.job.client_id == shop_client_id
             is_billable = line.is_billable_meta == "true" and not is_shop_job
 
             if is_billable:

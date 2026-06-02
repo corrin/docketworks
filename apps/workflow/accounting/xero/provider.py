@@ -27,6 +27,9 @@ logger = logging.getLogger("xero")
 class XeroAccountingProvider:
     """Xero implementation of the AccountingProvider protocol."""
 
+    provider_name = "Xero"
+    supports_payroll = True
+
     # --- Shared helpers (DRY) ---
 
     @staticmethod
@@ -80,18 +83,10 @@ class XeroAccountingProvider:
     # --- Properties ---
 
     @property
-    def provider_name(self) -> str:
-        return "Xero"
-
-    @property
     def supports_projects(self) -> bool:
         from django.conf import settings
 
         return getattr(settings, "XERO_SYNC_PROJECTS", False)
-
-    @property
-    def supports_payroll(self) -> bool:
-        return True
 
     # --- Auth ---
 

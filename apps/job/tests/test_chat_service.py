@@ -24,6 +24,7 @@ from apps.job.services.chat_service import ChatService
 from apps.testing import BaseTestCase
 from apps.workflow.enums import AIProviderTypes
 from apps.workflow.models import AIProvider, CompanyDefaults, XeroPayItem
+from apps.workflow.services.llm_service import LLMService
 
 
 class MockLLMResponseBuilder:
@@ -150,17 +151,17 @@ class ChatServiceConfigurationTests(BaseTestCase):
         self.assertIsNotNone(self.service.mode_controller)
         self.assertIsNotNone(self.service.file_service)
 
-    def test_get_llm_service_no_provider(self):
+    def test_llm_service_no_provider(self):
         """Test LLM service creation fails when no AI provider configured"""
         # Remove all AI providers
         AIProvider.objects.all().delete()
 
         with self.assertRaises(ValueError) as context:
-            self.service.get_llm_service()
+            LLMService()
 
         self.assertIn("No AI provider configured", str(context.exception))
 
-    def test_get_llm_service_no_api_key(self):
+    def test_llm_service_no_api_key(self):
         """Test LLM service creation fails when provider has no API key"""
         AIProvider.objects.all().delete()
         AIProvider.objects.create(
@@ -171,11 +172,11 @@ class ChatServiceConfigurationTests(BaseTestCase):
         )
 
         with self.assertRaises(ValueError) as context:
-            self.service.get_llm_service()
+            LLMService()
 
         self.assertIn("missing an API key", str(context.exception))
 
-    def test_get_llm_service_no_model_name(self):
+    def test_llm_service_no_model_name(self):
         """Test LLM service creation fails when provider has no model name"""
         AIProvider.objects.all().delete()
         AIProvider.objects.create(
@@ -186,7 +187,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
         )
 
         with self.assertRaises(ValueError) as context:
-            self.service.get_llm_service()
+            LLMService()
 
         self.assertIn("missing a model name", str(context.exception))
 
@@ -302,7 +303,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
         with self.assertRaises(Job.DoesNotExist):
             self.service.generate_ai_response(non_existent_job_id, "Test message")
 
-    @patch.object(ChatService, "get_llm_service")
+    @patch("apps.job.services.chat_service.LLMService")
     def test_generate_response_simple(self, mock_get_llm):
         """Test simple response generation without tool calls"""
         mock_llm = MockLLMResponseBuilder.create_mock_llm("gemini-pro")
@@ -321,7 +322,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
         self.assertIn("model", result.metadata)
         self.assertIn("user_message", result.metadata)
 
-    @patch.object(ChatService, "get_llm_service")
+    @patch("apps.job.services.chat_service.LLMService")
     def test_generate_response_with_tool_calls(self, mock_get_llm):
         """Test response generation with tool calls"""
         mock_llm = MockLLMResponseBuilder.create_mock_llm("gemini-pro")
@@ -355,7 +356,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
                 result.metadata["tool_calls"][0]["name"], "search_products"
             )
 
-    @patch.object(ChatService, "get_llm_service")
+    @patch("apps.job.services.chat_service.LLMService")
     def test_generate_response_with_history(self, mock_get_llm):
         """Test response generation includes conversation history"""
         # Create some existing chat messages
@@ -395,7 +396,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
         self.assertIn("chat_history", result.metadata)
         self.assertEqual(len(result.metadata["chat_history"]), 2)
 
-    @patch.object(ChatService, "get_llm_service")
+    @patch("apps.job.services.chat_service.LLMService")
     def test_generate_response_error_handling(self, mock_get_llm):
         """Test error handling in response generation"""
         # Mock the LLM service to raise an exception
@@ -644,7 +645,7 @@ class ChatServiceIntegrationTests(BaseTestCase):
             model_name="gemini-pro",
         )
 
-    @patch.object(ChatService, "get_llm_service")
+    @patch("apps.job.services.chat_service.LLMService")
     def test_complete_chat_flow(self, mock_get_llm):
         """Test complete chat flow from user message to saved response"""
         service = ChatService()
@@ -734,7 +735,7 @@ class ChatServiceModeResponseTests(BaseTestCase):
 
         self.service = ChatService()
 
-    @patch.object(ChatService, "get_llm_service")
+    @patch("apps.job.services.chat_service.LLMService")
     def test_generate_mode_response_error_handling(self, mock_get_llm):
         """Test error handling in mode response generation"""
         mock_get_llm.side_effect = Exception("Mode Error")

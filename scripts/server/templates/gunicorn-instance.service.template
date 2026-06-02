@@ -1,6 +1,7 @@
 [Unit]
 Description=Gunicorn instance for docketworks __INSTANCE__
-After=network.target
+After=network.target redis-server.service
+Requires=redis-server.service
 
 [Service]
 User=__INSTANCE_USER__

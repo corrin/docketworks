@@ -20,12 +20,11 @@ logger = logging.getLogger(__name__)
 class GeminiPriceExtractionProvider:
     """Gemini AI provider for price extraction from PDF documents."""
 
+    provider_name = "Gemini"
+
     def __init__(self, api_key: str, model_name: str = "gemini-2.5-flash"):
         self.api_key = api_key
         self.model_name = model_name
-
-    def get_provider_name(self) -> str:
-        return "Gemini"
 
     def extract_price_data(
         self, file_path: str, content_type: Optional[str] = None

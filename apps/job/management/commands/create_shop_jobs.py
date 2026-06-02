@@ -1,7 +1,6 @@
-from django.core.management.base import BaseCommand, CommandError
+from django.core.management.base import BaseCommand
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
 from apps.job.models import Job
 from apps.workflow.models import CompanyDefaults
 
@@ -47,28 +46,8 @@ class Command(BaseCommand):
             },
         ]
 
-        # Get the shop client from company defaults
-        try:
-            company_defaults = CompanyDefaults.get_solo()
-        except CompanyDefaults.DoesNotExist:
-            raise CommandError(
-                "CompanyDefaults not found. Please configure company defaults first."
-            )
-
-        if not company_defaults.shop_client_name:
-            raise CommandError("Shop client name not configured in CompanyDefaults.")
-
-        try:
-            shop_client = Client.objects.get(name=company_defaults.shop_client_name)
-        except Client.DoesNotExist:
-            raise CommandError(
-                f"Shop client '{company_defaults.shop_client_name}' not found."
-            )
-        except Client.MultipleObjectsReturned:
-            raise CommandError(
-                f"Multiple clients found with name "
-                f"'{company_defaults.shop_client_name}'. Please resolve duplicates."
-            )
+        company_defaults = CompanyDefaults.get_solo()
+        shop_client = company_defaults.shop_client
 
         # Iterate through the shop jobs and create them
         automation_user = Staff.get_automation_user()

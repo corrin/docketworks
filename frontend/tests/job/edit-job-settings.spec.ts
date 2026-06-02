@@ -506,10 +506,16 @@ test.describe.serial('edit job', () => {
     await page.goto(jobUrl)
     await page.waitForLoadState('networkidle')
 
-    // Get the shop client name from company defaults
     const companyDefaults = await getCompanyDefaults(page)
-    const shopClientName = companyDefaults.shop_client_name as string
-    expect(shopClientName).toBeTruthy()
+    const shopClientId = companyDefaults.shop_client as string
+    expect(shopClientId).toBeTruthy()
+    const clientsResponse = await page.request.get('/api/clients/all/', {
+      headers: { Accept: 'application/json' },
+    })
+    const clients = (await clientsResponse.json()) as Array<{ id: string; name: string }>
+    const shopClient = clients.find((client) => client.id === shopClientId)
+    expect(shopClient).toBeTruthy()
+    const shopClientName = shopClient?.name as string
     console.log(`Using shop client name: ${shopClientName}`)
 
     // Navigate to Job Settings tab

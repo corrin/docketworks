@@ -244,12 +244,11 @@ class CompanyDefaults(SingletonModel):
         help_text="Wide company logo for letterheads and PDFs",
     )
 
-    # Shop client configuration
-    shop_client_name = models.CharField(
-        max_length=255,
-        null=True,
-        blank=True,
-        help_text="Name of the internal shop client for tracking shop work (e.g., 'MSM (Shop)')",
+    shop_client = models.ForeignKey(
+        "client.Client",
+        on_delete=models.PROTECT,
+        related_name="+",
+        help_text="Internal client used for tracking shop work.",
     )
 
     # Test client configuration

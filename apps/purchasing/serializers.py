@@ -62,12 +62,13 @@ class SupplierSearchResponseSerializer(serializers.Serializer):
 class JobForPurchasingSerializer(serializers.ModelSerializer):
     """Serializer for Job model in purchasing contexts."""
 
-    client_name = serializers.SerializerMethodField()
+    client_name = serializers.CharField(
+        source="client.name",
+        read_only=True,
+        default="No Client",
+    )
     is_stock_holding = serializers.SerializerMethodField()
     job_display_name = serializers.SerializerMethodField()
-
-    def get_client_name(self, obj) -> str:
-        return obj.client.name if obj.client else "No Client"
 
     def get_is_stock_holding(self, obj) -> bool:
         # This will be set dynamically in the view
@@ -131,11 +132,25 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
 class PurchaseOrderDetailSerializer(serializers.ModelSerializer):
     """Return purchase order details with related lines."""
 
-    supplier = serializers.SerializerMethodField()
-    supplier_id = serializers.SerializerMethodField()
+    supplier = serializers.CharField(
+        source="supplier.name",
+        read_only=True,
+        default="",
+    )
+    supplier_id = serializers.UUIDField(
+        source="supplier.id",
+        read_only=True,
+        allow_null=True,
+        default=None,
+    )
     supplier_has_xero_id = serializers.SerializerMethodField()
-    created_by_name = serializers.SerializerMethodField()
-    lines = PurchaseOrderLineSerializer(source="po_lines", many=True)
+    created_by_name = serializers.CharField(
+        source="created_by.get_display_full_name",
+        read_only=True,
+        default="",
+        allow_blank=True,
+    )
+    lines = PurchaseOrderLineSerializer(source="detail_lines", many=True)
     pickup_address = SupplierPickupAddressSerializer(read_only=True, allow_null=True)
 
     class Meta:
@@ -146,17 +161,8 @@ class PurchaseOrderDetailSerializer(serializers.ModelSerializer):
             + ["created_by_name"]
         )
 
-    def get_supplier(self, obj) -> str:
-        return obj.supplier.name if obj.supplier else ""
-
-    def get_supplier_id(self, obj) -> str | None:
-        return str(obj.supplier.id) if obj.supplier else None
-
     def get_supplier_has_xero_id(self, obj) -> bool:
         return obj.supplier.xero_contact_id is not None if obj.supplier else False
-
-    def get_created_by_name(self, obj) -> str:
-        return obj.created_by.get_display_full_name() if obj.created_by else ""
 
 
 class AllJobsResponseSerializer(serializers.Serializer):

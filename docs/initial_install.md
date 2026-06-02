@@ -14,7 +14,7 @@ Dev machine setup. One-off steps that persist across restores.
    local   all       all       scram-sha-256
    ```
    Restart PostgreSQL after editing.
-5. **Redis** — `sudo apt install redis-server`. Used as the Celery broker, Django shared cache, and Channels backend. Starts on :6379 automatically on Debian/Ubuntu.
+5. **Redis** — `sudo apt install redis-server && sudo systemctl enable --now redis-server`. Used as the Celery broker, Django shared cache, and Channels backend. Runs as host infrastructure on :6379 and starts on boot.
 
 ## Clone and Install
 
@@ -60,7 +60,7 @@ sudo -u postgres ./scripts/setup_database.sh
 If you encounter issues:
 
 1.  **Dependencies:** Rerun `poetry install`. Check for errors.
-2.  **.env File:** Verify `DB_NAME`, `DB_USER`, `DB_PASSWORD`, `APP_DOMAIN`.
+2.  **.env File:** Verify `DB_NAME`, `DB_USER`, `DB_PASSWORD`, and `APP_DOMAIN`.
 3.  **Database:** Is PostgreSQL running? Do credentials in `.env` match the `CREATE ROLE` command?
 4.  **Migrations:** Run `python manage.py migrate`. Any errors?
 5.  **ngrok:** Is the ngrok terminal running without errors? Does the domain match the redirect URI and `.env`? Is the port correct?

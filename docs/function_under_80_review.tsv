@@ -1,0 +1,91 @@
+path	line	qualified_name	character_count	call	rationale
+adhoc/debug_xero_serialization.py	20	MockBill.__init__	64	simplifying	Adhoc test double initializer; not cleanup target.
+apps/accounting/models/invoice.py	47	BaseXeroInvoiceDocument.__str__	78	simplifying	Django display hook for admin/debug output.
+apps/accounting/models/invoice.py	142	Bill.supplier	72	simplifying	Domain alias mapping bills to supplier while storage uses client.
+apps/accounting/services/payroll_reconciliation_service.py	139	_get_monday	76	simplifying	Names a date calculation used in reconciliation logic.
+apps/accounts/models.py	241	Staff.__str__	78	simplifying	Django display hook.
+apps/accounts/models.py	296	Staff.name	75	lasagne	Property aliases first_name/last_name and overlaps with display helpers; likely compatibility-style layer.
+apps/accounts/views/staff_views.py	104	StaffListAPIView.get_serializer_context	74	simplifying	DRF hook supplying request context.
+apps/client/models.py	157	Client.__str__	43	simplifying	Django display hook.
+apps/client/models.py	196	Client.total_spend	75	simplifying	Strict annotated-query property that prevents silent missing data.
+apps/client/models.py	329	ClientContact.__str__	69	simplifying	Django display hook.
+apps/client/models.py	377	SupplierSearchAlias.__str__	70	simplifying	Django display hook.
+apps/client/tests/test_client_fts_search.py	28	hynds	60	simplifying	Test fixture factory improves test readability.
+apps/client/tests/test_client_fts_search.py	33	dog_food	62	simplifying	Test fixture factory improves test readability.
+apps/client/tests/test_client_fts_search.py	38	food_dog	61	simplifying	Test fixture factory improves test readability.
+apps/client/tests/test_client_merge_service.py	430	AtomicityTests.test_rollback_if_any_update_fails._exploding_filter._ExplodingQS.__getattr__	73	simplifying	Test double behavior for a failure path.
+apps/job/migrations/0057_safetydocument_google_docs.py	15	noop	69	simplifying	Migration no-op reverse/placeholder.
+apps/job/models/job_event.py	164	JobEvent.description	69	simplifying	Property names the public presentation value while builder owns details.
+apps/job/serializers/costing_serializer.py	351	CostSetSummaryOnlySerializer.get_cost_lines	56	simplifying	Serializer override intentionally suppresses nested cost lines.
+apps/job/services/job_rest_service.py	177	_json_from_str	55	simplifying	singledispatch handler replaces an isinstance branch.
+apps/job/services/job_rest_service.py	189	_json_from_none	58	simplifying	singledispatch handler replaces an isinstance branch.
+apps/job/services/job_rest_service.py	206	_json_from_datetime	77	simplifying	singledispatch handler replaces an isinstance branch.
+apps/job/services/job_rest_service.py	211	_json_from_date	69	simplifying	singledispatch handler replaces an isinstance branch.
+apps/job/services/job_rest_service.py	216	_json_from_decimal	76	simplifying	singledispatch handler replaces an isinstance branch.
+apps/job/services/job_rest_service.py	221	_json_from_uuid	62	simplifying	singledispatch handler replaces an isinstance branch.
+apps/job/services/month_end_service.py	16	MonthEndService._get_stock_job	73	lasagne	Private wrapper only forwards to Stock.get_stock_holding_job.
+apps/job/services/workshop_service.py	24	WorkshopTimesheetService.__init__	56	simplifying	Stores service dependency; normal constructor.
+apps/job/tests/test_workshop_pdf_service.py	37	FormatHoursDisplayTests.test_zero	78	simplifying	Tiny focused unit test.
+apps/job/tests/test_workshop_pdf_service.py	40	FormatHoursDisplayTests.test_none	79	simplifying	Tiny focused unit test.
+apps/operations/tests/test_scheduler_service.py	164	TestStaffFiltering.setUp	57	simplifying	Test setup hook.
+apps/operations/tests/test_scheduler_service.py	204	TestPeopleAssignment.setUp	57	simplifying	Test setup hook.
+apps/operations/tests/test_scheduler_service.py	257	TestAssignedStaffPreference.setUp	57	simplifying	Test setup hook.
+apps/operations/tests/test_scheduler_service.py	589	TestEfficiencyFactor.setUp	57	simplifying	Test setup hook.
+apps/operations/tests/test_scheduler_service.py	758	TestPriorityAndCapacity.setUp	57	simplifying	Test setup hook.
+apps/process/models/procedure.py	99	Procedure.has_google_doc	73	simplifying	Names a boolean domain predicate.
+apps/process/tests/test_form_service.py	7	_make_service	77	simplifying	Test factory reduces setup repetition.
+apps/process/views/form_viewsets.py	113	FormViewSet._get_category	71	lasagne	Private method only wraps self.kwargs.get; little abstraction value.
+apps/process/views/procedure_viewsets.py	107	ProcedureViewSet._get_category	71	lasagne	Private method only wraps self.kwargs.get; duplicated with FormViewSet.
+apps/purchasing/models.py	589	Stock.__str__	73	simplifying	Django display hook.
+apps/purchasing/services/supplier_search_service.py	60	_compact	66	simplifying	Names a text normalization step used in scoring.
+apps/purchasing/tasks.py	20	ParseStockItemTask.__call__	67	simplifying	Protocol stub for typed Celery task object.
+apps/purchasing/tasks.py	22	ParseStockItemTask.delay	69	simplifying	Protocol stub for typed Celery task object.
+apps/purchasing/tasks.py	26	ParseUnparsedStockItemsTask.__call__	48	simplifying	Protocol stub for typed Celery task object.
+apps/purchasing/tasks.py	28	ParseUnparsedStockItemsTask.delay	47	simplifying	Protocol stub for typed Celery task object.
+apps/purchasing/views/purchasing_rest_views.py	72	PurchaseOrderETagMixin._normalize_etag	70	lasagne	Private wrapper only forwards to normalize_etag.
+apps/quoting/scrapers/base.py	85	BaseScraper.get_product_urls	76	simplifying	Abstract method defines scraper contract.
+apps/quoting/scrapers/base.py	89	BaseScraper.scrape_product	73	simplifying	Abstract method defines scraper contract.
+apps/quoting/scrapers/base.py	93	BaseScraper.login	51	simplifying	Abstract method defines scraper contract.
+apps/quoting/services/providers/gemini_provider.py	27	GeminiPriceExtractionProvider.get_provider_name	59	lasagne	Method returns a constant provider name; candidate for class attribute/protocol simplification.
+apps/quoting/services/providers/mistral_provider.py	27	MistralPriceExtractionProvider.__init__	64	simplifying	Stores provider dependency; normal constructor.
+apps/quoting/services/providers/mistral_provider.py	30	MistralPriceExtractionProvider.get_provider_name	60	lasagne	Method returns a constant provider name; candidate for class attribute/protocol simplification.
+apps/timesheet/tests/test_payroll_post_api.py	136	PayrollPostStartApiTests.test_stream_ensures_pay_run_before_fetching_timesheets.record_validate	79	simplifying	Local test spy documents call order.
+apps/timesheet/tests/test_payroll_post_api.py	142	PayrollPostStartApiTests.test_stream_ensures_pay_run_before_fetching_timesheets.record_ensure	75	simplifying	Local test spy documents call order.
+apps/workflow/accounting/xero/provider.py	83	XeroAccountingProvider.provider_name	53	lasagne	Provider property returns constant; candidate for class attribute if interface permits.
+apps/workflow/accounting/xero/provider.py	93	XeroAccountingProvider.supports_payroll	55	lasagne	Provider property returns constant; candidate for class attribute if interface permits.
+apps/workflow/api/xero/payroll.py	56	_safe_date_of_birth	69	simplifying	SDK monkeypatch setter; shape is required by property API.
+apps/workflow/api/xero/payroll.py	64	_safe_annual_salary	69	simplifying	SDK monkeypatch setter; shape is required by property API.
+apps/workflow/api/xero/payroll.py	68	_safe_status	55	simplifying	SDK monkeypatch setter; shape is required by property API.
+apps/workflow/api/xero/payroll.py	77	_safe_engagement_type	73	simplifying	SDK monkeypatch setter; shape is required by property API.
+apps/workflow/api/xero/payroll.py	88	_safe_timesheet_line_date	66	simplifying	SDK monkeypatch setter; shape is required by property API.
+apps/workflow/middleware.py	28	DisallowedHostMiddleware.__init__	74	simplifying	Required middleware constructor storing get_response.
+apps/workflow/middleware.py	31	DisallowedHostMiddleware.__call__	70	simplifying	Required middleware call path before process_exception.
+apps/workflow/migrations/0221_drop_django_apscheduler_tables.py	19	noop	39	simplifying	Migration no-op reverse/placeholder.
+apps/workflow/migrations/0222_remove_xero_sync_service.py	60	noop	39	simplifying	Migration no-op reverse/placeholder.
+apps/workflow/models/ai_provider.py	28	AIProvider.__str__	71	simplifying	Django display hook.
+apps/workflow/models/company_defaults.py	368	CompanyDefaults.__str__	51	simplifying	Django display hook.
+apps/workflow/models/xero_account.py	37	XeroAccount.__str__	78	simplifying	Django display hook.
+apps/workflow/tests/test_tasks.py	39	XeroSyncTaskFailureTests.setUp	56	simplifying	Test setup hook.
+apps/workflow/tests/test_tasks.py	42	XeroSyncTaskFailureTests.tearDown	59	simplifying	Test teardown hook.
+apps/workflow/tests/test_tasks.py	146	XeroSyncStartResultTests.setUp	56	simplifying	Test setup hook.
+apps/workflow/tests/test_tasks.py	149	XeroSyncStartResultTests.tearDown	59	simplifying	Test teardown hook.
+apps/workflow/tests/test_tasks.py	208	XeroRegularSyncSkipTests.setUp	56	simplifying	Test setup hook.
+apps/workflow/tests/test_tasks.py	211	XeroRegularSyncSkipTests.tearDown	59	simplifying	Test teardown hook.
+apps/workflow/tests/test_xero_document_raw_json.py	16	_FakeProvider.__init__	56	simplifying	Test fake initializer.
+apps/workflow/tests/test_xero_document_raw_json.py	19	_FakeProvider.get_account_code	70	simplifying	Test fake implements provider contract.
+apps/workflow/tests/test_xero_document_raw_json.py	22	_FakeProvider.create_invoice	61	simplifying	Test fake implements provider contract.
+apps/workflow/tests/test_xero_document_raw_json.py	25	_FakeProvider.create_quote	59	simplifying	Test fake implements provider contract.
+apps/workflow/tests/test_xero_document_raw_json.py	28	_FakeProvider.add_history_note_to_invoice	77	simplifying	Test fake implements provider contract.
+apps/workflow/tests/test_xero_document_raw_json.py	31	_FakeProvider.add_history_note_to_quote	75	simplifying	Test fake implements provider contract.
+apps/workflow/tests/test_xero_quota_floor.py	272	SynchroniseXeroDataOrchestratorGateTests.setUp	55	simplifying	Test setup hook.
+apps/workflow/tests/test_xero_quota_floor.py	275	SynchroniseXeroDataOrchestratorGateTests.tearDown	58	simplifying	Test teardown hook.
+apps/workflow/tests/test_xero_quota_floor.py	557	RunSyncAbortedBranchTests.setUp	56	simplifying	Test setup hook.
+apps/workflow/tests/test_xero_quota_floor.py	560	RunSyncAbortedBranchTests.tearDown	59	simplifying	Test teardown hook.
+apps/workflow/tests/test_xero_webhooks.py	364	ProcessXeroWebhookEventTaskTests.test_sync_exception_persists_and_raises_already_logged.boom	73	simplifying	Local test helper used to force exception path.
+apps/workflow/views/data_versions_view.py	39	_stock_version	75	simplifying	Names one data-version component and keeps response assembly regular.
+docketworks/celery.py	28	_nplusone_setup	59	simplifying	Signal receiver must be callable with this shape.
+docketworks/celery.py	32	_nplusone_teardown	65	simplifying	Signal receiver must be callable with this shape.
+scripts/find_duplicates.py	73	DuplicateFinder.visit_AsyncFunctionDef	76	simplifying	AST visitor alias for async functions.
+scripts/find_wrapper_candidates.py	46	extract_functions_and_calls.Visitor.__init__	57	simplifying	Visitor state initialization.
+scripts/generate_url_docs.py	79	URLDocumentationGenerator.__init__	62	simplifying	Generator state initialization.
+scripts/payroll_reconciliation.py	92	get_monday	75	simplifying	Script-local named date calculation.

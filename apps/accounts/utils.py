@@ -60,7 +60,7 @@ def get_staff_from_nickname(name: str, *, include_inactive: bool = False):
     Resolve a free-text fragment (e.g. "Jo", "Akelesh") to a Staff row.
 
     Intended for ad-hoc shell/script use. Returns the Staff object on a
-    confident match; use `.name` for the proper full name. Raises ValueError
+    confident match; use `.get_display_full_name()` for the proper full name. Raises ValueError
     if zero or multiple staff match — never guesses.
 
     Defaults to currently-active staff; pass include_inactive=True to search
@@ -92,7 +92,9 @@ def get_staff_from_nickname(name: str, *, include_inactive: bool = False):
     if len(exact) == 1:
         return exact[0]
     if len(exact) > 1:
-        raise ValueError(f"{query!r} is ambiguous: {[s.name for s in exact]}")
+        raise ValueError(
+            f"{query!r} is ambiguous: {[s.get_display_full_name() for s in exact]}"
+        )
 
     prefix = list(
         base_qs.filter(
@@ -104,7 +106,9 @@ def get_staff_from_nickname(name: str, *, include_inactive: bool = False):
     if len(prefix) == 1:
         return prefix[0]
     if len(prefix) > 1:
-        raise ValueError(f"{query!r} is ambiguous: {[s.name for s in prefix]}")
+        raise ValueError(
+            f"{query!r} is ambiguous: {[s.get_display_full_name() for s in prefix]}"
+        )
 
     candidates = []
     for staff in base_qs:
@@ -112,7 +116,7 @@ def get_staff_from_nickname(name: str, *, include_inactive: bool = False):
             staff.first_name,
             staff.last_name,
             staff.preferred_name,
-            staff.name,
+            staff.get_display_full_name(),
         ):
             if field:
                 candidates.append((field, staff))
@@ -137,7 +141,11 @@ def get_staff_from_nickname(name: str, *, include_inactive: bool = False):
     if not ranked or ranked[0][0] < 85:
         raise ValueError(f"No staff match for {query!r}")
     if len(ranked) > 1 and ranked[0][0] - ranked[1][0] < 10:
-        tied = [s.name for score, s in ranked if ranked[0][0] - score < 10]
+        tied = [
+            s.get_display_full_name()
+            for score, s in ranked
+            if ranked[0][0] - score < 10
+        ]
         raise ValueError(f"{query!r} is ambiguous: {tied}")
     return ranked[0][1]
 

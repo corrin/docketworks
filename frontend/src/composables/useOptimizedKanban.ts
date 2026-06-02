@@ -60,6 +60,9 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
   const filteredJobs = ref<KanbanJob[]>([])
   let latestSearchRequestId = 0
   let initialized = false
+  let mounted = false
+  let jobsLoadedCallbackPending = false
+  let initialLoadPromise: Promise<void> | null = null
 
   // Column-based state management
   const columnStates = reactive<Record<string, ColumnState>>({})
@@ -119,6 +122,18 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       allJobs.push(...columnState.jobs)
     })
     return allJobs
+  }
+
+  const notifyJobsLoaded = (): void => {
+    if (!onJobsLoaded) {
+      return
+    }
+    if (!mounted) {
+      jobsLoadedCallbackPending = true
+      return
+    }
+    jobsLoadedCallbackPending = false
+    onJobsLoaded()
   }
 
   const applyColumnData = (columnId: string, data: KanbanColumnCacheEntry): void => {
@@ -284,9 +299,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
       // Load all columns in parallel
       await Promise.all(columns.map((column) => loadColumnJobs(column.columnId, options)))
 
-      if (onJobsLoaded) {
-        onJobsLoaded()
-      }
+      notifyJobsLoaded()
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to load kanban columns'
       debugLog('Error loading kanban columns:', err)
@@ -1027,36 +1040,50 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     },
   )
 
-  // Initialize
-  onMounted(async () => {
-    try {
-      debugLog('Initializing Kanban...')
-      initializeColumnStates()
-      jobsStore.setCurrentContext('kanban')
+  const startInitialKanbanLoad = (): Promise<void> => {
+    if (initialLoadPromise) {
+      return initialLoadPromise
+    }
 
-      const hydratedFromCache = hydrateVisibleColumnsFromCache()
-      if (hydratedFromCache) {
-        if (onJobsLoaded) {
-          onJobsLoaded()
+    initialLoadPromise = (async () => {
+      try {
+        debugLog('Initializing Kanban...')
+        initializeColumnStates()
+        jobsStore.setCurrentContext('kanban')
+
+        const hydratedFromCache = hydrateVisibleColumnsFromCache()
+        if (hydratedFromCache) {
+          notifyJobsLoaded()
+          await loadStatusChoices()
+          initialized = true
+          checkFreshnessInBackground()
+        } else {
+          await Promise.all([loadAllColumns(), loadStatusChoices()])
+          initialized = true
+          checkFreshnessInBackground()
         }
-        await loadStatusChoices()
-        initialized = true
-        checkFreshnessInBackground()
-      } else {
-        await Promise.all([loadAllColumns(), loadStatusChoices()])
-        initialized = true
-        checkFreshnessInBackground()
-      }
 
-      // If URL has search query, trigger search after jobs are loaded
-      if (searchQuery.value.trim()) {
-        await handleSearch()
-      }
+        // If URL has search query, trigger search after jobs are loaded
+        if (searchQuery.value.trim()) {
+          await handleSearch()
+        }
 
-      debugLog('Kanban initialization complete')
-    } catch (err) {
-      debugLog('Error during Kanban initialization:', err)
-      error.value = err instanceof Error ? err.message : 'Failed to initialize kanban'
+        debugLog('Kanban initialization complete')
+      } catch (err) {
+        debugLog('Error during Kanban initialization:', err)
+        error.value = err instanceof Error ? err.message : 'Failed to initialize kanban'
+      }
+    })()
+
+    return initialLoadPromise
+  }
+
+  void startInitialKanbanLoad()
+
+  onMounted(() => {
+    mounted = true
+    if (jobsLoadedCallbackPending) {
+      notifyJobsLoaded()
     }
   })
 
@@ -1104,6 +1131,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
     // Aliases for backward compatibility
     loadJobs: loadAllColumns,
+    startInitialKanbanLoad,
     updateJobStatus: updateJobStatusOptimistic,
     reorderJob: reorderJobOptimistic,
   }

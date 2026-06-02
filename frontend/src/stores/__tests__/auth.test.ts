@@ -94,4 +94,14 @@ describe('auth store session checks', () => {
     await expect(first).resolves.toBe('authenticated')
     await expect(second).resolves.toBe('authenticated')
   })
+
+  it('reuses an already checked user without another /me/ request', async () => {
+    const store = useAuthStore()
+    store.user = user
+    store.hasCheckedSession = true
+
+    await expect(store.checkSession()).resolves.toBe('authenticated')
+
+    expect(api.accounts_me_retrieve).not.toHaveBeenCalled()
+  })
 })

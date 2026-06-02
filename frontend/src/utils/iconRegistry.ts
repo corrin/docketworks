@@ -63,7 +63,7 @@ const sectionIconMap: Record<string, Component> = {
 
 // Field key patterns to icon mapping (used when backend doesn't provide icon)
 const fieldIconPatterns: Array<{ pattern: RegExp; icon: Component }> = [
-  { pattern: /^(company_name|shop_client_name|test_client_name)$/, icon: User },
+  { pattern: /^(company_name|shop_client|test_client_name)$/, icon: User },
   { pattern: /(rate|target|markup)/, icon: DollarSign },
   { pattern: /percent/, icon: Percent },
   { pattern: /(number|starting_)/, icon: Hash },

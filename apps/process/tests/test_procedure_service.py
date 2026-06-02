@@ -1,7 +1,9 @@
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.utils import timezone
 
+from apps.client.models import Client
 from apps.process.services.google_docs_service import GoogleDocResult
 from apps.process.services.procedure_service import ProcedureService
 from apps.workflow.models import CompanyDefaults
@@ -18,12 +20,17 @@ def _make_service():
     return service
 
 
+def _create_shop_client(name: str = "Shop Client") -> Client:
+    return Client.objects.create(name=name, xero_last_modified=timezone.now())
+
+
 @pytest.mark.django_db
 class TestProcedureServiceCreateBlank:
     def test_create_blank_procedure_happy_path(self):
         CompanyDefaults.objects.create(
             company_name="Morris Sheetmetal",
             gdrive_reference_library_folder_id="folder-123",
+            shop_client=_create_shop_client(),
         )
 
         service = _make_service()
@@ -66,6 +73,7 @@ class TestProcedureServiceCreateBlank:
         CompanyDefaults.objects.create(
             company_name="Test",
             gdrive_reference_library_folder_id="",
+            shop_client=_create_shop_client(),
         )
 
         service = _make_service()

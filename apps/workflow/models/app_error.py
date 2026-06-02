@@ -57,13 +57,21 @@ class AppError(models.Model):
         verbose_name_plural = "Application Errors"
         indexes = [
             models.Index(
-                fields=["timestamp", "severity"]
+                fields=["timestamp", "severity"],
+                name="workflow_apperror_time_sev_idx",
             ),  # Common: recent errors by severity
             models.Index(
-                fields=["resolved", "timestamp"]
+                fields=["resolved", "timestamp"],
+                name="workflow_apperror_res_time_idx",
             ),  # Common: unresolved errors chronologically
-            models.Index(fields=["app", "severity"]),  # Common: errors by app section
-            models.Index(fields=["session_replay", "timestamp"]),
+            models.Index(
+                fields=["app", "severity"],
+                name="workflow_apperror_app_sev_idx",
+            ),  # Common: errors by app section
+            models.Index(
+                fields=["session_replay", "timestamp"],
+                name="workflow_aperr_replay_time_idx",
+            ),
         ]
 
 

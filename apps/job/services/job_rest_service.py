@@ -234,15 +234,6 @@ class JobRestService:
     }
 
     @staticmethod
-    def _is_soft_fail_enabled() -> bool:
-        """Return True when checksum/field mismatches should not raise.
-
-        Controlled via env var JOB_DELTA_SOFT_FAIL (default: True).
-        Only "True" enables soft-fail; any other value (including "False") disables it.
-        """
-        return settings.JOB_DELTA_SOFT_FAIL
-
-    @staticmethod
     def create_job(data: Dict[str, Any], user: Staff) -> Job:
         """
         Creates a new Job with essential data.
@@ -482,7 +473,7 @@ class JobRestService:
         The caller is responsible for invoking `_record_delta_rejection`
         outside of the main transaction so the entry survives rollbacks.
         """
-        if not JobRestService._is_soft_fail_enabled():
+        if not settings.JOB_DELTA_SOFT_FAIL:
             return None
 
         server_checksum = getattr(delta_payload, "_server_checksum", None)
@@ -572,7 +563,7 @@ class JobRestService:
         server_checksum = compute_job_delta_checksum(job.id, current_values, fields)
         logger.debug(f"[DELTA_VALIDATION] Server computed checksum: {server_checksum}")
 
-        soft_fail = JobRestService._is_soft_fail_enabled()
+        soft_fail = settings.JOB_DELTA_SOFT_FAIL
 
         if server_checksum != delta.before_checksum:
             if soft_fail:
@@ -1015,7 +1006,7 @@ class JobRestService:
                 except DeltaValidationError as exc:
                     logger.error(f"[JOB_UPDATE] Delta validation failed: {exc}")
                     # Always persist via outer handler; re-raise if hard-fail
-                    if not JobRestService._is_soft_fail_enabled():
+                    if not settings.JOB_DELTA_SOFT_FAIL:
                         raise
                 except ValueError as exc:
                     logger.error(f"[JOB_UPDATE] Delta validation error: {exc}")

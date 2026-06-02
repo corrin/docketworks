@@ -9,6 +9,7 @@ import type {
 } from '@playwright/test/reporter'
 import * as fs from 'fs'
 import * as path from 'path'
+import { execFileSync } from 'child_process'
 import { fileURLToPath } from 'url'
 import AdmZip from 'adm-zip'
 
@@ -38,7 +39,15 @@ interface CompletedStep {
   status: 'passed' | 'failed'
 }
 
-const TEST_RUNS_HEADER = 'run_id,run_date,test_file,test_path,duration_ms,status\n'
+interface GitMetadata {
+  sha: string
+  branch: string
+  dirty: 'true' | 'false' | 'unknown'
+  source: 'git' | 'unavailable'
+}
+
+const TEST_RUNS_HEADER =
+  'run_id,run_date,git_sha,git_branch,git_dirty,git_metadata_source,test_file,test_path,duration_ms,status\n'
 
 // Tests that complete but exceed their threshold are tagged "perf-fail".
 // Default 30s; override by test file path prefix for suites that load large
@@ -78,6 +87,35 @@ function appendCsv(filePath: string, header: string, body: string): void {
     fs.writeSync(fd, needsHeader ? header + body : body)
   } finally {
     fs.closeSync(fd)
+  }
+}
+
+function readGitValue(args: string[]): string {
+  return execFileSync('git', args, {
+    cwd: path.resolve(__dirname, '..', '..', '..'),
+    encoding: 'utf8',
+    stdio: ['ignore', 'pipe', 'ignore'],
+  }).trim()
+}
+
+function getGitMetadata(): GitMetadata {
+  try {
+    const sha = readGitValue(['rev-parse', 'HEAD'])
+    const branch = readGitValue(['rev-parse', '--abbrev-ref', 'HEAD'])
+    const status = readGitValue(['status', '--porcelain'])
+    return {
+      sha,
+      branch,
+      dirty: status ? 'true' : 'false',
+      source: 'git',
+    }
+  } catch {
+    return {
+      sha: '',
+      branch: '',
+      dirty: 'unknown',
+      source: 'unavailable',
+    }
   }
 }
 
@@ -147,12 +185,19 @@ export default class HistoryReporter implements Reporter {
   private rootSuite: Suite | undefined
   private runId = ''
   private runDate = ''
+  private gitMetadata: GitMetadata = {
+    sha: '',
+    branch: '',
+    dirty: 'unknown',
+    source: 'unavailable',
+  }
   private completedSteps: CompletedStep[] = []
 
   onBegin(_config: FullConfig, suite: Suite): void {
     this.rootSuite = suite
     this.runId = Math.random().toString(36).substring(2, 10)
     this.runDate = new Date().toISOString()
+    this.gitMetadata = getGitMetadata()
     this.completedSteps = []
   }
 
@@ -247,6 +292,10 @@ export default class HistoryReporter implements Reporter {
         [
           this.runId,
           this.runDate,
+          this.gitMetadata.sha,
+          csvCell(this.gitMetadata.branch),
+          this.gitMetadata.dirty,
+          this.gitMetadata.source,
           csvCell(r.file),
           csvCell(r.testPath),
           Math.round(r.durationMs),

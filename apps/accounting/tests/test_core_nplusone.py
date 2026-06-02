@@ -1,6 +1,5 @@
 from datetime import date
 from decimal import Decimal
-from unittest.mock import patch
 from uuid import uuid4
 
 from django.utils import timezone
@@ -10,7 +9,7 @@ from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import CostLine, Job
 from apps.testing import BaseTestCase
-from apps.workflow.models import XeroPayItem
+from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 
 class AccountingCoreQueryTests(BaseTestCase):
@@ -79,13 +78,8 @@ class AccountingCoreQueryTests(BaseTestCase):
             ext_refs={},
         )
 
-        previous_shop_client_id = KPIService.shop_client_id
-        KPIService.shop_client_id = str(uuid4())
-        try:
-            with self.assertNumQueries(4):
-                breakdown = KPIService.get_job_breakdown_for_date(self.target_date)
-        finally:
-            KPIService.shop_client_id = previous_shop_client_id
+        with self.assertNumQueries(4):
+            breakdown = KPIService.get_job_breakdown_for_date(self.target_date)
 
         self.assertEqual(breakdown[0]["client_name"], "Accounting Nplusone Client")
 
@@ -97,11 +91,11 @@ class AccountingCoreQueryTests(BaseTestCase):
         self._create_time_line(first_job, first_staff)
         self._create_time_line(second_job, second_staff)
 
-        with patch.object(Client, "get_shop_client_id", return_value=str(uuid4())):
-            with self.assertNumQueries(3):
-                performance = StaffPerformanceService.get_staff_performance_data(
-                    self.target_date,
-                    self.target_date,
-                )
+        CompanyDefaults.get_solo()
+        with self.assertNumQueries(3):
+            performance = StaffPerformanceService.get_staff_performance_data(
+                self.target_date,
+                self.target_date,
+            )
 
         self.assertEqual(performance["period_summary"]["total_staff"], 2)

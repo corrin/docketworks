@@ -16,6 +16,7 @@
     "test": "vitest",
     "test:unit": "vitest run",
     "test:e2e": "playwright test --max-failures=1",
+    "test:e2e:trends": "tsx tests/scripts/analyze-e2e-trends.ts",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:reset": "npx tsx tests/scripts/e2e-reset.ts",

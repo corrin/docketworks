@@ -8,6 +8,7 @@ from .xero_helpers import (
     sanitize_for_xero,
 )
 from .xero_view import (
+    XeroAuthenticationResult,
     XeroErrorDetailAPIView,
     XeroErrorListAPIView,
     XeroIndexView,
@@ -47,6 +48,7 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "XeroAuthenticationResult",
     "XeroDocumentManager",
     "XeroErrorDetailAPIView",
     "XeroErrorListAPIView",

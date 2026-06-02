@@ -24,11 +24,10 @@ def encode_pdf(pdf_path):
 class MistralPriceExtractionProvider:
     """Mistral AI provider for price extraction using OCR"""
 
+    provider_name = "Mistral"
+
     def __init__(self, api_key: str):
         self.api_key = api_key
-
-    def get_provider_name(self) -> str:
-        return "Mistral"
 
     def _extract_supplier_from_text(self, text: str) -> str:
         """Extract supplier name from the OCR text."""

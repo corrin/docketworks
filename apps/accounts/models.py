@@ -291,16 +291,3 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     def is_currently_active(self) -> bool:
         """Check if staff member is currently active"""
         return self.date_left is None or self.date_left > timezone.localdate()
-
-    @property
-    def name(self) -> str:
-        return f"{self.first_name} {self.last_name}"
-
-    @name.setter
-    def name(self, value: str) -> None:
-        parts = value.split()
-        if len(parts) >= 2:
-            self.first_name = parts[0]
-            self.last_name = " ".join(parts[1:])
-        else:
-            raise ValueError("Name must include both first and last name")

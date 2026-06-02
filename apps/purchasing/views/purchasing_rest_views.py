@@ -16,7 +16,12 @@ from rest_framework.views import APIView
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.purchasing.etag import generate_po_etag, normalize_etag
-from apps.purchasing.models import PurchaseOrder, PurchaseOrderEvent, Stock
+from apps.purchasing.models import (
+    PurchaseOrder,
+    PurchaseOrderEvent,
+    PurchaseOrderLine,
+    Stock,
+)
 from apps.purchasing.serializers import (
     AllJobsResponseSerializer,
     AllocationDeleteResponseSerializer,
@@ -69,18 +74,15 @@ logger = logging.getLogger(__name__)
 class PurchaseOrderETagMixin:
     """Shared helpers for purchase order ETag handling."""
 
-    def _normalize_etag(self, value):
-        return normalize_etag(value)
-
     def _get_if_match(self, request):
         header = request.headers.get("If-Match") or request.META.get("HTTP_IF_MATCH")
-        return self._normalize_etag(header) if header else None
+        return normalize_etag(header) if header else None
 
     def _get_if_none_match(self, request):
         header = request.headers.get("If-None-Match") or request.META.get(
             "HTTP_IF_NONE_MATCH"
         )
-        return self._normalize_etag(header) if header else None
+        return normalize_etag(header) if header else None
 
     def _precondition_required_response(self):
         error = {"error": "Missing If-Match header (precondition required)"}
@@ -434,13 +436,14 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
         """Get purchase order details including lines."""
         # Allow fetching PO details regardless of status (including deleted)
         # to match the list endpoint behavior and allow viewing deleted POs
-        queryset = (
-            PurchaseOrder.objects.all()
-            .select_related("supplier")
-            .prefetch_related("po_lines__job__client")
-        )
+        queryset = PurchaseOrder.objects.all().select_related("supplier", "created_by")
         po = get_object_or_404(queryset, id=po_id)
-        item_codes = [line.item_code for line in po.po_lines.all() if line.item_code]
+        po.detail_lines = list(
+            PurchaseOrderLine.objects.filter(purchase_order=po).select_related(
+                "job__client"
+            )
+        )
+        item_codes = [line.item_code for line in po.detail_lines if line.item_code]
         usage_counts = {
             item_code: count
             for item_code, count in (
@@ -455,7 +458,7 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
         )
         etag = generate_po_etag(po)
         if_none_match = self._get_if_none_match(request)
-        if if_none_match and if_none_match == self._normalize_etag(etag):
+        if if_none_match and if_none_match == normalize_etag(etag):
             return Response(status=status.HTTP_304_NOT_MODIFIED)
         response = Response(serializer.data)
         self._set_etag(response, etag)

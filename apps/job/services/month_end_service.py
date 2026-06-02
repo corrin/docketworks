@@ -13,12 +13,8 @@ logger = logging.getLogger(__name__)
 
 class MonthEndService:
     @staticmethod
-    def _get_stock_job() -> Job:
-        return Stock.get_stock_holding_job()
-
-    @staticmethod
     def get_special_jobs() -> List[Job]:
-        stock_job = MonthEndService._get_stock_job()
+        stock_job = Stock.get_stock_holding_job()
         return list(Job.objects.filter(status="special").exclude(id=stock_job.id))
 
     @staticmethod
@@ -63,7 +59,7 @@ class MonthEndService:
 
     @staticmethod
     def get_stock_job_data() -> dict:
-        job = MonthEndService._get_stock_job()
+        job = Stock.get_stock_holding_job()
         history = []
         for cs in job.cost_sets.filter(kind="actual").order_by("created"):
             material_lines = cs.cost_lines.filter(kind="material")
