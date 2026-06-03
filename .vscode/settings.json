@@ -27,5 +27,11 @@
             ]
         }
     },
+    "terminal.integrated.automationProfile.linux": {
+        "path": "bash",
+        "args": [
+            "-l"
+        ]
+    },
     "terminal.integrated.defaultProfile.linux": "bash tmux"
 }
