@@ -8,6 +8,7 @@
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": true,
     "python.formatting.provider": "black",
+    "task.quickOpen.history": 0,
     "[python]": {
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
@@ -18,20 +19,20 @@
     "python.analysis.typeCheckingMode": "off",
     "python.analysis.autoImportCompletions": true,
     "terminal.integrated.profiles.linux": {
-        "bash": {
-            "path": "bash",
-            "args": [
-                "-l"
-            ]
-        },
         "bash tmux": {
             "path": "bash",
             "args": [
                 "-l",
                 "-c",
-                "tmux attach-session -t docketworks || tmux new-session -s docketworks"
+                "tmux attach || tmux new"
             ]
         }
     },
-    "terminal.integrated.defaultProfile.linux": "bash"
+    "terminal.integrated.automationProfile.linux": {
+        "path": "bash",
+        "args": [
+            "-l"
+        ]
+    },
+    "terminal.integrated.defaultProfile.linux": "bash tmux"
 }

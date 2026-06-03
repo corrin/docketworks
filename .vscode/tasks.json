@@ -5,6 +5,7 @@
       "label": "Frontend Dev Server",
       "type": "shell",
       "command": "npm run dev",
+      "hide": true,
       "options": {
         "cwd": "${workspaceFolder}/frontend"
       },
@@ -21,7 +22,6 @@
         }
       },
       "presentation": {
-        "group": "dev",
         "reveal": "always",
         "panel": "dedicated"
       }
@@ -30,6 +30,7 @@
       "label": "Frontend Manual Dev Server",
       "type": "shell",
       "command": "npm run manual:dev",
+      "hide": true,
       "options": {
         "cwd": "${workspaceFolder}/frontend"
       },
@@ -46,7 +47,6 @@
         }
       },
       "presentation": {
-        "group": "dev",
         "reveal": "always",
         "panel": "dedicated"
       }
@@ -55,6 +55,7 @@
       "label": "Ngrok Tunnels",
       "type": "shell",
       "command": "ngrok start --config ${workspaceFolder}/ngrok.yml --all",
+      "hide": true,
       "isBackground": true,
       "problemMatcher": {
         "owner": "ngrok",
@@ -68,7 +69,6 @@
         }
       },
       "presentation": {
-        "group": "dev",
         "reveal": "always",
         "panel": "dedicated"
       }
@@ -77,6 +77,7 @@
       "label": "Celery Worker",
       "type": "shell",
       "command": "poetry run celery -A docketworks worker --concurrency=4 --loglevel=info",
+      "hide": true,
       "isBackground": true,
       "problemMatcher": {
         "owner": "celery",
@@ -90,7 +91,6 @@
         }
       },
       "presentation": {
-        "group": "dev",
         "reveal": "always",
         "panel": "dedicated"
       }
@@ -99,6 +99,7 @@
       "label": "Celery Beat",
       "type": "shell",
       "command": "poetry run celery -A docketworks beat --loglevel=info --scheduler django_celery_beat.schedulers:DatabaseScheduler",
+      "hide": true,
       "isBackground": true,
       "problemMatcher": {
         "owner": "celery-beat",
@@ -112,7 +113,6 @@
         }
       },
       "presentation": {
-        "group": "dev",
         "reveal": "always",
         "panel": "dedicated"
       }
@@ -133,6 +133,7 @@
       "label": "Rebuild Schema",
       "type": "shell",
       "command": "${workspaceFolder}/scripts/update_schema.sh",
+      "hide": true,
       "presentation": {
         "reveal": "always",
         "panel": "dedicated"
