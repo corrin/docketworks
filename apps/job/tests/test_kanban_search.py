@@ -117,7 +117,9 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertEqual([job.id for job in jobs], [target.id])
         with CaptureQueriesContext(connection) as captured:
-            KanbanService.serialize_job_for_api(jobs[0])
+            KanbanService.serialize_job_for_api(
+                jobs[0], shop_client_id=self.shop_client.id
+            )
 
         relation_queries = [
             query["sql"]

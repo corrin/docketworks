@@ -465,6 +465,7 @@ class JobRestService:
         staff: Staff | None,
         delta_payload: JobDeltaPayload,
         request_etag: str | None,
+        soft_fail: bool,
     ) -> dict[str, Any] | None:
         """
         Build persistence payload for soft-failed checksum mismatches.
@@ -472,7 +473,7 @@ class JobRestService:
         The caller is responsible for invoking `_record_delta_rejection`
         outside of the main transaction so the entry survives rollbacks.
         """
-        if not CompanyDefaults.get_solo().job_delta_soft_fail:
+        if not soft_fail:
             return None
 
         server_checksum = getattr(delta_payload, "_server_checksum", None)
@@ -519,7 +520,9 @@ class JobRestService:
         return required_keys.issubset(data.keys())
 
     @staticmethod
-    def _validate_delta_payload(job: Job, delta: JobDeltaPayload) -> None:
+    def _validate_delta_payload(
+        job: Job, delta: JobDeltaPayload, soft_fail: bool
+    ) -> None:
         logger.debug(
             f"[DELTA_VALIDATION] Starting validation for job {job.id}, change_id: {delta.change_id}"
         )
@@ -561,8 +564,6 @@ class JobRestService:
         # Compute server checksum
         server_checksum = compute_job_delta_checksum(job.id, current_values, fields)
         logger.debug(f"[DELTA_VALIDATION] Server computed checksum: {server_checksum}")
-
-        soft_fail = CompanyDefaults.get_solo().job_delta_soft_fail
 
         if server_checksum != delta.before_checksum:
             if soft_fail:
@@ -979,6 +980,8 @@ class JobRestService:
             # Keep job_status as job_status for serializer compatibility
             job_data[key] = value
 
+        soft_fail = CompanyDefaults.get_solo().job_delta_soft_fail
+
         logger.info(
             f"[JOB_UPDATE] Starting job update for job {job_id}, change_id: {delta_payload.change_id}"
         )
@@ -1000,12 +1003,14 @@ class JobRestService:
                 # **VALIDATE DELTA FIRST** - before any other checks that might modify the job
                 logger.debug("[JOB_UPDATE] Starting delta payload validation...")
                 try:
-                    JobRestService._validate_delta_payload(job, delta_payload)
+                    JobRestService._validate_delta_payload(
+                        job, delta_payload, soft_fail
+                    )
                     logger.info("[JOB_UPDATE] Delta validation passed successfully")
                 except DeltaValidationError as exc:
                     logger.error(f"[JOB_UPDATE] Delta validation failed: {exc}")
                     # Always persist via outer handler; re-raise if hard-fail
-                    if not CompanyDefaults.get_solo().job_delta_soft_fail:
+                    if not soft_fail:
                         raise
                 except ValueError as exc:
                     logger.error(f"[JOB_UPDATE] Delta validation error: {exc}")
@@ -1020,6 +1025,7 @@ class JobRestService:
                     staff=user,
                     delta_payload=delta_payload,
                     request_etag=if_match,
+                    soft_fail=soft_fail,
                 )
 
                 # Concurrency check using normalized ETag value - AFTER delta validation

@@ -49,7 +49,8 @@ class DailyTimesheetService:
             Dict containing staff data and daily totals
         """
         try:
-            staff_data = cls._get_staff_daily_data(target_date)
+            weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
+            staff_data = cls._get_staff_daily_data(target_date, weekend_enabled)
             daily_totals = cls._calculate_daily_totals(staff_data)
             return {
                 "date": target_date.isoformat(),
@@ -64,34 +65,34 @@ class DailyTimesheetService:
             raise
 
     @classmethod
-    def _get_staff_daily_data(cls, target_date: date) -> List[Dict]:
+    def _get_staff_daily_data(
+        cls, target_date: date, weekend_enabled: bool
+    ) -> List[Dict]:
         """Get timesheet data for each staff member"""
         staff_data = []
         active_staff = get_displayable_staff(target_date=target_date)
+        is_weekend = target_date.weekday() >= 5
 
         for staff in active_staff:
-            # Check if staff member has working hours for this specific date
             scheduled_hours_for_date = staff.get_scheduled_hours(target_date)
 
-            # Check if weekend functionality is enabled
-            weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
-            is_weekend = target_date.weekday() >= 5
-
-            # Skip staff with no working hours for this specific day
-            # But include them on weekends if feature flag is enabled
             if scheduled_hours_for_date <= 0 and not (weekend_enabled and is_weekend):
                 logger.debug(
                     f"Excluding staff {staff.id} ({staff.first_name} {staff.last_name}) - no working hours for {target_date.strftime('%A')}"
                 )
                 continue
 
-            staff_info = cls._get_staff_timesheet_data(staff, target_date)
+            staff_info = cls._get_staff_timesheet_data(
+                staff, target_date, weekend_enabled
+            )
             staff_data.append(staff_info)
 
         return staff_data
 
     @classmethod
-    def _get_staff_timesheet_data(cls, staff: Staff, target_date: date) -> Dict:
+    def _get_staff_timesheet_data(
+        cls, staff: Staff, target_date: date, weekend_enabled: bool
+    ) -> Dict:
         """Get timesheet data for a specific staff member"""
 
         try:
@@ -119,10 +120,14 @@ class DailyTimesheetService:
             total_cost = sum(Decimal(line.total_cost) for line in cost_lines)
 
             # Get scheduled hours from staff's per-day settings
-            scheduled_hours = cls._get_scheduled_hours(staff, target_date)
+            scheduled_hours = cls._get_scheduled_hours(
+                staff, target_date, weekend_enabled
+            )
 
             # Determine status
-            status = cls._determine_status(total_hours, scheduled_hours, cost_lines)
+            status = cls._determine_status(
+                total_hours, scheduled_hours, cost_lines, weekend_enabled
+            )
 
             # Get job breakdown
             job_breakdown = cls._get_job_breakdown(cost_lines)
@@ -167,20 +172,23 @@ class DailyTimesheetService:
             raise
 
     @classmethod
-    def _get_scheduled_hours(cls, staff: Staff, target_date: date) -> Decimal:
+    def _get_scheduled_hours(
+        cls, staff: Staff, target_date: date, weekend_enabled: bool
+    ) -> Decimal:
         """Get scheduled hours for staff on given date"""
-        weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
         if not weekend_enabled and target_date.weekday() >= 5:
             return Decimal("0.0")
         return Decimal(str(staff.get_scheduled_hours(target_date)))
 
     @classmethod
     def _determine_status(
-        cls, actual_hours: Decimal, scheduled_hours: Decimal, cost_lines
+        cls,
+        actual_hours: Decimal,
+        scheduled_hours: Decimal,
+        cost_lines,
+        weekend_enabled: bool,
     ) -> str:
         """Determine status based on hours and entries"""
-        weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
-
         if scheduled_hours == 0:
             if weekend_enabled and actual_hours > 0:
                 return "Weekend Work"

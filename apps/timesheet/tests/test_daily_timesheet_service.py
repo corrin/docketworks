@@ -94,7 +94,7 @@ class DailyTimesheetServiceTests(BaseTestCase):
 
         with CaptureQueriesContext(connection) as captured:
             staff_data = DailyTimesheetService._get_staff_timesheet_data(
-                self.test_staff, self.target_date
+                self.test_staff, self.target_date, False
             )
 
         direct_relation_queries = [
