@@ -46,7 +46,9 @@ class TestSerializeJobForApi(BaseTestCase):
         self._set_summary_revenue(job.latest_actual, Decimal("1200.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("5000.00"))
 
-        serialized = KanbanService.serialize_job_for_api(job)
+        serialized = KanbanService.serialize_job_for_api(
+            job, shop_client_id=self.shop_client.id
+        )
 
         self.assertTrue(serialized["over_budget"])
 
@@ -58,7 +60,9 @@ class TestSerializeJobForApi(BaseTestCase):
         self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
 
-        serialized = KanbanService.serialize_job_for_api(job)
+        serialized = KanbanService.serialize_job_for_api(
+            job, shop_client_id=self.shop_client.id
+        )
 
         self.assertFalse(serialized["over_budget"])
 
@@ -70,7 +74,9 @@ class TestSerializeJobForApi(BaseTestCase):
         self._set_summary_revenue(job.latest_actual, Decimal("1200.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("1500.00"))
 
-        serialized = KanbanService.serialize_job_for_api(job)
+        serialized = KanbanService.serialize_job_for_api(
+            job, shop_client_id=self.shop_client.id
+        )
 
         self.assertFalse(serialized["over_budget"])
 
@@ -83,7 +89,9 @@ class TestSerializeJobForApi(BaseTestCase):
 
         self.assertEqual([loaded.id for loaded in jobs], [job.id])
         with CaptureQueriesContext(connection) as captured:
-            KanbanService.serialize_job_for_api(jobs[0])
+            KanbanService.serialize_job_for_api(
+                jobs[0], shop_client_id=self.shop_client.id
+            )
 
         relation_queries = [
             query["sql"]
@@ -112,7 +120,9 @@ class TestSerializeJobForApi(BaseTestCase):
 
         self.assertEqual([loaded.id for loaded in jobs], [job.id])
         with CaptureQueriesContext(connection) as captured:
-            KanbanService.serialize_job_for_api(jobs[0])
+            KanbanService.serialize_job_for_api(
+                jobs[0], shop_client_id=self.shop_client.id
+            )
 
         relation_queries = [
             query["sql"]
@@ -172,20 +182,6 @@ class TestSerializeJobForApi(BaseTestCase):
             {job["name"]: job["shop_job"] for job in serialized},
             {"Shop Job": True, "Test Job": False},
         )
-
-    def test_serialize_job_for_api_resolves_shop_client_when_called_directly(self):
-        shop_job = Job(
-            client=self.shop_client,
-            name="Shop Job",
-            pricing_methodology="time_materials",
-        )
-        shop_job.save(staff=self.test_staff)
-        self._set_summary_revenue(shop_job.latest_actual, Decimal("0.00"))
-        self._set_summary_revenue(shop_job.latest_quote, Decimal("0.00"))
-
-        serialized = KanbanService.serialize_job_for_api(shop_job)
-
-        self.assertTrue(serialized["shop_job"])
 
     def test_non_shop_job_serializes_false_when_client_differs_from_configured_shop(
         self,

@@ -3,6 +3,7 @@ from rest_framework import serializers
 from apps.client.models import (
     Client,
     ClientContact,
+    ClientContactMethod,
     SupplierPickupAddress,
     SupplierSearchAlias,
 )
@@ -26,6 +27,56 @@ class ClientContactSerializer(serializers.ModelSerializer):
                 data[field] = None
 
         return super().to_internal_value(data)
+
+
+class ClientContactMethodSerializer(serializers.ModelSerializer):
+    """Serializer for canonical client/contact phone and email methods."""
+
+    client_name = serializers.SerializerMethodField()
+    contact_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = ClientContactMethod
+        fields = [
+            "id",
+            "client",
+            "client_name",
+            "contact",
+            "contact_name",
+            "method_type",
+            "value",
+            "normalized_value",
+            "label",
+            "is_primary",
+            "source",
+            "created_at",
+            "updated_at",
+        ]
+        read_only_fields = [
+            "id",
+            "client_name",
+            "contact_name",
+            "normalized_value",
+            "created_at",
+            "updated_at",
+        ]
+
+    def get_client_name(self, obj: ClientContactMethod) -> str:
+        if obj.client:
+            return obj.client.name
+        return obj.contact.client.name if obj.contact else ""
+
+    def get_contact_name(self, obj: ClientContactMethod) -> str:
+        return obj.contact.name if obj.contact else ""
+
+    def validate(self, attrs):
+        client = attrs.get("client", getattr(self.instance, "client", None))
+        contact = attrs.get("contact", getattr(self.instance, "contact", None))
+        if bool(client) == bool(contact):
+            raise serializers.ValidationError(
+                "Exactly one of client or contact is required"
+            )
+        return attrs
 
 
 class SupplierPickupAddressSerializer(serializers.ModelSerializer):

@@ -1,4 +1,5 @@
 import logging
+import re
 import uuid
 from decimal import Decimal
 
@@ -339,6 +340,132 @@ class ClientContact(models.Model):
                 id=self.id
             ).update(is_primary=False)
         super().save(*args, **kwargs)
+
+
+class ClientContactMethod(models.Model):
+    """Phone or email address owned by a client or one of its contacts."""
+
+    class MethodType(models.TextChoices):
+        PHONE = "phone", "Phone"
+        EMAIL = "email", "Email"
+
+    class Source(models.TextChoices):
+        IMPORTED = "imported", "Imported"
+        LOCAL = "local", "Local"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    client = models.ForeignKey(
+        Client,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="contact_methods",
+    )
+    contact = models.ForeignKey(
+        ClientContact,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="contact_methods",
+    )
+    method_type = models.CharField(max_length=20, choices=MethodType.choices)
+    value = models.CharField(max_length=255)
+    normalized_value = models.CharField(max_length=255, db_index=True)
+    label = models.CharField(max_length=255, blank=True)
+    is_primary = models.BooleanField(default=False)
+    source = models.CharField(
+        max_length=20,
+        choices=Source.choices,
+        default=Source.LOCAL,
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["method_type", "-is_primary", "label", "value"]
+        verbose_name = "Client Contact Method"
+        verbose_name_plural = "Client Contact Methods"
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(client__isnull=False, contact__isnull=True)
+                    | models.Q(client__isnull=True, contact__isnull=False)
+                ),
+                name="client_contact_method_one_owner",
+            ),
+            models.UniqueConstraint(
+                fields=["client", "method_type", "normalized_value"],
+                condition=models.Q(client__isnull=False, contact__isnull=True),
+                name="unique_client_contact_method_value",
+            ),
+            models.UniqueConstraint(
+                fields=["contact", "method_type", "normalized_value"],
+                condition=models.Q(client__isnull=True, contact__isnull=False),
+                name="unique_contact_contact_method_value",
+            ),
+            models.UniqueConstraint(
+                fields=["client", "method_type"],
+                condition=models.Q(
+                    client__isnull=False,
+                    contact__isnull=True,
+                    is_primary=True,
+                ),
+                name="unique_client_primary_contact_method",
+            ),
+            models.UniqueConstraint(
+                fields=["contact", "method_type"],
+                condition=models.Q(
+                    client__isnull=True,
+                    contact__isnull=False,
+                    is_primary=True,
+                ),
+                name="unique_contact_primary_contact_method",
+            ),
+        ]
+
+    def __str__(self) -> str:
+        owner = self.contact or self.client
+        return f"{self.method_type}: {self.value} ({owner})"
+
+    def save(self, *args, **kwargs):
+        _include_auto_now_update_field(kwargs, "updated_at")
+        self.normalized_value = self.normalize_value(self.method_type, self.value)
+        if not self.normalized_value:
+            raise ValueError("contact method requires a value")
+
+        if self.is_primary:
+            queryset = ClientContactMethod.objects.filter(
+                method_type=self.method_type,
+                is_primary=True,
+            ).exclude(id=self.id)
+            if self.contact_id:
+                queryset = queryset.filter(contact_id=self.contact_id)
+            else:
+                queryset = queryset.filter(
+                    client_id=self.client_id, contact__isnull=True
+                )
+            queryset.update(is_primary=False)
+
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def normalize_value(cls, method_type: str, value: str | None) -> str:
+        if method_type == cls.MethodType.PHONE:
+            return cls.normalize_phone(value)
+        if method_type == cls.MethodType.EMAIL:
+            return (value or "").strip().lower()
+        raise ValueError(f"unknown contact method type: {method_type}")
+
+    @staticmethod
+    def normalize_phone(value: str | None) -> str:
+        digits = re.sub(r"\D+", "", str(value or ""))
+        if not digits:
+            return ""
+        if digits.startswith("64"):
+            return f"+{digits}"
+        if digits.startswith("0") and len(digits) > 1:
+            return f"+64{digits[1:]}"
+        return f"+{digits}"
 
 
 class Supplier(Client):

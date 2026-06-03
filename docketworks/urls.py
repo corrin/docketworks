@@ -12,6 +12,7 @@ urlpatterns = [
         "api/quoting/", include(("apps.quoting.urls", "quoting"), namespace="quoting")
     ),
     path("api/clients/", include("apps.client.urls_rest", namespace="clients")),
+    path("api/crm/", include("apps.crm.urls", namespace="crm")),
     path("api/purchasing/", include("apps.purchasing.urls", namespace="purchasing")),
     path("api/accounting/", include("apps.accounting.urls", namespace="accounting")),
     path("api/process/", include("apps.process.urls", namespace="process")),

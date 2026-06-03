@@ -42,11 +42,16 @@ class WeeklyTimesheetService:
         """
         try:
             # Calculate week range
-            week_days = cls._get_week_days(start_date)
+            company_defaults = CompanyDefaults.get_solo()
+            weekend_enabled = company_defaults.weekend_timesheets_enabled
+            loading = company_defaults.annual_leave_loading
+            loading_multiplier = Decimal("1") + Decimal(str(loading)) / Decimal("100")
+
+            week_days = cls._get_week_days(start_date, weekend_enabled)
             end_date = week_days[-1]
 
             # Get staff data
-            staff_data = cls._get_staff_data(week_days)
+            staff_data = cls._get_staff_data(week_days, loading_multiplier)
 
             # Get weekly totals
             weekly_totals = cls._calculate_weekly_totals(staff_data)
@@ -74,14 +79,15 @@ class WeeklyTimesheetService:
             raise
 
     @classmethod
-    def _get_week_days(cls, start_date: date) -> List[date]:
+    def _get_week_days(cls, start_date: date, weekend_enabled: bool) -> List[date]:
         """Get list of days for the configured week shape."""
-        weekend_enabled = CompanyDefaults.get_solo().weekend_timesheets_enabled
         day_count = 7 if weekend_enabled else 5
         return [start_date + timedelta(days=i) for i in range(day_count)]
 
     @classmethod
-    def _get_staff_data(cls, week_days: List[date]) -> List[Dict[str, Any]]:
+    def _get_staff_data(
+        cls, week_days: List[date], loading_multiplier: Decimal
+    ) -> List[Dict[str, Any]]:
         """Get comprehensive staff data for the week with payroll fields.
 
         Optimized to bulk-fetch all CostLines for the week in ONE query,
@@ -90,10 +96,6 @@ class WeeklyTimesheetService:
         staff_members = list(
             get_displayable_staff(date_range=(week_days[0], week_days[-1]))
         )
-
-        # Get annual leave loading multiplier for base cost calculation
-        loading = CompanyDefaults.get_solo().annual_leave_loading
-        loading_multiplier = Decimal("1") + Decimal(str(loading)) / Decimal("100")
 
         # ONE query for ALL time entries for ALL staff for the entire week
         all_cost_lines = list(

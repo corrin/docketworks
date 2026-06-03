@@ -38,6 +38,11 @@ def _make_invoice(client: Client, invoice_date: date, amount: Decimal) -> Invoic
 
 
 def test_with_invoice_summary_sets_latest_invoice_date_and_total_spend(db):
+    """Client search can mislead credit decisions if invoice rollups drift.
+
+    This catches aggregation changes that sum only one invoice or choose the
+    wrong date by using two invoices where the latest date and total differ.
+    """
     client = _make_client("Acme")
     _make_invoice(client, date(2024, 1, 10), Decimal("100.00"))
     _make_invoice(client, date(2024, 2, 20), Decimal("25.50"))
@@ -49,6 +54,11 @@ def test_with_invoice_summary_sets_latest_invoice_date_and_total_spend(db):
 
 
 def test_with_invoice_summary_handles_clients_without_invoices(db):
+    """New clients must render as zero-spend, not error or stale data.
+
+    This catches annotation changes that leave null totals for the frontend to
+    format or accidentally join another client's invoice summary.
+    """
     client = _make_client("No Invoices")
 
     annotated = Client.objects.with_invoice_summary().get(id=client.id)
@@ -58,6 +68,11 @@ def test_with_invoice_summary_handles_clients_without_invoices(db):
 
 
 def test_invoice_summary_properties_require_annotation(db):
+    """Unannotated access must fail loudly instead of issuing hidden queries.
+
+    This catches callers bypassing ``with_invoice_summary`` and reintroducing
+    per-client invoice lookups in list/search responses.
+    """
     client = _make_client("Unannotated")
 
     with pytest.raises(RuntimeError, match="with_invoice_summary"):
@@ -68,6 +83,11 @@ def test_invoice_summary_properties_require_annotation(db):
 
 
 def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
+    """Formatting search results must not reintroduce invoice N+1 queries.
+
+    This catches a formatter refactor that reads invoice relations/properties
+    per row by asserting all invoice-derived values come from annotations.
+    """
     with_invoices = _make_client("With Invoices")
     without_invoices = _make_client("Without Invoices")
     _make_invoice(with_invoices, date(2024, 1, 1), Decimal("10.00"))
@@ -111,6 +131,12 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
 
 class ClientCreateInvoiceSummaryTests(BaseTestCase):
     def test_create_client_response_formats_annotated_invoice_summary(self):
+        """Create responses must match the client-search summary contract.
+
+        This catches a view refactor that returns a raw Client payload without
+        annotated invoice defaults, which would break newly-created client rows
+        in the frontend.
+        """
         provider = MagicMock()
         provider.get_valid_token.return_value = {"access_token": "token"}
         provider.search_contact_by_name.return_value = None

@@ -13,6 +13,11 @@ from apps.testing import BaseAPITestCase
 
 
 class JobFilesApiTests(BaseAPITestCase):
+    """A teammate adding a new serializer field or adjusting the upload limit
+    could silently break file attachments — users would lose the ability to
+    upload, find, or download job files.
+    """
+
     def setUp(self):
         super().setUp()
         self._tmp_dropbox = tempfile.mkdtemp(prefix="dw-job-files-api-test-")

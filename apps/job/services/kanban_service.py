@@ -525,7 +525,7 @@ class KanbanService:
     def serialize_job_for_api(
         job: Job,
         request: HttpRequest = None,
-        shop_client_id: Optional[UUID] = None,
+        shop_client_id: UUID = None,
     ) -> Dict[str, Any]:
         """
         Serialize a job object for API response.
@@ -537,11 +537,6 @@ class KanbanService:
         Returns:
             Dictionary representation of the job
         """
-        if shop_client_id is None:
-            defaults = CompanyDefaults.get_solo()
-            shop_client_id = defaults.shop_client_id
-        else:
-            pass  # caller supplied the per-response shop client id
 
         # Get badge info
         badge_info = KanbanCategorizationService.get_badge_info(job.status)

@@ -11,12 +11,14 @@ try:
         from .models import (
             Client,
             ClientContact,
+            ClientContactMethod,
             ClientQuerySet,
             Supplier,
             SupplierPickupAddress,
             SupplierSearchAlias,
         )
         from .serializers import (
+            ClientContactMethodSerializer,
             ClientContactSerializer,
             ClientCreateResponseSerializer,
             ClientCreateSerializer,
@@ -47,6 +49,8 @@ __all__ = [
     "Client",
     "ClientConfig",
     "ClientContact",
+    "ClientContactMethod",
+    "ClientContactMethodSerializer",
     "ClientContactSerializer",
     "ClientCreateResponseSerializer",
     "ClientCreateSerializer",

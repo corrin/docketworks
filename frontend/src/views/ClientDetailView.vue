@@ -46,7 +46,7 @@
 
       <!-- Tabs -->
       <Tabs v-else-if="client" v-model="activeTab" class="w-full">
-        <TabsList class="grid w-full grid-cols-3">
+        <TabsList class="grid w-full grid-cols-4">
           <TabsTrigger value="details">
             <FileText class="w-4 h-4 mr-2" />
             Details & Contacts
@@ -58,6 +58,10 @@
           <TabsTrigger value="jobs">
             <Briefcase class="w-4 h-4 mr-2" />
             Related Jobs
+          </TabsTrigger>
+          <TabsTrigger value="interactions">
+            <Phone class="w-4 h-4 mr-2" />
+            Interactions
           </TabsTrigger>
         </TabsList>
 
@@ -346,6 +350,31 @@
             </CardContent>
           </Card>
         </TabsContent>
+
+        <!-- Interactions Tab -->
+        <TabsContent value="interactions" class="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div class="flex items-center justify-between gap-3">
+                <CardTitle>Interactions</CardTitle>
+                <Button variant="outline" size="sm" @click="loadPhoneCalls">Refresh</Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <div v-if="isLoadingPhoneCalls" class="flex items-center justify-center py-8">
+                <Loader2 class="w-6 h-6 animate-spin text-indigo-600" />
+              </div>
+              <div v-else-if="phoneCallError" class="text-sm text-red-600">
+                {{ phoneCallError }}
+              </div>
+              <PhoneCallTable
+                v-else
+                :calls="phoneCalls"
+                empty-text="No phone interactions found for this client"
+              />
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
     </div>
   </AppLayout>
@@ -356,6 +385,7 @@ import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClientStore } from '@/stores/clientStore'
 import AppLayout from '@/components/AppLayout.vue'
+import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -368,6 +398,7 @@ import {
   FileText,
   DollarSign,
   Briefcase,
+  Phone,
   Loader2,
   AlertCircle,
   CheckCircle2,
@@ -388,6 +419,7 @@ const props = defineProps<Props>()
 const router = useRouter()
 const clientStore = useClientStore()
 type SupplierSearchAlias = z.infer<typeof schemas.SupplierSearchAlias>
+type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
 
 // State
 const activeTab = ref('details')
@@ -398,6 +430,9 @@ const isLoadingAliases = ref(false)
 const isSavingAlias = ref(false)
 const newAlias = ref('')
 const supplierAliases = ref<SupplierSearchAlias[]>([])
+const phoneCalls = ref<PhoneCallRecord[]>([])
+const isLoadingPhoneCalls = ref(false)
+const phoneCallError = ref<string | null>(null)
 
 // Computed
 const client = computed(() => {
@@ -516,6 +551,23 @@ async function deleteSupplierAlias(aliasId: string) {
   }
 }
 
+async function loadPhoneCalls() {
+  isLoadingPhoneCalls.value = true
+  phoneCallError.value = null
+  try {
+    phoneCalls.value = await api.crm_phone_calls_list({
+      queries: { client: props.id },
+    })
+  } catch (err) {
+    const message = err instanceof Error ? err.message : 'Failed to load phone interactions'
+    phoneCallError.value = message
+    console.error('Failed to load phone interactions:', err)
+    toast.error(message)
+  } finally {
+    isLoadingPhoneCalls.value = false
+  }
+}
+
 // Methods
 async function loadClientData() {
   isLoading.value = true
@@ -543,6 +595,9 @@ async function loadClientData() {
       console.error('Failed to load jobs:', err)
       // Don't show error for jobs, just log it
     }
+
+    // Load phone interactions
+    await loadPhoneCalls()
   } catch (err) {
     const errorMessage =
       err instanceof Error ? err.message : 'An error occurred while loading client data'

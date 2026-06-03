@@ -36,6 +36,7 @@ ALLOWED_NON_SCHEMA_PATTERNS = {
     # DRF router roots (meta-endpoints listing sub-routes, not real APIs)
     "api/workflow/",
     "api/clients/",
+    "api/crm/",
     "api/purchasing/",
     "api/quoting/",
     # Django template-based password change (not a JSON API)
@@ -51,7 +52,9 @@ ALLOWED_NON_SCHEMA_PATTERNS = {
 
 
 class APISchemaComplianceTest(TestCase):
-    """Ensure all API endpoints are documented in the OpenAPI schema."""
+    """Business case: frontend code is generated from OpenAPI. A JSON API
+    missing from the schema forces hand-written calls and breaks ADR 0021.
+    """
 
     def _get_all_url_patterns(self, resolver=None, prefix=""):
         """Recursively get all URL patterns."""

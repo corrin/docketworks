@@ -5,8 +5,32 @@ All test classes that need database models should inherit from BaseTestCase
 to ensure required fixtures are loaded.
 """
 
+import shutil
+from pathlib import Path
+
+from django.conf import settings
 from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APITestCase
+
+
+def _ensure_test_media_files():
+    """Install fixture-referenced media files into the active test MEDIA_ROOT."""
+    if not settings.MEDIA_ROOT:
+        raise RuntimeError("MEDIA_ROOT must be configured for DB-backed tests")
+
+    repo_root = Path(__file__).resolve().parents[1]
+    source_dir = repo_root / "mediafiles" / "app_images"
+    dest_dir = Path(settings.MEDIA_ROOT) / "app_images"
+    dest_dir.mkdir(parents=True, exist_ok=True)
+
+    for filename in ("docketworks_logo.png", "docketworks_logo_wide.png"):
+        source = source_dir / filename
+        destination = dest_dir / filename
+        if not source.exists():
+            raise FileNotFoundError(source)
+        if source.resolve() == destination.resolve():
+            continue
+        shutil.copyfile(source, destination)
 
 
 def _create_test_staff():
@@ -47,6 +71,7 @@ class BaseTestCase(TestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
+        _ensure_test_media_files()
         cls.test_staff = _create_test_staff()
 
 
@@ -62,6 +87,7 @@ class BaseTransactionTestCase(TransactionTestCase):
 
     def setUp(self):
         super().setUp()
+        _ensure_test_media_files()
         self.test_staff = _create_test_staff()
 
 
@@ -77,4 +103,5 @@ class BaseAPITestCase(APITestCase):
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
+        _ensure_test_media_files()
         cls.test_staff = _create_test_staff()

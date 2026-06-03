@@ -2,6 +2,8 @@ from typing import Any
 
 from rest_framework import serializers
 
+from apps.client.models import ClientContactMethod
+
 # Existing models used in this serializer module
 from .models import (
     AIProvider,
@@ -51,12 +53,48 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
     logo_wide = serializers.ImageField(required=False, allow_null=True, write_only=True)
     logo_url = serializers.SerializerMethodField(read_only=True)
     logo_wide_url = serializers.SerializerMethodField(read_only=True)
+    phone_provider_password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
+    phone_own_numbers = serializers.ListField(
+        child=serializers.CharField(allow_blank=False),
+        required=False,
+    )
+    optional_url_fields = (
+        "master_quote_template_url",
+        "gdrive_quotes_folder_url",
+        "company_url",
+        "phone_provider_base_url",
+    )
 
     def get_logo_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo", self.context)
 
     def get_logo_wide_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo_wide", self.context)
+
+    def validate_phone_own_numbers(self, value: list[str]) -> list[str]:
+        normalized_numbers = []
+        seen = set()
+        for raw_number in value:
+            normalized = ClientContactMethod.normalize_phone(raw_number)
+            if not normalized:
+                raise serializers.ValidationError("Phone numbers must contain digits.")
+            if normalized in seen:
+                continue
+            seen.add(normalized)
+            normalized_numbers.append(normalized)
+        return normalized_numbers
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        for field_name in self.optional_url_fields:
+            if attrs.get(field_name) == "":
+                attrs[field_name] = None
+            else:
+                pass
+        return attrs
 
     class Meta:
         model = CompanyDefaults

@@ -707,6 +707,43 @@ const PatchedClientUpdateRequest = z
   })
   .partial()
 const ClientNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
+const MethodTypeEnum = z.enum(['phone', 'email'])
+const ClientContactMethodSourceEnum = z.enum(['imported', 'local'])
+const ClientContactMethod = z.object({
+  id: z.string().uuid(),
+  client: z.string().uuid().nullish(),
+  client_name: z.string(),
+  contact: z.string().uuid().nullish(),
+  contact_name: z.string(),
+  method_type: MethodTypeEnum,
+  value: z.string().max(255),
+  normalized_value: z.string(),
+  label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
+  source: ClientContactMethodSourceEnum.optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const ClientContactMethodRequest = z.object({
+  client: z.string().uuid().nullish(),
+  contact: z.string().uuid().nullish(),
+  method_type: MethodTypeEnum,
+  value: z.string().min(1).max(255),
+  label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
+  source: ClientContactMethodSourceEnum.optional(),
+})
+const PatchedClientContactMethodRequest = z
+  .object({
+    client: z.string().uuid().nullable(),
+    contact: z.string().uuid().nullable(),
+    method_type: MethodTypeEnum,
+    value: z.string().min(1).max(255),
+    label: z.string().max(255),
+    is_primary: z.boolean().default(false),
+    source: ClientContactMethodSourceEnum,
+  })
+  .partial()
 const ClientContact = z.object({
   id: z.string().uuid(),
   client: z.string().uuid(),
@@ -852,6 +889,7 @@ const CompanyDefaults = z.object({
   id: z.number().int(),
   logo_url: z.string().nullable(),
   logo_wide_url: z.string().nullable(),
+  phone_own_numbers: z.array(z.string()).optional(),
   company_name: z.string(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -876,10 +914,12 @@ const CompanyDefaults = z.object({
   xero_tenant_id: z.string().max(100).nullish(),
   xero_shortcode: z.string().max(20).nullish(),
   enable_xero_sync: z.boolean().optional(),
+  xero_automated_day_floor: z.number().int().gte(0).lte(2147483647).optional(),
   xero_payroll_calendar_name: z.string().max(100).optional(),
   xero_payroll_calendar_id: z.string().uuid().nullish(),
   xero_payroll_start_date: z.string().nullish(),
   weekend_timesheets_enabled: z.boolean().optional(),
+  job_delta_soft_fail: z.boolean().optional(),
   mon_start: z.string().optional(),
   mon_end: z.string().optional(),
   tue_start: z.string().optional(),
@@ -903,6 +943,11 @@ const CompanyDefaults = z.object({
   company_email: z.string().max(254).email().nullish(),
   company_phone: z.string().max(30).nullish(),
   company_url: z.string().max(200).url().nullish(),
+  phone_call_downloads_enabled: z.boolean().optional(),
+  phone_provider_recording_deletion_enabled: z.boolean().optional(),
+  phone_provider_base_url: z.string().max(200).url().nullish(),
+  phone_provider_username: z.string().max(255).optional(),
+  phone_provider_account_code: z.string().max(100).optional(),
   test_client_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
@@ -917,6 +962,8 @@ const CompanyDefaults = z.object({
 const CompanyDefaultsRequest = z.object({
   logo: z.instanceof(File).nullish(),
   logo_wide: z.instanceof(File).nullish(),
+  phone_provider_password: z.string().optional(),
+  phone_own_numbers: z.array(z.string().min(1)).optional(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -940,10 +987,12 @@ const CompanyDefaultsRequest = z.object({
   xero_tenant_id: z.string().max(100).nullish(),
   xero_shortcode: z.string().max(20).nullish(),
   enable_xero_sync: z.boolean().optional(),
+  xero_automated_day_floor: z.number().int().gte(0).lte(2147483647).optional(),
   xero_payroll_calendar_name: z.string().min(1).max(100).optional(),
   xero_payroll_calendar_id: z.string().uuid().nullish(),
   xero_payroll_start_date: z.string().nullish(),
   weekend_timesheets_enabled: z.boolean().optional(),
+  job_delta_soft_fail: z.boolean().optional(),
   mon_start: z.string().optional(),
   mon_end: z.string().optional(),
   tue_start: z.string().optional(),
@@ -965,6 +1014,11 @@ const CompanyDefaultsRequest = z.object({
   company_email: z.string().max(254).email().nullish(),
   company_phone: z.string().max(30).nullish(),
   company_url: z.string().max(200).url().nullish(),
+  phone_call_downloads_enabled: z.boolean().optional(),
+  phone_provider_recording_deletion_enabled: z.boolean().optional(),
+  phone_provider_base_url: z.string().max(200).url().nullish(),
+  phone_provider_username: z.string().max(255).optional(),
+  phone_provider_account_code: z.string().max(100).optional(),
   test_client_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
@@ -980,6 +1034,8 @@ const PatchedCompanyDefaultsRequest = z
   .object({
     logo: z.instanceof(File).nullable(),
     logo_wide: z.instanceof(File).nullable(),
+    phone_provider_password: z.string(),
+    phone_own_numbers: z.array(z.string().min(1)),
     company_acronym: z.string().max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
@@ -1003,10 +1059,12 @@ const PatchedCompanyDefaultsRequest = z
     xero_tenant_id: z.string().max(100).nullable(),
     xero_shortcode: z.string().max(20).nullable(),
     enable_xero_sync: z.boolean(),
+    xero_automated_day_floor: z.number().int().gte(0).lte(2147483647),
     xero_payroll_calendar_name: z.string().min(1).max(100),
     xero_payroll_calendar_id: z.string().uuid().nullable(),
     xero_payroll_start_date: z.string().nullable(),
     weekend_timesheets_enabled: z.boolean(),
+    job_delta_soft_fail: z.boolean(),
     mon_start: z.string(),
     mon_end: z.string(),
     tue_start: z.string(),
@@ -1028,6 +1086,11 @@ const PatchedCompanyDefaultsRequest = z
     company_email: z.string().max(254).email().nullable(),
     company_phone: z.string().max(30).nullable(),
     company_url: z.string().max(200).url().nullable(),
+    phone_call_downloads_enabled: z.boolean(),
+    phone_provider_recording_deletion_enabled: z.boolean(),
+    phone_provider_base_url: z.string().max(200).url().nullable(),
+    phone_provider_username: z.string().max(255),
+    phone_provider_account_code: z.string().max(100),
     test_client_name: z.string().max(255).nullable(),
     kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000),
     kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000),
@@ -1056,6 +1119,63 @@ const SettingsSection = z.object({
   fields: z.array(SettingsField),
 })
 const CompanyDefaultsSchema = z.object({ sections: z.array(SettingsSection) })
+const PhoneCallRecording = z.object({
+  id: z.string().uuid(),
+  provider_recording_id: z.string(),
+  account_code: z.string(),
+  filename: z.string(),
+  storage_path: z.string(),
+  content_type: z.string(),
+  byte_size: z.number().int().nullable(),
+  sha256: z.string(),
+  archived_at: z.string().datetime({ offset: true }).nullable(),
+  archive_error: z.string(),
+  provider_deleted_at: z.string().datetime({ offset: true }).nullable(),
+  provider_delete_error: z.string(),
+  local_deleted_at: z.string().datetime({ offset: true }).nullable(),
+  download_url: z.string().nullable(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const PhoneCallRecord = z.object({
+  id: z.string().uuid(),
+  provider_call_id: z.string(),
+  account_code: z.string(),
+  call_datetime: z.string().datetime({ offset: true }),
+  call_date: z.string(),
+  call_time: z.string(),
+  call_type: z.string(),
+  status: z.string(),
+  description: z.string(),
+  origin: z.string(),
+  destination: z.string(),
+  direction: z.string(),
+  our_number: z.string(),
+  external_number: z.string(),
+  duration_seconds: z.number().int(),
+  charge: z.number().gt(-100000000).lt(100000000).nullable(),
+  client: z.string().uuid().nullable(),
+  client_name: z.string(),
+  contact: z.string().uuid().nullable(),
+  contact_name: z.string(),
+  recording: PhoneCallRecording.nullable(),
+  imported_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const PhoneNumberAssignmentRequest = z.object({
+  phone_number: z.string().min(1).max(150),
+  client: z.string().uuid(),
+  contact: z.string().uuid().nullish(),
+  label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
+})
+const PhoneNumberAssignment = z.object({
+  phone_number: z.string().max(150),
+  client: z.string().uuid(),
+  contact: z.string().uuid().nullish(),
+  label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
+})
 const DataVersions = z.object({ stock: z.string(), kanban: z.string() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
@@ -2670,7 +2790,12 @@ const AllocationDeleteResponse = z.object({
 const PurchaseOrderLastNumberResponse = z
   .object({ last_po_number: z.string().nullable() })
   .partial()
-const SourceEnum = z.enum(['purchase_order', 'split_from_stock', 'manual', 'product_catalog'])
+const StockItemSourceEnum = z.enum([
+  'purchase_order',
+  'split_from_stock',
+  'manual',
+  'product_catalog',
+])
 const StockItem = z.object({
   id: z.string().uuid(),
   item_code: z.string().max(255).nullish(),
@@ -2679,7 +2804,7 @@ const StockItem = z.object({
   unit_cost: z.number().gt(-100000000).lt(100000000),
   unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
   date: z.string().datetime({ offset: true }).optional(),
-  source: SourceEnum,
+  source: StockItemSourceEnum,
   location: z.string().optional(),
   metal_type: z.union([MetalTypeEnum, BlankEnum]).optional(),
   alloy: z.string().max(50).nullish(),
@@ -2695,7 +2820,7 @@ const StockItemRequest = z.object({
   unit_cost: z.number().gt(-100000000).lt(100000000),
   unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
   date: z.string().datetime({ offset: true }).optional(),
-  source: SourceEnum,
+  source: StockItemSourceEnum,
   location: z.string().optional(),
   metal_type: z.union([MetalTypeEnum, BlankEnum]).optional(),
   alloy: z.string().max(50).nullish(),
@@ -2710,7 +2835,7 @@ const PatchedStockItemRequest = z
     unit_cost: z.number().gt(-100000000).lt(100000000),
     unit_revenue: z.number().gt(-100000000).lt(100000000).nullable(),
     date: z.string().datetime({ offset: true }),
-    source: SourceEnum,
+    source: StockItemSourceEnum,
     location: z.string(),
     metal_type: z.union([MetalTypeEnum, BlankEnum]),
     alloy: z.string().max(50).nullable(),
@@ -3330,6 +3455,11 @@ export const schemas = {
   ClientUpdateResponse,
   PatchedClientUpdateRequest,
   ClientNameOnly,
+  MethodTypeEnum,
+  ClientContactMethodSourceEnum,
+  ClientContactMethod,
+  ClientContactMethodRequest,
+  PatchedClientContactMethodRequest,
   ClientContact,
   ClientContactRequest,
   PatchedClientContactRequest,
@@ -3349,6 +3479,10 @@ export const schemas = {
   SettingsField,
   SettingsSection,
   CompanyDefaultsSchema,
+  PhoneCallRecording,
+  PhoneCallRecord,
+  PhoneNumberAssignmentRequest,
+  PhoneNumberAssignment,
   DataVersions,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
@@ -3572,7 +3706,7 @@ export const schemas = {
   AllocationDeleteRequest,
   AllocationDeleteResponse,
   PurchaseOrderLastNumberResponse,
-  SourceEnum,
+  StockItemSourceEnum,
   StockItem,
   StockItemRequest,
   PatchedStockItemRequest,
@@ -4649,6 +4783,116 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
+    path: '/api/clients/contact-methods/',
+    alias: 'clients_contact_methods_list',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'client_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'contact_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'method_type',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: z.array(ClientContactMethod),
+  },
+  {
+    method: 'post',
+    path: '/api/clients/contact-methods/',
+    alias: 'clients_contact_methods_create',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: ClientContactMethodRequest,
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'get',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_retrieve',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'put',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_update',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: ClientContactMethodRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'patch',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_partial_update',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedClientContactMethodRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'delete',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_destroy',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
     path: '/api/clients/contacts/',
     alias: 'clients_contacts_list',
     description: `List all contacts, optionally filtered by client_id.`,
@@ -5224,6 +5468,123 @@ POST: Upload a logo image to a specified field.
 DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
     response: CompanyDefaults,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-call-recordings/',
+    alias: 'crm_phone_call_recordings_list',
+    requestFormat: 'json',
+    response: z.array(PhoneCallRecording),
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-call-recordings/:id/',
+    alias: 'crm_phone_call_recordings_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecording,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-call-recordings/:id/download/',
+    alias: 'downloadPhoneCallRecording',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.instanceof(File),
+    errors: [
+      {
+        status: 404,
+        description: `Recording file not found`,
+        schema: z.void(),
+      },
+    ],
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-call-recordings/:id/local-file/',
+    alias: 'deleteLocalPhoneCallRecording',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-call-recordings/:id/provider-file/',
+    alias: 'deleteProviderPhoneCallRecording',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-calls/',
+    alias: 'crm_phone_calls_list',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'client',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'contact',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+    ],
+    response: z.array(PhoneCallRecord),
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-calls/:id/',
+    alias: 'crm_phone_calls_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'post',
+    path: '/api/crm/phone-calls/assign-number/',
+    alias: 'assignPhoneCallNumber',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PhoneNumberAssignmentRequest,
+      },
+    ],
+    response: PhoneNumberAssignment,
   },
   {
     method: 'get',
@@ -9096,7 +9457,7 @@ Endpoints:
 
 Today: just the day-quota floor — the quota badge derives its
 red/amber thresholds from this so a deployment bumping the floor
-in env doesn&#x27;t leave the UI showing &quot;healthy&quot; while syncs abort.`,
+in CompanyDefaults doesn&#x27;t leave the UI showing &quot;healthy&quot; while syncs abort.`,
     requestFormat: 'json',
     response: z.object({ day_floor: z.number().int() }),
   },

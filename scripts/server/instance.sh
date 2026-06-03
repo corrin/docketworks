@@ -277,7 +277,6 @@ BASH_PROFILE
         ESC_EMAIL_HOST_PASSWORD="$(sed_escape "$EMAIL_HOST_PASSWORD")"
         ESC_DJANGO_ADMINS="$(sed_escape "$DJANGO_ADMINS")"
         ESC_EMAIL_BCC="$(sed_escape "$EMAIL_BCC")"
-
         local GCP_DEST="$INSTANCE_DIR/gcp-credentials.json"
         sed \
             -e "s|__INSTANCE__|$INSTANCE|g" \

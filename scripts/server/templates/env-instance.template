@@ -1,3 +1,7 @@
+# WARNING: Keep this file in sync with .env.example. Any setting added here
+# should also be added to .env.example so local/dev setup and newly-created
+# server instances use the same required settings contract.
+
 # Django Core Settings
 DEBUG=False
 SECRET_KEY=__SECRET_KEY__
@@ -12,11 +16,12 @@ ALLOWED_HOSTS=__FQDN__
 INSTANCE=__INSTANCE__
 
 # Database Configuration (PostgreSQL — local Unix socket)
+DB_ENGINE=django.db.backends.postgresql
 DB_NAME=__DB_NAME__
 DB_USER=__DB_USER__
 DB_PASSWORD=__DB_PASSWORD__
 DB_HOST=/var/run/postgresql
-DB_PORT=
+DB_PORT=5432
 SCRUB_DB_NAME=__SCRUB_DB_NAME__
 # Pytest connects as a separate role that owns only the pre-provisioned
 # test_dw_<instance> database — no CREATEDB and no access to the app DB.
@@ -33,6 +38,10 @@ FRONT_END_URL=https://__FQDN__
 
 # JWT Configuration
 ENABLE_JWT_AUTH=True
+
+# Redis
+REDIS_HOST=127.0.0.1
+REDIS_PORT=6379
 
 # Xero Integration
 XERO_SYNC_PROJECTS=False
@@ -56,6 +65,9 @@ GCP_CREDENTIALS=__GCP_CREDENTIALS_PATH__
 # Dropbox Integration (per-instance local storage for job files)
 DROPBOX_WORKFLOW_FOLDER=/opt/docketworks/instances/__INSTANCE__/dropbox
 
+# Phone call history / recording archive
+PHONE_RECORDING_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/phone-recordings
+
 # Session replay diagnostics
 SESSION_REPLAY_RETENTION_DAYS=30
 SESSION_REPLAY_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/session-replays
@@ -66,7 +78,7 @@ LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs
 
 # Feature flags
 DEBUG_PAYLOAD=False
-JOB_DELTA_SOFT_FAIL=True
+SKIP_VERSION_CHECK=False
 
 # Shared Playwright browsers (installed once by server-setup.sh)
 PLAYWRIGHT_BROWSERS_PATH=/opt/docketworks/.playwright-browsers

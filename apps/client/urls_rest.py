@@ -11,6 +11,7 @@ from django.urls import include, path
 from rest_framework.routers import DefaultRouter
 
 from apps.client.views.address_views import AddressValidateView
+from apps.client.views.client_contact_method_viewset import ClientContactMethodViewSet
 from apps.client.views.client_contact_viewset import ClientContactViewSet
 from apps.client.views.client_rest_views import (
     ClientCreateRestView,
@@ -33,6 +34,11 @@ app_name = "clients_rest"
 
 # Router for ViewSet-based endpoints
 router = DefaultRouter()
+router.register(
+    "contact-methods",
+    ClientContactMethodViewSet,
+    basename="client-contact-method",
+)
 router.register("contacts", ClientContactViewSet, basename="client-contact")
 router.register(
     "pickup-addresses", SupplierPickupAddressViewSet, basename="supplier-pickup-address"

@@ -1,14 +1,12 @@
 import logging
 import os
 import subprocess
+import sys
 from datetime import timedelta
 from pathlib import Path
 
 from django.core.exceptions import ImproperlyConfigured
 from dotenv import load_dotenv
-
-# Import scopes from constants to ensure consistency
-from apps.workflow.api.xero.constants import XERO_SCOPES as DEFAULT_XERO_SCOPES_LIST
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -38,12 +36,22 @@ def validate_required_settings() -> None:
         "DJANGO_ENV",
         "ALLOWED_HOSTS",
         "DJANGO_SITE_DOMAIN",
+        "CORS_ALLOWED_ORIGINS",
         # Database
+        "DB_ENGINE",
         "DB_NAME",
         "DB_USER",
         "DB_PASSWORD",
+        "DB_HOST",
+        "DB_PORT",
+        "SCRUB_DB_NAME",
         # File Storage
         "DROPBOX_WORKFLOW_FOLDER",
+        "MEDIA_ROOT",
+        "LOG_DIR",
+        # Redis
+        "REDIS_HOST",
+        "REDIS_PORT",
         # Xero Integration
         "XERO_DEFAULT_USER_ID",
         "XERO_SYNC_PROJECTS",
@@ -54,6 +62,8 @@ def validate_required_settings() -> None:
         "EMAIL_HOST_USER",
         "EMAIL_HOST_PASSWORD",
         "DEFAULT_FROM_EMAIL",
+        "DJANGO_ADMINS",
+        "EMAIL_BCC",
         # Authentication
         "ENABLE_JWT_AUTH",
         # Frontend Integration
@@ -63,6 +73,8 @@ def validate_required_settings() -> None:
         # Session replay diagnostics
         "SESSION_REPLAY_RETENTION_DAYS",
         "SESSION_REPLAY_STORAGE_ROOT",
+        # Phone call history / recording archive
+        "PHONE_RECORDING_STORAGE_ROOT",
     ]
 
     # Check which variables are missing or empty
@@ -86,7 +98,7 @@ def validate_required_settings() -> None:
 validate_required_settings()
 
 # Load DEBUG from environment - should be False in production
-DEBUG = os.getenv("DEBUG", "False").lower() == "true"
+DEBUG = os.getenv("DEBUG").lower() == "true"
 
 # Enable detailed payload logging for debugging
 DEBUG_PAYLOAD = os.getenv("DEBUG_PAYLOAD").lower() == "true"
@@ -95,10 +107,6 @@ DEBUG_PAYLOAD = os.getenv("DEBUG_PAYLOAD").lower() == "true"
 # returns an empty build_id sentinel and the frontend skips its reload check.
 SKIP_VERSION_CHECK = os.getenv("SKIP_VERSION_CHECK").lower() == "true"
 
-# Job delta soft fail setting - controls whether checksum mismatches are logged but not raised
-JOB_DELTA_SOFT_FAIL = os.getenv("JOB_DELTA_SOFT_FAIL", "True").strip() == "True"
-
-
 # =======================
 # Cookie Configuration
 # =======================
@@ -106,32 +114,14 @@ JOB_DELTA_SOFT_FAIL = os.getenv("JOB_DELTA_SOFT_FAIL", "True").strip() == "True"
 # Detect production-like environment (for UAT/production)
 # This matches the original settings/__init__.py logic
 DJANGO_ENV = os.getenv("DJANGO_ENV")
-if not DJANGO_ENV:
-    # Default to development if DJANGO_ENV is not set
-    DJANGO_ENV = "INVALID SYSTEM DETECTED - KILL CLAUDE CODE"
 PRODUCTION_LIKE = DJANGO_ENV == "production_like"
 
 # Load SECRET_KEY from environment - critical security requirement
 SECRET_KEY = os.getenv("SECRET_KEY")
-if not SECRET_KEY:
-    raise ImproperlyConfigured(
-        "SECRET_KEY environment variable must be set. "
-        "Generate one using: from django.core.management.utils import "
-        "get_random_secret_key; print(get_random_secret_key())"
-    )
 
 # Load ALLOWED_HOSTS from environment variables
-allowed_hosts_env = os.getenv("ALLOWED_HOSTS", "")
-if allowed_hosts_env:
-    ALLOWED_HOSTS = [
-        host.strip() for host in allowed_hosts_env.split(",") if host.strip()
-    ]
-else:
-    # Fallback for development
-    ALLOWED_HOSTS = [
-        "127.0.0.1",
-        "localhost",
-    ]
+allowed_hosts_env = os.getenv("ALLOWED_HOSTS")
+ALLOWED_HOSTS = [host.strip() for host in allowed_hosts_env.split(",") if host.strip()]
 
 AUTH_USER_MODEL = "accounts.Staff"
 
@@ -156,6 +146,7 @@ INSTALLED_APPS = [
     "apps.job.apps.JobConfig",
     "apps.quoting.apps.QuotingConfig",
     "apps.client.apps.ClientConfig",
+    "apps.crm.apps.CrmConfig",
     "apps.purchasing.apps.PurchasingConfig",
     "apps.process.apps.ProcessConfig",
     "apps.operations.apps.OperationsConfig",
@@ -191,32 +182,23 @@ if NPLUSONE_ENABLED:
     MIDDLEWARE.insert(0, "nplusone.ext.django.NPlusOneMiddleware")
 
 # CSRF settings - Load from environment variables
-csrf_origins_env = os.getenv("CORS_ALLOWED_ORIGINS", "")
+csrf_origins_env = os.getenv("CORS_ALLOWED_ORIGINS")
 csrf_trusted_origins = []
 
-if csrf_origins_env:
-    # Convert CORS origins to CSRF trusted origins (add https:// variants)
-    for origin in csrf_origins_env.split(","):
-        origin = origin.strip()
-        if origin:
-            csrf_trusted_origins.append(origin)
-            # Add https variant if it's http
-            if origin.startswith("http://"):
-                https_variant = origin.replace("http://", "https://")
-                csrf_trusted_origins.append(https_variant)
+# Convert CORS origins to CSRF trusted origins (add https:// variants)
+for origin in csrf_origins_env.split(","):
+    origin = origin.strip()
+    if origin:
+        csrf_trusted_origins.append(origin)
+        # Add https variant if it's http
+        if origin.startswith("http://"):
+            https_variant = origin.replace("http://", "https://")
+            csrf_trusted_origins.append(https_variant)
 
-# Add ngrok domain if available
-CSRF_TRUSTED_ORIGINS = (
-    csrf_trusted_origins
-    if csrf_trusted_origins
-    else [
-        "http://localhost",
-        "http://127.0.0.1",
-    ]
-)
+CSRF_TRUSTED_ORIGINS = csrf_trusted_origins
 
 # JWT/authentication settings
-ENABLE_JWT_AUTH = os.getenv("ENABLE_JWT_AUTH", "True").lower() == "true"
+ENABLE_JWT_AUTH = os.getenv("ENABLE_JWT_AUTH").lower() == "true"
 
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
@@ -260,7 +242,7 @@ SESSION_COOKIE_SAMESITE = "Lax"
 CSRF_COOKIE_SECURE = not DEBUG  # Allow non-HTTPS CSRF cookies in development
 CSRF_COOKIE_HTTPONLY = False  # CSRF cookies need to be accessible to JS
 
-FRONT_END_URL = os.getenv("FRONT_END_URL", "")
+FRONT_END_URL = os.getenv("FRONT_END_URL")
 LOGIN_URL = FRONT_END_URL.rstrip("/") + "/login"
 LOGOUT_URL = "accounts:api_logout"
 LOGIN_REDIRECT_URL = FRONT_END_URL
@@ -405,8 +387,8 @@ CHANNEL_LAYERS = {
         "CONFIG": {
             "hosts": [
                 (
-                    os.getenv("REDIS_HOST", "127.0.0.1"),
-                    int(os.getenv("REDIS_PORT", 6379)),
+                    os.getenv("REDIS_HOST"),
+                    int(os.getenv("REDIS_PORT")),
                 )
             ],
         },
@@ -422,12 +404,12 @@ DJANGO_MCP_AUTHENTICATION_CLASSES = [
 # Database
 DATABASES = {
     "default": {
-        "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
+        "ENGINE": os.getenv("DB_ENGINE"),
         "NAME": os.getenv("DB_NAME"),
         "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-        "PORT": os.getenv("DB_PORT", ""),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
     },
     # Second DB alias used ONLY by manage.py backport_data_backup on prod.
     # Points at a sibling scrubbing DB (dw_<client>_scrub) that holds a
@@ -436,12 +418,12 @@ DATABASES = {
     # — hard-checked by both the management command and db_scrubber to
     # prevent accidental scrubbing of prod.
     "scrub": {
-        "ENGINE": os.getenv("DB_ENGINE", "django.db.backends.postgresql"),
+        "ENGINE": os.getenv("DB_ENGINE"),
         "NAME": os.getenv("SCRUB_DB_NAME"),
         "USER": os.getenv("DB_USER"),
         "PASSWORD": os.getenv("DB_PASSWORD"),
-        "HOST": os.getenv("DB_HOST", "127.0.0.1"),
-        "PORT": os.getenv("DB_PORT", ""),
+        "HOST": os.getenv("DB_HOST"),
+        "PORT": os.getenv("DB_PORT"),
     },
 }
 
@@ -480,8 +462,8 @@ USE_TZ = True
 
 # Celery configuration. Redis db 0 is used by channels; Celery uses db 1 on the
 # same instance so the broker is colocated but logically separate.
-_REDIS_HOST = os.getenv("REDIS_HOST", "127.0.0.1")
-_REDIS_PORT = int(os.getenv("REDIS_PORT", 6379))
+_REDIS_HOST = os.getenv("REDIS_HOST")
+_REDIS_PORT = int(os.getenv("REDIS_PORT"))
 CELERY_BROKER_URL = f"redis://{_REDIS_HOST}:{_REDIS_PORT}/1"
 CELERY_TASK_SERIALIZER = "json"
 CELERY_ACCEPT_CONTENT = ["json"]
@@ -506,14 +488,13 @@ CELERY_WORKER_HIJACK_ROOT_LOGGER = False
 
 # Media files (user uploads)
 MEDIA_URL = "/media/"
-MEDIA_ROOT = BASE_DIR / "mediafiles"
+MEDIA_ROOT = os.getenv("MEDIA_ROOT")
 
 # Default primary key field type
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
-# Log directory — defaults to BASE_DIR/logs, overridable via LOG_DIR env var
-# (allows per-instance log directories in shared-codebase UAT deployments)
-LOG_DIR = os.getenv("LOG_DIR", os.path.join(BASE_DIR, "logs"))
+# Log directory
+LOG_DIR = os.getenv("LOG_DIR")
 
 # Logging configuration
 LOGGING = {
@@ -779,18 +760,9 @@ LOGGING = {
 }
 
 # Custom settings
-ACCOUNTING_BACKEND = os.getenv("ACCOUNTING_BACKEND", "xero")
-XERO_DEFAULT_USER_ID = os.getenv("XERO_DEFAULT_USER_ID", "")
-XERO_SYNC_PROJECTS = os.getenv("XERO_SYNC_PROJECTS", "False").lower() == "true"
-
-DEFAULT_XERO_SCOPES = " ".join(DEFAULT_XERO_SCOPES_LIST)
-XERO_SCOPES = os.getenv("XERO_SCOPES", DEFAULT_XERO_SCOPES).split()
-
-# Day-quota floor for automated Xero traffic. Sync and webhook processing
-# refuse to make Xero API calls once X-DayLimit-Remaining is at or below this
-# value, leaving the remaining budget for known-cost user-initiated operations
-# (creating an invoice, a client, etc.).
-XERO_AUTOMATED_DAY_FLOOR = int(os.getenv("XERO_AUTOMATED_DAY_FLOOR", "100"))
+XERO_DEFAULT_USER_ID = os.getenv("XERO_DEFAULT_USER_ID")
+XERO_SYNC_PROJECTS = os.getenv("XERO_SYNC_PROJECTS").lower() == "true"
+PHONE_RECORDING_STORAGE_ROOT = os.getenv("PHONE_RECORDING_STORAGE_ROOT")
 
 # Hardcoded production Xero tenant ID
 PRODUCTION_XERO_TENANT_ID = "75e57cfd-302d-4f84-8734-8aae354e76a7"
@@ -817,15 +789,11 @@ DEFAULT_FROM_EMAIL = os.getenv("DEFAULT_FROM_EMAIL")
 
 # Admin email notifications for errors
 _admin_email = os.getenv("DJANGO_ADMINS")
-ADMINS = [("Admin", _admin_email)] if _admin_email else []
+ADMINS = [("Admin", _admin_email)]
 
 # Email BCC list
 EMAIL_BCC_ENV = os.getenv("EMAIL_BCC")
-EMAIL_BCC = (
-    [email.strip() for email in EMAIL_BCC_ENV.split(",") if email.strip()]
-    if EMAIL_BCC_ENV
-    else []
-)
+EMAIL_BCC = [email.strip() for email in EMAIL_BCC_ENV.split(",") if email.strip()]
 
 # CACHE CONFIGURATION
 # "default" is per-process LocMem (sessions, tenant-id discovery cache, etc.).
@@ -848,7 +816,7 @@ CACHES = {
 # django-solo caches CompanyDefaults.get_solo() across reads. Routed onto
 # "shared" (Redis) so admin edits propagate immediately to all gunicorn
 # workers and the Celery worker, not after SOLO_CACHE_TIMEOUT.
-SOLO_CACHE = "shared"
+SOLO_CACHE = None if "test" in sys.argv else "shared"
 SOLO_CACHE_TIMEOUT = 300
 
 # Password reset timeout
@@ -864,9 +832,6 @@ PASSWORD_RESET_TIMEOUT = 86400  # 24 hours in seconds
 # Used for UAT, staging, and production environments
 
 if PRODUCTION_LIKE:
-    # Override media path from environment if provided
-    MEDIA_ROOT = os.getenv("MEDIA_ROOT", MEDIA_ROOT)
-
     # SECURITY CONFIGURATIONS
     # Enable secure cookies and headers
     SESSION_COOKIE_SECURE = True

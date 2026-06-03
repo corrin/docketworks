@@ -54,10 +54,11 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
     Tenant-aware: ``tenant_id`` is the explicit task argument; never read
     from process state. Write-side: callers do not read a return value.
     """
-    if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+    company_defaults = CompanyDefaults.get_solo()
+    if quota_floor_breached(company_defaults.xero_automated_day_floor):
         logger.warning(
             "Xero day quota at floor (%s) — skipping webhook event %s",
-            settings.XERO_AUTOMATED_DAY_FLOOR,
+            company_defaults.xero_automated_day_floor,
             event,
         )
         # Return (do not raise) — raising would make Celery retry indefinitely.
@@ -70,7 +71,6 @@ def process_xero_webhook_event(tenant_id: str, event: Dict[str, Any]) -> None:
         logger.error("Invalid webhook event - missing required fields: %s", event)
         return
 
-    company_defaults = CompanyDefaults.get_solo()
     if company_defaults.xero_tenant_id != tenant_id:
         logger.warning(
             "Webhook event for wrong tenant %s, expected %s",
