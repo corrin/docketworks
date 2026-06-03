@@ -1,4 +1,7 @@
-"""Supplier lookup search coverage for purchase orders (Trello #323)."""
+"""A teammate adjusting the search scoring formula or filter logic could
+silently break supplier lookup — the user-facing symptom would be the wrong
+supplier ranked first, or a supplier not findable at all.
+"""
 
 from datetime import timedelta
 
@@ -180,6 +183,10 @@ def test_stop_word_only_query_falls_back_to_literal_name_match():
 
 @pytest.mark.django_db
 def test_supplier_alias_api_lists_creates_and_deactivates_alias(auth_api):
+    """If the alias CRUD endpoint breaks, office staff lose the ability to
+    give suppliers nicknames — searching large supplier lists by legal name
+    alone becomes unusable.
+    """
     client = _make_client("S&T Stainless Limited")
 
     create_resp = auth_api.post(
@@ -204,6 +211,10 @@ def test_supplier_alias_api_lists_creates_and_deactivates_alias(auth_api):
 
 @pytest.mark.django_db
 def test_supplier_search_view_returns_alias_match(auth_api):
+    """If alias matching breaks in the search view, a user who searches for
+    a nickname they themselves created gets zero results — the alias feature
+    silently stops working.
+    """
     supplier = _make_client("S&T Stainless Limited")
     SupplierSearchAlias.objects.create(client=supplier, alias="Steel and Tube")
 

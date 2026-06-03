@@ -1,3 +1,8 @@
+"""Guards against stale-data regressions: any write to Stock, Job, Staff
+assignments, or Client contacts must bump the corresponding data-version
+string so the frontend invalidates its cache and re-fetches.
+"""
+
 from decimal import Decimal
 
 import pytest
@@ -87,11 +92,17 @@ def test_get_returns_dict_with_dataset_keys(auth_client, db):
 
 
 def test_response_has_no_store_cache_header(auth_client, db):
+    """A stale `Cache-Control` header would let browsers serve expired version
+    strings, defeating cache invalidation entirely.
+    """
     resp = auth_client.get("/api/data-versions/")
     assert resp["Cache-Control"] == "no-store"
 
 
 def test_unauthenticated_request_is_rejected(db):
+    """Leaking version strings to unauthenticated callers exposes deployment
+    details (hashes, timestamps) that an attacker can fingerprint.
+    """
     resp = APIClient().get("/api/data-versions/")
     assert resp.status_code in (401, 403)
 

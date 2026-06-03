@@ -61,6 +61,10 @@ def test_unquoted_tokens_match_both_orders(dog_food, food_dog):
 
 
 def test_single_token_query_matches(hynds):
+    """If single-token FTS breaks, the most common search pattern (typing
+    one word into the search box) silently returns nothing — every user
+    experiences a broken search.
+    """
     result = ClientRestService.list_clients(query="Hynds", page=1, page_size=10)
     names = [c["name"] for c in result["results"]]
     assert "Hynds Pipe Systems" in names

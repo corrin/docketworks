@@ -362,6 +362,8 @@ class PhoneProviderConfig:
 
 def _config() -> PhoneProviderConfig:
     company_defaults = CompanyDefaults.get_solo()
+    if not company_defaults.phone_provider_base_url:
+        raise ValueError("phone provider base URL is not configured")
     return PhoneProviderConfig(
         base_url=company_defaults.phone_provider_base_url.rstrip("/"),
         username=company_defaults.phone_provider_username,

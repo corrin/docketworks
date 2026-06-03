@@ -62,6 +62,12 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
         child=serializers.CharField(allow_blank=False),
         required=False,
     )
+    optional_url_fields = (
+        "master_quote_template_url",
+        "gdrive_quotes_folder_url",
+        "company_url",
+        "phone_provider_base_url",
+    )
 
     def get_logo_url(self, obj: CompanyDefaults) -> str | None:
         return _build_logo_url(obj, "logo", self.context)
@@ -81,6 +87,14 @@ class CompanyDefaultsSerializer(serializers.ModelSerializer):
             seen.add(normalized)
             normalized_numbers.append(normalized)
         return normalized_numbers
+
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
+        for field_name in self.optional_url_fields:
+            if attrs.get(field_name) == "":
+                attrs[field_name] = None
+            else:
+                pass
+        return attrs
 
     class Meta:
         model = CompanyDefaults

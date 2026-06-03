@@ -260,8 +260,9 @@ class CompanyDefaults(SingletonModel):
         ),
     )
     phone_provider_base_url = models.URLField(
+        null=True,
         blank=True,
-        default="",
+        default=None,
         help_text="Base URL for the configured phone provider portal.",
     )
     phone_provider_username = models.CharField(

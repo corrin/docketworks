@@ -10276,6 +10276,7 @@ components:
         phone_provider_base_url:
           type: string
           format: uri
+          nullable: true
           description: Base URL for the configured phone provider portal.
           maxLength: 200
         phone_provider_username:
@@ -10691,6 +10692,7 @@ components:
         phone_provider_base_url:
           type: string
           format: uri
+          nullable: true
           description: Base URL for the configured phone provider portal.
           maxLength: 200
         phone_provider_username:
@@ -15539,6 +15541,7 @@ components:
         phone_provider_base_url:
           type: string
           format: uri
+          nullable: true
           description: Base URL for the configured phone provider portal.
           maxLength: 200
         phone_provider_username:
