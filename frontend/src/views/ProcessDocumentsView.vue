@@ -77,7 +77,7 @@ const router = useRouter()
 const route = useRoute()
 const store = useProcessDocumentsStore()
 
-const category = computed(() => (route.params.category as string) || 'safety')
+const category = computed(() => ((route.params as Record<string, string>).category) || 'safety')
 const documentType = computed(
   () => (route.meta.documentType as 'forms' | 'procedures') || 'procedures',
 )

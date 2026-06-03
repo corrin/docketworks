@@ -15,7 +15,7 @@
       <ul class="tab-list">
         <li v-for="tab in tabs" :key="tab.key">
           <RouterLink
-            :to="{ name: tab.route }"
+            :to="{ name: tab.route as never }"
             class="tab-link"
             :class="isActive(tab.key) ? 'tab-link--active' : ''"
           >

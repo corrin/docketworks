@@ -242,14 +242,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import AppLayout from '../components/AppLayout.vue'
-import ClientLookup from '../components/ClientLookup.vue'
-import ContactSelector from '../components/ContactSelector.vue'
-import RichTextEditor from '../components/RichTextEditor.vue'
-import { jobService, type JobCreateData } from '../services/job.service'
-import { schemas } from '../api/generated/api'
+import AppLayout from '@/components/AppLayout.vue'
+import ClientLookup from '@/components/ClientLookup.vue'
+import ContactSelector from '@/components/ContactSelector.vue'
+import RichTextEditor from '@/components/RichTextEditor.vue'
+import { jobService, type JobCreateData } from '@/services/job.service'
+import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
-import { debugLog } from '../utils/debug'
+import { debugLog } from '@/utils/debug'
 
 type ClientSearchResult = z.infer<typeof schemas.ClientSearchResult>
 type ClientContact = z.infer<typeof schemas.ClientContact>
@@ -415,7 +415,7 @@ const canSubmit = computed(() => {
 })
 
 const navigateBack = () => {
-  router.push({ name: 'kanban' })
+  router.push({ name: '/kanban' })
 }
 
 const validateForm = (): boolean => {
@@ -469,7 +469,7 @@ const handleSubmit = async () => {
       // Redirect to quote tab for fixed price jobs, estimate to t&m jobs
       const defaultTab = formData.value.pricing_methodology === 'fixed_price' ? 'quote' : 'estimate'
       router.push({
-        name: 'job-edit',
+        name: '/jobs/[id]',
         params: { id: result.job_id },
         query: { new: 'true', tab: defaultTab },
       })

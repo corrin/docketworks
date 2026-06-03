@@ -1108,7 +1108,7 @@ const goToToday = () => {
 
 const goToDailyOverview = () => {
   router.push({
-    name: 'timesheet-daily',
+    name: '/timesheets/daily',
     query: {
       date: currentDate.value,
     },

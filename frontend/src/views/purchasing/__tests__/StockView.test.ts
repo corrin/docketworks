@@ -30,7 +30,7 @@ vi.mock('@/utils/string-formatting', () => ({
   formatCurrency: (n: number | null | undefined) => `$${(n ?? 0).toFixed(2)}`,
 }))
 
-import StockView from '../StockView.vue'
+import StockView from '@/pages/purchasing/stock.vue'
 import { useStockStore } from '@/stores/stockStore'
 
 function buildStockItem(over: Partial<Record<string, unknown>> = {}) {

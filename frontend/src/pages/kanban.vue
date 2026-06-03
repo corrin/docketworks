@@ -229,7 +229,7 @@ import {
   DrawerTitle,
 } from '@/components/ui/drawer'
 import { useOptimizedKanban } from '@/composables/useOptimizedKanban'
-import { useOptimizedDragAndDrop } from '../composables/useOptimizedDragAndDrop'
+import { useOptimizedDragAndDrop } from '@/composables/useOptimizedDragAndDrop'
 import { useJobsStore } from '@/stores/jobs'
 import { useBoardMode } from '@/composables/useBoardMode'
 import WorkshopModeView from '@/components/board/WorkshopModeView.vue'

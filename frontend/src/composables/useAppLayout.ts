@@ -14,7 +14,7 @@ export function useAppLayout() {
 
   const navigationItems: NavigationItem[] = [
     {
-      name: 'kanban',
+      name: '/kanban',
       to: '/kanban',
       label: 'Kanban',
     },

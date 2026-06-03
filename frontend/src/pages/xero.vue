@@ -180,12 +180,12 @@
 
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, watch } from 'vue'
-import AppLayout from '../components/AppLayout.vue'
-import Button from '../components/ui/button/Button.vue'
-import Progress from '../components/ui/progress/Progress.vue'
-import XeroQuotaBadge from '../components/XeroQuotaBadge.vue'
-import { useXeroApps } from '../composables/useXeroApps'
-import { useXeroAuth } from '../composables/useXeroAuth'
+import AppLayout from '@/components/AppLayout.vue'
+import Button from '@/components/ui/button/Button.vue'
+import Progress from '@/components/ui/progress/Progress.vue'
+import XeroQuotaBadge from '@/components/XeroQuotaBadge.vue'
+import { useXeroApps } from '@/composables/useXeroApps'
+import { useXeroAuth } from '@/composables/useXeroAuth'
 import { toast } from 'vue-sonner'
 
 // Drives the "Set up Xero" vs "Login with Xero" button choice. If no

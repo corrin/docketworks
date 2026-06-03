@@ -40,7 +40,7 @@ export const useAuthStore = defineStore('auth', () => {
   // This is different from is_office_staff which controls PERMISSIONS
   // The Board page now handles mode switching internally via useBoardMode
   const defaultRoutePath = computed(() => '/kanban')
-  const defaultRouteName = computed(() => 'kanban')
+  const defaultRouteName = computed(() => '/kanban' as const)
 
   const clearError = (): void => {
     error.value = null

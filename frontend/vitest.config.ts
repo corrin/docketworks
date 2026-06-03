@@ -1,9 +1,15 @@
 import path from 'node:path'
 import vue from '@vitejs/plugin-vue'
+import VueRouter from 'vue-router/vite'
 import { defineConfig } from 'vitest/config'
 
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [
+    VueRouter({
+      dts: false,
+    }),
+    vue(),
+  ],
   resolve: {
     alias: {
       '@': path.resolve(__dirname, './src'),
@@ -12,7 +18,6 @@ export default defineConfig({
   test: {
     environment: 'happy-dom',
     globals: true,
-    // Only include unit tests in src/, exclude Playwright e2e tests in tests/
     include: ['src/**/*.{test,spec}.{js,ts}'],
     exclude: ['**/node_modules/**', '**/dist/**', 'tests/**'],
   },

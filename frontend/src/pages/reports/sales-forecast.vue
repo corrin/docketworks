@@ -494,7 +494,7 @@
                     <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-900">
                       <template v-if="row.job_id">
                         <RouterLink
-                          :to="{ name: 'job-edit', params: { id: row.job_id } }"
+                          :to="{ name: '/jobs/[id]', params: { id: row.job_id } }"
                           class="text-indigo-600 hover:text-indigo-800 hover:underline"
                         >
                           {{ row.job_number }} - {{ row.job_name }}

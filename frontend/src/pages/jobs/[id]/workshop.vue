@@ -27,7 +27,7 @@ function navigateBack() {
     router.back()
     return
   }
-  router.push({ name: 'kanban' })
+  router.push({ name: '/kanban' })
 }
 const {
   attachments,

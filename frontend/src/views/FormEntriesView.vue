@@ -142,7 +142,7 @@ import type { FormEntry, FormSchema } from '@/types/processDocument.types'
 const route = useRoute()
 const store = useProcessDocumentsStore()
 
-const category = computed(() => route.params.category as string)
+const category = computed(() => (route.params as Record<string, string>).category)
 
 // ============================================================
 // Computed
@@ -198,13 +198,13 @@ function handleEditDialogChange(open: boolean) {
 // ============================================================
 
 async function handleAddEntry(payload: { entry_date: string; data: Record<string, unknown> }) {
-  const id = route.params.id as string
+  const id = (route.params as Record<string, string>).id
   await store.addEntry(category.value, id, payload)
 }
 
 async function handleUpdateEntry(payload: { entry_date: string; data: Record<string, unknown> }) {
   if (!editingEntry.value) return
-  const documentId = route.params.id as string
+  const documentId = (route.params as Record<string, string>).id
   const entryId = editingEntry.value.id
   await store.updateEntry(category.value, documentId, entryId, payload)
   closeEditModal()
@@ -215,7 +215,7 @@ async function handleUpdateEntry(payload: { entry_date: string; data: Record<str
 // ============================================================
 
 onMounted(async () => {
-  const id = route.params.id as string
+  const id = (route.params as Record<string, string>).id
   await store.loadForm(category.value, id)
   await store.loadEntries(category.value, id)
 })
