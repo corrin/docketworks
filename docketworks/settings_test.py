@@ -22,6 +22,7 @@ DATABASES["default"]["PASSWORD"] = TEST_DB_PASSWORD
 # required, exceptions surface immediately at the call site.
 CELERY_TASK_ALWAYS_EAGER = True
 CELERY_TASK_EAGER_PROPAGATES = True
+SOLO_CACHE = None
 
 # Override the production "shared"=Redis cache with LocMem for tests. The
 # eager-Celery test runner is single-process, so per-process LocMem has

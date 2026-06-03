@@ -211,7 +211,8 @@ def sync_xero_data(
     max_updated_date_utc = None
 
     while True:
-        if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+        floor = CompanyDefaults.get_solo().xero_automated_day_floor
+        if quota_floor_breached(floor):
             # Raise (don't yield-warning-and-return). The yield+return pattern
             # is right for human-fix-required config errors (see the tenant
             # mismatch above) but wrong for an operational abort: the caller
@@ -220,8 +221,7 @@ def sync_xero_data(
             # through `yield from` to XeroSyncService.run_sync, which has a
             # XeroQuotaFloorReached branch that emits sync_status:"aborted".
             raise XeroQuotaFloorReached(
-                f"Skipping {our_entity_type}: Xero day quota at floor "
-                f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
+                f"Skipping {our_entity_type}: Xero day quota at floor " f"({floor})"
             )
 
         # Update pagination params
@@ -575,15 +575,13 @@ def synchronise_xero_data(delay_between_requests=1):
     # gated; without this orchestrator-level check it would 429 below the
     # floor on every breached sync. The per-page gate in `sync_xero_data`
     # never gets a chance because the orchestrator crashes first.
-    if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+    floor = CompanyDefaults.get_solo().xero_automated_day_floor
+    if quota_floor_breached(floor):
         # Raise rather than yield-and-return: the latter would let
         # `XeroSyncService.run_sync` finish normally and emit
         # sync_status:"success", silently hiding the abort. Raising lets
         # the run_sync XeroQuotaFloorReached branch emit "aborted" instead.
-        raise XeroQuotaFloorReached(
-            f"Skipping sync: Xero day quota at floor "
-            f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
-        )
+        raise XeroQuotaFloorReached(f"Skipping sync: Xero day quota at floor ({floor})")
 
     if not cache.add("xero_sync_lock", True, timeout=60 * 60 * 4):
         logger.info("Skipping sync - another sync is running")

@@ -31,6 +31,7 @@ class SettingsSection:
     KPI = ("kpi", "KPI & Thresholds", 4)
     SETUP = ("setup", "Setup", 5)
     XERO = ("xero", "Xero", 6)
+    CRM = ("crm", "CRM", 7)
     INTERNAL = ("internal", "Internal", 99)  # Hidden from UI
 
     @classmethod
@@ -143,11 +144,22 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "xero_tenant_id": "xero",
     "xero_shortcode": "xero",
     "enable_xero_sync": "xero",
+    "xero_automated_day_floor": "xero",
     "xero_payroll_calendar_name": "xero",
     "xero_payroll_calendar_id": "xero",
     "xero_payroll_start_date": "xero",
     "last_xero_sync": "xero",
     "last_xero_deep_sync": "xero",
+    # CRM / phone integration
+    "phone_call_downloads_enabled": "crm",
+    "phone_provider_recording_deletion_enabled": "crm",
+    "phone_provider_base_url": "crm",
+    "phone_provider_username": "crm",
+    "phone_provider_password": "crm",
+    "phone_provider_account_code": "crm",
+    "phone_own_numbers": "crm",
+    # Job update controls
+    "job_delta_soft_fail": "setup",
     # Internal - auto-managed fields, not shown in UI
     "id": "internal",
     "created_at": "internal",
@@ -190,10 +202,16 @@ def get_field_metadata(
     else:
         label = field_name.replace("_", " ").title()
 
+    ui_type = get_ui_type_for_field(field)
+    if field_name == "phone_provider_password":
+        ui_type = "password"
+    elif field_name == "phone_own_numbers":
+        ui_type = "textarea"
+
     return {
         "key": field_name,
         "label": label,
-        "type": get_ui_type_for_field(field),
+        "type": ui_type,
         "required": not field.blank and not field.null,
         "help_text": field.help_text or "",
         "section": section,

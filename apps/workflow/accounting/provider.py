@@ -26,7 +26,7 @@ class AccountingProvider(Protocol):
     """Interface that every accounting backend must implement.
 
     Each installation uses exactly one provider. The active provider is
-    determined by settings.ACCOUNTING_BACKEND and resolved via the registry.
+    determined by CompanyDefaults.accounting_provider and resolved via the registry.
     """
 
     # --- Auth ---

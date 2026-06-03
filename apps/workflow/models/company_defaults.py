@@ -132,6 +132,14 @@ class CompanyDefaults(SingletonModel):
         default=True,
         help_text="Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.",
     )
+    xero_automated_day_floor = models.PositiveIntegerField(
+        default=100,
+        help_text=(
+            "Reserve this many Xero daily API calls for user-initiated work. "
+            "Automated sync aborts when the active Xero app reports remaining "
+            "daily calls at or below this value."
+        ),
+    )
 
     # Xero Payroll configuration
     # Note: Leave type IDs and earnings rate names are synced to XeroPayItem model
@@ -155,6 +163,13 @@ class CompanyDefaults(SingletonModel):
     weekend_timesheets_enabled = models.BooleanField(
         default=False,
         help_text="Show Saturday and Sunday in timesheet views (7-day week). Off = 5-day Mon-Fri.",
+    )
+    job_delta_soft_fail = models.BooleanField(
+        default=True,
+        help_text=(
+            "When enabled, job delta checksum mismatches are logged and recorded "
+            "without blocking the save. Disable to reject stale updates."
+        ),
     )
 
     # Default working hours (Mon-Fri, 7am - 3pm)
@@ -230,6 +245,50 @@ class CompanyDefaults(SingletonModel):
         null=True,
         blank=True,
         help_text="Company website URL",
+    )
+
+    # Phone call history / recording archive
+    phone_call_downloads_enabled = models.BooleanField(
+        default=False,
+        help_text="Enable scheduled phone call and recording downloads.",
+    )
+    phone_provider_recording_deletion_enabled = models.BooleanField(
+        default=False,
+        help_text=(
+            "Enable deletion of provider-side recordings after they have been "
+            "archived locally and aged past the retention delay."
+        ),
+    )
+    phone_provider_base_url = models.URLField(
+        blank=True,
+        default="",
+        help_text="Base URL for the configured phone provider portal.",
+    )
+    phone_provider_username = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Username for the configured phone provider portal.",
+    )
+    phone_provider_password = models.CharField(
+        max_length=255,
+        blank=True,
+        default="",
+        help_text="Password for the configured phone provider portal.",
+    )
+    phone_provider_account_code = models.CharField(
+        max_length=100,
+        blank=True,
+        default="",
+        help_text="Provider account code used when fetching and deleting recordings.",
+    )
+    phone_own_numbers = models.JSONField(
+        blank=True,
+        default=list,
+        help_text=(
+            "Normalized company-owned phone numbers used to determine inbound "
+            "and outbound call direction."
+        ),
     )
     logo = models.ImageField(
         upload_to="company_logos/",

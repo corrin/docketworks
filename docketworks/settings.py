@@ -1,6 +1,7 @@
 import logging
 import os
 import subprocess
+import sys
 from datetime import timedelta
 from pathlib import Path
 
@@ -32,7 +33,6 @@ def validate_required_settings() -> None:
         "DEBUG",
         "DEBUG_PAYLOAD",
         "SKIP_VERSION_CHECK",
-        "JOB_DELTA_SOFT_FAIL",
         "DJANGO_ENV",
         "ALLOWED_HOSTS",
         "DJANGO_SITE_DOMAIN",
@@ -53,11 +53,8 @@ def validate_required_settings() -> None:
         "REDIS_HOST",
         "REDIS_PORT",
         # Xero Integration
-        "ACCOUNTING_BACKEND",
         "XERO_DEFAULT_USER_ID",
         "XERO_SYNC_PROJECTS",
-        "XERO_SCOPES",
-        "XERO_AUTOMATED_DAY_FLOOR",
         # Email
         "EMAIL_HOST",
         "EMAIL_PORT",
@@ -77,13 +74,6 @@ def validate_required_settings() -> None:
         "SESSION_REPLAY_RETENTION_DAYS",
         "SESSION_REPLAY_STORAGE_ROOT",
         # Phone call history / recording archive
-        "PHONE_CALL_DOWNLOADS_ENABLED",
-        "PHONE_PROVIDER_RECORDING_DELETION_ENABLED",
-        "PHONE_PROVIDER_BASE_URL",
-        "PHONE_PROVIDER_USERNAME",
-        "PHONE_PROVIDER_PASSWORD",
-        "PHONE_PROVIDER_ACCOUNT_CODE",
-        "PHONE_OWN_NUMBERS",
         "PHONE_RECORDING_STORAGE_ROOT",
     ]
 
@@ -116,10 +106,6 @@ DEBUG_PAYLOAD = os.getenv("DEBUG_PAYLOAD").lower() == "true"
 # Disable the build-id / version-check feature. When True, /api/build-id/
 # returns an empty build_id sentinel and the frontend skips its reload check.
 SKIP_VERSION_CHECK = os.getenv("SKIP_VERSION_CHECK").lower() == "true"
-
-# Controls whether checksum mismatches are logged but not raised.
-JOB_DELTA_SOFT_FAIL = os.getenv("JOB_DELTA_SOFT_FAIL").strip() == "True"
-
 
 # =======================
 # Cookie Configuration
@@ -774,30 +760,8 @@ LOGGING = {
 }
 
 # Custom settings
-ACCOUNTING_BACKEND = os.getenv("ACCOUNTING_BACKEND")
 XERO_DEFAULT_USER_ID = os.getenv("XERO_DEFAULT_USER_ID")
 XERO_SYNC_PROJECTS = os.getenv("XERO_SYNC_PROJECTS").lower() == "true"
-XERO_SCOPES = os.getenv("XERO_SCOPES").split()
-
-# Day-quota floor for automated Xero traffic. Sync and webhook processing
-# refuse to make Xero API calls once X-DayLimit-Remaining is at or below this
-# value, leaving the remaining budget for known-cost user-initiated operations
-# (creating an invoice, a client, etc.).
-XERO_AUTOMATED_DAY_FLOOR = require_positive_int_env("XERO_AUTOMATED_DAY_FLOOR")
-
-# Phone call history / recording archive. Downloads can be disabled per
-# environment, but all config is required so missing deployment settings crash.
-PHONE_CALL_DOWNLOADS_ENABLED = (
-    os.getenv("PHONE_CALL_DOWNLOADS_ENABLED").lower() == "true"
-)
-PHONE_PROVIDER_RECORDING_DELETION_ENABLED = (
-    os.getenv("PHONE_PROVIDER_RECORDING_DELETION_ENABLED").lower() == "true"
-)
-PHONE_PROVIDER_BASE_URL = os.getenv("PHONE_PROVIDER_BASE_URL")
-PHONE_PROVIDER_USERNAME = os.getenv("PHONE_PROVIDER_USERNAME")
-PHONE_PROVIDER_PASSWORD = os.getenv("PHONE_PROVIDER_PASSWORD")
-PHONE_PROVIDER_ACCOUNT_CODE = os.getenv("PHONE_PROVIDER_ACCOUNT_CODE")
-PHONE_OWN_NUMBERS = os.getenv("PHONE_OWN_NUMBERS")
 PHONE_RECORDING_STORAGE_ROOT = os.getenv("PHONE_RECORDING_STORAGE_ROOT")
 
 # Hardcoded production Xero tenant ID
@@ -852,7 +816,7 @@ CACHES = {
 # django-solo caches CompanyDefaults.get_solo() across reads. Routed onto
 # "shared" (Redis) so admin edits propagate immediately to all gunicorn
 # workers and the Celery worker, not after SOLO_CACHE_TIMEOUT.
-SOLO_CACHE = "shared"
+SOLO_CACHE = None if "test" in sys.argv else "shared"
 SOLO_CACHE_TIMEOUT = 300
 
 # Password reset timeout

@@ -8,7 +8,6 @@ credentials Xero calls use, replacing the legacy "ssh + edit .env +
 restart" procedure.
 """
 
-from django.conf import settings
 from django.db import IntegrityError
 from drf_spectacular.utils import extend_schema
 from rest_framework import serializers, status, viewsets
@@ -24,7 +23,7 @@ from apps.workflow.api.xero.active_app import (
     wipe_tokens_and_quota,
 )
 from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.models import XeroApp
+from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.serializers import XeroAppCreateSerializer, XeroAppSerializer
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -35,7 +34,7 @@ class XeroAppConfigSerializer(serializers.Serializer):
 
     day_floor = serializers.IntegerField(
         help_text=(
-            "XERO_AUTOMATED_DAY_FLOOR — automated Xero traffic is gated off "
+            "Automated Xero traffic is gated off "
             "once X-DayLimit-Remaining is at or below this value."
         )
     )
@@ -144,6 +143,8 @@ class XeroAppViewSet(viewsets.ModelViewSet):
 
         Today: just the day-quota floor — the quota badge derives its
         red/amber thresholds from this so a deployment bumping the floor
-        in env doesn't leave the UI showing "healthy" while syncs abort.
+        in CompanyDefaults doesn't leave the UI showing "healthy" while syncs abort.
         """
-        return Response({"day_floor": settings.XERO_AUTOMATED_DAY_FLOOR})
+        return Response(
+            {"day_floor": CompanyDefaults.get_solo().xero_automated_day_floor}
+        )

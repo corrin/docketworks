@@ -36,7 +36,7 @@ class AlreadyLoggedException(Exception):
 
 class XeroQuotaFloorReached(Exception):
     """Raised when an automated Xero call cannot proceed because the
-    day-quota is at or below ``settings.XERO_AUTOMATED_DAY_FLOOR``.
+    day-quota is at or below CompanyDefaults.xero_automated_day_floor.
 
     Callers must treat this as an *aborted* operation, not a successful
     no-op — sync status is "aborted", not "success", and last-sync

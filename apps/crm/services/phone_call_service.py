@@ -21,6 +21,7 @@ from apps.crm.models import (
     PhoneCallRecording,
 )
 from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("apps.crm.phone_calls")
@@ -360,11 +361,12 @@ class PhoneProviderConfig:
 
 
 def _config() -> PhoneProviderConfig:
+    company_defaults = CompanyDefaults.get_solo()
     return PhoneProviderConfig(
-        base_url=settings.PHONE_PROVIDER_BASE_URL.rstrip("/"),
-        username=settings.PHONE_PROVIDER_USERNAME,
-        password=settings.PHONE_PROVIDER_PASSWORD,
-        account_code=settings.PHONE_PROVIDER_ACCOUNT_CODE,
+        base_url=company_defaults.phone_provider_base_url.rstrip("/"),
+        username=company_defaults.phone_provider_username,
+        password=company_defaults.phone_provider_password,
+        account_code=company_defaults.phone_provider_account_code,
         storage_root=Path(settings.PHONE_RECORDING_STORAGE_ROOT).resolve(),
     )
 
@@ -503,17 +505,15 @@ def normalize_phone(value: Any) -> str:
 
 
 def configured_own_numbers() -> set[str]:
-    return {
-        normalized
-        for normalized in (
-            normalize_phone(value) for value in settings.PHONE_OWN_NUMBERS.split(",")
-        )
-        if normalized
-    }
+    company_defaults = CompanyDefaults.get_solo()
+    return set(company_defaults.phone_own_numbers)
 
 
-def call_parties(call: PhoneCallRecord) -> dict[str, str]:
-    own_numbers = configured_own_numbers()
+def call_parties(
+    call: PhoneCallRecord, own_numbers: set[str] | None = None
+) -> dict[str, str]:
+    if own_numbers is None:
+        own_numbers = configured_own_numbers()
     origin_is_ours = call.origin in own_numbers
     destination_is_ours = call.destination in own_numbers
     if origin_is_ours and destination_is_ours:

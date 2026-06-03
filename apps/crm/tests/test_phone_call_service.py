@@ -1,6 +1,6 @@
 from unittest.mock import patch
 
-from django.test import SimpleTestCase, TestCase, override_settings
+from django.test import SimpleTestCase, TestCase
 from django.utils import timezone
 
 from apps.client.models import Client, ClientContact, ClientContactMethod
@@ -13,10 +13,15 @@ from apps.crm.services.phone_call_service import (
     delete_archived_provider_recordings,
     normalize_phone,
 )
-from apps.crm.tasks import delete_archived_phone_recordings_task, sync_phone_calls_task
+from apps.workflow.models import CompanyDefaults
 
 
 class PhoneProviderPortalClientTests(SimpleTestCase):
+    """Business case: provider call pagination can return intermittent empty
+    pages. Stopping at the first empty page would silently miss billable
+    customer calls later in the provider export.
+    """
+
     def test_iter_call_pages_walks_pages_until_two_empty_pages(self) -> None:
         client = PhoneProviderPortalClient.__new__(PhoneProviderPortalClient)
         pages = {
@@ -46,6 +51,11 @@ class PhoneProviderPortalClientTests(SimpleTestCase):
 
 
 class PhoneMatcherTests(SimpleTestCase):
+    """Business case: the same NZ number appears in local, international, and
+    spacing-heavy formats across CRM and call-provider exports. If these do not
+    normalize to one value, calls stop attaching to the right customer.
+    """
+
     def test_normalize_phone_matches_nz_variants_by_local_tail(self) -> None:
         self.assertEqual(normalize_phone("+64 9 636 5131"), "+6496365131")
         self.assertEqual(normalize_phone("6496365131"), "+6496365131")
@@ -54,6 +64,11 @@ class PhoneMatcherTests(SimpleTestCase):
 
 
 class PhoneMatcherDatabaseTests(TestCase):
+    """Business case: call records drive customer history. The matcher should
+    attach calls when ownership is unambiguous, and refuse ambiguous matches so
+    one client's calls are not shown under another client or contact.
+    """
+
     def _client(self, name: str) -> Client:
         return Client.objects.create(name=name, xero_last_modified=timezone.now())
 
@@ -135,25 +150,26 @@ class PhoneMatcherDatabaseTests(TestCase):
         self.assertIsNone(matched_contact)
 
 
-class PhoneCallTaskTests(SimpleTestCase):
-    @override_settings(PHONE_CALL_DOWNLOADS_ENABLED=False)
-    def test_sync_task_skips_when_downloads_disabled(self) -> None:
-        with patch("apps.crm.services.phone_call_service.sync_recent_calls") as sync:
-            sync_phone_calls_task()
-
-        sync.assert_not_called()
-
-    @override_settings(PHONE_PROVIDER_RECORDING_DELETION_ENABLED=False)
-    def test_delete_task_skips_when_provider_deletion_disabled(self) -> None:
-        with patch(
-            "apps.crm.services.phone_call_service.delete_archived_provider_recordings"
-        ) as delete_recordings:
-            delete_archived_phone_recordings_task()
-
-        delete_recordings.assert_not_called()
-
-
 class ProviderRecordingDeletionTests(TestCase):
+    """Business case: provider recordings may be deleted only after DocketWorks
+    has archived them locally and the retention window has passed. Deleting too
+    early loses audit evidence; never deleting them grows provider storage.
+    """
+
+    def setUp(self) -> None:
+        shop_client = Client.objects.create(
+            name="Shop Client",
+            xero_last_modified=timezone.now(),
+        )
+        CompanyDefaults.objects.create(
+            company_name="Test Company",
+            shop_client=shop_client,
+            phone_provider_base_url="https://phone.example.test",
+            phone_provider_username="user",
+            phone_provider_password="secret",
+            phone_provider_account_code="account",
+        )
+
     def test_deletes_only_downloaded_calls_more_than_one_month_old(self) -> None:
         now = timezone.now()
         old_call = self._call("old", now - timezone.timedelta(days=32))

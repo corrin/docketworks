@@ -15,7 +15,6 @@ from functools import singledispatch
 from typing import Any, Dict, Iterable, Mapping
 from uuid import UUID, uuid4
 
-from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import IntegrityError, transaction
 from django.shortcuts import get_object_or_404
@@ -473,7 +472,7 @@ class JobRestService:
         The caller is responsible for invoking `_record_delta_rejection`
         outside of the main transaction so the entry survives rollbacks.
         """
-        if not settings.JOB_DELTA_SOFT_FAIL:
+        if not CompanyDefaults.get_solo().job_delta_soft_fail:
             return None
 
         server_checksum = getattr(delta_payload, "_server_checksum", None)
@@ -563,7 +562,7 @@ class JobRestService:
         server_checksum = compute_job_delta_checksum(job.id, current_values, fields)
         logger.debug(f"[DELTA_VALIDATION] Server computed checksum: {server_checksum}")
 
-        soft_fail = settings.JOB_DELTA_SOFT_FAIL
+        soft_fail = CompanyDefaults.get_solo().job_delta_soft_fail
 
         if server_checksum != delta.before_checksum:
             if soft_fail:
@@ -1006,7 +1005,7 @@ class JobRestService:
                 except DeltaValidationError as exc:
                     logger.error(f"[JOB_UPDATE] Delta validation failed: {exc}")
                     # Always persist via outer handler; re-raise if hard-fail
-                    if not settings.JOB_DELTA_SOFT_FAIL:
+                    if not CompanyDefaults.get_solo().job_delta_soft_fail:
                         raise
                 except ValueError as exc:
                     logger.error(f"[JOB_UPDATE] Delta validation error: {exc}")

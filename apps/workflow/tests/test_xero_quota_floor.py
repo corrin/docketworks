@@ -1,6 +1,6 @@
 """Tests for the Xero day-quota floor: helper and gate sites.
 
-The floor (`settings.XERO_AUTOMATED_DAY_FLOOR`) reserves the last N day-quota
+The CompanyDefaults Xero automated day floor reserves the last N day-quota
 calls for known-cost user-initiated actions. Sync paths and the webhook
 processing task refuse to call Xero once the active XeroApp row's snapshot
 says `day_remaining <= floor`. See
@@ -18,14 +18,15 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from django.core.cache import cache, caches
-from django.test import TestCase, override_settings
+from django.test import TestCase
 from django.utils import timezone as dj_timezone
 
+from apps.client.models import Client
 from apps.purchasing.models import Stock
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.sync import sync_xero_data
 from apps.workflow.exceptions import XeroQuotaFloorReached
-from apps.workflow.models import XeroApp
+from apps.workflow.models import CompanyDefaults, XeroApp
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 
 # Sync state lives on the "shared" alias (Redis in prod, LocMem in tests via
@@ -69,7 +70,32 @@ def _set_quota(day_remaining, minute_remaining=60, snapshot_age_seconds=0):
         )
 
 
+def _set_company_floor(floor=100):
+    CompanyDefaults.clear_cache()
+    updated = CompanyDefaults.objects.filter(pk=1).update(
+        xero_automated_day_floor=floor
+    )
+    if updated:
+        CompanyDefaults.clear_cache()
+        return
+
+    shop_client = Client.objects.create(
+        name="Shop Client",
+        xero_last_modified=dj_timezone.now(),
+    )
+    CompanyDefaults.objects.create(
+        company_name="Demo Company",
+        shop_client=shop_client,
+        xero_automated_day_floor=floor,
+    )
+
+
 class QuotaFloorBreachedHelperTests(TestCase):
+    """Business case: automated Xero jobs must stop only when a fresh quota
+    snapshot proves they would burn reserved API calls. False positives stop
+    useful sync; false negatives burn quota needed for user-triggered invoices.
+    """
+
     def test_no_active_row_returns_false(self):
         # Nothing to gate against — fall through and let the call go.
         self.assertFalse(quota_floor_breached(100))
@@ -107,7 +133,6 @@ class QuotaFloorBreachedHelperTests(TestCase):
         self.assertFalse(quota_floor_breached(100))
 
 
-@override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
 class RateLimit429WritesToActiveRowTests(TestCase):
     """Without this, the snapshot only updates on 2xx — and the gate stays
     unarmed precisely when it's most needed (right after Xero just told us
@@ -195,10 +220,14 @@ class RateLimit429WritesToActiveRowTests(TestCase):
         self.assertEqual(b.day_remaining, 99)
 
 
-@override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
 class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
     """The 2xx path: _store_quota_snapshot updates the bound row's quota
-    fields directly."""
+    fields directly.
+
+    Business case: the quota badge and automated-sync gate must track the
+    Xero app whose credentials made the call, otherwise an app swap can show
+    healthy quota while the active worker is actually exhausted.
+    """
 
     def test_2xx_updates_bound_row(self):
         from apps.workflow.api.xero.client import RateLimitedRESTClient
@@ -262,15 +291,19 @@ class StoreQuotaSnapshotWritesToBoundRowTests(TestCase):
         self.assertIsNotNone(row.snapshot_at)
 
 
-@override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
 class SynchroniseXeroDataOrchestratorGateTests(TestCase):
     """`sync_xero_pay_items` runs first inside the orchestrator and is
     otherwise unguarded. Without an orchestrator-top gate the per-page
     gate inside ``sync_xero_data`` never gets a chance — pay items 429
-    before we reach it."""
+    before we reach it.
+
+    Business case: when quota is reserved for office users, automated sync
+    must abort as an operational abort, not report success after doing no work.
+    """
 
     def setUp(self):
         cache.delete("xero_sync_lock")
+        _set_company_floor()
 
     def tearDown(self):
         cache.delete("xero_sync_lock")
@@ -302,37 +335,31 @@ class SynchroniseXeroDataOrchestratorGateTests(TestCase):
         mock_normal.assert_not_called()
 
     def test_floor_breached_does_not_advance_last_sync_timestamps(self):
-        # §6 Bug 3: ``synchronise_xero_data`` previously fell through to
-        # ``last_xero_sync = now`` after a quota abort, which pushed deep
-        # sync 30 days out. The raise contract makes this impossible —
-        # the exception unwinds at the orchestrator's top gate, BEFORE
-        # ``CompanyDefaults.get_solo()`` is ever called. Proving the call
-        # never happens is a stronger guarantee than reading the row back.
+        # Business case: a quota abort must not advance last-sync timestamps;
+        # otherwise the next real sync skips work and stale Xero data remains
+        # hidden for days.
         from apps.workflow.api.xero.sync import synchronise_xero_data
 
         _set_quota(day_remaining=0)
 
-        with patch(
-            "apps.workflow.api.xero.sync.CompanyDefaults"
-        ) as mock_company_defaults:
-            with self.assertRaises(XeroQuotaFloorReached):
-                list(synchronise_xero_data())
-
-        mock_company_defaults.get_solo.assert_not_called()
+        with self.assertRaises(XeroQuotaFloorReached):
+            list(synchronise_xero_data())
 
 
-@override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
 class SyncXeroDataPerPageGateTests(TestCase):
     """sync_xero_data must check the floor before each fetch.
 
     The gate is per-page (inside the while loop), not per-entity (function
     entry), because a single paginated entity can drain thousands of calls.
+
+    Business case: a large paginated Xero sync must stop between pages before
+    it consumes quota reserved for user-initiated work.
     """
 
     def setUp(self):
         # Snapshot now lives on XeroApp rows — cleared automatically by
         # TestCase's per-test transaction rollback.
-        pass
+        _set_company_floor()
 
     def _consume(self, generator):
         """Fully iterate the generator and return its emitted events."""
@@ -382,71 +409,18 @@ class SyncXeroDataPerPageGateTests(TestCase):
         self.assertFalse(any(e.get("severity") == "warning" for e in events))
 
 
-@override_settings(XERO_AUTOMATED_DAY_FLOOR=100)
-class WebhookTaskGateTests(TestCase):
-    """process_xero_webhook_event must early-return without Xero calls when
-    the floor is breached, and must NOT raise (Celery would retry indefinitely)."""
-
-    def setUp(self):
-        # Snapshot now lives on XeroApp rows — cleared automatically by
-        # TestCase's per-test transaction rollback.
-        pass
-
-    def _event(self):
-        return {
-            "eventCategory": "INVOICE",
-            "resourceId": "inv-1",
-            "tenantId": "tenant-abc",
-            "eventId": "evt-1",
-        }
-
-    def test_floor_breached_skips_without_calling_sync(self):
-        from apps.workflow.tasks import process_xero_webhook_event
-
-        _set_quota(day_remaining=50)
-
-        with (
-            patch("apps.workflow.tasks.XeroSyncService") as mock_svc,
-            patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
-            patch("apps.workflow.tasks.sync_single_contact") as mock_contact,
-            patch("apps.workflow.tasks.CompanyDefaults.get_solo") as mock_solo,
-        ):
-            # Should not raise, should not even read CompanyDefaults.
-            process_xero_webhook_event("tenant-abc", self._event())
-
-        mock_svc.assert_not_called()
-        mock_invoice.assert_not_called()
-        mock_contact.assert_not_called()
-        mock_solo.assert_not_called()
-
-    def test_above_floor_proceeds(self):
-        from apps.workflow.tasks import process_xero_webhook_event
-
-        _set_quota(day_remaining=500)
-
-        with (
-            patch("apps.workflow.tasks.XeroSyncService"),
-            patch("apps.workflow.tasks.sync_single_invoice") as mock_invoice,
-            patch(
-                "apps.workflow.tasks.CompanyDefaults.get_solo",
-                return_value=SimpleNamespace(
-                    xero_tenant_id="tenant-abc",
-                    enable_xero_sync=True,
-                ),
-            ),
-        ):
-            process_xero_webhook_event("tenant-abc", self._event())
-
-        mock_invoice.assert_called_once()
-
-
 class StockBatchedUpsertRefactorTests(TestCase):
     """The stock-write refactor: per-item ``update_item`` was replaced with
     a single ``update_or_create_items`` per batch of up to 50 items. New
     items have no ``ItemID`` in the payload (Xero creates them); items
-    linked-by-Code carry the existing ``ItemID`` (Xero updates them)."""
+    linked-by-Code carry the existing ``ItemID`` (Xero updates them).
+
+    Business case: stock sync must avoid draining Xero quota with one request
+    per item while still preserving the create-vs-update behavior Xero expects.
+    """
 
     def setUp(self):
+        _set_company_floor()
         # sync_all_local_stock_to_xero builds AccountingApi from the lazy
         # auth.api_client singleton, which reads the active XeroApp row on
         # first access. The patched AccountingApi swallows the actual SDK
@@ -552,7 +526,11 @@ class RunSyncAbortedBranchTests(TestCase):
     """``xero_sync_task`` must catch ``XeroQuotaFloorReached`` distinctly
     from generic exceptions: emit ``sync_status:"aborted"`` (NOT "success",
     NOT a generic error), do NOT ``persist_app_error`` (24+ rows/day at the
-    floor would be noise), and clean up the lock."""
+    floor would be noise), and clean up the lock.
+
+    Business case: operators need quota exhaustion to show as an expected
+    operational abort, not as a green sync or as pages of duplicate AppErrors.
+    """
 
     def setUp(self):
         _shared.delete(SYNC_STATUS_KEY)

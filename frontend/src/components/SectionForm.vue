@@ -99,10 +99,29 @@
           </option>
         </select>
 
+        <Textarea
+          v-else-if="field.key === 'phone_own_numbers'"
+          :model-value="phoneOwnNumbersText(localForm[field.key])"
+          class="min-h-24 text-sm"
+          :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
+          :data-automation-id="`SectionForm-${section}-field-${field.key}`"
+          :readonly="field.readOnly"
+          @update:model-value="(value) => updatePhoneOwnNumbers(value)"
+        />
+
+        <Textarea
+          v-else-if="field.type === 'textarea'"
+          v-model="localForm[field.key] as string | undefined"
+          class="min-h-24 text-sm"
+          :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
+          :data-automation-id="`SectionForm-${section}-field-${field.key}`"
+          :readonly="field.readOnly"
+        />
+
         <Input
           v-else
           v-model="localForm[field.key] as string | number | undefined"
-          :type="field.type === 'number' ? 'number' : 'text'"
+          :type="inputType(field.type)"
           class="h-9 text-sm"
           :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
           :data-automation-id="`SectionForm-${section}-field-${field.key}`"
@@ -158,6 +177,7 @@
 <script setup lang="ts">
 import Button from '@/components/ui/button/Button.vue'
 import Input from '@/components/ui/input/Input.vue'
+import Textarea from '@/components/ui/textarea/Textarea.vue'
 import Checkbox from '@/components/ui/checkbox/Checkbox.vue'
 import Calendar from '@/components/ui/calendar/Calendar.vue'
 import { Clock, Upload, Trash2 } from 'lucide-vue-next'
@@ -480,6 +500,23 @@ function normalizeUrl(url: string): string {
   return `https://${url}`
 }
 
+function phoneOwnNumbersText(value: unknown): string {
+  if (Array.isArray(value)) return value.join('\n')
+  if (typeof value === 'string') return value
+  return ''
+}
+
+function parsePhoneOwnNumbers(value: string | number): string[] {
+  return String(value)
+    .split(/[\n,]/)
+    .map((number) => number.trim())
+    .filter(Boolean)
+}
+
+function updatePhoneOwnNumbers(value: string | number): void {
+  localForm.value.phone_own_numbers = parsePhoneOwnNumbers(value)
+}
+
 watch(
   localForm,
   (val) => {
@@ -503,6 +540,12 @@ const workingDays = [
 ]
 
 const workingHoursTimeKeys = new Set(workingDays.flatMap((d) => [d.startKey, d.endKey]))
+
+function inputType(fieldType: string): 'number' | 'password' | 'text' {
+  if (fieldType === 'number') return 'number'
+  if (fieldType === 'password') return 'password'
+  return 'text'
+}
 
 const genericFieldsForRender = computed(() => {
   if (!isWorkingHours.value) return sectionFields.value

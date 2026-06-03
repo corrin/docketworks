@@ -21,7 +21,7 @@ DB_NAME=__DB_NAME__
 DB_USER=__DB_USER__
 DB_PASSWORD=__DB_PASSWORD__
 DB_HOST=/var/run/postgresql
-DB_PORT=
+DB_PORT=5432
 SCRUB_DB_NAME=__SCRUB_DB_NAME__
 # Pytest connects as a separate role that owns only the pre-provisioned
 # test_dw_<instance> database — no CREATEDB and no access to the app DB.
@@ -44,11 +44,8 @@ REDIS_HOST=127.0.0.1
 REDIS_PORT=6379
 
 # Xero Integration
-ACCOUNTING_BACKEND=xero
 XERO_SYNC_PROJECTS=False
 XERO_DEFAULT_USER_ID=__XERO_DEFAULT_USER_ID__
-XERO_SCOPES="offline_access openid profile email accounting.contacts accounting.invoices accounting.attachments accounting.settings projects payroll.timesheets payroll.payruns payroll.payslip payroll.employees payroll.settings"
-XERO_AUTOMATED_DAY_FLOOR=100
 
 # Email Configuration
 EMAIL_HOST=smtp.gmail.com
@@ -69,13 +66,6 @@ GCP_CREDENTIALS=__GCP_CREDENTIALS_PATH__
 DROPBOX_WORKFLOW_FOLDER=/opt/docketworks/instances/__INSTANCE__/dropbox
 
 # Phone call history / recording archive
-PHONE_CALL_DOWNLOADS_ENABLED=__PHONE_CALL_DOWNLOADS_ENABLED__
-PHONE_PROVIDER_RECORDING_DELETION_ENABLED=__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__
-PHONE_PROVIDER_BASE_URL="__PHONE_PROVIDER_BASE_URL__"
-PHONE_PROVIDER_USERNAME=__PHONE_PROVIDER_USERNAME__
-PHONE_PROVIDER_PASSWORD="__PHONE_PROVIDER_PASSWORD__"
-PHONE_PROVIDER_ACCOUNT_CODE=__PHONE_PROVIDER_ACCOUNT_CODE__
-PHONE_OWN_NUMBERS=__PHONE_OWN_NUMBERS__
 PHONE_RECORDING_STORAGE_ROOT=/opt/docketworks/instances/__INSTANCE__/phone-recordings
 
 # Session replay diagnostics
@@ -89,7 +79,6 @@ LOG_DIR=/opt/docketworks/instances/__INSTANCE__/logs
 # Feature flags
 DEBUG_PAYLOAD=False
 SKIP_VERSION_CHECK=False
-JOB_DELTA_SOFT_FAIL=True
 
 # Shared Playwright browsers (installed once by server-setup.sh)
 PLAYWRIGHT_BROWSERS_PATH=/opt/docketworks/.playwright-browsers

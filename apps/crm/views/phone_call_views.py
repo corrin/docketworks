@@ -8,7 +8,6 @@ from drf_spectacular.utils import OpenApiParameter, OpenApiResponse, extend_sche
 from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated
-from rest_framework.renderers import BaseRenderer, JSONRenderer
 from rest_framework.response import Response
 
 from apps.crm.models import (
@@ -29,14 +28,6 @@ from apps.crm.services.phone_call_service import (
 from apps.job.permissions import IsOfficeStaff
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
-
-
-class BinaryRecordingRenderer(BaseRenderer):
-    media_type = "*/*"
-    format = "file"
-
-    def render(self, data, accepted_media_type=None, renderer_context=None):
-        return data
 
 
 class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet):
@@ -113,7 +104,6 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet):
 class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet):
     serializer_class = PhoneCallRecordingSerializer
     permission_classes = [IsAuthenticated, IsOfficeStaff]
-    renderer_classes = [JSONRenderer, BinaryRecordingRenderer]
 
     def get_queryset(self):
         return PhoneCallRecording.objects.select_related(

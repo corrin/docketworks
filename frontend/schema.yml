@@ -2436,14 +2436,6 @@ paths:
   /api/crm/phone-call-recordings/:
     get:
       operationId: crm_phone_call_recordings_list
-      parameters:
-        - in: query
-          name: format
-          schema:
-            type: string
-            enum:
-              - file
-              - json
       tags:
         - crm
       security:
@@ -2456,23 +2448,11 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/PhoneCallRecording'
-            '*/*':
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PhoneCallRecording'
           description: ''
   /api/crm/phone-call-recordings/{id}/:
     get:
       operationId: crm_phone_call_recordings_retrieve
       parameters:
-        - in: query
-          name: format
-          schema:
-            type: string
-            enum:
-              - file
-              - json
         - in: path
           name: id
           schema:
@@ -2490,21 +2470,11 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PhoneCallRecording'
-            '*/*':
-              schema:
-                $ref: '#/components/schemas/PhoneCallRecording'
           description: ''
   /api/crm/phone-call-recordings/{id}/download/:
     get:
       operationId: downloadPhoneCallRecording
       parameters:
-        - in: query
-          name: format
-          schema:
-            type: string
-            enum:
-              - file
-              - json
         - in: path
           name: id
           schema:
@@ -2523,10 +2493,6 @@ paths:
               schema:
                 type: string
                 format: binary
-            '*/*':
-              schema:
-                type: string
-                format: binary
           description: Binary recording content
         '404':
           description: Recording file not found
@@ -2534,13 +2500,6 @@ paths:
     delete:
       operationId: deleteLocalPhoneCallRecording
       parameters:
-        - in: query
-          name: format
-          schema:
-            type: string
-            enum:
-              - file
-              - json
         - in: path
           name: id
           schema:
@@ -2559,13 +2518,6 @@ paths:
     delete:
       operationId: deleteProviderPhoneCallRecording
       parameters:
-        - in: query
-          name: format
-          schema:
-            type: string
-            enum:
-              - file
-              - json
         - in: path
           name: id
           schema:
@@ -8305,7 +8257,7 @@ paths:
 
         Today: just the day-quota floor — the quota badge derives its
         red/amber thresholds from this so a deployment bumping the floor
-        in env doesn't leave the UI showing "healthy" while syncs abort.
+        in CompanyDefaults doesn't leave the UI showing "healthy" while syncs abort.
       tags:
         - workflow
       security:
@@ -10047,6 +9999,10 @@ components:
           type: string
           nullable: true
           readOnly: true
+        phone_own_numbers:
+          type: array
+          items:
+            type: string
         company_name:
           type: string
           readOnly: true
@@ -10185,6 +10141,13 @@ components:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
             False; seed_xero_from_database sets True after prod IDs are cleared.
+        xero_automated_day_floor:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Reserve this many Xero daily API calls for user-initiated work.
+            Automated sync aborts when the active Xero app reports remaining daily
+            calls at or below this value.
         xero_payroll_calendar_name:
           type: string
           description: Name of Xero Payroll calendar to use (e.g., 'Weekly 2025')
@@ -10204,6 +10167,10 @@ components:
           type: boolean
           description: Show Saturday and Sunday in timesheet views (7-day week). Off
             = 5-day Mon-Fri.
+        job_delta_soft_fail:
+          type: boolean
+          description: When enabled, job delta checksum mismatches are logged and
+            recorded without blocking the save. Disable to reject stale updates.
         mon_start:
           type: string
           format: time
@@ -10299,6 +10266,26 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
+        phone_call_downloads_enabled:
+          type: boolean
+          description: Enable scheduled phone call and recording downloads.
+        phone_provider_recording_deletion_enabled:
+          type: boolean
+          description: Enable deletion of provider-side recordings after they have
+            been archived locally and aged past the retention delay.
+        phone_provider_base_url:
+          type: string
+          format: uri
+          description: Base URL for the configured phone provider portal.
+          maxLength: 200
+        phone_provider_username:
+          type: string
+          description: Username for the configured phone provider portal.
+          maxLength: 255
+        phone_provider_account_code:
+          type: string
+          description: Provider account code used when fetching and deleting recordings.
+          maxLength: 100
         test_client_name:
           type: string
           nullable: true
@@ -10430,6 +10417,14 @@ components:
           format: binary
           writeOnly: true
           nullable: true
+        phone_provider_password:
+          type: string
+          writeOnly: true
+        phone_own_numbers:
+          type: array
+          items:
+            type: string
+            minLength: 1
         company_acronym:
           type: string
           nullable: true
@@ -10567,6 +10562,13 @@ components:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
             False; seed_xero_from_database sets True after prod IDs are cleared.
+        xero_automated_day_floor:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Reserve this many Xero daily API calls for user-initiated work.
+            Automated sync aborts when the active Xero app reports remaining daily
+            calls at or below this value.
         xero_payroll_calendar_name:
           type: string
           minLength: 1
@@ -10587,6 +10589,10 @@ components:
           type: boolean
           description: Show Saturday and Sunday in timesheet views (7-day week). Off
             = 5-day Mon-Fri.
+        job_delta_soft_fail:
+          type: boolean
+          description: When enabled, job delta checksum mismatches are logged and
+            recorded without blocking the save. Disable to reject stale updates.
         mon_start:
           type: string
           format: time
@@ -10675,6 +10681,26 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
+        phone_call_downloads_enabled:
+          type: boolean
+          description: Enable scheduled phone call and recording downloads.
+        phone_provider_recording_deletion_enabled:
+          type: boolean
+          description: Enable deletion of provider-side recordings after they have
+            been archived locally and aged past the retention delay.
+        phone_provider_base_url:
+          type: string
+          format: uri
+          description: Base URL for the configured phone provider portal.
+          maxLength: 200
+        phone_provider_username:
+          type: string
+          description: Username for the configured phone provider portal.
+          maxLength: 255
+        phone_provider_account_code:
+          type: string
+          description: Provider account code used when fetching and deleting recordings.
+          maxLength: 100
         test_client_name:
           type: string
           nullable: true
@@ -15239,6 +15265,14 @@ components:
           format: binary
           writeOnly: true
           nullable: true
+        phone_provider_password:
+          type: string
+          writeOnly: true
+        phone_own_numbers:
+          type: array
+          items:
+            type: string
+            minLength: 1
         company_acronym:
           type: string
           nullable: true
@@ -15376,6 +15410,13 @@ components:
           type: boolean
           description: Gate for Xero sync. Defaults True (prod). Dev fixture sets
             False; seed_xero_from_database sets True after prod IDs are cleared.
+        xero_automated_day_floor:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Reserve this many Xero daily API calls for user-initiated work.
+            Automated sync aborts when the active Xero app reports remaining daily
+            calls at or below this value.
         xero_payroll_calendar_name:
           type: string
           minLength: 1
@@ -15396,6 +15437,10 @@ components:
           type: boolean
           description: Show Saturday and Sunday in timesheet views (7-day week). Off
             = 5-day Mon-Fri.
+        job_delta_soft_fail:
+          type: boolean
+          description: When enabled, job delta checksum mismatches are logged and
+            recorded without blocking the save. Disable to reject stale updates.
         mon_start:
           type: string
           format: time
@@ -15484,6 +15529,26 @@ components:
           nullable: true
           description: Company website URL
           maxLength: 200
+        phone_call_downloads_enabled:
+          type: boolean
+          description: Enable scheduled phone call and recording downloads.
+        phone_provider_recording_deletion_enabled:
+          type: boolean
+          description: Enable deletion of provider-side recordings after they have
+            been archived locally and aged past the retention delay.
+        phone_provider_base_url:
+          type: string
+          format: uri
+          description: Base URL for the configured phone provider portal.
+          maxLength: 200
+        phone_provider_username:
+          type: string
+          description: Username for the configured phone provider portal.
+          maxLength: 255
+        phone_provider_account_code:
+          type: string
+          description: Provider account code used when fetching and deleting recordings.
+          maxLength: 100
         test_client_name:
           type: string
           nullable: true
@@ -21582,8 +21647,8 @@ components:
       properties:
         day_floor:
           type: integer
-          description: XERO_AUTOMATED_DAY_FLOOR — automated Xero traffic is gated
-            off once X-DayLimit-Remaining is at or below this value.
+          description: Automated Xero traffic is gated off once X-DayLimit-Remaining
+            is at or below this value.
       required:
         - day_floor
     XeroAppCreate:

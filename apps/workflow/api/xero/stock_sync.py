@@ -2,7 +2,6 @@ import logging
 import time
 from typing import Any, Dict, Optional
 
-from django.conf import settings
 from django.db import models
 from django.utils import timezone
 from xero_python.accounting import AccountingApi
@@ -11,7 +10,7 @@ from apps.purchasing.models import Stock
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.exceptions import XeroQuotaFloorReached
-from apps.workflow.models import XeroAccount
+from apps.workflow.models import CompanyDefaults, XeroAccount
 
 logger = logging.getLogger("xero")
 SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
@@ -368,14 +367,14 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
     """
     logger.info("Starting sync of local stock items to Xero")
 
-    if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+    floor = CompanyDefaults.get_solo().xero_automated_day_floor
+    if quota_floor_breached(floor):
         # Raise rather than returning a "0 synced, 0 failed" success-shaped
         # dict — the wrapper in sync.py interprets the dict as success and
         # would let the orchestrator continue to its sync_status:"success"
         # marker, masking the abort.
         raise XeroQuotaFloorReached(
-            f"Skipping local stock sync: Xero day quota at floor "
-            f"({settings.XERO_AUTOMATED_DAY_FLOOR})"
+            f"Skipping local stock sync: Xero day quota at floor ({floor})"
         )
 
     queryset = Stock.objects.filter(xero_id__isnull=True, is_active=True).order_by(
@@ -468,7 +467,8 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
     for i in range(0, len(items_to_upsert), batch_size):
         batch = items_to_upsert[i : i + batch_size]
 
-        if quota_floor_breached(settings.XERO_AUTOMATED_DAY_FLOOR):
+        floor = CompanyDefaults.get_solo().xero_automated_day_floor
+        if quota_floor_breached(floor):
             # Raise rather than logging + breaking. Items already upserted
             # in earlier batches kept their xero_id (set by the post-upsert
             # handler below). Items in remaining batches still have
@@ -478,7 +478,7 @@ def sync_all_local_stock_to_xero(limit: Optional[int] = None) -> Dict[str, Any]:
             remaining = len(items_to_upsert) - i
             raise XeroQuotaFloorReached(
                 f"Stopping stock upsert with {remaining} un-attempted items: "
-                f"Xero day quota at floor ({settings.XERO_AUTOMATED_DAY_FLOOR})"
+                f"Xero day quota at floor ({floor})"
             )
 
         items_payload = [data for _, data in batch]

@@ -281,7 +281,10 @@ class XeroWebhookConfigErrorTests(TestCase):
 
 
 class ProcessXeroWebhookEventTaskTests(TestCase):
-    """The Celery task body — runs synchronously in tests via eager mode."""
+    """Business case: Xero webhooks update invoice/contact state in near
+    real time. The task must dispatch only valid tenant events, avoid duplicate
+    side effects under redelivery, and persist unexpected sync failures.
+    """
 
     def _patch_company_defaults(self, configured_tenant_id: str = TENANT_ID):
         from types import SimpleNamespace
@@ -291,6 +294,7 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
             return_value=SimpleNamespace(
                 xero_tenant_id=configured_tenant_id,
                 enable_xero_sync=True,
+                xero_automated_day_floor=100,
             ),
         )
 
