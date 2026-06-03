@@ -469,7 +469,7 @@ const handleSubmit = async () => {
       // Redirect to quote tab for fixed price jobs, estimate to t&m jobs
       const defaultTab = formData.value.pricing_methodology === 'fixed_price' ? 'quote' : 'estimate'
       router.push({
-        name: '/jobs/[id]',
+        name: '/jobs/[id]/(index)',
         params: { id: result.job_id },
         query: { new: 'true', tab: defaultTab },
       })

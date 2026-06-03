@@ -30,8 +30,9 @@ const manualRoutes: RouteRecordRaw[] = [
   },
   {
     path: '/reports/clients/:id',
-    redirect: (to: { params: Record<string, string> }) =>
-      ({ path: `/crm/clients/${to.params.id}` }),
+    redirect: (to: { params: Record<string, string> }) => ({
+      path: `/crm/clients/${to.params.id}`,
+    }),
   },
   {
     path: '/process-documents',

@@ -610,11 +610,11 @@ async function loadClientData() {
 }
 
 function goBack() {
-  router.push({ name: '/crm/clients' })
+  router.push({ name: '/crm/clients/(index)' })
 }
 
 function navigateToJob(jobId: string) {
-  router.push({ name: '/jobs/[id]', params: { id: jobId } })
+  router.push({ name: '/jobs/[id]/(index)', params: { id: jobId } })
 }
 
 function formatDateTime(dateString: string | null | undefined): string {

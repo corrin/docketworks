@@ -78,7 +78,7 @@ export function useTimesheetSummary() {
   }
 
   const navigateToJob = (jobId: string) => {
-    router.push({ name: '/jobs/[id]', params: { id: jobId } })
+    router.push({ name: '/jobs/[id]/(index)', params: { id: jobId } })
   }
 
   const getStatusVariant = (status: string) => {

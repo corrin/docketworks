@@ -38,12 +38,12 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/crm/clients': RouteRecordInfo<
-      '/crm/clients',
+    '/crm/clients/(index)': RouteRecordInfo<
+      '/crm/clients/(index)',
       '/crm/clients',
       Record<never, never>,
       Record<never, never>,
-      | '/crm/clients/[id]'
+      | never
     >,
     '/crm/clients/[id]': RouteRecordInfo<
       '/crm/clients/[id]',
@@ -52,12 +52,12 @@ declare module 'vue-router/auto-routes' {
       { id: ParamValue<false> },
       | never
     >,
-    '/jobs/[id]': RouteRecordInfo<
-      '/jobs/[id]',
+    '/jobs/[id]/(index)': RouteRecordInfo<
+      '/jobs/[id]/(index)',
       '/jobs/:id',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
-      | '/jobs/[id]/workshop'
+      | never
     >,
     '/jobs/[id]/workshop': RouteRecordInfo<
       '/jobs/[id]/workshop',
@@ -94,14 +94,12 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/purchasing/po': RouteRecordInfo<
-      '/purchasing/po',
+    '/purchasing/po/(index)': RouteRecordInfo<
+      '/purchasing/po/(index)',
       '/purchasing/po',
       Record<never, never>,
       Record<never, never>,
-      | '/purchasing/po/[id]'
-      | '/purchasing/po/create'
-      | '/purchasing/po/create-from-quote'
+      | never
     >,
     '/purchasing/po/[id]': RouteRecordInfo<
       '/purchasing/po/[id]',
@@ -297,12 +295,11 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/crm/clients.vue': {
+    'src/pages/crm/clients/(index).vue': {
       routes:
-        | '/crm/clients'
-        | '/crm/clients/[id]'
+        | '/crm/clients/(index)'
       views:
-        | 'default'
+        | never
     }
     'src/pages/crm/clients/[id].vue': {
       routes:
@@ -310,12 +307,11 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/jobs/[id].vue': {
+    'src/pages/jobs/[id]/(index).vue': {
       routes:
-        | '/jobs/[id]'
-        | '/jobs/[id]/workshop'
+        | '/jobs/[id]/(index)'
       views:
-        | 'default'
+        | never
     }
     'src/pages/jobs/[id]/workshop.vue': {
       routes:
@@ -347,14 +343,11 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/purchasing/po.vue': {
+    'src/pages/purchasing/po/(index).vue': {
       routes:
-        | '/purchasing/po'
-        | '/purchasing/po/[id]'
-        | '/purchasing/po/create'
-        | '/purchasing/po/create-from-quote'
+        | '/purchasing/po/(index)'
       views:
-        | 'default'
+        | never
     }
     'src/pages/purchasing/po/[id].vue': {
       routes:
