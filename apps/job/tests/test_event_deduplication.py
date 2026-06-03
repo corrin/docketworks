@@ -1,8 +1,5 @@
-"""
-Tests for event deduplication functionality.
-"""
+"""Manual note deduplication must prevent double-click spam without hiding history."""
 
-from django.contrib.auth import get_user_model
 from django.core.exceptions import ValidationError
 
 from apps.accounts.models import Staff
@@ -12,14 +9,16 @@ from apps.job.services.job_rest_service import JobRestService
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
 
-User = get_user_model()
-
 
 class EventDeduplicationTest(BaseTestCase):
-    """Test event deduplication at model and service levels."""
+    """Manual note dedup rules must be consistent across model and service paths.
+
+    A user can submit the same note twice through retries/double-clicks, while
+    automatic audit events and other staff members' notes must still be kept.
+    These tests catch both duplicate leakage and over-broad deduplication.
+    """
 
     def setUp(self):
-        """Set up test data."""
         self.user = Staff.objects.create_user(
             email="test@example.com",
             password="testpass123",
@@ -42,8 +41,11 @@ class EventDeduplicationTest(BaseTestCase):
         )
 
     def test_model_prevents_duplicate_manual_events(self):
-        """Test that the model prevents duplicate manual events."""
-        # Create first event
+        """Direct model writes must not bypass manual-note duplicate guards.
+
+        This catches imports/admin paths that create ``JobEvent`` rows without
+        the REST service and would otherwise allow duplicate user notes.
+        """
         event1 = JobEvent.objects.create(
             job=self.job,
             staff=self.user,
@@ -52,7 +54,6 @@ class EventDeduplicationTest(BaseTestCase):
         )
         self.assertIsNotNone(event1.dedup_hash)
 
-        # Try to create duplicate - should raise ValidationError (model validates before save)
         with self.assertRaises(ValidationError):
             JobEvent.objects.create(
                 job=self.job,
@@ -62,8 +63,11 @@ class EventDeduplicationTest(BaseTestCase):
             )
 
     def test_create_safe_method_prevents_duplicates(self):
-        """Test that create_safe method handles duplicates gracefully."""
-        # Create first event
+        """Retry-safe creation must return the existing note, not error or duplicate.
+
+        This catches callers that use ``create_safe`` during retry flows and
+        expect idempotent success when the same manual note was already stored.
+        """
         event1, created1 = JobEvent.create_safe(
             job=self.job,
             staff=self.user,
@@ -72,7 +76,6 @@ class EventDeduplicationTest(BaseTestCase):
         )
         self.assertTrue(created1)
 
-        # Try to create duplicate
         event2, created2 = JobEvent.create_safe(
             job=self.job,
             staff=self.user,
@@ -83,20 +86,22 @@ class EventDeduplicationTest(BaseTestCase):
         self.assertEqual(event1.id, event2.id)
 
     def test_service_prevents_duplicate_events(self):
-        """Test that the service layer prevents duplicate events."""
+        """The REST service must collapse immediate duplicate submissions.
+
+        This catches frontend retry/double-click regressions by going through
+        the same service boundary used by the API and proving only one note row
+        is stored.
+        """
         description = "Test service event"
 
-        # Create first event
         result1 = JobRestService.add_job_event(self.job.id, description, self.user)
         self.assertTrue(result1["success"])
         self.assertFalse(result1.get("duplicate_prevented", False))
 
-        # Try to create duplicate immediately
         result2 = JobRestService.add_job_event(self.job.id, description, self.user)
         self.assertTrue(result2["success"])
         self.assertTrue(result2.get("duplicate_prevented", False))
 
-        # Verify only one event exists in database
         events = JobEvent.objects.filter(
             job=self.job,
             staff=self.user,
@@ -106,7 +111,12 @@ class EventDeduplicationTest(BaseTestCase):
         self.assertEqual(events.count(), 1)
 
     def test_different_users_can_create_same_event(self):
-        """Test that different users can create events with same description."""
+        """Deduplication must not erase another staff member's identical note.
+
+        This catches over-broad dedup identity that keys only on job and note
+        text, which would lose audit history when two users record the same
+        observation.
+        """
         user2 = Staff.objects.create_user(
             email="test2@example.com",
             password="testpass123",
@@ -116,24 +126,24 @@ class EventDeduplicationTest(BaseTestCase):
 
         description = "Same description"
 
-        # Event from first user
         result1 = JobRestService.add_job_event(self.job.id, description, self.user)
         self.assertTrue(result1["success"])
 
-        # Event from second user (should be allowed)
         result2 = JobRestService.add_job_event(self.job.id, description, user2)
         self.assertTrue(result2["success"])
         self.assertFalse(result2.get("duplicate_prevented", False))
 
-        # Verify both events exist
         events = JobEvent.objects.filter(
             job=self.job, detail__note_text=description, event_type="manual_note"
         )
         self.assertEqual(events.count(), 2)
 
     def test_automatic_events_not_affected(self):
-        """Test that automatic events are not affected by deduplication."""
-        # Create multiple automatic events with the same structured detail
+        """Automatic audit events must not be collapsed like manual notes.
+
+        This catches a dedup refactor that applies manual-note rules to status
+        changes and would hide repeated workflow transitions from the audit log.
+        """
         detail = {
             "changes": [
                 {
@@ -154,19 +164,39 @@ class EventDeduplicationTest(BaseTestCase):
         events = JobEvent.objects.filter(job=self.job, event_type="status_changed")
         self.assertEqual(events.count(), 3)
 
-    def test_hash_generation(self):
-        """Test that dedup_hash is generated correctly."""
-        event = JobEvent.objects.create(
+    def test_manual_note_dedup_identity_normalises_text_only_within_same_user(self):
+        """Manual note identity should ignore text case/spacing but keep staff.
+
+        This catches two plausible mistakes: failing to collapse harmless text
+        variations from the same user, or collapsing another user's matching
+        note and losing who recorded it.
+        """
+        first = JobEvent.objects.create(
             job=self.job,
             staff=self.user,
-            detail={"note_text": "Test hash generation"},
+            detail={"note_text": "  Same Observation  "},
+            event_type="manual_note",
+        )
+        user2 = Staff.objects.create_user(
+            email="identity2@example.com",
+            password="testpass123",
+            first_name="Identity",
+            last_name="User",
+        )
+
+        with self.assertRaises(ValidationError):
+            JobEvent.objects.create(
+                job=self.job,
+                staff=self.user,
+                detail={"note_text": "same observation"},
+                event_type="manual_note",
+            )
+
+        second_user_event = JobEvent.objects.create(
+            job=self.job,
+            staff=user2,
+            detail={"note_text": "same observation"},
             event_type="manual_note",
         )
 
-        # Hash should be generated
-        self.assertIsNotNone(event.dedup_hash)
-        self.assertEqual(len(event.dedup_hash), 32)  # MD5 hash length
-
-        # Hash should be consistent
-        expected_hash = event._generate_dedup_hash()
-        self.assertEqual(event.dedup_hash, expected_hash)
+        self.assertNotEqual(first.id, second_user_event.id)

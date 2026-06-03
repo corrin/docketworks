@@ -13,7 +13,13 @@ Python is not going to suddenly break.
 ## Decision
 
 Every test must include a docstring or nearby comment that answers: **what
-change could a teammate make that this test would catch?**
+change could a teammate make that this test would catch, and why would this
+assertion fail if that regression were introduced?**
+
+Do not merely describe what the test does. "Tests that inactive staff are
+excluded" is not enough; "A query refactor could drop the leave-date predicate,
+and this test catches it by creating a staff member who left before the target
+date" is the expected shape.
 
 If the answer is "Python, Django, etc" then delete the test.  We are testing our code only.
 
