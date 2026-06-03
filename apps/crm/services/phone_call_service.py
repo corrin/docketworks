@@ -15,11 +15,10 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 
-from apps.client.models import Client, ClientContact
+from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
-    PhoneNumberClientMapping,
 )
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
@@ -460,26 +459,30 @@ def archive_recording(
 
 class PhoneMatcher:
     def __init__(self):
-        self.mapping_matches = _build_mapping_phone_index()
-        self.client_matches = _build_client_phone_index()
-        self.contact_matches = _build_contact_phone_index()
+        self.phone_matches = _build_contact_method_phone_index()
 
     def match(
         self, origin: Any, destination: Any
     ) -> tuple[Client | None, ClientContact | None]:
-        matches: set[tuple[str, str]] = set()
+        matches: set[tuple[str, str, str]] = set()
         for value in [origin, destination]:
             normalized = normalize_phone(value)
             if not normalized:
                 continue
-            matches.update(self.mapping_matches.get(normalized, set()))
-            matches.update(self.contact_matches.get(normalized, set()))
-            matches.update(self.client_matches.get(normalized, set()))
+            matches.update(self.phone_matches.get(normalized, set()))
 
-        if len(matches) != 1:
+        if not matches:
             return None, None
 
-        kind, object_id = next(iter(matches))
+        client_ids = {client_id for _, _, client_id in matches}
+        if len(client_ids) != 1:
+            return None, None
+
+        if len(matches) != 1:
+            client = Client.objects.get(id=next(iter(client_ids)))
+            return client, None
+
+        kind, object_id, _client_id = next(iter(matches))
         if kind == "contact":
             contact = ClientContact.objects.select_related("client").get(id=object_id)
             return contact.client, contact
@@ -496,14 +499,7 @@ def is_call_payload(payload: dict[str, Any]) -> bool:
 
 
 def normalize_phone(value: Any) -> str:
-    digits = re.sub(r"\D+", "", str(value or ""))
-    if not digits:
-        return ""
-    if digits.startswith("64"):
-        return f"+{digits}"
-    if digits.startswith("0") and len(digits) > 1:
-        return f"+64{digits[1:]}"
-    return f"+{digits}"
+    return ClientContactMethod.normalize_phone(value)
 
 
 def configured_own_numbers() -> set[str]:
@@ -545,13 +541,6 @@ def call_parties(call: PhoneCallRecord) -> dict[str, str]:
     }
 
 
-def normalize_mapping(mapping: PhoneNumberClientMapping) -> None:
-    normalized = normalize_phone(mapping.phone_number)
-    if not normalized:
-        raise ValueError("phone number mapping requires a phone number")
-    mapping.phone_number = normalized
-
-
 def rematch_calls_for_numbers(numbers: list[str]) -> None:
     normalized_numbers = {normalize_phone(number) for number in numbers}
     normalized_numbers.discard("")
@@ -574,45 +563,88 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
         call.save(update_fields=["client", "contact", "updated_at"])
 
 
-def _build_mapping_phone_index() -> dict[str, set[tuple[str, str]]]:
-    index: dict[str, set[tuple[str, str]]] = {}
-    mappings = PhoneNumberClientMapping.objects.select_related("client", "contact")
-    for mapping in mappings:
-        normalized = normalize_phone(mapping.phone_number)
+def assign_phone_number(
+    *,
+    phone_number: str,
+    client_id: str,
+    contact_id: str | None = None,
+    label: str = "",
+    is_primary: bool = False,
+) -> ClientContactMethod:
+    normalized = normalize_phone(phone_number)
+    if not normalized:
+        raise ValueError("phone number is required")
+
+    if contact_id:
+        contact = ClientContact.objects.select_related("client").get(
+            id=contact_id,
+            client_id=client_id,
+            is_active=True,
+        )
+        owner_filter = {"contact": contact, "client": None}
+        existing_primary = ClientContactMethod.objects.filter(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            is_primary=True,
+        ).exists()
+    else:
+        client = Client.objects.get(id=client_id)
+        owner_filter = {"client": client, "contact": None}
+        existing_primary = ClientContactMethod.objects.filter(
+            client=client,
+            contact__isnull=True,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            is_primary=True,
+        ).exists()
+
+    should_be_primary = is_primary or not existing_primary
+    method, created = ClientContactMethod.objects.get_or_create(
+        **owner_filter,
+        method_type=ClientContactMethod.MethodType.PHONE,
+        normalized_value=normalized,
+        defaults={
+            "value": phone_number.strip(),
+            "label": label.strip(),
+            "is_primary": should_be_primary,
+            "source": ClientContactMethod.Source.LOCAL,
+        },
+    )
+    if not created:
+        method.value = phone_number.strip()
+        method.label = label.strip()
+        method.source = ClientContactMethod.Source.LOCAL
+        method.is_primary = should_be_primary or method.is_primary
+        method.save(
+            update_fields=["value", "label", "source", "is_primary", "updated_at"]
+        )
+
+    rematch_calls_for_numbers([normalized])
+    return method
+
+
+def _build_contact_method_phone_index() -> dict[str, set[tuple[str, str, str]]]:
+    index: dict[str, set[tuple[str, str, str]]] = {}
+    methods = ClientContactMethod.objects.select_related(
+        "client",
+        "contact",
+        "contact__client",
+    ).filter(method_type=ClientContactMethod.MethodType.PHONE)
+    for method in methods:
+        normalized = method.normalized_value or normalize_phone(method.value)
         if not normalized:
             continue
-        if mapping.contact_id:
+        if method.contact_id:
+            if not method.contact.is_active:
+                continue
             index.setdefault(normalized, set()).add(
-                ("contact", str(mapping.contact_id))
+                ("contact", str(method.contact_id), str(method.contact.client_id))
             )
         else:
-            index.setdefault(normalized, set()).add(("client", str(mapping.client_id)))
-    return index
-
-
-def _build_client_phone_index() -> dict[str, set[tuple[str, str]]]:
-    index: dict[str, set[tuple[str, str]]] = {}
-    for client in Client.objects.filter(allow_jobs=True):
-        values = [client.phone]
-        if isinstance(client.all_phones, list):
-            values.extend(
-                item.get("phone_number") or item.get("PhoneNumber")
-                for item in client.all_phones
-                if isinstance(item, dict)
+            if not method.client.allow_jobs:
+                continue
+            index.setdefault(normalized, set()).add(
+                ("client", str(method.client_id), str(method.client_id))
             )
-        for value in values:
-            normalized = normalize_phone(value)
-            if normalized:
-                index.setdefault(normalized, set()).add(("client", str(client.id)))
-    return index
-
-
-def _build_contact_phone_index() -> dict[str, set[tuple[str, str]]]:
-    index: dict[str, set[tuple[str, str]]] = {}
-    for contact in ClientContact.objects.filter(is_active=True).only("id", "phone"):
-        normalized = normalize_phone(contact.phone)
-        if normalized:
-            index.setdefault(normalized, set()).add(("contact", str(contact.id)))
     return index
 
 

@@ -707,6 +707,43 @@ const PatchedClientUpdateRequest = z
   })
   .partial()
 const ClientNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
+const MethodTypeEnum = z.enum(['phone', 'email'])
+const ClientContactMethodSourceEnum = z.enum(['imported', 'local'])
+const ClientContactMethod = z.object({
+  id: z.string().uuid(),
+  client: z.string().uuid().nullish(),
+  client_name: z.string(),
+  contact: z.string().uuid().nullish(),
+  contact_name: z.string(),
+  method_type: MethodTypeEnum,
+  value: z.string().max(255),
+  normalized_value: z.string(),
+  label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
+  source: ClientContactMethodSourceEnum.optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const ClientContactMethodRequest = z.object({
+  client: z.string().uuid().nullish(),
+  contact: z.string().uuid().nullish(),
+  method_type: MethodTypeEnum,
+  value: z.string().min(1).max(255),
+  label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
+  source: ClientContactMethodSourceEnum.optional(),
+})
+const PatchedClientContactMethodRequest = z
+  .object({
+    client: z.string().uuid().nullable(),
+    contact: z.string().uuid().nullable(),
+    method_type: MethodTypeEnum,
+    value: z.string().min(1).max(255),
+    label: z.string().max(255),
+    is_primary: z.boolean().default(false),
+    source: ClientContactMethodSourceEnum,
+  })
+  .partial()
 const ClientContact = z.object({
   id: z.string().uuid(),
   client: z.string().uuid(),
@@ -1099,31 +1136,20 @@ const PhoneCallRecord = z.object({
   imported_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
-const PhoneNumberClientMapping = z.object({
-  id: z.string().uuid(),
-  phone_number: z.string().max(150),
-  client: z.string().uuid(),
-  client_name: z.string(),
-  contact: z.string().uuid().nullish(),
-  contact_name: z.string(),
-  label: z.string().max(255).optional(),
-  created_at: z.string().datetime({ offset: true }),
-  updated_at: z.string().datetime({ offset: true }),
-})
-const PhoneNumberClientMappingRequest = z.object({
+const PhoneNumberAssignmentRequest = z.object({
   phone_number: z.string().min(1).max(150),
   client: z.string().uuid(),
   contact: z.string().uuid().nullish(),
   label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
 })
-const PatchedPhoneNumberClientMappingRequest = z
-  .object({
-    phone_number: z.string().min(1).max(150),
-    client: z.string().uuid(),
-    contact: z.string().uuid().nullable(),
-    label: z.string().max(255),
-  })
-  .partial()
+const PhoneNumberAssignment = z.object({
+  phone_number: z.string().max(150),
+  client: z.string().uuid(),
+  contact: z.string().uuid().nullish(),
+  label: z.string().max(255).optional(),
+  is_primary: z.boolean().optional().default(false),
+})
 const DataVersions = z.object({ stock: z.string(), kanban: z.string() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
@@ -2738,7 +2764,12 @@ const AllocationDeleteResponse = z.object({
 const PurchaseOrderLastNumberResponse = z
   .object({ last_po_number: z.string().nullable() })
   .partial()
-const SourceEnum = z.enum(['purchase_order', 'split_from_stock', 'manual', 'product_catalog'])
+const StockItemSourceEnum = z.enum([
+  'purchase_order',
+  'split_from_stock',
+  'manual',
+  'product_catalog',
+])
 const StockItem = z.object({
   id: z.string().uuid(),
   item_code: z.string().max(255).nullish(),
@@ -2747,7 +2778,7 @@ const StockItem = z.object({
   unit_cost: z.number().gt(-100000000).lt(100000000),
   unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
   date: z.string().datetime({ offset: true }).optional(),
-  source: SourceEnum,
+  source: StockItemSourceEnum,
   location: z.string().optional(),
   metal_type: z.union([MetalTypeEnum, BlankEnum]).optional(),
   alloy: z.string().max(50).nullish(),
@@ -2763,7 +2794,7 @@ const StockItemRequest = z.object({
   unit_cost: z.number().gt(-100000000).lt(100000000),
   unit_revenue: z.number().gt(-100000000).lt(100000000).nullish(),
   date: z.string().datetime({ offset: true }).optional(),
-  source: SourceEnum,
+  source: StockItemSourceEnum,
   location: z.string().optional(),
   metal_type: z.union([MetalTypeEnum, BlankEnum]).optional(),
   alloy: z.string().max(50).nullish(),
@@ -2778,7 +2809,7 @@ const PatchedStockItemRequest = z
     unit_cost: z.number().gt(-100000000).lt(100000000),
     unit_revenue: z.number().gt(-100000000).lt(100000000).nullable(),
     date: z.string().datetime({ offset: true }),
-    source: SourceEnum,
+    source: StockItemSourceEnum,
     location: z.string(),
     metal_type: z.union([MetalTypeEnum, BlankEnum]),
     alloy: z.string().max(50).nullable(),
@@ -3398,6 +3429,11 @@ export const schemas = {
   ClientUpdateResponse,
   PatchedClientUpdateRequest,
   ClientNameOnly,
+  MethodTypeEnum,
+  ClientContactMethodSourceEnum,
+  ClientContactMethod,
+  ClientContactMethodRequest,
+  PatchedClientContactMethodRequest,
   ClientContact,
   ClientContactRequest,
   PatchedClientContactRequest,
@@ -3419,9 +3455,8 @@ export const schemas = {
   CompanyDefaultsSchema,
   PhoneCallRecording,
   PhoneCallRecord,
-  PhoneNumberClientMapping,
-  PhoneNumberClientMappingRequest,
-  PatchedPhoneNumberClientMappingRequest,
+  PhoneNumberAssignmentRequest,
+  PhoneNumberAssignment,
   DataVersions,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
@@ -3645,7 +3680,7 @@ export const schemas = {
   AllocationDeleteRequest,
   AllocationDeleteResponse,
   PurchaseOrderLastNumberResponse,
-  SourceEnum,
+  StockItemSourceEnum,
   StockItem,
   StockItemRequest,
   PatchedStockItemRequest,
@@ -4722,6 +4757,116 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
+    path: '/api/clients/contact-methods/',
+    alias: 'clients_contact_methods_list',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'client_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'contact_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'method_type',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: z.array(ClientContactMethod),
+  },
+  {
+    method: 'post',
+    path: '/api/clients/contact-methods/',
+    alias: 'clients_contact_methods_create',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: ClientContactMethodRequest,
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'get',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_retrieve',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'put',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_update',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: ClientContactMethodRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'patch',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_partial_update',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedClientContactMethodRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ClientContactMethod,
+  },
+  {
+    method: 'delete',
+    path: '/api/clients/contact-methods/:id/',
+    alias: 'clients_contact_methods_destroy',
+    description: `CRUD API for canonical client/contact phone and email methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
     path: '/api/clients/contacts/',
     alias: 'clients_contacts_list',
     description: `List all contacts, optionally filtered by client_id.`,
@@ -5429,98 +5574,18 @@ DELETE: Clear a logo field and remove the file from disk.`,
     response: PhoneCallRecord,
   },
   {
-    method: 'get',
-    path: '/api/crm/phone-number-mappings/',
-    alias: 'crm_phone_number_mappings_list',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'client',
-        type: 'Query',
-        schema: z.string().uuid().optional(),
-      },
-    ],
-    response: z.array(PhoneNumberClientMapping),
-  },
-  {
     method: 'post',
-    path: '/api/crm/phone-number-mappings/',
-    alias: 'crm_phone_number_mappings_create',
+    path: '/api/crm/phone-calls/assign-number/',
+    alias: 'assignPhoneCallNumber',
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: PhoneNumberClientMappingRequest,
+        schema: PhoneNumberAssignmentRequest,
       },
     ],
-    response: PhoneNumberClientMapping,
-  },
-  {
-    method: 'get',
-    path: '/api/crm/phone-number-mappings/:id/',
-    alias: 'crm_phone_number_mappings_retrieve',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: PhoneNumberClientMapping,
-  },
-  {
-    method: 'put',
-    path: '/api/crm/phone-number-mappings/:id/',
-    alias: 'crm_phone_number_mappings_update',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PhoneNumberClientMappingRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: PhoneNumberClientMapping,
-  },
-  {
-    method: 'patch',
-    path: '/api/crm/phone-number-mappings/:id/',
-    alias: 'crm_phone_number_mappings_partial_update',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PatchedPhoneNumberClientMappingRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: PhoneNumberClientMapping,
-  },
-  {
-    method: 'delete',
-    path: '/api/crm/phone-number-mappings/:id/',
-    alias: 'crm_phone_number_mappings_destroy',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: z.void(),
+    response: PhoneNumberAssignment,
   },
   {
     method: 'get',

@@ -12,11 +12,11 @@
 
       <Card>
         <CardHeader>
-          <CardTitle>Number Mapping</CardTitle>
+          <CardTitle>Assign Phone Number</CardTitle>
         </CardHeader>
         <CardContent class="space-y-4">
-          <div class="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_auto]">
-            <Input v-model="mappingPhoneNumber" placeholder="+6490000000" />
+          <div class="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_auto_auto]">
+            <Input v-model="phoneNumber" placeholder="+6490000000" />
             <div class="flex gap-2">
               <Input
                 v-model="clientSearch"
@@ -27,13 +27,19 @@
                 <Search class="h-4 w-4" />
               </Button>
             </div>
-            <Input v-model="mappingLabel" placeholder="Label" />
+            <Input v-model="phoneLabel" placeholder="Label" />
+            <label
+              class="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <input v-model="isPrimary" type="checkbox" class="h-4 w-4" />
+              Primary
+            </label>
             <Button
               type="button"
-              :disabled="isSavingMapping || !mappingPhoneNumber.trim() || !selectedClientId"
-              @click="saveMapping"
+              :disabled="isSavingAssignment || !phoneNumber.trim() || !selectedClientId"
+              @click="assignNumber"
             >
-              Save Mapping
+              Assign
             </Button>
           </div>
 
@@ -67,31 +73,23 @@
                   <th class="p-3 text-left font-semibold text-gray-700">Client</th>
                   <th class="p-3 text-left font-semibold text-gray-700">Contact</th>
                   <th class="p-3 text-left font-semibold text-gray-700">Label</th>
-                  <th class="p-3 text-right font-semibold text-gray-700">Actions</th>
+                  <th class="p-3 text-left font-semibold text-gray-700">Primary</th>
                 </tr>
               </thead>
               <tbody>
-                <tr v-if="mappings.length === 0">
-                  <td colspan="5" class="p-4 text-center text-gray-500">
-                    No phone number mappings
-                  </td>
+                <tr v-if="phoneMethods.length === 0">
+                  <td colspan="5" class="p-4 text-center text-gray-500">No phone numbers</td>
                 </tr>
-                <tr v-for="mapping in mappings" :key="mapping.id" class="border-b last:border-b-0">
-                  <td class="p-3 font-medium text-gray-900">{{ mapping.phone_number }}</td>
-                  <td class="p-3 text-gray-700">{{ mapping.client_name }}</td>
-                  <td class="p-3 text-gray-700">{{ mapping.contact_name || '-' }}</td>
-                  <td class="p-3 text-gray-700">{{ mapping.label || '-' }}</td>
-                  <td class="p-3 text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      class="h-8 w-8 p-0"
-                      :aria-label="`Delete mapping ${mapping.phone_number}`"
-                      @click="deleteMapping(mapping.id)"
-                    >
-                      <Trash2 class="h-4 w-4" />
-                    </Button>
-                  </td>
+                <tr
+                  v-for="method in phoneMethods"
+                  :key="method.id"
+                  class="border-b last:border-b-0"
+                >
+                  <td class="p-3 font-medium text-gray-900">{{ method.value }}</td>
+                  <td class="p-3 text-gray-700">{{ method.client_name }}</td>
+                  <td class="p-3 text-gray-700">{{ method.contact_name || '-' }}</td>
+                  <td class="p-3 text-gray-700">{{ method.label || '-' }}</td>
+                  <td class="p-3 text-gray-700">{{ method.is_primary ? 'Yes' : '-' }}</td>
                 </tr>
               </tbody>
             </table>
@@ -127,30 +125,31 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { Loader2, Search, Trash2 } from 'lucide-vue-next'
+import { Loader2, Search } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
-type PhoneNumberClientMapping = z.infer<typeof schemas.PhoneNumberClientMapping>
+type ClientContactMethod = z.infer<typeof schemas.ClientContactMethod>
 type ClientSearchResult = z.infer<typeof schemas.ClientSearchResult>
 type ClientContact = z.infer<typeof schemas.ClientContact>
 
 const phoneCalls = ref<PhoneCallRecord[]>([])
-const mappings = ref<PhoneNumberClientMapping[]>([])
+const phoneMethods = ref<ClientContactMethod[]>([])
 const clientOptions = ref<ClientSearchResult[]>([])
 const contactOptions = ref<ClientContact[]>([])
 const isLoadingCalls = ref(false)
-const isSavingMapping = ref(false)
+const isSavingAssignment = ref(false)
 const error = ref<string | null>(null)
-const mappingPhoneNumber = ref('')
-const mappingLabel = ref('')
+const phoneNumber = ref('')
+const phoneLabel = ref('')
+const isPrimary = ref(false)
 const clientSearch = ref('')
 const selectedClientId = ref('')
 const selectedContactId = ref('')
 
 async function loadAll(): Promise<void> {
-  await Promise.all([loadCalls(), loadMappings()])
+  await Promise.all([loadCalls(), loadPhoneMethods()])
 }
 
 async function loadCalls(): Promise<void> {
@@ -168,13 +167,15 @@ async function loadCalls(): Promise<void> {
   }
 }
 
-async function loadMappings(): Promise<void> {
+async function loadPhoneMethods(): Promise<void> {
   try {
-    mappings.value = await api.crm_phone_number_mappings_list({})
+    phoneMethods.value = await api.clients_contact_methods_list({
+      queries: { method_type: 'phone' },
+    })
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to load phone mappings'
+    const message = err instanceof Error ? err.message : 'Failed to load phone numbers'
     error.value = message
-    console.error('Failed to load phone mappings:', err)
+    console.error('Failed to load phone numbers:', err)
     toast.error(message)
   }
 }
@@ -203,41 +204,29 @@ async function loadContacts(clientId: string): Promise<void> {
   })
 }
 
-async function saveMapping(): Promise<void> {
+async function assignNumber(): Promise<void> {
   if (!selectedClientId.value) return
-  isSavingMapping.value = true
+  isSavingAssignment.value = true
   try {
-    await api.crm_phone_number_mappings_create({
-      phone_number: mappingPhoneNumber.value,
+    await api.assignPhoneCallNumber({
+      phone_number: phoneNumber.value,
       client: selectedClientId.value,
       contact: selectedContactId.value || null,
-      label: mappingLabel.value,
+      label: phoneLabel.value,
+      is_primary: isPrimary.value,
     })
-    mappingPhoneNumber.value = ''
-    mappingLabel.value = ''
+    phoneNumber.value = ''
+    phoneLabel.value = ''
+    isPrimary.value = false
     selectedContactId.value = ''
-    toast.success('Phone mapping saved')
+    toast.success('Phone number assigned')
     await loadAll()
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to save phone mapping'
-    console.error('Failed to save phone mapping:', err)
+    const message = err instanceof Error ? err.message : 'Failed to assign phone number'
+    console.error('Failed to assign phone number:', err)
     toast.error(message)
   } finally {
-    isSavingMapping.value = false
-  }
-}
-
-async function deleteMapping(mappingId: string): Promise<void> {
-  try {
-    await api.crm_phone_number_mappings_destroy(undefined, {
-      params: { id: mappingId },
-    })
-    toast.success('Phone mapping deleted')
-    await loadAll()
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to delete phone mapping'
-    console.error('Failed to delete phone mapping:', err)
-    toast.error(message)
+    isSavingAssignment.value = false
   }
 }
 

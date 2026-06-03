@@ -4,12 +4,10 @@ from .phone_call_views import (
     BinaryRecordingRenderer,
     PhoneCallRecordViewSet,
     PhoneCallRecordingViewSet,
-    PhoneNumberClientMappingViewSet,
 )
 
 __all__ = [
     "BinaryRecordingRenderer",
     "PhoneCallRecordViewSet",
     "PhoneCallRecordingViewSet",
-    "PhoneNumberClientMappingViewSet",
 ]

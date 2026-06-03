@@ -20,6 +20,7 @@ try:
     from django.apps import apps
 
     if apps.ready:
+        from .client_contact_method_viewset import ClientContactMethodViewSet
         from .client_contact_viewset import ClientContactViewSet
         from .supplier_pickup_address_viewset import SupplierPickupAddressViewSet
 except (ImportError, RuntimeError):
@@ -28,6 +29,7 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "AddressValidateView",
+    "ClientContactMethodViewSet",
     "ClientContactViewSet",
     "ClientCreateRestView",
     "ClientJobsRestView",

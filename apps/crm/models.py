@@ -100,34 +100,3 @@ class PhoneCallRecording(models.Model):
 
     def __str__(self) -> str:
         return f"phone call recording {self.provider_recording_id}"
-
-
-class PhoneNumberClientMapping(models.Model):
-    """Explicit CRM ownership for a phone number seen in call history."""
-
-    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    phone_number = models.CharField(max_length=150, unique=True)
-    client = models.ForeignKey(
-        "client.Client",
-        on_delete=models.CASCADE,
-        related_name="phone_number_mappings",
-    )
-    contact = models.ForeignKey(
-        "client.ClientContact",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="phone_number_mappings",
-    )
-    label = models.CharField(max_length=255, blank=True)
-    created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-
-    class Meta:
-        ordering = ["phone_number"]
-        indexes = [
-            models.Index(fields=["client", "phone_number"], name="crm_phone_map_idx"),
-        ]
-
-    def __str__(self) -> str:
-        return f"{self.phone_number} -> {self.client}"

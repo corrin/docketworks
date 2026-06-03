@@ -1428,6 +1428,172 @@ paths:
               schema:
                 $ref: '#/components/schemas/ClientErrorResponse'
           description: ''
+  /api/clients/contact-methods/:
+    get:
+      operationId: clients_contact_methods_list
+      description: CRUD API for canonical client/contact phone and email methods.
+      parameters:
+        - in: query
+          name: client_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: contact_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: method_type
+          schema:
+            type: string
+      tags:
+        - clients
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ClientContactMethod'
+          description: ''
+    post:
+      operationId: clients_contact_methods_create
+      description: CRUD API for canonical client/contact phone and email methods.
+      tags:
+        - clients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientContactMethodRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClientContactMethodRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClientContactMethodRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientContactMethod'
+          description: ''
+  /api/clients/contact-methods/{id}/:
+    get:
+      operationId: clients_contact_methods_retrieve
+      description: CRUD API for canonical client/contact phone and email methods.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Client Contact Method.
+          required: true
+      tags:
+        - clients
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientContactMethod'
+          description: ''
+    put:
+      operationId: clients_contact_methods_update
+      description: CRUD API for canonical client/contact phone and email methods.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Client Contact Method.
+          required: true
+      tags:
+        - clients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ClientContactMethodRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/ClientContactMethodRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/ClientContactMethodRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientContactMethod'
+          description: ''
+    patch:
+      operationId: clients_contact_methods_partial_update
+      description: CRUD API for canonical client/contact phone and email methods.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Client Contact Method.
+          required: true
+      tags:
+        - clients
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedClientContactMethodRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedClientContactMethodRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedClientContactMethodRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientContactMethod'
+          description: ''
+    delete:
+      operationId: clients_contact_methods_destroy
+      description: CRUD API for canonical client/contact phone and email methods.
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this Client Contact Method.
+          required: true
+      tags:
+        - clients
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/clients/contacts/:
     get:
       operationId: clients_contacts_list
@@ -2463,98 +2629,22 @@ paths:
               schema:
                 $ref: '#/components/schemas/PhoneCallRecord'
           description: ''
-  /api/crm/phone-number-mappings/:
-    get:
-      operationId: crm_phone_number_mappings_list
-      parameters:
-        - in: query
-          name: client
-          schema:
-            type: string
-            format: uuid
+  /api/crm/phone-calls/assign-number/:
+    post:
+      operationId: assignPhoneCallNumber
       tags:
         - CRM
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PhoneNumberClientMapping'
-          description: ''
-    post:
-      operationId: crm_phone_number_mappings_create
-      tags:
-        - crm
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
           application/x-www-form-urlencoded:
             schema:
-              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PhoneNumberClientMapping'
-          description: ''
-  /api/crm/phone-number-mappings/{id}/:
-    get:
-      operationId: crm_phone_number_mappings_retrieve
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this phone number client mapping.
-          required: true
-      tags:
-        - crm
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PhoneNumberClientMapping'
-          description: ''
-    put:
-      operationId: crm_phone_number_mappings_update
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this phone number client mapping.
-          required: true
-      tags:
-        - crm
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PhoneNumberClientMappingRequest'
+              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
         required: true
       security:
         - cookieAuth: []
@@ -2563,57 +2653,8 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PhoneNumberClientMapping'
+                $ref: '#/components/schemas/PhoneNumberAssignment'
           description: ''
-    patch:
-      operationId: crm_phone_number_mappings_partial_update
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this phone number client mapping.
-          required: true
-      tags:
-        - crm
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedPhoneNumberClientMappingRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedPhoneNumberClientMappingRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedPhoneNumberClientMappingRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PhoneNumberClientMapping'
-          description: ''
-    delete:
-      operationId: crm_phone_number_mappings_destroy
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this phone number client mapping.
-          required: true
-      tags:
-        - crm
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/data-versions/:
     get:
       operationId: data_versions_retrieve
@@ -9534,6 +9575,98 @@ components:
         - is_active
         - name
         - updated_at
+    ClientContactMethod:
+      type: object
+      description: Serializer for canonical client/contact phone and email methods.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        client:
+          type: string
+          format: uuid
+          nullable: true
+        client_name:
+          type: string
+          readOnly: true
+        contact:
+          type: string
+          format: uuid
+          nullable: true
+        contact_name:
+          type: string
+          readOnly: true
+        method_type:
+          $ref: '#/components/schemas/MethodTypeEnum'
+        value:
+          type: string
+          maxLength: 255
+        normalized_value:
+          type: string
+          readOnly: true
+        label:
+          type: string
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        source:
+          $ref: '#/components/schemas/ClientContactMethodSourceEnum'
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - client_name
+        - contact_name
+        - created_at
+        - id
+        - method_type
+        - normalized_value
+        - updated_at
+        - value
+    ClientContactMethodRequest:
+      type: object
+      description: Serializer for canonical client/contact phone and email methods.
+      properties:
+        client:
+          type: string
+          format: uuid
+          nullable: true
+        contact:
+          type: string
+          format: uuid
+          nullable: true
+        method_type:
+          $ref: '#/components/schemas/MethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        label:
+          type: string
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        source:
+          $ref: '#/components/schemas/ClientContactMethodSourceEnum'
+      required:
+        - method_type
+        - value
+    ClientContactMethodSourceEnum:
+      enum:
+        - imported
+        - local
+      type: string
+      description: |-
+        * `imported` - Imported
+        * `local` - Local
     ClientContactRequest:
       type: object
       description: Serializer for ClientContact model.
@@ -14468,6 +14601,14 @@ components:
         * `galvanized` - Galvanized
         * `unspecified` - Unspecified
         * `other` - Other
+    MethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - Phone
+        * `email` - Email
     ModernStaff:
       type: object
       description: Serializer for staff in timesheet context
@@ -15003,6 +15144,32 @@ components:
           writeOnly: true
           description: API Key for the provider. Leave blank to keep unchanged on
             update.
+    PatchedClientContactMethodRequest:
+      type: object
+      description: Serializer for canonical client/contact phone and email methods.
+      properties:
+        client:
+          type: string
+          format: uuid
+          nullable: true
+        contact:
+          type: string
+          format: uuid
+          nullable: true
+        method_type:
+          $ref: '#/components/schemas/MethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        label:
+          type: string
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        source:
+          $ref: '#/components/schemas/ClientContactMethodSourceEnum'
     PatchedClientContactRequest:
       type: object
       description: Serializer for ClientContact model.
@@ -15536,23 +15703,6 @@ components:
           minLength: 1
         metadata:
           description: Extra data like streaming status, processing time, etc.
-    PatchedPhoneNumberClientMappingRequest:
-      type: object
-      properties:
-        phone_number:
-          type: string
-          minLength: 1
-          maxLength: 150
-        client:
-          type: string
-          format: uuid
-        contact:
-          type: string
-          format: uuid
-          nullable: true
-        label:
-          type: string
-          maxLength: 255
     PatchedProcedureUpdateRequest:
       type: object
       description: Update serializer for procedures.
@@ -15779,7 +15929,7 @@ components:
           description: Date the stock item was created
         source:
           allOf:
-            - $ref: '#/components/schemas/SourceEnum'
+            - $ref: '#/components/schemas/StockItemSourceEnum'
           description: |-
             Origin of this stock item
 
@@ -16498,49 +16648,29 @@ components:
         - sha256
         - storage_path
         - updated_at
-    PhoneNumberClientMapping:
+    PhoneNumberAssignment:
       type: object
       properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
         phone_number:
           type: string
           maxLength: 150
         client:
           type: string
           format: uuid
-        client_name:
-          type: string
-          readOnly: true
         contact:
           type: string
           format: uuid
           nullable: true
-        contact_name:
-          type: string
-          readOnly: true
         label:
           type: string
           maxLength: 255
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
+        is_primary:
+          type: boolean
+          default: false
       required:
         - client
-        - client_name
-        - contact_name
-        - created_at
-        - id
         - phone_number
-        - updated_at
-    PhoneNumberClientMappingRequest:
+    PhoneNumberAssignmentRequest:
       type: object
       properties:
         phone_number:
@@ -16557,6 +16687,9 @@ components:
         label:
           type: string
           maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
       required:
         - client
         - phone_number
@@ -18851,18 +18984,6 @@ components:
         - key
         - order
         - title
-    SourceEnum:
-      enum:
-        - purchase_order
-        - split_from_stock
-        - manual
-        - product_catalog
-      type: string
-      description: |-
-        * `purchase_order` - Purchase Order Receipt
-        * `split_from_stock` - Split/Offcut from Stock
-        * `manual` - Manual Adjustment/Stocktake
-        * `product_catalog` - Product Catalog
     SpeedQualityTradeoffEnum:
       enum:
         - fast
@@ -19690,7 +19811,7 @@ components:
           description: Date the stock item was created
         source:
           allOf:
-            - $ref: '#/components/schemas/SourceEnum'
+            - $ref: '#/components/schemas/StockItemSourceEnum'
           description: |-
             Origin of this stock item
 
@@ -19793,7 +19914,7 @@ components:
           description: Date the stock item was created
         source:
           allOf:
-            - $ref: '#/components/schemas/SourceEnum'
+            - $ref: '#/components/schemas/StockItemSourceEnum'
           description: |-
             Origin of this stock item
 
@@ -19839,6 +19960,18 @@ components:
         - quantity
         - source
         - unit_cost
+    StockItemSourceEnum:
+      enum:
+        - purchase_order
+        - split_from_stock
+        - manual
+        - product_catalog
+      type: string
+      description: |-
+        * `purchase_order` - Purchase Order Receipt
+        * `split_from_stock` - Split/Offcut from Stock
+        * `manual` - Manual Adjustment/Stocktake
+        * `product_catalog` - Product Catalog
     StockSearchResponse:
       type: object
       description: Serializer for paginated stock search response.

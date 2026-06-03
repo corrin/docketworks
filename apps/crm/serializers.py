@@ -3,9 +3,8 @@ from rest_framework import serializers
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
-    PhoneNumberClientMapping,
 )
-from apps.crm.services.phone_call_service import call_parties, normalize_mapping
+from apps.crm.services.phone_call_service import call_parties, normalize_phone
 
 
 class PhoneCallRecordingSerializer(serializers.ModelSerializer):
@@ -96,41 +95,15 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer):
         return obj.contact.name if obj.contact else ""
 
 
-class PhoneNumberClientMappingSerializer(serializers.ModelSerializer):
-    client_name = serializers.SerializerMethodField()
-    contact_name = serializers.SerializerMethodField()
+class PhoneNumberAssignmentSerializer(serializers.Serializer):
+    phone_number = serializers.CharField(max_length=150)
+    client = serializers.UUIDField()
+    contact = serializers.UUIDField(required=False, allow_null=True)
+    label = serializers.CharField(max_length=255, required=False, allow_blank=True)
+    is_primary = serializers.BooleanField(required=False, default=False)
 
-    class Meta:
-        model = PhoneNumberClientMapping
-        fields = (
-            "id",
-            "phone_number",
-            "client",
-            "client_name",
-            "contact",
-            "contact_name",
-            "label",
-            "created_at",
-            "updated_at",
-        )
-        read_only_fields = (
-            "id",
-            "client_name",
-            "contact_name",
-            "created_at",
-            "updated_at",
-        )
-
-    def get_client_name(self, obj: PhoneNumberClientMapping) -> str:
-        return obj.client.name
-
-    def get_contact_name(self, obj: PhoneNumberClientMapping) -> str:
-        return obj.contact.name if obj.contact else ""
-
-    def validate(self, attrs):
-        instance = self.instance or PhoneNumberClientMapping()
-        for key, value in attrs.items():
-            setattr(instance, key, value)
-        normalize_mapping(instance)
-        attrs["phone_number"] = instance.phone_number
-        return attrs
+    def validate_phone_number(self, value: str) -> str:
+        normalized = normalize_phone(value)
+        if not normalized:
+            raise serializers.ValidationError("Phone number is required")
+        return value.strip()

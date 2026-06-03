@@ -14,18 +14,17 @@ from rest_framework.response import Response
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
-    PhoneNumberClientMapping,
 )
 from apps.crm.serializers import (
     PhoneCallRecordingSerializer,
     PhoneCallRecordSerializer,
-    PhoneNumberClientMappingSerializer,
+    PhoneNumberAssignmentSerializer,
 )
 from apps.crm.services.phone_call_service import (
+    assign_phone_number,
     delete_local_recording,
     provider_delete_recording,
     recording_file_path,
-    rematch_calls_for_numbers,
 )
 from apps.job.permissions import IsOfficeStaff
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -72,44 +71,43 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet):
             queryset = queryset.filter(contact_id=contact_id)
         return queryset
 
-
-class PhoneNumberClientMappingViewSet(viewsets.ModelViewSet):
-    serializer_class = PhoneNumberClientMappingSerializer
-    permission_classes = [IsAuthenticated, IsOfficeStaff]
-
     @extend_schema(
-        parameters=[
-            OpenApiParameter("client", OpenApiTypes.UUID, OpenApiParameter.QUERY),
-        ],
+        operation_id="assignPhoneCallNumber",
+        request=PhoneNumberAssignmentSerializer,
+        responses={200: PhoneNumberAssignmentSerializer},
         tags=["CRM"],
     )
-    def list(self, request, *args, **kwargs):
-        return super().list(request, *args, **kwargs)
-
-    def get_queryset(self):
-        queryset = PhoneNumberClientMapping.objects.select_related(
-            "client",
-            "contact",
-        ).order_by("phone_number")
-        client_id = self.request.query_params.get("client")
-        if client_id:
-            queryset = queryset.filter(client_id=client_id)
-        return queryset
-
-    def perform_create(self, serializer):
-        mapping = serializer.save()
-        rematch_calls_for_numbers([mapping.phone_number])
-
-    def perform_update(self, serializer):
-        previous = self.get_object()
-        old_number = previous.phone_number
-        mapping = serializer.save()
-        rematch_calls_for_numbers([old_number, mapping.phone_number])
-
-    def perform_destroy(self, instance):
-        old_number = instance.phone_number
-        instance.delete()
-        rematch_calls_for_numbers([old_number])
+    @action(detail=False, methods=["post"], url_path="assign-number")
+    def assign_number(self, request):
+        serializer = PhoneNumberAssignmentSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        try:
+            method = assign_phone_number(
+                phone_number=serializer.validated_data["phone_number"],
+                client_id=str(serializer.validated_data["client"]),
+                contact_id=(
+                    str(serializer.validated_data["contact"])
+                    if serializer.validated_data.get("contact")
+                    else None
+                ),
+                label=serializer.validated_data.get("label", ""),
+                is_primary=serializer.validated_data.get("is_primary", False),
+            )
+            return Response(
+                {
+                    "phone_number": method.value,
+                    "client": method.client_id or method.contact.client_id,
+                    "contact": method.contact_id,
+                    "label": method.label,
+                    "is_primary": method.is_primary,
+                },
+                status=status.HTTP_200_OK,
+            )
+        except AlreadyLoggedException:
+            raise
+        except Exception as exc:
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc
 
 
 class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet):

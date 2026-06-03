@@ -3,10 +3,13 @@ from unittest.mock import patch
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 
+from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import (
+    PhoneMatcher,
     PhoneProviderCallPage,
     PhoneProviderPortalClient,
+    assign_phone_number,
     delete_archived_provider_recordings,
     normalize_phone,
 )
@@ -48,6 +51,88 @@ class PhoneMatcherTests(SimpleTestCase):
         self.assertEqual(normalize_phone("6496365131"), "+6496365131")
         self.assertEqual(normalize_phone("09 636 5131"), "+6496365131")
         self.assertEqual(normalize_phone("027 530 3238"), "+64275303238")
+
+
+class PhoneMatcherDatabaseTests(TestCase):
+    def _client(self, name: str) -> Client:
+        return Client.objects.create(name=name, xero_last_modified=timezone.now())
+
+    def test_assign_phone_number_creates_primary_contact_method_and_matches_client(
+        self,
+    ) -> None:
+        client = self._client("Acme Ltd")
+
+        method = assign_phone_number(
+            phone_number="09 636 5131",
+            client_id=str(client.id),
+            label="Reception",
+        )
+        matched_client, matched_contact = PhoneMatcher().match(
+            "+6496365131",
+            "+6490000000",
+        )
+
+        self.assertEqual(method.normalized_value, "+6496365131")
+        self.assertTrue(method.is_primary)
+        self.assertEqual(matched_client, client)
+        self.assertIsNone(matched_contact)
+
+    def test_single_contact_method_matches_contact(self) -> None:
+        client = self._client("Acme Ltd")
+        contact = ClientContact.objects.create(client=client, name="Jane Smith")
+        ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+            is_primary=True,
+        )
+
+        matched_client, matched_contact = PhoneMatcher().match(
+            "+6490000000",
+            "+6421555123",
+        )
+
+        self.assertEqual(matched_client, client)
+        self.assertEqual(matched_contact, contact)
+
+    def test_same_number_across_contacts_on_one_client_matches_client_only(
+        self,
+    ) -> None:
+        client = self._client("Acme Ltd")
+        jane = ClientContact.objects.create(client=client, name="Jane Smith")
+        john = ClientContact.objects.create(client=client, name="John Smith")
+        for contact in [jane, john]:
+            ClientContactMethod.objects.create(
+                contact=contact,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                value="021 555 123",
+            )
+
+        matched_client, matched_contact = PhoneMatcher().match(
+            "+6490000000",
+            "+6421555123",
+        )
+
+        self.assertEqual(matched_client, client)
+        self.assertIsNone(matched_contact)
+
+    def test_same_number_across_clients_does_not_match(self) -> None:
+        first = self._client("Acme Ltd")
+        second = self._client("Beta Ltd")
+        for client in [first, second]:
+            ClientContactMethod.objects.create(
+                client=client,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                value="021 555 123",
+            )
+
+        matched_client, matched_contact = PhoneMatcher().match(
+            "+6490000000",
+            "+6421555123",
+        )
+
+        self.assertIsNone(matched_client)
+        self.assertIsNone(matched_contact)
 
 
 class PhoneCallTaskTests(SimpleTestCase):
