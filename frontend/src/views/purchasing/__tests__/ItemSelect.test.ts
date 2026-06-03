@@ -12,25 +12,28 @@ vi.mock('@/utils/string-formatting', () => ({
   formatCurrency: (n: number | null | undefined) => `$${(n ?? 0).toFixed(2)}`,
 }))
 
-vi.mock('../../../components/ui/select', () => ({
-  Select: {
-    name: 'Select',
-    emits: ['update:model-value', 'update:open'],
-    template: '<div class="ui-select"><slot /></div>',
+vi.mock('../../../components/ui/popover', () => ({
+  Popover: {
+    name: 'Popover',
+    props: ['open'],
+    emits: ['update:open'],
+    template: '<div class="ui-popover"><slot /></div>',
   },
-  SelectTrigger: {
-    name: 'SelectTrigger',
-    template: '<div class="ui-select-trigger"><slot /></div>',
+  PopoverTrigger: {
+    name: 'PopoverTrigger',
+    template: '<div class="ui-popover-trigger"><slot /></div>',
   },
-  SelectValue: { name: 'SelectValue', template: '<div />' },
-  SelectContent: {
-    name: 'SelectContent',
-    template: '<div class="ui-select-content"><slot /></div>',
+  PopoverContent: {
+    name: 'PopoverContent',
+    template: '<div class="ui-popover-content"><slot /></div>',
   },
-  SelectItem: {
-    name: 'SelectItem',
-    props: ['value'],
-    template: '<div class="ui-select-item" :data-value="value" role="option"><slot /></div>',
+}))
+
+vi.mock('../../../components/ui/button', () => ({
+  Button: {
+    name: 'Button',
+    props: ['disabled', 'type', 'variant'],
+    template: '<button :disabled="disabled" :type="type || \'button\'"><slot /></button>',
   },
 }))
 
@@ -93,9 +96,9 @@ describe('ItemSelect server-side search and rendering', () => {
     })
     await flushPromises()
 
-    const labourOption = wrapper.find('[data-value="__labour__"]')
+    const labourOption = wrapper.find('[data-automation-id="ItemSelect-option-labour"]')
     expect(labourOption.exists()).toBe(true)
-    expect(wrapper.find('[data-value="s1"]').exists()).toBe(false)
+    expect(wrapper.find('[data-automation-id="ItemSelect-option-CODE"]').exists()).toBe(false)
   })
 
   it('emits the labour item payload rather than the computed ref wrapper', async () => {
@@ -214,7 +217,7 @@ describe('ItemSelect server-side search and rendering', () => {
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
 
-    const stockOption = wrapper.find('[data-value="s1"]')
+    const stockOption = wrapper.find('[data-automation-id="ItemSelect-option-CODE"]')
     expect(stockOption.exists()).toBe(true)
 
     const descriptionDiv = stockOption.find('.font-medium')
@@ -292,9 +295,8 @@ describe('ItemSelect server-side search and rendering', () => {
     await flushPromises()
 
     expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-value="__labour__"]').exists()).toBe(true)
-    expect(wrapper.find('[data-value="s1"]').exists()).toBe(false)
-    expect(wrapper.find('[data-value="s2"]').exists()).toBe(false)
+    expect(wrapper.find('[data-automation-id="ItemSelect-option-labour"]').exists()).toBe(true)
+    expect(wrapper.find('[data-automation-id="ItemSelect-option-CODE"]').exists()).toBe(false)
 
     vi.useRealTimers()
   })
@@ -329,7 +331,7 @@ describe('ItemSelect server-side search and rendering', () => {
     await vi.advanceTimersByTimeAsync(300)
     await flushPromises()
 
-    const stockOption = wrapper.find('[data-value="s1"]')
+    const stockOption = wrapper.find('[data-automation-id="ItemSelect-option-CODE"]')
     const signature = stockOption.find('[data-automation-id="ItemSelect-variant-signature"]')
     expect(signature.exists()).toBe(true)
     expect(signature.text()).toBe('316 · 1.5mm sheet')

@@ -8,6 +8,7 @@
     "python.linting.enabled": true,
     "python.linting.pylintEnabled": true,
     "python.formatting.provider": "black",
+    "task.quickOpen.history": 0,
     "[python]": {
         "editor.formatOnSave": true,
         "editor.codeActionsOnSave": {
@@ -26,6 +27,12 @@
                 "tmux attach || tmux new"
             ]
         }
+    },
+    "terminal.integrated.automationProfile.linux": {
+        "path": "bash",
+        "args": [
+            "-l"
+        ]
     },
     "terminal.integrated.defaultProfile.linux": "bash tmux"
 }

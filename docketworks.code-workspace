@@ -30,6 +30,7 @@
       "editor.defaultFormatter": "esbenp.prettier-vscode",
       "editor.formatOnSave": true
     },
+    "task.quickOpen.history": 0,
     "terminal.integrated.profiles.linux": {
       "bash tmux": {
         "path": "bash",
@@ -39,6 +40,12 @@
           "tmux attach || tmux new"
         ]
       }
+    },
+    "terminal.integrated.automationProfile.linux": {
+      "path": "bash",
+      "args": [
+        "-l"
+      ]
     },
     "terminal.integrated.defaultProfile.linux": "bash tmux"
   },
