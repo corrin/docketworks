@@ -200,7 +200,7 @@ function handleSearchKeydown(event: KeyboardEvent): void {
     popoverOpen.value = false
     return
   }
-  if (event.key !== 'Escape') event.stopPropagation()
+  event.stopPropagation()
 }
 
 watch(
