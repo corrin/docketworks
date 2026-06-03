@@ -202,6 +202,43 @@
 
           <div class="relative" @click.stop v-if="userInfo.is_office_staff">
             <button
+              @click="toggleDropdown('crm')"
+              class="flex items-center text-gray-700 hover:text-blue-600 transition-colors text-sm font-medium px-3 py-2 rounded-md duration-200"
+            >
+              <Users class="w-4 h-4 mr-1" /> CRM
+              <ChevronDown class="ml-1 h-4 w-4" />
+            </button>
+            <Transition
+              enter-active-class="transition-all duration-300 ease-out"
+              enter-from-class="opacity-0 -translate-y-2 scale-95"
+              enter-to-class="opacity-100 translate-y-0 scale-100"
+              leave-active-class="transition-all duration-200 ease-in"
+              leave-from-class="opacity-100 translate-y-0 scale-100"
+              leave-to-class="opacity-0 -translate-y-2 scale-95"
+            >
+              <div
+                v-if="activeDropdown === 'crm'"
+                class="absolute top-full left-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-[60]"
+              >
+                <router-link
+                  to="/crm/clients"
+                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                >
+                  <Users class="w-4 h-4 mr-2" /> Clients
+                </router-link>
+                <router-link
+                  v-if="userInfo.is_superuser"
+                  to="/crm/calls"
+                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                >
+                  <PhoneCall class="w-4 h-4 mr-2" /> Calls
+                </router-link>
+              </div>
+            </Transition>
+          </div>
+
+          <div class="relative" @click.stop v-if="userInfo.is_office_staff">
+            <button
               @click="toggleDropdown('reports')"
               class="flex items-center text-gray-700 hover:text-blue-600 transition-colors text-sm font-medium px-3 py-2 rounded-md duration-200"
             >
@@ -220,18 +257,6 @@
                 v-if="activeDropdown === 'reports'"
                 class="absolute top-full left-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-[60]"
               >
-                <div
-                  class="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
-                >
-                  CRM
-                </div>
-                <router-link
-                  to="/reports/clients"
-                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
-                >
-                  <Users class="w-4 h-4 mr-2" /> Clients
-                </router-link>
-                <div class="border-t border-gray-200 my-1"></div>
                 <div
                   class="px-4 py-1.5 text-xs font-semibold text-gray-500 uppercase tracking-wider"
                 >
@@ -674,6 +699,52 @@
 
               <div class="bg-gray-50 rounded-md" v-if="isOfficeStaff">
                 <button
+                  @click="toggleMobileSection('crm')"
+                  class="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:text-blue-600 transition-colors font-medium"
+                >
+                  <span class="flex items-center space-x-2">
+                    <Users class="w-4 h-4" />
+                    <span>CRM</span>
+                  </span>
+                  <ChevronDown
+                    :class="[
+                      'h-4 w-4 transition-transform duration-200',
+                      mobileSections.crm ? 'rotate-180' : '',
+                    ]"
+                  />
+                </button>
+                <Transition
+                  enter-active-class="transition-all duration-200 ease-out"
+                  enter-from-class="opacity-0 max-h-0"
+                  enter-to-class="opacity-100 max-h-40"
+                  leave-active-class="transition-all duration-200 ease-in"
+                  leave-from-class="opacity-100 max-h-40"
+                  leave-to-class="opacity-0 max-h-0"
+                >
+                  <div v-if="mobileSections.crm" class="overflow-hidden">
+                    <div class="px-3 pb-2 space-y-1">
+                      <router-link
+                        to="/crm/clients"
+                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                        @click="closeMobileMenu"
+                      >
+                        <Users class="w-4 h-4 mr-2" /> Clients
+                      </router-link>
+                      <router-link
+                        v-if="userInfo.is_superuser"
+                        to="/crm/calls"
+                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                        @click="closeMobileMenu"
+                      >
+                        <PhoneCall class="w-4 h-4 mr-2" /> Calls
+                      </router-link>
+                    </div>
+                  </div>
+                </Transition>
+              </div>
+
+              <div class="bg-gray-50 rounded-md" v-if="isOfficeStaff">
+                <button
                   @click="toggleMobileSection('reports')"
                   class="w-full flex items-center justify-between px-3 py-2 text-gray-700 hover:text-blue-600 transition-colors font-medium"
                 >
@@ -698,19 +769,6 @@
                 >
                   <div v-if="mobileSections.reports" class="overflow-hidden">
                     <div class="px-3 pb-2 space-y-1">
-                      <div
-                        class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider"
-                      >
-                        CRM
-                      </div>
-                      <router-link
-                        to="/reports/clients"
-                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
-                        @click="closeMobileMenu"
-                      >
-                        <Users class="w-4 h-4 mr-2" /> Clients
-                      </router-link>
-                      <div class="border-t border-gray-200 mt-2 mb-1"></div>
                       <div
                         class="px-2 py-1 text-xs font-semibold text-gray-500 uppercase tracking-wider"
                       >
@@ -915,6 +973,7 @@ import {
   Scale,
   FlaskConical,
   Activity,
+  PhoneCall,
 } from 'lucide-vue-next'
 import { useAppLayout } from '@/composables/useAppLayout'
 import { adminPages, adminExternalLinks } from '@/config/adminPages'
@@ -976,11 +1035,12 @@ watch(
 
 const activeDropdown = ref<string | null>(null)
 const showMobileMenu = ref(false)
-type MobileSection = 'timesheets' | 'purchases' | 'process' | 'reports' | 'admin'
+type MobileSection = 'timesheets' | 'purchases' | 'process' | 'crm' | 'reports' | 'admin'
 const mobileSections = ref<Record<MobileSection, boolean>>({
   timesheets: false,
   purchases: false,
   process: false,
+  crm: false,
   reports: false,
   admin: false,
 })
@@ -1007,6 +1067,7 @@ const toggleMobileMenu = () => {
       timesheets: false,
       purchases: false,
       process: false,
+      crm: false,
       reports: false,
       admin: false,
     }
@@ -1019,6 +1080,7 @@ const closeMobileMenu = () => {
     timesheets: false,
     purchases: false,
     process: false,
+    crm: false,
     reports: false,
     admin: false,
   }

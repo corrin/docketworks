@@ -184,16 +184,30 @@ const router = createRouter({
     },
     {
       path: '/reports/clients',
+      redirect: '/crm/clients',
+    },
+    {
+      path: '/reports/clients/:id',
+      redirect: (to) => ({ path: `/crm/clients/${to.params.id}` }),
+    },
+    {
+      path: '/crm/clients',
       name: 'clients',
       component: () => import('@/views/ClientsView.vue'),
       meta: { requiresAuth: true, title: 'Clients - DocketWorks' },
     },
     {
-      path: '/reports/clients/:id',
+      path: '/crm/clients/:id',
       name: 'client-detail',
       component: () => import('@/views/ClientDetailView.vue'),
       meta: { requiresAuth: true, title: 'Client Details - DocketWorks' },
       props: true,
+    },
+    {
+      path: '/crm/calls',
+      name: 'crm-calls',
+      component: () => import('@/views/CRMCallsView.vue'),
+      meta: { requiresAuth: true, requiresSuperUser: true, title: 'Calls - DocketWorks' },
     },
     {
       path: '/purchasing/po',
