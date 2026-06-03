@@ -16,6 +16,7 @@ def staff(db):
 
 
 def test_groups_unresolved_by_reason(db):
+    """Catches triage summaries that stop grouping unresolved rejections by reason."""
     JobDeltaRejection.objects.create(reason="stale_etag", envelope={})
     JobDeltaRejection.objects.create(reason="stale_etag", envelope={})
     JobDeltaRejection.objects.create(reason="conflict", envelope={})
@@ -27,6 +28,7 @@ def test_groups_unresolved_by_reason(db):
 
 
 def test_excludes_resolved_by_default(db, staff):
+    """Catches closed rejections leaking back into the default operator view."""
     rej = JobDeltaRejection.objects.create(reason="stale_etag", envelope={})
     rej.mark_resolved(staff)
     JobDeltaRejection.objects.create(reason="conflict", envelope={})
@@ -37,6 +39,7 @@ def test_excludes_resolved_by_default(db, staff):
 
 
 def test_mark_group_resolved(db, staff):
+    """Catches bulk resolve only closing one rejection in a reason group."""
     JobDeltaRejection.objects.create(reason="conflict", envelope={})
     JobDeltaRejection.objects.create(reason="conflict", envelope={})
 
@@ -46,6 +49,7 @@ def test_mark_group_resolved(db, staff):
 
 
 def test_mark_group_unresolved(db, staff):
+    """Catches bulk reopen leaving resolved rows hidden from retry triage."""
     for _ in range(2):
         rej = JobDeltaRejection.objects.create(reason="conflict", envelope={})
         rej.mark_resolved(staff)

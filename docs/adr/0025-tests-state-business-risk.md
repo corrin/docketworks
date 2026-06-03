@@ -1,42 +1,55 @@
-# 0025 — Tests State The Business Risk
+# 0025 — Every Test Guards Against A Plausible Regression
 
-Every automated test must name the business failure it catches.
+Every test must state what regression it catches and why that regression is plausible.
 
 ## Problem
 
-Low-value tests create drag: they lock implementation details, inflate change cost,
-and make engineers maintain assertions that do not protect users, money, data, or
-operations. This became visible when config-cleanup tests only proved that a
-mocked task branch read a new setting name.
+Tests that assert language or framework behavior waste time: they lock
+implementation details, inflate change cost, and make maintainers preserve
+assertions that protect nothing. A test proving that `x + x` returns `2*x`
+or that a `for` loop visits every element is testing Python — not our code.
+Python is not going to suddenly break.
 
 ## Decision
 
-Every test must include a docstring or nearby comment that states the business
-case it protects. If that business case cannot be articulated, delete the test
-instead of updating it.
+Every test must include a docstring or nearby comment that answers: **what
+change could a teammate make that this test would catch?**
 
-This applies to every test added or touched in a change. A class-level docstring
-is sufficient when all tests in that class protect the same business risk;
-otherwise the individual test needs its own nearby comment.
+If the answer is "Python, Django, etc" then delete the test.  We are testing our code only.
+
+A class-level docstring is sufficient when all tests in that class guard the
+same regression surface; but more commonly individual tests need their own comment.
+
+The regression surface can be anything our team might accidentally break: a
+calculation, a query shape, a response contract, a permission boundary, a data
+integrity invariant — whatever. The test checks the algorithm's contract (its
+inputs and observable outputs), not the implementation's internal mechanics.
+Asserting on implementation internals (e.g., `CaptureQueriesContext`, private
+method calls, branch coverage) is acceptable only when those internals
+themselves are the regression risk (an accidental N+1, for example) and no
+algorithmic-level test already covers the same risk.
+
+When reviewing an existing test, sort it into one of four outcomes:
+
+- **Good:** it already states a plausible regression and catches that regression.
+- **Needs comment:** it catches a plausible regression, but the regression is not
+  stated in a docstring or nearby comment.
+- **Rewrite:** it points at a plausible regression, but the test does not
+  actually catch that regression at the right boundary.
+- **Delete:** no plausible project regression can be named, or a better test
+  already covers the same risk.
 
 ## Why
 
-Tests are only valuable when they prevent a meaningful regression. Requiring the
-business risk in the test keeps coverage tied to observable system value: data
-integrity, customer workflows, accounting correctness, operational safety, or
-security. It also makes reviews faster because the reader can judge the test's
-worth without reverse-engineering intent from mocks.
-
-## Alternatives considered
-
-- **Coverage-count target:** easy to measure, but rewards shallow tests and makes
-  deletion politically harder even when the tests are noise.
-- **Reviewer judgment only:** flexible, but intent disappears after the review
-  and the next maintainer cannot tell whether a test protects behavior or just
-  an old implementation detail.
+Tests that cannot articulate a plausible regression are dead weight. They make
+changes harder without catching bugs. Requiring the regression to be stated
+makes review and deletion decisions straightforward: if you cannot name the
+breakage this guards against, the test is serving no one.
 
 ## Consequences
 
-Tests may be deleted during refactors when no business risk is clear. New tests
-carry a small writing cost, but the suite should be smaller, clearer, and more
-defensible.
+Tests may be deleted during refactors when no plausible regression can be
+articulated. New tests carry a small writing cost, but the suite should be
+smaller, clearer, and more defensible. Tests that guard the same regression
+through implementation internals while an algorithm-level test already covers
+it are redundant and should be removed.

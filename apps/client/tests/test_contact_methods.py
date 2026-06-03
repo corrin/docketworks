@@ -9,6 +9,7 @@ class ClientContactMethodTests(TestCase):
         return Client.objects.create(name=name, xero_last_modified=timezone.now())
 
     def test_phone_normalization_matches_nz_variants(self) -> None:
+        """Catches call matching failures when NZ local and E.164 numbers diverge."""
         self.assertEqual(
             ClientContactMethod.normalize_phone("+64 9 636 5131"),
             "+6496365131",
@@ -19,6 +20,7 @@ class ClientContactMethodTests(TestCase):
         )
 
     def test_primary_phone_is_single_per_client_owner(self) -> None:
+        """Catches multiple primary phone numbers being left on a client record."""
         client = self._client()
         first = ClientContactMethod.objects.create(
             client=client,
@@ -40,6 +42,7 @@ class ClientContactMethodTests(TestCase):
         self.assertTrue(second.is_primary)
 
     def test_primary_phone_is_single_per_contact_owner(self) -> None:
+        """Catches multiple primary phone numbers being left on a contact record."""
         client = self._client()
         contact = ClientContact.objects.create(client=client, name="Jane Smith")
         first = ClientContactMethod.objects.create(

@@ -90,6 +90,7 @@ class KanbanSearchTest(BaseTestCase):
         )
 
     def test_perform_advanced_search_matches_single_token_job_name_substring(self):
+        """Catches quick search no longer finding job-name substrings."""
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
             client_name="Weaver, Decker and Schultz",
@@ -104,6 +105,9 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_preloads_serialize_job_relations(self):
+        """
+        Catches search results that would lazy-load relations during API serialization.
+        """
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
             client_name="Weaver, Decker and Schultz",
@@ -123,6 +127,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(relation_queries, [])
 
     def test_perform_advanced_search_preloads_quote_for_ranking(self):
+        """Catches quote ranking that re-queries quotes per candidate job."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -148,6 +153,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(direct_quote_queries, [])
 
     def test_perform_advanced_search_matches_quote_number(self):
+        """Catches quote-number search no longer finding the owning job."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -166,6 +172,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_matches_numeric_substring(self):
+        """Catches numeric quick search no longer matching job descriptions."""
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
             client_name="Weaver, Decker and Schultz",
@@ -180,6 +187,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_numeric_query_prefers_job_number_over_long_description_substring(self):
+        """Catches job-number matches being buried under description substrings."""
         target = self._set_job_number(
             self._make_job(
                 name="Workshop Closed due to new roof",
@@ -206,6 +214,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertIn(description_match.id, [job.id for job in jobs])
 
     def test_get_jobs_by_kanban_column_exact_job_number_suppresses_distant_noise(self):
+        """Catches exact job-number filtering returning nearby numeric noise."""
         target = self._set_job_number(
             self._make_job(
                 name="Best matching job",
@@ -240,6 +249,7 @@ class KanbanSearchTest(BaseTestCase):
     def test_perform_advanced_search_keeps_plausible_short_job_number_match(
         self,
     ):
+        """Catches short job-number suffix searches being over-pruned."""
         near_match = self._set_job_number(
             self._make_job(
                 name="Best approximate job",
@@ -258,6 +268,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertIn(near_match.id, [job.id for job in jobs])
 
     def test_numeric_query_prefers_job_number_suffix_over_middle_substring(self):
+        """Catches suffix job-number matches losing to less useful middle matches."""
         suffix_match = self._set_job_number(
             self._make_job(
                 name="Suffix match",
@@ -287,6 +298,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertLess(middle_score, suffix_score)
 
     def test_perform_advanced_search_keeps_multiple_close_text_matches(self):
+        """Catches text search collapsing distinct plausible job matches."""
         target_one = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -305,6 +317,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual({job.id for job in jobs}, {target_one.id, target_two.id})
 
     def test_perform_advanced_search_matches_client_tokens_in_any_order(self):
+        """Catches client-name token search becoming order-sensitive."""
         target = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -323,6 +336,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_matches_contact_name_substring(self):
+        """Catches contact-name search no longer matching partial names."""
         target = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -339,6 +353,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_get_jobs_by_kanban_column_matches_client_tokens_in_any_order(self):
+        """Catches kanban column search ignoring unordered client-name tokens."""
         target = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -358,6 +373,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job["id"] for job in result["jobs"]], [str(target.id)])
 
     def test_perform_advanced_search_returns_empty_when_query_not_present(self):
+        """Catches unrelated jobs being returned for absent search terms."""
         self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
             client_name="Weaver, Decker and Schultz",
@@ -370,6 +386,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(jobs, [])
 
     def test_perform_advanced_search_returns_empty_for_only_weak_trigram_matches(self):
+        """Catches weak fuzzy matches leaking below the display threshold."""
         weak_match = self._make_job(
             name="5x swaged ends",
             client_name="Other Client",
@@ -388,6 +405,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(ranked_jobs, [])
 
     def test_perform_advanced_search_recovers_typo_tolerance(self):
+        """Catches typo tolerance no longer recovering misspelled client searches."""
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
             client_name="Weaver, Decker and Schultz",
@@ -402,6 +420,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_get_jobs_by_kanban_column_recovers_typo_tolerance(self):
+        """Catches kanban column search losing typo tolerance."""
         target = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -416,6 +435,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job["id"] for job in result["jobs"]], [str(target.id)])
 
     def test_perform_advanced_search_does_not_fuzzy_match_invoice_numbers(self):
+        """Catches invoice searches fuzzily matching the wrong invoice."""
         target = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -434,6 +454,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(jobs, [])
 
     def test_perform_advanced_search_matches_invoice_number_exactly_via_filter(self):
+        """Catches the invoice filter failing to match a full invoice number."""
         target = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -452,6 +473,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_matches_bare_invoice_number(self):
+        """Catches the invoice filter failing to match bare invoice digits."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -470,6 +492,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_unrecognised_invoice_returns_empty(self):
+        """Catches invalid invoice filters returning unrelated jobs."""
         target = self._make_job(
             name="Kick plates",
             client_name="Weaver, Decker and Schultz",
@@ -483,6 +506,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual(jobs, [])
 
     def test_perform_advanced_search_quick_search_matches_order_number(self):
+        """Catches universal search no longer matching order numbers."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -499,6 +523,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_order_number_filter(self):
+        """Catches the explicit order-number filter returning the wrong job."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -515,6 +540,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_quick_search_matches_invoice_number(self):
+        """Catches universal search no longer matching full invoice numbers."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -533,6 +559,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_quick_search_matches_bare_invoice_number(self):
+        """Catches universal search no longer matching bare invoice digits."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -553,6 +580,7 @@ class KanbanSearchTest(BaseTestCase):
     def test_perform_advanced_search_invoice_match_returns_job_once_with_multiple_invoices(
         self,
     ):
+        """Catches invoice joins duplicating jobs with multiple matching invoices."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -569,6 +597,7 @@ class KanbanSearchTest(BaseTestCase):
     def test_perform_advanced_search_text_match_returns_job_once_with_multiple_invoices(
         self,
     ):
+        """Catches text search duplicating jobs that have multiple invoices."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -581,6 +610,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_invoice_reason_present(self):
+        """Catches invoice matches losing their explainable search reason."""
         target = self._make_job(
             name="Cool Awnings",
             client_name="Cool Awnings Ltd",
@@ -597,6 +627,7 @@ class KanbanSearchTest(BaseTestCase):
         self.assertIn("invoice_contains", reason_names)
 
     def test_kanban_search_logging_records_ranked_results_and_reasons(self):
+        """Catches search logs losing ranked result and scoring diagnostics."""
         target = self._set_job_number(
             self._make_job(
                 name="Workshop Closed due to new roof",
