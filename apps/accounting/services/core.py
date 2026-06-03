@@ -5,6 +5,7 @@ from datetime import date, timedelta
 from decimal import Decimal
 from logging import getLogger
 from typing import Any, Dict, List, Optional, Tuple
+from uuid import UUID
 from zoneinfo import ZoneInfo
 
 import holidays
@@ -1200,6 +1201,7 @@ class StaffPerformanceService:
 
             staff_data = []
             include_job_breakdown = staff_id is not None
+            shop_client_id = CompanyDefaults.get_solo().shop_client_id
 
             lines_by_staff_id: Dict[str, List[CostLine]] = {}
             for line in cost_lines:
@@ -1211,7 +1213,10 @@ class StaffPerformanceService:
             for staff in all_staff:
                 staff_cost_lines = lines_by_staff_id.get(str(staff.id), [])
                 staff_metrics = StaffPerformanceService._calculate_staff_metrics(
-                    staff, staff_cost_lines, include_job_breakdown
+                    staff,
+                    staff_cost_lines,
+                    include_job_breakdown,
+                    shop_client_id,
                 )
                 # Only include staff with recorded hours in the period
                 if staff_metrics["total_hours"] > 0:
@@ -1253,7 +1258,10 @@ class StaffPerformanceService:
 
     @staticmethod
     def _calculate_staff_metrics(
-        staff: Staff, cost_lines: List[CostLine], include_job_breakdown: bool = False
+        staff: Staff,
+        cost_lines: List[CostLine],
+        include_job_breakdown: bool = False,
+        shop_client_id: UUID | None = None,
     ) -> Dict[str, Any]:
         """
         Calculate performance metrics for a single staff member.
@@ -1267,8 +1275,8 @@ class StaffPerformanceService:
             Dict containing staff performance metrics
         """
         total_hours = float(sum(line.quantity for line in cost_lines))
-        defaults = CompanyDefaults.get_solo()
-        shop_client_id = defaults.shop_client_id
+        if shop_client_id is None:
+            shop_client_id = CompanyDefaults.get_solo().shop_client_id
 
         billable_hours = float(
             sum(
@@ -1310,13 +1318,19 @@ class StaffPerformanceService:
 
         # Add job breakdown if requested
         if include_job_breakdown:
-            job_breakdown = StaffPerformanceService._calculate_job_breakdown(cost_lines)
+            job_breakdown = StaffPerformanceService._calculate_job_breakdown(
+                cost_lines,
+                shop_client_id,
+            )
             staff_metrics["job_breakdown"] = job_breakdown
 
         return staff_metrics
 
     @staticmethod
-    def _calculate_job_breakdown(cost_lines: models.QuerySet) -> List[Dict[str, Any]]:
+    def _calculate_job_breakdown(
+        cost_lines: models.QuerySet,
+        shop_client_id: UUID | None = None,
+    ) -> List[Dict[str, Any]]:
         """
         Calculate job-level breakdown for cost lines.
 
@@ -1327,8 +1341,8 @@ class StaffPerformanceService:
             List of job breakdown dictionaries
         """
         job_data = {}
-        defaults = CompanyDefaults.get_solo()
-        shop_client_id = defaults.shop_client_id
+        if shop_client_id is None:
+            shop_client_id = CompanyDefaults.get_solo().shop_client_id
 
         for line in cost_lines:
             job = line.cost_set.job
