@@ -1,7 +1,5 @@
 <template>
   <AppLayout>
-    <RouterView v-if="isChildActive" />
-    <template v-else>
     <div class="p-4 md:p-8 space-y-4">
       <div class="flex items-center justify-between">
         <h1 class="text-xl font-bold flex items-center gap-2">
@@ -114,12 +112,18 @@
         />
       </div>
     </div>
-  </template>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { useRoute, useRouter } from 'vue-router'
+import { debugLog } from '@/utils/debug'
+
+import AppLayout from '@/components/AppLayout.vue'
+import { Button } from '@/components/ui/button'
+import { FileText, Pencil, Trash2, PlusCircle, FileSpreadsheet, Search } from 'lucide-vue-next'
+import { usePurchaseOrderStore } from '@/stores/purchaseOrderStore'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRouter } from 'vue-router'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import { toast } from 'vue-sonner'
 import { schemas } from '@/api/generated/api'
@@ -127,9 +131,7 @@ import { schemas } from '@/api/generated/api'
 const statusOptions = schemas.PurchaseOrderDetailStatusEnum.options
 type PurchaseOrderStatus = (typeof statusOptions)[number]
 
-const route = useRoute()
 const router = useRouter()
-const isChildActive = computed(() => route.path !== '/purchasing/po')
 const store = usePurchaseOrderStore()
 const orders = computed(() => store.orders)
 

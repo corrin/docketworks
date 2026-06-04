@@ -1,7 +1,5 @@
 <template>
   <AppLayout>
-    <RouterView v-if="isChildActive" />
-    <template v-else>
     <div class="p-4 md:p-8 space-y-4">
       <!-- Header -->
       <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -166,13 +164,12 @@
       @close="isCreateModalOpen = false"
       @client-created="handleClientCreated"
     />
-  </template>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted, computed } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { ref, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import { useClientStore } from '@/stores/clientStore'
 import { useDebounceFn } from '@vueuse/core'
 import AppLayout from '@/components/AppLayout.vue'
@@ -191,9 +188,7 @@ import {
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 
-const route = useRoute()
 const router = useRouter()
-const isChildActive = computed(() => route.path !== '/crm/clients')
 const clientStore = useClientStore()
 
 // Local state
