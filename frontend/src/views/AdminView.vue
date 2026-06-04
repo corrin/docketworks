@@ -15,7 +15,7 @@
       <ul class="tab-list">
         <li v-for="tab in tabs" :key="tab.key">
           <RouterLink
-            :to="{ name: tab.route as never }"
+            :to="tab.path"
             class="tab-link"
             :class="isActive(tab.key) ? 'tab-link--active' : ''"
           >
@@ -79,7 +79,7 @@ const tabs = computed(() =>
   adminPages.map((page) => ({
     key: page.key,
     label: page.label,
-    route: page.name,
+    path: `/admin/${page.key}`,
     icon: page.icon,
   })),
 )

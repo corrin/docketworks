@@ -928,16 +928,17 @@ function navigateToDeliveryReceipt(purchaseOrderId: string) {
 }
 
 function navigateToTimesheet(staffId: string, date?: string) {
-  const routeParams = {
-    name: '/timesheets/entry',
-    query: { staffId },
-  } as { name: string; query: { staffId: string; date?: string } }
-
   if (date) {
-    routeParams.query.date = date
+    router.push({
+      name: '/timesheets/entry',
+      query: { staffId, date },
+    })
+  } else {
+    router.push({
+      name: '/timesheets/entry',
+      query: { staffId },
+    })
   }
-
-  router.push(routeParams as never)
 }
 
 // TODO: add better navigation flow with front-end path parameter to prepopulate the search bar with the stock name
