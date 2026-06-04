@@ -193,10 +193,7 @@ import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()
-const isChildActive = computed(() => {
-  const name = route.name as string
-  return name && !name.endsWith('(index)')
-})
+const isChildActive = computed(() => route.path !== '/crm/clients')
 const clientStore = useClientStore()
 
 // Local state

@@ -328,10 +328,7 @@ import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()
-const isChildActive = computed(() => {
-  const name = route.name as string
-  return name && !name.endsWith('(index)')
-})
+const isChildActive = computed(() => !route.path.match(/^\/jobs\/[a-f0-9-]+$/))
 const jobsStore = useJobsStore()
 const jobId = computed(() => route.params.id as string)
 const loadingJob = ref(false)

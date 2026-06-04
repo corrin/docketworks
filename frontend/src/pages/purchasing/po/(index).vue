@@ -129,10 +129,7 @@ type PurchaseOrderStatus = (typeof statusOptions)[number]
 
 const route = useRoute()
 const router = useRouter()
-const isChildActive = computed(() => {
-  const name = route.name as string
-  return name && !name.endsWith('(index)')
-})
+const isChildActive = computed(() => route.path !== '/purchasing/po')
 const store = usePurchaseOrderStore()
 const orders = computed(() => store.orders)
 
