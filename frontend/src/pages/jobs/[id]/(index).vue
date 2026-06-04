@@ -1,5 +1,7 @@
 <template>
   <AppLayout>
+    <RouterView v-if="route.matched.length > 1" />
+    <template v-else>
     <div class="flex flex-col h-full min-h-0">
       <div class="flex-shrink-0 bg-white border-b border-gray-200 px-4 py-6 md:px-6 md:py-8">
         <div class="md:hidden">
@@ -296,6 +298,7 @@
         @update:open="showPdfDialog = $event"
       />
     </div>
+  </template>
   </AppLayout>
 </template>
 

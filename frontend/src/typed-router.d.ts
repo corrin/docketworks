@@ -14,14 +14,11 @@ import type {
   ParamValueZeroOrMore,
   ParamValueZeroOrOne,
 } from 'vue-router'
-import type {
-  _ExtractParamParserType,
-} from 'vue-router/experimental'
+import type { _ExtractParamParserType } from 'vue-router/experimental'
 
 declare module 'vue-router' {
   interface TypesConfig {
-    ParamParsers:
-      | never
+    ParamParsers: never
     RouteNamedMap: import('vue-router/auto-routes').RouteNamedMap
   }
 }
@@ -36,246 +33,234 @@ declare module 'vue-router/auto-routes' {
       '/crm/calls',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/crm/clients/(index)': RouteRecordInfo<
       '/crm/clients/(index)',
       '/crm/clients',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/crm/clients/[id]': RouteRecordInfo<
       '/crm/clients/[id]',
       '/crm/clients/:id',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
-      | never
-    >,
+      never
+    >
     '/jobs/[id]/(index)': RouteRecordInfo<
       '/jobs/[id]/(index)',
       '/jobs/:id',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
-      | never
-    >,
+      never
+    >
     '/jobs/[id]/workshop': RouteRecordInfo<
       '/jobs/[id]/workshop',
       '/jobs/:id/workshop',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
-      | never
-    >,
+      never
+    >
     '/jobs/create': RouteRecordInfo<
       '/jobs/create',
       '/jobs/create',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/kanban': RouteRecordInfo<
       '/kanban',
       '/kanban',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
-    '/login': RouteRecordInfo<
-      '/login',
-      '/login',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
+      never
+    >
+    '/login': RouteRecordInfo<'/login', '/login', Record<never, never>, Record<never, never>, never>
     '/purchasing/mappings': RouteRecordInfo<
       '/purchasing/mappings',
       '/purchasing/mappings',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/purchasing/po/(index)': RouteRecordInfo<
       '/purchasing/po/(index)',
       '/purchasing/po',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/purchasing/po/[id]': RouteRecordInfo<
       '/purchasing/po/[id]',
       '/purchasing/po/:id',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
-      | never
-    >,
+      never
+    >
     '/purchasing/po/create': RouteRecordInfo<
       '/purchasing/po/create',
       '/purchasing/po/create',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/purchasing/po/create-from-quote': RouteRecordInfo<
       '/purchasing/po/create-from-quote',
       '/purchasing/po/create-from-quote',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/purchasing/pricing': RouteRecordInfo<
       '/purchasing/pricing',
       '/purchasing/pricing',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/purchasing/stock': RouteRecordInfo<
       '/purchasing/stock',
       '/purchasing/stock',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/quoting/chat': RouteRecordInfo<
       '/quoting/chat',
       '/quoting/chat',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/data-quality/archived-jobs': RouteRecordInfo<
       '/reports/data-quality/archived-jobs',
       '/reports/data-quality/archived-jobs',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/job-aging': RouteRecordInfo<
       '/reports/job-aging',
       '/reports/job-aging',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/job-movement': RouteRecordInfo<
       '/reports/job-movement',
       '/reports/job-movement',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/job-profitability': RouteRecordInfo<
       '/reports/job-profitability',
       '/reports/job-profitability',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/kpi': RouteRecordInfo<
       '/reports/kpi',
       '/reports/kpi',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/payroll-reconciliation': RouteRecordInfo<
       '/reports/payroll-reconciliation',
       '/reports/payroll-reconciliation',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/profit-and-loss': RouteRecordInfo<
       '/reports/profit-and-loss',
       '/reports/profit-and-loss',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/rdti-spend': RouteRecordInfo<
       '/reports/rdti-spend',
       '/reports/rdti-spend',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/sales-forecast': RouteRecordInfo<
       '/reports/sales-forecast',
       '/reports/sales-forecast',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/sales-pipeline': RouteRecordInfo<
       '/reports/sales-pipeline',
       '/reports/sales-pipeline',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/staff-performance': RouteRecordInfo<
       '/reports/staff-performance',
       '/reports/staff-performance',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/reports/wip': RouteRecordInfo<
       '/reports/wip',
       '/reports/wip',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/schedule': RouteRecordInfo<
       '/schedule',
       '/schedule',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/session-check': RouteRecordInfo<
       '/session-check',
       '/session-check',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/timesheets/daily': RouteRecordInfo<
       '/timesheets/daily',
       '/timesheets/daily',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/timesheets/entry': RouteRecordInfo<
       '/timesheets/entry',
       '/timesheets/entry',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/timesheets/my-time': RouteRecordInfo<
       '/timesheets/my-time',
       '/timesheets/my-time',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
+      never
+    >
     '/timesheets/weekly': RouteRecordInfo<
       '/timesheets/weekly',
       '/timesheets/weekly',
       Record<never, never>,
       Record<never, never>,
-      | never
-    >,
-    '/xero': RouteRecordInfo<
-      '/xero',
-      '/xero',
-      Record<never, never>,
-      Record<never, never>,
-      | never
-    >,
+      never
+    >
+    '/xero': RouteRecordInfo<'/xero', '/xero', Record<never, never>, Record<never, never>, never>
   }
 
   /**
@@ -290,214 +275,144 @@ declare module 'vue-router/auto-routes' {
    */
   export interface _RouteFileInfoMap {
     'src/pages/crm/calls.vue': {
-      routes:
-        | '/crm/calls'
-      views:
-        | never
+      routes: '/crm/calls'
+      views: never
     }
     'src/pages/crm/clients/(index).vue': {
-      routes:
-        | '/crm/clients/(index)'
-      views:
-        | never
+      routes: '/crm/clients/(index)'
+      views: never
     }
     'src/pages/crm/clients/[id].vue': {
-      routes:
-        | '/crm/clients/[id]'
-      views:
-        | never
+      routes: '/crm/clients/[id]'
+      views: never
     }
     'src/pages/jobs/[id]/(index).vue': {
-      routes:
-        | '/jobs/[id]/(index)'
-      views:
-        | never
+      routes: '/jobs/[id]/(index)'
+      views: never
     }
     'src/pages/jobs/[id]/workshop.vue': {
-      routes:
-        | '/jobs/[id]/workshop'
-      views:
-        | never
+      routes: '/jobs/[id]/workshop'
+      views: never
     }
     'src/pages/jobs/create.vue': {
-      routes:
-        | '/jobs/create'
-      views:
-        | never
+      routes: '/jobs/create'
+      views: never
     }
     'src/pages/kanban.vue': {
-      routes:
-        | '/kanban'
-      views:
-        | never
+      routes: '/kanban'
+      views: never
     }
     'src/pages/login.vue': {
-      routes:
-        | '/login'
-      views:
-        | never
+      routes: '/login'
+      views: never
     }
     'src/pages/purchasing/mappings.vue': {
-      routes:
-        | '/purchasing/mappings'
-      views:
-        | never
+      routes: '/purchasing/mappings'
+      views: never
     }
     'src/pages/purchasing/po/(index).vue': {
-      routes:
-        | '/purchasing/po/(index)'
-      views:
-        | never
+      routes: '/purchasing/po/(index)'
+      views: never
     }
     'src/pages/purchasing/po/[id].vue': {
-      routes:
-        | '/purchasing/po/[id]'
-      views:
-        | never
+      routes: '/purchasing/po/[id]'
+      views: never
     }
     'src/pages/purchasing/po/create.vue': {
-      routes:
-        | '/purchasing/po/create'
-      views:
-        | never
+      routes: '/purchasing/po/create'
+      views: never
     }
     'src/pages/purchasing/po/create-from-quote.vue': {
-      routes:
-        | '/purchasing/po/create-from-quote'
-      views:
-        | never
+      routes: '/purchasing/po/create-from-quote'
+      views: never
     }
     'src/pages/purchasing/pricing.vue': {
-      routes:
-        | '/purchasing/pricing'
-      views:
-        | never
+      routes: '/purchasing/pricing'
+      views: never
     }
     'src/pages/purchasing/stock.vue': {
-      routes:
-        | '/purchasing/stock'
-      views:
-        | never
+      routes: '/purchasing/stock'
+      views: never
     }
     'src/pages/quoting/chat.vue': {
-      routes:
-        | '/quoting/chat'
-      views:
-        | never
+      routes: '/quoting/chat'
+      views: never
     }
     'src/pages/reports/data-quality/archived-jobs.vue': {
-      routes:
-        | '/reports/data-quality/archived-jobs'
-      views:
-        | never
+      routes: '/reports/data-quality/archived-jobs'
+      views: never
     }
     'src/pages/reports/job-aging.vue': {
-      routes:
-        | '/reports/job-aging'
-      views:
-        | never
+      routes: '/reports/job-aging'
+      views: never
     }
     'src/pages/reports/job-movement.vue': {
-      routes:
-        | '/reports/job-movement'
-      views:
-        | never
+      routes: '/reports/job-movement'
+      views: never
     }
     'src/pages/reports/job-profitability.vue': {
-      routes:
-        | '/reports/job-profitability'
-      views:
-        | never
+      routes: '/reports/job-profitability'
+      views: never
     }
     'src/pages/reports/kpi.vue': {
-      routes:
-        | '/reports/kpi'
-      views:
-        | never
+      routes: '/reports/kpi'
+      views: never
     }
     'src/pages/reports/payroll-reconciliation.vue': {
-      routes:
-        | '/reports/payroll-reconciliation'
-      views:
-        | never
+      routes: '/reports/payroll-reconciliation'
+      views: never
     }
     'src/pages/reports/profit-and-loss.vue': {
-      routes:
-        | '/reports/profit-and-loss'
-      views:
-        | never
+      routes: '/reports/profit-and-loss'
+      views: never
     }
     'src/pages/reports/rdti-spend.vue': {
-      routes:
-        | '/reports/rdti-spend'
-      views:
-        | never
+      routes: '/reports/rdti-spend'
+      views: never
     }
     'src/pages/reports/sales-forecast.vue': {
-      routes:
-        | '/reports/sales-forecast'
-      views:
-        | never
+      routes: '/reports/sales-forecast'
+      views: never
     }
     'src/pages/reports/sales-pipeline.vue': {
-      routes:
-        | '/reports/sales-pipeline'
-      views:
-        | never
+      routes: '/reports/sales-pipeline'
+      views: never
     }
     'src/pages/reports/staff-performance.vue': {
-      routes:
-        | '/reports/staff-performance'
-      views:
-        | never
+      routes: '/reports/staff-performance'
+      views: never
     }
     'src/pages/reports/wip.vue': {
-      routes:
-        | '/reports/wip'
-      views:
-        | never
+      routes: '/reports/wip'
+      views: never
     }
     'src/pages/schedule.vue': {
-      routes:
-        | '/schedule'
-      views:
-        | never
+      routes: '/schedule'
+      views: never
     }
     'src/pages/session-check.vue': {
-      routes:
-        | '/session-check'
-      views:
-        | never
+      routes: '/session-check'
+      views: never
     }
     'src/pages/timesheets/daily.vue': {
-      routes:
-        | '/timesheets/daily'
-      views:
-        | never
+      routes: '/timesheets/daily'
+      views: never
     }
     'src/pages/timesheets/entry.vue': {
-      routes:
-        | '/timesheets/entry'
-      views:
-        | never
+      routes: '/timesheets/entry'
+      views: never
     }
     'src/pages/timesheets/my-time.vue': {
-      routes:
-        | '/timesheets/my-time'
-      views:
-        | never
+      routes: '/timesheets/my-time'
+      views: never
     }
     'src/pages/timesheets/weekly.vue': {
-      routes:
-        | '/timesheets/weekly'
-      views:
-        | never
+      routes: '/timesheets/weekly'
+      views: never
     }
     'src/pages/xero.vue': {
-      routes:
-        | '/xero'
-      views:
-        | never
+      routes: '/xero'
+      views: never
     }
   }
 
@@ -508,9 +423,7 @@ declare module 'vue-router/auto-routes' {
    * @internal
    */
   export type _RouteNamesForFilePath<FilePath extends string> =
-    _RouteFileInfoMap extends Record<FilePath, infer Info>
-      ? Info['routes']
-      : keyof RouteNamedMap
+    _RouteFileInfoMap extends Record<FilePath, infer Info> ? Info['routes'] : keyof RouteNamedMap
 }
 
 export {}
