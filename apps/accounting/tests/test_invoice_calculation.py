@@ -4,12 +4,15 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+from django.db import connection
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounting.models.invoice import Invoice
 from apps.accounting.services.invoice_calculation import (
     InvoiceCalculationError,
     calculate_invoice_amount,
+    get_job_for_invoice_calculation,
     get_prior_valid_invoice_total,
 )
 from apps.client.models import Client
@@ -208,3 +211,23 @@ class TestInvoiceCalculation(BaseTestCase):
         self._create_invoice(job, Decimal("500"), status="DELETED")
         total = get_prior_valid_invoice_total(job)
         self.assertEqual(total, Decimal("1000"))
+
+    def test_preloaded_job_calculates_without_lazy_loading_cost_lines(self):
+        """Xero invoice creation preloads CostSet lines before calculation."""
+        job = self._create_job("time_materials")
+        self._add_revenue_line(job.latest_actual, Decimal("250"))
+        self._add_revenue_line(job.latest_actual, Decimal("750"))
+        loaded_job = get_job_for_invoice_calculation(job.id)
+
+        with CaptureQueriesContext(connection) as captured:
+            result = calculate_invoice_amount(
+                loaded_job,
+                mode="invoice_costs_to_date",
+            )
+
+        cost_line_queries = [
+            query["sql"] for query in captured if 'FROM "job_costline"' in query["sql"]
+        ]
+
+        self.assertEqual(cost_line_queries, [])
+        self.assertEqual(result.target_total, Decimal("1000.000"))

@@ -10,6 +10,7 @@ try:
             InvoiceCalculationError,
             InvoiceCalculationResult,
             calculate_invoice_amount,
+            get_job_for_invoice_calculation,
             get_prior_valid_invoice_total,
         )
         from .payroll_reconciliation_service import PayrollReconciliationService
@@ -31,5 +32,6 @@ __all__ = [
     "StaffPerformanceService",
     "WIPService",
     "calculate_invoice_amount",
+    "get_job_for_invoice_calculation",
     "get_prior_valid_invoice_total",
 ]
