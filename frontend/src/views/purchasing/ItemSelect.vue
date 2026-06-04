@@ -6,6 +6,7 @@ import { Button } from '../../components/ui/button'
 import { useStockStore, type StockItem } from '../../stores/stockStore'
 import { useCompanyDefaultsStore } from '../../stores/companyDefaults'
 import { api } from '@/api/client'
+import { logSearchResultClick } from '@/services/searchTelemetry.service'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatCurrency } from '@/utils/string-formatting'
@@ -171,6 +172,20 @@ function handleSelectedValue(val: string | null): void {
 
   emit('selectedItem', found ?? null)
   if (found) {
+    const rank = serverResults.value.findIndex((i: StockItem) => i.id === found.id)
+    void logSearchResultClick({
+      domain: 'stock',
+      query: searchTerm.value,
+      selectedResultId: found.id,
+      selectedLabel: found.item_code || found.description || '',
+      selectedRank: rank >= 0 ? rank + 1 : null,
+      resultCount: serverResults.value.length,
+      source: 'item_select',
+      metadata: {
+        item_code: found.item_code,
+        description: found.description,
+      },
+    })
     emit('update:description', found.description || '')
     emit('update:unit_cost', found.unit_cost || null)
     emit('update:kind', 'material')

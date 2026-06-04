@@ -7241,6 +7241,34 @@ paths:
               schema:
                 $ref: '#/components/schemas/AppErrorListResponse'
           description: ''
+  /api/search-events/click/:
+    post:
+      operationId: search_events_click_create
+      description: Records a selected result from client, Kanban, or stock search.
+      summary: Log search result selection
+      tags:
+        - Search telemetry
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchTelemetryClickRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/SearchTelemetryClickRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/SearchTelemetryClickRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchTelemetryClickResponse'
+          description: ''
   /api/session-replays/frontend-errors/:
     post:
       operationId: session_replay_frontend_errors_create
@@ -11500,6 +11528,16 @@ components:
         - deletions_count
         - total_changes
         - updates_count
+    DomainEnum:
+      enum:
+        - client
+        - kanban
+        - stock
+      type: string
+      description: |-
+        * `client` - Client
+        * `kanban` - Kanban
+        * `stock` - Stock
     DraftLine:
       type: object
       description: Serializer for draft line data.
@@ -18761,6 +18799,49 @@ components:
         - id
         - result
         - task_id
+    SearchTelemetryClickRequestRequest:
+      type: object
+      description: Generic search result selection telemetry.
+      properties:
+        domain:
+          $ref: '#/components/schemas/DomainEnum'
+        query:
+          type: string
+          maxLength: 255
+        selected_result_id:
+          type: string
+          minLength: 1
+          maxLength: 255
+        selected_label:
+          type: string
+          default: ''
+          maxLength: 255
+        selected_rank:
+          type: integer
+          minimum: 1
+          nullable: true
+        result_count:
+          type: integer
+          minimum: 0
+          default: 0
+        source:
+          type: string
+          default: ''
+          maxLength: 100
+        filters: {}
+        metadata: {}
+      required:
+        - domain
+        - query
+        - selected_result_id
+    SearchTelemetryClickResponse:
+      type: object
+      description: Acknowledgement for generic search result selection telemetry.
+      properties:
+        success:
+          type: boolean
+      required:
+        - success
     SessionReplayChunk:
       type: object
       properties:

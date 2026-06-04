@@ -13,7 +13,7 @@ from apps.client.models import Client, ClientContact
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
-from apps.workflow.models import XeroPayItem
+from apps.workflow.models import SearchTelemetryEvent, XeroPayItem
 
 
 class KanbanSearchTest(BaseTestCase):
@@ -668,6 +668,15 @@ class KanbanSearchTest(BaseTestCase):
 
         reasons = payload["results"][0]["search_reasons"]
         self.assertIn("tokens", reasons)
+
+        event = SearchTelemetryEvent.objects.get(
+            event_type=SearchTelemetryEvent.EventType.SEARCH,
+            domain=SearchTelemetryEvent.Domain.KANBAN,
+        )
+        self.assertEqual(event.query, "977")
+        self.assertEqual(event.result_count, len(jobs))
+        self.assertEqual(event.returned_result_ids[0], str(target.id))
+        self.assertEqual(event.metadata["results"][0]["job_id"], str(target.id))
         self.assertGreater(len(reasons["tokens"]), 0)
         first_token = reasons["tokens"][0]
         self.assertEqual(first_token["token"], "977")

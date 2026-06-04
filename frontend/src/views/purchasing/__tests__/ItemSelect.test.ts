@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
+const { logSearchResultClick } = vi.hoisted(() => ({
+  logSearchResultClick: vi.fn(),
+}))
+
 vi.mock('@/api/client', () => ({
   api: {
     purchasing_stock_search_retrieve: vi.fn(),
@@ -10,6 +14,10 @@ vi.mock('@/api/client', () => ({
 
 vi.mock('@/utils/string-formatting', () => ({
   formatCurrency: (n: number | null | undefined) => `$${(n ?? 0).toFixed(2)}`,
+}))
+
+vi.mock('@/services/searchTelemetry.service', () => ({
+  logSearchResultClick,
 }))
 
 vi.mock('../../../components/ui/popover', () => ({
@@ -271,6 +279,44 @@ describe('ItemSelect server-side search and rendering', () => {
     expect(purchasing_stock_search_retrieve).toHaveBeenCalledWith({
       queries: { q: 'stainless', page: 1, page_size: 50 },
     })
+
+    vi.useRealTimers()
+  })
+
+  it('logs selected stock search result with visible rank', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    purchasing_stock_search_retrieve.mockResolvedValue({
+      results: [buildStockItem({ id: 's1', item_code: 'CODE' })],
+      count: 1,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    })
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate' },
+    })
+    await flushPromises()
+
+    await wrapper.find('input').setValue('sheet')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    await wrapper.find('[data-automation-id="ItemSelect-option-CODE"]').trigger('click')
+
+    expect(logSearchResultClick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'stock',
+        query: 'sheet',
+        selectedResultId: 's1',
+        selectedLabel: 'CODE',
+        selectedRank: 1,
+        resultCount: 1,
+        source: 'item_select',
+      }),
+    )
 
     vi.useRealTimers()
   })

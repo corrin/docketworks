@@ -12,6 +12,7 @@ import type { StatusChoice } from '../constants/job-status'
 import { debugLog } from '../utils/debug'
 import type { z } from 'zod'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+import { logSearchResultClick } from '@/services/searchTelemetry.service'
 
 // Type aliases for better readability
 type KanbanJob = z.infer<typeof schemas.KanbanJob>
@@ -1024,7 +1025,39 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
     // TODO: Implement pagination
   }
 
+  const activeKanbanSearchFilters = (): Record<string, unknown> => {
+    const filters: Record<string, unknown> = {}
+    Object.entries(advancedFilters.value).forEach(([key, value]) => {
+      if (value !== '' && value !== null && (!Array.isArray(value) || value.length > 0)) {
+        filters[key] = value
+      }
+    })
+    if (activeStaffFilters.value.length > 0) {
+      filters.staff_ids = [...activeStaffFilters.value]
+    }
+    return filters
+  }
+
   const viewJob = (job: KanbanJob): void => {
+    if (isSearchActive.value) {
+      const rank = filteredJobs.value.findIndex((filteredJob) => filteredJob.id === job.id)
+      const filters = activeKanbanSearchFilters()
+      void logSearchResultClick({
+        domain: 'kanban',
+        query: searchQuery.value || String(advancedFilters.value.q || ''),
+        selectedResultId: job.id,
+        selectedLabel: `#${job.job_number} ${job.name || ''}`.trim(),
+        selectedRank: rank >= 0 ? rank + 1 : null,
+        resultCount: filteredJobs.value.length,
+        source: searchQuery.value.trim() ? 'kanban_quick_search' : 'kanban_advanced_search',
+        filters,
+        metadata: {
+          job_number: job.job_number,
+          status: job.status,
+          client_name: job.client_name,
+        },
+      })
+    }
     router.push(`/jobs/${job.id}`)
   }
 

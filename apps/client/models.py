@@ -153,6 +153,11 @@ class Client(models.Model):
                 SearchVector("name", config="english"),
                 name="client_name_fts_idx",
             ),
+            GinIndex(
+                fields=["name"],
+                name="client_name_trgm_idx",
+                opclasses=["gin_trgm_ops"],
+            ),
         ]
 
     def __str__(self):

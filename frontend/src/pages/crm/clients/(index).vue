@@ -118,10 +118,10 @@
             </thead>
             <tbody>
               <tr
-                v-for="client in clientStore.clients"
+                v-for="(client, index) in clientStore.clients"
                 :key="client.id"
                 class="border-b hover:bg-slate-50 cursor-pointer transition-colors"
-                @click="navigateToClient(client.id)"
+                @click="navigateToClient(client, index + 1)"
               >
                 <td class="p-3 font-medium text-gray-900">
                   {{ client.name }}
@@ -171,6 +171,8 @@
 import { ref, watch, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useClientStore } from '@/stores/clientStore'
+import { logClientSearchClick } from '@/composables/useClientLookup'
+import type { Client } from '@/composables/useClientLookup'
 import { useDebounceFn } from '@vueuse/core'
 import AppLayout from '@/components/AppLayout.vue'
 import CreateClientModal from '@/components/CreateClientModal.vue'
@@ -237,8 +239,9 @@ function formatDate(dateString: string | null): string {
   }
 }
 
-function navigateToClient(clientId: string) {
-  router.push({ name: '/crm/clients/[id]', params: { id: clientId } })
+function navigateToClient(client: Client, rank: number) {
+  logClientSearchClick(client, clientStore.searchQuery, rank, 'crm_clients_table')
+  router.push({ name: '/crm/clients/[id]', params: { id: client.id } })
 }
 
 function openCreateModal() {

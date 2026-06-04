@@ -25,6 +25,7 @@ from apps.purchasing.serializers import StockSearchResponseSerializer
 from apps.purchasing.services.stock_search_service import MAX_PAGE_SIZE, list_stock
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
+from apps.workflow.services.search_telemetry import SearchTelemetryService
 
 logger = logging.getLogger(__name__)
 
@@ -123,6 +124,32 @@ class StockSearchRestView(APIView):
                 sort_by=sort_by,
                 sort_dir=sort_dir,
             )
+            if len(query) >= 3:
+                SearchTelemetryService.log_search(
+                    request=request,
+                    domain="stock",
+                    source="stock_search",
+                    query=query,
+                    result_count=result["count"],
+                    returned_result_ids=[
+                        item["id"] for item in result["results"] if item.get("id")
+                    ],
+                    metadata={
+                        "page": result["page"],
+                        "page_size": result["page_size"],
+                        "sort_by": sort_by,
+                        "sort_dir": sort_dir,
+                        "results": [
+                            {
+                                "rank": index + 1,
+                                "stock_id": item.get("id"),
+                                "item_code": item.get("item_code"),
+                                "description": item.get("description"),
+                            }
+                            for index, item in enumerate(result["results"][:100])
+                        ],
+                    },
+                )
 
             # `result["results"]` is already serialized via StockItemSerializer
             # in list_stock. Re-running it through `StockSearchResponseSerializer

@@ -54,7 +54,7 @@
                 <Button
                   size="sm"
                   variant="outline"
-                  @click="openDelete(item.id)"
+                  @click="openDelete(item)"
                   class="w-8 h-8 p-0"
                   aria-label="Delete Stock"
                 >
@@ -259,6 +259,7 @@ import { useStockStore, type StockItem } from '@/stores/stockStore'
 import { useJobsStore } from '@/stores/jobs'
 import { jobService } from '@/services/job.service'
 import { api } from '@/api/client'
+import { logSearchResultClick } from '@/services/searchTelemetry.service'
 import { useDebounceFn } from '@vueuse/core'
 import { onMounted, ref, computed, watch } from 'vue'
 import { toast } from 'vue-sonner'
@@ -396,6 +397,7 @@ function formatTimesUsed(value: number | null | undefined): string {
 }
 
 function openAllocate(item: StockItem) {
+  logStockSearchClick(item, 'stock_search_allocate')
   allocateForm.value = {
     description: item.description,
     availableQty: item.quantity || 0,
@@ -421,9 +423,28 @@ function openAdd() {
   showAdd.value = true
 }
 
-function openDelete(id: string) {
-  activeId.value = id
+function openDelete(item: StockItem) {
+  logStockSearchClick(item, 'stock_search_delete')
+  activeId.value = item.id
   showDelete.value = true
+}
+
+function logStockSearchClick(item: StockItem, source: string): void {
+  if (!isQueryActive.value) return
+  const rank = displayedItems.value.findIndex((displayedItem) => displayedItem.id === item.id)
+  void logSearchResultClick({
+    domain: 'stock',
+    query: searchQuery.value,
+    selectedResultId: item.id,
+    selectedLabel: item.item_code || item.description || '',
+    selectedRank: rank >= 0 ? rank + 1 : null,
+    resultCount: searchTotalCount.value,
+    source,
+    metadata: {
+      item_code: item.item_code,
+      description: item.description,
+    },
+  })
 }
 
 async function submitAllocate() {

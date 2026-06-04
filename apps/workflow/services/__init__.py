@@ -29,6 +29,11 @@ try:
         from .llm_service import LLMService, quick_completion, quick_json_completion
         from .request import get_client_ip
         from .search import apply_text_search
+        from .search_telemetry import (
+            SearchTelemetryService,
+            normalize_search_query,
+            stable_event_hash,
+        )
         from .session_replay_service import (
             append_chunk,
             create_recording,
@@ -45,6 +50,7 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "LLMService",
+    "SearchTelemetryService",
     "XeroSyncService",
     "XeroSyncStartResult",
     "append_chunk",
@@ -65,6 +71,7 @@ __all__ = [
     "mark_xero_error_group_resolved_by_fingerprint",
     "mark_xero_error_group_unresolved",
     "mark_xero_error_group_unresolved_by_fingerprint",
+    "normalize_search_query",
     "persist_and_raise",
     "persist_app_error",
     "persist_xero_error",
@@ -73,6 +80,7 @@ __all__ = [
     "quick_json_completion",
     "recording_events",
     "scrub",
+    "stable_event_hash",
     "to_decimal",
     "validate_required_fields",
     "xero_sync_task",

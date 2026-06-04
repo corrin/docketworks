@@ -23,8 +23,8 @@ DB_PASSWORD=__DB_PASSWORD__
 DB_HOST=/var/run/postgresql
 DB_PORT=5432
 SCRUB_DB_NAME=__SCRUB_DB_NAME__
-# Pytest connects as a separate role that owns only the pre-provisioned
-# test_dw_<instance> database — no CREATEDB and no access to the app DB.
+# Pytest connects as a separate role that owns only the same-named
+# pre-provisioned test database — no CREATEDB and no access to the app DB.
 TEST_DB_USER=__TEST_DB_USER__
 TEST_DB_PASSWORD=__TEST_DB_PASSWORD__
 

@@ -176,7 +176,7 @@ do_create() {
     local DB_USER="dw_${CLIENT}_${ENV}"
     local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
     local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
-    local TEST_DB_NAME="test_dw_${CLIENT}_${ENV}"
+    local TEST_DB_NAME="$TEST_DB_USER"
 
     log "=========================================="
     log "Creating docketworks instance: $INSTANCE"
@@ -608,7 +608,7 @@ do_destroy() {
     local DB_USER="dw_${CLIENT}_${ENV}"
     local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
     local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
-    local TEST_DB_NAME="test_dw_${CLIENT}_${ENV}"
+    local TEST_DB_NAME="$TEST_DB_USER"
 
     echo "=== Destroying instance: $INSTANCE ==="
     echo ""

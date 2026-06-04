@@ -4,6 +4,7 @@ import { toast } from 'vue-sonner'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { debugLog } from '@/utils/debug'
+import { logSearchResultClick } from '@/services/searchTelemetry.service'
 
 // Use generated schemas
 export type Client = z.infer<typeof schemas.ClientSearchResult>
@@ -11,6 +12,31 @@ export type ClientContact = z.infer<typeof schemas.ClientContact>
 
 type UseClientLookupOptions = {
   supplierLookup?: { value: boolean }
+}
+
+export async function logClientSearchClick(
+  client: Client,
+  query: string,
+  rank: number | null,
+  source = 'client_lookup',
+) {
+  const trimmedQuery = query.trim()
+  if (trimmedQuery.length < 3) {
+    return
+  }
+
+  try {
+    await logSearchResultClick({
+      domain: 'client',
+      query: trimmedQuery,
+      selectedResultId: client.id,
+      selectedLabel: client.name,
+      selectedRank: rank,
+      source,
+    })
+  } catch (error) {
+    debugLog('Failed to log client search click:', error)
+  }
 }
 
 export function useClientLookup(options: UseClientLookupOptions = {}) {

@@ -3,6 +3,7 @@
 from .ai_provider import AIProvider
 from .app_error import AppError, XeroError
 from .company_defaults import CompanyDefaults
+from .search_telemetry_event import SearchTelemetryEvent
 from .service_api_key import ServiceAPIKey
 from .session_replay import SessionReplayChunk, SessionReplayRecording
 from .xero_account import XeroAccount
@@ -15,6 +16,7 @@ __all__ = [
     "AIProvider",
     "AppError",
     "CompanyDefaults",
+    "SearchTelemetryEvent",
     "ServiceAPIKey",
     "SessionReplayChunk",
     "SessionReplayRecording",

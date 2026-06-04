@@ -47,6 +47,7 @@
             <select
               v-model="selectedClientId"
               class="rounded-md border border-gray-300 p-2 text-sm"
+              @change="logSelectedClientSearchClick"
             >
               <option value="">Select client</option>
               <option v-for="client in clientOptions" :key="client.id" :value="client.id">
@@ -119,6 +120,7 @@
 import { onMounted, ref, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
+import { logClientSearchClick } from '@/composables/useClientLookup'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -191,6 +193,23 @@ async function searchClients(): Promise<void> {
     },
   })
   clientOptions.value = response.results || []
+}
+
+function logSelectedClientSearchClick(): void {
+  const selectedIndex = clientOptions.value.findIndex(
+    (client) => client.id === selectedClientId.value,
+  )
+  const selectedClient = clientOptions.value[selectedIndex]
+  if (!selectedClient) {
+    return
+  }
+
+  logClientSearchClick(
+    selectedClient,
+    clientSearch.value,
+    selectedIndex + 1,
+    'crm_calls_assign_number',
+  )
 }
 
 async function loadContacts(clientId: string): Promise<void> {

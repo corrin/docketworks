@@ -3,6 +3,10 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
+const { logSearchResultClick } = vi.hoisted(() => ({
+  logSearchResultClick: vi.fn(),
+}))
+
 vi.mock('@/api/client', () => ({
   api: {
     purchasing_stock_search_retrieve: vi.fn(),
@@ -28,6 +32,10 @@ vi.mock('@/utils/debug', () => ({ debugLog: vi.fn() }))
 
 vi.mock('@/utils/string-formatting', () => ({
   formatCurrency: (n: number | null | undefined) => `$${(n ?? 0).toFixed(2)}`,
+}))
+
+vi.mock('@/services/searchTelemetry.service', () => ({
+  logSearchResultClick,
 }))
 
 import StockView from '@/pages/purchasing/stock.vue'
@@ -225,5 +233,61 @@ describe('StockView server-side search', () => {
     expect(descriptions).toEqual(['Server-only result'])
 
     vi.useRealTimers()
+  })
+
+  it('logs allocate clicks from active stock search results with visible rank', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+    purchasing_stock_search_retrieve.mockResolvedValue({
+      results: [
+        buildStockItem({ id: 'srv-1', item_code: 'A1', description: 'First result' }),
+        buildStockItem({ id: 'srv-2', item_code: 'B2', description: 'Second result' }),
+      ],
+      count: 12,
+      page: 1,
+      page_size: 25,
+      total_pages: 1,
+    })
+
+    const wrapper = mount(StockView)
+    await flushPromises()
+
+    const input = wrapper.find('input[placeholder="Search stock items..."]')
+    await input.setValue('sheet')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+    await nextTick()
+
+    const allocateButtons = wrapper.findAll('button[aria-label="Allocate Stock"]')
+    await allocateButtons[1].trigger('click')
+
+    expect(logSearchResultClick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'stock',
+        query: 'sheet',
+        selectedResultId: 'srv-2',
+        selectedLabel: 'B2',
+        selectedRank: 2,
+        resultCount: 12,
+        source: 'stock_search_allocate',
+      }),
+    )
+
+    vi.useRealTimers()
+  })
+
+  it('does not log stock action clicks when the search query is inactive', async () => {
+    const store = useStockStore()
+    store.items = [buildStockItem({ id: 's1', item_code: 'ABC', description: 'Cached item' })]
+    store.fetchStock = vi.fn().mockResolvedValue(store.items)
+
+    const wrapper = mount(StockView)
+    await flushPromises()
+
+    await wrapper.find('button[aria-label="Allocate Stock"]').trigger('click')
+
+    expect(logSearchResultClick).not.toHaveBeenCalled()
   })
 })

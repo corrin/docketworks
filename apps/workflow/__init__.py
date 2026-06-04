@@ -31,6 +31,10 @@ try:
             PasswordStrengthMiddleware,
         )
         from .permissions import F
+        from .search_telemetry_serializers import (
+            SearchTelemetryClickRequestSerializer,
+            SearchTelemetryClickResponseSerializer,
+        )
         from .serializers import (
             AIProviderCreateUpdateSerializer,
             AIProviderSerializer,
@@ -116,6 +120,8 @@ __all__ = [
     "LoginRequiredMiddleware",
     "NoValidXeroTokenError",
     "PasswordStrengthMiddleware",
+    "SearchTelemetryClickRequestSerializer",
+    "SearchTelemetryClickResponseSerializer",
     "ServiceAPIKeyAuthentication",
     "SessionReplayChunkCreateSerializer",
     "SessionReplayChunkSerializer",

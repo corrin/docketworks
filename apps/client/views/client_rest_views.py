@@ -194,6 +194,13 @@ class ClientSearchRestView(APIView):
 
             serializer = ClientSearchResponseSerializer(data=result)
             serializer.is_valid(raise_exception=True)
+            ClientRestService.log_client_search_results(
+                request=request,
+                source="client_search",
+                query=query,
+                clients=result["results"],
+                total_count=result["count"],
+            )
             return Response(serializer.data)
 
         except Exception as exc:

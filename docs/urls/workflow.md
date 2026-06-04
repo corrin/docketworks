@@ -40,6 +40,11 @@
 |-------------|------|------|-------------|
 | `/rest/app-errors/` | `app_error_view.AppErrorRestListView` | `app-error-rest-list` | REST-style view that exposes AppError telemetry for admin monitoring. |
 
+### Search-Events Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/search-events/click/` | `search_telemetry_view.SearchTelemetryClickAPIView` | `search_telemetry_click` | Generic REST endpoint for search click telemetry. |
+
 ### Session-Replays Management
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
