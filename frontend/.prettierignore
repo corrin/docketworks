@@ -5,3 +5,4 @@ playwright-report/
 test-history/
 test-results/
 manual/.vitepress/cache/
+src/typed-router.d.ts

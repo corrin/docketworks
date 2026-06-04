@@ -27,6 +27,7 @@ export default defineConfigWithVueTs(
     '**/playwright-report/**',
     '**/test-results/**',
     '**/test-history/**',
+    'src/typed-router.d.ts',
   ]),
 
   pluginVue.configs['flat/essential'],
