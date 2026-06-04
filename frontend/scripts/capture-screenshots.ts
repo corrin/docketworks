@@ -148,7 +148,7 @@ const SCREENSHOTS: ScreenshotDef[] = [
   {
     id: 'timesheet-daily-overview',
     description: 'Daily timesheet overview with bar chart and staff hours',
-    route: '/timesheets',
+    route: '/timesheets/daily',
     waitFor: 'main',
   },
 
@@ -186,7 +186,7 @@ const SCREENSHOTS: ScreenshotDef[] = [
   {
     id: 'clients-list',
     description: 'Client list with search and filters',
-    route: '/clients',
+    route: '/crm/clients',
     waitFor: 'main',
   },
 
@@ -194,7 +194,7 @@ const SCREENSHOTS: ScreenshotDef[] = [
   {
     id: 'admin-company-settings',
     description: 'Company settings configuration page',
-    route: '/company-defaults',
+    route: '/admin/company',
     waitFor: 'form',
   },
   {

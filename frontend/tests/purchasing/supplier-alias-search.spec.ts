@@ -21,7 +21,7 @@ test.describe('supplier alias search', () => {
     await autoId(page, 'ClientLookup-xero-valid').waitFor({ timeout: 30000 })
     await expect(supplierInput).toHaveValue(supplierName)
 
-    await page.goto('/reports/clients')
+    await page.goto('/crm/clients')
     await page.waitForLoadState('networkidle')
     await expect(page.getByText('Loading clients...')).toBeHidden({ timeout: 30000 })
 

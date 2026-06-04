@@ -25,16 +25,6 @@ const manualRoutes: RouteRecordRaw[] = [
     redirect: '/login',
   },
   {
-    path: '/reports/clients',
-    redirect: '/crm/clients',
-  },
-  {
-    path: '/reports/clients/:id',
-    redirect: (to: { params: Record<string, string> }) => ({
-      path: `/crm/clients/${to.params.id}`,
-    }),
-  },
-  {
     path: '/process-documents',
     redirect: '/process-documents/procedures/safety',
   },
