@@ -123,18 +123,18 @@ fi
 
 # --- Converge system-level dependencies (only when inputs change) ---
 # server-setup.sh is idempotent, but its no-op path still scans every dpkg
-# and `command -v` guard. ~80% of PRs touch nothing it reads. Hash the
-# files server-setup.sh actually consumes (itself, the certbot hooks it
-# copies, and the logrotate template); skip the re-run when the hash
-# matches the last successful run. Adding a new file to server-setup.sh's
-# inputs requires adding it here too — review-visible because it lives
-# next to the bash invocation.
+# and `command -v` guard. ~80% of PRs touch nothing host-level. Hash the
+# files that should force host convergence; skip the re-run when the hash
+# matches the last successful run. Adding a new host-affecting file requires
+# adding it here too — review-visible because it lives next to the invocation.
 SERVER_SETUP_INPUTS=(
     "$SCRIPT_DIR/server-setup.sh"
     "$SCRIPT_DIR/certbot-dreamhost-auth.sh"
     "$SCRIPT_DIR/certbot-dreamhost-cleanup.sh"
     "$SCRIPT_DIR/templates/logrotate-docketworks.conf"
     "$SCRIPT_DIR/templates/nginx-instance.conf.template"
+    "$SCRIPT_DIR/templates/backup-db-instance.service.template"
+    "$SCRIPT_DIR/templates/backup-db-instance.timer.template"
 )
 SERVER_SETUP_HASH="$(sha256sum "${SERVER_SETUP_INPUTS[@]}" | sha256sum | awk '{print $1}')"
 SERVER_SETUP_STAMP="/opt/docketworks/.server-setup-hash"
@@ -279,6 +279,23 @@ for instance in "${TARGETS[@]}"; do
         "$SCRIPT_DIR/templates/celery-beat-instance.service.template" \
         > "/etc/systemd/system/celery-beat-$instance.service"
     systemctl daemon-reload
+
+    # Backup units run as the instance user and use a per-instance rclone
+    # config. Re-render on every deploy so timer/template edits reach existing
+    # instances without hand work.
+    backup_root_folder_id=""
+    creds_file="$CONFIG_DIR/$instance.credentials.env"
+    if [[ -f "$creds_file" ]]; then
+        backup_root_folder_id="$(
+            bash -c 'set -a; source "$1"; printf "%s" "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"' _ "$creds_file"
+        )"
+    fi
+    log "  Rendering backup-db-$instance units"
+    write_instance_rclone_config "$instance" "$inst_user" "$backup_root_folder_id"
+    render_backup_units "$instance" "$inst_user" "$SCRIPT_DIR/templates"
+    systemctl daemon-reload
+    systemctl enable --now "backup-db-$instance.timer"
+    log "  Enabled backup-db-$instance.timer"
 
     # DR-mode short-circuit. The marker means this instance is a cold standby:
     # render unit files (so a future "go live" picks up template changes), but

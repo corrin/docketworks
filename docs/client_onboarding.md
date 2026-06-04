@@ -137,6 +137,11 @@ Allows the service account to act on behalf of users in the client's domain.
 
 Share the relevant Drive folder(s) with the service account's email address (e.g., `docketworks-msm@docketworks-xyz.iam.gserviceaccount.com`) as an Editor.
 
+For database backups, also share the backup parent folder with the service
+account. Put that folder's ID in `BACKUP_GDRIVE_ROOT_FOLDER_ID` in the
+instance credentials file if backups should be anchored to that folder.
+Nightly backups upload under `dw_backups/<instance>/`.
+
 ### 3d. Google Shared Drive Setup (if client has SOPs/documents)
 
 1. Create a Google Shared Drive for the client

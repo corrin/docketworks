@@ -207,6 +207,7 @@ DEBIAN_FRONTEND=noninteractive apt install -y \
     build-essential libpq-dev pkg-config pandoc unzip \
     python3.12 python3.12-venv python3.12-dev \
     git \
+    rclone \
     iptables-persistent netfilter-persistent \
     quota \
     unattended-upgrades
@@ -218,6 +219,7 @@ log_version "etckeeper" "$(dpkg -s etckeeper | grep Version | awk '{print $2}')"
 log_version "build-essential" "$(dpkg -s build-essential | grep Version | awk '{print $2}')"
 log_version "pkg-config" "$(pkg-config --version)"
 log_version "python3.12" "$(python3.12 --version 2>&1)"
+log_version "rclone" "$(rclone version | head -1)"
 log_version "unattended-upgrades" "$(dpkg -s unattended-upgrades | grep '^Version:' | awk '{print $2}')"
 
 # --- Unattended security upgrades ---
@@ -619,6 +621,7 @@ Poetry:     $POETRY_VERSION
 pnpm:       $(pnpm --version)
 pm2:        $(pm2 --version)
 gh:         $(gh --version | head -1)
+rclone:    $(rclone version | head -1)
 Claude:     $CLAUDE_VERSION
 
 ## System User

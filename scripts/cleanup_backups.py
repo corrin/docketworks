@@ -116,6 +116,8 @@ def compute_recent_keep(entries, pattern, fmt, count):
     pairs = []
     for name in entries:
         m = pattern.match(name)
+        if not m:
+            continue
         ts = datetime.strptime(m.group(1), fmt)
         pairs.append((name, ts))
     pairs.sort(key=lambda x: x[1])
@@ -135,20 +137,31 @@ def delete_and_purge(root, to_delete, dry_run, remote):
     for name in to_delete:
         local_path = os.path.join(root, name)
         remote_path = f"{remote}/{name}"
+        is_dir = os.path.isdir(local_path)
+        remote_delete_command = "purge" if is_dir else "deletefile"
         if dry_run:
             print(f"[DRY] Would remove local: {local_path}")
-            print(f"[DRY] Would purge remote: {remote_path}")
+            print(f"[DRY] Would {remote_delete_command} remote: {remote_path}")
         else:
             print(f"Removing local: {local_path}")
             remove_entry(root, name)
-            print(f"Purging remote: {remote_path}")
-            subprocess.run(["rclone", "purge", remote_path], check=False)
+            print(f"Deleting remote with rclone {remote_delete_command}: {remote_path}")
+            subprocess.run(["rclone", remote_delete_command, remote_path], check=True)
 
 
 def sync_remote(root, dry_run, remote):
-    rem_list = subprocess.check_output(
-        ["rclone", "lsf", remote], universal_newlines=True
-    ).splitlines()
+    if not dry_run:
+        subprocess.run(["rclone", "mkdir", remote], check=True)
+    try:
+        rem_list = subprocess.check_output(
+            ["rclone", "lsf", remote], universal_newlines=True
+        ).splitlines()
+    except subprocess.CalledProcessError:
+        if dry_run:
+            print(f"Remote is not readable during dry-run: {remote}")
+            rem_list = []
+        else:
+            raise
     rem_names = [entry.rstrip("/") for entry in rem_list]
     local_names = os.listdir(root)
     remote_only = sorted(set(rem_names) - set(local_names))
@@ -164,7 +177,7 @@ def sync_remote(root, dry_run, remote):
         return
 
     print(f"Syncing {root} → {remote} --delete-excluded")
-    subprocess.run(["rclone", "sync", root, remote, "--delete-excluded"], check=False)
+    subprocess.run(["rclone", "sync", root, remote, "--delete-excluded"], check=True)
 
 
 def main():
@@ -174,7 +187,10 @@ def main():
 
     # Per-instance remote, matching backup_db.sh's upload path. backup_dir is
     # .../instances/<instance>/backups, so the instance is its parent dir name.
-    instance = os.path.basename(os.path.dirname(os.path.abspath(backup_dir)))
+    backup_dir_abs = os.path.abspath(backup_dir)
+    if os.path.basename(backup_dir_abs) != "backups":
+        sys.exit(f"ERROR: expected backup_dir to end with '/backups': {backup_dir}")
+    instance = os.path.basename(os.path.dirname(backup_dir_abs))
     remote = f"{REMOTE_BASE}/{instance}"
 
     entries = list_backup_dirs(backup_dir)

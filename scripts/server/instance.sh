@@ -244,6 +244,11 @@ do_create() {
     cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
+    log "Writing rclone config for $INSTANCE to $(instance_rclone_config "$INSTANCE")..."
+    write_instance_rclone_config \
+        "$INSTANCE" \
+        "$INSTANCE_USER" \
+        "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"
     echo "$FQDN" > "$INSTANCE_DIR/.fqdn"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
     # Symlink shared venv into instance dir so the user can `source ~/.venv/bin/activate`
@@ -532,6 +537,15 @@ EOSQL
         systemctl restart "celery-worker-$INSTANCE"
     fi
 
+    # --- Install backup timer ---
+    # Backups run nightly as the instance user, using the per-instance
+    # rclone config generated above.
+    log "Installing backup timer backup-db-$INSTANCE..."
+    render_backup_units "$INSTANCE" "$INSTANCE_USER" "$TEMPLATE_DIR"
+    systemctl daemon-reload
+    systemctl enable --now "backup-db-$INSTANCE.timer"
+    log "  Enabled nightly backup timer backup-db-$INSTANCE.timer"
+
     # --- Install sudoers drop-in ---
     # Lets the instance user restart its own units without a password.
     # Render to a temp file, validate with visudo, then install atomically —
@@ -608,6 +622,7 @@ do_destroy() {
     echo "    - User:      $INSTANCE_USER"
     echo "    - Service:   gunicorn-$INSTANCE"
     echo "    - Service:   celery-beat-$INSTANCE"
+    echo "    - Timer:     backup-db-$INSTANCE"
     echo "    - Nginx:     docketworks-$INSTANCE"
     echo ""
     read -p "Are you sure? (yes/no): " CONFIRM
@@ -646,6 +661,17 @@ do_destroy() {
     if [[ -f "/etc/systemd/system/scheduler-$INSTANCE.service" ]]; then
         systemctl disable "scheduler-$INSTANCE" 2>/dev/null || true
         rm -f "/etc/systemd/system/scheduler-$INSTANCE.service"
+        systemctl daemon-reload
+    fi
+    if [[ -f "/etc/systemd/system/backup-db-$INSTANCE.timer" ]]; then
+        echo "=== Removing Backup timer ==="
+        systemctl disable "backup-db-$INSTANCE.timer" 2>/dev/null || true
+        rm -f "/etc/systemd/system/backup-db-$INSTANCE.timer"
+        systemctl daemon-reload
+    fi
+    if [[ -f "/etc/systemd/system/backup-db-$INSTANCE.service" ]]; then
+        echo "=== Removing Backup service ==="
+        rm -f "/etc/systemd/system/backup-db-$INSTANCE.service"
         systemctl daemon-reload
     fi
 
