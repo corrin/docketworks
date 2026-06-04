@@ -21,7 +21,7 @@ test.describe('supplier alias search', () => {
     await autoId(page, 'ClientLookup-xero-valid').waitFor({ timeout: 30000 })
     await expect(supplierInput).toHaveValue(supplierName)
 
-    await page.goto('/reports/clients')
+    await page.goto('/crm/clients')
     await page.waitForLoadState('networkidle')
     await expect(page.getByText('Loading clients...')).toBeHidden({ timeout: 30000 })
 
@@ -30,7 +30,7 @@ test.describe('supplier alias search', () => {
     const clientRow = page.locator('tbody tr', { hasText: supplierName }).first()
     await expect(clientRow).toBeVisible({ timeout: 10000 })
     await clientRow.click()
-    await page.waitForURL(/\/reports\/clients\/[a-f0-9-]+$/, { timeout: 15000 })
+    await page.waitForURL(/\/crm\/clients\/[a-f0-9-]+$/, { timeout: 15000 })
     await expect(page.getByRole('heading', { name: supplierName })).toBeVisible({
       timeout: 30000,
     })

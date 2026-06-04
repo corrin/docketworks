@@ -7,19 +7,24 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 
-REMOTE = "gdrive:dw_backups"
+# Remote base; the per-instance remote is REMOTE_BASE/<instance>, matching the
+# upload path used by backup_db.sh (gdrive:dw_backups/<instance>/).
+REMOTE_BASE = "gdrive:dw_backups"
 
-# Two backup styles live in the same per-instance backups dir:
-#   ts_dir:    nested <YYYYMMDD_HHMMSS>/ trees produced by some release flows
-#              (consumed by rollback_release.sh); retention is 24h+daily+monthly.
-#   predeploy: flat predeploy_<ts>_<hash>.sql.gz files produced by
-#              predeploy_backup.sh; retention is 30 days.
-# Any other entry (daily_*.sql.gz, monthly_*.sql.gz from backup_db.sh, etc.)
-# is left completely untouched — not a deletion candidate, not a keep target.
+# Backup styles in the per-instance backups dir:
+#   ts_dir:    nested <YYYYMMDD_HHMMSS>/ trees (rollback_release.sh); 24h+daily+monthly.
+#   predeploy: predeploy_<ts>_<hash>.sql.gz (predeploy_backup.sh); 30 days.
+#   daily:     daily_<YYYYMMDD>.sql.gz (backup_db.sh); keep most recent N.
+#   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N.
+# Any other entry (logs, ad-hoc files) is left untouched.
 TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
+DAILY_RE = re.compile(r"^daily_(\d{8})\.sql\.gz$")
+MONTHLY_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz$")
 
 PREDEPLOY_RETENTION_DAYS = 30
+DAILY_RETENTION_COUNT = 14
+MONTHLY_RETENTION_COUNT = 12
 
 
 def parse_arguments():
@@ -50,6 +55,10 @@ def classify(name):
         return "ts_dir"
     if PREDEPLOY_RE.match(name):
         return "predeploy"
+    if DAILY_RE.match(name):
+        return "daily"
+    if MONTHLY_RE.match(name):
+        return "monthly"
     return "other"
 
 
@@ -102,6 +111,17 @@ def compute_predeploy_keep(entries, now):
     return keep
 
 
+def compute_recent_keep(entries, pattern, fmt, count):
+    """Keep the `count` most recent entries matching `pattern` (timestamp via `fmt`)."""
+    pairs = []
+    for name in entries:
+        m = pattern.match(name)
+        ts = datetime.strptime(m.group(1), fmt)
+        pairs.append((name, ts))
+    pairs.sort(key=lambda x: x[1])
+    return {n for n, _ in pairs[-count:]} if count else set()
+
+
 def remove_entry(root, name):
     path = os.path.join(root, name)
     if os.path.isdir(path):
@@ -110,11 +130,11 @@ def remove_entry(root, name):
         os.remove(path)
 
 
-def delete_and_purge(root, to_delete, dry_run):
+def delete_and_purge(root, to_delete, dry_run, remote):
     print("To delete locally and purge from remote:", sorted(to_delete))
     for name in to_delete:
         local_path = os.path.join(root, name)
-        remote_path = f"{REMOTE}/{name}"
+        remote_path = f"{remote}/{name}"
         if dry_run:
             print(f"[DRY] Would remove local: {local_path}")
             print(f"[DRY] Would purge remote: {remote_path}")
@@ -125,9 +145,9 @@ def delete_and_purge(root, to_delete, dry_run):
             subprocess.run(["rclone", "purge", remote_path], check=False)
 
 
-def sync_remote(root, dry_run):
+def sync_remote(root, dry_run, remote):
     rem_list = subprocess.check_output(
-        ["rclone", "lsf", REMOTE], universal_newlines=True
+        ["rclone", "lsf", remote], universal_newlines=True
     ).splitlines()
     rem_names = [entry.rstrip("/") for entry in rem_list]
     local_names = os.listdir(root)
@@ -143,8 +163,8 @@ def sync_remote(root, dry_run):
     if dry_run:
         return
 
-    print(f"Syncing {root} → {REMOTE} --delete-excluded")
-    subprocess.run(["rclone", "sync", root, REMOTE, "--delete-excluded"], check=False)
+    print(f"Syncing {root} → {remote} --delete-excluded")
+    subprocess.run(["rclone", "sync", root, remote, "--delete-excluded"], check=False)
 
 
 def main():
@@ -152,10 +172,17 @@ def main():
     backup_dir = args.backup_dir
     dry_run = not args.delete
 
+    # Per-instance remote, matching backup_db.sh's upload path. backup_dir is
+    # .../instances/<instance>/backups, so the instance is its parent dir name.
+    instance = os.path.basename(os.path.dirname(os.path.abspath(backup_dir)))
+    remote = f"{REMOTE_BASE}/{instance}"
+
     entries = list_backup_dirs(backup_dir)
 
     ts_dir_entries = []
     predeploy_entries = []
+    daily_entries = []
+    monthly_entries = []
     other_entries = []
     for name in entries:
         kind = classify(name)
@@ -163,6 +190,10 @@ def main():
             ts_dir_entries.append(name)
         elif kind == "predeploy":
             predeploy_entries.append(name)
+        elif kind == "daily":
+            daily_entries.append(name)
+        elif kind == "monthly":
+            monthly_entries.append(name)
         else:
             other_entries.append(name)
 
@@ -171,17 +202,31 @@ def main():
     ts_dir_pairs = parse_ts_dir_pairs(ts_dir_entries)
     ts_dir_keep = compute_ts_dir_keep(ts_dir_pairs, now)
     predeploy_keep = compute_predeploy_keep(predeploy_entries, now)
+    daily_keep = compute_recent_keep(
+        daily_entries, DAILY_RE, "%Y%m%d", DAILY_RETENTION_COUNT
+    )
+    monthly_keep = compute_recent_keep(
+        monthly_entries, MONTHLY_RE, "%Y%m", MONTHLY_RETENTION_COUNT
+    )
 
-    managed = set(ts_dir_entries) | set(predeploy_entries)
-    to_delete = sorted(managed - ts_dir_keep - predeploy_keep)
+    managed = (
+        set(ts_dir_entries)
+        | set(predeploy_entries)
+        | set(daily_entries)
+        | set(monthly_entries)
+    )
+    keep = ts_dir_keep | predeploy_keep | daily_keep | monthly_keep
+    to_delete = sorted(managed - keep)
 
     print("Keeping (ts_dir):", sorted(ts_dir_keep))
     print("Keeping (predeploy):", sorted(predeploy_keep))
+    print("Keeping (daily):", sorted(daily_keep))
+    print("Keeping (monthly):", sorted(monthly_keep))
     if other_entries:
         print("Leaving untouched (unmanaged pattern):", sorted(other_entries))
 
-    delete_and_purge(backup_dir, to_delete, dry_run)
-    sync_remote(backup_dir, dry_run)
+    delete_and_purge(backup_dir, to_delete, dry_run, remote)
+    sync_remote(backup_dir, dry_run, remote)
 
 
 if __name__ == "__main__":

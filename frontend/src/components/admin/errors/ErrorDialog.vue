@@ -166,7 +166,7 @@ const errorTypeLabel = computed(() => {
         >
           <RouterLink
             :to="{
-              name: 'admin-replays',
+              path: '/admin/replays',
               query: { replay: props.error.raw.record.session_replay },
             }"
           >

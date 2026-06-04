@@ -287,7 +287,7 @@ const formatPercentage = (value: number): string => {
 
 const openTimesheet = (): void => {
   router.push({
-    name: 'timesheet-entry',
+    name: '/timesheets/entry',
     query: {
       date: props.date,
       staffId: props.staff.staff_id,

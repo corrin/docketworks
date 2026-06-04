@@ -51,8 +51,8 @@ describe('save feedback boundary', () => {
         'components/workshop/WorkshopMaterialsUsedTable.vue',
         ['Material logged for approval', 'Adjustment added'],
       ],
-      ['views/purchasing/PurchaseOrderFormView.vue', ['Receipt saved']],
-      ['views/TimesheetEntryView.vue', ['Entry saved']],
+      ['pages/purchasing/po/[id].vue', ['Receipt saved']],
+      ['pages/timesheets/entry.vue', ['Entry saved']],
     ])
 
     const offenders = [...forbiddenByFile.entries()].flatMap(([relativePath, messages]) => {

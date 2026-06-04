@@ -150,7 +150,7 @@ import { ref, onMounted } from 'vue'
 import { Eye, EyeOff } from 'lucide-vue-next'
 import { useLogin } from '@/composables/useLogin'
 import { useRouter } from 'vue-router'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from '@/stores/auth'
 import { APP_NAME } from '@/config/app'
 
 const appName = APP_NAME

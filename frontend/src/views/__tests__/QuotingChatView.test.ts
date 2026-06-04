@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import QuotingChatView from '../QuotingChatView.vue'
+import QuotingChatView from '@/pages/quoting/chat.vue'
 import type { VueChatMessage } from '@/services/quote-chat.service'
 
 // Test data

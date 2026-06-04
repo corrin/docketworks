@@ -46,7 +46,7 @@ async function retrySessionCheck(): Promise<void> {
     if (status === 'authenticated') {
       await router.replace(redirectPath.value)
     } else if (status === 'unauthenticated') {
-      await router.replace({ name: 'login', query: { redirect: redirectPath.value } })
+      await router.replace({ name: '/login', query: { redirect: redirectPath.value } })
     }
   } finally {
     isRetrying.value = false

@@ -5,8 +5,8 @@ test.describe('Clients Report', () => {
   test('sorts by spend, verifies client detail, and searches for testing client', async ({
     authenticatedPage: page,
   }) => {
-    // Navigate to the Clients Report
-    await page.goto('/reports/clients')
+    // Navigate to the Clients page
+    await page.goto('/crm/clients')
     await page.waitForLoadState('networkidle')
 
     // Verify we're on the right page
@@ -58,7 +58,7 @@ test.describe('Clients Report', () => {
     await firstRow.click()
 
     // Wait for navigation to client detail page
-    await page.waitForURL(/\/clients\/[a-f0-9-]+$/, { timeout: 15000 })
+    await page.waitForURL(/\/crm\/clients\/[a-f0-9-]+$/, { timeout: 15000 })
     await page.waitForLoadState('networkidle')
 
     // Wait for client detail to load
@@ -88,7 +88,7 @@ test.describe('Clients Report', () => {
 
     // Navigate back to clients list
     await page.getByRole('button', { name: /Back/i }).click()
-    await page.waitForURL(/\/reports\/clients/, { timeout: 10000 })
+    await page.waitForURL(/\/crm\/clients$/, { timeout: 10000 })
     await page.waitForLoadState('networkidle')
 
     // Wait for loading to complete

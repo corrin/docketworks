@@ -238,7 +238,7 @@ function formatDate(dateString: string | null): string {
 }
 
 function navigateToClient(clientId: string) {
-  router.push({ name: 'client-detail', params: { id: clientId } })
+  router.push({ name: '/crm/clients/[id]', params: { id: clientId } })
 }
 
 function openCreateModal() {
@@ -254,7 +254,7 @@ async function handleClientCreated(client: { id?: string }) {
 
   // Optionally navigate to the new client
   if (client?.id) {
-    router.push({ name: 'client-detail', params: { id: client.id } })
+    router.push({ name: '/crm/clients/[id]', params: { id: client.id } })
   }
 }
 

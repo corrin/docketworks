@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
-import WeeklyTimesheetView from '../WeeklyTimesheetView.vue'
+import WeeklyTimesheetView from '@/pages/timesheets/weekly.vue'
 import { postStaffWeek } from '@/services/payroll.service'
 import { toast } from 'vue-sonner'
 

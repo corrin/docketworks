@@ -17,8 +17,7 @@ async function navigateToActualsTab(page: Page, jobUrl: string): Promise<void> {
   await page.goto(baseUrl)
   await page.waitForLoadState('networkidle')
   await autoId(page, 'JobViewTabs-actual').click()
-  await page.waitForLoadState('networkidle')
-  await page.waitForTimeout(2000)
+  await autoId(page, 'JobActualTab-time-expenses').waitFor({ timeout: 10000 })
 }
 
 async function getTimeAndExpensesValue(page: Page): Promise<number> {

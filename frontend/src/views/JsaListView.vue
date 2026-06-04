@@ -196,6 +196,6 @@ function openInGoogleDocs(doc: ProcedureListItem) {
 }
 
 function goToKanban() {
-  router.push({ name: 'kanban' })
+  router.push({ name: '/kanban' })
 }
 </script>

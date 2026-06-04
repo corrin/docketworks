@@ -380,6 +380,12 @@
   </AppLayout>
 </template>
 
+<route lang="json">
+{
+  "props": true
+}
+</route>
+
 <script setup lang="ts">
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
@@ -610,11 +616,11 @@ async function loadClientData() {
 }
 
 function goBack() {
-  router.push({ name: 'clients' })
+  router.push({ name: '/crm/clients/(index)' })
 }
 
 function navigateToJob(jobId: string) {
-  router.push({ name: 'job-edit', params: { id: jobId } })
+  router.push({ name: '/jobs/[id]/(index)', params: { id: jobId } })
 }
 
 function formatDateTime(dateString: string | null | undefined): string {

@@ -387,9 +387,9 @@ const handleFileUpload = async (event: Event) => {
 
 const navigateBack = () => {
   if (jobContext.value) {
-    router.push({ name: 'job-edit', params: { id: jobContext.value.jobId } })
+    router.push({ name: '/jobs/[id]/(index)', params: { id: jobContext.value.jobId } })
   } else {
-    router.push({ name: 'kanban' })
+    router.push({ name: '/kanban' })
   }
 }
 

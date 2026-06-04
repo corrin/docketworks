@@ -922,28 +922,29 @@ const { simpleSummary: actualSummary } = useCostSummary({
 function navigateToDeliveryReceipt(purchaseOrderId: string) {
   console.log('Received po id: ', purchaseOrderId)
   router.push({
-    name: 'purchase-order-form',
+    name: '/purchasing/po/[id]',
     params: { id: purchaseOrderId },
   })
 }
 
 function navigateToTimesheet(staffId: string, date?: string) {
-  const routeParams = {
-    name: 'timesheet-entry',
-    query: { staffId },
-  } as { name: string; query: { staffId: string; date?: string } }
-
   if (date) {
-    routeParams.query.date = date
+    router.push({
+      name: '/timesheets/entry',
+      query: { staffId, date },
+    })
+  } else {
+    router.push({
+      name: '/timesheets/entry',
+      query: { staffId },
+    })
   }
-
-  router.push(routeParams)
 }
 
 // TODO: add better navigation flow with front-end path parameter to prepopulate the search bar with the stock name
 function navigateToStock(/*stockId: string*/) {
   router.push({
-    name: 'stock',
+    name: '/purchasing/stock',
     // params: { stockId },
   })
 }

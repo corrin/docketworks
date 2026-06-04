@@ -18,10 +18,13 @@ vi.mock('vue-sonner', () => ({
   },
 }))
 
-vi.mock('@/views/KanbanView.vue', () => ({
-  default: {
-    template: '<div />',
-  },
+vi.mock('vue-router/auto-routes', () => ({
+  routes: [
+    { path: '/kanban', name: '/kanban', meta: { requiresAuth: true, allowWorkshopStaff: true } },
+    { path: '/login', name: '/login', meta: { requiresGuest: true, allowWorkshopStaff: true } },
+    { path: '/session-check', name: '/session-check', meta: { allowWorkshopStaff: true } },
+  ],
+  handleHotUpdate: vi.fn(),
 }))
 
 const user = {
@@ -60,7 +63,7 @@ describe('router auth guard', () => {
     await router.push('/kanban')
     await router.isReady()
 
-    expect(router.currentRoute.value.name).toBe('login')
+    expect(router.currentRoute.value.name).toBe('/login')
     expect(router.currentRoute.value.query.redirect).toBe('/kanban')
     expect(api.accounts_logout_create).not.toHaveBeenCalled()
   })
@@ -74,7 +77,7 @@ describe('router auth guard', () => {
     await router.push('/kanban')
     await router.isReady()
 
-    expect(router.currentRoute.value.name).toBe('session-check')
+    expect(router.currentRoute.value.name).toBe('/session-check')
     expect(router.currentRoute.value.query.redirect).toBe('/kanban')
     expect(api.accounts_logout_create).not.toHaveBeenCalled()
   })
@@ -89,7 +92,7 @@ describe('router auth guard', () => {
     await router.push('/kanban')
     await router.isReady()
 
-    expect(router.currentRoute.value.name).toBe('kanban')
+    expect(router.currentRoute.value.name).toBe('/kanban')
     expect(authStore.user).toEqual(user)
     expect(api.accounts_logout_create).not.toHaveBeenCalled()
   })

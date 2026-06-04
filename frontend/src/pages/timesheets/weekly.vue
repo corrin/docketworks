@@ -334,7 +334,7 @@ import {
   type PayRunListItem,
 } from '@/services/payroll.service'
 import { schemas } from '@/api/generated/api'
-import { debugLog } from '../utils/debug'
+import { debugLog } from '@/utils/debug'
 import { useTimesheetStore } from '@/stores/timesheet'
 import { useXeroConnection } from '@/composables/useXeroConnection'
 import { toast } from 'vue-sonner'
@@ -684,7 +684,7 @@ function togglePayrollMode(checked: boolean) {
   debugLog(`Switched to ${payrollMode.value ? 'Loaded Wages' : 'Cash Wages'}`)
 }
 function goToDailyViewHeader(date: string) {
-  router.push({ name: 'timesheet-daily', query: { date } })
+  router.push({ name: '/timesheets/daily', query: { date } })
 }
 function openWeeklyMetricsModal() {
   showWeeklyMetricsModal.value = true
