@@ -26,6 +26,7 @@ from apps.purchasing.services.stock_search_service import (
     search_stock,
 )
 from apps.testing import BaseTestCase
+from apps.workflow.models import CompanyDefaults, SearchTelemetryEvent
 
 
 def _stock(**overrides):
@@ -393,6 +394,11 @@ def test_view_returns_search_results_via_http(auth_api, office_staff, db):
         name="Stock Search View Client",
         xero_last_modified=timezone.now(),
     )
+    shop_client = Client.objects.create(
+        name="Stock Search Shop Client",
+        xero_last_modified=timezone.now(),
+    )
+    CompanyDefaults.objects.create(company_name="Test Co", shop_client=shop_client)
     job = Job(client=client, name="Stock Search View Job")
     job.save(staff=office_staff)
     CostLine.objects.create(
@@ -417,6 +423,14 @@ def test_view_returns_search_results_via_http(auth_api, office_staff, db):
     assert result_by_description["Stainless 5mm sheet"]["times_used"] == 1
     assert body["count"] >= 1
     assert body["page"] == 1
+    event = SearchTelemetryEvent.objects.get(
+        event_type=SearchTelemetryEvent.EventType.SEARCH,
+        domain=SearchTelemetryEvent.Domain.STOCK,
+    )
+    assert event.query == "5mm"
+    assert event.result_count == body["count"]
+    assert event.returned_result_ids
+    assert event.metadata["results"][0]["description"] == "Stainless 5mm sheet"
 
 
 def test_stock_list_view_includes_default_times_used(auth_api, db):

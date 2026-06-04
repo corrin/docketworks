@@ -1,7 +1,7 @@
 """Pytest session setup.
 
 Test DB and test role are pre-provisioned by scripts/server/instance.sh.
-The test role owns the test DB but has no CREATEDB — so we cannot let
+The test role owns the same-named test DB but has no CREATEDB — so we cannot let
 pytest-django's default setup_databases run (it would try CREATE DATABASE).
 
 Instead, swap the connection name to the test DB, drop and recreate the
@@ -18,8 +18,7 @@ def django_db_setup(django_db_blocker):
     from django.db import connection
 
     with django_db_blocker.unblock():
-        original_name = connection.settings_dict["NAME"]
-        connection.settings_dict["NAME"] = f"test_{original_name}"
+        connection.settings_dict["NAME"] = connection.settings_dict["USER"]
         connection.close()
 
         with connection.cursor() as cursor:

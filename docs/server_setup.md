@@ -146,15 +146,15 @@ sudo scripts/server/instance.sh create <client> <env> --seed
    CREATE ROLE "dw_<name>_test" WITH LOGIN PASSWORD '<test_password>';
    CREATE DATABASE "dw_<name>" OWNER "dw_<name>";
    CREATE DATABASE "dw_<name>_scrub" OWNER "dw_<name>";
-   CREATE DATABASE "test_dw_<name>" OWNER "dw_<name>_test";
+   CREATE DATABASE "dw_<name>_test" OWNER "dw_<name>_test";
    GRANT ALL PRIVILEGES ON DATABASE "dw_<name>" TO "dw_<name>";
    GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_scrub" TO "dw_<name>";
-   GRANT ALL PRIVILEGES ON DATABASE "test_dw_<name>" TO "dw_<name>_test";
+   GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_test" TO "dw_<name>_test";
    SQL
    ```
 
    Pytest never needs CREATEDB: `conftest.py` resets the public schema in
-   `test_dw_<name>` (the test role owns the DB) and re-runs migrations on
+   `dw_<name>_test` (the test role owns the DB) and re-runs migrations on
    every session.
 
 3. **Generate `.env`** from `scripts/server/templates/env-instance.template`
@@ -212,8 +212,8 @@ instance (one-shot, as a Postgres superuser):
 TEST_PWD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
 sudo -u postgres psql <<SQL
 CREATE ROLE "dw_<name>_test" WITH LOGIN PASSWORD '$TEST_PWD';
-CREATE DATABASE "test_dw_<name>" OWNER "dw_<name>_test";
-GRANT ALL PRIVILEGES ON DATABASE "test_dw_<name>" TO "dw_<name>_test";
+CREATE DATABASE "dw_<name>_test" OWNER "dw_<name>_test";
+GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_test" TO "dw_<name>_test";
 SQL
 sudo -u dw_<name> vi /opt/docketworks/instances/<name>/.env
 # Add:

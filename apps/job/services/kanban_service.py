@@ -34,6 +34,7 @@ from apps.accounting.models import Invoice
 from apps.job.models import Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
 from apps.workflow.models import CompanyDefaults
+from apps.workflow.services.search_telemetry import SearchTelemetryService
 from apps.workflow.utils import is_valid_invoice_number, is_valid_uuid
 
 logger = logging.getLogger(__name__)
@@ -405,7 +406,12 @@ class KanbanService:
         filters: Optional[Dict[str, Any]] = None,
         column_id: Optional[str] = None,
     ) -> None:
-        if not query.strip():
+        active_filters = {
+            key: value
+            for key, value in (filters or {}).items()
+            if value not in ("", None, [], {})
+        }
+        if not query.strip() and not active_filters:
             return
 
         user = getattr(request, "user", None) if request else None
@@ -439,6 +445,19 @@ class KanbanService:
             ],
         }
         search_logger.info(json.dumps(payload, sort_keys=True, default=str))
+        SearchTelemetryService.log_search(
+            request=request,
+            domain="kanban",
+            source=source,
+            query=query,
+            filters=active_filters,
+            result_count=len(jobs),
+            returned_result_ids=[str(job.id) for job in jobs],
+            metadata={
+                "column_id": column_id,
+                "results": payload["results"][:100],
+            },
+        )
 
     @staticmethod
     def get_all_active_jobs() -> QuerySet[Job]:

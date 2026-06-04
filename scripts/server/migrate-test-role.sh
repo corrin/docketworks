@@ -6,7 +6,7 @@ set -euo pipefail
 #
 # Pre-this-change, all tenants on a UAT box shared a cluster-wide `dw_test`
 # role with CREATEDB. This script gives one tenant its own `dw_<inst>_test`
-# role (no CREATEDB) plus a pre-provisioned `test_dw_<inst>` DB it owns,
+# role (no CREATEDB) plus a same-named pre-provisioned DB it owns,
 # and appends the new credentials to the instance's .env.
 #
 # Run once per pre-existing instance. After every instance has been
@@ -30,10 +30,10 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 INSTANCE="$1"
-# msm-uat → dw_msm_uat_test (role), test_dw_msm_uat (db)
+# msm-uat → dw_msm_uat_test (role and db)
 INSTANCE_UNDERSCORE="${INSTANCE//-/_}"
 TEST_DB_USER="dw_${INSTANCE_UNDERSCORE}_test"
-TEST_DB_NAME="test_dw_${INSTANCE_UNDERSCORE}"
+TEST_DB_NAME="$TEST_DB_USER"
 INSTANCE_DIR="/opt/docketworks/instances/$INSTANCE"
 ENV_FILE="$INSTANCE_DIR/.env"
 
@@ -77,7 +77,7 @@ sudo -u postgres createdb "$TEST_DB_NAME" -O "$TEST_DB_USER"
 # Append as the instance user so the file's ownership/perms are unchanged.
 sudo -u "$INSTANCE_USER" tee -a "$ENV_FILE" > /dev/null <<APPEND
 
-# Pytest connects as a separate role that owns only test_dw_<instance>.
+# Pytest connects as a separate role that owns only the same-named test DB.
 TEST_DB_USER=$TEST_DB_USER
 TEST_DB_PASSWORD=$password
 APPEND

@@ -5,15 +5,18 @@ Following SRP (Single Responsibility Principle) and clean code guidelines.
 All business logic for Client REST operations should be implemented here.
 """
 
+import json
 import logging
-from typing import TYPE_CHECKING, Any, Dict, List
-from uuid import UUID
+import re
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
 
-from django.contrib.postgres.search import SearchVector
 from django.db import transaction
+from django.db.models import Case, IntegerField, Q, When
+from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
@@ -26,11 +29,12 @@ from apps.workflow.services.error_persistence import (
     persist_and_raise,
     persist_app_error,
 )
-from apps.workflow.services.search import apply_text_search
+from apps.workflow.services.search_telemetry import SearchTelemetryService
 
-CLIENT_SEARCH_VECTOR = SearchVector("name", config="english")
+CLIENT_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 logger = logging.getLogger(__name__)
+client_search_logger = logging.getLogger("client_search")
 
 
 class ClientRestService:
@@ -136,17 +140,21 @@ class ClientRestService:
 
             # Apply search filter if query provided
             if query:
-                queryset = apply_text_search(queryset, query, CLIENT_SEARCH_VECTOR)
-                ordering = ("-search_rank", sort_field)
+                ranked_ids = ClientRestService._rank_matching_client_ids(
+                    Client.objects.all(), query
+                )
+                total_count = len(ranked_ids)
+                offset = (page - 1) * page_size
+                page_ids = ranked_ids[offset : offset + page_size]
+                clients = ClientRestService._hydrate_client_search_results(page_ids)
             else:
                 ordering = (sort_field,)
+                # Get total count before pagination
+                total_count = queryset.count()
 
-            # Get total count before pagination
-            total_count = queryset.count()
-
-            # Apply sorting and pagination
-            offset = (page - 1) * page_size
-            clients = queryset.order_by(*ordering)[offset : offset + page_size]
+                # Apply sorting and pagination
+                offset = (page - 1) * page_size
+                clients = queryset.order_by(*ordering)[offset : offset + page_size]
 
             # Calculate total pages
             total_pages = (total_count + page_size - 1) // page_size
@@ -517,11 +525,25 @@ class ClientRestService:
         """
         Executes client search with appropriate filters and annotations.
         """
-        base_qs = Client.objects.filter(allow_jobs=True)
-        ranked_qs = apply_text_search(base_qs, query, CLIENT_SEARCH_VECTOR)
+        ranked_ids = ClientRestService._rank_matching_client_ids(
+            Client.objects.filter(allow_jobs=True), query
+        )
+        return ClientRestService._hydrate_client_search_results(ranked_ids[:limit])
 
-        return (
-            ranked_qs.with_invoice_summary()
+    @staticmethod
+    def _hydrate_client_search_results(client_ids):
+        if not client_ids:
+            return []
+
+        ordering = Case(
+            *[
+                When(id=client_id, then=position)
+                for position, client_id in enumerate(client_ids)
+            ],
+            output_field=IntegerField(),
+        )
+        return list(
+            Client.objects.with_invoice_summary()
             .defer("raw_json")  # Not needed for search results
             .only(
                 "id",
@@ -534,8 +556,242 @@ class ClientRestService:
                 "allow_jobs",
                 "xero_contact_id",
             )
-            .order_by("-search_rank", "name")[:limit]
+            .filter(id__in=client_ids)
+            .order_by(ordering)
         )
+
+    @staticmethod
+    def _rank_matching_client_ids(queryset, query: str):
+        tokens = ClientRestService._client_search_tokens(query)
+        if not tokens:
+            return []
+
+        candidate_filter = ClientRestService._client_name_candidate_filter(tokens)
+        candidates = queryset.filter(candidate_filter).values_list("id", "name")
+
+        ranked = [
+            (
+                ClientRestService._client_name_score(name, query, tokens),
+                client_id,
+            )
+            for client_id, name in candidates.iterator()
+            if ClientRestService._client_name_matches(name, tokens)
+        ]
+        ranked.sort(key=lambda item: item[0])
+        return [client_id for _, client_id in ranked]
+
+    @staticmethod
+    def _client_search_tokens(query: str) -> list[str]:
+        return CLIENT_SEARCH_TOKEN_RE.findall(query.lower())
+
+    @staticmethod
+    def _normalized_client_search_text(value: str) -> str:
+        return " ".join(CLIENT_SEARCH_TOKEN_RE.findall(value.lower()))
+
+    @staticmethod
+    def _client_name_candidate_filter(tokens: list[str]):
+        candidate_filter = Q()
+        for token in tokens:
+            candidate_filter &= Q(name__icontains=token)
+        return candidate_filter
+
+    @staticmethod
+    def _client_name_matches(name: str, tokens: list[str]) -> bool:
+        name_tokens = ClientRestService._client_search_tokens(name)
+        return all(
+            any(name_token.startswith(query_token) for name_token in name_tokens)
+            for query_token in tokens
+        )
+
+    @staticmethod
+    def _client_name_score(name: str, query: str, tokens: list[str]):
+        normalized_name = ClientRestService._normalized_client_search_text(name)
+        normalized_query = ClientRestService._normalized_client_search_text(query)
+        name_tokens = ClientRestService._client_search_tokens(name)
+
+        if normalized_name == normalized_query:
+            tier = 0
+        elif normalized_name.startswith(normalized_query):
+            tier = 1
+        elif normalized_query in normalized_name:
+            tier = 2
+        else:
+            tier = 3
+
+        token_scores = [
+            ClientRestService._client_token_match_score(token, name_tokens)
+            for token in tokens
+        ]
+        positions = [normalized_name.find(token) for token in tokens]
+        ordered_penalty = 0 if positions == sorted(positions) else 1
+        return (
+            tier,
+            max(token_scores),
+            sum(token_scores),
+            sum(positions),
+            ordered_penalty,
+            len(normalized_name),
+            normalized_name,
+        )
+
+    @staticmethod
+    def _client_token_match_score(query_token: str, name_tokens: list[str]) -> int:
+        if query_token in name_tokens:
+            return 0
+        if any(token.startswith(query_token) for token in name_tokens):
+            return 1
+        return 99
+
+    @staticmethod
+    def explain_client_search(query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        ranked_ids = ClientRestService._rank_matching_client_ids(
+            Client.objects.all(), query
+        )
+        clients = ClientRestService._hydrate_client_search_results(ranked_ids[:limit])
+        tokens = ClientRestService._client_search_tokens(query)
+        return [
+            ClientRestService._client_search_log_result(
+                rank=index + 1,
+                result=client,
+                query=query,
+                tokens=tokens,
+            )
+            for index, client in enumerate(clients)
+        ]
+
+    @staticmethod
+    def log_client_search_results(
+        *,
+        request: Optional[HttpRequest],
+        source: str,
+        query: str,
+        clients,
+        total_count: int,
+    ) -> None:
+        if len(query.strip()) < 3:
+            return
+
+        tokens = ClientRestService._client_search_tokens(query)
+        user = getattr(request, "user", None) if request else None
+        payload = {
+            "event": "client_search_results",
+            "search_id": str(uuid4()),
+            "source": source,
+            "query": query,
+            "path": getattr(request, "path", None),
+            "query_string": (
+                request.META.get("QUERY_STRING", "") if request is not None else ""
+            ),
+            "user_id": str(getattr(user, "id", "")) if user else None,
+            "user_email": getattr(user, "email", None) if user else None,
+            "result_count": total_count,
+            "returned_count": len(clients),
+            "results": [
+                ClientRestService._client_search_log_result(
+                    rank=index + 1,
+                    result=client,
+                    query=query,
+                    tokens=tokens,
+                )
+                for index, client in enumerate(clients)
+            ],
+        }
+        client_search_logger.info(json.dumps(payload, sort_keys=True, default=str))
+        SearchTelemetryService.log_search(
+            request=request,
+            domain="client",
+            source=source,
+            query=query,
+            result_count=total_count,
+            returned_result_ids=[
+                result["id"] if isinstance(result, dict) else result.id
+                for result in clients
+            ],
+            metadata={"results": payload["results"][:100]},
+        )
+
+    @staticmethod
+    def log_client_search_click(
+        *,
+        request: Optional[HttpRequest],
+        source: str,
+        query: str,
+        client_id,
+        rank: Optional[int],
+    ) -> None:
+        client = Client.objects.only("id", "name").get(id=client_id)
+        user = getattr(request, "user", None) if request else None
+        payload = {
+            "event": "client_search_click",
+            "search_id": str(uuid4()),
+            "source": source,
+            "query": query,
+            "path": getattr(request, "path", None),
+            "query_string": (
+                request.META.get("QUERY_STRING", "") if request is not None else ""
+            ),
+            "user_id": str(getattr(user, "id", "")) if user else None,
+            "user_email": getattr(user, "email", None) if user else None,
+            "client_id": str(client.id),
+            "client_name": client.name,
+            "rank": rank,
+        }
+        client_search_logger.info(json.dumps(payload, sort_keys=True, default=str))
+        SearchTelemetryService.log_click(
+            request=request,
+            domain="client",
+            source=source,
+            query=query,
+            selected_result_id=str(client.id),
+            selected_label=client.name,
+            selected_rank=rank,
+            metadata={"client_name": client.name},
+        )
+
+    @staticmethod
+    def _client_search_log_result(
+        *,
+        rank: int,
+        result: Client | Dict[str, Any],
+        query: str,
+        tokens: list[str],
+    ) -> Dict[str, Any]:
+        if isinstance(result, dict):
+            client_id = result["id"]
+            client_name = result["name"]
+        else:
+            client_id = str(result.id)
+            client_name = result.name
+
+        name_tokens = ClientRestService._client_search_tokens(client_name)
+        return {
+            "rank": rank,
+            "client_id": client_id,
+            "client_name": client_name,
+            "search_score": ClientRestService._client_name_score(
+                client_name, query, tokens
+            ),
+            "search_reasons": [
+                {
+                    "token": token,
+                    "reason": ClientRestService._client_token_match_reason(
+                        token, name_tokens
+                    ),
+                    "score": ClientRestService._client_token_match_score(
+                        token, name_tokens
+                    ),
+                }
+                for token in tokens
+            ],
+        }
+
+    @staticmethod
+    def _client_token_match_reason(query_token: str, name_tokens: list[str]) -> str:
+        if query_token in name_tokens:
+            return "token_exact"
+        if any(token.startswith(query_token) for token in name_tokens):
+            return "token_prefix"
+        return "no_match"
 
     @staticmethod
     def _format_client_summary(client: Client) -> Dict[str, Any]:

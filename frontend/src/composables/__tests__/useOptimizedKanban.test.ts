@@ -4,6 +4,7 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 const {
   route,
+  pushMock,
   replaceMock,
   setCurrentContext,
   setLoadingKanban,
@@ -15,8 +16,10 @@ const {
   saveFeedback,
   kanbanColumnCache,
   kanbanJobsById,
+  logSearchResultClick,
 } = vi.hoisted(() => ({
   route: { query: {} as Record<string, string> },
+  pushMock: vi.fn(),
   replaceMock: vi.fn(),
   setCurrentContext: vi.fn(),
   setLoadingKanban: vi.fn(),
@@ -34,11 +37,16 @@ const {
   },
   kanbanColumnCache: new Map<string, unknown>(),
   kanbanJobsById: new Map<string, Record<string, unknown>>(),
+  logSearchResultClick: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
   useRoute: () => route,
-  useRouter: () => ({ replace: replaceMock }),
+  useRouter: () => ({ push: pushMock, replace: replaceMock }),
+}))
+
+vi.mock('@/services/searchTelemetry.service', () => ({
+  logSearchResultClick,
 }))
 
 vi.mock('@/services/job.service', () => ({
@@ -392,6 +400,34 @@ describe('useOptimizedKanban search reconciliation', () => {
         }),
       }),
     )
+  })
+
+  it('logs a search-result click before navigating to the job', async () => {
+    performAdvancedSearch.mockResolvedValue({
+      jobs: [buildKanbanJob({ id: 'job-search', job_number: 9010, name: 'Search Job' })],
+    })
+
+    const kanban = await mountHarness()
+
+    kanban.searchQuery.value = 'search'
+    await kanban.handleSearch()
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    kanban.viewJob(kanban.filteredJobs.value[0])
+
+    expect(logSearchResultClick).toHaveBeenCalledWith(
+      expect.objectContaining({
+        domain: 'kanban',
+        query: 'search',
+        selectedResultId: 'job-search',
+        selectedLabel: '#9010 Search Job',
+        selectedRank: 1,
+        resultCount: 1,
+        source: 'kanban_quick_search',
+      }),
+    )
+    expect(pushMock).toHaveBeenCalledWith('/jobs/job-search')
   })
 
   it('ignores stale backend responses when the user keeps typing', async () => {

@@ -1,10 +1,10 @@
 """
 Test settings — connects pytest as the per-instance test role.
 
-Each tenant has a separate role (dw_<instance>_test) that owns only the
-pre-provisioned test_dw_<instance> database — no CREATEDB, no access to
-the app DB. This file just swaps the DB credentials; conftest.py at the
-repo root handles schema reset and migrations.
+Each tenant has a separate role (dw_<instance>_test) that owns the same-named
+test database — no CREATEDB, no access to the app DB. This file just swaps
+the DB credentials; conftest.py at the repo root handles schema reset and
+migrations.
 """
 
 import os

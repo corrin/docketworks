@@ -2930,6 +2930,19 @@ const AppErrorListResponse = z.object({
   previous: z.string().nullish(),
   results: z.array(AppError),
 })
+const DomainEnum = z.enum(['client', 'kanban', 'stock'])
+const SearchTelemetryClickRequestRequest = z.object({
+  domain: DomainEnum,
+  query: z.string().max(255),
+  selected_result_id: z.string().min(1).max(255),
+  selected_label: z.string().max(255).optional().default(''),
+  selected_rank: z.number().int().gte(1).nullish(),
+  result_count: z.number().int().gte(0).optional().default(0),
+  source: z.string().max(100).optional().default(''),
+  filters: z.unknown().optional(),
+  metadata: z.unknown().optional(),
+})
+const SearchTelemetryClickResponse = z.object({ success: z.boolean() })
 const SessionReplayFrontendErrorRequest = z.object({
   message: z.string().min(1),
   stack: z.string().optional(),
@@ -3721,6 +3734,9 @@ export const schemas = {
   ScheduledTask,
   PaginatedScheduledTaskList,
   AppErrorListResponse,
+  DomainEnum,
+  SearchTelemetryClickRequestRequest,
+  SearchTelemetryClickResponse,
   SessionReplayFrontendErrorRequest,
   SessionReplayFrontendErrorResponse,
   SessionReplayRecording,
@@ -8757,6 +8773,21 @@ Supports pagination via &#x60;&#x60;limit&#x60;&#x60;/&#x60;&#x60;offset&#x60;&#
 - &#x60;&#x60;job_id&#x60;&#x60; / &#x60;&#x60;user_id&#x60;&#x60; (UUID strings)`,
     requestFormat: 'json',
     response: AppErrorListResponse,
+  },
+  {
+    method: 'post',
+    path: '/api/search-events/click/',
+    alias: 'search_events_click_create',
+    description: `Records a selected result from client, Kanban, or stock search.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: SearchTelemetryClickRequestRequest,
+      },
+    ],
+    response: z.object({ success: z.boolean() }),
   },
   {
     method: 'post',

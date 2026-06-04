@@ -28,6 +28,7 @@ from apps.workflow.views.company_defaults_api import CompanyDefaultsAPIView
 from apps.workflow.views.company_defaults_logo_api import CompanyDefaultsLogoAPIView
 from apps.workflow.views.company_defaults_schema_api import CompanyDefaultsSchemaAPIView
 from apps.workflow.views.data_versions_view import DataVersionsAPIView
+from apps.workflow.views.search_telemetry_view import SearchTelemetryClickAPIView
 from apps.workflow.views.session_replay_view import (
     SessionReplayChunkCreateView,
     SessionReplayEventsView,
@@ -52,6 +53,11 @@ router.register("xero-apps", XeroAppViewSet, basename="xero-app")
 urlpatterns = [
     path("build-id/", BuildIdAPIView.as_view(), name="build_id"),
     path("data-versions/", DataVersionsAPIView.as_view(), name="data_versions"),
+    path(
+        "search-events/click/",
+        SearchTelemetryClickAPIView.as_view(),
+        name="search_telemetry_click",
+    ),
     path(
         "session-replays/recordings/",
         SessionReplayRecordingListCreateView.as_view(),
