@@ -1,5 +1,6 @@
 import copy
 import hashlib
+import itertools
 import json
 import re
 from typing import Any, Iterable, Optional
@@ -46,7 +47,10 @@ class SearchTelemetryService:
         user = SearchTelemetryService._authenticated_user(request)
         result_ids = [
             str(result_id)
-            for result_id in list(returned_result_ids)[:MAX_SEARCH_TELEMETRY_RESULTS]
+            for result_id in itertools.islice(
+                returned_result_ids,
+                MAX_SEARCH_TELEMETRY_RESULTS,
+            )
         ]
         capped_metadata = SearchTelemetryService._cap_metadata_results(metadata or {})
         values = {

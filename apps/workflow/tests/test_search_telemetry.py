@@ -50,17 +50,26 @@ def test_search_click_endpoint_records_generic_event(db):
 
 @pytest.mark.django_db
 def test_search_telemetry_caps_displayed_results_at_100():
+    yielded_count = 0
+
+    def result_ids():
+        nonlocal yielded_count
+        for index in range(150):
+            yielded_count += 1
+            yield f"stock-{index}"
+
     SearchTelemetryService.log_search(
         request=None,
         domain="stock",
         source="stock_search",
         query="stainless",
         result_count=150,
-        returned_result_ids=[f"stock-{index}" for index in range(150)],
+        returned_result_ids=result_ids(),
         metadata={"results": [{"rank": index + 1} for index in range(150)]},
     )
 
     event = SearchTelemetryEvent.objects.get()
+    assert yielded_count == 100
     assert event.result_count == 150
     assert event.returned_count == 100
     assert len(event.returned_result_ids) == 100
