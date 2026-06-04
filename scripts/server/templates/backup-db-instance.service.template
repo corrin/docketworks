@@ -1,0 +1,13 @@
+[Unit]
+Description=Database backup for docketworks __INSTANCE__
+After=network-online.target postgresql.service
+Wants=network-online.target
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=__INSTANCE_USER__
+Group=__INSTANCE_USER__
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__
+Environment=RCLONE_CONFIG=__RCLONE_CONFIG__
+ExecStart=/opt/docketworks/instances/__INSTANCE__/scripts/backup_db.sh __INSTANCE__

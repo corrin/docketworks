@@ -296,6 +296,29 @@ sudo scripts/server/deploy.sh <name>
 
 This pulls latest code, installs dependencies, runs migrations, rebuilds frontend, and restarts Gunicorn.
 
+### Backups
+
+Each instance has nightly database backups via `backup-db-<name>.timer`.
+The job runs as the instance user (`dw_<name>`), writes local dumps under
+`/opt/docketworks/instances/<name>/backups`, applies retention, and syncs to
+Google Drive under `gdrive:dw_backups/<name>/`.
+
+Before enabling backups for a new instance, share the backup parent Drive folder
+with the instance service account. If you want rclone anchored to that folder,
+put the folder ID in `BACKUP_GDRIVE_ROOT_FOLDER_ID` in
+`/opt/docketworks/config/<name>.credentials.env`; create/deploy writes
+`/opt/docketworks/config/rclone/<name>.conf`.
+
+Smoke test:
+
+```bash
+sudo systemctl status backup-db-<name>.timer
+sudo systemctl start backup-db-<name>.service
+sudo journalctl -u backup-db-<name>.service -n 100
+sudo -u dw_<name> RCLONE_CONFIG=/opt/docketworks/config/rclone/<name>.conf \
+  rclone lsf gdrive:dw_backups/<name>/
+```
+
 ### Cold standby (DR mode)
 
 For a DR box that shares Xero credentials with a live primary: create with `--no-start` so celery-beat / celery-worker never auto-start (no heartbeat to Xero with shared tokens), and a `.dr-mode` marker is dropped in the instance dir. Subsequent `deploy.sh` runs see the marker and skip enable/restart of celery-beat, celery-worker, and gunicorn — migrations, builds, and unit/nginx re-renders still run, so the standby stays current.

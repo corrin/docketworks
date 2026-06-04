@@ -37,10 +37,10 @@ Run manually for one-off or periodic data tasks:
 
 ## Production infrastructure
 
-- **`backup_db.sh`** — Daily automated database backup (runs via cron on prod). See `docs/server_setup_prod.md`
+- **`backup_db.sh`** — Instance-user database backup. Writes daily/monthly dumps, then runs retention and Google Drive sync through `cleanup_backups.py`. Runs via `backup-db-<instance>.timer`.
 - **`predeploy_backup.sh`** — Called by `scripts/server/deploy.sh` before each instance's git pull. Stamps the dump with the pre-pull commit hash so rollback is a (git checkout, psql restore) pair. Runnable by hand: `sudo predeploy_backup.sh <instance>`
 - **`predeploy_rollback.sh`** — Restore an instance to the code + data that paired with a given commit hash. Usage: `sudo predeploy_rollback.sh <instance> <hash>` (interactive confirm before it stops gunicorn and restores the DB)
-- **`cleanup_backups.py`** — Backup retention. `ts_dir` style: keep 24h + daily for a week + monthly beyond. `predeploy_*.sql.gz`: keep 30 days. Other filenames left alone.
+- **`cleanup_backups.py`** — Backup retention and remote sync. `ts_dir` style: keep 24h + daily for a week + monthly beyond. `predeploy_*.sql.gz`: keep 30 days. `daily_*.sql.gz`: keep 14. `monthly_*.sql.gz`: keep 12. Other filenames left alone.
 - **`cleanup_backups.sh`** — Wrapper that activates venv and runs `cleanup_backups.py`
 
 ## Archive

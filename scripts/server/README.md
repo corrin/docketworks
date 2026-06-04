@@ -21,6 +21,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 |------|----------------|----------|
 | Gmail address + app password | Google Account → Security → App passwords | Password resets, notifications |
 | GCP service account JSON key | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server | Google Sheets/Drive integration |
+| Google Drive backup folder | Share a Drive folder with the service account; optional folder ID goes in `BACKUP_GDRIVE_ROOT_FOLDER_ID` | Nightly DB backups |
 
 ## Server Setup
 
@@ -39,7 +40,7 @@ sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key <GOOGLE_MAPS_A
 sudo ./scripts/server/server-setup.sh
 ```
 
-Installs everything needed by the app: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, Poetry, Claude Code CLI. Creates the `docketworks` system user, clones the repo, builds the shared venv and node_modules, obtains the wildcard SSL cert.
+Installs everything needed by the app: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, Poetry, rclone, Claude Code CLI. Creates the `docketworks` system user, clones the repo, builds the shared venv and node_modules, obtains the wildcard SSL cert.
 
 Required keys (passed once on first run, then cached):
 1. Dreamhost API key (for the Let's Encrypt DNS-01 challenge — UAT only)
@@ -70,7 +71,7 @@ Add `--seed` to load demo fixture data:
 sudo ./scripts/server/instance.sh create mycompany uat --seed
 ```
 
-After creation, the instance is live at `https://mycompany-uat.docketworks.site`.
+After creation, the instance is live at its configured URL. Each instance also gets `backup-db-<instance>.timer` enabled for nightly database backups.
 
 ## Per-Instance Xero Setup
 
@@ -96,7 +97,8 @@ How to get them:
    or paste them via Admin → Xero Apps after deploy.
 4. **XERO_DEFAULT_USER_ID:** Create the instance first (it will work without Xero initially), create a Staff member in the app's admin, then copy that staff member's UUID into the credentials file and re-run create
 5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
-6. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
+6. **BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Google Drive folder ID for the backup parent. Share that folder with the service account. Backups upload under `dw_backups/<instance>/` from that root.
+7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
 
 ## Deploying Updates
 
@@ -112,7 +114,19 @@ What deploy does, in order:
 1. Pull latest code from GitHub (into the shared local repo).
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
 3. Update shared Python/Node deps.
-4. For each instance: pre-deploy backup (unless `--no-backup`), git pull, build frontend, run migrate, render+restart `celery-worker-<instance>`, render+restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
+4. For each instance: pre-deploy backup (unless `--no-backup`), git pull, build frontend, run migrate, render backup units, render+restart `celery-worker-<instance>`, render+restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
+
+## Backups
+
+Each instance gets a nightly systemd timer:
+
+```bash
+sudo systemctl status backup-db-<instance>.timer
+sudo systemctl start backup-db-<instance>.service
+sudo journalctl -u backup-db-<instance>.service -n 100
+```
+
+Backups run as `dw_<instance>` and use `/opt/docketworks/config/rclone/<instance>.conf`, which points at the instance's copied `gcp-credentials.json`. Local dumps live in `/opt/docketworks/instances/<instance>/backups`; remote files live under `gdrive:dw_backups/<instance>/`.
 
 ## Destroying an Instance
 
@@ -142,7 +156,8 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ├── package.json              # Shared node_modules
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 ├── config/
-│   └── <name>.credentials.env    # Xero + GCP + email secrets (survives destroy)
+│   ├── <name>.credentials.env    # Xero + GCP + email secrets (survives destroy)
+│   └── rclone/<name>.conf        # Per-instance backup upload config
 └── instances/
     └── <name>/               # = git checkout (always on main)
         ├── gcp-credentials.json  # Copied from path in credentials.env (mode 600)
@@ -196,4 +211,6 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/gunicorn-instance.service.template` | Systemd unit template (web) |
 | `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker) |
 | `templates/celery-beat-instance.service.template` | Systemd unit template (Celery Beat — periodic task dispatcher) |
+| `templates/backup-db-instance.service.template` | Systemd unit template (database backup) |
+| `templates/backup-db-instance.timer.template` | Systemd timer template (nightly database backup) |
 | `templates/nginx-instance.conf.template` | Nginx server block template |
