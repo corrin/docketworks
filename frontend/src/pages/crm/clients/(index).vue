@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <RouterView v-if="route.matched.length > 1" />
+    <RouterView v-if="isChildActive" />
     <template v-else>
     <div class="p-4 md:p-8 space-y-4">
       <!-- Header -->
@@ -171,7 +171,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useClientStore } from '@/stores/clientStore'
 import { useDebounceFn } from '@vueuse/core'
@@ -193,6 +193,10 @@ import { toast } from 'vue-sonner'
 
 const route = useRoute()
 const router = useRouter()
+const isChildActive = computed(() => {
+  const name = route.name as string
+  return name && !name.endsWith('(index)')
+})
 const clientStore = useClientStore()
 
 // Local state

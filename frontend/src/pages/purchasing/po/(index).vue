@@ -1,6 +1,6 @@
 <template>
   <AppLayout>
-    <RouterView v-if="route.matched.length > 1" />
+    <RouterView v-if="isChildActive" />
     <template v-else>
     <div class="p-4 md:p-8 space-y-4">
       <div class="flex items-center justify-between">
@@ -129,6 +129,10 @@ type PurchaseOrderStatus = (typeof statusOptions)[number]
 
 const route = useRoute()
 const router = useRouter()
+const isChildActive = computed(() => {
+  const name = route.name as string
+  return name && !name.endsWith('(index)')
+})
 const store = usePurchaseOrderStore()
 const orders = computed(() => store.orders)
 
