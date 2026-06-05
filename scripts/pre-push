@@ -7,4 +7,3 @@ npm run check:typed-router
 npm run test:unit
 npm run lint
 npm run type-check
-npm run check:typed-router
