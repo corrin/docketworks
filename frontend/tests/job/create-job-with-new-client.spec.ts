@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId, dismissToasts } from '../fixtures/helpers'
+import { autoId, dismissToasts, submitJobAndWaitForCreatedJob } from '../fixtures/helpers'
 
 /**
  * Tests for creating a job with a new client in Xero.
@@ -81,14 +81,9 @@ test.describe('create job with new xero client', () => {
     // Dismiss any toasts that might block the submit button
     await dismissToasts(page)
 
-    // Submit the job
-    await autoId(page, 'JobCreateView-submit').click({ force: true })
-
-    // Wait for redirect to job edit view
-    await page.waitForURL('**/jobs/*?*tab=estimate*', { timeout: 15000 })
+    const url = await submitJobAndWaitForCreatedJob(page, 'estimate')
 
     // Verify we're on the job page
-    const url = page.url()
     expect(url).toContain('/jobs/')
     expect(url).not.toContain('/create')
 
@@ -173,12 +168,7 @@ test.describe('create job with new xero client', () => {
 
     await autoId(page, 'JobCreateView-pricing-method').selectOption('fixed_price')
     await dismissToasts(page)
-    await autoId(page, 'JobCreateView-submit').click({ force: true })
-
-    // For fixed_price jobs, redirect goes to quote tab
-    await page.waitForURL('**/jobs/*?*tab=quote*', { timeout: 15000 })
-
-    const url = page.url()
+    const url = await submitJobAndWaitForCreatedJob(page, 'quote')
     expect(url).toContain('/jobs/')
 
     console.log(`Job created via modal method at: ${url}`)

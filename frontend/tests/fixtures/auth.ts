@@ -4,6 +4,7 @@ import {
   autoId,
   enableNetworkLogging,
   expectStepUnder,
+  submitJobAndWaitForCreatedJob,
   TEST_CLIENT_NAME,
 } from './helpers'
 
@@ -156,8 +157,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
         async () => {
           await autoId(page, 'JobCreateView-pricing-method').selectOption('fixed_price')
           await dismissToasts(page)
-          await autoId(page, 'JobCreateView-submit').click({ force: true })
-          await page.waitForURL('**/jobs/*?*tab=quote*', { timeout: 15000 })
+          await submitJobAndWaitForCreatedJob(page, 'quote')
         },
       )
 

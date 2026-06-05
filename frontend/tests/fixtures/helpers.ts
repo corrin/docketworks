@@ -254,6 +254,57 @@ export async function waitForAutosave(page: Page) {
   )
 }
 
+async function waitForJobCreateResponse(page: Page): Promise<string> {
+  const response = await page.waitForResponse(
+    (candidate) => {
+      const url = new URL(candidate.url())
+      return (
+        url.pathname === '/api/job/jobs/' &&
+        candidate.request().method() === 'POST' &&
+        candidate.status() === 201
+      )
+    },
+    { timeout: 0 },
+  )
+
+  const body: unknown = await response.json()
+  if (!body || typeof body !== 'object' || !('job_id' in body) || typeof body.job_id !== 'string') {
+    throw new Error(`Job create response did not include job_id: ${JSON.stringify(body)}`)
+  }
+
+  return body.job_id
+}
+
+async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promise<void> {
+  await page.waitForFunction(
+    ({ source, flags }) => new RegExp(source, flags).test(window.location.href),
+    { source: expectedUrl.source, flags: expectedUrl.flags },
+    { timeout: 0 },
+  )
+}
+
+export async function submitJobAndWaitForCreatedJob(
+  page: Page,
+  expectedTab: 'estimate' | 'quote',
+): Promise<string> {
+  const createResponsePromise = waitForJobCreateResponse(page)
+  const submitButton = autoId(page, 'JobCreateView-submit')
+  await expect(submitButton).toBeEnabled()
+  await submitButton.click()
+
+  const jobId = await createResponsePromise
+  await waitForCurrentUrl(page, new RegExp(`/jobs/${jobId}(?:\\?.*)?$`))
+
+  const url = new URL(page.url())
+  if (url.searchParams.get('tab') !== expectedTab) {
+    throw new Error(
+      `Expected created job ${jobId} to open tab=${expectedTab}, got ${url.searchParams.get('tab')}`,
+    )
+  }
+
+  return page.url()
+}
+
 /**
  * Create a new purchase order for testing and return its URL
  */
@@ -374,8 +425,7 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
     await dismissToasts(page)
     await autoId(page, 'JobCreateView-pricing-method').selectOption('time_materials')
     await dismissToasts(page)
-    await autoId(page, 'JobCreateView-submit').click({ force: true })
-    await page.waitForURL('**/jobs/*?*tab=estimate*', { timeout: 15000 })
+    await submitJobAndWaitForCreatedJob(page, 'estimate')
   })
 
   return page.url()
