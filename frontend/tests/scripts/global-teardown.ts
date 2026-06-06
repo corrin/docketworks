@@ -3,7 +3,14 @@ import path from 'path'
 import { fileURLToPath } from 'url'
 import * as fs from 'fs'
 import os from 'os'
-import { DbConfig, getDbConfig, runIntegrityCheck, runPsql, syncSequences } from './db-backup-utils'
+import {
+  checkSafeToTest,
+  DbConfig,
+  getDbConfig,
+  runIntegrityCheck,
+  runPsql,
+  syncSequences,
+} from './db-backup-utils'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
@@ -165,9 +172,21 @@ function restoreDatabase(lockContents: string) {
   console.log('[db] Syncing sequences...')
   syncSequences(dbConfig)
 
+  // TEMPORARY(e2e-investigation): prove whether [TEST] rows exist immediately after restore.
+  console.log('[db] Running post-restore E2E safety check...')
+  const safety = checkSafeToTest(dbConfig)
+  if (!safety.clean) {
+    printRestoreFailureBanner(
+      backupFile,
+      dbConfig,
+      `E2E safety check failed after restore:\n  - ${safety.issues.join('\n  - ')}`,
+    )
+    throw new Error(`Post-restore E2E safety check failed: ${safety.issues.join('; ')}`)
+  }
+
   // Backup + token side-file have served their purpose. Delete only after
   // the full pipeline succeeded — restore + integrity check + token
-  // reinjection + sequences.
+  // reinjection + sequences + E2E safety check.
   fs.unlinkSync(backupFile)
   if (fs.existsSync(xeroTokenFile)) {
     fs.unlinkSync(xeroTokenFile)
