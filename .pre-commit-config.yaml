@@ -149,6 +149,13 @@ repos:
         files: '^frontend/schema\.yml$'
         pass_filenames: false
 
+      - id: frontend-typed-router
+        name: Regenerate frontend typed router
+        entry: bash -c 'cd frontend && npm run gen:typed-router && git add src/typed-router.d.ts'
+        language: system
+        pass_filenames: false
+        always_run: true
+
       - id: frontend-lint-staged
         name: Frontend lint-staged
         entry: bash -c 'cd frontend && npx lint-staged --allow-empty'

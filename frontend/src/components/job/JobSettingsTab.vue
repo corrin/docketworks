@@ -527,7 +527,7 @@ const isServerSyncingBasicInfo = ref(false)
 
 // Typing state tracking to prevent interruption
 const isUserTyping = ref(false)
-const typingTimeout = ref<number | null>(null)
+const typingTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 const TYPING_TIMEOUT_MS = 1000 // Consider user stopped typing after 1 second
 
 // Status choices are now loaded in the combined onMounted hook above
