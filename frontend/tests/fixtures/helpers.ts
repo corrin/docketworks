@@ -275,7 +275,7 @@ async function waitForJobCreateResponse(page: Page): Promise<string> {
   return body.job_id
 }
 
-async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promise<void> {
+export async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promise<void> {
   await page.waitForFunction(
     ({ source, flags }) => new RegExp(source, flags).test(window.location.href),
     { source: expectedUrl.source, flags: expectedUrl.flags },

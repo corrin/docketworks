@@ -1,4 +1,4 @@
-import { test as base, expect, type Page } from '@playwright/test'
+import { test as base, expect, type Page, type Response } from '@playwright/test'
 import {
   dismissToasts,
   autoId,
@@ -6,6 +6,7 @@ import {
   expectStepUnder,
   submitJobAndWaitForCreatedJob,
   TEST_CLIENT_NAME,
+  waitForCurrentUrl,
 } from './helpers'
 
 // Define fixture types
@@ -26,6 +27,121 @@ const SHARED_EDIT_JOB_BUDGET_MS = {
   submitAndRedirect: 3500,
 } as const
 
+const LOGIN_TOKEN_PATH = '/api/accounts/token/'
+const LOGIN_ME_PATH = '/api/accounts/me/'
+
+function waitForLoginResponse(page: Page, path: string, method: 'GET' | 'POST'): Promise<Response> {
+  return page.waitForResponse(
+    (candidate) => {
+      const url = new URL(candidate.url())
+      return url.pathname === path && candidate.request().method() === method
+    },
+    { timeout: 0 },
+  )
+}
+
+async function responseDiagnostics(label: string, response?: Response): Promise<string> {
+  if (!response) {
+    return `${label}: no response observed`
+  }
+
+  let body = '<unavailable>'
+  try {
+    body = await response.text()
+  } catch {
+    body = '<body could not be read>'
+  }
+
+  const bodyPreview = body.length > 500 ? `${body.slice(0, 500)}...` : body
+  const url = new URL(response.url())
+  return [
+    `${label}: ${response.request().method()} ${url.pathname} -> ${response.status()} ${response.statusText()}`,
+    `${label} body: ${bodyPreview || '<empty>'}`,
+  ].join('\n')
+}
+
+async function loginPageDiagnostics(page: Page): Promise<string> {
+  const submitButton = page.locator('form button[type="submit"]').first()
+  const errorMessage = page.locator('.text-red-700').first()
+
+  const readState = async <T>(reader: () => Promise<T>, fallback: T): Promise<T> => {
+    try {
+      return await reader()
+    } catch {
+      return fallback
+    }
+  }
+
+  const buttonCount = await readState(() => submitButton.count(), 0)
+  const buttonText =
+    buttonCount > 0 ? await readState(() => submitButton.innerText(), '<unreadable>') : '<missing>'
+  const buttonVisible =
+    buttonCount > 0 ? await readState(() => submitButton.isVisible(), false) : false
+  const buttonEnabled =
+    buttonCount > 0 ? await readState(() => submitButton.isEnabled(), false) : false
+  const visibleError =
+    (await readState(() => errorMessage.count(), 0)) > 0
+      ? await readState(() => errorMessage.innerText(), '')
+      : ''
+
+  return [
+    `current URL: ${page.url()}`,
+    `submit button: count=${buttonCount} visible=${buttonVisible} enabled=${buttonEnabled} text=${JSON.stringify(buttonText)}`,
+    `visible login error: ${visibleError ? JSON.stringify(visibleError) : '<none>'}`,
+  ].join('\n')
+}
+
+async function authenticateViaLoginPage(
+  page: Page,
+  username: string,
+  password: string,
+): Promise<void> {
+  let tokenResponse: Response | undefined
+  let meResponse: Response | undefined
+
+  try {
+    const initialSessionCheckPromise = waitForLoginResponse(page, LOGIN_ME_PATH, 'GET')
+    void initialSessionCheckPromise.catch(() => undefined)
+    await page.goto('/login')
+    await initialSessionCheckPromise
+
+    await page.locator('#username').fill(username)
+    await page.locator('#password').fill(password)
+
+    const submitButton = page.locator('form button[type="submit"]').first()
+    await expect(submitButton).toBeEnabled()
+
+    const tokenResponsePromise = waitForLoginResponse(page, LOGIN_TOKEN_PATH, 'POST')
+    const meResponsePromise = waitForLoginResponse(page, LOGIN_ME_PATH, 'GET')
+    void tokenResponsePromise.catch(() => undefined)
+    void meResponsePromise.catch(() => undefined)
+
+    await submitButton.click()
+
+    tokenResponse = await tokenResponsePromise
+    if (!tokenResponse.ok()) {
+      throw new Error(await responseDiagnostics('token response', tokenResponse))
+    }
+
+    meResponse = await meResponsePromise
+    if (!meResponse.ok()) {
+      throw new Error(await responseDiagnostics('current-user response', meResponse))
+    }
+
+    await waitForCurrentUrl(page, /\/kanban\/?(?:[?#].*)?$/)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      [
+        `E2E login did not reach /kanban: ${message}`,
+        await loginPageDiagnostics(page),
+        await responseDiagnostics('token response', tokenResponse),
+        await responseDiagnostics('current-user response', meResponse),
+      ].join('\n'),
+    )
+  }
+}
+
 export const test = base.extend<AuthFixtures, WorkerFixtures>({
   authenticatedPage: async ({ page }, use, testInfo) => {
     const username = process.env.E2E_TEST_USERNAME
@@ -39,18 +155,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
     enableNetworkLogging(page, testInfo.title)
 
     await base.step('authenticatedPage: login', async () => {
-      // Navigate to login page
-      await page.goto('/login')
-
-      // Fill login form
-      await page.locator('#username').fill(username)
-      await page.locator('#password').fill(password)
-
-      // Click sign in button
-      await page.getByRole('button', { name: 'Sign In' }).click()
-
-      // Wait for redirect to kanban (default landing page after login)
-      await page.waitForURL('**/kanban')
+      await authenticateViaLoginPage(page, username, password)
     })
 
     // Enable debug logging if DEBUG env var is set
@@ -78,11 +183,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
       const page = await context.newPage()
 
       await base.step('sharedEditJobUrl: login', async () => {
-        await page.goto('/login')
-        await page.locator('#username').fill(username)
-        await page.locator('#password').fill(password)
-        await page.getByRole('button', { name: 'Sign In' }).click()
-        await page.waitForURL('**/kanban')
+        await authenticateViaLoginPage(page, username, password)
       })
 
       // Create the job using the helper (but with fixed_price for edit tests)
