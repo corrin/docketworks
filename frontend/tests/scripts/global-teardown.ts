@@ -20,6 +20,17 @@ function sleepSync(ms: number): void {
   Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
 }
 
+function sqlString(value: string): string {
+  return `'${value.replace(/'/g, "''")}'`
+}
+
+function sqlNullableString(value: string | null): string {
+  if (value === null) {
+    return 'NULL'
+  }
+  return sqlString(value)
+}
+
 function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reason: string): void {
   const singleTx = '--single-transaction'
   const onErrorStop = '-v ON_ERROR_STOP=1'
@@ -77,20 +88,31 @@ function restoreDatabase(lockContents: string) {
     )
   }
 
-  // Save the current Xero token before restore — the backup contains a stale
-  // token from when the backup was taken, which will likely have expired.
-  // Persist to disk alongside the backup so a mid-teardown crash doesn't
-  // lose it.
-  console.log('[db] Saving current Xero token...')
-  let xeroTokenRow: string | null = null
-  const xeroTokenFile = `${backupFile}.xero-token.json`
+  // Save the current active Xero app token before restore — the backup
+  // contains stale tokens from when the backup was taken, which will likely
+  // have expired. Persist to disk alongside the backup so a mid-teardown
+  // crash doesn't lose it.
+  console.log('[db] Saving current active Xero app token...')
+  let xeroAppTokenRow: string | null = null
+  const xeroTokenFile = `${backupFile}.xero-app-token.json`
   try {
-    xeroTokenRow = runPsql(dbConfig, `SELECT row_to_json(t) FROM workflow_xerotoken t LIMIT 1`)
-    if (xeroTokenRow) {
-      fs.writeFileSync(xeroTokenFile, xeroTokenRow, 'utf8')
+    xeroAppTokenRow = runPsql(
+      dbConfig,
+      `SELECT row_to_json(t)
+       FROM (
+         SELECT id, tenant_id, token_type, access_token, refresh_token, expires_at, scope
+         FROM workflow_xeroapp
+         WHERE is_active = true
+           AND access_token IS NOT NULL
+           AND refresh_token IS NOT NULL
+         LIMIT 1
+       ) t`,
+    )
+    if (xeroAppTokenRow) {
+      fs.writeFileSync(xeroTokenFile, xeroAppTokenRow, 'utf8')
     }
   } catch {
-    console.warn('[db] Could not read Xero token (table may not exist yet). Skipping.')
+    console.warn('[db] Could not read active Xero app token (table may not exist yet). Skipping.')
   }
 
   // Let in-flight Celery/Xero work finish against the dirty test DB before
@@ -158,27 +180,24 @@ function restoreDatabase(lockContents: string) {
     throw new Error(`Post-restore integrity check failed: ${integrity.issues.join('; ')}`)
   }
 
-  // Re-inject the saved Xero token so the connection stays live.
-  if (xeroTokenRow) {
+  // Re-inject the saved active Xero app token so the connection stays live.
+  if (xeroAppTokenRow) {
     try {
-      const token = JSON.parse(xeroTokenRow)
+      const token = JSON.parse(xeroAppTokenRow)
       runPsql(
         dbConfig,
-        `DELETE FROM workflow_xerotoken;
-         INSERT INTO workflow_xerotoken (id, tenant_id, token_type, access_token, refresh_token, expires_at, scope)
-         VALUES (
-           ${token.id},
-           '${token.tenant_id}',
-           '${token.token_type}',
-           '${token.access_token}',
-           '${token.refresh_token}',
-           '${token.expires_at}',
-           '${token.scope}'
-         )`,
+        `UPDATE workflow_xeroapp
+         SET tenant_id = ${sqlNullableString(token.tenant_id)},
+             token_type = ${sqlString(token.token_type)},
+             access_token = ${sqlString(token.access_token)},
+             refresh_token = ${sqlString(token.refresh_token)},
+             expires_at = ${sqlString(token.expires_at)},
+             scope = ${sqlNullableString(token.scope)}
+         WHERE id = ${sqlString(token.id)}`,
       )
-      console.log('[db] Xero token restored.')
+      console.log('[db] Active Xero app token restored.')
     } catch (e) {
-      console.warn('[db] Failed to restore Xero token:', e)
+      console.warn('[db] Failed to restore active Xero app token:', e)
     }
   }
 
