@@ -264,7 +264,7 @@ async function waitForJobCreateResponse(page: Page): Promise<string> {
         candidate.status() === 201
       )
     },
-    { timeout: 0 },
+    { timeout: INFINITE_TIMEOUT },
   )
 
   const body: unknown = await response.json()
@@ -279,7 +279,7 @@ export async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promis
   await page.waitForFunction(
     ({ source, flags }) => new RegExp(source, flags).test(window.location.href),
     { source: expectedUrl.source, flags: expectedUrl.flags },
-    { timeout: 0 },
+    { timeout: INFINITE_TIMEOUT },
   )
 }
 
