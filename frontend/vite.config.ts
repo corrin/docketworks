@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 import vue from '@vitejs/plugin-vue'
 import VueRouter from 'vue-router/vite'
 import { defineConfig, loadEnv } from 'vite'
-import { typedRouterOptions } from './src/router/typed-router-options'
+import { routerAutoOptions } from './router-auto-options'
 
 function readBackendAppDomain(): string {
   const backendEnvPath = path.resolve(__dirname, '..', '.env')
@@ -39,7 +39,7 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [
-      VueRouter(typedRouterOptions),
+      VueRouter(routerAutoOptions),
       vue(),
       tailwindcss(),
       {

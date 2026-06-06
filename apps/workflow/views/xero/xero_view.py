@@ -34,6 +34,7 @@ from apps.accounting.models import Invoice
 from apps.accounting.services.invoice_calculation import (
     InvoiceCalculationError,
     calculate_invoice_amount,
+    get_job_for_invoice_calculation,
 )
 from apps.job.models import Job
 from apps.job.permissions import IsOfficeStaff
@@ -427,7 +428,7 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
     amount = request_serializer.validated_data.get("amount")
 
     try:
-        job = Job.objects.get(id=job_id)
+        job = get_job_for_invoice_calculation(job_id)
 
         calc_result = calculate_invoice_amount(
             job=job, mode=mode, percent=percent, amount=amount

@@ -43,7 +43,10 @@ class PaidFlagService:
         """
         start_time = timezone.now()
 
-        completed_jobs = Job.objects.filter(status="recently_completed", paid=False)
+        completed_jobs = Job.objects.filter(
+            status="recently_completed",
+            paid=False,
+        ).prefetch_related("invoices")
 
         if verbose:
             logger.info(
@@ -55,9 +58,9 @@ class PaidFlagService:
         missing_invoices = 0
 
         for job in completed_jobs:
-            invoices = job.invoices.all()
+            invoices = list(job.invoices.all())
 
-            if not invoices.exists():
+            if not invoices:
                 missing_invoices += 1
                 if verbose:
                     logger.info(

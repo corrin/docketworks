@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from decimal import Decimal
+from uuid import UUID
 
 from django.db.models import Sum
 from django.db.models.functions import Coalesce
@@ -35,6 +36,17 @@ def get_prior_valid_invoice_total(job: Job) -> Decimal:
         Invoice.objects.filter(
             job_id=job.id, status__in=INVOICE_VALID_STATUSES
         ).aggregate(total=Coalesce(Sum("total_excl_tax"), Decimal("0")))["total"]
+    )
+
+
+def get_job_for_invoice_calculation(job_id: UUID) -> Job:
+    return (
+        Job.objects.select_related("client", "latest_quote", "latest_actual")
+        .prefetch_related(
+            "latest_quote__cost_lines",
+            "latest_actual__cost_lines",
+        )
+        .get(id=job_id)
     )
 
 

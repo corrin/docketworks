@@ -1,5 +1,7 @@
 import type { Options } from 'vue-router/unplugin'
 
+export const typedRouterDtsPath = 'src/typed-router.d.ts'
+
 const TITLES: Record<string, string> = {
   '/login': 'Login - DocketWorks',
   '/session-check': 'Connection Check - DocketWorks',
@@ -65,8 +67,8 @@ const ALLOW_SCROLL = [
   '/reports/rdti-spend',
 ]
 
-export const typedRouterOptions: Options = {
-  dts: 'src/typed-router.d.ts',
+export const routerAutoOptions = {
+  dts: typedRouterDtsPath,
   extendRoute(route) {
     const p = route.path
 
@@ -94,4 +96,4 @@ export const typedRouterOptions: Options = {
       route.addToMeta({ allowScroll: true })
     }
   },
-}
+} satisfies Options

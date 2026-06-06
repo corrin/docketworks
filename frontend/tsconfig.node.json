@@ -6,7 +6,9 @@
     "cypress.config.*",
     "nightwatch.conf.*",
     "playwright.config.*",
-    "eslint.config.*"
+    "eslint.config.*",
+    "router-auto-options.ts",
+    "scripts/**/*.ts"
   ],
   "compilerOptions": {
     "noEmit": true,

@@ -12,7 +12,8 @@
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
     "gen:api": "node ./scripts/gen-api.js",
-    "gen:typed-router": "tsx scripts/gen-typed-router.ts",
+    "gen:typed-router": "tsx ./scripts/generate-typed-router.ts",
+    "check:typed-router": "tsx ./scripts/generate-typed-router.ts --check",
     "update-schema": "npx prettier --write schema.yml && npm run gen:api",
     "test": "vitest",
     "test:unit": "vitest run",
@@ -113,8 +114,8 @@
   },
   "lint-staged": {
     "*.{js,ts,vue}": [
-      "prettier --write",
-      "eslint --fix --ignore-pattern src/typed-router.d.ts"
+      "prettier --write --ignore-unknown",
+      "eslint --fix --no-warn-ignored"
     ],
     "*.{json,md,yml,css}": [
       "prettier --write"

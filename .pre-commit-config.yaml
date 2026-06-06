@@ -149,7 +149,7 @@ repos:
         files: '^frontend/schema\.yml$'
         pass_filenames: false
 
-      - id: frontend-typed-router
+      - id: frontend-gen-typed-router
         name: Regenerate frontend typed router
         entry: bash -c 'cd frontend && npm run gen:typed-router && git add src/typed-router.d.ts'
         language: system
