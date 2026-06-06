@@ -4,6 +4,7 @@ import {
   autoId,
   enableNetworkLogging,
   expectStepUnder,
+  INFINITE_TIMEOUT,
   submitJobAndWaitForCreatedJob,
   TEST_CLIENT_NAME,
   waitForCurrentUrl,
@@ -36,7 +37,7 @@ function waitForLoginResponse(page: Page, path: string, method: 'GET' | 'POST'):
       const url = new URL(candidate.url())
       return url.pathname === path && candidate.request().method() === method
     },
-    { timeout: 0 },
+    { timeout: INFINITE_TIMEOUT },
   )
 }
 
@@ -61,8 +62,8 @@ async function responseDiagnostics(label: string, response?: Response): Promise<
 }
 
 async function loginPageDiagnostics(page: Page): Promise<string> {
-  const submitButton = page.locator('form button[type="submit"]').first()
-  const errorMessage = page.locator('.text-red-700').first()
+  const submitButton = autoId(page, 'LoginView-submit')
+  const errorMessage = autoId(page, 'LoginView-error')
 
   const readState = async <T>(reader: () => Promise<T>, fallback: T): Promise<T> => {
     try {
@@ -100,15 +101,18 @@ async function authenticateViaLoginPage(
   let meResponse: Response | undefined
 
   try {
-    const initialSessionCheckPromise = waitForLoginResponse(page, LOGIN_ME_PATH, 'GET')
-    void initialSessionCheckPromise.catch(() => undefined)
     await page.goto('/login')
-    await initialSessionCheckPromise
 
-    await page.locator('#username').fill(username)
-    await page.locator('#password').fill(password)
+    const usernameInput = autoId(page, 'LoginView-username')
+    const passwordInput = autoId(page, 'LoginView-password')
+    const submitButton = autoId(page, 'LoginView-submit')
 
-    const submitButton = page.locator('form button[type="submit"]').first()
+    await expect(usernameInput).toBeVisible()
+    await expect(passwordInput).toBeVisible()
+
+    await usernameInput.fill(username)
+    await passwordInput.fill(password)
+
     await expect(submitButton).toBeEnabled()
 
     const tokenResponsePromise = waitForLoginResponse(page, LOGIN_TOKEN_PATH, 'POST')

@@ -1,5 +1,10 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId, dismissToasts, submitJobAndWaitForCreatedJob } from '../fixtures/helpers'
+import {
+  autoId,
+  dismissToasts,
+  submitJobAndWaitForCreatedJob,
+  waitForClientCreateResponse,
+} from '../fixtures/helpers'
 
 /**
  * Tests for creating a job with a new client in Xero.
@@ -35,10 +40,9 @@ test.describe('create job with new xero client', () => {
     await autoId(page, 'ClientLookup-create-new').waitFor({ timeout: 5000 })
 
     // Press Ctrl+Enter to quick-create the client (bypasses modal)
-    await clientInput.press('Control+Enter')
-
-    // Wait for client creation - there should be a success toast
-    await page.waitForTimeout(3000)
+    await waitForClientCreateResponse(page, async () => {
+      await clientInput.press('Control+Enter')
+    })
 
     // Verify client was created - input should still have the client name
     await expect(clientInput).toHaveValue(newClientName)
@@ -128,11 +132,12 @@ test.describe('create job with new xero client', () => {
     // The client name should already be filled in the modal
     // Click "Create Client" button to create the client
     const createClientButton = page.getByRole('button', { name: 'Create Client' })
-    await createClientButton.click()
+    await waitForClientCreateResponse(page, async () => {
+      await createClientButton.click()
+    })
 
     // Wait for modal to close and client to be created
     await createClientModal.waitFor({ state: 'hidden', timeout: 10000 })
-    await page.waitForTimeout(1000)
 
     // Verify the Xero badge shows green
     const xeroIndicator = autoId(page, 'ClientLookup-xero-valid')

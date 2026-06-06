@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId } from '../fixtures/helpers'
+import { autoId, waitForClientCreateResponse } from '../fixtures/helpers'
 
 test.describe('supplier alias search', () => {
   test('adds a supplier alias and finds the supplier from PO lookup', async ({
@@ -17,7 +17,9 @@ test.describe('supplier alias search', () => {
     await supplierInput.fill(supplierName)
     await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
     await autoId(page, 'ClientLookup-create-new').waitFor({ timeout: 5000 })
-    await supplierInput.press('Control+Enter')
+    await waitForClientCreateResponse(page, async () => {
+      await supplierInput.press('Control+Enter')
+    })
     await autoId(page, 'ClientLookup-xero-valid').waitFor({ timeout: 30000 })
     await expect(supplierInput).toHaveValue(supplierName)
 

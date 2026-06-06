@@ -16,7 +16,65 @@ const networkCsvPath = path.join(process.cwd(), 'test-results', 'network-aggrega
 const DEFAULT_MAX_RESPONSE_KB = 100
 
 /** Generous safety-net timeout — used where we just need to avoid hanging forever. */
-const INFINITE_TIMEOUT = 120000
+export const INFINITE_TIMEOUT = 120000
+
+type JsonObject = Record<string, unknown>
+
+type CreatedClientSummary = {
+  name: string
+  xeroContactId: string
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+async function parseClientCreateResponse(response: Response): Promise<CreatedClientSummary> {
+  const responseText = await response.text()
+  let body: unknown
+
+  try {
+    body = JSON.parse(responseText)
+  } catch {
+    throw new Error(`Client create returned non-JSON response: ${responseText}`)
+  }
+
+  if (!response.ok()) {
+    throw new Error(`Client create failed with HTTP ${response.status()}: ${responseText}`)
+  }
+
+  if (!isJsonObject(body) || body.success !== true || !isJsonObject(body.client)) {
+    throw new Error(`Client create returned unsuccessful payload: ${responseText}`)
+  }
+
+  const name = body.client.name
+  const xeroContactId = body.client.xero_contact_id
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error(`Client create returned missing client name: ${responseText}`)
+  }
+  if (typeof xeroContactId !== 'string' || xeroContactId.length === 0) {
+    throw new Error(`Client create returned client without Xero ID: ${responseText}`)
+  }
+
+  return { name, xeroContactId }
+}
+
+export async function waitForClientCreateResponse(
+  page: Page,
+  action: () => Promise<void>,
+): Promise<CreatedClientSummary> {
+  const responsePromise = page.waitForResponse(
+    (candidate) => {
+      const url = new URL(candidate.url())
+      return url.pathname === '/api/clients/create/' && candidate.request().method() === 'POST'
+    },
+    { timeout: 30000 },
+  )
+
+  await action()
+  const response = await responsePromise
+  return await parseClientCreateResponse(response)
+}
 
 /**
  * Helper to log all API network traffic with sizes and assert on response size.
@@ -323,10 +381,9 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   await page.waitForTimeout(500)
   await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
   await autoId(page, 'ClientLookup-create-new').waitFor({ timeout: 5000 })
-  await supplierInput.press('Control+Enter')
-
-  // Wait for supplier creation
-  await page.waitForTimeout(3000)
+  await waitForClientCreateResponse(page, async () => {
+    await supplierInput.press('Control+Enter')
+  })
 
   // Verify Xero badge is green
   const xeroIndicator = autoId(page, 'ClientLookup-xero-valid')

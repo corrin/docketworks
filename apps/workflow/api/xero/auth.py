@@ -335,14 +335,25 @@ def get_tenant_id() -> str:
             "No valid Xero token found. Please complete the authorization workflow."
         )
 
-    if not tenant_id:
-        try:
-            tenant_id = get_tenant_id_from_connections()
-            cache.set(TENANT_ID_CACHE_KEY, tenant_id)
-        except AlreadyLoggedException:
-            raise
-        except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+    if tenant_id:
+        logger.debug("Xero tenant ID resolved from cache")
+        return tenant_id
+
+    company_defaults = CompanyDefaults.get_solo()
+    if company_defaults.xero_tenant_id:
+        tenant_id = company_defaults.xero_tenant_id
+        cache.set(TENANT_ID_CACHE_KEY, tenant_id)
+        logger.info("Xero tenant ID resolved from CompanyDefaults and cached")
+        return tenant_id
+
+    try:
+        tenant_id = get_tenant_id_from_connections()
+        cache.set(TENANT_ID_CACHE_KEY, tenant_id)
+        logger.info("Xero tenant ID resolved from Xero connections and cached")
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
     return tenant_id
