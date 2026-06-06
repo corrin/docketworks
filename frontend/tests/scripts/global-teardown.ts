@@ -14,6 +14,11 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const LOCK_FILE = path.join(os.tmpdir(), 'playwright-e2e.lock')
+const PRE_RESTORE_XERO_SETTLE_MS = 60_000
+
+function sleepSync(ms: number): void {
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+}
 
 function printRestoreFailureBanner(backupFile: string, dbConfig: DbConfig, reason: string): void {
   const singleTx = '--single-transaction'
@@ -87,6 +92,15 @@ function restoreDatabase(lockContents: string) {
   } catch {
     console.warn('[db] Could not read Xero token (table may not exist yet). Skipping.')
   }
+
+  // Let in-flight Celery/Xero work finish against the dirty test DB before
+  // restoring the backup. If we restore immediately, a webhook/full-sync task
+  // that was already queued can recreate [TEST] clients in the clean DB a few
+  // seconds later. Waiting here makes those writes part of the state we wipe.
+  console.log(
+    `[db] Waiting ${PRE_RESTORE_XERO_SETTLE_MS / 1000}s for in-flight Xero/Celery work before restore...`,
+  )
+  sleepSync(PRE_RESTORE_XERO_SETTLE_MS)
 
   // Atomic restore: -v ON_ERROR_STOP=1 bails psql at the first SQL error
   // and --single-transaction wraps the whole dump replay in one BEGIN/COMMIT.
@@ -172,7 +186,8 @@ function restoreDatabase(lockContents: string) {
   console.log('[db] Syncing sequences...')
   syncSequences(dbConfig)
 
-  // TEMPORARY(e2e-investigation): prove whether [TEST] rows exist immediately after restore.
+  // Prove the restored DB is E2E-clean before deleting the backup. This also
+  // catches any Xero/Celery work that still managed to land after the restore.
   console.log('[db] Running post-restore E2E safety check...')
   const safety = checkSafeToTest(dbConfig)
   if (!safety.clean) {
