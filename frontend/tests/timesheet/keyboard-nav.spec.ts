@@ -139,14 +139,18 @@ test.describe('keyboard Tab entry flow', () => {
     // One mouse action is allowed to place the cursor in the first blank row.
     // From here until both rows are saved, this workflow must be keyboard-only.
     await autoId(page, `SmartTimesheetTable-jobPicker-${r0}-trigger`).click()
-    await expect(autoId(page, `SmartTimesheetTable-jobPicker-${r0}-search`)).toBeFocused({
+    const row1Search = autoId(page, `SmartTimesheetTable-jobPicker-${r0}-search`)
+    await expect(row1Search).toBeFocused({
       timeout: 3000,
     })
-    await page.keyboard.type(jobNumber1)
+    await row1Search.pressSequentially(jobNumber1, { delay: 10 })
     await expect(
       autoId(page, `SmartTimesheetTable-jobPicker-${r0}-option-${jobNumber1}`),
     ).toBeVisible()
     await page.keyboard.press('Tab')
+    await expect(autoId(page, `SmartTimesheetTable-jobPicker-${r0}-trigger`)).toHaveText(
+      new RegExp(`#${jobNumber1}`),
+    )
     await expect(autoId(page, `SmartTimesheetTable-hours-${r0}`)).toBeFocused({ timeout: 3000 })
 
     await page.keyboard.type('2')
@@ -187,11 +191,13 @@ test.describe('keyboard Tab entry flow', () => {
       assertRow(firstSeq, jobNumber1, '2h', 'Cutting', 2))
 
     // Row 2 continues from the automatic focus handoff, still keyboard only.
-    await page.keyboard.type(jobNumber2)
+    const row2Search = autoId(page, `SmartTimesheetTable-jobPicker-${r1}-search`)
+    await row2Search.pressSequentially(jobNumber2, { delay: 10 })
     await expect(
       autoId(page, `SmartTimesheetTable-jobPicker-${r1}-option-${jobNumber2}`),
     ).toBeVisible()
     await page.keyboard.press('Tab')
+    await expect(row2Trigger).toHaveText(new RegExp(`#${jobNumber2}`))
     await expect(autoId(page, `SmartTimesheetTable-hours-${r1}`)).toBeFocused({ timeout: 3000 })
 
     await page.keyboard.type('3.5')
