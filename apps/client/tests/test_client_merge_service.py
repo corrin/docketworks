@@ -3,7 +3,7 @@ Tests for apps.client.services.client_merge_service.
 
 Covers the 8 FK fields that point at Client, plus chain walking, circular
 chains, idempotency, the source==destination guard, atomic rollback on
-failure, and the SimpleHistory audit trail on Job reassignment.
+failure, and the JobEvent audit trail on Job reassignment.
 """
 
 import uuid
@@ -17,7 +17,7 @@ from django.utils import timezone
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.client.services.client_merge_service import reassign_client_fk_records
-from apps.job.models import Job
+from apps.job.models import Job, JobEvent
 from apps.purchasing.models import PurchaseOrder
 from apps.quoting.models import ScrapeJob, SupplierPriceList, SupplierProduct
 from apps.testing import BaseTestCase
@@ -335,22 +335,23 @@ class IdempotencyTests(ReassignFKBaseCase):
         self.assertEqual(second_counts["invoices"], 0)
 
 
-class SimpleHistoryTests(ReassignFKBaseCase):
-    def test_job_reassignment_creates_history_entry(self) -> None:
+class JobEventTests(ReassignFKBaseCase):
+    def test_job_reassignment_creates_client_changed_event(self) -> None:
         job = make_job(self.source, self.test_staff)
-        history_before = job.history.count()
+        events_before = JobEvent.objects.filter(job=job).count()
 
         reassign_client_fk_records(self.source, self.destination, self.test_staff)
 
         job.refresh_from_db()
-        history_after = job.history.count()
+        events_after = JobEvent.objects.filter(job=job).count()
         self.assertEqual(
-            history_after,
-            history_before + 1,
-            "Job reassignment should create a new HistoricalJob entry",
+            events_after,
+            events_before + 1,
+            "Job reassignment should create a client_changed JobEvent",
         )
-        latest = job.history.latest()
-        self.assertEqual(latest.client_id, self.destination.id)
+        latest = JobEvent.objects.filter(job=job).latest("timestamp")
+        self.assertEqual(latest.event_type, "client_changed")
+        self.assertEqual(latest.delta_after["client_id"], str(self.destination.id))
 
 
 # ---------------------------------------------------------------------------

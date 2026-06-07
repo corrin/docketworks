@@ -177,7 +177,7 @@ erDiagram
 ### Design Patterns
 
 - **UUID Primary Keys**: Throughout system for security and distributed sync
-- **SimpleHistory**: Audit trails on critical models (Job, JobPricing, etc.)
+- **SimpleHistory**: Audit trails on selected non-Job models; Job audit history lives in JobEvent
 - **Soft Deletes**: Where appropriate to maintain referential integrity
 - **Bidirectional Sync**: Xero integration with conflict resolution
 - **Defensive Programming**: Fail early, trust data model, no silent failures

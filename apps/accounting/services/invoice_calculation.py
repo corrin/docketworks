@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from uuid import UUID
 
-from django.db.models import Sum
+from django.db.models import Sum, prefetch_related_objects
 from django.db.models.functions import Coalesce
 
 from apps.accounting.enums import InvoiceStatus
@@ -40,14 +40,16 @@ def get_prior_valid_invoice_total(job: Job) -> Decimal:
 
 
 def get_job_for_invoice_calculation(job_id: UUID) -> Job:
-    return (
-        Job.objects.select_related("client", "latest_quote", "latest_actual")
-        .prefetch_related(
-            "latest_quote__cost_lines",
-            "latest_actual__cost_lines",
-        )
-        .get(id=job_id)
+    job = Job.objects.select_related("client", "latest_quote", "latest_actual").get(
+        id=job_id
     )
+
+    if job.pricing_methodology == "fixed_price":
+        prefetch_related_objects([job], "latest_quote__cost_lines")
+    else:
+        prefetch_related_objects([job], "latest_actual__cost_lines")
+
+    return job
 
 
 def calculate_invoice_amount(

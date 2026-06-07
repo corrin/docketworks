@@ -7,7 +7,6 @@ from typing import Dict, List, Optional
 from django.db import models, transaction
 from django.db.models import Index, Max, Min
 from django.utils import timezone
-from simple_history.models import HistoricalRecords
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
@@ -296,8 +295,6 @@ class Job(models.Model):
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
 
-    history: HistoricalRecords = HistoricalRecords()
-
     objects = JobManager()
 
     complex_job = models.BooleanField(default=False)
@@ -315,27 +312,27 @@ class Job(models.Model):
     # Latest cost set snapshots for linking to current estimates/quotes/actuals
     latest_estimate = models.OneToOneField(
         "CostSet",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.RESTRICT,
+        null=False,
+        blank=False,
         related_name="+",
         help_text="Latest estimate cost set snapshot",
     )
 
     latest_quote = models.OneToOneField(
         "CostSet",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.RESTRICT,
+        null=False,
+        blank=False,
         related_name="+",
         help_text="Latest quote cost set snapshot",
     )
 
     latest_actual = models.OneToOneField(
         "CostSet",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
+        on_delete=models.RESTRICT,
+        null=False,
+        blank=False,
         related_name="+",
         help_text="Latest actual cost set snapshot",
     )
@@ -593,6 +590,8 @@ class Job(models.Model):
 
         if is_new:
             # Ensure job_number is generated for new instances before saving
+            if self.id is None:
+                self.id = uuid.uuid4()
             self.job_number = self.generate_job_number()
             if not self.job_number:
                 logger.error("Failed to generate a job number. Cannot save job.")
@@ -604,9 +603,6 @@ class Job(models.Model):
                 default_priority = self._calculate_next_priority_for_status(self.status)
                 self.priority = default_priority
 
-                # Save the job first
-                super(Job, self).save(*args, **kwargs)
-
                 # Create initial CostSet instances (modern system)
                 logger.debug("Creating initial CostSet entries.")
 
@@ -615,32 +611,34 @@ class Job(models.Model):
 
                 # Create estimate cost set
                 estimate_cost_set = CostSet.objects.create(
-                    job=self, kind="estimate", rev=1, summary=initial_summary
+                    job_id=self.id,
+                    kind="estimate",
+                    rev=1,
+                    summary=initial_summary,
                 )
-                self.latest_estimate = estimate_cost_set
+                self.latest_estimate_id = estimate_cost_set.id
 
                 # Create quote cost set
                 quote_cost_set = CostSet.objects.create(
-                    job=self, kind="quote", rev=1, summary=initial_summary
+                    job_id=self.id,
+                    kind="quote",
+                    rev=1,
+                    summary=initial_summary,
                 )
-                self.latest_quote = quote_cost_set
+                self.latest_quote_id = quote_cost_set.id
 
                 # Create actual cost set
                 actual_cost_set = CostSet.objects.create(
-                    job=self, kind="actual", rev=1, summary=initial_summary
+                    job_id=self.id,
+                    kind="actual",
+                    rev=1,
+                    summary=initial_summary,
                 )
-                self.latest_actual = actual_cost_set
+                self.latest_actual_id = actual_cost_set.id
 
                 logger.debug("Initial CostSets created successfully.")
 
-                # Save the references back to the DB
-                super(Job, self).save(
-                    update_fields=[
-                        "latest_estimate",
-                        "latest_quote",
-                        "latest_actual",
-                    ]
-                )
+                super(Job, self).save(*args, **kwargs)
 
                 # Note: Job creation event is now handled in JobRestService.create_job()
                 # to prevent duplicate event creation between model and service layers
