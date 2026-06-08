@@ -97,6 +97,6 @@ def install_strong_nplusone_listeners() -> None:
 class StrongNPlusOneMiddleware(NPlusOneMiddleware):
     """Nplusone middleware without weakref receiver cleanup noise."""
 
-    def process_request(self, request: Any) -> None:
-        install_strong_nplusone_listeners()
-        return super().process_request(request)
+def process_request(self, request: Any) -> Any:
+    install_strong_nplusone_listeners()
+    return super().process_request(request)
