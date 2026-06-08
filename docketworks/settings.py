@@ -179,7 +179,7 @@ NPLUSONE_LOG: bool = True
 NPLUSONE_RAISE: bool = True
 
 if NPLUSONE_ENABLED:
-    MIDDLEWARE.insert(0, "nplusone.ext.django.NPlusOneMiddleware")
+    MIDDLEWARE.insert(0, "docketworks.nplusone.StrongNPlusOneMiddleware")
 
 # CSRF settings - Load from environment variables
 csrf_origins_env = os.getenv("CORS_ALLOWED_ORIGINS")
