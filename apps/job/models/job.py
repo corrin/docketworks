@@ -609,6 +609,9 @@ class Job(models.Model):
                 # Initialize summary for new cost sets to avoid serialization errors
                 initial_summary = {"cost": 0.0, "rev": 0.0, "hours": 0.0}
 
+                # CostSet.job points at this unsaved Job by UUID. PostgreSQL FK
+                # checks are deferrable, so the transaction only needs the Job
+                # row to exist by commit time after the save below.
                 # Create estimate cost set
                 estimate_cost_set = CostSet.objects.create(
                     job_id=self.id,
