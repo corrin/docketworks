@@ -6,6 +6,7 @@ try:
 
     if apps.ready:
         from .db_scrubber import scrub
+        from .dev_demo_export_scrubber import ScrubResult, scrub_dev_demo_export
         from .error_grouping import (
             list_grouped_app_errors,
             list_grouped_xero_errors,
@@ -50,6 +51,7 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "LLMService",
+    "ScrubResult",
     "SearchTelemetryService",
     "XeroSyncService",
     "XeroSyncStartResult",
@@ -80,6 +82,7 @@ __all__ = [
     "quick_json_completion",
     "recording_events",
     "scrub",
+    "scrub_dev_demo_export",
     "stable_event_hash",
     "to_decimal",
     "validate_required_fields",
