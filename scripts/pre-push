@@ -1,6 +1,8 @@
 #!/bin/bash
-# Pre-push hook: runs frontend checks (mirrors old simple-git-hooks pre-push)
+# Pre-push hook: backend mypy gate + frontend checks
 set -e
+
+bash "$(git rev-parse --show-toplevel)/scripts/check_mypy.sh"
 
 cd "$(git rev-parse --show-toplevel)/frontend"
 npm run check:typed-router

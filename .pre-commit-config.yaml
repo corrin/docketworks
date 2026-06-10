@@ -16,6 +16,8 @@ repos:
         exclude: '^(\.codesight/|frontend/\.codesight/|docs/\.codesight/)'
       - id: check-yaml
       - id: check-added-large-files
+        # mypy-baseline.txt is ~650 KB of plain-text type debt that only shrinks
+        exclude: '^mypy-baseline\.txt$'
 
   - repo: local
     hooks:

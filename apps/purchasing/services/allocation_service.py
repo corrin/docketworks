@@ -85,10 +85,10 @@ class AllocationService:
 
                 if allocation_type == "stock":
                     obj = Stock.objects.select_for_update().get(id=obj.id)
-                    result = AllocationService._delete_stock_allocation(po_line, obj)  # type: ignore[arg-type]
+                    result = AllocationService._delete_stock_allocation(po_line, obj)
                 else:
                     obj = CostLine.objects.select_for_update().get(id=obj.id)
-                    result = AllocationService._delete_job_allocation(po_line, obj)  # type: ignore[arg-type]
+                    result = AllocationService._delete_job_allocation(po_line, obj)
 
                 AllocationService._update_po_status(po)
 
