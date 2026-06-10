@@ -37,6 +37,13 @@ class UnschedulableJob:
     reason: str
 
 
+def _hours_from_summary(summary) -> float:
+    """Return the hours value from a CostSet summary dict."""
+    if not summary:
+        return 0.0
+    return float(summary.get("hours", 0.0))
+
+
 def _get_actual_hours(job: Job) -> float:
     """Sum quantity of all time CostLines in the latest actual CostSet."""
     annotated_hours = getattr(job, "actual_time_hours", None)
@@ -66,8 +73,10 @@ def _compute_remaining_hours(
     actual_hours = _get_actual_hours(job)
 
     estimate_hours = 0.0
-    if job.latest_estimate_id:
-        estimate_hours = float(job.latest_estimate.summary.get("hours", 0.0))
+    if hasattr(job, "latest_estimate_summary"):
+        estimate_hours = _hours_from_summary(job.latest_estimate_summary)
+    elif job.latest_estimate_id:
+        estimate_hours = _hours_from_summary(job.latest_estimate.summary)
 
     estimate_remaining = estimate_hours - actual_hours
     if estimate_remaining > 0:
@@ -75,8 +84,10 @@ def _compute_remaining_hours(
 
     # Estimate exhausted or missing — fall back to quote
     quote_hours = 0.0
-    if job.latest_quote_id:
-        quote_hours = float(job.latest_quote.summary.get("hours", 0.0))
+    if hasattr(job, "latest_quote_summary"):
+        quote_hours = _hours_from_summary(job.latest_quote_summary)
+    elif job.latest_quote_id:
+        quote_hours = _hours_from_summary(job.latest_quote.summary)
 
     quote_remaining = quote_hours - actual_hours
     if quote_remaining > 0:
@@ -357,13 +368,13 @@ def run_workshop_schedule() -> SchedulerRun:
     today = timezone.localdate()
 
     jobs = list(
-        Job.objects.filter(status__in=["approved", "in_progress"])
-        .select_related("latest_estimate", "latest_quote", "latest_actual")
-        .annotate(
+        Job.objects.filter(status__in=["approved", "in_progress"]).annotate(
+            latest_estimate_summary=models.F("latest_estimate__summary"),
+            latest_quote_summary=models.F("latest_quote__summary"),
             actual_time_hours=models.Sum(
                 "latest_actual__cost_lines__quantity",
                 filter=models.Q(latest_actual__cost_lines__kind="time"),
-            )
+            ),
         )
     )
     assigned_staff_by_job_id: Dict[object, frozenset] = {

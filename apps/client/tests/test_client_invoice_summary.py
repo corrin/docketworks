@@ -16,6 +16,7 @@ from apps.client.utils import date_to_datetime
 from apps.client.views.client_rest_views import ClientCreateRestView
 from apps.testing import BaseTestCase
 from apps.workflow.accounting.types import ContactResult
+from apps.workflow.exceptions import AlreadyLoggedException
 
 
 def _make_client(name: str) -> Client:
@@ -169,3 +170,31 @@ class ClientCreateInvoiceSummaryTests(BaseTestCase):
         assert response.data["client"]["name"] == "New Client"
         assert response.data["client"]["last_invoice_date"] is None
         assert response.data["client"]["total_spend"] == "$0.00"
+
+    def test_create_client_cleans_up_local_row_when_xero_create_fails(self):
+        """Failed Xero contact creation must not leave a half-created client."""
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.search_contact_by_name.return_value = None
+        provider.create_contact.return_value = ContactResult(
+            success=False,
+            error="RemoteDisconnected",
+        )
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            with pytest.raises(AlreadyLoggedException, match="RemoteDisconnected"):
+                ClientRestService.create_client(
+                    {
+                        "name": "Failed Xero Client",
+                        "email": "failed@example.test",
+                        "phone": "",
+                        "address": "",
+                        "is_account_customer": True,
+                    }
+                )
+
+        assert not Client.objects.filter(name="Failed Xero Client").exists()

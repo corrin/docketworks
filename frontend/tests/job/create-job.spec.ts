@@ -3,6 +3,7 @@ import {
   autoId,
   dismissToasts,
   expectStepUnder,
+  submitJobAndWaitForCreatedJob,
   TEST_CLIENT_NAME,
   waitForSettingsInitialized,
 } from '../fixtures/helpers'
@@ -42,7 +43,7 @@ const jobTestCases = [
     contactToSelect: '[TEST] Another Contact', // Select the non-primary contact
     expectedTab: 'quote',
   },
-]
+] as const
 
 const CREATE_JOB_BUDGET_MS = {
   navigateToCreatePage: 2500,
@@ -180,21 +181,14 @@ test.describe.serial('create job', () => {
           // Dismiss any toast notifications that might block the button
           await dismissToasts(page)
 
-          await autoId(page, 'JobCreateView-submit').click({ force: true })
+          const url = await submitJobAndWaitForCreatedJob(page, tc.expectedTab)
           console.log(
             `[${new Date().toISOString()}] Clicked Create Job button (${Date.now() - startTime}ms)`,
           )
-
-          // Should redirect to job edit view
-          console.log(
-            `[${new Date().toISOString()}] Waiting for redirect to job page with tab=${tc.expectedTab}...`,
-          )
-          await page.waitForURL(`**/jobs/*?*tab=${tc.expectedTab}*`, { timeout: 10000 })
           console.log(
             `[${new Date().toISOString()}] Redirected (${Date.now() - startTime}ms total)`,
           )
 
-          const url = page.url()
           expect(url).toContain('/jobs/')
           expect(url).toContain(`tab=${tc.expectedTab}`)
 
@@ -263,10 +257,7 @@ test.describe('new job default pay item', () => {
 
         // Submit
         await dismissToasts(page)
-        await autoId(page, 'JobCreateView-submit').click({ force: true })
-
-        // Wait for redirect to job page
-        await page.waitForURL('**/jobs/*', { timeout: 10000 })
+        await submitJobAndWaitForCreatedJob(page, 'estimate')
       },
     )
 

@@ -126,12 +126,10 @@ class SalesPipelineServiceFixturesMixin:
 
     def _detach_summaries(self, job: Job) -> None:
         """Simulate a job with no usable quote/estimate hours summary."""
-        job.latest_quote = None
-        job.latest_estimate = None
-        job.save(
-            staff=self.test_staff,
-            update_fields=["latest_quote", "latest_estimate", "updated_at"],
-        )
+        job.latest_quote.summary = {"cost": 0.0, "rev": 0.0}
+        job.latest_quote.save(update_fields=["summary"])
+        job.latest_estimate.summary = {"cost": 0.0, "rev": 0.0}
+        job.latest_estimate.save(update_fields=["summary"])
 
 
 class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
@@ -225,8 +223,8 @@ class ScoreboardTests(SalesPipelineServiceFixturesMixin, BaseTestCase):
         job = self._make_job(
             name="No hours", client=self.client_obj, created_dt=_nz_dt(date(2026, 1, 5))
         )
-        # Detach the default quote/estimate cost sets so hours resolution
-        # genuinely fails (Job.save() seeds both with hours=0.0 otherwise).
+        # Remove hours from the default quote/estimate summaries so hours
+        # resolution genuinely fails (Job.save() seeds both with hours=0.0).
         self._detach_summaries(job)
         self._add_status_change(
             job, old="draft", new="awaiting_approval", at=_nz_dt(date(2026, 2, 10))

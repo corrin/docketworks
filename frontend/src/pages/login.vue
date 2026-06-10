@@ -48,6 +48,7 @@
             <div class="relative">
               <input
                 id="username"
+                data-automation-id="LoginView-username"
                 v-model="credentials.username"
                 type="text"
                 class="w-full px-4 py-3 bg-white/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
@@ -72,6 +73,7 @@
             <div class="relative">
               <input
                 id="password"
+                data-automation-id="LoginView-password"
                 v-model="credentials.password"
                 :type="showPassword ? 'text' : 'password'"
                 class="w-full px-4 py-3 pr-12 bg-white/50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 placeholder-gray-400"
@@ -99,6 +101,7 @@
 
           <div
             v-if="error"
+            data-automation-id="LoginView-error"
             class="bg-red-50/80 backdrop-blur-sm border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm animate-shake"
           >
             {{ error }}
@@ -106,6 +109,7 @@
 
           <button
             type="submit"
+            data-automation-id="LoginView-submit"
             class="w-full bg-gradient-to-r from-blue-500 to-indigo-600 hover:from-blue-600 hover:to-indigo-700 text-white font-semibold py-3 px-6 rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed transform hover:scale-105 active:scale-95 shadow-lg hover:shadow-xl animate-fade-in-up animation-delay-1100"
             :disabled="isLoading || !isFormValid"
           >

@@ -880,6 +880,17 @@ class ClientRestService:
         # Push to accounting provider (persists xero_contact_id on the client object)
         result = provider.create_contact(client)
         if not result.success:
+            client_id = client.id
+            client.delete()
+            logger.warning(
+                "Deleted local client after accounting provider create failure",
+                extra={
+                    "client_id": str(client_id),
+                    "client_name": name,
+                    "provider": provider.provider_name,
+                    "operation": "create_client_in_xero_cleanup",
+                },
+            )
             raise ValueError(
                 f"Failed to create client in {provider.provider_name}: {result.error}"
             )

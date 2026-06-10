@@ -16,7 +16,65 @@ const networkCsvPath = path.join(process.cwd(), 'test-results', 'network-aggrega
 const DEFAULT_MAX_RESPONSE_KB = 100
 
 /** Generous safety-net timeout — used where we just need to avoid hanging forever. */
-const INFINITE_TIMEOUT = 120000
+export const INFINITE_TIMEOUT = 120000
+
+type JsonObject = Record<string, unknown>
+
+type CreatedClientSummary = {
+  name: string
+  xeroContactId: string
+}
+
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+async function parseClientCreateResponse(response: Response): Promise<CreatedClientSummary> {
+  const responseText = await response.text()
+  let body: unknown
+
+  try {
+    body = JSON.parse(responseText)
+  } catch {
+    throw new Error(`Client create returned non-JSON response: ${responseText}`)
+  }
+
+  if (!response.ok()) {
+    throw new Error(`Client create failed with HTTP ${response.status()}: ${responseText}`)
+  }
+
+  if (!isJsonObject(body) || body.success !== true || !isJsonObject(body.client)) {
+    throw new Error(`Client create returned unsuccessful payload: ${responseText}`)
+  }
+
+  const name = body.client.name
+  const xeroContactId = body.client.xero_contact_id
+  if (typeof name !== 'string' || name.length === 0) {
+    throw new Error(`Client create returned missing client name: ${responseText}`)
+  }
+  if (typeof xeroContactId !== 'string' || xeroContactId.length === 0) {
+    throw new Error(`Client create returned client without Xero ID: ${responseText}`)
+  }
+
+  return { name, xeroContactId }
+}
+
+export async function waitForClientCreateResponse(
+  page: Page,
+  action: () => Promise<void>,
+): Promise<CreatedClientSummary> {
+  const responsePromise = page.waitForResponse(
+    (candidate) => {
+      const url = new URL(candidate.url())
+      return url.pathname === '/api/clients/create/' && candidate.request().method() === 'POST'
+    },
+    { timeout: 30000 },
+  )
+
+  await action()
+  const response = await responsePromise
+  return await parseClientCreateResponse(response)
+}
 
 /**
  * Helper to log all API network traffic with sizes and assert on response size.
@@ -254,6 +312,57 @@ export async function waitForAutosave(page: Page) {
   )
 }
 
+async function waitForJobCreateResponse(page: Page): Promise<string> {
+  const response = await page.waitForResponse(
+    (candidate) => {
+      const url = new URL(candidate.url())
+      return (
+        url.pathname === '/api/job/jobs/' &&
+        candidate.request().method() === 'POST' &&
+        candidate.status() === 201
+      )
+    },
+    { timeout: INFINITE_TIMEOUT },
+  )
+
+  const body: unknown = await response.json()
+  if (!body || typeof body !== 'object' || !('job_id' in body) || typeof body.job_id !== 'string') {
+    throw new Error(`Job create response did not include job_id: ${JSON.stringify(body)}`)
+  }
+
+  return body.job_id
+}
+
+export async function waitForCurrentUrl(page: Page, expectedUrl: RegExp): Promise<void> {
+  await page.waitForFunction(
+    ({ source, flags }) => new RegExp(source, flags).test(window.location.href),
+    { source: expectedUrl.source, flags: expectedUrl.flags },
+    { timeout: INFINITE_TIMEOUT },
+  )
+}
+
+export async function submitJobAndWaitForCreatedJob(
+  page: Page,
+  expectedTab: 'estimate' | 'quote',
+): Promise<string> {
+  const createResponsePromise = waitForJobCreateResponse(page)
+  const submitButton = autoId(page, 'JobCreateView-submit')
+  await expect(submitButton).toBeEnabled()
+  await submitButton.click()
+
+  const jobId = await createResponsePromise
+  await waitForCurrentUrl(page, new RegExp(`/jobs/${jobId}(?:\\?.*)?$`))
+
+  const url = new URL(page.url())
+  if (url.searchParams.get('tab') !== expectedTab) {
+    throw new Error(
+      `Expected created job ${jobId} to open tab=${expectedTab}, got ${url.searchParams.get('tab')}`,
+    )
+  }
+
+  return page.url()
+}
+
 /**
  * Create a new purchase order for testing and return its URL
  */
@@ -272,10 +381,9 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   await page.waitForTimeout(500)
   await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
   await autoId(page, 'ClientLookup-create-new').waitFor({ timeout: 5000 })
-  await supplierInput.press('Control+Enter')
-
-  // Wait for supplier creation
-  await page.waitForTimeout(3000)
+  await waitForClientCreateResponse(page, async () => {
+    await supplierInput.press('Control+Enter')
+  })
 
   // Verify Xero badge is green
   const xeroIndicator = autoId(page, 'ClientLookup-xero-valid')
@@ -374,8 +482,7 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
     await dismissToasts(page)
     await autoId(page, 'JobCreateView-pricing-method').selectOption('time_materials')
     await dismissToasts(page)
-    await autoId(page, 'JobCreateView-submit').click({ force: true })
-    await page.waitForURL('**/jobs/*?*tab=estimate*', { timeout: 15000 })
+    await submitJobAndWaitForCreatedJob(page, 'estimate')
   })
 
   return page.url()
