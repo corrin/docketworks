@@ -68,8 +68,9 @@ class JobLabourRatesView(APIView):
         responses={200: JobLabourRateSerializer(many=True)},
     )
     def patch(self, request: Request, job_id: UUID) -> Response:
-        if not isinstance(request.user, Staff):
-            raise PermissionError("Authenticated staff required.")
+        # Unreachable: IsAuthenticated + IsOfficeStaff guarantee a Staff user;
+        # narrows the type for the JobEvent write below.
+        assert isinstance(request.user, Staff)
         job = get_object_or_404(Job, id=job_id)
         serializer = JobLabourRatesUpdateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

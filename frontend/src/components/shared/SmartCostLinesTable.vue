@@ -197,6 +197,10 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
   if (newKind === 'time') {
     // Time lines require a labour subtype; default to the workshop subtype.
     // unit_cost from company wage rate, unit_rev from the job's subtype rate.
+    // If the labour-rates fetch hasn't resolved yet, subtypeId stays null and
+    // the backend rejects the save with a visible validation error —
+    // deliberately no frontend pre-guard, so a broken rates endpoint can't
+    // silently disable time lines.
     const subtypeId =
       line.labour_subtype ?? workshopRateEntry(jobLabourRates.value)?.labour_subtype ?? null
     Object.assign(line, {

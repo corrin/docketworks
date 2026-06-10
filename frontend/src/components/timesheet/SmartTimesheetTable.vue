@@ -415,7 +415,6 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
     job_name: job.name ?? '',
     client_name: job.client_name ?? '',
     charge_out_rate: rate,
-    unit_rev: rate,
   })
   // Adopt the job's default pay item if the user hasn't picked a non-Ord rate.
   if (getMultiplier(entry) === 1.0 && job.default_xero_pay_item_id) {
@@ -429,7 +428,12 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
   if (isJobNonBillable(job)) {
     setMeta(entry, { is_billable: false, bill_rate_multiplier: 0.0 })
   }
-  Object.assign(entry, { total_rev: calculatedBill(entry) })
+  // unit_rev is the bill rate: subtype rate x bill multiplier (zero after the
+  // non-billable forcing above), mirroring setLabourType.
+  Object.assign(entry, {
+    unit_rev: Math.round(rate * getBillMultiplier(entry) * 100) / 100,
+    total_rev: calculatedBill(entry),
+  })
   commit(entry, ['unit_rev', 'meta', 'xero_pay_item'])
 
   // After picking a job, focus the Hours cell on the same row so the user can

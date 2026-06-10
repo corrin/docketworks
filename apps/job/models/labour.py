@@ -89,6 +89,9 @@ class JobLabourRate(models.Model):
     )
 
     class Meta:
+        # Stable API ordering: frontend dropdowns and the workshop-rate helper
+        # rely on labour_rates arriving in subtype display order.
+        ordering = ["labour_subtype__display_order", "labour_subtype__name"]
         constraints = [
             models.UniqueConstraint(
                 fields=["job", "labour_subtype"], name="unique_job_labour_subtype"

@@ -392,7 +392,19 @@ class ModernTimesheetEntryView(APIView):
             # Labour subtype: explicit in the payload, else the worker's default
             labour_subtype_id = validated_data.get("labour_subtype_id")
             if labour_subtype_id:
-                labour_subtype = LabourSubtype.objects.get(id=labour_subtype_id)
+                try:
+                    labour_subtype = LabourSubtype.objects.get(id=labour_subtype_id)
+                except LabourSubtype.DoesNotExist:
+                    error_response = {
+                        "error": f"Labour subtype {labour_subtype_id} not found"
+                    }
+                    error_serializer = ModernTimesheetErrorResponseSerializer(
+                        data=error_response
+                    )
+                    error_serializer.is_valid(raise_exception=True)
+                    return Response(
+                        error_serializer.data, status=status.HTTP_404_NOT_FOUND
+                    )
             else:
                 staff_default = staff.default_labour_subtype
                 if staff_default is None:
