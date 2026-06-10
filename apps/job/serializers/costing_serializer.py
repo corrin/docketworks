@@ -1,5 +1,6 @@
 import logging
 from decimal import Decimal
+from typing import Any, cast
 
 from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
@@ -199,7 +200,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
         # Allow negative values for adjustments, discounts, credits
         return value
 
-    def save(self, **kwargs):
+    def save(self, **kwargs: Any) -> CostLine:
         """Override save to auto-calculate unit_cost and unit_rev for timesheet entries"""
         # Check if this is a timesheet entry
         meta = self.validated_data.get("meta", {})
@@ -308,7 +309,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                 logger.error(f"Error calculating unit_cost: {e}")
                 raise
 
-        return super().save(**kwargs)
+        return cast(CostLine, super().save(**kwargs))
 
     def create(self, validated_data):
         """Override create to define line approval automatically"""

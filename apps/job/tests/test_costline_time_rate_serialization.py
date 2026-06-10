@@ -60,6 +60,7 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
 
         line = serializer.save(cost_set=self.job.latest_actual)
 
+        assert line.xero_pay_item is not None
         self.assertEqual(line.unit_cost, Decimal("90.00"))
         self.assertEqual(line.unit_rev, Decimal("125.00"))
         self.assertEqual(line.xero_pay_item, self.overtime_pay_item)
@@ -104,6 +105,7 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
 
         updated = serializer.save()
 
+        assert updated.xero_pay_item is not None
         self.assertEqual(updated.unit_cost, Decimal("90.00"))
         self.assertEqual(updated.unit_rev, Decimal("125.00"))
         self.assertEqual(updated.xero_pay_item, self.overtime_pay_item)
