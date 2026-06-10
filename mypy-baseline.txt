@@ -166,9 +166,7 @@ apps/job/models/job.py:0: error: Item "None" of "str | None" has no attribute "r
 apps/job/models/job.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/models/job.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/models/job.py:0: error: Returning Any from function declared to return "date | None"  [no-any-return]
-apps/job/models/job.py:0: error: Item "None" of "CostSet | None" has no attribute "cost_lines"  [union-attr]
 apps/job/models/job.py:0: error: Returning Any from function declared to return "date | None"  [no-any-return]
-apps/job/models/job.py:0: error: Item "None" of "CostSet | None" has no attribute "cost_lines"  [union-attr]
 apps/job/models/job.py:0: error: Call to untyped function "_detect_field_changes" in typed context  [no-untyped-call]
 apps/job/models/job.py:0: error: Call to untyped function "_apply_change_side_effects" in typed context  [no-untyped-call]
 apps/job/models/job.py:0: error: Call to untyped function "_record_change_event" in typed context  [no-untyped-call]
@@ -298,25 +296,6 @@ apps/job/tests/_pdf_golden_fixtures.py:0: error: Returning Any from function dec
 apps/job/services/time_entry_rates.py:0: error: Item "None" of "Any | None" has no attribute "xero_id"  [union-attr]
 apps/job/services/time_entry_rates.py:0: error: Item "None" of "Any | None" has no attribute "name"  [union-attr]
 apps/job/services/time_entry_rates.py:0: error: Incompatible return value type (got "Any | None", expected "XeroPayItem")  [return-value]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Call to untyped function "safe_value" in typed context  [no-untyped-call]
-apps/job/management/commands/_history_enrichment_utils.py:0: error: Call to untyped function "safe_value" in typed context  [no-untyped-call]
 apps/job/importers/quote_spreadsheet.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/importers/quote_spreadsheet.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/importers/quote_spreadsheet.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -370,7 +349,6 @@ apps/accounting/services/sales_pipeline_service.py:0: error: Item "None" of "Cli
 apps/accounting/services/invoice_calculation.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
 apps/job/services/month_end_service.py:0: error: Call to untyped function "get_stock_holding_job" of "Stock" in typed context  [no-untyped-call]
 apps/job/services/month_end_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/services/month_end_service.py:0: error: Incompatible type for lookup 'id': (got "UUID | None", expected "UUID | str")  [misc]
 apps/job/services/month_end_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/job/services/month_end_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/job/services/month_end_service.py:0: error: Call to untyped function "get_stock_holding_job" of "Stock" in typed context  [no-untyped-call]
@@ -458,18 +436,6 @@ apps/quoting/management/commands/run_scrapers.py:0: error: Function is missing a
 apps/quoting/management/commands/run_scrapers.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/quoting/management/commands/run_scrapers.py:0: error: Call to untyped function "find_supplier_for_scraper" in typed context  [no-untyped-call]
 apps/quoting/management/commands/run_scrapers.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Call to untyped function "_section" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Call to untyped function "_jobevent_stats" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Call to untyped function "_section" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Call to untyped function "_historical_stats" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Call to untyped function "_section" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Call to untyped function "_coverage_analysis" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_diagnostic.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/create_shop_jobs.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/create_shop_jobs.py:0: error: Unexpected attribute "shop_job" for model "Job"  [misc]
 apps/job/management/commands/create_shop_jobs.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
@@ -479,6 +445,7 @@ docketworks/celery.py:0: error: Untyped decorator makes function "_nplusone_setu
 docketworks/celery.py:0: error: Untyped decorator makes function "_nplusone_teardown" untyped  [untyped-decorator]
 apps/workflow/services/search_telemetry.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/workflow/services/search_telemetry.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/workflow/services/dev_demo_export_scrubber.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/api/xero/client.py:0: error: Class cannot subclass "RESTClientObject" (has type "Any")  [misc]
 apps/workflow/api/xero/client.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/client.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -651,6 +618,24 @@ apps/quoting/tests_utils.py:0: error: Function is missing a return type annotati
 apps/quoting/tests_utils.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests_utils.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests_utils.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/mcp.py:0: error: Class cannot subclass "ModelQueryToolset" (has type "Any")  [misc]
+apps/quoting/mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/mcp.py:0: error: Class cannot subclass "MCPToolset" (has type "Any")  [misc]
+apps/quoting/mcp.py:0: error: Incompatible default for parameter "supplier_name" (default has type "None", parameter has type "str")  [assignment]
+apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+apps/quoting/mcp.py:0: error: Incompatible default for parameter "dimensions" (default has type "None", parameter has type "str")  [assignment]
+apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+apps/quoting/mcp.py:0: error: Incompatible default for parameter "labor_hours" (default has type "None", parameter has type "float")  [assignment]
+apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+apps/quoting/mcp.py:0: error: Item "None" of "Client | None" has no attribute "name"  [union-attr]
+apps/quoting/mcp.py:0: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
+apps/quoting/mcp.py:0: error: Incompatible default for parameter "supplier_name" (default has type "None", parameter has type "str")  [assignment]
+apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+apps/quoting/mcp.py:0: error: Need type annotation for "supplier_prices" (hint: "supplier_prices: dict[<type>, <type>] = ...")  [var-annotated]
 apps/process/tests/test_procedure_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/process/tests/test_procedure_model.py:0: note: Use "-> None" if function does not return a value
 apps/process/tests/test_procedure_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -674,8 +659,7 @@ apps/process/tests/test_form_model.py:0: note: Use "-> None" if function does no
 apps/process/services/form_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/process/services/form_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/operations/services/scheduler_service.py:0: error: Missing type arguments for generic type "frozenset"  [type-arg]
-apps/operations/services/scheduler_service.py:0: error: Item "None" of "CostSet | None" has no attribute "summary"  [union-attr]
-apps/operations/services/scheduler_service.py:0: error: Item "None" of "CostSet | None" has no attribute "summary"  [union-attr]
+apps/operations/services/scheduler_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/operations/services/scheduler_service.py:0: error: Missing type arguments for generic type "frozenset"  [type-arg]
 apps/operations/services/scheduler_service.py:0: error: Invalid index type "UUID" for "dict[int, float]"; expected type "int"  [index]
 apps/operations/services/scheduler_service.py:0: error: Invalid index type "UUID" for "dict[int, float]"; expected type "int"  [index]
@@ -711,39 +695,6 @@ apps/job/management/commands/set_paid_flag_jobs.py:0: error: Function is missing
 apps/job/tasks.py:0: error: Argument 1 to "join" has incompatible type "str | None"; expected "str"  [arg-type]
 apps/job/tasks.py:0: error: Call to untyped function "get_thumbnail_folder" in typed context  [no-untyped-call]
 apps/job/tasks.py:0: error: Call to untyped function "create_thumbnail" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_match_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_match_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_match_history.py:0: error: Need type annotation for "match_counts"  [var-annotated]
-apps/job/management/commands/jobevent_match_history.py:0: error: Call to untyped function "get_first_history_record" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_match_history.py:0: error: Call to untyped function "find_matching_event" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_match_history.py:0: error: Call to untyped function "walk_history_pairs" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_match_history.py:0: error: Call to untyped function "find_matching_event" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_match_history.py:0: error: Incompatible types in assignment (expression has type "Sequence[str]", variable has type "str")  [assignment]
-apps/job/management/commands/jobevent_match_history.py:0: error: Value of type variable "SupportsRichComparisonT" of "sorted" cannot be "Sequence[str]"  [type-var]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Need type annotation for "counts"  [var-annotated]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Need type annotation for "events_to_create" (hint: "events_to_create: list[<type>] = ...")  [var-annotated]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Need type annotation for "events_to_update" (hint: "events_to_update: list[<type>] = ...")  [var-annotated]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_process_job" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_flush_creates" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_flush_updates" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_flush_creates" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_flush_updates" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "get_first_history_record" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_process_creation" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "walk_history_pairs" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "find_matching_event" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_process_existing_match" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_log_proposed_create" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "find_matching_event" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Call to untyped function "_log_proposed_create" in typed context  [no-untyped-call]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/jobevent_enrich_from_history.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/services/import_quote_service.py:0: error: Unsupported operand types for + ("None" and "int")  [operator]
 apps/job/services/import_quote_service.py:0: note: Left operand is of type "Any | None"
 apps/job/services/import_quote_service.py:0: error: Incompatible types in assignment (expression has type "dict[str, Any | int | None]", target has type "list[dict[str, Any]] | bool | None")  [assignment]
@@ -851,6 +802,13 @@ apps/workflow/management/commands/backfill_kanban_search_telemetry.py:0: error: 
 apps/workflow/management/commands/backfill_kanban_search_telemetry.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/backfill_kanban_search_telemetry.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/workflow/management/commands/backfill_kanban_search_telemetry.py:0: error: Returning Any from function declared to return "dict[Any, Any]"  [no-any-return]
+apps/workflow/tests/test_dev_demo_export.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/workflow/tests/test_dev_demo_export.py:0: note: Use "-> None" if function does not return a value
+apps/workflow/tests/test_dev_demo_export.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/workflow/tests/test_dev_demo_export.py:0: note: Use "-> None" if function does not return a value
+apps/workflow/tests/test_dev_demo_export.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/workflow/tests/test_dev_demo_export.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/workflow/tests/test_dev_demo_export.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/services/delivery_docket_service.py:0: error: Missing return statement  [return]
 apps/job/services/delivery_docket_service.py:0: error: Call to untyped function "create_delivery_docket_pdf" in typed context  [no-untyped-call]
 apps/job/services/delivery_docket_service.py:0: error: Argument 1 to "join" has incompatible type "str | None"; expected "str"  [arg-type]
@@ -901,7 +859,6 @@ apps/process/tests/test_form_service.py:0: error: Call to untyped function "_mak
 apps/process/tests/test_form_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/process/tests/test_form_service.py:0: note: Use "-> None" if function does not return a value
 apps/process/tests/test_form_service.py:0: error: Call to untyped function "_make_service" in typed context  [no-untyped-call]
-apps/job/services/quote_sync_service.py:0: error: Item "None" of "CostSet | None" has no attribute "cost_lines"  [union-attr]
 apps/job/services/quote_sync_service.py:0: error: Call to untyped function "_copy_estimate_to_quote_costset" in typed context  [no-untyped-call]
 apps/job/services/quote_sync_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/services/quote_sync_service.py:0: error: "<typing special form>" has no attribute "LABOR"  [attr-defined]
@@ -1281,6 +1238,8 @@ apps/timesheet/serializers/daily_timesheet_serializers.py:0: error: Missing type
 apps/timesheet/serializers/daily_timesheet_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/timesheet/serializers/daily_timesheet_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/timesheet/serializers/daily_timesheet_serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
+apps/quoting/serializers_scheduled_tasks.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
+apps/quoting/serializers_scheduled_tasks.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
 apps/quoting/serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/quoting/serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/quoting/serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
@@ -1608,8 +1567,6 @@ apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja
 apps/job/services/kanban_service.py:0: error: Incompatible default for parameter "shop_client_id" (default has type "None", parameter has type "UUID")  [assignment]
 apps/job/services/kanban_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
 apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/job/services/kanban_service.py:0: error: Item "None" of "CostSet | None" has no attribute "summary"  [union-attr]
-apps/job/services/kanban_service.py:0: error: Item "None" of "CostSet | None" has no attribute "summary"  [union-attr]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/kanban_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
@@ -1684,7 +1641,6 @@ apps/workflow/api/reports/job_movement.py:0: error: Call to untyped function "se
 apps/accounting/views/sales_forecast_view.py:0: error: Item "None" of "Job | None" has no attribute "start_date"  [union-attr]
 apps/accounting/views/sales_forecast_view.py:0: error: Argument 1 to "_get_total_invoiced_for_job" of "SalesForecastMonthDetailAPIView" has incompatible type "Job | None"; expected "Job"  [arg-type]
 apps/accounting/views/sales_forecast_view.py:0: error: Item "None" of "Job | None" has no attribute "latest_actual"  [union-attr]
-apps/accounting/views/sales_forecast_view.py:0: error: Item "None" of "CostSet | Any | None" has no attribute "total_revenue"  [union-attr]
 apps/accounting/views/sales_forecast_view.py:0: error: Item "None" of "Job | None" has no attribute "client"  [union-attr]
 apps/accounting/views/sales_forecast_view.py:0: error: Item "None" of "Client | Any | None" has no attribute "name"  [union-attr]
 apps/accounting/views/sales_forecast_view.py:0: error: Item "None" of "Job | None" has no attribute "job_number"  [union-attr]
@@ -1833,12 +1789,31 @@ apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetSe
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: Incompatible type for "cost_set" of "CostLine" (got "CostSet | None", expected "CostSet | Combinable")  [misc]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: note: Use "-> None" if function does not return a value
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: "QuotingToolTests" has no attribute "test_staff"  [attr-defined]
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
+apps/quoting/tests_mcp.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests/test_pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Call to untyped function "PDFDataValidationService" in typed context  [no-untyped-call]
@@ -1895,6 +1870,10 @@ apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if fu
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
+apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
+apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
+apps/operations/tests/test_workshop_schedule_api.py:0: error: "WorkshopScheduleRecalculateTests" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
@@ -2314,12 +2293,102 @@ apps/job/tests/test_paid_flag_service.py:0: error: Call to untyped function "sav
 apps/job/tests/test_paid_flag_service.py:0: error: "PaidFlagServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_paid_flag_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_paid_flag_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: "QuotingToolTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: "MCPToolIntegrationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Missing positional argument "query" in call to "search_products" of "QuotingTool"  [call-arg]
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_quote_chat_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_quote_chat_model.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_quote_chat_model.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
 apps/job/tests/test_job_quote_chat_model.py:0: error: "JobQuoteChatModelTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_quote_chat_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_quote_chat_model.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_job_latest_costsets.py:0: error: "JobLatestCostSetCreationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_job_latest_costsets.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
+apps/job/tests/test_job_latest_costsets.py:0: error: "JobLatestCostSetCreationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_job_latest_costsets.py:0: error: "JobLatestCostSetDeletionTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -2357,13 +2426,6 @@ apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2489,8 +2551,9 @@ apps/client/tests/test_client_merge_service.py:0: error: "SourceEqualsDestinatio
 apps/client/tests/test_client_merge_service.py:0: error: "IdempotencyTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_client_merge_service.py:0: error: "IdempotencyTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_client_merge_service.py:0: error: "IdempotencyTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "SimpleHistoryTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "SimpleHistoryTests" has no attribute "test_staff"  [attr-defined]
+apps/client/tests/test_client_merge_service.py:0: error: "JobEventTests" has no attribute "test_staff"  [attr-defined]
+apps/client/tests/test_client_merge_service.py:0: error: "JobEventTests" has no attribute "test_staff"  [attr-defined]
+apps/client/tests/test_client_merge_service.py:0: error: Value of type "Any | None" is not indexable  [index]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "get_final_client" in typed context  [no-untyped-call]
@@ -2666,10 +2729,8 @@ apps/accounting/tests/test_core_nplusone.py:0: error: Module "django.utils.timez
 apps/accounting/tests/test_core_nplusone.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
 apps/accounting/tests/test_core_nplusone.py:0: error: "AccountingCoreQueryTests" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_core_nplusone.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/accounting/tests/test_core_nplusone.py:0: error: Incompatible type for "cost_set" of "CostLine" (got "CostSet | None", expected "CostSet | Combinable")  [misc]
 apps/accounting/tests/test_core_nplusone.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_core_nplusone.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_core_nplusone.py:0: error: Incompatible type for "cost_set" of "CostLine" (got "CostSet | None", expected "CostSet | Combinable")  [misc]
 apps/accounting/tests/test_core_nplusone.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_core_nplusone.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/views/company_defaults_logo_api.py:0: error: Argument 1 to "join" has incompatible type "str | None"; expected "str"  [arg-type]
@@ -3150,6 +3211,7 @@ apps/purchasing/migrations/0015_stock_active_source_purchase_order_line_id_and_m
 apps/purchasing/migrations/0015_stock_active_source_purchase_order_line_id_and_more.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/migrations/0013_populate_unit_revenue_from_existing_data.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/migrations/0013_populate_unit_revenue_from_existing_data.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/migrations/0091_require_latest_costsets_drop_historicaljob.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/migrations/0089_backfill_costline_staff_entry_seq.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/migrations/0088_reclassify_stock_consumption_costlines.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/migrations/0086_repoint_stale_time_pay_items.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3430,14 +3492,6 @@ apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineSer
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineServiceFixturesMixin" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineServiceFixturesMixin" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineServiceFixturesMixin" has no attribute "test_staff"  [attr-defined]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Item "None" of "CostSet | None" has no attribute "summary"  [union-attr]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Item "None" of "CostSet | None" has no attribute "save"  [union-attr]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Incompatible return value type (got "CostSet | None", expected "CostSet")  [return-value]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Item "None" of "CostSet | None" has no attribute "summary"  [union-attr]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Item "None" of "CostSet | None" has no attribute "save"  [union-attr]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Incompatible return value type (got "CostSet | None", expected "CostSet")  [return-value]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: "SalesPipelineServiceFixturesMixin" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
@@ -3516,6 +3570,8 @@ apps/workflow/views/ai_provider_viewset.py:0: error: Function is missing a retur
 apps/workflow/views/ai_provider_viewset.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/views/ai_provider_viewset.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/views/ai_provider_viewset.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/quoting/views_scheduled_tasks.py:0: error: Missing type arguments for generic type "ReadOnlyModelViewSet"  [type-arg]
+apps/quoting/views_scheduled_tasks.py:0: error: Missing type arguments for generic type "ReadOnlyModelViewSet"  [type-arg]
 apps/process/views/form_viewsets.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/process/views/form_viewsets.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/process/views/form_viewsets.py:0: error: Missing type arguments for generic type "GenericViewSet"  [type-arg]
@@ -3707,7 +3763,6 @@ apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a r
 apps/purchasing/tests/test_stock_fts_search.py:0: note: Use "-> None" if function does not return a value
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: "TestStockSearchHistoricalRanking" has no attribute "test_staff"  [attr-defined]
-apps/purchasing/tests/test_stock_fts_search.py:0: error: Incompatible type for "cost_set" of "CostLine" (got "CostSet | None", expected "CostSet | Combinable")  [misc]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/purchasing/tests/test_stock_fts_search.py:0: note: Use "-> None" if function does not return a value
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
@@ -3722,7 +3777,6 @@ apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a t
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/purchasing/tests/test_stock_fts_search.py:0: error: Incompatible type for "cost_set" of "CostLine" (got "CostSet | None", expected "CostSet | Combinable")  [misc]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3737,6 +3791,8 @@ apps/client/tests/test_client_invoice_summary.py:0: error: Call to untyped funct
 apps/client/tests/test_client_invoice_summary.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/client/tests/test_client_invoice_summary.py:0: note: Use "-> None" if function does not return a value
 apps/client/tests/test_client_invoice_summary.py:0: error: "ClientCreateInvoiceSummaryTests" has no attribute "test_staff"  [attr-defined]
+apps/client/tests/test_client_invoice_summary.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/client/tests/test_client_invoice_summary.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/middleware.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/middleware.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/middleware.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -4070,6 +4126,19 @@ apps/process/services/safety_ai_service.py:0: error: Item "str" of "dict[Any, An
 apps/process/services/safety_ai_service.py:0: error: Item "str" of "dict[Any, Any] | str" has no attribute "setdefault"  [union-attr]
 apps/process/services/safety_ai_service.py:0: error: Item "str" of "dict[Any, Any] | str" has no attribute "setdefault"  [union-attr]
 apps/process/services/safety_ai_service.py:0: error: Incompatible return value type (got "dict[Any, Any] | str", expected "dict[str, Any]")  [return-value]
+apps/job/services/quote_mode_controller.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/services/quote_mode_controller.py:0: note: Use "-> None" if function does not return a value
+apps/job/services/quote_mode_controller.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
+apps/job/services/quote_mode_controller.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+apps/job/services/quote_mode_controller.py:0: error: Returning Any from function declared to return "dict[str, Any]"  [no-any-return]
+apps/job/services/quote_mode_controller.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+apps/job/services/quote_mode_controller.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+apps/job/services/quote_mode_controller.py:0: error: Cannot call function of unknown type  [operator]
+apps/job/services/quote_mode_controller.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
+apps/job/services/quote_mode_controller.py:0: error: Incompatible return value type (got "None", expected "str")  [return-value]
+apps/job/services/mcp_chat_service.py:0: error: Item "None" of "Client | None" has no attribute "name"  [union-attr]
+apps/job/services/mcp_chat_service.py:0: error: Dict entry 1 has incompatible type "str": "str | None"; expected "str": "str"  [dict-item]
+apps/job/services/mcp_chat_service.py:0: error: Dict entry 2 has incompatible type "str": "list[dict[str, dict[str, Any | str] | Any | str]]"; expected "str": "str"  [dict-item]
 apps/quoting/services/pdf_import_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/services/pdf_import_service.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/services/pdf_import_service.py:0: error: Missing type arguments for generic type "Dict"  [type-arg]
@@ -4113,6 +4182,10 @@ apps/process/services/procedure_service.py:0: error: Function is missing a retur
 apps/process/services/procedure_service.py:0: note: Use "-> None" if function does not return a value
 apps/process/services/procedure_service.py:0: error: Call to untyped function "SafetyAIService" in typed context  [no-untyped-call]
 apps/process/services/procedure_service.py:0: error: Call to untyped function "GoogleDocsService" in typed context  [no-untyped-call]
+apps/job/services/chat_service.py:0: error: Call to untyped function "QuoteModeController" in typed context  [no-untyped-call]
+apps/job/services/chat_service.py:0: error: Item "None" of "Client | None" has no attribute "name"  [union-attr]
+apps/job/services/chat_service.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
+apps/job/services/chat_service.py:0: error: Cannot call function of unknown type  [operator]
 apps/quoting/scrapers/steel_and_tube.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/scrapers/steel_and_tube.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/scrapers/steel_and_tube.py:0: error: Call to untyped function "get_credentials" in typed context  [no-untyped-call]
@@ -4229,6 +4302,114 @@ apps/process/tests/test_procedure_service.py:0: error: Call to untyped function 
 apps/process/tests/test_procedure_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/process/tests/test_procedure_service.py:0: note: Use "-> None" if function does not return a value
 apps/process/tests/test_procedure_service.py:0: error: Call to untyped function "_make_service" in typed context  [no-untyped-call]
+apps/job/views/job_quote_chat_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Call to untyped function "QuoteModeController" in typed context  [no-untyped-call]
+apps/job/tests/test_quote_modes.py:0: error: "TestQuoteModeController" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_quote_modes.py:0: error: "TestSheetTenthsIntegration" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
+apps/job/tests/test_chat_service.py:0: error: Incompatible default for parameter "tool_call_id" (default has type "None", parameter has type "str")  [assignment]
+apps/job/tests/test_chat_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
+apps/job/tests/test_chat_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
+apps/job/tests/test_chat_service.py:0: error: "ChatServiceConfigurationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: "Client" has no attribute "name"  [attr-defined]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
+apps/job/tests/test_chat_service.py:0: error: "ChatServiceResponseGenerationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
+apps/job/tests/test_chat_service.py:0: error: "ChatServiceMultimodalTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
+apps/job/tests/test_chat_service.py:0: error: "ChatServiceIntegrationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
+apps/job/tests/test_chat_service.py:0: error: "ChatServiceModeResponseTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_performance.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
+apps/job/tests/test_chat_performance.py:0: error: "ChatQueryOptimizationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_chat_performance.py:0: error: "ChatQueryOptimizationTests" has no attribute "test_staff"  [attr-defined]
+apps/job/management/commands/test_gemini_chat.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/management/commands/test_gemini_chat.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/auth.py:0: error: Call to untyped function "RateLimitedRESTClient" in typed context  [no-untyped-call]
 apps/workflow/api/xero/auth.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/workflow/api/xero/auth.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
@@ -4444,6 +4625,14 @@ apps/purchasing/services/delivery_receipt_service.py:0: error: Function is missi
 apps/purchasing/services/delivery_receipt_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/purchasing/services/delivery_receipt_service.py:0: error: Call to untyped function "get_stock_holding_job" of "Stock" in typed context  [no-untyped-call]
 apps/process/urls_rest.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/views/quote_sync_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/job/views/quote_sync_views.py:0: error: Call to untyped function "draft_line_to_dict" in typed context  [no-untyped-call]
+apps/job/views/quote_sync_views.py:0: error: Call to untyped function "draft_line_to_dict" in typed context  [no-untyped-call]
+apps/job/views/quote_sync_views.py:0: error: Call to untyped function "draft_line_to_dict" in typed context  [no-untyped-call]
+apps/job/views/quote_sync_views.py:0: error: Dict entry 0 has incompatible type "str": "bool"; expected "str": "str"  [dict-item]
+apps/job/views/quote_sync_views.py:0: error: Incompatible types in assignment (expression has type "ApplyQuoteErrorResponseSerializer", variable has type "QuoteSyncErrorResponseSerializer")  [assignment]
+apps/job/views/quote_sync_views.py:0: error: Dict entry 0 has incompatible type "str": "bool"; expected "str": "str"  [dict-item]
+apps/job/views/quote_sync_views.py:0: error: Incompatible types in assignment (expression has type "ApplyQuoteErrorResponseSerializer", variable has type "QuoteSyncErrorResponseSerializer")  [assignment]
 apps/workflow/views/xero_apps_view.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/workflow/views/xero_apps_view.py:0: error: Missing type arguments for generic type "ModelViewSet"  [type-arg]
 apps/workflow/views/xero_apps_view.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -4470,6 +4659,13 @@ apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Function
 apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Call to untyped function "transform_quote" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_transform_contact_resolution.py:0: error: Call to untyped function "transform_purchase_order" in typed context  [no-untyped-call]
+apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
+apps/workflow/tests/test_xero_tenant_id.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
+apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
+apps/workflow/tests/test_xero_tenant_id.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/workflow/tests/test_xero_tenant_id.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_pay_run_flow.py:0: error: Call to untyped function "_draft" in typed context  [no-untyped-call]
@@ -5034,6 +5230,17 @@ apps/workflow/tests/test_xero_po_manager.py:0: error: "type[XeroPurchaseOrderMan
 apps/workflow/tests/test_xero_po_manager.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_po_manager.py:0: error: "XeroPurchaseOrderManagerConstructionTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_xero_po_manager.py:0: error: "XeroPurchaseOrderManagerConstructionTests" has no attribute "purchase_order"  [attr-defined]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Incompatible types in assignment (expression has type "str | None", target has type "str")  [assignment]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Call to untyped function "_reset_scrub_schema" in typed context  [no-untyped-call]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Call to untyped function "_run_pipe" in typed context  [no-untyped-call]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Call to untyped function "_run" in typed context  [no-untyped-call]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Call to untyped function "_reset_scrub_schema" in typed context  [no-untyped-call]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Call to untyped function "_run" in typed context  [no-untyped-call]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Function is missing a type annotation  [no-untyped-def]
+apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/backport_data_backup.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/backport_data_backup.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/backport_data_backup.py:0: error: Call to untyped function "analyze_fields" in typed context  [no-untyped-call]
@@ -5232,252 +5439,3 @@ apps/workflow/tests/test_xero_setup_command.py:0: error: Cannot assign to a meth
 apps/workflow/tests/test_xero_setup_command.py:0: error: Call to untyped function "run_setup" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_setup_command.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_setup_command.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/mcp.py:0: error: Class cannot subclass "ModelQueryToolset" (has type "Any")  [misc]
-apps/quoting/mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/mcp.py:0: error: Class cannot subclass "MCPToolset" (has type "Any")  [misc]
-apps/quoting/mcp.py:0: error: Incompatible default for parameter "supplier_name" (default has type "None", parameter has type "str")  [assignment]
-apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/quoting/mcp.py:0: error: Incompatible default for parameter "dimensions" (default has type "None", parameter has type "str")  [assignment]
-apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/quoting/mcp.py:0: error: Incompatible default for parameter "labor_hours" (default has type "None", parameter has type "float")  [assignment]
-apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/quoting/mcp.py:0: error: Item "None" of "Client | None" has no attribute "name"  [union-attr]
-apps/quoting/mcp.py:0: error: Incompatible types in assignment (expression has type "float", variable has type "int")  [assignment]
-apps/quoting/mcp.py:0: error: Incompatible default for parameter "supplier_name" (default has type "None", parameter has type "str")  [assignment]
-apps/quoting/mcp.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/quoting/mcp.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/quoting/mcp.py:0: error: Need type annotation for "supplier_prices" (hint: "supplier_prices: dict[<type>, <type>] = ...")  [var-annotated]
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: "QuotingToolTests" has no attribute "test_staff"  [attr-defined]
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: "QuotingToolTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: "MCPToolIntegrationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Missing positional argument "query" in call to "search_products" of "QuotingTool"  [call-arg]
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/services/quote_mode_controller.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/services/quote_mode_controller.py:0: note: Use "-> None" if function does not return a value
-apps/job/services/quote_mode_controller.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/services/quote_mode_controller.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/services/quote_mode_controller.py:0: error: Returning Any from function declared to return "dict[str, Any]"  [no-any-return]
-apps/job/services/quote_mode_controller.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/services/quote_mode_controller.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/services/quote_mode_controller.py:0: error: Cannot call function of unknown type  [operator]
-apps/job/services/quote_mode_controller.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
-apps/job/services/quote_mode_controller.py:0: error: Incompatible return value type (got "None", expected "str")  [return-value]
-apps/job/services/mcp_chat_service.py:0: error: Item "None" of "Client | None" has no attribute "name"  [union-attr]
-apps/job/services/mcp_chat_service.py:0: error: Dict entry 1 has incompatible type "str": "str | None"; expected "str": "str"  [dict-item]
-apps/job/services/mcp_chat_service.py:0: error: Dict entry 2 has incompatible type "str": "list[dict[str, dict[str, Any | str] | Any | str]]"; expected "str": "str"  [dict-item]
-apps/job/services/chat_service.py:0: error: Call to untyped function "QuoteModeController" in typed context  [no-untyped-call]
-apps/job/services/chat_service.py:0: error: Item "None" of "Client | None" has no attribute "name"  [union-attr]
-apps/job/services/chat_service.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
-apps/job/services/chat_service.py:0: error: Cannot call function of unknown type  [operator]
-apps/job/views/job_quote_chat_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Call to untyped function "QuoteModeController" in typed context  [no-untyped-call]
-apps/job/tests/test_quote_modes.py:0: error: "TestQuoteModeController" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: "TestSheetTenthsIntegration" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/job/tests/test_chat_service.py:0: error: Incompatible default for parameter "tool_call_id" (default has type "None", parameter has type "str")  [assignment]
-apps/job/tests/test_chat_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/job/tests/test_chat_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceConfigurationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: "Client" has no attribute "name"  [attr-defined]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceResponseGenerationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceMultimodalTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceIntegrationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceModeResponseTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_performance.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_performance.py:0: error: "ChatQueryOptimizationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_performance.py:0: error: "ChatQueryOptimizationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/management/commands/test_gemini_chat.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/management/commands/test_gemini_chat.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/quote_sync_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/quote_sync_views.py:0: error: Call to untyped function "draft_line_to_dict" in typed context  [no-untyped-call]
-apps/job/views/quote_sync_views.py:0: error: Call to untyped function "draft_line_to_dict" in typed context  [no-untyped-call]
-apps/job/views/quote_sync_views.py:0: error: Call to untyped function "draft_line_to_dict" in typed context  [no-untyped-call]
-apps/job/views/quote_sync_views.py:0: error: Dict entry 0 has incompatible type "str": "bool"; expected "str": "str"  [dict-item]
-apps/job/views/quote_sync_views.py:0: error: Incompatible types in assignment (expression has type "ApplyQuoteErrorResponseSerializer", variable has type "QuoteSyncErrorResponseSerializer")  [assignment]
-apps/job/views/quote_sync_views.py:0: error: Dict entry 0 has incompatible type "str": "bool"; expected "str": "str"  [dict-item]
-apps/job/views/quote_sync_views.py:0: error: Incompatible types in assignment (expression has type "ApplyQuoteErrorResponseSerializer", variable has type "QuoteSyncErrorResponseSerializer")  [assignment]
-apps/quoting/serializers_scheduled_tasks.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
-apps/quoting/serializers_scheduled_tasks.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
-apps/quoting/views_scheduled_tasks.py:0: error: Missing type arguments for generic type "ReadOnlyModelViewSet"  [type-arg]
-apps/quoting/views_scheduled_tasks.py:0: error: Missing type arguments for generic type "ReadOnlyModelViewSet"  [type-arg]
