@@ -49,7 +49,7 @@ from apps.workflow.api.xero.auth import (
     api_client,
     exchange_code_for_token,
     get_authentication_url,
-    get_tenant_id_from_connections,
+    get_tenant_id,
     get_valid_token,
     refresh_token,
 )
@@ -377,23 +377,20 @@ def ensure_xero_authentication() -> XeroAuthenticationResult:
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
 
-    tenant_id = cache.get("xero_tenant_id")  # Use consistent cache key
-    if not tenant_id:
-        try:
-            tenant_id = get_tenant_id_from_connections()
-            cache.set("xero_tenant_id", tenant_id, timeout=1800)
-        except Exception as e:
-            logger.error(f"Error retrieving tenant ID: {e}")
-            error_response = {
-                "success": False,
-                "redirect_to_auth": True,
-                "message": "Unable to fetch Xero tenant ID. Please log in Xero again.",
-            }
-            error_serializer = XeroAuthenticationErrorResponseSerializer(error_response)
-            return XeroAuthenticationResult(
-                error_data=dict(error_serializer.data),
-                status_code=status.HTTP_401_UNAUTHORIZED,
-            )
+    try:
+        tenant_id = get_tenant_id()
+    except Exception as e:
+        logger.error(f"Error retrieving tenant ID: {e}")
+        error_response = {
+            "success": False,
+            "redirect_to_auth": True,
+            "message": "Unable to fetch Xero tenant ID. Please log in Xero again.",
+        }
+        error_serializer = XeroAuthenticationErrorResponseSerializer(error_response)
+        return XeroAuthenticationResult(
+            error_data=dict(error_serializer.data),
+            status_code=status.HTTP_401_UNAUTHORIZED,
+        )
     return XeroAuthenticationResult(tenant_id=tenant_id)
 
 

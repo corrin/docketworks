@@ -216,6 +216,8 @@ export function useCostLineAutosave(opts: Options) {
     syncGlobalStatus()
 
     const timer = window.setTimeout(async () => {
+      // Not a swallow: runSave already sets error state, rolls back, and rethrows;
+      // this only prevents an unhandled rejection in the fire-and-forget debounce.
       await runSave(line, mergedPatch).catch(() => undefined)
     }, debounceMs)
 

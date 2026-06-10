@@ -92,7 +92,7 @@
                     </span>
                     <span class="flex items-center gap-1">
                       <Calendar class="w-4 h-4" />
-                      {{ formatDate(doc.created_at) }}
+                      {{ formatDateTime(doc.created_at) }}
                     </span>
                   </div>
                 </div>
@@ -150,7 +150,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { useJsaSwpStore } from '@/stores/jsaSwpDocuments'
 import type { ProcedureListItem } from '@/types/processDocument.types'
-import { formatDate } from '@/utils/string-formatting'
+import { formatDateTime } from '@/utils/string-formatting'
 
 const router = useRouter()
 const store = useJsaSwpStore()

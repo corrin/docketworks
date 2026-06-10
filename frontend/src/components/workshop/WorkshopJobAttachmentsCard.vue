@@ -17,7 +17,7 @@ interface Props {
   previewLoading: Set<string>
   previewErrors: Set<string>
   formatSize: (bytes?: number | null) => string
-  formatDateShort: (dateString?: string | null) => string
+  formatDate: (dateString?: string | null) => string
   downloadAttachment: (file: JobFile) => void
   toggleAttachment: (file: JobFile) => void
   ensurePreviewUrl: (file: JobFile) => Promise<void> | void
@@ -67,7 +67,7 @@ async function handleTogglePreview(file: JobFile) {
               <div class="text-xs text-muted-foreground flex flex-wrap gap-2">
                 <span>{{ formatSize(file.size) }}</span>
                 <span class="hidden sm:inline">&middot;</span>
-                <span>{{ formatDateShort(file.uploaded_at) }}</span>
+                <span>{{ formatDate(file.uploaded_at) }}</span>
                 <span class="text-muted-foreground">&middot; View only</span>
               </div>
             </div>

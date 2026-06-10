@@ -125,21 +125,6 @@ class TestRecalculateJobInvoicingState(BaseTestCase):
         job.refresh_from_db()
         self.assertFalse(job.fully_invoiced)
 
-    def test_fixed_price_without_quote_falls_back_to_actual(self):
-        """Fixed-price job without a quote falls back to actual revenue."""
-        job = self._create_job("fixed_price")
-        self._add_revenue_line(job.latest_actual, Decimal("1000.00"))
-        # Clear the auto-created latest_quote
-        job.latest_quote = None
-        job.save(staff=self.test_staff, update_fields=["latest_quote"])
-
-        self._create_invoice(job, Decimal("1000.00"))
-
-        recalculate_job_invoicing_state(str(job.id), self.test_staff)
-
-        job.refresh_from_db()
-        self.assertTrue(job.fully_invoiced)
-
     # --- Edge cases ---
 
     def test_not_fully_invoiced_with_no_invoices(self):

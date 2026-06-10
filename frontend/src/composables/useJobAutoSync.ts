@@ -17,7 +17,7 @@ export function useJobAutoSync(
   const syncError = ref<Error | null>(null)
   const isSyncing = ref(false)
 
-  let intervalId: number | null = null
+  let intervalId: ReturnType<typeof setInterval> | null = null
 
   const performSync = async () => {
     if (!isAutoSyncEnabled.value || isSyncing.value) {

@@ -122,7 +122,7 @@
 import { computed } from 'vue'
 import { FileX } from 'lucide-vue-next'
 import { schemas } from '../../api/generated/api'
-import { formatCurrency, formatHoursDisplay } from '@/utils/string-formatting'
+import { formatCurrency, formatDate, formatHoursDisplay } from '@/utils/string-formatting'
 import { z } from 'zod'
 
 type CostLine = z.infer<typeof schemas.CostLine>
@@ -277,15 +277,6 @@ function formatPercentage(value: number): string {
     minimumFractionDigits: 1,
     maximumFractionDigits: 1,
   }).format(value)
-}
-
-function formatDate(dateString?: string): string {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
 }
 </script>
 

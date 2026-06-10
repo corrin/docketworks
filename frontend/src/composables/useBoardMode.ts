@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { useDeviceDetection } from '@/composables/useDeviceDetection'
+import { safeSessionStorage } from '@/utils/safe-storage'
 
 export type BoardMode = 'workshop' | 'office'
 
@@ -33,11 +34,7 @@ export function useBoardMode() {
   const setMode = (newMode: BoardMode) => {
     mode.value = newMode
     hasUserExplicitlyChosen.value = true
-    try {
-      sessionStorage.setItem(STORAGE_KEY, newMode)
-    } catch {
-      // sessionStorage may be unavailable in some contexts
-    }
+    safeSessionStorage.set(STORAGE_KEY, newMode)
   }
 
   // Toggle between modes
@@ -49,14 +46,10 @@ export function useBoardMode() {
   const initializeMode = () => {
     if (isInitialized.value) return
 
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY) as BoardMode | null
-      if (stored && (stored === 'workshop' || stored === 'office')) {
-        mode.value = stored
-        hasUserExplicitlyChosen.value = true
-      }
-    } catch {
-      // sessionStorage may be unavailable
+    const stored = safeSessionStorage.get(STORAGE_KEY)
+    if (stored && (stored === 'workshop' || stored === 'office')) {
+      mode.value = stored
+      hasUserExplicitlyChosen.value = true
     }
 
     isInitialized.value = true

@@ -102,7 +102,7 @@ async function fetchJobs() {
   error.value = ''
   try {
     const response = await api.job_job_completed_list()
-    jobs.value = response.results || []
+    jobs.value = response.results
     selectedLeft.value = []
     toArchive.value = []
     selectedRight.value = []

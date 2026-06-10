@@ -155,3 +155,19 @@ class WorkshopScheduleRecalculateTests(BaseAPITestCase):
         self.assertIn("days", data)
         self.assertIn("jobs", data)
         self.assertIn("unscheduled_jobs", data)
+
+    def test_post_recalculate_supports_quote_fallback_hours(self):
+        """Jobs with no estimate hours still schedule from quote hours."""
+        job = _make_job(self.client_obj, self.test_staff, hours=0.0)
+        summary = job.latest_quote.summary or {}
+        summary["hours"] = 8.0
+        job.latest_quote.summary = summary
+        job.latest_quote.save()
+
+        response = self.api_client.post(self.url)
+
+        self.assertEqual(response.status_code, 200)
+        data = response.json()
+        self.assertEqual(data["unscheduled_jobs"], [])
+        self.assertEqual(len(data["jobs"]), 1)
+        self.assertEqual(data["jobs"][0]["id"], str(job.id))

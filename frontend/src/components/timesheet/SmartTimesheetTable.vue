@@ -25,18 +25,18 @@ import TimesheetActionsCell from './TimesheetActionsCell.vue'
 import TimesheetJobPicker from './TimesheetJobPicker.vue'
 import HoursCell from './HoursCell.vue'
 
-import { useCostLineAutosave } from '../../composables/useCostLineAutosave'
+import { useCostLineAutosave } from '@/composables/useCostLineAutosave'
 import {
   type GridCellKeydownOptions,
   gridCellAttrs,
   handleGridCellKeydown,
   useGridKeyboardNav,
-} from '../../composables/useGridKeyboardNav'
-import { usePhantomRow } from '../../composables/usePhantomRow'
-import { costlineService } from '../../services/costline.service'
-import { formatCurrency } from '../../utils/string-formatting'
-import { logError } from '../../utils/error-handler'
-import { debugLog } from '../../utils/debug'
+} from '@/composables/useGridKeyboardNav'
+import { usePhantomRow } from '@/composables/usePhantomRow'
+import { costlineService } from '@/services/costline.service'
+import { formatCurrency } from '@/utils/string-formatting'
+import { logError } from '@/utils/error-handler'
+import { debugLog } from '@/utils/debug'
 import {
   getRateMultiplier,
   getRateTypeFromMultiplier,
@@ -46,9 +46,9 @@ import {
   calculatedWage,
   calculatedBill,
   parseHoursInput,
-} from '../../utils/timesheetCalc'
+} from '@/utils/timesheetCalc'
 
-import { schemas } from '../../api/generated/api'
+import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
 
 type TimesheetCostLine = z.infer<typeof schemas.TimesheetCostLine>

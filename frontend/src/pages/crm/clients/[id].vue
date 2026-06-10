@@ -415,6 +415,7 @@ import {
 import { toast } from 'vue-sonner'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
+import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
 interface Props {
@@ -621,22 +622,6 @@ function goBack() {
 
 function navigateToJob(jobId: string) {
   router.push({ name: '/jobs/[id]/(index)', params: { id: jobId } })
-}
-
-function formatDateTime(dateString: string | null | undefined): string {
-  if (!dateString) return '-'
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleString('en-AU', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return dateString
-  }
 }
 
 // Lifecycle

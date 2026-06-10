@@ -1,5 +1,10 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId, dismissToasts } from '../fixtures/helpers'
+import {
+  autoId,
+  dismissToasts,
+  submitJobAndWaitForCreatedJob,
+  waitForClientCreateResponse,
+} from '../fixtures/helpers'
 
 /**
  * Tests for creating a job with a new client in Xero.
@@ -35,10 +40,9 @@ test.describe('create job with new xero client', () => {
     await autoId(page, 'ClientLookup-create-new').waitFor({ timeout: 5000 })
 
     // Press Ctrl+Enter to quick-create the client (bypasses modal)
-    await clientInput.press('Control+Enter')
-
-    // Wait for client creation - there should be a success toast
-    await page.waitForTimeout(3000)
+    await waitForClientCreateResponse(page, async () => {
+      await clientInput.press('Control+Enter')
+    })
 
     // Verify client was created - input should still have the client name
     await expect(clientInput).toHaveValue(newClientName)
@@ -81,14 +85,9 @@ test.describe('create job with new xero client', () => {
     // Dismiss any toasts that might block the submit button
     await dismissToasts(page)
 
-    // Submit the job
-    await autoId(page, 'JobCreateView-submit').click({ force: true })
-
-    // Wait for redirect to job edit view
-    await page.waitForURL('**/jobs/*?*tab=estimate*', { timeout: 15000 })
+    const url = await submitJobAndWaitForCreatedJob(page, 'estimate')
 
     // Verify we're on the job page
-    const url = page.url()
     expect(url).toContain('/jobs/')
     expect(url).not.toContain('/create')
 
@@ -133,11 +132,12 @@ test.describe('create job with new xero client', () => {
     // The client name should already be filled in the modal
     // Click "Create Client" button to create the client
     const createClientButton = page.getByRole('button', { name: 'Create Client' })
-    await createClientButton.click()
+    await waitForClientCreateResponse(page, async () => {
+      await createClientButton.click()
+    })
 
     // Wait for modal to close and client to be created
     await createClientModal.waitFor({ state: 'hidden', timeout: 10000 })
-    await page.waitForTimeout(1000)
 
     // Verify the Xero badge shows green
     const xeroIndicator = autoId(page, 'ClientLookup-xero-valid')
@@ -173,12 +173,7 @@ test.describe('create job with new xero client', () => {
 
     await autoId(page, 'JobCreateView-pricing-method').selectOption('fixed_price')
     await dismissToasts(page)
-    await autoId(page, 'JobCreateView-submit').click({ force: true })
-
-    // For fixed_price jobs, redirect goes to quote tab
-    await page.waitForURL('**/jobs/*?*tab=quote*', { timeout: 15000 })
-
-    const url = page.url()
+    const url = await submitJobAndWaitForCreatedJob(page, 'quote')
     expect(url).toContain('/jobs/')
 
     console.log(`Job created via modal method at: ${url}`)

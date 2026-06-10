@@ -223,7 +223,6 @@ _EXCLUDED_TABLES = (
     "workflow_xeroapp",
     "workflow_serviceapikey",
     "accounts_historicalstaff",
-    "job_historicaljob",
     "process_historicalform",
     "process_historicalformentry",
     "process_historicalprocedure",

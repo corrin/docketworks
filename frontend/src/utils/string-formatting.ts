@@ -40,24 +40,64 @@ export function formatFileSize(bytes: number): string {
 }
 
 /**
- * Formats a date string to localized format
- * @param dateString - ISO date string
- * @returns Formatted date string
+ * Locale used for all user-facing date and currency formatting.
  */
-export function formatDate(dateString: string): string {
-  if (!dateString) return ''
+export const DISPLAY_LOCALE = 'en-NZ'
 
-  try {
-    return new Date(dateString).toLocaleDateString('en-AU', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-    })
-  } catch {
-    return dateString
+/**
+ * Parses a date value for display formatting.
+ * - null/undefined/'' → null (absent optional data is a legitimate display state)
+ * - non-empty but unparseable → throws (dates come from Zod-validated API responses,
+ *   so an unparseable value is a bug)
+ */
+function parseDisplayDate(value: string | null | undefined): Date | null {
+  if (value === null || value === undefined || value === '') return null
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid date: ${value}`)
   }
+  return date
+}
+
+/**
+ * Formats a date string as a date-only display value, e.g. "10 Jun 2026"
+ */
+export function formatDate(value: string | null | undefined): string {
+  const date = parseDisplayDate(value)
+  if (date === null) return '-'
+  return date.toLocaleDateString(DISPLAY_LOCALE, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+  })
+}
+
+/**
+ * Formats a date string as a date+time display value, e.g. "10 Jun 2026, 2:30 pm"
+ */
+export function formatDateTime(value: string | null | undefined): string {
+  const date = parseDisplayDate(value)
+  if (date === null) return '-'
+  return date.toLocaleString(DISPLAY_LOCALE, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+/**
+ * Formats a date string as a weekday+date display value, e.g. "Wed, 10 Jun"
+ */
+export function formatDayDate(value: string | null | undefined): string {
+  const date = parseDisplayDate(value)
+  if (date === null) return '-'
+  return date.toLocaleDateString(DISPLAY_LOCALE, {
+    weekday: 'short',
+    day: 'numeric',
+    month: 'short',
+  })
 }
 
 /**

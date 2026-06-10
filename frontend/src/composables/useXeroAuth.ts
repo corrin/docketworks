@@ -4,6 +4,7 @@ import { getApiBaseUrl } from '@/plugins/axios'
 import { api } from '@/api/client'
 import { toast } from 'vue-sonner'
 import { debugLog } from '@/utils/debug'
+import { xeroSyncStatusClass } from '@/utils/statusMappings'
 
 type XeroSseEvent = {
   datetime: string
@@ -77,16 +78,7 @@ export function useXeroAuth() {
     return new Date(dt).toLocaleTimeString()
   }
   function statusClass(status: string) {
-    switch (status) {
-      case 'In Progress':
-        return 'text-blue-400 font-medium'
-      case 'Completed':
-        return 'text-green-400 font-medium'
-      case 'Error':
-        return 'text-red-400 font-medium'
-      default:
-        return 'text-zinc-400'
-    }
+    return xeroSyncStatusClass[status] ?? xeroSyncStatusClass.default
   }
   function logClass(severity: string) {
     switch (severity) {

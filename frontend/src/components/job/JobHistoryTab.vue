@@ -107,7 +107,7 @@
                       class="flex items-center justify-between mt-3 pt-3 border-t border-gray-100"
                     >
                       <div class="flex items-center space-x-3 text-xs text-gray-500 flex-wrap">
-                        <span class="font-medium">{{ formatDate(item.timestamp) }}</span>
+                        <span class="font-medium">{{ formatTimestamp(item.timestamp) }}</span>
                         <span>•</span>
                         <span
                           :class="[
@@ -264,7 +264,7 @@
 import { ref, watch, computed } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent } from '../ui/collapsible'
-import { formatEventType } from '@/utils/string-formatting'
+import { formatDateTime, formatEventType } from '@/utils/string-formatting'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
@@ -386,15 +386,9 @@ function cancelAddEvent() {
   isAddEventOpen.value = false
 }
 
-function formatDate(dateString: unknown) {
-  if (!dateString || typeof dateString !== 'string') return ''
-  return new Date(dateString).toLocaleString('en-AU', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+function formatTimestamp(value: unknown): string {
+  if (typeof value !== 'string') return ''
+  return formatDateTime(value)
 }
 
 function toggleExpanded(itemId: string) {

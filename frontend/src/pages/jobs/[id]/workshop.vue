@@ -14,12 +14,13 @@ import WorkshopJobNotesCard from '@/components/workshop/WorkshopJobNotesCard.vue
 import WorkshopJobAttachmentsCard from '@/components/workshop/WorkshopJobAttachmentsCard.vue'
 import { useWorkshopJob } from '@/composables/useWorkshopJob'
 import { useJobAttachments } from '@/composables/useJobAttachments'
+import { formatDate } from '@/utils/string-formatting'
 
 const route = useRoute()
 const router = useRouter()
 
 const jobId = computed(() => route.params.id as string)
-const { job, loading, notesHtml, speedQuality, workshopTime, workshopTimeDisplay, formatDate } =
+const { job, loading, notesHtml, speedQuality, workshopTime, workshopTimeDisplay } =
   useWorkshopJob(jobId)
 
 function navigateBack() {
@@ -37,7 +38,6 @@ const {
   previewLoading,
   previewErrors,
   formatSize,
-  formatDateShort,
   downloadAttachment,
   isImage,
   isPdf,
@@ -133,7 +133,7 @@ const {
             :preview-loading="previewLoading"
             :preview-errors="previewErrors"
             :format-size="formatSize"
-            :format-date-short="formatDateShort"
+            :format-date="formatDate"
             :download-attachment="downloadAttachment"
             :toggle-attachment="toggleAttachment"
             :ensure-preview-url="ensurePreviewUrl"

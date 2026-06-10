@@ -442,7 +442,7 @@
 <script setup lang="ts">
 import { debugLog } from '../../utils/debug'
 import { toLocalDateString } from '../../utils/dateUtils'
-import { formatCurrency } from '@/utils/string-formatting'
+import { formatCurrency, formatDate } from '@/utils/string-formatting'
 import { normalizeOptionalDecimal } from '@/utils/number'
 import { onMounted, ref, computed, reactive } from 'vue'
 import { useRouter } from 'vue-router'
@@ -582,15 +582,6 @@ const invoiceButtonText = computed(() => {
   }
   return 'Create Invoice'
 })
-
-const formatDate = (dateString: string | null | undefined) => {
-  if (!dateString) return 'N/A'
-  return new Date(dateString).toLocaleDateString('en-NZ', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
 
 // --- INVOICE MODAL ---
 const showInvoiceModal = ref(false)

@@ -560,10 +560,6 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     error.value = null
   }
 
-  function formatDate(date: string): string {
-    return new Date(date).toLocaleDateString()
-  }
-
   function formatHours(hours: number): string {
     return formatHoursDisplay(hours)
   }
@@ -637,7 +633,6 @@ export const useTimesheetStore = defineStore('timesheet', () => {
     setSelectedDate,
     setCurrentView,
     clearError,
-    formatDate,
     formatHours,
     addAttachedJob,
     removeAttachedJob,
