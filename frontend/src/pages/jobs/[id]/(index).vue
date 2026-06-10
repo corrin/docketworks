@@ -316,7 +316,7 @@ import { useJobFinancials } from '@/composables/useJobFinancials'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import { api } from '@/api/client'
 import { ArrowLeft, Printer } from 'lucide-vue-next'
-import { formatCurrency } from '@/utils/string-formatting'
+import { formatCurrency, formatDate } from '@/utils/string-formatting'
 import { JOB_STATUS_CHOICES } from '@/constants/job-status'
 import type { JobStatusKey } from '@/constants/job-status'
 import type { JobTabKey } from '@/constants/job-tabs'
@@ -571,7 +571,9 @@ async function fetchQuoteRevisions() {
     })
     quoteRevisionsData.value = response
   } catch {
-    quoteRevisionsData.value = { total_revisions: 0 }
+    // Leave quoteRevisionsData null: unknown state must not fabricate
+    // "0 revisions", which would falsely trigger the quote warning.
+    toast.error('Failed to load quote revisions')
   }
 }
 
@@ -586,16 +588,10 @@ watch(
 const hasQuoteRevisions = computed(
   () => !!quoteRevisionsData.value && quoteRevisionsData.value.total_revisions > 0,
 )
-const shouldShowQuoteWarning = computed(() => isQuoteAccepted.value && !hasQuoteRevisions.value)
-
-const formatDate = (dateString: string) => {
-  if (!dateString) return ''
-  return new Date(dateString).toLocaleDateString('en-AU', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  })
-}
+const shouldShowQuoteWarning = computed(
+  // Require revisions data to be loaded: unknown state shows no warning.
+  () => isQuoteAccepted.value && quoteRevisionsData.value !== null && !hasQuoteRevisions.value,
+)
 
 const showPdfDialog = ref(false)
 

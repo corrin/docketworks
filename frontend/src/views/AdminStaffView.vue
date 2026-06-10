@@ -78,8 +78,8 @@
                   <td class="px-4 py-3 text-center">
                     <span v-if="staff.is_superuser" class="text-green-600">✔️</span>
                   </td>
-                  <td class="px-4 py-3">{{ formatDate(staff.last_login) }}</td>
-                  <td class="px-4 py-3">{{ formatDate(staff.date_joined) }}</td>
+                  <td class="px-4 py-3">{{ formatDateTime(staff.last_login) }}</td>
+                  <td class="px-4 py-3">{{ formatDateTime(staff.date_joined) }}</td>
                   <td class="px-4 py-3 text-center">
                     <button
                       @click="editStaff(staff)"
@@ -133,6 +133,7 @@ import StaffFormModal from '@/components/StaffFormModal.vue'
 import ConfirmModal from '@/components/ConfirmModal.vue'
 import { schemas } from '@/api/generated/api'
 import { PencilLine, Trash2 } from 'lucide-vue-next'
+import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
 type Staff = z.infer<typeof schemas.Staff>
@@ -218,18 +219,6 @@ async function fetchStaff() {
   loading.value = false
 }
 onMounted(fetchStaff)
-
-function formatDate(dateStr: string | null | undefined) {
-  if (!dateStr) return ''
-  const date = new Date(dateStr)
-  return date.toLocaleString('en-NZ', {
-    year: 'numeric',
-    month: 'short',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 </script>
 
 <style scoped>

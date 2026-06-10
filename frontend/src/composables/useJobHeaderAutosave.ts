@@ -310,11 +310,7 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
     if (autosave.isSaving.value) return 'Saving...'
     if (autosave.error.value) return 'Save failed'
     if (autosave.lastSavedAt.value) {
-      try {
-        return `Saved at ${autosave.lastSavedAt.value.toLocaleTimeString()}`
-      } catch {
-        return 'Saved'
-      }
+      return `Saved at ${autosave.lastSavedAt.value.toLocaleTimeString()}`
     }
     return ''
   })

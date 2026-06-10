@@ -68,7 +68,7 @@ export const useClientStore = defineStore('clients', () => {
           sort_dir: sortDir.value,
         },
       })
-      clients.value = response.results || []
+      clients.value = response.results
       totalCount.value = response.count
       totalPages.value = response.total_pages
       page.value = response.page
@@ -114,8 +114,8 @@ export const useClientStore = defineStore('clients', () => {
       const response = await api.clients_contacts_list({
         queries: { client_id: clientId },
       })
-      clientContacts.value[clientId] = response || []
-      return response || []
+      clientContacts.value[clientId] = response
+      return response
     } catch (error) {
       console.error('Failed to fetch client contacts:', error)
       clientContacts.value[clientId] = []
@@ -158,8 +158,8 @@ export const useClientStore = defineStore('clients', () => {
       const response: ClientJobsResponse = await api.clients_jobs_retrieve({
         params: { client_id: clientId },
       })
-      clientJobs.value[clientId] = response.results || []
-      return response.results || []
+      clientJobs.value[clientId] = response.results
+      return response.results
     } catch (error) {
       console.error('Failed to fetch client jobs:', error)
       clientJobs.value[clientId] = []

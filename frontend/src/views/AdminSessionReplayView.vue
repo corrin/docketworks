@@ -26,7 +26,7 @@
                 :class="{ 'bg-muted/60': selectedRecording?.id === recording.id }"
                 @click="selectRecording(recording.id)"
               >
-                <td class="p-2 whitespace-nowrap">{{ formatDate(recording.started_at) }}</td>
+                <td class="p-2 whitespace-nowrap">{{ formatDateTime(recording.started_at) }}</td>
                 <td class="p-2 truncate max-w-40">{{ recording.user_email }}</td>
                 <td class="p-2 text-right tabular-nums">{{ recording.event_count }}</td>
               </tr>
@@ -65,6 +65,7 @@ import type { eventWithTime } from '@rrweb/types'
 import 'rrweb-player/dist/style.css'
 import { useRoute } from 'vue-router'
 import { flushSessionReplay } from '@/services/sessionReplayService'
+import { formatDateTime } from '@/utils/string-formatting'
 
 type SessionReplayRecording = z.infer<typeof schemas.SessionReplayRecording>
 
@@ -74,10 +75,6 @@ const playerEl = ref<HTMLElement | null>(null)
 const loading = ref(false)
 const error = ref<string | null>(null)
 const route = useRoute()
-
-function formatDate(value: string): string {
-  return new Date(value).toLocaleString()
-}
 
 function formatBytes(value: number): string {
   if (value < 1024) return `${value} B`

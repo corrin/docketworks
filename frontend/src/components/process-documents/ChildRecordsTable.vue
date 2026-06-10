@@ -44,6 +44,7 @@ import { ref, onMounted } from 'vue'
 import { Loader2 } from 'lucide-vue-next'
 import { processDocumentsService } from '@/services/processDocuments.service'
 import type { FormEntry } from '@/types/processDocument.types'
+import { formatDate } from '@/utils/string-formatting'
 
 interface Props {
   formId: string
@@ -65,8 +66,4 @@ onMounted(async () => {
     isLoading.value = false
   }
 })
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString()
-}
 </script>

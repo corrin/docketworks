@@ -149,7 +149,7 @@ import PoCommentsSection from '@/components/purchasing/PoCommentsSection.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { usePurchaseOrderStore } from '@/stores/purchaseOrderStore'
 import { useDeliveryReceiptStore } from '@/stores/deliveryReceiptStore'
-import { extractErrorMessage, createErrorToast } from '@/utils/errorHandler'
+import { extractErrorMessage, createErrorToast } from '@/utils/error-handler'
 import { toast } from 'vue-sonner'
 import { api } from '@/api/client'
 import { transformDeliveryReceiptForAPI } from '@/utils/delivery-receipt'
@@ -730,10 +730,7 @@ async function saveLines() {
     debugLog('Error saving lines:', error)
     // Rollback on error
     po.value.lines = snapshot
-    toast.error(
-      'Failed to save lines. Changes have been reverted: ' +
-        extractErrorMessage(error, 'Unknown error'),
-    )
+    toast.error('Failed to save lines. Changes have been reverted: ' + extractErrorMessage(error))
   }
 }
 
@@ -769,7 +766,7 @@ async function syncWithXero() {
     }
   } catch (err: unknown) {
     toast.dismiss('po-sync-loading')
-    const errorMessage = extractErrorMessage(err, 'Sync failed')
+    const errorMessage = extractErrorMessage(err)
     toast.error(`Xero sync failed: ${errorMessage}`, createErrorToast())
   } finally {
     isSyncing.value = false
@@ -875,7 +872,7 @@ async function emailPurchaseOrder() {
     toast.success('Gmail opened with the prepared draft')
   } catch (error) {
     toast.dismiss('po-email-loading')
-    const errorMessage = extractErrorMessage(error, 'Failed to prepare email')
+    const errorMessage = extractErrorMessage(error)
     toast.error(`Email failed: ${errorMessage}`, createErrorToast())
     debugLog('Error preparing email:', error)
   }
@@ -934,7 +931,7 @@ async function close() {
       return
     }
 
-    toast.error('Failed to save changes: ' + extractErrorMessage(error, 'Unknown error'))
+    toast.error('Failed to save changes: ' + extractErrorMessage(error))
     // Still navigate to PO list even if save fails (non-auth errors)
   } finally {
     // Always navigate back to PO list unless there was an auth error
@@ -1206,7 +1203,7 @@ onMounted(async () => {
             )
             await load()
           } catch (error) {
-            const errorMessage = extractErrorMessage(error, 'Failed to update supplier')
+            const errorMessage = extractErrorMessage(error)
             toast.error(`Update failed: ${errorMessage}`)
           }
         }, 1000)

@@ -127,6 +127,8 @@ import { useRouter } from 'vue-router'
 import Pagination from '@/components/ui/pagination/Pagination.vue'
 import { toast } from 'vue-sonner'
 import { schemas } from '@/api/generated/api'
+import { poStatusLabels, poStatusBadgeClasses } from '@/utils/statusMappings'
+import { formatDate } from '@/utils/string-formatting'
 
 const statusOptions = schemas.PurchaseOrderDetailStatusEnum.options
 type PurchaseOrderStatus = (typeof statusOptions)[number]
@@ -182,33 +184,9 @@ watch(searchTerm, () => {
   page.value = 1
 })
 
-const statusLabels: Record<PurchaseOrderStatus, string> = {
-  draft: 'Draft',
-  submitted: 'Submitted to Supplier',
-  partially_received: 'Partially Received',
-  fully_received: 'Fully Received',
-  deleted: 'Deleted',
-}
+const formatStatus = (status: PurchaseOrderStatus) => poStatusLabels[status]
 
-const statusClasses: Record<PurchaseOrderStatus, string> = {
-  draft: 'px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800',
-  submitted: 'px-2 py-1 text-xs font-medium rounded-full bg-blue-100 text-blue-800',
-  partially_received: 'px-2 py-1 text-xs font-medium rounded-full bg-yellow-100 text-yellow-800',
-  fully_received: 'px-2 py-1 text-xs font-medium rounded-full bg-green-100 text-green-800',
-  deleted: 'px-2 py-1 text-xs font-medium rounded-full bg-red-100 text-red-800',
-}
-
-const formatStatus = (status: PurchaseOrderStatus) => statusLabels[status] ?? status
-
-const getStatusClass = (status: PurchaseOrderStatus) => statusClasses[status] ?? statusClasses.draft
-
-const formatDate = (date: string) => {
-  return new Date(date).toLocaleDateString('en-NZ', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-  })
-}
+const getStatusClass = (status: PurchaseOrderStatus) => poStatusBadgeClasses[status]
 
 type PurchaseOrderJob = { job_number: string; name: string; client: string }
 

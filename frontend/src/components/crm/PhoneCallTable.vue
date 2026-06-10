@@ -53,6 +53,7 @@
 <script setup lang="ts">
 import { Badge } from '@/components/ui/badge'
 import { schemas } from '@/api/generated/api'
+import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
@@ -61,16 +62,6 @@ defineProps<{
   calls: PhoneCallRecord[]
   emptyText: string
 }>()
-
-function formatDateTime(value: string): string {
-  return new Date(value).toLocaleString('en-NZ', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 function formatDirection(value: string): string {
   if (value === 'inbound') return 'Inbound'

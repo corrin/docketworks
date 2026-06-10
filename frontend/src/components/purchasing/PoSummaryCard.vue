@@ -23,6 +23,8 @@ import {
 import ClientLookup from '@/components/ClientLookup.vue'
 import PickupAddressSelector from '@/components/purchasing/PickupAddressSelector.vue'
 import { schemas } from '@/api/generated/api'
+import { poStatusLabels } from '@/utils/statusMappings'
+import { formatDate } from '@/utils/string-formatting'
 import { z } from 'zod'
 import { reactive, watch } from 'vue' // ✅ 1. Import watch
 
@@ -104,27 +106,11 @@ function onPickupAddressUpdate(addressId: string) {
   emit('update:pickup_address_id', addressId || null)
 }
 
-function formatDate(dateString: string | null | undefined): string {
-  if (!dateString) return ''
-  try {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('en-NZ', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-    })
-  } catch {
-    return dateString
-  }
-}
-
-const statusOptions: { value: Status; label: string }[] = [
-  { value: 'draft', label: 'Draft' },
-  { value: 'submitted', label: 'Submitted to Supplier' },
-  { value: 'partially_received', label: 'Partially Received' },
-  { value: 'fully_received', label: 'Fully Received' },
-  { value: 'deleted', label: 'Deleted' },
-]
+const statusOptions: { value: Status; label: string }[] =
+  schemas.PurchaseOrderDetailStatusEnum.options.map((value) => ({
+    value,
+    label: poStatusLabels[value],
+  }))
 </script>
 
 <template>
@@ -206,7 +192,7 @@ const statusOptions: { value: Status; label: string }[] = [
             <label class="text-sm font-medium">Order Date</label>
             <Button variant="outline" class="justify-start font-normal w-full bg-gray-50" disabled>
               <CalendarIcon class="mr-2 h-4 w-4" />
-              {{ formatDate(po.order_date) || 'Today' }}
+              {{ po.order_date ? formatDate(po.order_date) : 'Today' }}
             </Button>
           </div>
         </div>

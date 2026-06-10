@@ -189,6 +189,7 @@ import {
   ArrowDown,
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
+import { formatDate } from '@/utils/string-formatting'
 
 const router = useRouter()
 const clientStore = useClientStore()
@@ -228,16 +229,6 @@ watch(currentPage, async (newPage) => {
   await clientStore.fetchClients({ page: newPage })
   window.scrollTo({ top: 0, behavior: 'smooth' })
 })
-
-// Format date for display
-function formatDate(dateString: string | null): string {
-  if (!dateString) return '-'
-  try {
-    return new Date(dateString).toLocaleDateString()
-  } catch {
-    return '-'
-  }
-}
 
 function navigateToClient(client: Client, rank: number) {
   logClientSearchClick(client, clientStore.searchQuery, rank, 'crm_clients_table')

@@ -932,7 +932,12 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         return
       }
 
-      const rawJobs = response.jobs || []
+      if (!response.jobs) {
+        throw new Error(
+          `Advanced search response missing jobs: ${response.error ?? 'no error given'}`,
+        )
+      }
+      const rawJobs = response.jobs
       filteredJobs.value = sortJobsForKanbanDisplay(rawJobs)
       debugLog(`Search reconciled from backend: ${filteredJobs.value.length} jobs for "${query}"`)
       debugLog('kanban.search.reconciled-order', {
@@ -996,11 +1001,17 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
 
       const response: AdvancedSearchResponse =
         await jobService.performAdvancedSearch(backendFilters)
-      filteredJobs.value = response.jobs || []
+      if (!response.jobs) {
+        throw new Error(
+          `Advanced search response missing jobs: ${response.error ?? 'no error given'}`,
+        )
+      }
+      filteredJobs.value = response.jobs
     } catch (err) {
       error.value = err instanceof Error ? err.message : 'Failed to perform advanced search'
       debugLog('Error performing advanced search:', err)
       filteredJobs.value = []
+      throw err
     } finally {
       isLoading.value = false
     }

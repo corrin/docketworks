@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
+import { safeSessionStorage } from '@/utils/safe-storage'
 
 type WorkshopJob = z.infer<typeof schemas.WorkshopJob>
 
@@ -19,11 +20,7 @@ export function useActiveJob() {
     if (job) {
       activeJobId.value = job.id
       activeJob.value = job
-      try {
-        sessionStorage.setItem(STORAGE_KEY, job.id)
-      } catch {
-        // sessionStorage may be unavailable
-      }
+      safeSessionStorage.set(STORAGE_KEY, job.id)
     } else {
       clearActiveJob()
     }
@@ -33,18 +30,10 @@ export function useActiveJob() {
   const setActiveJobId = (jobId: string | null) => {
     activeJobId.value = jobId
     if (jobId) {
-      try {
-        sessionStorage.setItem(STORAGE_KEY, jobId)
-      } catch {
-        // sessionStorage may be unavailable
-      }
+      safeSessionStorage.set(STORAGE_KEY, jobId)
     } else {
       activeJob.value = null
-      try {
-        sessionStorage.removeItem(STORAGE_KEY)
-      } catch {
-        // sessionStorage may be unavailable
-      }
+      safeSessionStorage.remove(STORAGE_KEY)
     }
   }
 
@@ -59,25 +48,17 @@ export function useActiveJob() {
   const clearActiveJob = () => {
     activeJobId.value = null
     activeJob.value = null
-    try {
-      sessionStorage.removeItem(STORAGE_KEY)
-    } catch {
-      // sessionStorage may be unavailable
-    }
+    safeSessionStorage.remove(STORAGE_KEY)
   }
 
   // Initialize from sessionStorage (called once)
   const initializeActiveJob = () => {
     if (isInitialized.value) return
 
-    try {
-      const stored = sessionStorage.getItem(STORAGE_KEY)
-      if (stored) {
-        activeJobId.value = stored
-        // Note: activeJob data will be populated when jobs list is loaded
-      }
-    } catch {
-      // sessionStorage may be unavailable
+    const stored = safeSessionStorage.get(STORAGE_KEY)
+    if (stored) {
+      activeJobId.value = stored
+      // Note: activeJob data will be populated when jobs list is loaded
     }
 
     isInitialized.value = true

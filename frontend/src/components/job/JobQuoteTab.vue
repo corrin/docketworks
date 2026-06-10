@@ -91,7 +91,7 @@
                         {{ formatCurrency(localQuote?.total_excl_tax || 0) }}
                       </div>
                       <div v-if="isQuoteAccepted" class="text-xs text-emerald-700 font-medium">
-                        Accepted · {{ formatDate(props.quoteAcceptanceDate!) }}
+                        Accepted · {{ formatDateTime(props.quoteAcceptanceDate!) }}
                       </div>
                     </div>
                   </div>
@@ -303,7 +303,7 @@
                         </span>
                       </div>
                       <span class="text-sm text-muted-foreground">
-                        {{ revision.archived_at ? formatDate(revision.archived_at) : '—' }}
+                        {{ revision.archived_at ? formatDateTime(revision.archived_at) : '—' }}
                       </span>
                     </div>
                   </div>
@@ -495,7 +495,7 @@ import { BookOpen, PlusCircle, RotateCcw, FileX, Copy, ExternalLink } from 'luci
 import SmartCostLinesTable from '../shared/SmartCostLinesTable.vue'
 import CostSetSummaryCard from '../shared/CostSetSummaryCard.vue'
 import { toast } from 'vue-sonner'
-import { formatCurrency } from '@/utils/string-formatting'
+import { formatCurrency, formatDateTime } from '@/utils/string-formatting'
 import { schemas } from '../../api/generated/api'
 import { api } from '../../api/client'
 import type { AxiosError } from 'axios'
@@ -914,16 +914,6 @@ function formatNumber(value: number): string {
     minimumFractionDigits: 0,
     maximumFractionDigits: 2,
   }).format(value)
-}
-
-function formatDate(dateString: string): string {
-  return new Date(dateString).toLocaleDateString('en-NZ', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 
 // Copy all cost lines from estimate to quote

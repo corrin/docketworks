@@ -29,13 +29,6 @@ export function useWorkshopJob(jobId: Ref<string>) {
     })
   })
 
-  const formatDate = (dateString?: string | null) => {
-    if (!dateString) return '-'
-    const d = new Date(dateString)
-    if (Number.isNaN(d.getTime())) return '-'
-    return d.toLocaleDateString('en-AU', { year: 'numeric', month: 'short', day: 'numeric' })
-  }
-
   const speedQuality = computed<SpeedQuality | null>(() => {
     const v = job.value?.speed_quality_tradeoff
     if (!v) return null
@@ -88,7 +81,6 @@ export function useWorkshopJob(jobId: Ref<string>) {
     speedQuality,
     workshopTime,
     workshopTimeDisplay,
-    formatDate,
     loadJob,
   }
 }
