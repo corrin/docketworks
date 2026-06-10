@@ -221,6 +221,7 @@ class JobsAPIView(TimesheetBaseView):
                     "latest_actual",
                     "latest_estimate",
                 )
+                .prefetch_related("labour_rates__labour_subtype")
                 .order_by("job_number")
             )
 

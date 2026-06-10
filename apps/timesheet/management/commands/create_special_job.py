@@ -71,7 +71,6 @@ class Command(BaseCommand):
                 status="special",
                 client=client,
                 contact=None,
-                charge_out_rate=0,
                 pricing_methodology="time_materials",
                 speed_quality_tradeoff="normal",
                 job_is_valid=True,

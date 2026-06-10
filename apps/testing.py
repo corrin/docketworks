@@ -7,10 +7,14 @@ to ensure required fixtures are loaded.
 
 import shutil
 from pathlib import Path
+from typing import TYPE_CHECKING, ClassVar
 
 from django.conf import settings
 from django.test import TestCase, TransactionTestCase
 from rest_framework.test import APITestCase
+
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
 
 
 def _ensure_test_media_files():
@@ -68,6 +72,8 @@ class BaseTestCase(TestCase):
 
     fixtures = ["company_defaults"]
 
+    test_staff: ClassVar["Staff"]
+
     @classmethod
     def setUpTestData(cls):
         super().setUpTestData()
@@ -85,6 +91,8 @@ class BaseTransactionTestCase(TransactionTestCase):
 
     fixtures = ["company_defaults"]
 
+    test_staff: "Staff"
+
     def setUp(self):
         super().setUp()
         _ensure_test_media_files()
@@ -99,6 +107,8 @@ class BaseAPITestCase(APITestCase):
     """
 
     fixtures = ["company_defaults"]
+
+    test_staff: ClassVar["Staff"]
 
     @classmethod
     def setUpTestData(cls):

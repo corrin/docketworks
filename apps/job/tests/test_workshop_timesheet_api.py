@@ -25,10 +25,10 @@ class WorkshopTimesheetAPITests(BaseAPITestCase):
         self.job = Job.objects.create(
             job_number=9000,
             name="Workshop Timesheet Test Job",
-            charge_out_rate=Decimal("120.00"),
             client=self.test_client,
             staff=self.test_staff,
         )
+        self.job.labour_rates.update(charge_out_rate=Decimal("120.00"))
         self.staff = Staff.objects.create_user(
             email="workshop-user@example.com",
             password="testpassword123",

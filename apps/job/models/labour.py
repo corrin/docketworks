@@ -45,6 +45,30 @@ class LabourSubtype(models.Model):
     def __str__(self) -> str:
         return self.name
 
+    @classmethod
+    def default_workshop(cls) -> "LabourSubtype":
+        """The first active workshop subtype by display order."""
+        subtype = (
+            cls.objects.filter(is_active=True, is_workshop=True)
+            .order_by("display_order")
+            .first()
+        )
+        if subtype is None:
+            raise ValueError("No active workshop LabourSubtype configured.")
+        return subtype
+
+    @classmethod
+    def default_non_workshop(cls) -> "LabourSubtype":
+        """The first active non-workshop subtype by display order (Office/Admin as seeded)."""
+        subtype = (
+            cls.objects.filter(is_active=True, is_workshop=False)
+            .order_by("display_order")
+            .first()
+        )
+        if subtype is None:
+            raise ValueError("No active non-workshop LabourSubtype configured.")
+        return subtype
+
 
 class JobLabourRate(models.Model):
     """

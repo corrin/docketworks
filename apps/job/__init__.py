@@ -17,7 +17,7 @@ try:
             create_job_file_thumbnail_task,
             set_paid_flag_task,
         )
-        from .utils import get_active_jobs, get_jobs_data
+        from .utils import get_active_jobs
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -38,6 +38,5 @@ __all__ = [
     "diff_costset",
     "get_active_jobs",
     "get_job_folder_path",
-    "get_jobs_data",
     "set_paid_flag_task",
 ]

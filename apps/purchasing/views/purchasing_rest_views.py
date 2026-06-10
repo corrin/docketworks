@@ -298,7 +298,6 @@ class PurchasingJobsAPIView(APIView):
                         "name": job.name,
                         "client_name": job.client.name if job.client else "No Client",
                         "status": job.status,
-                        "charge_out_rate": float(job.charge_out_rate or 0),
                         "cost_set_id": (
                             str(actual_cost_set.id) if actual_cost_set else None
                         ),

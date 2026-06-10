@@ -18,6 +18,7 @@ from .costing_serializer import (
     TimesheetCostLineSerializer,
 )
 from .job_file_serializer import JobFileSerializer
+from .labour_serializer import JobLabourRateSerializer
 from .quote_spreadsheet_serializer import QuoteSpreadsheetSerializer
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,9 @@ class CompanyDefaultsJobDetailSerializer(serializers.Serializer):
 
 
 class JobSerializer(serializers.ModelSerializer):
+    # Per-subtype charge-out rates (replaces the old charge_out_rate field)
+    labour_rates = JobLabourRateSerializer(many=True, read_only=True)
+
     # New CostSet fields (current system)
     latest_estimate = serializers.SerializerMethodField()
     latest_quote = serializers.SerializerMethodField()
@@ -224,7 +228,7 @@ class JobSerializer(serializers.ModelSerializer):
             "quote_acceptance_date",
             "job_is_valid",
             "job_files",
-            "charge_out_rate",
+            "labour_rates",
             "pricing_methodology",
             "price_cap",
             "speed_quality_tradeoff",
@@ -438,7 +442,6 @@ class JobEventSerializer(serializers.ModelSerializer):
                 "client_id": "client",
                 "contact_id": "contact",
                 "delivery_date": "delivery date",
-                "charge_out_rate": "charge out rate",
                 "job_status": "status",
                 "paid": "payment status",
                 "job_is_valid": "validity",
@@ -730,6 +733,10 @@ class ModernTimesheetEntryPostSerializer(serializers.Serializer):
     hourly_rate = serializers.FloatField(min_value=0, required=False)
     xero_pay_item_id = serializers.UUIDField()
     bill_rate_multiplier = serializers.FloatField(min_value=0, required=False)
+    labour_subtype_id = serializers.UUIDField(
+        required=False,
+        help_text="Labour subtype; defaults to the staff member's default subtype",
+    )
 
 
 class ModernTimesheetEntryPostResponseSerializer(serializers.Serializer):
@@ -1019,7 +1026,6 @@ class TimelineEntrySerializer(serializers.Serializer):
                 "client_id": "client",
                 "contact_id": "contact",
                 "delivery_date": "delivery date",
-                "charge_out_rate": "charge out rate",
                 "job_status": "status",
                 "paid": "payment status",
                 "job_is_valid": "validity",
@@ -1101,14 +1107,8 @@ class JobPatchSerializer(serializers.Serializer):
         required=False, allow_null=True, help_text="Quote acceptance date"
     )
 
-    # Financial
-    charge_out_rate = serializers.DecimalField(
-        max_digits=10,
-        decimal_places=2,
-        required=False,
-        allow_null=False,
-        help_text="Charge out rate",
-    )
+    # Financial (per-subtype charge-out rates are updated via the
+    # job labour-rates endpoint, not the patch payload)
     pricing_methodology = serializers.ChoiceField(
         choices=Job.PRICING_METHODOLOGY_CHOICES,
         required=False,

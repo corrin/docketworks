@@ -1,11 +1,12 @@
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Iterable, Tuple
+from typing import Any, Iterable, Mapping, Tuple
 
 from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
+from apps.accounts.models import Staff
 from apps.job.models import CostLine, CostSet, Job, JobLabourRate, LabourSubtype
 from apps.job.models.costing import get_default_cost_set_summary
 from apps.job.services.time_entry_rates import (
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 class WorkshopTimesheetService:
     """Service encapsulating workshop staff timesheet operations."""
 
-    def __init__(self, *, staff):
+    def __init__(self, *, staff: Staff) -> None:
         self.staff = staff
 
     @staticmethod
@@ -221,9 +222,12 @@ class WorkshopTimesheetService:
                     meta,
                     normalize_multiplier(wage_rate_multiplier),
                 )
+                line_subtype = cost_line.labour_subtype
+                if line_subtype is None:
+                    raise ValueError(f"Cost line {cost_line.id} has no labour_subtype.")
                 unit_cost, unit_rev, wage_rate, charge_out_rate = self._calculate_rates(
                     job=cost_line.cost_set.job,
-                    labour_subtype=cost_line.labour_subtype,
+                    labour_subtype=line_subtype,
                     wage_rate_multiplier=wage_rate_multiplier,
                     bill_rate_multiplier=bill_rate_multiplier,
                 )
@@ -293,7 +297,7 @@ class WorkshopTimesheetService:
         )
         return cost_set
 
-    def _resolve_labour_subtype(self, data) -> LabourSubtype:
+    def _resolve_labour_subtype(self, data: Mapping[str, Any]) -> LabourSubtype:
         """Explicit subtype from the request, else the staff member's default."""
         if data.get("labour_subtype_id"):
             return LabourSubtype.objects.get(id=data["labour_subtype_id"])
@@ -309,11 +313,11 @@ class WorkshopTimesheetService:
     def _calculate_rates(
         self,
         *,
-        job,
+        job: Job,
         labour_subtype: LabourSubtype,
         wage_rate_multiplier: Decimal,
         bill_rate_multiplier: Decimal,
-    ):
+    ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
         job_rate = JobLabourRate.objects.get(job=job, labour_subtype=labour_subtype)
         return calculate_time_unit_rates(
             wage_rate=getattr(self.staff, "wage_rate", None),

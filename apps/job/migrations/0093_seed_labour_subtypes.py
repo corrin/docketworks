@@ -1,6 +1,8 @@
 from decimal import Decimal
 
 from django.db import migrations
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.state import StateApps
 
 # Initial subtypes per the KAN-230 design. Workshop/Office/Quoting/Delivery
 # default to the company charge-out rate (everything billed at one rate
@@ -17,7 +19,7 @@ SUBTYPES = [
 ]
 
 
-def seed_subtypes(apps, schema_editor):
+def seed_subtypes(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     LabourSubtype = apps.get_model("job", "LabourSubtype")
     CompanyDefaults = apps.get_model("workflow", "CompanyDefaults")
 
@@ -41,7 +43,7 @@ def seed_subtypes(apps, schema_editor):
         )
 
 
-def unseed_subtypes(apps, schema_editor):
+def unseed_subtypes(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     LabourSubtype = apps.get_model("job", "LabourSubtype")
     LabourSubtype.objects.filter(name__in=[s[0] for s in SUBTYPES]).delete()
 

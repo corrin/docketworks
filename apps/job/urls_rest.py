@@ -43,6 +43,10 @@ from apps.job.views.job_rest_views import (
     JobUndoChangeRestView,
     WeeklyMetricsRestView,
 )
+from apps.job.views.labour_views import (
+    JobLabourRatesView,
+    LabourSubtypeListView,
+)
 from apps.job.views.modern_timesheet_views import (
     ModernTimesheetDayView,
     ModernTimesheetEntryView,
@@ -61,6 +65,16 @@ from apps.job.views.workshop_pdf_view import WorkshopPDFView
 rest_urlpatterns = [
     # Job CRUD operations (REST style)
     path("jobs/", JobCreateRestView.as_view(), name="job_create_rest"),
+    path(
+        "labour-subtypes/",
+        LabourSubtypeListView.as_view(),
+        name="labour_subtype_list_rest",
+    ),
+    path(
+        "jobs/<uuid:job_id>/labour-rates/",
+        JobLabourRatesView.as_view(),
+        name="job_labour_rates_rest",
+    ),
     path("month-end/", MonthEndRestView.as_view(), name="month_end_rest"),
     path("jobs/<uuid:job_id>/", JobDetailRestView.as_view(), name="job_detail_rest"),
     path(

@@ -127,7 +127,10 @@ def remove_schedule(apps, schema_editor):
 class Migration(migrations.Migration):
     dependencies = [
         ("workflow", "0219_delete_xerotoken"),
-        ("django_celery_beat", "0001_initial"),
+        # CrontabSchedule.timezone (used in _SCHEDULES) only exists from
+        # django_celery_beat 0006; depend on the migration that last touches
+        # it so fresh-DB migration order is always valid.
+        ("django_celery_beat", "0016_alter_crontabschedule_timezone"),
     ]
 
     operations = [

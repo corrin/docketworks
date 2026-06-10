@@ -140,6 +140,12 @@ try:
             KanbanSuccessResponseSerializer,
             WorkshopJobSerializer,
         )
+        from .labour_serializer import (
+            JobLabourRateSerializer,
+            JobLabourRateUpdateSerializer,
+            JobLabourRatesUpdateRequestSerializer,
+            LabourSubtypeSerializer,
+        )
         from .quote_spreadsheet_serializer import QuoteSpreadsheetSerializer
         from .quote_sync_serializer import (
             ApplyQuoteErrorResponseSerializer,
@@ -220,6 +226,9 @@ __all__ = [
     "JobFileUploadViewResponseSerializer",
     "JobHeaderResponseSerializer",
     "JobInvoicesResponseSerializer",
+    "JobLabourRateSerializer",
+    "JobLabourRateUpdateSerializer",
+    "JobLabourRatesUpdateRequestSerializer",
     "JobPatchSerializer",
     "JobProfitabilityItemSerializer",
     "JobProfitabilityQuerySerializer",
@@ -253,6 +262,7 @@ __all__ = [
     "KanbanJobPersonSerializer",
     "KanbanJobSerializer",
     "KanbanSuccessResponseSerializer",
+    "LabourSubtypeSerializer",
     "LinkQuoteSheetResponseSerializer",
     "LinkQuoteSheetSerializer",
     "ModernTimesheetDayGetResponseSerializer",

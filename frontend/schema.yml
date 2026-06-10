@@ -3802,6 +3802,72 @@ paths:
               schema:
                 $ref: '#/components/schemas/JobRestErrorResponse'
           description: ''
+  /api/job/jobs/{job_id}/labour-rates/:
+    get:
+      operationId: job_jobs_labour_rates_list
+      description: |-
+        Read or update a job's per-subtype charge-out rates.
+
+        GET  /job/rest/jobs/<job_id>/labour-rates/
+        PATCH /job/rest/jobs/<job_id>/labour-rates/  {"rates": [{"labour_subtype": ..., "charge_out_rate": ...}]}
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JobLabourRate'
+          description: ''
+    patch:
+      operationId: job_jobs_labour_rates_partial_update
+      description: |-
+        Read or update a job's per-subtype charge-out rates.
+
+        GET  /job/rest/jobs/<job_id>/labour-rates/
+        PATCH /job/rest/jobs/<job_id>/labour-rates/  {"rates": [{"labour_subtype": ..., "charge_out_rate": ...}]}
+      parameters:
+        - in: path
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedJobLabourRatesUpdateRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedJobLabourRatesUpdateRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedJobLabourRatesUpdateRequestRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JobLabourRate'
+          description: ''
   /api/job/jobs/{job_id}/quote/:
     get:
       operationId: job_jobs_quote_retrieve
@@ -4807,6 +4873,26 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/WorkshopJob'
+          description: ''
+  /api/job/labour-subtypes/:
+    get:
+      operationId: job_labour_subtypes_list
+      description: |-
+        List active labour subtypes.
+
+        GET /job/rest/labour-subtypes/
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabourSubtype'
           description: ''
   /api/job/month-end/:
     get:
@@ -11058,6 +11144,12 @@ components:
           format: uuid
           nullable: true
           description: Staff member for actual time entries.
+        labour_subtype:
+          type: string
+          format: uuid
+          nullable: true
+          description: The labour subtype for time lines (Workshop, Office/Admin,
+            ...)
       required:
         - accounting_date
         - kind
@@ -12324,13 +12416,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobFile'
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
+        labour_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobLabourRate'
+          readOnly: true
         pricing_methodology:
           allOf:
             - $ref: '#/components/schemas/PricingMethodologyEnum'
@@ -12430,7 +12520,6 @@ components:
           description: Maximum number of workshop staff that can work on this job
             simultaneously
       required:
-        - charge_out_rate
         - client_name
         - contact_name
         - created_at
@@ -12440,6 +12529,7 @@ components:
         - invoices
         - job_number
         - job_status
+        - labour_rates
         - latest_actual
         - latest_estimate
         - latest_quote
@@ -13352,6 +13442,53 @@ components:
             $ref: '#/components/schemas/Invoice'
       required:
         - invoices
+    JobLabourRate:
+      type: object
+      description: A job's charge-out rate for one labour subtype.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        labour_subtype:
+          type: string
+          format: uuid
+          readOnly: true
+        labour_subtype_name:
+          type: string
+          readOnly: true
+        is_workshop:
+          type: boolean
+          readOnly: true
+        charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+      required:
+        - id
+        - is_workshop
+        - labour_subtype
+        - labour_subtype_name
+    JobLabourRateUpdateRequest:
+      type: object
+      description: One rate change in a job labour-rates update request.
+      properties:
+        labour_subtype:
+          type: string
+          format: uuid
+        charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+      required:
+        - charge_out_rate
+        - labour_subtype
     JobMetrics:
       type: object
       description: Serializer for job metrics in weekly timesheet context
@@ -13835,13 +13972,11 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobFile'
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
+        labour_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobLabourRate'
+          readOnly: true
         pricing_methodology:
           allOf:
             - $ref: '#/components/schemas/PricingMethodologyEnum'
@@ -13941,7 +14076,6 @@ components:
           description: Maximum number of workshop staff that can work on this job
             simultaneously
       required:
-        - charge_out_rate
         - client_name
         - contact_name
         - created_at
@@ -13951,6 +14085,7 @@ components:
         - invoices
         - job_number
         - job_status
+        - labour_rates
         - latest_actual
         - latest_estimate
         - latest_quote
@@ -14627,6 +14762,47 @@ components:
           type: string
       required:
         - message
+    LabourSubtype:
+      type: object
+      description: Read serializer for labour subtypes (dropdowns, rate displays).
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          readOnly: true
+        display_order:
+          type: integer
+          readOnly: true
+          description: Sort order in dropdowns and reports
+        is_active:
+          type: boolean
+          readOnly: true
+          description: Inactive subtypes keep historical lines valid but are not offered
+            for new entry and are not seeded onto new jobs
+        is_workshop:
+          type: boolean
+          readOnly: true
+          description: Whether this subtype counts as workshop work for scheduling
+            and the workshop PDF
+        default_charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          readOnly: true
+          description: Company-level rate used to seed JobLabourRate on new jobs
+      required:
+        - default_charge_out_rate
+        - display_order
+        - id
+        - is_active
+        - is_workshop
+        - name
     LinkQuoteSheetRequest:
       type: object
       description: Serializer for link quote sheet request data.
@@ -14784,6 +14960,10 @@ components:
           type: number
           format: double
           minimum: 0
+        labour_subtype_id:
+          type: string
+          format: uuid
+          description: Labour subtype; defaults to the staff member's default subtype
       required:
         - date
         - description
@@ -14834,13 +15014,11 @@ components:
           nullable: true
         status:
           $ref: '#/components/schemas/JobStatusEnum'
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
+        labour_rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobLabourRate'
+          readOnly: true
         has_actual_costset:
           type: boolean
           readOnly: true
@@ -14864,7 +15042,6 @@ components:
           type: boolean
           readOnly: true
       required:
-        - charge_out_rate
         - client_name
         - default_xero_pay_item_id
         - default_xero_pay_item_name
@@ -14872,6 +15049,7 @@ components:
         - has_actual_costset
         - id
         - job_number
+        - labour_rates
         - leave_type
         - name
         - shop_job
@@ -15733,6 +15911,12 @@ components:
           format: uuid
           nullable: true
           description: Staff member for actual time entries.
+        labour_subtype:
+          type: string
+          format: uuid
+          nullable: true
+          description: The labour subtype for time lines (Workshop, Office/Admin,
+            ...)
     PatchedFormEntryRequest:
       type: object
       description: Serializer for FormEntry — filled-in instances of forms.
@@ -15804,6 +15988,14 @@ components:
         etag:
           type: string
           nullable: true
+    PatchedJobLabourRatesUpdateRequestRequest:
+      type: object
+      description: Request body for updating a job's labour rates.
+      properties:
+        rates:
+          type: array
+          items:
+            $ref: '#/components/schemas/JobLabourRateUpdateRequest'
     PatchedJobQuoteChatUpdateRequest:
       type: object
       description: |-
@@ -20767,6 +20959,9 @@ components:
           type: string
           readOnly: true
           minLength: 1
+        labour_subtype_name:
+          type: string
+          readOnly: true
       required:
         - accounting_date
         - approved
@@ -20782,6 +20977,7 @@ components:
         - job_number
         - kind
         - labour_subtype
+        - labour_subtype_name
         - meta
         - quantity
         - staff

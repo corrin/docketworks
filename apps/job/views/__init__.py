@@ -51,6 +51,7 @@ from .job_rest_views import (
     WeeklyMetricsRestView,
     get_company_defaults_api,
 )
+from .labour_views import JobLabourRatesView, LabourSubtypeListView
 from .modern_timesheet_views import (
     ModernTimesheetDayView,
     ModernTimesheetEntryView,
@@ -126,6 +127,7 @@ __all__ = [
     "JobFilesCollectionView",
     "JobHeaderRestView",
     "JobInvoicesRestView",
+    "JobLabourRatesView",
     "JobProfitabilityReportView",
     "JobQuoteAcceptRestView",
     "JobQuoteChatHistoryView",
@@ -137,6 +139,7 @@ __all__ = [
     "JobSummaryRestView",
     "JobTimelineRestView",
     "JobUndoChangeRestView",
+    "LabourSubtypeListView",
     "LinkQuoteSheetAPIView",
     "ModernTimesheetDayView",
     "ModernTimesheetEntryView",

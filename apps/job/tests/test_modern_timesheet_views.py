@@ -4,7 +4,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.client.models import Client
-from apps.job.models import CostLine, Job
+from apps.job.models import CostLine, Job, LabourSubtype
 from apps.job.serializers.costing_serializer import TimesheetCostLineSerializer
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
@@ -23,16 +23,17 @@ class ModernTimesheetEntryQueryTests(BaseTestCase):
         self.job = Job.objects.create(
             job_number=98767,
             name="Modern Timesheet Job",
-            charge_out_rate=Decimal("120.00"),
             client=self.client,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
+        self.job.labour_rates.update(charge_out_rate=Decimal("120.00"))
         self.test_staff.wage_rate = Decimal("40.00")
         self.test_staff.save(update_fields=["wage_rate"])
         self.cost_line = CostLine.objects.create(
             cost_set=self.job.latest_actual,
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc="Modern timesheet work",
             quantity=Decimal("2.000"),
             unit_cost=Decimal("40.00"),
@@ -52,13 +53,22 @@ class ModernTimesheetEntryQueryTests(BaseTestCase):
     def test_timesheet_cost_line_serializer_uses_preloaded_relations(self):
         cost_lines = (
             CostLine.objects.filter(pk=self.cost_line.pk)
-            .select_related("cost_set__job__client", "staff", "xero_pay_item")
+            .select_related(
+                "cost_set__job__client",
+                "staff",
+                "xero_pay_item",
+                "labour_subtype",
+            )
+            .prefetch_related("cost_set__job__labour_rates")
             .order_by("entry_seq")
         )
 
-        with self.assertNumQueries(1):
+        # 1 main query + 1 labour_rates prefetch
+        with self.assertNumQueries(2):
             data = TimesheetCostLineSerializer(cost_lines, many=True).data
 
         self.assertEqual(data[0]["client_name"], "Modern Timesheet Client")
         self.assertEqual(data[0]["wage_rate"], 40.0)
         self.assertEqual(data[0]["xero_pay_item_name"], self.pay_item.name)
+        self.assertEqual(data[0]["labour_subtype_name"], "Workshop")
+        self.assertEqual(data[0]["charge_out_rate"], "120.00")

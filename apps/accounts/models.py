@@ -137,7 +137,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         default=0,
         help_text="Actual hourly pay rate. wage_rate is auto-computed with leave loading.",
     )
-    wage_rate: float = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    wage_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     xero_user_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     date_left = models.DateField(
         null=True,
@@ -243,20 +243,10 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         # Lazy import: apps.job imports Staff at module level
         from apps.job.models import LabourSubtype
 
-        subtype = (
-            LabourSubtype.objects.filter(
-                is_active=True, is_workshop=self.is_workshop_staff
-            )
-            .order_by("display_order")
-            .first()
-        )
-        if subtype is None:
-            raise ValueError(
-                "No active LabourSubtype found for "
-                f"is_workshop={self.is_workshop_staff}; cannot default "
-                "Staff.default_labour_subtype."
-            )
-        self.default_labour_subtype = subtype
+        if self.is_workshop_staff:
+            self.default_labour_subtype = LabourSubtype.default_workshop()
+        else:
+            self.default_labour_subtype = LabourSubtype.default_non_workshop()
 
     def _compute_wage_rate(self) -> None:
         """Set wage_rate = base_wage_rate * (1 + annual_leave_loading/100)."""

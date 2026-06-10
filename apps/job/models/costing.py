@@ -319,6 +319,11 @@ class CostLine(models.Model):
             if self.entry_seq is None:
                 raise ValidationError("Actual time entries must have entry_seq set.")
 
+        if self.kind == "time" and self.labour_subtype_id is None:
+            raise ValidationError("Time lines must have labour_subtype set.")
+        if self.kind != "time" and self.labour_subtype_id is not None:
+            raise ValidationError("Only time lines may have labour_subtype set.")
+
         validate_costline_meta(self.meta, self.kind)
         validate_costline_ext_refs(self.ext_refs)
 

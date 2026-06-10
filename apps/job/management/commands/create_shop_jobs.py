@@ -61,7 +61,6 @@ class Command(BaseCommand):
                 shop_job=True,  # Changed from shop_job to is_shop_job
                 job_is_valid=True,
                 paid=False,
-                charge_out_rate=0.00,
             )
             job.save(staff=automation_user)
 
