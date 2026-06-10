@@ -13,7 +13,7 @@ type CostLineCreateUpdate = z.infer<typeof schemas.CostLineCreateUpdateRequest>
 type CostSetKind = 'estimate' | 'quote' | 'actual'
 type CostLineInput = Pick<
   CostLine,
-  'kind' | 'desc' | 'quantity' | 'unit_cost' | 'unit_rev' | 'ext_refs' | 'meta'
+  'kind' | 'desc' | 'quantity' | 'unit_cost' | 'unit_rev' | 'ext_refs' | 'meta' | 'labour_subtype'
 >
 
 export interface UseCreateCostLineFromEmptyOptions {
@@ -56,6 +56,9 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
         ext_refs: (line.ext_refs as Record<string, unknown>) || {},
         meta: (line.meta as Record<string, unknown>) || {},
         xero_pay_item: line.kind === 'time' ? (jobHeader?.default_xero_pay_item_id ?? null) : null,
+        // The API requires labour_subtype on time lines; the table defaults
+        // new time lines to the workshop subtype before emitting create-line.
+        labour_subtype: line.kind === 'time' ? (line.labour_subtype ?? null) : null,
       }
 
       const created = await costlineService.createCostLine(jobId, costSetKind, createPayload)

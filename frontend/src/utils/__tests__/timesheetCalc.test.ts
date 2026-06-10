@@ -37,6 +37,8 @@ function makeEntry(over: Partial<TimesheetCostLine> = {}): TimesheetCostLine {
     charge_out_rate: 0,
     wage_rate: 0,
     xero_pay_item_name: '',
+    labour_subtype: null,
+    labour_subtype_name: '',
     ...over,
   } as TimesheetCostLine
 }

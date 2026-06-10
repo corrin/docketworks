@@ -161,6 +161,7 @@ type JobDetailResponse = z.infer<typeof schemas.JobDetailResponse>
 type JobCreateResponse = z.infer<typeof schemas.JobCreateResponse>
 type JobDeleteResponse = z.infer<typeof schemas.JobDeleteResponse>
 type JobSummaryResponse = z.infer<typeof schemas.JobSummaryResponse>
+type JobLabourRate = z.infer<typeof schemas.JobLabourRate>
 type QuoteImportStatusResponse = z.infer<typeof schemas.QuoteImportStatusResponse>
 type JobStatusUpdateResponse = z.infer<typeof schemas.KanbanSuccessResponse>
 type ArchiveJobsResponse = z.infer<typeof schemas.ArchiveJobsResponse>
@@ -230,6 +231,18 @@ export const jobService = {
 
   getJobSummary(jobId: string): Promise<JobSummaryResponse> {
     return api.getJobSummary({ params: { job_id: jobId } })
+  },
+
+  // Per-labour-subtype charge-out rates
+  getJobLabourRates(jobId: string): Promise<JobLabourRate[]> {
+    return api.job_jobs_labour_rates_list({ params: { job_id: jobId } })
+  },
+
+  updateJobLabourRates(
+    jobId: string,
+    rates: { labour_subtype: string; charge_out_rate: number }[],
+  ): Promise<JobLabourRate[]> {
+    return api.job_jobs_labour_rates_partial_update({ rates }, { params: { job_id: jobId } })
   },
 
   deleteJob(jobId: string): Promise<{ success: boolean; error?: string; message?: string }> {
