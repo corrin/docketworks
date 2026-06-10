@@ -1371,13 +1371,6 @@ const JobFile = z.object({
   download_url: z.string(),
   thumbnail_url: z.string().nullable(),
 })
-const JobLabourRate = z.object({
-  id: z.string().uuid(),
-  labour_subtype: z.string().uuid(),
-  labour_subtype_name: z.string(),
-  is_workshop: z.boolean(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000).optional(),
-})
 const PricingMethodologyEnum = z.enum(['time_materials', 'fixed_price'])
 const SpeedQualityTradeoffEnum = z.enum(['fast', 'normal', 'quality'])
 const QuoteSpreadsheet = z.object({
@@ -1449,7 +1442,6 @@ const Job = z.object({
   quote_acceptance_date: z.string().datetime({ offset: true }).nullish(),
   job_is_valid: z.boolean().optional(),
   job_files: z.array(JobFile).optional(),
-  labour_rates: z.array(JobLabourRate),
   pricing_methodology: PricingMethodologyEnum.optional(),
   price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
   speed_quality_tradeoff: SpeedQualityTradeoffEnum.optional(),
@@ -1669,6 +1661,13 @@ const JobHeaderResponse = z.object({
   max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobInvoicesResponse = z.object({ invoices: z.array(Invoice) })
+const JobLabourRate = z.object({
+  id: z.string().uuid(),
+  labour_subtype: z.string().uuid(),
+  labour_subtype_name: z.string(),
+  is_workshop: z.boolean(),
+  charge_out_rate: z.number().gt(-100000000).lt(100000000).optional(),
+})
 const JobLabourRateUpdateRequest = z.object({
   labour_subtype: z.string().uuid(),
   charge_out_rate: z.number().gt(-100000000).lt(100000000),
@@ -1780,7 +1779,6 @@ const JobSummary = z.object({
   quote_acceptance_date: z.string().datetime({ offset: true }).nullish(),
   job_is_valid: z.boolean().optional(),
   job_files: z.array(JobFile).optional(),
-  labour_rates: z.array(JobLabourRate),
   pricing_methodology: PricingMethodologyEnum.optional(),
   price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
   speed_quality_tradeoff: SpeedQualityTradeoffEnum.optional(),
@@ -3555,7 +3553,6 @@ export const schemas = {
   CostSet,
   JobFileStatusEnum,
   JobFile,
-  JobLabourRate,
   PricingMethodologyEnum,
   SpeedQualityTradeoffEnum,
   QuoteSpreadsheet,
@@ -3598,6 +3595,7 @@ export const schemas = {
   JobStatusEnum,
   JobHeaderResponse,
   JobInvoicesResponse,
+  JobLabourRate,
   JobLabourRateUpdateRequest,
   PatchedJobLabourRatesUpdateRequestRequest,
   JobQuoteChatHistoryResponse,
