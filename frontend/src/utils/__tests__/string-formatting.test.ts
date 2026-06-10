@@ -25,7 +25,7 @@ describe('formatDateTime', () => {
   it('formats a date+time display value', () => {
     const result = formatDateTime(WED_10_JUN_2026)
     expect(result).toContain('10 Jun 2026')
-    expect(result).toContain('2:30')
+    expect(result).toMatch(/\b(0?2:30|14:30)\b/)
   })
 
   it('returns "-" for absent values', () => {

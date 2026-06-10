@@ -78,7 +78,7 @@ export function formatDate(value: string | null | undefined): string {
 export function formatDateTime(value: string | null | undefined): string {
   const date = parseDisplayDate(value)
   if (date === null) return '-'
-  return date.toLocaleDateString(DISPLAY_LOCALE, {
+  return date.toLocaleString(DISPLAY_LOCALE, {
     year: 'numeric',
     month: 'short',
     day: 'numeric',

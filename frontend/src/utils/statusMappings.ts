@@ -1,5 +1,5 @@
-import { schemas } from '@/api/generated/api'
-import { z } from 'zod'
+import type { schemas } from '@/api/generated/api'
+import type { z } from 'zod'
 
 type PurchaseOrderStatus = z.infer<typeof schemas.PurchaseOrderDetailStatusEnum>
 
