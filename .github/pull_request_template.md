@@ -2,9 +2,13 @@
 
 _Short explanation of what you’ve built and why._
 
-## 🔗 Related Issue
+## 🔗 Related Jira Work Item
 
-Closes #[issue-number]
+Jira: KAN-123
+
+Use the uppercase Jira key (`KAN-123`) in the PR title or body so GitHub for
+Jira links the development event. Jira Automation owns the transition to Done
+when the PR is merged.
 
 ## 🚀 Changes
 
