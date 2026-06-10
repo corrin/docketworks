@@ -18,7 +18,6 @@ from .costing_serializer import (
     TimesheetCostLineSerializer,
 )
 from .job_file_serializer import JobFileSerializer
-from .labour_serializer import JobLabourRateSerializer
 from .quote_spreadsheet_serializer import QuoteSpreadsheetSerializer
 
 logger = logging.getLogger(__name__)
@@ -99,8 +98,10 @@ class CompanyDefaultsJobDetailSerializer(serializers.Serializer):
 
 
 class JobSerializer(serializers.ModelSerializer):
-    # Per-subtype charge-out rates (replaces the old charge_out_rate field)
-    labour_rates = JobLabourRateSerializer(many=True, read_only=True)
+    # Per-subtype charge-out rates deliberately NOT nested here: nothing reads
+    # them from the job payload, and serializing them lazy-loads
+    # JobLabourRate.labour_subtype (the dev/E2E n+1 guard raises). Rates are
+    # served by GET /job/rest/jobs/<id>/labour-rates/ instead.
 
     # New CostSet fields (current system)
     latest_estimate = serializers.SerializerMethodField()
@@ -228,7 +229,6 @@ class JobSerializer(serializers.ModelSerializer):
             "quote_acceptance_date",
             "job_is_valid",
             "job_files",
-            "labour_rates",
             "pricing_methodology",
             "price_cap",
             "speed_quality_tradeoff",

@@ -12416,11 +12416,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobFile'
-        labour_rates:
-          type: array
-          items:
-            $ref: '#/components/schemas/JobLabourRate'
-          readOnly: true
         pricing_methodology:
           allOf:
             - $ref: '#/components/schemas/PricingMethodologyEnum'
@@ -12529,7 +12524,6 @@ components:
         - invoices
         - job_number
         - job_status
-        - labour_rates
         - latest_actual
         - latest_estimate
         - latest_quote
@@ -13972,11 +13966,6 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/JobFile'
-        labour_rates:
-          type: array
-          items:
-            $ref: '#/components/schemas/JobLabourRate'
-          readOnly: true
         pricing_methodology:
           allOf:
             - $ref: '#/components/schemas/PricingMethodologyEnum'
@@ -14085,7 +14074,6 @@ components:
         - invoices
         - job_number
         - job_status
-        - labour_rates
         - latest_actual
         - latest_estimate
         - latest_quote
