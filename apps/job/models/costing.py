@@ -158,6 +158,7 @@ class CostLine(models.Model):
         "xero_pay_item",
         "staff",
         "entry_seq",
+        "labour_subtype",
     ]
 
     # Internal fields not exposed in API
@@ -245,6 +246,16 @@ class CostLine(models.Model):
         blank=True,
         related_name="cost_lines",
         help_text="The Xero pay item for this time entry (leave type, earnings rate, etc.)",
+    )
+
+    # Labour subtype - required for time lines, null for material/adjust
+    labour_subtype = models.ForeignKey(
+        "job.LabourSubtype",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="cost_lines",
+        help_text="The labour subtype for time lines (Workshop, Office/Admin, ...)",
     )
 
     class Meta:

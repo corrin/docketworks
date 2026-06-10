@@ -10967,6 +10967,12 @@ components:
           minimum: 0
           nullable: true
           description: Sequence number within a staff member's daily actual time entries.
+        labour_subtype:
+          type: string
+          format: uuid
+          nullable: true
+          description: The labour subtype for time lines (Workshop, Office/Admin,
+            ...)
         total_cost:
           type: number
           format: double
@@ -20714,6 +20720,13 @@ components:
           readOnly: true
           nullable: true
           description: Sequence number within a staff member's daily actual time entries.
+        labour_subtype:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+          description: The labour subtype for time lines (Workshop, Office/Admin,
+            ...)
         total_cost:
           type: number
           format: double
@@ -20768,6 +20781,7 @@ components:
         - job_name
         - job_number
         - kind
+        - labour_subtype
         - meta
         - quantity
         - staff

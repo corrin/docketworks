@@ -15,6 +15,7 @@ from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 from .costing import CostSet
 from .job_event import JobEvent
+from .labour import JobLabourRate, LabourSubtype
 
 logger = logging.getLogger(__name__)
 
@@ -642,6 +643,21 @@ class Job(models.Model):
                 logger.debug("Initial CostSets created successfully.")
 
                 super(Job, self).save(*args, **kwargs)
+
+                # Seed per-subtype charge-out rates. Shop jobs never bill
+                # revenue, so their rates are zero.
+                JobLabourRate.objects.bulk_create(
+                    JobLabourRate(
+                        job_id=self.id,
+                        labour_subtype=subtype,
+                        charge_out_rate=(
+                            Decimal("0.00")
+                            if self.shop_job
+                            else subtype.default_charge_out_rate
+                        ),
+                    )
+                    for subtype in LabourSubtype.objects.filter(is_active=True)
+                )
 
                 # Note: Job creation event is now handled in JobRestService.create_job()
                 # to prevent duplicate event creation between model and service layers

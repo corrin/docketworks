@@ -1218,6 +1218,7 @@ const CostLine = z.object({
   xero_pay_item: z.string().uuid().nullish(),
   staff: z.string().uuid().nullish(),
   entry_seq: z.number().int().gte(0).lte(2147483647).nullish(),
+  labour_subtype: z.string().uuid().nullish(),
   total_cost: z.number(),
   total_rev: z.number(),
 })
@@ -2128,6 +2129,7 @@ const TimesheetCostLine = z.object({
   xero_pay_item: z.string().uuid().nullable(),
   staff: z.string().uuid().nullable(),
   entry_seq: z.number().int().nullable(),
+  labour_subtype: z.string().uuid().nullable(),
   total_cost: z.number(),
   total_rev: z.number(),
   job_id: z.string(),
