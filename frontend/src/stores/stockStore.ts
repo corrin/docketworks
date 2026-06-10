@@ -56,7 +56,7 @@ export const useStockStore = defineStore('stock', () => {
   }): Promise<StockItem[]> {
     try {
       const response = await api.purchasing_stock_list({ signal, timeout })
-      return response || []
+      return response
     } catch (error: unknown) {
       if (hasReceivedPayload(error)) {
         try {

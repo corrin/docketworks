@@ -24,7 +24,7 @@ export function useWorkshopTimesheetJobs() {
   async function loadJobs() {
     try {
       const response = await api.timesheets_jobs_retrieve()
-      jobs.value = response.jobs || []
+      jobs.value = response.jobs
     } catch (error) {
       console.error('Failed to load jobs for timesheets', error)
       toast.error('Could not load jobs list.')

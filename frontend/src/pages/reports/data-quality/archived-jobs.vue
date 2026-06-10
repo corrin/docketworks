@@ -278,7 +278,7 @@ import {
   Clock,
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
-import { formatCurrency, exportToCsv } from '@/utils/string-formatting'
+import { formatCurrency, formatDate, exportToCsv } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
 
 interface ValidationIssue {
@@ -357,16 +357,6 @@ const getIssueClass = (issue: string): string => {
   if (issue.toLowerCase().includes('not cancelled')) return 'bg-red-100 text-red-800'
   if (issue.toLowerCase().includes('open tasks')) return 'bg-blue-100 text-blue-800'
   return 'bg-gray-100 text-gray-800'
-}
-
-const formatDate = (dateString: string): string => {
-  if (!dateString) return 'N/A'
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-AU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-  })
 }
 
 const mapIssueLabelToType = (issue?: string): ValidationIssue['type'] => {

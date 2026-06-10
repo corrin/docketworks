@@ -40,15 +40,6 @@ export function useJobAttachments(jobId: Ref<string>) {
     return `${mb.toFixed(1)} MB`
   }
 
-  function formatDateShort(dateString?: string | null) {
-    if (!dateString) return ''
-    return new Date(dateString).toLocaleDateString('en-AU', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
-
   function downloadAttachment(file: JobFile) {
     if (!file.download_url) {
       toast.error('File download unavailable')
@@ -154,7 +145,6 @@ export function useJobAttachments(jobId: Ref<string>) {
     previewErrors,
     loadAttachments,
     formatSize,
-    formatDateShort,
     downloadAttachment,
     isImage,
     isPdf,

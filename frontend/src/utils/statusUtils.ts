@@ -1,3 +1,9 @@
+import { statusBadgeClassMap } from '@/utils/statusMappings'
+
+export function getStatusBadgeClass(status: string): string {
+  return statusBadgeClassMap[status] ?? statusBadgeClassMap.default
+}
+
 export function getStatusVariant(status: string | undefined): string {
   if (!status) {
     return 'secondary'

@@ -74,6 +74,7 @@
 import { computed } from 'vue'
 import { Loader2, Pencil } from 'lucide-vue-next'
 import type { FormEntry, FormSchema, FormField } from '@/types/processDocument.types'
+import { formatDate } from '@/utils/string-formatting'
 
 interface Props {
   entries: FormEntry[]
@@ -93,10 +94,6 @@ const sortedEntries = computed(() => {
     return b.entry_date.localeCompare(a.entry_date)
   })
 })
-
-function formatDate(dateStr: string): string {
-  return new Date(dateStr).toLocaleDateString()
-}
 
 function formatCellValue(entry: FormEntry, field: FormField): string {
   const data = entry.data as Record<string, unknown> | undefined

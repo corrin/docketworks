@@ -174,7 +174,7 @@ import {
 } from '@/components/ui/dialog'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
-import { formatCurrency } from '@/utils/string-formatting'
+import { DISPLAY_LOCALE, formatCurrency } from '@/utils/string-formatting'
 
 // Use generated API types
 type KPIDayData = z.infer<typeof schemas.KPIDayData>
@@ -234,7 +234,7 @@ function formatDateTitle(dateString: string | undefined): string {
   if (!dateString) return ''
 
   const date = new Date(dateString)
-  return date.toLocaleDateString('en-NZ', {
+  return date.toLocaleDateString(DISPLAY_LOCALE, {
     weekday: 'long',
     day: 'numeric',
     month: 'long',

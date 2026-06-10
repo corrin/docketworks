@@ -522,6 +522,7 @@ import type {
   PeriodLength,
 } from '@/types/profit-loss.types'
 import { toLocalDateString } from '@/utils/dateUtils'
+import { formatCurrency, formatDate } from '@/utils/string-formatting'
 import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
 import { useFinancialYear } from '@/composables/useFinancialYear'
 
@@ -562,25 +563,12 @@ const summary = computed(() => {
   }
 })
 
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-NZ', {
-    style: 'currency',
-    currency: 'NZD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
-
 const formatPercentage = (percentage: number): string => {
   return `${percentage.toFixed(1)}%`
 }
 
 const formatDateRangeHeader = (startDate: string, endDate: string): string => {
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  const formatDate = (d: Date) =>
-    d.toLocaleDateString('en-NZ', { day: 'numeric', month: 'short', year: 'numeric' })
-  return `${formatDate(start)} - ${formatDate(end)}`
+  return `${formatDate(startDate)} - ${formatDate(endDate)}`
 }
 
 const setDateRange = (preset: PeriodPreset) => {

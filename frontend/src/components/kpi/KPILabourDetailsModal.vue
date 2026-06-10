@@ -132,7 +132,7 @@
                   :class="{ 'bg-gray-100': day.holiday }"
                 >
                   <td class="py-2 px-3">
-                    {{ formatDateShort(day.date) }}
+                    {{ formatDayDate(day.date) }}
                     <span v-if="day.holiday" class="text-xs text-gray-500 ml-1">(Holiday)</span>
                   </td>
                   <td class="py-2 px-3 text-right">{{ formatHours(day.total_hours) }}</td>
@@ -183,7 +183,7 @@ import {
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
 import { kpiService } from '@/services/kpi.service'
-import { formatCurrency } from '@/utils/string-formatting'
+import { formatCurrency, formatDayDate } from '@/utils/string-formatting'
 
 type MonthlyTotals = z.infer<typeof schemas.KPIMonthlyTotals>
 type DayKPI = z.infer<typeof schemas.KPIDayData>
@@ -274,14 +274,5 @@ const labourProfitPercent = computed(() => {
 
 function formatHours(hours: number): string {
   return kpiService.formatHours(hours)
-}
-
-function formatDateShort(dateString: string): string {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-NZ', {
-    weekday: 'short',
-    day: 'numeric',
-    month: 'short',
-  })
 }
 </script>

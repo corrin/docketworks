@@ -603,6 +603,7 @@ import type {
   SalesForecastMonthDetailResponse,
 } from '@/types/sales-forecast.types'
 import { toLocalDateString } from '@/utils/dateUtils'
+import { formatCurrency } from '@/utils/string-formatting'
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -689,15 +690,6 @@ const selectedMonthData = computed(() => {
   if (!selectedMonth.value) return null
   return months.value.find((m) => m.month === selectedMonth.value) || null
 })
-
-const formatCurrency = (value: number): string => {
-  return new Intl.NumberFormat('en-NZ', {
-    style: 'currency',
-    currency: 'NZD',
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  }).format(value)
-}
 
 const formatPercentage = (percentage: number): string => {
   return `${percentage.toFixed(1)}%`

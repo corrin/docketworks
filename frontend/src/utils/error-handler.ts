@@ -116,6 +116,16 @@ export function extractQuoteErrorMessage(error: unknown): string {
   return baseMessage
 }
 
+export function createErrorToast() {
+  return {
+    duration: 0,
+    action: {
+      label: 'Dismiss',
+      onClick: () => {},
+    },
+  }
+}
+
 export function logError(
   context: string,
   error: unknown,

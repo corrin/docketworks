@@ -155,7 +155,7 @@
                       <div v-else class="flex items-center space-x-2 text-xs text-gray-500 mt-1">
                         <span>{{ formatFileSize(file.size || 0) }}</span>
                         <span>•</span>
-                        <span>{{ formatDate(file.uploaded_at) }}</span>
+                        <span>{{ formatDateTime(file.uploaded_at) }}</span>
                       </div>
                     </div>
                   </div>
@@ -266,7 +266,7 @@ import { Button } from '@/components/ui/button'
 import CameraModal from './CameraModal.vue'
 import { jobService } from '@/services/job.service'
 import { schemas } from '@/api/generated/api'
-import { formatFileSize, formatDate } from '@/utils/string-formatting'
+import { formatFileSize, formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 import { debugLog } from '@/utils/debug'
 import axios from '@/plugins/axios'

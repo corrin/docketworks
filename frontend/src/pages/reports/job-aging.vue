@@ -306,6 +306,7 @@ import {
 import { jobAgingReportService } from '@/services/job-aging-report.service'
 import type { JobAgingData, JobAgingFilters, JobAgingTableColumn } from '@/types/job-aging.types'
 import { formatCurrency } from '@/utils/string-formatting'
+import { getStatusBadgeClass } from '@/utils/statusUtils'
 
 // Reactive state
 const jobs = ref<JobAgingData[]>([])
@@ -452,17 +453,6 @@ const sortBy = (column: string) => {
 
 const exportToCsv = () => {
   jobAgingReportService.exportToFile(sortedAndFilteredJobs.value)
-}
-
-const getStatusBadgeClass = (status: string): string => {
-  const statusClasses: Record<string, string> = {
-    in_progress: 'bg-blue-100 text-blue-800',
-    completed: 'bg-green-100 text-green-800',
-    on_hold: 'bg-yellow-100 text-yellow-800',
-    cancelled: 'bg-red-100 text-red-800',
-    quote_sent: 'bg-purple-100 text-purple-800',
-  }
-  return statusClasses[status] || 'bg-gray-100 text-gray-800'
 }
 
 const getDaysInStatusClass = (days: number): string => {

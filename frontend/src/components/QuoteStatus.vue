@@ -59,7 +59,7 @@
             </div>
 
             <div class="text-sm text-gray-600">
-              <p>Created: {{ formatDate(currentQuote.quote?.created) }}</p>
+              <p>Created: {{ formatDateTime(currentQuote.quote?.created) }}</p>
             </div>
           </div>
 
@@ -133,6 +133,7 @@
 <script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { useQuoteImport } from '@/composables/useQuoteImport'
+import { formatDateTime } from '@/utils/string-formatting'
 
 const props = withDefaults(
   defineProps<{
@@ -145,17 +146,6 @@ const props = withDefaults(
 )
 
 const { isLoading, currentQuote, error, loadQuoteStatus } = useQuoteImport()
-
-function formatDate(dateString?: string): string {
-  if (!dateString) return 'Unknown'
-  return new Date(dateString).toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
-}
 
 async function refreshStatus() {
   await loadQuoteStatus(props.jobId)

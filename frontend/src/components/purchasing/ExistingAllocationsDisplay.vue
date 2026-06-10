@@ -56,7 +56,7 @@
                     </span>
                   </div>
                   <div v-if="allocation.allocation_date" class="text-xs text-gray-500 mt-1">
-                    {{ formatDate(allocation.allocation_date) }}
+                    {{ formatDateTime(allocation.allocation_date) }}
                   </div>
                 </div>
               </div>
@@ -78,6 +78,7 @@
 import { computed } from 'vue'
 import { Package, MapPin, History } from 'lucide-vue-next'
 import { schemas } from '@/api/generated/api'
+import { formatDateTime } from '@/utils/string-formatting'
 import { z } from 'zod'
 
 type PurchaseOrderLine = z.infer<typeof schemas.PurchaseOrderLine>
@@ -108,16 +109,5 @@ const getLineDescription = (lineId: string): string => {
 
 const getTotalAllocated = (allocations: AllocationItem[]): number => {
   return allocations.reduce((sum, alloc) => sum + alloc.quantity, 0)
-}
-
-const formatDate = (dateString: string): string => {
-  const date = new Date(dateString)
-  return date.toLocaleDateString('en-NZ', {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
 }
 </script>
