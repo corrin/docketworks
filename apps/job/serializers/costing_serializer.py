@@ -205,6 +205,18 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
         meta = self.validated_data.get("meta", {})
         kind = self.validated_data.get("kind") or getattr(self.instance, "kind", None)
 
+        # A subtype change must reprice the line even when the patch doesn't
+        # resend meta (the timesheet UI patches labour_subtype alone). Pull
+        # the instance meta so the timesheet recalculation below runs.
+        if (
+            not meta
+            and "labour_subtype" in self.validated_data
+            and self.instance is not None
+            and (self.instance.meta or {}).get("created_from_timesheet")
+        ):
+            meta = dict(self.instance.meta)
+            self.validated_data["meta"] = meta
+
         if kind == "time" and meta.get("created_from_timesheet"):
             line_id = self.validated_data.get("id")
             logger.debug(f"Starting to autocalculate unit cost for cost line {line_id}")

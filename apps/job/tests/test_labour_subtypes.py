@@ -208,6 +208,32 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
         self.assertEqual(line.labour_subtype, installation)
         self.assertEqual(line.unit_rev, Decimal("170.00"))
 
+    def test_serializer_patch_of_subtype_alone_recalculates_rate(self) -> None:
+        """Office timesheet UI patches labour_subtype without resending meta."""
+        from apps.job.serializers.costing_serializer import (
+            CostLineCreateUpdateSerializer,
+        )
+
+        line = self.service.create_entry(
+            {
+                "job_id": str(self.job.id),
+                "description": "",
+                "hours": Decimal("1.000"),
+                "accounting_date": date.today(),
+            }
+        )
+        installation = LabourSubtype.objects.get(name="Installation")
+        serializer = CostLineCreateUpdateSerializer(
+            line,
+            data={"labour_subtype": str(installation.id)},
+            partial=True,
+            context={"staff": self.staff},
+        )
+        self.assertTrue(serializer.is_valid(), serializer.errors)
+        updated = serializer.save()
+        self.assertEqual(updated.labour_subtype, installation)
+        self.assertEqual(updated.unit_rev, Decimal("165.00"))
+
     def test_update_entry_subtype_recalculates_rate(self) -> None:
         line = self.service.create_entry(
             {
