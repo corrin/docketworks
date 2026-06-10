@@ -26,9 +26,6 @@ if getattr(settings, "NPLUSONE_ENABLED", False):
 
     @task_prerun.connect(weak=False)
     def _nplusone_setup(**kwargs: Any) -> None:
-        from docketworks.nplusone import install_strong_nplusone_listeners
-
-        install_strong_nplusone_listeners()
         setup()
 
     @task_postrun.connect(weak=False)
