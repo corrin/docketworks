@@ -6,6 +6,13 @@ import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 type CreatedCostLineResponse = Record<string, unknown>
 
+type JobLabourRate = {
+  labour_subtype: string
+  labour_subtype_name: string
+  is_workshop: boolean
+  charge_out_rate: number
+}
+
 async function expectCreatedCostLine(
   response: Response,
   expected: {
@@ -13,26 +20,35 @@ async function expectCreatedCostLine(
     description: string
     hours: number
     totalCost: number
-    totalRevenue: number
+    // Revenue is hours x the job's rate for the labour subtype the backend
+    // assigned the line (defaulted from the worker's default subtype).
+    jobLabourRates: JobLabourRate[]
     staffId: string
   },
-): Promise<void> {
+): Promise<CreatedCostLineResponse> {
   const body = (await response.json()) as CreatedCostLineResponse
   expect(body.entry_seq).toBe(expected.entrySeq)
   expect(body.desc).toBe(expected.description)
   expect(Number(body.quantity)).toBeCloseTo(expected.hours, 2)
   expect(Number(body.total_cost)).toBeCloseTo(expected.totalCost, 1)
-  expect(Number(body.total_rev)).toBeCloseTo(expected.totalRevenue, 1)
+
+  expect(body.labour_subtype).toBeTruthy()
+  const lineRate = expected.jobLabourRates.find(
+    (rate) => rate.labour_subtype === body.labour_subtype,
+  )
+  expect(lineRate).toBeTruthy()
+  expect(Number(body.total_rev)).toBeCloseTo(expected.hours * lineRate!.charge_out_rate, 1)
 
   const meta = body.meta
   expect(meta).toEqual(expect.objectContaining({ staff_id: expected.staffId }))
+  return body
 }
 
 test.describe('keyboard Tab entry flow', () => {
   let staffId: string
   let staffWageRate: number
-  let job1ChargeOutRate: number
-  let job2ChargeOutRate: number
+  let job1LabourRates: JobLabourRate[]
+  let job2LabourRates: JobLabourRate[]
   let jobNumber1: string
   let jobNumber2: string
 
@@ -74,8 +90,10 @@ test.describe('keyboard Tab entry flow', () => {
     const timesheetJob2 = jobs.find((job) => String(job.job_number) === jobNumber2)
     expect(timesheetJob1).toBeTruthy()
     expect(timesheetJob2).toBeTruthy()
-    job1ChargeOutRate = timesheetJob1!.charge_out_rate
-    job2ChargeOutRate = timesheetJob2!.charge_out_rate
+    job1LabourRates = timesheetJob1!.labour_rates
+    job2LabourRates = timesheetJob2!.labour_rates
+    expect(job1LabourRates.length).toBeGreaterThan(0)
+    expect(job2LabourRates.length).toBeGreaterThan(0)
 
     await context.close()
   })
@@ -105,6 +123,7 @@ test.describe('keyboard Tab entry flow', () => {
       hoursText: string,
       desc: string,
       hrs: number,
+      expectedBill: number,
     ) => {
       const row = page.locator(`tr:has([data-entry-seq="${seq}"])`)
 
@@ -132,8 +151,9 @@ test.describe('keyboard Tab entry flow', () => {
       )
 
       expect(wageVal).toBeCloseTo(hrs * staffWageRate, 1)
-      const expectedRate = jobNum === jobNumber1 ? job1ChargeOutRate : job2ChargeOutRate
-      expect(billVal).toBeCloseTo(hrs * expectedRate, 1)
+      // The bill cell must match the backend-verified total_rev (hours x the
+      // job's rate for the line's labour subtype).
+      expect(billVal).toBeCloseTo(expectedBill, 1)
     }
 
     // One mouse action is allowed to place the cursor in the first blank row.
@@ -171,12 +191,12 @@ test.describe('keyboard Tab entry flow', () => {
     await expect(blockedPhantom).toBeDisabled({ timeout: 3000 })
 
     const row1Response = await row1Post
-    await expectCreatedCostLine(row1Response, {
+    const row1Body = await expectCreatedCostLine(row1Response, {
       entrySeq: firstSeq,
       description: 'Cutting',
       hours: 2,
       totalCost: 2 * staffWageRate,
-      totalRevenue: 2 * job1ChargeOutRate,
+      jobLabourRates: job1LabourRates,
       staffId,
     })
 
@@ -188,7 +208,7 @@ test.describe('keyboard Tab entry flow', () => {
     })
 
     await test.step('row 1 rendered from backend response', () =>
-      assertRow(firstSeq, jobNumber1, '2h', 'Cutting', 2))
+      assertRow(firstSeq, jobNumber1, '2h', 'Cutting', 2, Number(row1Body.total_rev)))
 
     // Row 2 continues from the automatic focus handoff, still keyboard only.
     const row2Search = autoId(page, `SmartTimesheetTable-jobPicker-${r1}-search`)
@@ -213,18 +233,20 @@ test.describe('keyboard Tab entry flow', () => {
     )
     await page.keyboard.press('Tab')
     const row2Response = await row2Post
-    await expectCreatedCostLine(row2Response, {
+    const row2Body = await expectCreatedCostLine(row2Response, {
       entrySeq: secondSeq,
       description: 'Welding',
       hours: 3.5,
       totalCost: 3.5 * staffWageRate,
-      totalRevenue: 3.5 * job2ChargeOutRate,
+      jobLabourRates: job2LabourRates,
       staffId,
     })
 
     await page.waitForLoadState('networkidle')
 
-    await test.step('row 1 data', () => assertRow(firstSeq, jobNumber1, '2h', 'Cutting', 2))
-    await test.step('row 2 data', () => assertRow(secondSeq, jobNumber2, '3h 30m', 'Welding', 3.5))
+    await test.step('row 1 data', () =>
+      assertRow(firstSeq, jobNumber1, '2h', 'Cutting', 2, Number(row1Body.total_rev)))
+    await test.step('row 2 data', () =>
+      assertRow(secondSeq, jobNumber2, '3h 30m', 'Welding', 3.5, Number(row2Body.total_rev)))
   })
 })

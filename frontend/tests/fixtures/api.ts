@@ -32,7 +32,15 @@ export async function getTimesheetJobs(page: Page) {
     headers: { Accept: 'application/json' },
   })
   const data = (await response.json()) as {
-    jobs: Array<{ job_number: number; charge_out_rate: number }>
+    jobs: Array<{
+      job_number: number
+      labour_rates: Array<{
+        labour_subtype: string
+        labour_subtype_name: string
+        is_workshop: boolean
+        charge_out_rate: number
+      }>
+    }>
   }
   return data.jobs
 }
