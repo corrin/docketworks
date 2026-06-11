@@ -56,10 +56,8 @@ class FetchAllJobsAPIView(APIView):
             archived_jobs = KanbanService.get_archived_jobs(50)
 
             # Serialize jobs
-            active_job_data = KanbanService.serialize_jobs_for_api(active_jobs, request)
-            archived_job_data = KanbanService.serialize_jobs_for_api(
-                archived_jobs, request
-            )
+            active_job_data = KanbanService.serialize_jobs_for_api(active_jobs)
+            archived_job_data = KanbanService.serialize_jobs_for_api(archived_jobs)
 
             response_data = {
                 "success": True,
@@ -265,7 +263,7 @@ class FetchJobsAPIView(APIView):
             )
             total_jobs = Job.objects.filter(status=status).count()
 
-            job_data = KanbanService.serialize_jobs_for_api(jobs, request)
+            job_data = KanbanService.serialize_jobs_for_api(jobs)
 
             response_data = {
                 "success": True,
@@ -465,7 +463,7 @@ class AdvancedSearchAPIView(APIView):
                 filters=filters,
             )
 
-            job_data = KanbanService.serialize_jobs_for_api(jobs, request)
+            job_data = KanbanService.serialize_jobs_for_api(jobs)
 
             response_data = {
                 "success": True,

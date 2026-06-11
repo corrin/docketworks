@@ -2,7 +2,7 @@ import logging
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from django.db import models, transaction
 from django.db.models import Index, Max, Min
@@ -15,6 +15,7 @@ from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 from .costing import CostSet
 from .job_event import JobEvent
+from .labour import JobLabourRate, LabourSubtype
 
 logger = logging.getLogger(__name__)
 
@@ -283,14 +284,7 @@ class Job(models.Model):
         default=False,
         help_text="The total value of invoices for this job matches the total value of the job.",
     )
-    charge_out_rate = (
-        models.DecimalField(  # TODO: This needs to be added to the edit job form
-            max_digits=10,
-            decimal_places=2,
-            null=False,  # Not nullable because save() ensures a value
-            blank=False,  # Should be required in forms too
-        )
-    )
+    # Charge-out rates live in JobLabourRate, one row per labour subtype.
 
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -533,7 +527,7 @@ class Job(models.Model):
         next_job_number = max(starting_number, highest_job + 1)
         return next_job_number
 
-    def save(self, *args, **kwargs):
+    def save(self, *args: Any, **kwargs: Any) -> None:
         staff = kwargs.pop("staff", None)
 
         if staff is None:
@@ -573,10 +567,6 @@ class Job(models.Model):
 
         if is_new or not self.created_by:
             self.created_by = staff
-
-        if self.charge_out_rate is None:
-            company_defaults = CompanyDefaults.get_solo()
-            self.charge_out_rate = company_defaults.charge_out_rate
 
         # Default to "Ordinary Time" pay item if not specified
         if self.default_xero_pay_item_id is None:
@@ -642,6 +632,21 @@ class Job(models.Model):
                 logger.debug("Initial CostSets created successfully.")
 
                 super(Job, self).save(*args, **kwargs)
+
+                # Seed per-subtype charge-out rates. Shop jobs never bill
+                # revenue, so their rates are zero.
+                JobLabourRate.objects.bulk_create(
+                    JobLabourRate(
+                        job_id=self.id,
+                        labour_subtype=subtype,
+                        charge_out_rate=(
+                            Decimal("0.00")
+                            if self.shop_job
+                            else subtype.default_charge_out_rate
+                        ),
+                    )
+                    for subtype in LabourSubtype.objects.filter(is_active=True)
+                )
 
                 # Note: Job creation event is now handled in JobRestService.create_job()
                 # to prevent duplicate event creation between model and service layers
@@ -1067,14 +1072,6 @@ class Job(models.Model):
         "quote_acceptance_date": _handle_quote_acceptance_change.__func__,
         "pricing_methodology": _handle_pricing_methodology_change.__func__,
         "speed_quality_tradeoff": _handle_speed_quality_tradeoff_change.__func__,
-        "charge_out_rate": lambda _self, old, new: (
-            "pricing_changed",
-            {
-                "field_name": "Charge out rate",
-                "old_value": f"${old}/hour",
-                "new_value": f"${new}/hour",
-            },
-        ),
         "price_cap": lambda _self, old, new: (
             "pricing_changed",
             {

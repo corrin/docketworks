@@ -6,6 +6,8 @@ Handles all business logic related to job management in the Kanban board.
 import json
 import logging
 import operator
+from collections import defaultdict
+from dataclasses import dataclass
 from functools import reduce
 from typing import Any, Dict, List, Optional, Tuple, Union
 from uuid import UUID, uuid4
@@ -31,7 +33,9 @@ from django.db.models.functions import Cast, Coalesce, Greatest
 from django.http import HttpRequest
 
 from apps.accounting.models import Invoice
-from apps.job.models import Job
+from apps.accounts.models import Staff
+from apps.client.models import Client, ClientContact
+from apps.job.models import CostSet, Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.search_telemetry import SearchTelemetryService
@@ -39,6 +43,23 @@ from apps.workflow.utils import is_valid_invoice_number, is_valid_uuid
 
 logger = logging.getLogger(__name__)
 search_logger = logging.getLogger("kanban_search")
+
+
+@dataclass(frozen=True)
+class KanbanSerializationContext:
+    """
+    Batched related data for kanban job serialization.
+
+    Built once per response so serialize_job_for_api never touches a relation
+    descriptor: under the dev/E2E n+1 guard every descriptor access triggers a
+    full stack inspection (~20ms), which made fetch-all take 20-30s.
+    """
+
+    shop_client_id: Optional[UUID]
+    summaries: Dict[UUID, Dict[str, Any]]
+    client_names: Dict[UUID, str]
+    contact_names: Dict[UUID, str]
+    people_by_job: Dict[UUID, List[Staff]]
 
 
 class KanbanService:
@@ -137,17 +158,7 @@ class KanbanService:
         Returns:
             QuerySet of filtered jobs
         """
-        jobs_query = (
-            Job.objects.filter(status=status)
-            .select_related(
-                "client",
-                "contact",
-                "created_by",
-                "latest_quote",
-                "latest_actual",
-            )
-            .prefetch_related("people")
-        )
+        jobs_query = Job.objects.filter(status=status)
 
         if search_terms:
             search_query = " ".join(search_terms)
@@ -466,18 +477,9 @@ class KanbanService:
         ordered by priority only.
         """
         # Get non-archived jobs and filter out special jobs for kanban
-        active_jobs = (
-            Job.objects.exclude(status="archived")
-            .select_related(
-                "client",
-                "contact",
-                "created_by",
-                "latest_quote",
-                "latest_actual",
-            )
-            .prefetch_related("people")
-            .order_by("-priority")
-        )
+        # No eager loading needed: serialization reads related data from the
+        # batched KanbanSerializationContext, not from the instances.
+        active_jobs = Job.objects.exclude(status="archived").order_by("-priority")
         filtered_jobs = KanbanService.filter_kanban_jobs(active_jobs)
         logger.info(
             f"Active jobs fetched (ordered by priority desc): {[f'#{job.job_number}(p:{job.priority})' for job in filtered_jobs[:10]]}"
@@ -487,18 +489,7 @@ class KanbanService:
     @staticmethod
     def get_archived_jobs(limit: int = 50) -> QuerySet[Job]:
         """Get archived jobs with limit."""
-        return (
-            Job.objects.filter(status="archived")
-            .select_related(
-                "client",
-                "contact",
-                "created_by",
-                "latest_quote",
-                "latest_actual",
-            )
-            .prefetch_related("people")
-            .order_by("-created_at")[:limit]
-        )
+        return Job.objects.filter(status="archived").order_by("-created_at")[:limit]
 
     @staticmethod
     def get_status_choices() -> Dict[str, Any]:
@@ -524,34 +515,81 @@ class KanbanService:
         return {"statuses": status_choices, "tooltips": status_tooltips}
 
     @staticmethod
+    def build_serialization_context(jobs: List[Job]) -> KanbanSerializationContext:
+        """Batch-load everything serialize_job_for_api needs, in O(1) queries."""
+        defaults = CompanyDefaults.get_solo()
+
+        costset_ids = {job.latest_quote_id for job in jobs} | {
+            job.latest_actual_id for job in jobs
+        }
+        costset_ids.discard(None)
+        summaries = dict(
+            CostSet.objects.filter(id__in=costset_ids).values_list("id", "summary")
+        )
+
+        client_ids = {job.client_id for job in jobs} - {None}
+        client_names = dict(
+            Client.objects.filter(id__in=client_ids).values_list("id", "name")
+        )
+
+        contact_ids = {job.contact_id for job in jobs} - {None}
+        contact_names = dict(
+            ClientContact.objects.filter(id__in=contact_ids).values_list("id", "name")
+        )
+
+        people_links = list(
+            Job.people.through.objects.filter(
+                job_id__in=[job.id for job in jobs]
+            ).values_list("job_id", "staff_id")
+        )
+        staff_by_id = {
+            staff.id: staff
+            for staff in Staff.objects.filter(
+                id__in={staff_id for _, staff_id in people_links}
+            )
+        }
+        people_by_job: Dict[UUID, List[Staff]] = defaultdict(list)
+        for job_id, staff_id in people_links:
+            people_by_job[job_id].append(staff_by_id[staff_id])
+        for people in people_by_job.values():
+            # Match the old prefetch's Staff.Meta ordering
+            people.sort(key=lambda staff: (staff.last_name, staff.first_name))
+
+        return KanbanSerializationContext(
+            shop_client_id=defaults.shop_client_id,
+            summaries=summaries,
+            client_names=client_names,
+            contact_names=contact_names,
+            people_by_job=dict(people_by_job),
+        )
+
+    @staticmethod
     def serialize_jobs_for_api(
         jobs: Union[QuerySet[Job], List[Job], Tuple[Job, ...]],
-        request: HttpRequest = None,
     ) -> List[Dict[str, Any]]:
-        """Serialize a Kanban job list with per-response context."""
-        defaults = CompanyDefaults.get_solo()
-        shop_client_id = defaults.shop_client_id
+        """Serialize a Kanban job list with batched per-response context."""
+        jobs_list = list(jobs)
+        context = KanbanService.build_serialization_context(jobs_list)
         return [
-            KanbanService.serialize_job_for_api(
-                job,
-                request=request,
-                shop_client_id=shop_client_id,
-            )
-            for job in jobs
+            KanbanService.serialize_job_for_api(job, context=context)
+            for job in jobs_list
         ]
 
     @staticmethod
     def serialize_job_for_api(
         job: Job,
-        request: HttpRequest = None,
-        shop_client_id: UUID = None,
+        *,
+        context: KanbanSerializationContext,
     ) -> Dict[str, Any]:
         """
         Serialize a job object for API response.
 
+        Reads only local columns plus the batched context — no relation
+        descriptor access (see KanbanSerializationContext).
+
         Args:
             job: Job instance to serialize
-            request: HTTP request for building absolute URIs (optional, not used)
+            context: batched related data from build_serialization_context
 
         Returns:
             Dictionary representation of the job
@@ -565,8 +603,18 @@ class KanbanService:
             raise ValueError(f"Job #{job.job_number} has no quote CostSet")
         if not job.latest_actual_id:
             raise ValueError(f"Job #{job.job_number} has no actual CostSet")
-        quote_revenue = job.latest_quote.summary["rev"]
-        time_and_materials_revenue = job.latest_actual.summary["rev"]
+        if job.latest_quote_id not in context.summaries:
+            raise ValueError(
+                f"Job #{job.job_number}: quote CostSet {job.latest_quote_id} "
+                "missing from serialization context"
+            )
+        if job.latest_actual_id not in context.summaries:
+            raise ValueError(
+                f"Job #{job.job_number}: actual CostSet {job.latest_actual_id} "
+                "missing from serialization context"
+            )
+        quote_revenue = context.summaries[job.latest_quote_id]["rev"]
+        time_and_materials_revenue = context.summaries[job.latest_actual_id]["rev"]
 
         if job.pricing_methodology == "time_materials" and job.price_cap is not None:
             over_budget = float(
@@ -582,15 +630,19 @@ class KanbanService:
             "name": job.name,
             "description": job.description or "",
             "job_number": job.job_number,
-            "client_name": job.client.name if job.client else "",
-            "contact_person": job.contact.name if job.contact else "",
+            "client_name": (
+                context.client_names.get(job.client_id, "") if job.client_id else ""
+            ),
+            "contact_person": (
+                context.contact_names.get(job.contact_id, "") if job.contact_id else ""
+            ),
             "people": [
                 {
                     "id": str(staff.id),
                     "display_name": staff.get_display_full_name(),
                     "icon_url": staff.icon.url if staff.icon else None,
                 }
-                for staff in job.people.all()
+                for staff in context.people_by_job.get(job.id, [])
             ],
             "status": job.get_status_display(),
             "status_key": job.status,
@@ -598,14 +650,14 @@ class KanbanService:
             "paid": job.paid,
             "fully_invoiced": job.fully_invoiced,
             "speed_quality_tradeoff": job.speed_quality_tradeoff,
-            "created_by_id": str(job.created_by.id) if job.created_by else None,
+            "created_by_id": str(job.created_by_id) if job.created_by_id else None,
             "created_at": job.created_at.isoformat() if job.created_at else None,
             "updated_at": job.updated_at.isoformat() if job.updated_at else None,
             "delivery_date": (
                 job.delivery_date.isoformat() if job.delivery_date else None
             ),
             "priority": job.priority,
-            "shop_job": job.client_id == shop_client_id,
+            "shop_job": job.client_id == context.shop_client_id,
             "over_budget": over_budget,
             "quote_revenue": quote_revenue,
             "time_and_materials_revenue": time_and_materials_revenue,
@@ -993,13 +1045,7 @@ class KanbanService:
 
             # Get valid statuses for this column (simplified approach - column = status)
             valid_statuses = [column.status_key]  # Only the column's main status
-            jobs_query = (
-                Job.objects.filter(status__in=valid_statuses)
-                .select_related(
-                    "client", "contact", "created_by", "latest_quote", "latest_actual"
-                )
-                .prefetch_related("people")
-            )
+            jobs_query = Job.objects.filter(status__in=valid_statuses)
             jobs_query = KanbanService.filter_kanban_jobs(jobs_query)
 
             # Apply search filter if provided

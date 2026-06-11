@@ -9,7 +9,9 @@
  *
  * Responsibilities:
  * - Compute unit_cost and unit_rev according to the line kind (material, time, adjust).
- * - Apply Company Defaults for time (wage_rate/charge_out_rate).
+ * - For time: unit_cost from Company Defaults wage_rate; unit_rev from the job's
+ *   per-labour-subtype charge-out rate when a resolver is provided (rates are
+ *   per job + labour subtype, not company-wide).
  * - For material (and adjustment by design), default unit_rev uses materials_markup when not overridden.
  * - Maintain local "unit_rev overridden" state so that recalculation does not override user's explicit values,
  *   until the kind or selected item changes.
@@ -61,12 +63,19 @@ export interface ApplyResult {
  */
 export function useCostLineCalculations(options?: {
   getCompanyDefaults?: () => CompanyDefaults | null
+  /**
+   * Resolves the charge-out rate for a time line from the job's per-subtype
+   * labour rates (looked up by line.labour_subtype, workshop fallback).
+   * When omitted, time unit_rev falls back to the company default rate.
+   */
+  getTimeChargeOutRate?: (line: CostLine) => number | null
   // Monetary rounding scale, defaults to 2 decimals for currency
   moneyScale?: number
   // Quantity scale, defaults to 3 decimals for better time precision (optional)
   quantityScale?: number
 }) {
   const getDefaults = options?.getCompanyDefaults ?? (() => null)
+  const getTimeChargeOutRate = options?.getTimeChargeOutRate
   const moneyScale = options?.moneyScale ?? 2
   const quantityScale = options?.quantityScale ?? 3
 
@@ -125,7 +134,7 @@ export function useCostLineCalculations(options?: {
 
   /**
    * Compute unit_cost and unit_rev according to line.kind and Company Defaults.
-   * - time: unit_cost = wage_rate, unit_rev = charge_out_rate (both read-only by UX)
+   * - time: unit_cost = wage_rate, unit_rev = job rate for the line's labour subtype
    * - material: unit_cost editable; unit_rev default uses markup unless overridden
    * - adjust: unit_cost and unit_rev editable; default unit_rev uses markup unless overridden
    */
@@ -139,7 +148,11 @@ export function useCostLineCalculations(options?: {
 
     if (kind === 'time') {
       const wage = roundMoney(defaults?.wage_rate ?? 0)
-      const charge = roundMoney(defaults?.charge_out_rate ?? 0)
+      // Per-subtype job rate when the caller supplies the resolver; company
+      // default only for contexts without job labour rates.
+      const charge = roundMoney(
+        getTimeChargeOutRate ? (getTimeChargeOutRate(line) ?? 0) : (defaults?.charge_out_rate ?? 0),
+      )
       return { unit_cost: wage, unit_rev: charge, usedDefaultRevenue: true }
     }
 

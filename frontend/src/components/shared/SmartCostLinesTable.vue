@@ -21,6 +21,7 @@ import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Textarea } from '../ui/textarea'
+import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
 import ItemSelect from '../../views/purchasing/ItemSelect.vue'
 import type { DataTableRowContext } from '../../utils/data-table-types'
 import { toast } from 'vue-sonner'
@@ -49,6 +50,8 @@ import {
   useGridKeyboardNav,
 } from '../../composables/useGridKeyboardNav'
 import { costlineService } from '../../services/costline.service'
+import { jobService } from '../../services/job.service'
+import { rateForSubtype, workshopRateEntry, type JobLabourRate } from '../../utils/labourRates'
 
 import { schemas } from '../../api/generated/api'
 import type { z } from 'zod'
@@ -151,6 +154,7 @@ function makeEmptyLine(kind: KindOption = 'material'): CostLine {
     updated_at: '',
     accounting_date: '',
     total_rev: 0,
+    labour_subtype: null,
   }
 }
 
@@ -190,14 +194,23 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
 
   Object.assign(line, { kind: newKind })
 
-  // Apply company defaults for time
   if (newKind === 'time') {
+    // Time lines require a labour subtype; default to the workshop subtype.
+    // unit_cost from company wage rate, unit_rev from the job's subtype rate.
+    // If the labour-rates fetch hasn't resolved yet, subtypeId stays null and
+    // the backend rejects the save with a visible validation error —
+    // deliberately no frontend pre-guard, so a broken rates endpoint can't
+    // silently disable time lines.
+    const subtypeId =
+      line.labour_subtype ?? workshopRateEntry(jobLabourRates.value)?.labour_subtype ?? null
     Object.assign(line, {
+      labour_subtype: subtypeId,
       unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
-      unit_rev: companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0,
+      unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
     })
   } else {
     // Recalculate unit_rev with markup for material/adjust
+    Object.assign(line, { labour_subtype: null })
     const derived = apply(line).derived
     Object.assign(line, { unit_rev: derived.unit_rev })
   }
@@ -207,10 +220,11 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
     debugLog('Saving kind change:', line.id, newKind)
     const patch: PatchedCostLineCreateUpdate = {
       kind: newKind,
+      labour_subtype: line.labour_subtype ?? null,
       ...(newKind === 'time'
         ? {
-            unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
-            unit_rev: companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0,
+            unit_cost: Number(line.unit_cost ?? 0),
+            unit_rev: Number(line.unit_rev ?? 0),
           }
         : { unit_rev: Number(line.unit_rev) }),
     }
@@ -219,9 +233,37 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
   }
 }
 
+function setLabourSubtype(line: CostLine, subtypeId: string) {
+  if (line.labour_subtype === subtypeId) return
+
+  // Re-prefill unit_rev from the job's rate for the chosen subtype; the user
+  // can still override it afterwards (consistent with item selection).
+  resetUnitRevOverride(line)
+  Object.assign(line, {
+    labour_subtype: subtypeId,
+    unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
+  })
+
+  if (line.id && isLineReadyForSave(line)) {
+    const patch: PatchedCostLineCreateUpdate = {
+      labour_subtype: subtypeId,
+      unit_rev: Number(line.unit_rev ?? 0),
+    }
+    const optimistic: Partial<CostLine> = { ...patch }
+    autosave.scheduleSave(line, patch, optimistic)
+  } else if (!line.id && isLineReadyForSave(line)) {
+    maybeEmitCreate(line)
+  }
+}
+
 // Company Defaults and calculations
 const companyDefaultsStore = useCompanyDefaultsStore()
 const store = useStockStore()
+
+// Job's per-labour-subtype charge-out rates: drives time-line unit_rev and the
+// labour subtype dropdown options.
+const jobLabourRates = ref<JobLabourRate[]>([])
+
 onMounted(() => {
   if (!companyDefaultsStore.isLoaded && !companyDefaultsStore.isLoading) {
     companyDefaultsStore.loadCompanyDefaults()
@@ -229,6 +271,17 @@ onMounted(() => {
   // Ensure stock is loaded for item lookup
   if (store.items.length === 0 && !store.loading) {
     store.fetchStock()
+  }
+  if (props.jobId) {
+    jobService
+      .getJobLabourRates(props.jobId)
+      .then((rates) => {
+        jobLabourRates.value = rates
+      })
+      .catch((error) => {
+        console.error('Failed to load job labour rates:', error)
+        toast.error('Failed to load labour rates for this job')
+      })
   }
 })
 
@@ -239,8 +292,10 @@ const {
   isUnitRevenueEditable,
   onUnitRevenueManuallyEdited,
   onItemSelected,
+  resetUnitRevOverride,
 } = useCostLineCalculations({
   getCompanyDefaults: () => companyDefaultsStore.companyDefaults,
+  getTimeChargeOutRate: (line) => rateForSubtype(jobLabourRates.value, line.labour_subtype),
 })
 
 // Autosave
@@ -640,6 +695,8 @@ const columns = computed(() => {
                   disabled: !enabled,
                   lineKind: String(line.kind),
                   tabKind: props.tabKind,
+                  labourChargeOutRate:
+                    workshopRateEntry(jobLabourRates.value)?.charge_out_rate ?? null,
                   onClick: (e: Event) => e.stopPropagation(),
                   'onUpdate:modelValue': async (val: string | null) => {
                     if (!enabled) return
@@ -879,6 +936,55 @@ const columns = computed(() => {
             : []),
         ])
       },
+    },
+
+    // Labour subtype (time lines only)
+    {
+      id: 'labour_subtype',
+      header: () => h('div', { class: 'col-labour text-left' }, 'Labour type'),
+      cell: ({ row }: RowCtx) => {
+        const line = displayLines.value[row.index]
+        if (String(line.kind) !== 'time') {
+          return h('div', { class: 'col-labour text-gray-400 text-sm text-center' }, '-')
+        }
+        const enabled = !props.readOnly && !isDeliveryReceipt(line)
+        return h('div', { class: 'col-labour' }, [
+          h(
+            Select,
+            {
+              modelValue: line.labour_subtype ?? '',
+              disabled: !enabled,
+              'onUpdate:modelValue': (v: unknown) => {
+                if (typeof v === 'string' && v) setLabourSubtype(line, v)
+              },
+            },
+            {
+              default: () => [
+                h(
+                  SelectTrigger,
+                  {
+                    class: 'h-9 text-sm w-full',
+                    'data-automation-id': `SmartCostLinesTable-labour-subtype-${row.index}`,
+                    ...gridCellAttrs(row.index, 'labour_subtype'),
+                    onClick: (e: Event) => e.stopPropagation(),
+                  },
+                  () => [h(SelectValue, { placeholder: 'Labour type' })],
+                ),
+                h(SelectContent, {}, () =>
+                  jobLabourRates.value.map((rate) =>
+                    h(
+                      SelectItem,
+                      { value: rate.labour_subtype, key: rate.labour_subtype },
+                      () => rate.labour_subtype_name,
+                    ),
+                  ),
+                ),
+              ],
+            },
+          ),
+        ])
+      },
+      meta: { editable: !props.readOnly },
     },
 
     // Quantity
@@ -1525,6 +1631,11 @@ const columns = computed(() => {
 .smart-costlines-table :deep(.col-12ch) {
   width: 12ch;
   max-width: 12ch;
+}
+
+.smart-costlines-table :deep(.col-labour) {
+  width: 16ch;
+  max-width: 16ch;
 }
 
 /* Description column: expand to fill remaining space */

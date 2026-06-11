@@ -12,7 +12,7 @@ from django.utils import timezone
 from pypdf import PdfReader
 
 from apps.client.models import Client
-from apps.job.models import Job
+from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.services.workshop_pdf_service import (
     convert_html_to_reportlab,
@@ -334,6 +334,7 @@ class DeliveryDocketPDFTests(BaseTestCase):
             CostLine.objects.create(
                 cost_set=estimate,
                 kind="time",
+                labour_subtype=LabourSubtype.objects.get(name="Workshop"),
                 desc="Fabrication",
                 quantity=Decimal("2.000"),
                 unit_cost=Decimal("32.00"),

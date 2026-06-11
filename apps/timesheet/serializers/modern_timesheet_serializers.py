@@ -10,6 +10,7 @@ from drf_spectacular.utils import extend_schema_field, extend_schema_serializer
 from rest_framework import serializers
 
 from apps.job.models import Job
+from apps.job.serializers.labour_serializer import JobLabourRateSerializer
 from apps.timesheet.serializers.daily_timesheet_serializers import (
     SummaryStatsSerializer,
 )
@@ -21,6 +22,7 @@ class ModernTimesheetJobSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
         source="client.name", read_only=True, required=False, allow_null=True
     )
+    labour_rates = JobLabourRateSerializer(many=True, read_only=True)
     has_actual_costset = serializers.SerializerMethodField()
     leave_type = serializers.SerializerMethodField()
     estimated_hours = serializers.SerializerMethodField()
@@ -42,7 +44,7 @@ class ModernTimesheetJobSerializer(serializers.ModelSerializer):
             "name",
             "client_name",
             "status",
-            "charge_out_rate",
+            "labour_rates",
             "has_actual_costset",
             "leave_type",
             "estimated_hours",

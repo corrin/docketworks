@@ -47,6 +47,16 @@ interface Options {
    * onRollback - Called when server save fails. Restore prior snapshot or re-fetch.
    */
   onRollback?: (line: CostLine, prev: Partial<CostLine>) => void
+  /**
+   * onSaved - Called after a successful save with the server response and the
+   * patch that was sent. Use it to refresh fields the backend recomputes
+   * (e.g. unit_rev repricing when labour_subtype changes).
+   */
+  onSaved?: (
+    line: CostLine,
+    response: Partial<CostLine>,
+    patch: PatchedCostLineCreateUpdate,
+  ) => void
 }
 
 export function useCostLineAutosave(opts: Options) {
@@ -106,6 +116,7 @@ export function useCostLineAutosave(opts: Options) {
         if (response.updated_at !== undefined) {
           line.updated_at = response.updated_at
         }
+        opts.onSaved?.(line, response, patchToSave)
       }
 
       status.set(line, 'saved')

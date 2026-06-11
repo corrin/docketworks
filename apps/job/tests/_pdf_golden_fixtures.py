@@ -25,7 +25,7 @@ from django.conf import settings
 
 from apps.accounts.models import Staff
 from apps.client.models import Client, ClientContact
-from apps.job.models import CostLine, Job, JobFile
+from apps.job.models import CostLine, Job, JobFile, LabourSubtype
 from apps.workflow.models import CompanyDefaults
 
 FROZEN_NOW = datetime.datetime(2026, 4, 25, 10, 30, tzinfo=ZoneInfo("Pacific/Auckland"))
@@ -100,6 +100,7 @@ def build_golden_job(test_staff: Staff) -> Job:
     CostLine.objects.create(
         cost_set=estimate,
         kind="time",
+        labour_subtype=LabourSubtype.objects.get(name="Workshop"),
         desc="Fabrication",
         quantity=Decimal("2.00"),
         unit_cost=Decimal("32.00"),
@@ -109,6 +110,7 @@ def build_golden_job(test_staff: Staff) -> Job:
     CostLine.objects.create(
         cost_set=estimate,
         kind="time",
+        labour_subtype=LabourSubtype.objects.get(name="Workshop"),
         desc="Welding",
         quantity=Decimal("1.50"),
         unit_cost=Decimal("32.00"),

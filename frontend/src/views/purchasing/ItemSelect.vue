@@ -35,12 +35,19 @@ const props = withDefaults(
     showQuantity?: boolean
     lineKind?: string
     tabKind?: string
+    /**
+     * The job's workshop charge-out rate (from job labour_rates), used as the
+     * displayed price for the Labour pseudo-item. Charge-out rates are
+     * per-job/per-subtype, not company-wide.
+     */
+    labourChargeOutRate?: number | null
   }>(),
   {
     disabled: false,
     showQuantity: true,
     lineKind: undefined,
     tabKind: undefined,
+    labourChargeOutRate: null,
   },
 )
 
@@ -61,14 +68,15 @@ const isSearching = ref(false)
 const searchInput = ref<{ $el?: HTMLInputElement } | HTMLInputElement | null>(null)
 const localOpen = ref(false)
 
-// Mocked Labour item for time entries
+// Mocked Labour item for time entries. Revenue comes from the job's workshop
+// labour rate (passed in by the cost-lines table); cost from company wage rate.
 const mockedLabourItem = computed<LabourItem>(() => ({
   id: '__labour__',
   description: 'Labour',
   item_code: 'LABOUR',
   unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
-  unit_rev: companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0,
-  unit_revenue: companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0,
+  unit_rev: props.labourChargeOutRate ?? 0,
+  unit_revenue: props.labourChargeOutRate ?? 0,
   quantity: null,
   times_used: null,
 }))

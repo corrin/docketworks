@@ -1,6 +1,8 @@
 import logging
 from decimal import Decimal
+from typing import Any, cast
 
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.accounts.models import Staff
@@ -55,11 +57,11 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
         source="cost_set.job.job_number", read_only=True
     )
     job_name = serializers.CharField(source="cost_set.job.name", read_only=True)
-    charge_out_rate = serializers.DecimalField(
-        source="cost_set.job.charge_out_rate",
-        max_digits=10,
-        decimal_places=2,
-        read_only=True,
+    charge_out_rate = serializers.SerializerMethodField()
+
+    # Labour subtype name for display
+    labour_subtype_name = serializers.CharField(
+        source="labour_subtype.name", read_only=True
     )
 
     # Client name with null handling
@@ -74,6 +76,18 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
     xero_pay_item_name = serializers.CharField(
         source="xero_pay_item.name", read_only=True, min_length=1
     )
+
+    @extend_schema_field(serializers.FloatField(read_only=True))
+    def get_charge_out_rate(self, obj: CostLine) -> float:
+        """The job's charge-out rate for this line's labour subtype."""
+        # Iterate .all() rather than .get() so prefetched labour_rates are used
+        for rate in obj.cost_set.job.labour_rates.all():
+            if rate.labour_subtype_id == obj.labour_subtype_id:
+                return float(rate.charge_out_rate)
+        raise ValueError(
+            f"Job {obj.cost_set.job_id} has no labour rate for subtype "
+            f"{obj.labour_subtype_id} (cost line {obj.id})."
+        )
 
     def get_total_cost(self, obj) -> float:
         """Get total cost (quantity * unit_cost)"""
@@ -114,6 +128,7 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
             "charge_out_rate",
             "wage_rate",
             "xero_pay_item_name",
+            "labour_subtype_name",
         ]
         read_only_fields = fields
 
@@ -142,11 +157,25 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
             "updated_at",
             "xero_pay_item",
             "staff",
+            "labour_subtype",
         ]
 
     def validate(self, data):
         """Custom validation with detailed logging"""
         logger.info(f"Validating CostLine data: {data}")
+
+        # Time lines must carry a labour subtype. Timesheet entries default
+        # it from the worker's Staff.default_labour_subtype in save();
+        # everything else (estimate/quote editors) must send it explicitly.
+        if self.instance is None and data.get("kind") == "time":
+            meta = data.get("meta") or {}
+            if data.get("labour_subtype") is None and not meta.get(
+                "created_from_timesheet"
+            ):
+                raise serializers.ValidationError(
+                    {"labour_subtype": "labour_subtype is required for time lines."}
+                )
+
         return super().validate(data)
 
     def validate_quantity(self, value):
@@ -168,11 +197,23 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
         # Allow negative values for adjustments, discounts, credits
         return value
 
-    def save(self, **kwargs):
+    def save(self, **kwargs: Any) -> CostLine:
         """Override save to auto-calculate unit_cost and unit_rev for timesheet entries"""
         # Check if this is a timesheet entry
         meta = self.validated_data.get("meta", {})
         kind = self.validated_data.get("kind") or getattr(self.instance, "kind", None)
+
+        # A subtype change must reprice the line even when the patch doesn't
+        # resend meta (the timesheet UI patches labour_subtype alone). Pull
+        # the instance meta so the timesheet recalculation below runs.
+        if (
+            not meta
+            and "labour_subtype" in self.validated_data
+            and self.instance is not None
+            and (self.instance.meta or {}).get("created_from_timesheet")
+        ):
+            meta = dict(self.instance.meta)
+            self.validated_data["meta"] = meta
 
         if kind == "time" and meta.get("created_from_timesheet"):
             line_id = self.validated_data.get("id")
@@ -211,6 +252,18 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                     )
                     raise exception
 
+                labour_subtype = self.validated_data.get("labour_subtype") or getattr(
+                    self.instance, "labour_subtype", None
+                )
+                if labour_subtype is None:
+                    labour_subtype = staff.default_labour_subtype
+                if labour_subtype is None:
+                    raise serializers.ValidationError(
+                        "labour_subtype is required for time entries and staff "
+                        f"{staff.id} has no default_labour_subtype."
+                    )
+                self.validated_data["labour_subtype"] = labour_subtype
+
                 wage_rate_multiplier = normalize_multiplier(rate_multiplier_value)
                 pay_item = resolve_xero_pay_item_for_job(
                     job=job,
@@ -226,7 +279,9 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                 unit_cost, unit_rev, wage_rate, charge_out_rate = (
                     calculate_time_unit_rates(
                         wage_rate=wage_rate,
-                        charge_out_rate=job.charge_out_rate,
+                        charge_out_rate=job.labour_rates.get(
+                            labour_subtype=labour_subtype
+                        ).charge_out_rate,
                         wage_rate_multiplier=wage_rate_multiplier,
                         bill_rate_multiplier=bill_rate_multiplier,
                     )
@@ -251,7 +306,7 @@ class CostLineCreateUpdateSerializer(serializers.ModelSerializer):
                 logger.error(f"Error calculating unit_cost: {e}")
                 raise
 
-        return super().save(**kwargs)
+        return cast(CostLine, super().save(**kwargs))
 
     def create(self, validated_data):
         """Override create to define line approval automatically"""

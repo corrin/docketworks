@@ -180,7 +180,6 @@ const props = defineProps<{
   jobId: string
   jobNumber: number
   jobStatus?: string
-  chargeOutRate?: number
   pricingMethodology?: string
   quoted?: boolean
   fullyInvoiced?: boolean

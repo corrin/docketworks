@@ -39,7 +39,7 @@ describe('serialiseForChecksum & compute', () => {
       description: '  Cut and fold  ',
       order_number: 'PO-123',
       quoted: true,
-      charge_out_rate: 5.1,
+      price_cap: 5.1,
     }
     const serialised = serialiseForChecksum('job-123', before, ['quoted', 'description'])
     expect(serialised).toEqual('job-123|description=Cut and fold|quoted=true')

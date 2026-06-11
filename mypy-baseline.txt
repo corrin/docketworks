@@ -89,18 +89,14 @@ apps/client/models.py:0: error: Need type annotation for "CLIENTCONTACT_INTERNAL
 apps/client/models.py:0: error: Incompatible type for lookup 'client_id': (got "UUID | None", expected "UUID | str")  [misc]
 apps/client/models.py:0: error: Need type annotation for "SUPPLIERPICKUPADDRESS_INTERNAL_FIELDS" (hint: "SUPPLIERPICKUPADDRESS_INTERNAL_FIELDS: list[<type>] = ...")  [var-annotated]
 apps/workflow/models/company_defaults.py:0: error: Call to untyped function "_recompute_all_staff_wage_rates" in typed context  [no-untyped-call]
-apps/workflow/models/company_defaults.py:0: error: Incompatible types in assignment (expression has type "Decimal", variable has type "float")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "EmailField[str | Combinable, str]", variable has type "str")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "CharField[str | int | Combinable, str]", variable has type "str")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "CharField[str | int | Combinable, str]", variable has type "str")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "CharField[str | int | Combinable | None, str | None]", variable has type "str | None")  [assignment]
-apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "DecimalField[str | float | Decimal | Combinable, Decimal]", variable has type "float")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
 apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "DateTimeField[str | datetime | date | Combinable, datetime]", variable has type "datetime")  [assignment]
-apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "Decimal", variable has type "float")  [assignment]
-apps/accounts/models.py:0: error: Incompatible types in assignment (expression has type "Decimal", variable has type "float")  [assignment]
 apps/job/models/job_event.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/models/job_event.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/models/job_event.py:0: error: Returning Any from function declared to return "str"  [no-any-return]
@@ -164,7 +160,6 @@ apps/job/models/job.py:0: error: Incompatible types in assignment (expression ha
 apps/job/models/job.py:0: error: Incompatible types in assignment (expression has type "BooleanField[bool | Combinable, bool]", variable has type "bool")  [assignment]
 apps/job/models/job.py:0: error: Item "None" of "str | None" has no attribute "rstrip"  [union-attr]
 apps/job/models/job.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/models/job.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/models/job.py:0: error: Returning Any from function declared to return "date | None"  [no-any-return]
 apps/job/models/job.py:0: error: Returning Any from function declared to return "date | None"  [no-any-return]
 apps/job/models/job.py:0: error: Call to untyped function "_detect_field_changes" in typed context  [no-untyped-call]
@@ -262,7 +257,6 @@ apps/quoting/services/pdf_data_validation.py:0: error: Returning Any from functi
 apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/purchasing/services/stock_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/services/purchase_order_pdf_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/services/purchase_order_pdf_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/purchasing/services/purchase_order_pdf_service.py:0: error: Call to untyped function "add_logo" in typed context  [no-untyped-call]
@@ -281,7 +275,6 @@ apps/purchasing/services/purchase_order_pdf_service.py:0: error: Call to untyped
 apps/purchasing/services/purchase_order_email_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/process/tests/conftest.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/process/tests/conftest.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/utils.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/diff.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/diff.py:0: error: Missing type arguments for generic type "Dict"  [type-arg]
 apps/job/diff.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
@@ -424,7 +417,6 @@ apps/timesheet/management/commands/reassign_time_entries.py:0: error: Function i
 apps/timesheet/management/commands/reassign_time_entries.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/timesheet/management/commands/create_special_job.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/management/commands/create_special_job.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/timesheet/management/commands/create_special_job.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/timesheet/management/commands/create_leave_entries.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/management/commands/create_leave_entries.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/quoting/management/commands/run_scrapers.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -438,7 +430,6 @@ apps/quoting/management/commands/run_scrapers.py:0: error: Call to untyped funct
 apps/quoting/management/commands/run_scrapers.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/create_shop_jobs.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/create_shop_jobs.py:0: error: Unexpected attribute "shop_job" for model "Job"  [misc]
-apps/job/management/commands/create_shop_jobs.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 docketworks/celery.py:0: error: Module "celery.signals" has no attribute "task_postrun"  [attr-defined]
 docketworks/celery.py:0: error: Module "celery.signals" has no attribute "task_prerun"  [attr-defined]
 docketworks/celery.py:0: error: Untyped decorator makes function "_nplusone_setup" untyped  [untyped-decorator]
@@ -530,7 +521,6 @@ apps/job/services/workshop_pdf_service.py:0: error: Argument 1 to "join" has inc
 apps/job/services/workshop_pdf_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/services/job_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/services/job_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/services/job_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/services/job_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/job_service.py:0: error: Call to untyped function "untracked_update" in typed context  [no-untyped-call]
 apps/job/services/job_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -686,10 +676,6 @@ apps/job/services/workshop_service.py:0: error: Function is missing a return typ
 apps/job/services/workshop_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/workshop_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/services/workshop_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/services/workshop_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/services/workshop_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/services/workshop_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/services/workshop_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/set_paid_flag_jobs.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/set_paid_flag_jobs.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tasks.py:0: error: Argument 1 to "join" has incompatible type "str | None"; expected "str"  [arg-type]
@@ -1005,7 +991,6 @@ apps/testing.py:0: error: Function is missing a return type annotation  [no-unty
 apps/testing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/testing.py:0: note: Use "-> None" if function does not return a value
 apps/testing.py:0: error: Call to untyped function "_ensure_test_media_files" in typed context  [no-untyped-call]
-apps/testing.py:0: error: "type[BaseTestCase]" has no attribute "test_staff"  [attr-defined]
 apps/testing.py:0: error: Call to untyped function "_create_test_staff" in typed context  [no-untyped-call]
 apps/testing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/testing.py:0: note: Use "-> None" if function does not return a value
@@ -1014,7 +999,6 @@ apps/testing.py:0: error: Call to untyped function "_create_test_staff" in typed
 apps/testing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/testing.py:0: note: Use "-> None" if function does not return a value
 apps/testing.py:0: error: Call to untyped function "_ensure_test_media_files" in typed context  [no-untyped-call]
-apps/testing.py:0: error: "type[BaseAPITestCase]" has no attribute "test_staff"  [attr-defined]
 apps/testing.py:0: error: Call to untyped function "_create_test_staff" in typed context  [no-untyped-call]
 apps/workflow/serializers.py:0: error: Returning Any from function declared to return "str | None"  [no-any-return]
 apps/workflow/serializers.py:0: error: Returning Any from function declared to return "str | None"  [no-any-return]
@@ -1409,7 +1393,6 @@ apps/job/serializers/costing_serializer.py:0: error: Missing type arguments for 
 apps/job/serializers/costing_serializer.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/serializers/costing_serializer.py:0: error: Returning Any from function declared to return "float"  [no-any-return]
 apps/job/serializers/costing_serializer.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
-apps/job/serializers/costing_serializer.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/serializers/costing_serializer.py:0: error: Incompatible types in assignment (expression has type "SerializerMethodField", base class "CostSetSerializer" defined the type as "CostLineSerializer")  [assignment]
 apps/job/serializers/costing_serializer.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/serializers/costing_serializer.py:0: error: Missing type arguments for generic type "list"  [type-arg]
@@ -1558,23 +1541,12 @@ apps/job/services/kanban_service.py:0: error: Value of type "list[dict[str, int 
 apps/job/services/kanban_service.py:0: error: Invalid index type "slice[None, int, None]" for "dict[str, Any]"; expected type "str"  [index]
 apps/job/services/kanban_service.py:0: error: Call to untyped function "filter_kanban_jobs" of "KanbanService" in typed context  [no-untyped-call]
 apps/job/services/kanban_service.py:0: error: Returning Any from function declared to return "QuerySet[Job, Job]"  [no-any-return]
-apps/job/services/kanban_service.py:0: error: Incompatible default for parameter "request" (default has type "None", parameter has type "HttpRequest")  [assignment]
-apps/job/services/kanban_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/job/services/kanban_service.py:0: error: Incompatible default for parameter "request" (default has type "None", parameter has type "HttpRequest")  [assignment]
-apps/job/services/kanban_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/job/services/kanban_service.py:0: error: Incompatible default for parameter "shop_client_id" (default has type "None", parameter has type "UUID")  [assignment]
-apps/job/services/kanban_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/services/kanban_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/kanban_service.py:0: error: Returning Any from function declared to return "float"  [no-any-return]
 apps/job/services/kanban_service.py:0: error: Returning Any from function declared to return "float"  [no-any-return]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/services/kanban_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/kanban_service.py:0: error: Call to untyped function "filter_kanban_jobs" of "KanbanService" in typed context  [no-untyped-call]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -1706,7 +1678,6 @@ apps/workflow/tests/test_company_defaults_schema.py:0: error: "_MonkeyPatchedWSG
 apps/workflow/tests/test_company_defaults_schema.py:0: error: Value of type "Any | None" is not indexable  [index]
 apps/workflow/tests/test_company_defaults_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_company_defaults_api.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_company_defaults_api.py:0: error: "CompanyDefaultsAPITests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_company_defaults_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_company_defaults_api.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIResponse" has no attribute "data"  [attr-defined]
@@ -1726,7 +1697,6 @@ apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: Function is miss
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: note: Use "-> None" if function does not return a value
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: "WeeklyTimesheetServiceCostTests" has no attribute "test_staff"  [attr-defined]
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_weekly_timesheet_service.py:0: note: Use "-> None" if function does not return a value
 apps/timesheet/tests/test_permissions.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1778,25 +1748,16 @@ apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a ty
 apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/tests/test_pay_run_list_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/tests/test_jobs_api_filter.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/timesheet/tests/test_jobs_api_filter.py:0: error: "JobsAPIViewFilterTests" has no attribute "test_staff"  [attr-defined]
 apps/timesheet/tests/test_jobs_api_filter.py:0: error: Call to untyped function "update" in typed context  [no-untyped-call]
 apps/timesheet/tests/test_jobs_api_filter.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: note: Use "-> None" if function does not return a value
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/timesheet/tests/test_daily_timesheet_service.py:0: note: Use "-> None" if function does not return a value
-apps/timesheet/tests/test_daily_timesheet_service.py:0: error: "DailyTimesheetServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
-apps/quoting/tests_mcp.py:0: error: "QuotingToolTests" has no attribute "test_staff"  [attr-defined]
 apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests_mcp.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests_mcp.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1853,18 +1814,14 @@ apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if fu
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: "WorkshopScheduleGetTests" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: "WorkshopScheduleGetTests" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: "WorkshopScheduleGetTests" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: "WorkshopScheduleGetTests" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1873,11 +1830,9 @@ apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped fu
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: "WorkshopScheduleRecalculateTests" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: "WorkshopScheduleRecalculateTests" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -1890,27 +1845,22 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestHoursComputation" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestHoursComputation" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestHoursComputation" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestHoursComputation" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestHoursComputation" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "Staff | None" has no attribute "id"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1921,13 +1871,11 @@ apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStaffFiltering" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStaffFiltering" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -1937,7 +1885,6 @@ apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPeopleAssignment" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -1945,7 +1892,6 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPeopleAssignment" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1957,14 +1903,12 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestAssignedStaffPreference" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestAssignedStaffPreference" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -1972,14 +1916,12 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestAssignedStaffPreference" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestAssignedStaffPreference" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -1987,7 +1929,6 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestBookedTimeReducesCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -1996,7 +1937,6 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_special_leave_job" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_book_time" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestBookedTimeReducesCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -2004,31 +1944,23 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_special_leave_job" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_book_time" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestBookedTimeReducesCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestBookedTimeReducesCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestBookedTimeReducesCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Cannot infer value of type parameter "_T" of "assertGreater" of "TestCase"  [misc]
 apps/operations/tests/test_scheduler_service.py:0: error: Argument 1 to "assertGreater" of "TestCase" has incompatible type "date | None"; expected "SupportsDunderGT[Any]"  [arg-type]
 apps/operations/tests/test_scheduler_service.py:0: error: Incompatible type for lookup 'allocation_date': (got "date | None", expected "str | date")  [misc]
@@ -2036,24 +1968,18 @@ apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a 
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestStartDateOnlyOnRealWork" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_efficiency" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestEfficiencyFactor" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2061,7 +1987,6 @@ apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if functi
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_efficiency" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestEfficiencyFactor" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2071,12 +1996,10 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestAllocationBlocks" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestAllocationBlocks" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -2085,32 +2008,27 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestDateCalculations" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestDateCalculations" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestDateCalculations" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestDateCalculations" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Cannot infer value of type parameter "_T" of "assertGreater" of "TestCase"  [misc]
 apps/operations/tests/test_scheduler_service.py:0: error: Argument 1 to "assertGreater" of "TestCase" has incompatible type "date | None"; expected "SupportsDunderGT[Any]"  [arg-type]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestDateCalculations" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
@@ -2119,26 +2037,18 @@ apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a 
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Cannot infer value of type parameter "_T" of "assertLessEqual" of "TestCase"  [misc]
 apps/operations/tests/test_scheduler_service.py:0: error: Argument 1 to "assertLessEqual" of "TestCase" has incompatible type "date | None"; expected "SupportsDunderLE[Any]"  [arg-type]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestPriorityAndCapacity" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "AllocationBlock | None" has no attribute "allocation_date"  [union-attr]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2148,7 +2058,6 @@ apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped functi
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_service.py:0: error: "TestJobModelUnchanged" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_service.py:0: error: Call to untyped function "_set_summary_hours" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -2156,7 +2065,6 @@ apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missin
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_persistence.py:0: error: "TestSchedulerRunRecord" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2167,7 +2075,6 @@ apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missin
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_persistence.py:0: error: "TestFailedRunPreservesData" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2178,11 +2085,8 @@ apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped fu
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_persistence.py:0: error: "TestLatestForecastReadsNewestRun" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_persistence.py:0: error: "TestLatestForecastReadsNewestRun" has no attribute "test_staff"  [attr-defined]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Item "None" of "SchedulerRun | None" has no attribute "id"  [union-attr]
-apps/job/tests/test_workshop_timesheet_api.py:0: error: "WorkshopTimesheetAPITests" has no attribute "test_staff"; maybe "other_staff"?  [attr-defined]
 apps/job/tests/test_workshop_timesheet_api.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/job/tests/test_workshop_timesheet_api.py:0: error: Returning Any from function declared to return "dict[Any, Any]"  [no-any-return]
 apps/job/tests/test_workshop_pdf_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2275,27 +2179,21 @@ apps/job/tests/test_workshop_pdf_service.py:0: note: Use "-> None" if function d
 apps/job/tests/test_workshop_pdf_service.py:0: error: Call to untyped function "convert_html_to_reportlab" in typed context  [no-untyped-call]
 apps/job/tests/test_workshop_pdf_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_workshop_pdf_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_workshop_pdf_service.py:0: error: "DeliveryDocketPDFTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_workshop_pdf_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_workshop_pdf_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_workshop_pdf_service.py:0: error: Call to untyped function "create_delivery_docket_pdf" in typed context  [no-untyped-call]
 apps/job/tests/test_pdf_goldens.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_pdf_goldens.py:0: error: "PDFGoldenTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_pdf_goldens.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_pdf_goldens.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_pdf_goldens.py:0: error: "PDFGoldenTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_pdf_goldens.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_pdf_goldens.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_pdf_goldens.py:0: error: Call to untyped function "create_workshop_pdf" in typed context  [no-untyped-call]
 apps/job/tests/test_paid_flag_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_paid_flag_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_paid_flag_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_paid_flag_service.py:0: error: "PaidFlagServiceTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_paid_flag_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_paid_flag_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: "QuotingToolTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2343,7 +2241,6 @@ apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function d
 apps/job/tests/test_mcp_tool_integration.py:0: error: Call to untyped function "get_queryset" in typed context  [no-untyped-call]
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_mcp_tool_integration.py:0: error: "MCPToolIntegrationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_mcp_tool_integration.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_mcp_tool_integration.py:0: error: Missing positional argument "query" in call to "search_products" of "QuotingTool"  [call-arg]
@@ -2370,21 +2267,16 @@ apps/job/tests/test_mcp_tool_integration.py:0: note: Use "-> None" if function d
 apps/job/tests/test_job_quote_chat_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_quote_chat_model.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_quote_chat_model.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_job_quote_chat_model.py:0: error: "JobQuoteChatModelTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_quote_chat_model.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_quote_chat_model.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_latest_costsets.py:0: error: "JobLatestCostSetCreationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_latest_costsets.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_job_latest_costsets.py:0: error: "JobLatestCostSetCreationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_latest_costsets.py:0: error: "JobLatestCostSetDeletionTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_latest_costsets.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2392,8 +2284,6 @@ apps/job/tests/test_job_latest_costsets.py:0: note: Use "-> None" if function do
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2401,53 +2291,44 @@ apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
 apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
-apps/job/tests/test_job_invoicing.py:0: error: "TestRecalculateJobInvoicingState" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_job_invoicing.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_job_invoicing.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
+apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
+apps/job/tests/test_job_invoicing.py:0: error: Call to untyped function "_create_invoice" in typed context  [no-untyped-call]
 apps/job/tests/test_job_files_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_files_api.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_files_api.py:0: error: "JobFilesApiTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_files_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_files_api.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_files_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2457,23 +2338,16 @@ apps/job/tests/test_job_files_api.py:0: error: Function is missing a return type
 apps/job/tests/test_job_files_api.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_delivery_docket_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_delivery_docket_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delivery_docket_service.py:0: error: "GenerateDeliveryDocketTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_delivery_docket_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_delivery_docket_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_delivery_docket_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_delivery_docket_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_delivery_docket_service.py:0: error: "GenerateDeliveryDocketTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_delivery_docket_service.py:0: error: "GenerateDeliveryDocketTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_costline_schema_validation.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_costline_schema_validation.py:0: error: "CostLineSchemaValidationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_costline_schema_validation.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
-apps/job/tests/test_costline_schema_validation.py:0: error: "CostLineSchemaValidationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_costline_schema_validation.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_costline_schema_validation.py:0: error: "CostLineSchemaValidationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_costline_schema_validation.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_api_endpoints.py:0: error: "ChatAPIEndpointTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2500,7 +2374,6 @@ apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a type a
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_api_endpoints.py:0: error: "ChatAPIPermissionTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2509,7 +2382,6 @@ apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return
 apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_api_endpoints.py:0: error: "ChatAPIValidationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_api_endpoints.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2525,53 +2397,22 @@ apps/job/tests/test_chat_api_endpoints.py:0: note: Use "-> None" if function doe
 apps/client/tests/test_migration_0017_backfill.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/client/tests/test_migration_0017_backfill.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/client/tests/test_migration_0017_backfill.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/client/tests/test_migration_0017_backfill.py:0: error: "MigrationBackfillTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_migration_0017_backfill.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_migration_0017_backfill.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/client/tests/test_migration_0017_backfill.py:0: error: "MigrationBackfillTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_migration_0017_backfill.py:0: error: "MigrationBackfillTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_migration_0017_backfill.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/client/tests/test_migration_0017_backfill.py:0: error: "MigrationBackfillTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_client_merge_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_client_merge_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignJobTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignJobTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignInvoiceTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignBillTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignCreditNoteTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignQuoteTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignPurchaseOrderTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignSupplierProductTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignSupplierPriceListTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignScrapeJobTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignAllFKTypesTogetherTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ReassignAllFKTypesTogetherTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "SourceEqualsDestinationGuardTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "IdempotencyTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "IdempotencyTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "IdempotencyTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "JobEventTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "JobEventTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_client_merge_service.py:0: error: Value of type "Any | None" is not indexable  [index]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "get_final_client" in typed context  [no-untyped-call]
-apps/client/tests/test_client_merge_service.py:0: error: "ChainWalkingTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "get_final_client" in typed context  [no-untyped-call]
-apps/client/tests/test_client_merge_service.py:0: error: "ChainWalkingTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/tests/test_client_merge_service.py:0: error: Call to untyped function "get_final_client" in typed context  [no-untyped-call]
-apps/client/tests/test_client_merge_service.py:0: error: "ChainWalkingTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ChainWalkingTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "ChainWalkingTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "AtomicityTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_client_merge_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/client/tests/test_client_merge_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/client/tests/test_client_merge_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/client/tests/test_client_merge_service.py:0: error: "AtomicityTests" has no attribute "test_staff"  [attr-defined]
-apps/client/tests/test_client_merge_service.py:0: error: "NoRecordsToMoveTests" has no attribute "test_staff"  [attr-defined]
 apps/accounts/tests/test_staff_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounts/tests/test_staff_api.py:0: note: Use "-> None" if function does not return a value
 apps/accounts/tests/test_displayable_staff.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2634,8 +2475,6 @@ apps/accounting/tests/test_invoice_models.py:0: note: Use "-> None" if function 
 apps/accounting/tests/test_invoice_calculation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_invoice_calculation.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_invoice_calculation.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/accounting/tests/test_invoice_calculation.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/accounting/tests/test_invoice_calculation.py:0: error: "TestInvoiceCalculation" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_invoice_calculation.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/accounting/tests/test_invoice_calculation.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/accounting/tests/test_invoice_calculation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -2705,7 +2544,6 @@ apps/accounting/tests/test_invoice_calculation.py:0: error: Function is missing 
 apps/accounting/tests/test_invoice_calculation.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_invoice_calculation.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
 apps/accounting/tests/test_invoice_calculation.py:0: error: Call to untyped function "_add_revenue_line" in typed context  [no-untyped-call]
-apps/accounting/tests/test_invoice_calculation.py:0: error: "TestInvoiceCalculation" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_invoice_calculation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_invoice_calculation.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_invoice_calculation.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
@@ -2727,7 +2565,6 @@ apps/accounting/tests/test_core_nplusone.py:0: note: Use "-> None" if function d
 apps/accounting/tests/test_core_nplusone.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
 apps/accounting/tests/test_core_nplusone.py:0: error: Module "django.utils.timezone" does not explicitly export attribute "datetime"  [attr-defined]
 apps/accounting/tests/test_core_nplusone.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
-apps/accounting/tests/test_core_nplusone.py:0: error: "AccountingCoreQueryTests" has no attribute "test_staff"  [attr-defined]
 apps/accounting/tests/test_core_nplusone.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_core_nplusone.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_core_nplusone.py:0: note: Use "-> None" if function does not return a value
@@ -2802,19 +2639,9 @@ apps/job/views/quote_import_views.py:0: error: Function is missing a type annota
 apps/job/tests/test_modern_timesheet_views.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_modern_timesheet_views.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_modern_timesheet_views.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_modern_timesheet_views.py:0: error: "ModernTimesheetEntryQueryTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_modern_timesheet_views.py:0: error: "ModernTimesheetEntryQueryTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_modern_timesheet_views.py:0: error: "ModernTimesheetEntryQueryTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_modern_timesheet_views.py:0: error: "ModernTimesheetEntryQueryTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_modern_timesheet_views.py:0: error: "ModernTimesheetEntryQueryTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_modern_timesheet_views.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_modern_timesheet_views.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_modern_timesheet_views.py:0: error: Item "None" of "XeroPayItem | None" has no attribute "name"  [union-attr]
-apps/job/tests/test_costline_time_rate_serialization.py:0: error: "CostLineTimeRateSerializationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_costline_time_rate_serialization.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_costline_time_rate_serialization.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_costline_time_rate_serialization.py:0: error: "CostLineTimeRateSerializationTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_costline_time_rate_serialization.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/serializers/quote_sync_serializer.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
 apps/job/serializers/quote_sync_serializer.py:0: error: Incompatible types in assignment (expression has type "ListField", base class "Serializer" defined the type as "ReturnDict[Any, Any]")  [assignment]
 apps/job/serializers/quote_sync_serializer.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]
@@ -3017,11 +2844,9 @@ apps/workflow/tests/test_xero_document_raw_json.py:0: error: Function is missing
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_document_raw_json.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_document_raw_json.py:0: error: "XeroDocumentRawJsonTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_document_raw_json.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Call to untyped function "_FakeProvider" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_document_raw_json.py:0: error: "XeroDocumentRawJsonTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Incompatible types in assignment (expression has type "_FakeProvider", variable has type "AccountingProvider")  [assignment]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Cannot assign to a method  [method-assign]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Incompatible types in assignment (expression has type "def _attach_workshop_pdf(self, external_id: str) -> None", variable has type "def _attach_workshop_pdf(self, invoice_external_id: str) -> str | None")  [assignment]
@@ -3029,7 +2854,6 @@ apps/workflow/tests/test_xero_document_raw_json.py:0: error: Function is missing
 apps/workflow/tests/test_xero_document_raw_json.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Call to untyped function "_FakeProvider" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Call to untyped function "XeroQuoteManager" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_document_raw_json.py:0: error: "XeroDocumentRawJsonTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Incompatible types in assignment (expression has type "_FakeProvider", variable has type "AccountingProvider")  [assignment]
 apps/workflow/tests/test_xero_document_raw_json.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_document_raw_json.py:0: note: Use "-> None" if function does not return a value
@@ -3045,25 +2869,10 @@ apps/purchasing/tests/test_quote_to_po_service.py:0: error: Call to untyped func
 apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: "TestSerializeJobForApi" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_kanban_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: "TestSerializeJobForApi" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_kanban_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: "TestSerializeJobForApi" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_kanban_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: "TestSerializeJobForApi" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
 apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
 apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3078,8 +2887,16 @@ apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_s
 apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
 apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_kanban_service.py:0: error: "TestSerializeJobForApi" has no attribute "test_staff"  [attr-defined]
+apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
+apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
+apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
+apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_kanban_service.py:0: note: Use "-> None" if function does not return a value
+apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
+apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
+apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
+apps/job/tests/test_kanban_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/job/tests/test_kanban_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
 apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_summary_revenue" in typed context  [no-untyped-call]
 apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_create_job" in typed context  [no-untyped-call]
@@ -3093,8 +2910,6 @@ apps/job/tests/test_kanban_service.py:0: error: Call to untyped function "_set_s
 apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_search.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/tests/test_kanban_search.py:0: error: "KanbanSearchTest" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_kanban_search.py:0: error: "KanbanSearchTest" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_kanban_search.py:0: error: Call to untyped function "untracked_update" in typed context  [no-untyped-call]
 apps/job/tests/test_kanban_search.py:0: error: Incompatible type for "client" of "Invoice" (got "Client | None", expected "Client | Combinable")  [misc]
 apps/job/tests/test_kanban_search.py:0: error: Incompatible type for "client" of "Quote" (got "Client | None", expected "Client | Combinable")  [misc]
@@ -3110,7 +2925,6 @@ apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type
 apps/job/tests/test_kanban_search.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_search.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_kanban_search.py:0: error: "KanbanSearchTest" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_search.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3157,14 +2971,11 @@ apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type
 apps/job/tests/test_kanban_search.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_search.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_kanban_search.py:0: error: "KanbanSearchTest" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_kanban_search.py:0: error: "KanbanSearchTest" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_kanban_reorder_priority.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_reorder_priority.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_kanban_reorder_priority.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
 apps/job/tests/test_kanban_reorder_priority.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_reorder_priority.py:0: error: Incompatible type for "client" of "Job" (got "django.test.client.Client", expected "apps.client.models.Client | Combinable | None")  [misc]
-apps/job/tests/test_kanban_reorder_priority.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_kanban_reorder_priority.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_reorder_priority.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_kanban_reorder_priority.py:0: note: Use "-> None" if function does not return a value
@@ -3380,14 +3191,10 @@ apps/job/views/workshop_view.py:0: error: Missing type arguments for generic typ
 apps/job/views/workshop_view.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/views/workshop_view.py:0: error: Incompatible type for lookup 'people__id': (got "UUID | None", expected "UUID | str")  [misc]
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/workshop_view.py:0: error: Call to untyped function "WorkshopTimesheetService" in typed context  [no-untyped-call]
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/workshop_view.py:0: error: Call to untyped function "WorkshopTimesheetService" in typed context  [no-untyped-call]
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/workshop_view.py:0: error: Call to untyped function "WorkshopTimesheetService" in typed context  [no-untyped-call]
 apps/job/views/workshop_view.py:0: error: Argument "job_id" to "persist_app_error" has incompatible type "Any | None"; expected "str"  [arg-type]
 apps/job/views/workshop_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/workshop_view.py:0: error: Call to untyped function "WorkshopTimesheetService" in typed context  [no-untyped-call]
 apps/job/views/workshop_pdf_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/workshop_pdf_view.py:0: error: Call to untyped function "create_workshop_pdf" in typed context  [no-untyped-call]
 apps/job/views/month_end_rest_view.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3404,7 +3211,6 @@ apps/job/views/modern_timesheet_views.py:0: error: Item "None" of "CostLine@Anno
 apps/job/views/modern_timesheet_views.py:0: error: Item "None" of "CostLine@AnnotatedWith[TypedDict({'calculated_total_cost': Any, 'calculated_total_rev': Any})] | None" has no attribute "calculated_total_cost"  [union-attr]
 apps/job/views/modern_timesheet_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/modern_timesheet_views.py:0: error: Item "None" of "CostSet | None" has no attribute "rev"  [union-attr]
-apps/job/views/modern_timesheet_views.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/views/modern_timesheet_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/modern_timesheet_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/delivery_docket_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3416,13 +3222,9 @@ apps/job/views/archive_completed_jobs_view.py:0: error: Call to untyped function
 apps/purchasing/views/supplier_search_rest_view.py:0: error: Module "drf_spectacular.utils" does not explicitly export attribute "OpenApiTypes"  [attr-defined]
 apps/purchasing/tests/test_serializers.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/purchasing/tests/test_serializers.py:0: note: Use "-> None" if function does not return a value
-apps/purchasing/tests/test_serializers.py:0: error: "JobForPurchasingSerializerTests" has no attribute "test_staff"  [attr-defined]
-apps/purchasing/tests/test_serializers.py:0: error: "JobForPurchasingSerializerTests" has no attribute "test_staff"  [attr-defined]
 apps/purchasing/tests/test_serializers.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/purchasing/tests/test_serializers.py:0: note: Use "-> None" if function does not return a value
-apps/purchasing/tests/test_serializers.py:0: error: "PurchaseOrderDetailSerializerTests" has no attribute "test_staff"  [attr-defined]
 apps/purchasing/tests/test_serializers.py:0: error: "PurchaseOrder" has no attribute "detail_lines"  [attr-defined]
-apps/purchasing/tests/test_serializers.py:0: error: "PurchaseOrderDetailSerializerTests" has no attribute "test_staff"  [attr-defined]
 apps/purchasing/tests/test_serializers.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/purchasing/tests/test_serializers.py:0: note: Use "-> None" if function does not return a value
 apps/purchasing/tests/test_serializers.py:0: error: "PurchaseOrder" has no attribute "detail_lines"  [attr-defined]
@@ -3440,7 +3242,6 @@ apps/job/views/job_costline_views.py:0: error: Call to untyped function "save" i
 apps/job/views/job_costline_views.py:0: error: Dict entry 0 has incompatible type "str": "str | _StrPromise"; expected "str": "str"  [dict-item]
 apps/job/views/job_costline_views.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/views/job_costline_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/views/job_costline_views.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/views/job_costline_views.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/views/job_costline_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/job_costline_views.py:0: error: Call to untyped function "delete" in typed context  [no-untyped-call]
@@ -3448,7 +3249,6 @@ apps/job/views/job_costline_views.py:0: error: Function is missing a type annota
 apps/job/views/job_costline_views.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/views/job_costline_views.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/views/job_costline_views.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/job/views/job_costline_views.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/client/views/client_rest_views.py:0: error: Module "drf_spectacular.utils" does not explicitly export attribute "OpenApiTypes"  [attr-defined]
 apps/client/views/client_rest_views.py:0: error: Argument 1 to "get_client_by_id" of "ClientRestService" has incompatible type "str"; expected "UUID"  [arg-type]
 apps/client/views/client_rest_views.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3528,7 +3328,6 @@ apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missi
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
-apps/accounting/tests/test_sales_pipeline_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/accounting/tests/test_sales_pipeline_service.py:0: note: Use "-> None" if function does not return a value
 apps/accounting/tests/test_sales_pipeline_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3659,13 +3458,11 @@ apps/job/views/job_costing_views.py:0: error: Function is missing a return type 
 apps/job/views/job_costing_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/job_costing_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/job_costing_views.py:0: error: Call to untyped function "_archive_quote_data" in typed context  [no-untyped-call]
-apps/job/views/job_costing_views.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/views/job_costing_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/assign_job_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/assign_job_view.py:0: error: Call to untyped function "assign_staff_to_job" of "JobStaffService" in typed context  [no-untyped-call]
 apps/job/views/assign_job_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/views/assign_job_view.py:0: error: Call to untyped function "remove_staff_from_job" of "JobStaffService" in typed context  [no-untyped-call]
-apps/job/services/job_rest_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/services/job_rest_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/job_rest_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/job_rest_service.py:0: error: Missing return statement  [return]
@@ -3682,7 +3479,6 @@ apps/job/services/job_rest_service.py:0: error: Assignment to variable "exc" out
 apps/job/services/job_rest_service.py:0: error: Trying to read deleted variable "exc"  [misc]
 apps/job/services/job_rest_service.py:0: error: Trying to read deleted variable "exc"  [misc]
 apps/job/services/job_rest_service.py:0: error: Incompatible type for lookup 'client_id': (got "UUID | Any | None", expected "UUID | str")  [misc]
-apps/job/services/job_rest_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/services/job_rest_service.py:0: error: Missing return statement  [return]
 apps/job/services/job_rest_service.py:0: error: Call to untyped function "create_safe" of "JobEvent" in typed context  [no-untyped-call]
 apps/job/services/job_rest_service.py:0: error: Argument "key" to "sort" of "list" has incompatible type "Callable[[dict[str, int | datetime | UUID | str | Any | None]], int | datetime | UUID | str | Any | None]"; expected "Callable[[dict[str, int | datetime | UUID | str | Any | None]], SupportsDunderLT[Any] | SupportsDunderGT[Any]]"  [arg-type]
@@ -3761,8 +3557,6 @@ apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped functio
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/purchasing/tests/test_stock_fts_search.py:0: note: Use "-> None" if function does not return a value
-apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/purchasing/tests/test_stock_fts_search.py:0: error: "TestStockSearchHistoricalRanking" has no attribute "test_staff"  [attr-defined]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/purchasing/tests/test_stock_fts_search.py:0: note: Use "-> None" if function does not return a value
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
@@ -3776,7 +3570,6 @@ apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a t
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
-apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Call to untyped function "_stock" in typed context  [no-untyped-call]
 apps/purchasing/tests/test_stock_fts_search.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3790,7 +3583,6 @@ apps/client/tests/test_client_invoice_summary.py:0: error: Function is missing a
 apps/client/tests/test_client_invoice_summary.py:0: error: Call to untyped function "date_to_datetime" in typed context  [no-untyped-call]
 apps/client/tests/test_client_invoice_summary.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/client/tests/test_client_invoice_summary.py:0: note: Use "-> None" if function does not return a value
-apps/client/tests/test_client_invoice_summary.py:0: error: "ClientCreateInvoiceSummaryTests" has no attribute "test_staff"  [attr-defined]
 apps/client/tests/test_client_invoice_summary.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/client/tests/test_client_invoice_summary.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/middleware.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3865,12 +3657,8 @@ apps/job/views/job_rest_views.py:0: error: Function is missing a type annotation
 apps/job/views/job_rest_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_rest_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_rest_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_rest_service.py:0: error: "JobRestServiceCreateJobTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_rest_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_rest_service.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_rest_service.py:0: error: "JobRestServiceEditTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_job_rest_service.py:0: error: "JobRestServiceEditTests" has no attribute "test_staff"  [attr-defined]
-apps/job/tests/test_job_rest_service.py:0: error: "JobRestServiceEditTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_job_delta_rejection_grouping.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_delta_rejection_grouping.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_delta_rejection_grouping.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -3878,7 +3666,6 @@ apps/job/tests/test_job_delta_rejection_grouping.py:0: error: Function is missin
 apps/job/tests/test_job_delta_rejection_grouping.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_event_deduplication.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_event_deduplication.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_event_deduplication.py:0: error: "EventDeduplicationTest" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_event_deduplication.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_event_deduplication.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_event_deduplication.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -3905,10 +3692,8 @@ apps/workflow/tests/test_api_schema_coverage.py:0: note: Use "-> None" if functi
 apps/workflow/tests/test_api_schema_coverage.py:0: error: Call to untyped function "_get_all_url_patterns" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "staff"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "delta_before"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Value of type "Any | None" is not indexable  [index]
@@ -3918,48 +3703,37 @@ apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "delta_before"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Argument 2 to "assertIn" of "TestCase" has incompatible type "Any | None"; expected "Iterable[Any] | Container[Any]"  [arg-type]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "delta_after"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Value of type "Any | None" is not indexable  [index]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "delta_before"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Argument 2 to "assertIn" of "TestCase" has incompatible type "Any | None"; expected "Iterable[Any] | Container[Any]"  [arg-type]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "delta_before"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Argument 2 to "assertIn" of "TestCase" has incompatible type "Any | None"; expected "Iterable[Any] | Container[Any]"  [arg-type]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "schema_version"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "change_id"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "delta_meta"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "delta_checksum"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Item "None" of "JobEvent | None" has no attribute "event_type"  [union-attr]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
@@ -4023,7 +3797,6 @@ apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function doe
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
@@ -4059,13 +3832,10 @@ apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function doe
 apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "update" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/job/tests/test_job_event_tracking.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_job_event_tracking.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_job_event_tracking.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/services/llm_service.py:0: error: Module "litellm" does not explicitly export attribute "set_verbose"  [attr-defined]
 apps/workflow/services/llm_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/services/llm_service.py:0: error: Call to untyped function "get_default" of "AIProvider" in typed context  [no-untyped-call]
@@ -4316,7 +4086,6 @@ apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not r
 apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_quote_modes.py:0: error: Call to untyped function "QuoteModeController" in typed context  [no-untyped-call]
-apps/job/tests/test_quote_modes.py:0: error: "TestQuoteModeController" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -4332,7 +4101,6 @@ apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type a
 apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_quote_modes.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_quote_modes.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_quote_modes.py:0: error: "TestSheetTenthsIntegration" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_quote_modes.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/job/tests/test_chat_service.py:0: error: Incompatible default for parameter "tool_call_id" (default has type "None", parameter has type "str")  [assignment]
@@ -4341,7 +4109,6 @@ apps/job/tests/test_chat_service.py:0: note: Use https://github.com/hauntsaninja
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceConfigurationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -4366,7 +4133,6 @@ apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not 
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceResponseGenerationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -4376,7 +4142,6 @@ apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotat
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceMultimodalTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -4390,24 +4155,20 @@ apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not 
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceIntegrationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_service.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_service.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_service.py:0: error: "ChatServiceModeResponseTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_performance.py:0: error: Incompatible types in assignment (expression has type "apps.client.models.Client", variable has type "django.test.client.Client")  [assignment]
-apps/job/tests/test_chat_performance.py:0: error: "ChatQueryOptimizationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
 apps/job/tests/test_chat_performance.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/job/tests/test_chat_performance.py:0: note: Use "-> None" if function does not return a value
-apps/job/tests/test_chat_performance.py:0: error: "ChatQueryOptimizationTests" has no attribute "test_staff"  [attr-defined]
 apps/job/management/commands/test_gemini_chat.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/job/management/commands/test_gemini_chat.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/auth.py:0: error: Call to untyped function "RateLimitedRESTClient" in typed context  [no-untyped-call]
@@ -4620,7 +4381,6 @@ apps/purchasing/services/delivery_receipt_service.py:0: error: Function is missi
 apps/purchasing/services/delivery_receipt_service.py:0: error: Unsupported operand types for * ("None" and "Decimal")  [operator]
 apps/purchasing/services/delivery_receipt_service.py:0: note: Left operand is of type "Decimal | None"
 apps/purchasing/services/delivery_receipt_service.py:0: error: Incompatible type for "unit_cost" of "CostLine" (got "Decimal | None", expected "str | float | Decimal | Combinable")  [misc]
-apps/purchasing/services/delivery_receipt_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/purchasing/services/delivery_receipt_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/purchasing/services/delivery_receipt_service.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/purchasing/services/delivery_receipt_service.py:0: error: Call to untyped function "get_stock_holding_job" of "Stock" in typed context  [no-untyped-call]
@@ -4956,7 +4716,6 @@ apps/timesheet/services/payroll_employee_sync.py:0: error: Call to untyped funct
 apps/timesheet/services/payroll_employee_sync.py:0: error: Call to untyped function "_hours_between" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -4974,7 +4733,6 @@ apps/workflow/tests/test_localdate_regression.py:0: note: Use "-> None" if funct
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/workflow/tests/test_localdate_regression.py:0: error: "JobAgingLocalDateTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "update" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: note: Use "-> None" if function does not return a value
@@ -4988,8 +4746,6 @@ apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped funct
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/workflow/tests/test_localdate_regression.py:0: error: "XeroInvoiceLocalDateTests" has no attribute "test_staff"  [attr-defined]
-apps/workflow/tests/test_localdate_regression.py:0: error: "XeroInvoiceLocalDateTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_manager" in typed context  [no-untyped-call]
@@ -5009,20 +4765,15 @@ apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a
 apps/workflow/tests/test_localdate_regression.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/workflow/tests/test_localdate_regression.py:0: error: "XeroQuoteLocalDateTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "XeroQuoteManager" in typed context  [no-untyped-call]
-apps/workflow/tests/test_localdate_regression.py:0: error: "XeroQuoteLocalDateTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/workflow/tests/test_localdate_regression.py:0: error: "StockServiceAccountingDateTests" has no attribute "test_staff"  [attr-defined]
-apps/workflow/tests/test_localdate_regression.py:0: error: "StockServiceAccountingDateTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_localdate_regression.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_localdate_regression.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/workflow/tests/test_localdate_regression.py:0: error: "DataQualityReportLocalDateTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_localdate_regression.py:0: error: Call to untyped function "update" in typed context  [no-untyped-call]
 apps/purchasing/views/purchasing_rest_views.py:0: error: Module "apps.purchasing.services.purchasing_rest_service" does not explicitly export attribute "PreconditionFailedError"  [attr-defined]
 apps/purchasing/views/purchasing_rest_views.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -5222,13 +4973,10 @@ apps/workflow/tests/test_celery_setup.py:0: error: Value of type "Any | None" is
 apps/workflow/tests/test_xero_po_manager.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_po_manager.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_po_manager.py:0: error: Call to untyped function "setUpTestData" of "BaseAPITestCase" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_po_manager.py:0: error: "type[XeroPurchaseOrderManagerConstructionTests]" has no attribute "test_staff"  [attr-defined]
-apps/workflow/tests/test_xero_po_manager.py:0: error: "type[XeroPurchaseOrderManagerConstructionTests]" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_xero_po_manager.py:0: error: "type[XeroPurchaseOrderManagerConstructionTests]" has no attribute "supplier"  [attr-defined]
 apps/workflow/tests/test_xero_po_manager.py:0: error: "type[XeroPurchaseOrderManagerConstructionTests]" has no attribute "purchase_order"  [attr-defined]
 apps/workflow/tests/test_xero_po_manager.py:0: error: "type[XeroPurchaseOrderManagerConstructionTests]" has no attribute "supplier"  [attr-defined]
 apps/workflow/tests/test_xero_po_manager.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_po_manager.py:0: error: "XeroPurchaseOrderManagerConstructionTests" has no attribute "test_staff"  [attr-defined]
 apps/workflow/tests/test_xero_po_manager.py:0: error: "XeroPurchaseOrderManagerConstructionTests" has no attribute "purchase_order"  [attr-defined]
 apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/export_dev_demo_dump.py:0: error: Function is missing a type annotation  [no-untyped-def]

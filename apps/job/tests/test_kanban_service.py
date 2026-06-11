@@ -1,12 +1,14 @@
-"""Tests for KanbanService.serialize_job_for_api()."""
+"""Tests for KanbanService kanban job serialization."""
 
 from decimal import Decimal
+from typing import Any
 
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.accounts.models import Staff
+from apps.client.models import Client, ClientContact
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
@@ -14,7 +16,7 @@ from apps.workflow.models import CompanyDefaults
 
 
 class TestSerializeJobForApi(BaseTestCase):
-    """Tests for KanbanService.serialize_job_for_api()."""
+    """Tests for KanbanService kanban job serialization."""
 
     def setUp(self):
         self.client_obj = Client.objects.create(
@@ -23,11 +25,11 @@ class TestSerializeJobForApi(BaseTestCase):
         )
         self.shop_client = CompanyDefaults.get_solo().shop_client
 
-    def _create_job(self, pricing_methodology="time_materials"):
+    def _create_job(self, pricing_methodology="time_materials", name="Test Job"):
         """Create a job. Job.save() auto-creates CostSets (actual, quote, estimate)."""
         job = Job(
             client=self.client_obj,
-            name="Test Job",
+            name=name,
             pricing_methodology=pricing_methodology,
         )
         job.save(staff=self.test_staff)
@@ -38,6 +40,9 @@ class TestSerializeJobForApi(BaseTestCase):
         cost_set.summary = {"rev": float(revenue)}
         cost_set.save(update_fields=["summary"])
 
+    def _serialize_one(self, job: Job) -> dict[str, Any]:
+        return KanbanService.serialize_jobs_for_api([job])[0]
+
     def test_over_budget_when_tm_actual_exceeds_price_cap(self):
         """T&M jobs show over-budget when actual revenue exceeds the price cap."""
         job = self._create_job("time_materials")
@@ -46,11 +51,7 @@ class TestSerializeJobForApi(BaseTestCase):
         self._set_summary_revenue(job.latest_actual, Decimal("1200.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("5000.00"))
 
-        serialized = KanbanService.serialize_job_for_api(
-            job, shop_client_id=self.shop_client.id
-        )
-
-        self.assertTrue(serialized["over_budget"])
+        self.assertTrue(self._serialize_one(job)["over_budget"])
 
     def test_not_over_budget_when_tm_actual_within_price_cap(self):
         """T&M jobs do not show over-budget when actual revenue stays within the cap."""
@@ -60,11 +61,7 @@ class TestSerializeJobForApi(BaseTestCase):
         self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
 
-        serialized = KanbanService.serialize_job_for_api(
-            job, shop_client_id=self.shop_client.id
-        )
-
-        self.assertFalse(serialized["over_budget"])
+        self.assertFalse(self._serialize_one(job)["over_budget"])
 
     def test_fixed_price_uses_quote_revenue_threshold(self):
         """Fixed-price jobs compare actual revenue against quote revenue, not price cap."""
@@ -74,73 +71,108 @@ class TestSerializeJobForApi(BaseTestCase):
         self._set_summary_revenue(job.latest_actual, Decimal("1200.00"))
         self._set_summary_revenue(job.latest_quote, Decimal("1500.00"))
 
-        serialized = KanbanService.serialize_job_for_api(
-            job, shop_client_id=self.shop_client.id
+        self.assertFalse(self._serialize_one(job)["over_budget"])
+
+    def test_serialize_jobs_for_api_query_count_is_constant(self):
+        """Serialization batches related data: O(1) queries regardless of job
+        count, and no per-job relation lazy loads (each one stalls the dev/E2E
+        n+1 guard with a ~20ms stack inspection)."""
+        jobs = []
+        for index in range(3):
+            job = self._create_job(name=f"Batch Job {index}")
+            job.contact = ClientContact.objects.create(
+                client=self.client_obj, name=f"Contact {index}"
+            )
+            job.save(staff=self.test_staff, update_fields=["contact"])
+            job.people.add(self.test_staff)
+            self._set_summary_revenue(job.latest_actual, Decimal("100.00"))
+            self._set_summary_revenue(job.latest_quote, Decimal("200.00"))
+            jobs.append(job)
+
+        plain_one = list(Job.objects.filter(id=jobs[0].id))
+        plain_all = list(Job.objects.filter(id__in=[job.id for job in jobs]))
+
+        with CaptureQueriesContext(connection) as captured_one:
+            KanbanService.serialize_jobs_for_api(plain_one)
+        with CaptureQueriesContext(connection) as captured_all:
+            serialized = KanbanService.serialize_jobs_for_api(plain_all)
+
+        self.assertEqual(len(serialized), 3)
+        self.assertEqual(
+            len(captured_one.captured_queries), len(captured_all.captured_queries)
         )
+        self.assertLessEqual(len(captured_all.captured_queries), 6)
 
-        self.assertFalse(serialized["over_budget"])
+    def test_serialized_shape_for_fully_populated_job(self):
+        """The rewritten serializer must keep the exact response contract the
+        frontend Zod schema requires."""
+        job = self._create_job(name="Shape Job")
+        contact = ClientContact.objects.create(client=self.client_obj, name="Jane Doe")
+        job.contact = contact
+        job.delivery_date = timezone.localdate()
+        job.save(staff=self.test_staff, update_fields=["contact", "delivery_date"])
+        staff_b = Staff.objects.create_user(
+            email="kanban-shape-b@example.com",
+            password="testpass",
+            first_name="Bob",
+            last_name="Zeta",
+        )
+        staff_a = Staff.objects.create_user(
+            email="kanban-shape-a@example.com",
+            password="testpass",
+            first_name="Ann",
+            last_name="Alpha",
+        )
+        job.people.add(staff_b, staff_a)
+        self._set_summary_revenue(job.latest_actual, Decimal("100.00"))
+        self._set_summary_revenue(job.latest_quote, Decimal("200.00"))
 
-    def test_get_all_active_jobs_preloads_serializer_relations(self):
-        job = self._create_job()
-        self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
-        self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
+        serialized = self._serialize_one(job)
 
-        jobs = list(KanbanService.get_all_active_jobs())
-
-        self.assertEqual([loaded.id for loaded in jobs], [job.id])
-        with CaptureQueriesContext(connection) as captured:
-            KanbanService.serialize_job_for_api(
-                jobs[0], shop_client_id=self.shop_client.id
-            )
-
-        relation_queries = [
-            query["sql"]
-            for query in captured
-            if any(
-                table in query["sql"]
-                for table in [
-                    "accounts_staff",
-                    "job_costset",
-                    "client_clientcontact",
-                ]
-            )
-            or (
-                "client_client" in query["sql"]
-                and "Demo Company Shop" not in query["sql"]
-            )
-        ]
-        self.assertEqual(relation_queries, [])
-
-    def test_get_jobs_by_status_preloads_serializer_relations(self):
-        job = self._create_job()
-        self._set_summary_revenue(job.latest_actual, Decimal("900.00"))
-        self._set_summary_revenue(job.latest_quote, Decimal("500.00"))
-
-        jobs = list(KanbanService.get_jobs_by_status(job.status))
-
-        self.assertEqual([loaded.id for loaded in jobs], [job.id])
-        with CaptureQueriesContext(connection) as captured:
-            KanbanService.serialize_job_for_api(
-                jobs[0], shop_client_id=self.shop_client.id
-            )
-
-        relation_queries = [
-            query["sql"]
-            for query in captured
-            if any(
-                table in query["sql"]
-                for table in [
-                    "accounts_staff",
-                    "job_costset",
-                    "client_clientcontact",
-                ]
-            )
-            or (
-                "client_client" in query["sql"]
-                and "Demo Company Shop" not in query["sql"]
-            )
-        ]
-        self.assertEqual(relation_queries, [])
+        self.assertEqual(
+            set(serialized),
+            {
+                "id",
+                "name",
+                "description",
+                "job_number",
+                "client_name",
+                "contact_person",
+                "people",
+                "status",
+                "status_key",
+                "rejected_flag",
+                "paid",
+                "fully_invoiced",
+                "speed_quality_tradeoff",
+                "created_by_id",
+                "created_at",
+                "updated_at",
+                "delivery_date",
+                "priority",
+                "shop_job",
+                "over_budget",
+                "quote_revenue",
+                "time_and_materials_revenue",
+                "min_people",
+                "max_people",
+                "badge_label",
+                "badge_color",
+            },
+        )
+        self.assertEqual(serialized["client_name"], "Test Client")
+        self.assertEqual(serialized["contact_person"], "Jane Doe")
+        self.assertEqual(serialized["quote_revenue"], 200.0)
+        self.assertEqual(serialized["time_and_materials_revenue"], 100.0)
+        self.assertEqual(serialized["created_by_id"], str(self.test_staff.id))
+        self.assertEqual(serialized["delivery_date"], job.delivery_date.isoformat())
+        # People sorted by (last_name, first_name), matching the old
+        # prefetched Staff.Meta ordering
+        self.assertEqual(
+            [person["display_name"] for person in serialized["people"]],
+            ["Ann Alpha", "Bob Zeta"],
+        )
+        self.assertIsNone(serialized["people"][0]["icon_url"])
 
     def test_serialize_jobs_for_api_resolves_shop_client_once_for_batch(self):
         shop_job = Job(
@@ -157,16 +189,7 @@ class TestSerializeJobForApi(BaseTestCase):
         self._set_summary_revenue(work_job.latest_quote, Decimal("500.00"))
 
         jobs = list(
-            Job.objects.filter(id__in=[shop_job.id, work_job.id])
-            .select_related(
-                "client",
-                "contact",
-                "created_by",
-                "latest_quote",
-                "latest_actual",
-            )
-            .prefetch_related("people")
-            .order_by("name")
+            Job.objects.filter(id__in=[shop_job.id, work_job.id]).order_by("name")
         )
 
         with CaptureQueriesContext(connection) as captured:

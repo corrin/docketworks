@@ -48,7 +48,7 @@ function handleBlur(event: FocusEvent): void {
     :disabled="disabled"
     type="text"
     inputmode="decimal"
-    class="text-right text-sm numeric-input w-16"
+    class="block ml-auto text-right text-sm numeric-input w-16"
     :class="isOvertime() ? 'text-red-600 font-semibold' : 'text-slate-700'"
     :data-automation-id="automationId"
     @blur="handleBlur"

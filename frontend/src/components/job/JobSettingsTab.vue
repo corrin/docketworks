@@ -300,6 +300,37 @@
             </div>
           </CardContent>
         </Card>
+
+        <!-- Labour Rates Card -->
+        <Card class="lg:col-span-1">
+          <CardHeader>
+            <CardTitle>Labour Rates</CardTitle>
+            <CardDescription>Charge-out rate per labour type for this job</CardDescription>
+          </CardHeader>
+          <CardContent class="space-y-3">
+            <div v-if="!labourRatesLoaded" class="text-sm text-gray-500">
+              Loading labour rates...
+            </div>
+            <div
+              v-for="rate in labourRates"
+              :key="rate.id"
+              class="flex items-center justify-between gap-3"
+            >
+              <label class="text-sm font-medium text-gray-700">
+                {{ rate.labour_subtype_name }}
+              </label>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                :value="rate.charge_out_rate ?? 0"
+                :data-automation-id="`JobSettingsTab-labour-rate-${rate.labour_subtype_name}`"
+                @blur="handleLabourRateBlur(rate, $event)"
+                class="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-right"
+              />
+            </div>
+          </CardContent>
+        </Card>
       </div>
     </div>
 
@@ -333,6 +364,7 @@ import { toast } from 'vue-sonner'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card'
 import { api } from '../../api/client'
 import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
+import { useSaveFeedback } from '@/composables/useSaveFeedback'
 
 type ClientContact = z.infer<typeof schemas.ClientContact>
 
@@ -407,6 +439,18 @@ onMounted(async () => {
         console.error('Failed to load Xero pay items')
         toast.error('Failed to load Xero pay items')
         xeroPayItems.value = []
+      }
+    })(),
+
+    // Load the job's per-labour-subtype charge-out rates
+    (async () => {
+      if (!props.jobId) return
+      try {
+        labourRates.value = await jobService.getJobLabourRates(props.jobId)
+        labourRatesLoaded.value = true
+      } catch (error) {
+        console.error('Failed to load job labour rates:', error)
+        toast.error('Failed to load labour rates')
       }
     })(),
   ])
@@ -519,6 +563,38 @@ const isSyncingFromStore = ref(false)
 // Xero pay items for the dropdown
 type XeroPayItem = z.infer<typeof schemas.XeroPayItem>
 const xeroPayItems = ref<XeroPayItem[]>([])
+
+// Per-labour-subtype charge-out rates for this job
+type JobLabourRate = z.infer<typeof schemas.JobLabourRate>
+const labourRates = ref<JobLabourRate[]>([])
+const labourRatesLoaded = ref(false)
+const labourRatesSaveFeedback = useSaveFeedback(`job-labour-rates:${props.jobId}`, {
+  clearOnUnmount: true,
+})
+
+const handleLabourRateBlur = async (rate: JobLabourRate, event: Event) => {
+  const target = event.target as HTMLInputElement
+  const value = Number(target.value)
+  if (!Number.isFinite(value) || value < 0) {
+    toast.error('Charge-out rate must be a non-negative number')
+    target.value = String(rate.charge_out_rate ?? 0)
+    return
+  }
+  if (value === (rate.charge_out_rate ?? 0)) return
+
+  labourRatesSaveFeedback.saving()
+  try {
+    const updated = await jobService.updateJobLabourRates(props.jobId, [
+      { labour_subtype: rate.labour_subtype, charge_out_rate: value },
+    ])
+    labourRates.value = updated
+    labourRatesSaveFeedback.saved()
+  } catch (error) {
+    console.error('Failed to update labour rate:', error)
+    labourRatesSaveFeedback.error('Failed to update labour rate')
+    target.value = String(rate.charge_out_rate ?? 0)
+  }
+}
 
 // Readiness flags for preventing premature saves
 const basicInfoHydrated = ref(false)

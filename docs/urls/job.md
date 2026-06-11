@@ -52,6 +52,7 @@
 | `/jobs/<uuid:job_id>/files/<uuid:file_id>/thumbnail/` | `job_file_thumbnail_view.JobFileThumbnailView` | `jobs:job_file_thumbnail` | Thumbnail serving for job files. |
 | `/jobs/<uuid:job_id>/header/` | `job_rest_views.JobHeaderRestView` | `jobs:job_header_rest` | REST view for Job header information. |
 | `/jobs/<uuid:job_id>/invoices/` | `job_rest_views.JobInvoicesRestView` | `jobs:job_invoices_rest` | REST view for Job invoices. |
+| `/jobs/<uuid:job_id>/labour-rates/` | `labour_views.JobLabourRatesView` | `jobs:job_labour_rates_rest` | Read or update a job's per-subtype charge-out rates. |
 | `/jobs/<uuid:job_id>/quote-chat/` | `job_quote_chat_views.JobQuoteChatHistoryView` | `jobs:job_quote_chat_history` | REST view for getting and managing chat history for a job. |
 | `/jobs/<uuid:job_id>/quote-chat/<str:message_id>/` | `job_quote_chat_views.JobQuoteChatMessageView` | `jobs:job_quote_chat_message` | REST view for updating individual chat messages. |
 | `/jobs/<uuid:job_id>/quote-chat/interaction/` | `job_quote_chat_api.JobQuoteChatInteractionView` | `jobs:job_quote_chat_interaction` | API view to handle real-time interaction with the AI chat assistant. |
@@ -79,6 +80,11 @@
 | `/jobs/status-values/` | `kanban_view_api.FetchStatusValuesAPIView` | `jobs:api_fetch_status_values` | Return available status values for Kanban - API endpoint. |
 | `/jobs/weekly-metrics/` | `job_rest_views.WeeklyMetricsRestView` | `jobs:weekly_metrics_rest` | REST view for fetching weekly metrics. |
 | `/jobs/workshop/` | `workshop_view.WorkshopKanbanView` | `jobs:api_workshop_kanban` | No description available |
+
+### Labour-Subtypes Management
+| URL Pattern | View | Name | Description |
+|-------------|------|------|-------------|
+| `/labour-subtypes/` | `labour_views.LabourSubtypeListView` | `jobs:labour_subtype_list_rest` | List active labour subtypes. |
 
 ### Month-End Management
 | URL Pattern | View | Name | Description |

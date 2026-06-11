@@ -25,6 +25,7 @@ from apps.job.models import (
     JobDeltaRejection,
     JobEvent,
     JobFile,
+    LabourSubtype,
     QuoteSpreadsheet,
 )
 from apps.purchasing.models import (
@@ -959,7 +960,6 @@ class DataIntegrityService:
             | Q(job_number__isnull=True)
             | Q(status__isnull=True)
             | Q(priority__isnull=True)
-            | Q(charge_out_rate__isnull=True)
             | Q(latest_estimate__isnull=True)
             | Q(latest_quote__isnull=True)
             | Q(latest_actual__isnull=True)
@@ -1000,15 +1000,6 @@ class DataIntegrityService:
                         "rule": "must not be null",
                     }
                 )
-            if not job.charge_out_rate:
-                issues.append(
-                    {
-                        "model": "Job",
-                        "record_id": str(job.id),
-                        "field": "charge_out_rate",
-                        "rule": "must not be null",
-                    }
-                )
             if not job.latest_estimate:
                 issues.append(
                     {
@@ -1034,6 +1025,23 @@ class DataIntegrityService:
                         "record_id": str(job.id),
                         "field": "latest_actual",
                         "rule": "must not be null",
+                    }
+                )
+
+        # Every job must have a charge-out rate row for every active subtype
+        for subtype in LabourSubtype.objects.filter(is_active=True):
+            for job_id in Job.objects.exclude(
+                labour_rates__labour_subtype=subtype
+            ).values_list("id", flat=True):
+                issues.append(
+                    {
+                        "model": "Job",
+                        "record_id": str(job_id),
+                        "field": "labour_rates",
+                        "rule": (
+                            "must have a JobLabourRate for active labour "
+                            f"subtype '{subtype.name}'"
+                        ),
                     }
                 )
 

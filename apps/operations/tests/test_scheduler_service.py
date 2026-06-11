@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
-from apps.job.models import Job
+from apps.job.models import Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.operations.models import AllocationBlock, JobProjection
 from apps.operations.models.job_projection import UnscheduledReason
@@ -138,6 +138,7 @@ class TestHoursComputation(BaseTestCase):
         CostLine.objects.create(
             cost_set=job.latest_actual,
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc="Actual time",
             quantity=Decimal("5.000"),
             unit_cost=Decimal("20.00"),
@@ -385,6 +386,7 @@ class TestBookedTimeReducesCapacity(BaseTestCase):
         CostLine.objects.create(
             cost_set=cost_set,
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc=f"booking - {staff.email}",
             quantity=Decimal(str(hours)),
             unit_cost=Decimal("0.00"),
@@ -480,6 +482,7 @@ class TestBookedTimeReducesCapacity(BaseTestCase):
         CostLine.objects.create(
             cost_set=unrelated.latest_estimate,  # estimate, not actual
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc="hypothetical",
             quantity=Decimal("8.000"),
             unit_cost=Decimal("0.00"),

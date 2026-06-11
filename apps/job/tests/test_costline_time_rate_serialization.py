@@ -5,7 +5,7 @@ from decimal import Decimal
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
-from apps.job.models import Job
+from apps.job.models import Job, LabourSubtype
 from apps.job.serializers.costing_serializer import CostLineCreateUpdateSerializer
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
@@ -21,10 +21,10 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
         self.job = Job.objects.create(
             job_number=9100,
             name="Rate Serialization Job",
-            charge_out_rate=Decimal("125.00"),
             client=self.client_obj,
             staff=self.test_staff,
         )
+        self.job.labour_rates.update(charge_out_rate=Decimal("125.00"))
         self.staff = Staff.objects.create_user(
             email="rate-serializer@example.com",
             password="testpassword123",
@@ -60,6 +60,7 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
 
         line = serializer.save(cost_set=self.job.latest_actual)
 
+        assert line.xero_pay_item is not None
         self.assertEqual(line.unit_cost, Decimal("90.00"))
         self.assertEqual(line.unit_rev, Decimal("125.00"))
         self.assertEqual(line.xero_pay_item, self.overtime_pay_item)
@@ -72,6 +73,7 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
     def test_update_pay_multiplier_updates_xero_pay_item(self) -> None:
         line = self.job.latest_actual.cost_lines.create(
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc="Ordinary row",
             quantity=Decimal("1.000"),
             unit_cost=Decimal("50.00"),
@@ -103,6 +105,7 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
 
         updated = serializer.save()
 
+        assert updated.xero_pay_item is not None
         self.assertEqual(updated.unit_cost, Decimal("90.00"))
         self.assertEqual(updated.unit_rev, Decimal("125.00"))
         self.assertEqual(updated.xero_pay_item, self.overtime_pay_item)
@@ -124,11 +127,11 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
         sick_job = Job.objects.create(
             job_number=9101,
             name="Sick Leave",
-            charge_out_rate=Decimal("0.00"),
             client=self.client_obj,
             staff=self.test_staff,
             default_xero_pay_item=sick_pay_item,
         )
+        sick_job.labour_rates.update(charge_out_rate=Decimal("0.00"))
         serializer = CostLineCreateUpdateSerializer(
             data={
                 "kind": "time",

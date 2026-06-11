@@ -158,6 +158,7 @@ class CostLine(models.Model):
         "xero_pay_item",
         "staff",
         "entry_seq",
+        "labour_subtype",
     ]
 
     # Internal fields not exposed in API
@@ -247,6 +248,16 @@ class CostLine(models.Model):
         help_text="The Xero pay item for this time entry (leave type, earnings rate, etc.)",
     )
 
+    # Labour subtype - required for time lines, null for material/adjust
+    labour_subtype = models.ForeignKey(
+        "job.LabourSubtype",
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name="cost_lines",
+        help_text="The labour subtype for time lines (Workshop, Office/Admin, ...)",
+    )
+
     class Meta:
         indexes = [
             models.Index(fields=["cost_set_id", "kind"]),
@@ -307,6 +318,11 @@ class CostLine(models.Model):
                 raise ValidationError("Actual time entries must have staff set.")
             if self.entry_seq is None:
                 raise ValidationError("Actual time entries must have entry_seq set.")
+
+        if self.kind == "time" and self.labour_subtype_id is None:
+            raise ValidationError("Time lines must have labour_subtype set.")
+        if self.kind != "time" and self.labour_subtype_id is not None:
+            raise ValidationError("Only time lines may have labour_subtype set.")
 
         validate_costline_meta(self.meta, self.kind)
         validate_costline_ext_refs(self.ext_refs)

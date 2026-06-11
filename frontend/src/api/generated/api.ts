@@ -1196,6 +1196,7 @@ const PatchedCostLineCreateUpdateRequest = z
     meta: z.object({}).partial().passthrough(),
     xero_pay_item: z.string().uuid().nullable(),
     staff: z.string().uuid().nullable(),
+    labour_subtype: z.string().uuid().nullable(),
   })
   .partial()
 const CostLine = z.object({
@@ -1218,6 +1219,7 @@ const CostLine = z.object({
   xero_pay_item: z.string().uuid().nullish(),
   staff: z.string().uuid().nullish(),
   entry_seq: z.number().int().gte(0).lte(2147483647).nullish(),
+  labour_subtype: z.string().uuid().nullish(),
   total_cost: z.number(),
   total_rev: z.number(),
 })
@@ -1440,7 +1442,6 @@ const Job = z.object({
   quote_acceptance_date: z.string().datetime({ offset: true }).nullish(),
   job_is_valid: z.boolean().optional(),
   job_files: z.array(JobFile).optional(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000),
   pricing_methodology: PricingMethodologyEnum.optional(),
   price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
   speed_quality_tradeoff: SpeedQualityTradeoffEnum.optional(),
@@ -1529,6 +1530,7 @@ const CostLineCreateUpdateRequest = z.object({
   meta: z.object({}).partial().passthrough().optional(),
   xero_pay_item: z.string().uuid().nullish(),
   staff: z.string().uuid().nullish(),
+  labour_subtype: z.string().uuid().nullish(),
 })
 const QuoteRevisionsList = z.object({
   job_id: z.string(),
@@ -1659,6 +1661,20 @@ const JobHeaderResponse = z.object({
   max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
 })
 const JobInvoicesResponse = z.object({ invoices: z.array(Invoice) })
+const JobLabourRate = z.object({
+  id: z.string().uuid(),
+  labour_subtype: z.string().uuid(),
+  labour_subtype_name: z.string(),
+  is_workshop: z.boolean(),
+  charge_out_rate: z.number().gt(-100000000).lt(100000000).optional(),
+})
+const JobLabourRateUpdateRequest = z.object({
+  labour_subtype: z.string().uuid(),
+  charge_out_rate: z.number().gt(-100000000).lt(100000000),
+})
+const PatchedJobLabourRatesUpdateRequestRequest = z
+  .object({ rates: z.array(JobLabourRateUpdateRequest) })
+  .partial()
 const JobQuoteChatHistoryResponse = z.object({
   success: z.boolean(),
   data: z.object({}).partial().passthrough(),
@@ -1763,7 +1779,6 @@ const JobSummary = z.object({
   quote_acceptance_date: z.string().datetime({ offset: true }).nullish(),
   job_is_valid: z.boolean().optional(),
   job_files: z.array(JobFile).optional(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000),
   pricing_methodology: PricingMethodologyEnum.optional(),
   price_cap: z.number().gt(-100000000).lt(100000000).nullish(),
   speed_quality_tradeoff: SpeedQualityTradeoffEnum.optional(),
@@ -2026,6 +2041,14 @@ const WorkshopJob = z.object({
   contact_person: z.string().nullable(),
   people: z.array(KanbanJobPerson),
 })
+const LabourSubtype = z.object({
+  id: z.string().uuid(),
+  name: z.string(),
+  display_order: z.number().int(),
+  is_active: z.boolean(),
+  is_workshop: z.boolean(),
+  default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+})
 const MonthEndJobHistory = z.object({
   date: z.string(),
   total_hours: z.number(),
@@ -2128,15 +2151,17 @@ const TimesheetCostLine = z.object({
   xero_pay_item: z.string().uuid().nullable(),
   staff: z.string().uuid().nullable(),
   entry_seq: z.number().int().nullable(),
+  labour_subtype: z.string().uuid().nullable(),
   total_cost: z.number(),
   total_rev: z.number(),
   job_id: z.string(),
   job_number: z.number().int(),
   job_name: z.string(),
   client_name: z.string(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  charge_out_rate: z.number(),
   wage_rate: z.number(),
   xero_pay_item_name: z.string().min(1),
+  labour_subtype_name: z.string(),
 })
 const ModernTimesheetStaff = z.object({
   id: z.string().uuid(),
@@ -2170,6 +2195,7 @@ const ModernTimesheetEntryPostRequest = z.object({
   hourly_rate: z.number().gte(0).optional(),
   xero_pay_item_id: z.string().uuid(),
   bill_rate_multiplier: z.number().gte(0).optional(),
+  labour_subtype_id: z.string().uuid().optional(),
 })
 const ModernTimesheetEntryPostResponse = z.object({
   success: z.boolean(),
@@ -3074,7 +3100,7 @@ const ModernTimesheetJob = z.object({
   name: z.string().max(100),
   client_name: z.string().nullable(),
   status: JobStatusEnum.optional(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  labour_rates: z.array(JobLabourRate),
   has_actual_costset: z.boolean(),
   leave_type: z.string().nullable(),
   estimated_hours: z.number().nullable(),
@@ -3569,6 +3595,9 @@ export const schemas = {
   JobStatusEnum,
   JobHeaderResponse,
   JobInvoicesResponse,
+  JobLabourRate,
+  JobLabourRateUpdateRequest,
+  PatchedJobLabourRatesUpdateRequestRequest,
   JobQuoteChatHistoryResponse,
   RoleEnum,
   JobQuoteChatCreateRequest,
@@ -3619,6 +3648,7 @@ export const schemas = {
   FetchStatusValuesResponse,
   WeeklyMetrics,
   WorkshopJob,
+  LabourSubtype,
   MonthEndJobHistory,
   MonthEndJob,
   MonthEndStockHistory,
@@ -6526,6 +6556,47 @@ POST /job/rest/jobs/&lt;uuid:pk&gt;/quote/preview/`,
   },
   {
     method: 'get',
+    path: '/api/job/jobs/:job_id/labour-rates/',
+    alias: 'job_jobs_labour_rates_list',
+    description: `Read or update a job&#x27;s per-subtype charge-out rates.
+
+GET  /job/rest/jobs/&lt;job_id&gt;/labour-rates/
+PATCH /job/rest/jobs/&lt;job_id&gt;/labour-rates/  {&quot;rates&quot;: [{&quot;labour_subtype&quot;: ..., &quot;charge_out_rate&quot;: ...}]}`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'job_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.array(JobLabourRate),
+  },
+  {
+    method: 'patch',
+    path: '/api/job/jobs/:job_id/labour-rates/',
+    alias: 'job_jobs_labour_rates_partial_update',
+    description: `Read or update a job&#x27;s per-subtype charge-out rates.
+
+GET  /job/rest/jobs/&lt;job_id&gt;/labour-rates/
+PATCH /job/rest/jobs/&lt;job_id&gt;/labour-rates/  {&quot;rates&quot;: [{&quot;labour_subtype&quot;: ..., &quot;charge_out_rate&quot;: ...}]}`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedJobLabourRatesUpdateRequestRequest,
+      },
+      {
+        name: 'job_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.array(JobLabourRate),
+  },
+  {
+    method: 'get',
     path: '/api/job/jobs/:job_id/quote-chat/',
     alias: 'job_jobs_quote_chat_retrieve',
     description: `Load all chat messages for a specific job.
@@ -7108,6 +7179,16 @@ Expected JSON:
     alias: 'job_jobs_workshop_list',
     requestFormat: 'json',
     response: z.array(WorkshopJob),
+  },
+  {
+    method: 'get',
+    path: '/api/job/labour-subtypes/',
+    alias: 'job_labour_subtypes_list',
+    description: `List active labour subtypes.
+
+GET /job/rest/labour-subtypes/`,
+    requestFormat: 'json',
+    response: z.array(LabourSubtype),
   },
   {
     method: 'get',

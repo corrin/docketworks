@@ -47,6 +47,7 @@ import {
   calculatedBill,
   parseHoursInput,
 } from '@/utils/timesheetCalc'
+import { rateForSubtype } from '@/utils/labourRates'
 
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
@@ -67,7 +68,6 @@ const props = withDefaults(
     entries: TimesheetCostLine[]
     staffId: string
     staffWageRate: number
-    defaultChargeOutRate: number
     accountingDate: string
     jobs: Job[]
     /** Map of multiplier (as string, e.g. "1.5") → pay item, used when rate changes. */
@@ -101,13 +101,15 @@ function setMeta(entry: TimesheetCostLine, patch: Record<string, unknown>): void
 
 function makeEmptyEntry(): TimesheetCostLine {
   const now = new Date().toISOString()
+  // Rates are per-job (per labour subtype); the real charge-out rate is set
+  // when a job is picked (setJob), so the phantom row starts at 0.
   return {
     id: '',
     kind: 'time',
     desc: '',
     quantity: 0,
     unit_cost: props.staffWageRate,
-    unit_rev: props.defaultChargeOutRate,
+    unit_rev: 0,
     ext_refs: {},
     meta: {
       staff_id: props.staffId,
@@ -130,9 +132,11 @@ function makeEmptyEntry(): TimesheetCostLine {
     job_number: 0,
     job_name: '',
     client_name: '',
-    charge_out_rate: props.defaultChargeOutRate,
+    charge_out_rate: 0,
     wage_rate: props.staffWageRate,
     xero_pay_item_name: '',
+    labour_subtype: null,
+    labour_subtype_name: '',
   } as TimesheetCostLine
 }
 
@@ -208,6 +212,16 @@ const autosave = useCostLineAutosave({
     // We log details via the saveFn wrapper above; keep this rollback notice
     // simple so users aren't toast-spammed.
     debugLog('SmartTimesheetTable: row rolled back after save failure', { lineId: line.id })
+  },
+  onSaved: (line, response, patch) => {
+    // The backend reprices unit_rev when labour_subtype changes; refresh the
+    // row from the canonical response.
+    if (!('labour_subtype' in patch)) return
+    Object.assign(line, {
+      labour_subtype: response.labour_subtype ?? null,
+      ...(response.unit_rev !== undefined && { unit_rev: response.unit_rev }),
+      ...(response.total_rev !== undefined && { total_rev: response.total_rev }),
+    })
   },
 })
 
@@ -361,20 +375,46 @@ function isJobNonBillable(job: Job): boolean {
   return !!job.shop_job || job.status === 'special'
 }
 
+function entryJob(entry: TimesheetCostLine): Job | undefined {
+  return props.jobs.find((j) => j.id === entry.job_id || j.job_number === entry.job_number)
+}
+
 function isEntryShopJob(entry: TimesheetCostLine): boolean {
-  const job = props.jobs.find((j) => j.id === entry.job_id || j.job_number === entry.job_number)
-  return !!job?.shop_job
+  return !!entryJob(entry)?.shop_job
+}
+
+function setLabourType(entry: TimesheetCostLine, subtypeId: string): void {
+  if (isCreateLocked(entry)) return
+  if (entry.labour_subtype === subtypeId) return
+  const job = entryJob(entry)
+  const rateEntry = job?.labour_rates.find((r) => r.labour_subtype === subtypeId)
+  Object.assign(entry, {
+    labour_subtype: subtypeId,
+    labour_subtype_name: rateEntry?.labour_subtype_name ?? entry.labour_subtype_name,
+    ...(rateEntry && { charge_out_rate: rateEntry.charge_out_rate ?? 0 }),
+  })
+  const mult = getBillMultiplier(entry)
+  Object.assign(entry, {
+    unit_rev: Math.round((entry.charge_out_rate ?? 0) * mult * 100) / 100,
+    total_rev: calculatedBill(entry),
+  })
+  // Saved rows: PATCH labour_subtype only — the backend reprices unit_rev and
+  // the autosave onSaved hook refreshes the row from the response. New rows
+  // carry the selection into the create payload.
+  commit(entry, ['labour_subtype'])
 }
 
 function setJob(entry: TimesheetCostLine, job: Job): void {
   if (isCreateLocked(entry)) return
+  // Rate for the entry's labour subtype; new rows have no subtype yet (the
+  // backend defaults it from the worker), so display the workshop rate.
+  const rate = rateForSubtype(job.labour_rates, entry.labour_subtype)
   Object.assign(entry, {
     job_id: job.id,
     job_number: job.job_number,
     job_name: job.name ?? '',
     client_name: job.client_name ?? '',
-    charge_out_rate: job.charge_out_rate ?? 0,
-    unit_rev: job.charge_out_rate ?? 0,
+    charge_out_rate: rate,
   })
   // Adopt the job's default pay item if the user hasn't picked a non-Ord rate.
   if (getMultiplier(entry) === 1.0 && job.default_xero_pay_item_id) {
@@ -388,7 +428,12 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
   if (isJobNonBillable(job)) {
     setMeta(entry, { is_billable: false, bill_rate_multiplier: 0.0 })
   }
-  Object.assign(entry, { total_rev: calculatedBill(entry) })
+  // unit_rev is the bill rate: subtype rate x bill multiplier (zero after the
+  // non-billable forcing above), mirroring setLabourType.
+  Object.assign(entry, {
+    unit_rev: Math.round(rate * getBillMultiplier(entry) * 100) / 100,
+    total_rev: calculatedBill(entry),
+  })
   commit(entry, ['unit_rev', 'meta', 'xero_pay_item'])
 
   // After picking a job, focus the Hours cell on the same row so the user can
@@ -597,6 +642,47 @@ const columns = computed(() => [
         },
         onBlur: () => setDescription(entry, entry.desc ?? ''),
       })
+    },
+  },
+  {
+    id: 'labourType',
+    header: 'Labour type',
+    cell: ({ row }: RowCtx) => {
+      const entry = displayEntries.value[row.index]
+      const job = entryJob(entry)
+      // Options come from the job's per-subtype rates. Saved rows whose job is
+      // no longer in the active list still show their stored subtype name.
+      const options = job
+        ? job.labour_rates.map((r) => ({ id: r.labour_subtype, name: r.labour_subtype_name }))
+        : entry.labour_subtype
+          ? [{ id: entry.labour_subtype, name: entry.labour_subtype_name || 'Labour' }]
+          : []
+      return h(
+        Select,
+        {
+          modelValue: entry.labour_subtype ?? '',
+          disabled: props.readOnly || isCreateLocked(entry) || options.length === 0,
+          'onUpdate:modelValue': (v: unknown) => {
+            if (typeof v === 'string' && v) setLabourType(entry, v)
+          },
+        },
+        {
+          default: () => [
+            h(
+              SelectTrigger,
+              {
+                class: 'h-8 text-sm min-w-[12ch]',
+                'data-automation-id': `SmartTimesheetTable-labourType-${row.index}`,
+                ...gridCellAttrs(row.index, 'labourType'),
+              },
+              () => [h(SelectValue, { placeholder: 'Default' })],
+            ),
+            h(SelectContent, {}, () =>
+              options.map((opt) => h(SelectItem, { value: opt.id, key: opt.id }, () => opt.name)),
+            ),
+          ],
+        },
+      )
     },
   },
   {

@@ -21,6 +21,7 @@ from rest_framework.views import APIView
 from apps.accounts.models import Staff
 from apps.job.models.costing import CostLine, CostSet
 from apps.job.models.job import Job
+from apps.job.models.labour import LabourSubtype
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.costing_serializer import TimesheetCostLineSerializer
 from apps.job.serializers.job_serializer import (
@@ -160,7 +161,9 @@ class ModernTimesheetEntryView(APIView):
                     "cost_set__job__client",
                     "staff",
                     "xero_pay_item",
+                    "labour_subtype",
                 )
+                .prefetch_related("cost_set__job__labour_rates")
                 .order_by("entry_seq")
             )
 
@@ -386,9 +389,36 @@ class ModernTimesheetEntryView(APIView):
                     rate_multiplier,
                 )
 
-            # Get rates from staff and job
+            # Labour subtype: explicit in the payload, else the worker's default
+            labour_subtype_id = validated_data.get("labour_subtype_id")
+            if labour_subtype_id:
+                try:
+                    labour_subtype = LabourSubtype.objects.get(id=labour_subtype_id)
+                except LabourSubtype.DoesNotExist:
+                    error_response = {
+                        "error": f"Labour subtype {labour_subtype_id} not found"
+                    }
+                    error_serializer = ModernTimesheetErrorResponseSerializer(
+                        data=error_response
+                    )
+                    error_serializer.is_valid(raise_exception=True)
+                    return Response(
+                        error_serializer.data, status=status.HTTP_404_NOT_FOUND
+                    )
+            else:
+                staff_default = staff.default_labour_subtype
+                if staff_default is None:
+                    raise ValueError(
+                        f"Staff {staff.id} has no default_labour_subtype and no "
+                        "labour_subtype_id was supplied."
+                    )
+                labour_subtype = staff_default
+
+            # Get rates from staff and the job's rate for this subtype
             wage_rate = hourly_rate if hourly_rate else staff.wage_rate
-            charge_out_rate = job.charge_out_rate
+            charge_out_rate = job.labour_rates.get(
+                labour_subtype=labour_subtype
+            ).charge_out_rate
 
             # Create CostLine directly
             with transaction.atomic():
@@ -429,6 +459,7 @@ class ModernTimesheetEntryView(APIView):
                     accounting_date=entry_date,
                     staff=staff,
                     xero_pay_item=xero_pay_item,
+                    labour_subtype=labour_subtype,
                     ext_refs={},
                     meta={
                         "staff_id": str(staff_id),
@@ -525,7 +556,9 @@ class ModernTimesheetDayView(APIView):
                     "cost_set__job__client",
                     "staff",
                     "xero_pay_item",
+                    "labour_subtype",
                 )
+                .prefetch_related("cost_set__job__labour_rates")
                 .order_by("entry_seq")
             )
 
@@ -594,7 +627,9 @@ class ModernTimesheetJobView(APIView):
                     "cost_set__job__client",
                     "staff",
                     "xero_pay_item",
+                    "labour_subtype",
                 )
+                .prefetch_related("cost_set__job__labour_rates")
                 .order_by("id")
             )
 

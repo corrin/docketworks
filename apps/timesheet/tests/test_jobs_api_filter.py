@@ -6,7 +6,6 @@ can still be booked against them.
 """
 
 from datetime import timedelta
-from decimal import Decimal
 
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -47,7 +46,6 @@ class JobsAPIViewFilterTests(BaseTestCase):
         # Job.save() auto-generates job_number, so we can't set it here.
         job = Job.objects.create(
             name=f"Job {status} {pricing_methodology}",
-            charge_out_rate=Decimal("100.00"),
             client=self.test_client,
             status=status,
             pricing_methodology=pricing_methodology,

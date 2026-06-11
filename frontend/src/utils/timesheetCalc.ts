@@ -71,6 +71,7 @@ export function calculatedWage(entry: TimesheetCostLine): number {
 
 /**
  * Bill for a time entry: hours × charge-out rate × bill multiplier.
+ * `charge_out_rate` is the job's rate for this line's labour subtype.
  */
 export function calculatedBill(entry: TimesheetCostLine): number {
   const rate = entry.charge_out_rate ?? entry.unit_rev ?? 0

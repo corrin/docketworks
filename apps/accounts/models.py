@@ -137,7 +137,7 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         default=0,
         help_text="Actual hourly pay rate. wage_rate is auto-computed with leave loading.",
     )
-    wage_rate: float = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    wage_rate = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     xero_user_id = models.CharField(max_length=255, unique=True, null=True, blank=True)
     date_left = models.DateField(
         null=True,
@@ -146,6 +146,17 @@ class Staff(AbstractBaseUser, PermissionsMixin):
     )
     is_office_staff: bool = models.BooleanField(default=False)
     is_workshop_staff: bool = models.BooleanField(default=True)
+    default_labour_subtype = models.ForeignKey(
+        "job.LabourSubtype",
+        on_delete=models.PROTECT,
+        related_name="default_for_staff",
+        null=True,
+        blank=True,
+        help_text=(
+            "Labour subtype preselected on new timesheet entries. "
+            "Auto-set from is_workshop_staff when blank."
+        ),
+    )
     date_joined: datetime = models.DateTimeField(default=timezone.now)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
@@ -220,7 +231,22 @@ class Staff(AbstractBaseUser, PermissionsMixin):
         if update_fields is None or "base_wage_rate" in update_fields:
             self._compute_wage_rate()
 
+        if self.default_labour_subtype_id is None and (
+            update_fields is None or "default_labour_subtype" in update_fields
+        ):
+            self._set_default_labour_subtype()
+
         super().save(*args, **kwargs)
+
+    def _set_default_labour_subtype(self) -> None:
+        """Default to the first active subtype matching is_workshop_staff."""
+        # Lazy import: apps.job imports Staff at module level
+        from apps.job.models import LabourSubtype
+
+        if self.is_workshop_staff:
+            self.default_labour_subtype = LabourSubtype.default_workshop()
+        else:
+            self.default_labour_subtype = LabourSubtype.default_non_workshop()
 
     def _compute_wage_rate(self) -> None:
         """Set wage_rate = base_wage_rate * (1 + annual_leave_loading/100)."""

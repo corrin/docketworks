@@ -986,8 +986,9 @@ class ClientRestService:
             query_fields = ["id", "client_id"] + Job.JOB_DIRECT_FIELDS
             jobs = (
                 Job.objects.filter(client_id=client_id)
-                .select_related("client")
-                .only(*query_fields)
+                # quote joined in because job.quoted reads it per job below
+                .select_related("client", "quote")
+                .only(*query_fields, "quote__id")
                 .order_by("-job_number")
             )
 

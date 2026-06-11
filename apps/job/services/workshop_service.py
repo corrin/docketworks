@@ -1,12 +1,13 @@
 import logging
 from decimal import Decimal, InvalidOperation
-from typing import Iterable, Tuple
+from typing import Any, Iterable, Mapping, Tuple
 
 from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_date
 
-from apps.job.models import CostLine, CostSet, Job
+from apps.accounts.models import Staff
+from apps.job.models import CostLine, CostSet, Job, JobLabourRate, LabourSubtype
 from apps.job.models.costing import get_default_cost_set_summary
 from apps.job.services.time_entry_rates import (
     calculate_time_unit_rates,
@@ -21,7 +22,7 @@ logger = logging.getLogger(__name__)
 class WorkshopTimesheetService:
     """Service encapsulating workshop staff timesheet operations."""
 
-    def __init__(self, *, staff):
+    def __init__(self, *, staff: Staff) -> None:
         self.staff = staff
 
     @staticmethod
@@ -69,8 +70,10 @@ class WorkshopTimesheetService:
             start_time = data.get("start_time")
             end_time = data.get("end_time")
 
+            labour_subtype = self._resolve_labour_subtype(data)
             unit_cost, unit_rev, wage_rate, charge_out_rate = self._calculate_rates(
                 job=job,
+                labour_subtype=labour_subtype,
                 wage_rate_multiplier=wage_rate_multiplier,
                 bill_rate_multiplier=bill_rate_multiplier,
             )
@@ -101,6 +104,7 @@ class WorkshopTimesheetService:
                 accounting_date=data["accounting_date"],
                 staff=self.staff,
                 xero_pay_item=xero_pay_item,
+                labour_subtype=labour_subtype,
                 ext_refs={},
                 meta=meta,
                 approved=self.staff.is_office_staff,
@@ -153,6 +157,13 @@ class WorkshopTimesheetService:
                     job_changed = True
                     has_updates = True
                     recalc_rates = True
+
+            if "labour_subtype_id" in data:
+                cost_line.labour_subtype = LabourSubtype.objects.get(
+                    id=data["labour_subtype_id"]
+                )
+                has_updates = True
+                recalc_rates = True
 
             if "is_billable" in data:
                 if data["is_billable"]:
@@ -211,8 +222,12 @@ class WorkshopTimesheetService:
                     meta,
                     normalize_multiplier(wage_rate_multiplier),
                 )
+                line_subtype = cost_line.labour_subtype
+                if line_subtype is None:
+                    raise ValueError(f"Cost line {cost_line.id} has no labour_subtype.")
                 unit_cost, unit_rev, wage_rate, charge_out_rate = self._calculate_rates(
                     job=cost_line.cost_set.job,
+                    labour_subtype=line_subtype,
                     wage_rate_multiplier=wage_rate_multiplier,
                     bill_rate_multiplier=bill_rate_multiplier,
                 )
@@ -282,16 +297,31 @@ class WorkshopTimesheetService:
         )
         return cost_set
 
+    def _resolve_labour_subtype(self, data: Mapping[str, Any]) -> LabourSubtype:
+        """Explicit subtype from the request, else the staff member's default."""
+        if data.get("labour_subtype_id"):
+            return LabourSubtype.objects.get(id=data["labour_subtype_id"])
+
+        default = self.staff.default_labour_subtype
+        if default is None:
+            raise ValueError(
+                f"Staff {self.staff.id} has no default_labour_subtype and no "
+                "labour_subtype_id was supplied."
+            )
+        return default
+
     def _calculate_rates(
         self,
         *,
-        job,
+        job: Job,
+        labour_subtype: LabourSubtype,
         wage_rate_multiplier: Decimal,
         bill_rate_multiplier: Decimal,
-    ):
+    ) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+        job_rate = JobLabourRate.objects.get(job=job, labour_subtype=labour_subtype)
         return calculate_time_unit_rates(
             wage_rate=getattr(self.staff, "wage_rate", None),
-            charge_out_rate=getattr(job, "charge_out_rate", None),
+            charge_out_rate=job_rate.charge_out_rate,
             wage_rate_multiplier=wage_rate_multiplier,
             bill_rate_multiplier=bill_rate_multiplier,
         )

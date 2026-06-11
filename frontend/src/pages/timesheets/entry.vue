@@ -294,7 +294,7 @@
           >
             <div class="h-full overflow-auto p-2">
               <!-- :key forces remount on staff/date change so the phantom row
-                   rebuilds against the new wage rate, charge-out rate and date.
+                   rebuilds against the new wage rate and date.
                    Without it, emptyEntry stays bound to the previous context. -->
               <SmartTimesheetTable
                 v-if="selectedStaffId && currentStaff"
@@ -302,9 +302,6 @@
                 :entries="timeEntries"
                 :staff-id="selectedStaffId"
                 :staff-wage-rate="currentStaff.wageRate ?? 0"
-                :default-charge-out-rate="
-                  companyDefaultsStore.companyDefaults?.charge_out_rate ?? 0
-                "
                 :accounting-date="currentDate"
                 :jobs="timesheetStore.jobs"
                 :pay-items-by-multiplier="payItemsByMultiplier"
@@ -866,7 +863,11 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
             has_actual_costset: true,
             client_name: entryWithJobData.client_name || 'Unknown Client',
             status: 'draft',
-            charge_out_rate: entryWithJobData.charge_out_rate || 0,
+            labour_rates: [],
+            shop_job: false,
+            estimated_hours: null,
+            default_xero_pay_item_id: entryWithJobData.xero_pay_item ?? '',
+            default_xero_pay_item_name: entryWithJobData.xero_pay_item_name ?? '',
             leave_type: typeof metaLeaveType === 'string' ? metaLeaveType : 'time',
           } as ModernTimesheetJob
 
@@ -965,6 +966,9 @@ async function handleCreateEntry(entry: TimesheetCostLine): Promise<void> {
     unit_rev: entry.unit_rev,
     accounting_date: entry.accounting_date || currentDate.value,
     xero_pay_item: entry.xero_pay_item ?? null,
+    // Omit labour_subtype unless the user picked one — the backend defaults
+    // it from the worker's Staff.default_labour_subtype.
+    ...(entry.labour_subtype ? { labour_subtype: entry.labour_subtype } : {}),
     meta: {
       ...meta,
       staff_id: selectedStaffId.value,

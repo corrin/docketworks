@@ -22,7 +22,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.client.models import Client, ClientContact
-from apps.job.models import Job, JobDeltaRejection, JobEvent
+from apps.job.models import Job, JobDeltaRejection, JobEvent, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.serializers import JobSerializer
 from apps.job.serializers.job_serializer import (
@@ -341,7 +341,16 @@ class JobRestService:
                 raise ValueError("CompanyDefaults not found")
 
             wage_rate = company_defaults.wage_rate.quantize(Decimal("0.01"))
-            charge_out_rate = company_defaults.charge_out_rate.quantize(Decimal("0.01"))
+
+            # Per-subtype charge-out rates were seeded by job.save()
+            workshop_subtype = LabourSubtype.default_workshop()
+            office_subtype = LabourSubtype.default_non_workshop()
+            workshop_rate = job.labour_rates.get(
+                labour_subtype=workshop_subtype
+            ).charge_out_rate
+            office_rate = job.labour_rates.get(
+                labour_subtype=office_subtype
+            ).charge_out_rate
 
             # estimated_materials is entered as retail price (what customer pays)
             # Convert to cost price using the standard 20% materials markup (retail = cost * 1.2)
@@ -369,9 +378,10 @@ class JobRestService:
                 desc="Estimated workshop time",
                 quantity=estimated_time,
                 unit_cost=wage_rate,
-                unit_rev=charge_out_rate,
+                unit_rev=workshop_rate,
                 accounting_date=timezone.localdate(),
                 xero_pay_item=ordinary_time,
+                labour_subtype=workshop_subtype,
             )
 
             # Calculate office time (1:8 ratio, rounded up to quarter hours)
@@ -384,9 +394,10 @@ class JobRestService:
                 desc="Estimated office time",
                 quantity=office_time_hours,
                 unit_cost=wage_rate,
-                unit_rev=charge_out_rate,
+                unit_rev=office_rate,
                 accounting_date=timezone.localdate(),
                 xero_pay_item=ordinary_time,
+                labour_subtype=office_subtype,
             )
 
             # For fixed_price jobs, copy estimate lines to quote CostSet
@@ -408,6 +419,7 @@ class JobRestService:
                         ),
                         meta=estimate_line.meta.copy() if estimate_line.meta else {},
                         xero_pay_item_id=estimate_line.xero_pay_item_id,
+                        labour_subtype_id=estimate_line.labour_subtype_id,
                     )
 
         return job
@@ -1552,7 +1564,6 @@ class JobRestService:
                             "client_id": "client",
                             "contact_id": "contact",
                             "delivery_date": "delivery date",
-                            "charge_out_rate": "charge out rate",
                             "job_status": "status",
                             "paid": "payment status",
                             "job_is_valid": "validity",

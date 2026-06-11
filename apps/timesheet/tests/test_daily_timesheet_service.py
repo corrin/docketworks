@@ -6,7 +6,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.client.models import Client
-from apps.job.models import CostLine, Job
+from apps.job.models import CostLine, Job, LabourSubtype
 from apps.testing import BaseTestCase
 from apps.timesheet.services.daily_timesheet_service import DailyTimesheetService
 from apps.workflow.models import XeroPayItem
@@ -25,14 +25,15 @@ class DailyTimesheetServiceTests(BaseTestCase):
         self.job = Job.objects.create(
             job_number=98766,
             name="Daily Timesheet Job",
-            charge_out_rate=Decimal("120.00"),
             client=self.client,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
+        self.job.labour_rates.update(charge_out_rate=Decimal("120.00"))
         self.cost_line = CostLine.objects.create(
             cost_set=self.job.latest_actual,
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc="Daily timesheet work",
             quantity=Decimal("2.000"),
             unit_cost=Decimal("40.00"),
@@ -55,19 +56,21 @@ class DailyTimesheetServiceTests(BaseTestCase):
             email=f"{job_number}@example.com",
             xero_last_modified=timezone.now(),
         )
-        return Job.objects.create(
+        job = Job.objects.create(
             job_number=job_number,
             name=f"Daily Timesheet Job {job_number}",
-            charge_out_rate=Decimal("120.00"),
             client=client,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
+        job.labour_rates.update(charge_out_rate=Decimal("120.00"))
+        return job
 
     def _create_time_line(self, job: Job, *, hours: str, entry_seq: int) -> CostLine:
         return CostLine.objects.create(
             cost_set=job.latest_actual,
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc=f"Daily timesheet work {entry_seq}",
             quantity=Decimal(hours),
             unit_cost=Decimal("40.00"),

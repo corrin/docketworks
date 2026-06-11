@@ -9,7 +9,7 @@ from django.utils import timezone
 from apps.accounting.services.core import KPIService, StaffPerformanceService
 from apps.accounts.models import Staff
 from apps.client.models import Client
-from apps.job.models import CostLine, Job
+from apps.job.models import CostLine, Job, LabourSubtype
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
 
@@ -44,19 +44,21 @@ class AccountingCoreQueryTests(BaseTestCase):
         )
 
     def _create_job(self, job_number: int) -> Job:
-        return Job.objects.create(
+        job = Job.objects.create(
             job_number=job_number,
             name=f"Accounting Job {job_number}",
-            charge_out_rate=Decimal("120.00"),
             client=self.client,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
+        job.labour_rates.update(charge_out_rate=Decimal("120.00"))
+        return job
 
     def _create_time_line(self, job: Job, staff: Staff, hours: str = "2.000"):
         return CostLine.objects.create(
             cost_set=job.latest_actual,
             kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Workshop"),
             desc="Accounting time",
             quantity=Decimal(hours),
             unit_cost=Decimal("40.00"),
