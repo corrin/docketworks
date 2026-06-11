@@ -77,16 +77,13 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
         source="xero_pay_item.name", read_only=True, min_length=1
     )
 
-    @extend_schema_field(
-        serializers.DecimalField(max_digits=10, decimal_places=2, read_only=True)
-    )
-    def get_charge_out_rate(self, obj: CostLine) -> str:
+    @extend_schema_field(serializers.FloatField(read_only=True))
+    def get_charge_out_rate(self, obj: CostLine) -> float:
         """The job's charge-out rate for this line's labour subtype."""
         # Iterate .all() rather than .get() so prefetched labour_rates are used
         for rate in obj.cost_set.job.labour_rates.all():
             if rate.labour_subtype_id == obj.labour_subtype_id:
-                # String to match DecimalField JSON rendering
-                return str(rate.charge_out_rate)
+                return float(rate.charge_out_rate)
         raise ValueError(
             f"Job {obj.cost_set.job_id} has no labour rate for subtype "
             f"{obj.labour_subtype_id} (cost line {obj.id})."

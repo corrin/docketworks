@@ -20933,10 +20933,6 @@ components:
         charge_out_rate:
           type: number
           format: double
-          maximum: 100000000
-          minimum: -100000000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
           readOnly: true
         wage_rate:
           type: number
