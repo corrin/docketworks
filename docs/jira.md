@@ -62,5 +62,29 @@ Known workstream labels include:
 
 ## Linking Issues To GitHub PRs
 
-Put the Jira issue key in the branch name, commit message, or PR title/body.
-GitHub and Jira then cross-link the work item automatically.
+Put the uppercase Jira issue key in the branch name, commit message, or PR
+title/body, for example `KAN-259`. GitHub for Jira uses that key to attach
+branches, commits, PRs, reviews, builds, and deployments to the work item.
+
+Cross-linking is not the same as closing the work item. Jira status transitions
+are owned by Jira Automation, not GitHub Actions.
+
+## Auto-Closing Merged PRs
+
+Use a Jira Automation project rule for the `KAN` project:
+
+- Trigger: **Development → Pull request merged**.
+- Condition: the linked work item key matches `KAN-*`.
+- Condition: the work item is not already in the `Done` status category.
+- Optional condition: no other linked pull requests are still open.
+- Action: transition the work item to `Done` (`10007`).
+
+If a merged PR does not transition its Jira work item:
+
+1. Open the Jira work item and confirm the PR appears in the Development panel.
+2. If the PR is missing, fix the GitHub for Jira integration or the PR's Jira
+   key format.
+3. If the PR is present, check the Jira Automation audit log for the
+   pull-request-merged rule.
+4. Only manually transition verified completed work; do not use GitHub Actions
+   as the default Jira workflow-state owner.
