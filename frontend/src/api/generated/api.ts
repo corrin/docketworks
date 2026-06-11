@@ -2158,7 +2158,7 @@ const TimesheetCostLine = z.object({
   job_number: z.number().int(),
   job_name: z.string(),
   client_name: z.string(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  charge_out_rate: z.number(),
   wage_rate: z.number(),
   xero_pay_item_name: z.string().min(1),
   labour_subtype_name: z.string(),
