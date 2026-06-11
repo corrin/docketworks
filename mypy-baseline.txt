@@ -1541,15 +1541,6 @@ apps/job/services/kanban_service.py:0: error: Value of type "list[dict[str, int 
 apps/job/services/kanban_service.py:0: error: Invalid index type "slice[None, int, None]" for "dict[str, Any]"; expected type "str"  [index]
 apps/job/services/kanban_service.py:0: error: Call to untyped function "filter_kanban_jobs" of "KanbanService" in typed context  [no-untyped-call]
 apps/job/services/kanban_service.py:0: error: Returning Any from function declared to return "QuerySet[Job, Job]"  [no-any-return]
-apps/job/services/kanban_service.py:0: error: Incompatible default for parameter "request" (default has type "None", parameter has type "HttpRequest")  [assignment]
-apps/job/services/kanban_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/job/services/kanban_service.py:0: error: Incompatible default for parameter "request" (default has type "None", parameter has type "HttpRequest")  [assignment]
-apps/job/services/kanban_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
-apps/job/services/kanban_service.py:0: error: Incompatible default for parameter "shop_client_id" (default has type "None", parameter has type "UUID")  [assignment]
-apps/job/services/kanban_service.py:0: note: PEP 484 prohibits implicit Optional. Accordingly, mypy has changed its default to no_implicit_optional=True
-apps/job/services/kanban_service.py:0: note: Use https://github.com/hauntsaninja/no_implicit_optional to automatically upgrade your codebase
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/job/services/kanban_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]

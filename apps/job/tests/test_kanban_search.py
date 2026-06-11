@@ -104,9 +104,10 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertEqual([job.id for job in jobs], [target.id])
 
-    def test_perform_advanced_search_preloads_serialize_job_relations(self):
+    def test_perform_advanced_search_serializes_without_lazy_relation_loads(self):
         """
-        Catches search results that would lazy-load relations during API serialization.
+        Catches search results that would lazy-load relations during API
+        serialization (the batched context must cover everything it reads).
         """
         target = self._make_job(
             name="2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)",
@@ -116,17 +117,11 @@ class KanbanSearchTest(BaseTestCase):
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "kick"}))
 
         self.assertEqual([job.id for job in jobs], [target.id])
+        context = KanbanService.build_serialization_context(jobs)
         with CaptureQueriesContext(connection) as captured:
-            KanbanService.serialize_job_for_api(
-                jobs[0], shop_client_id=self.shop_client.id
-            )
+            KanbanService.serialize_job_for_api(jobs[0], context=context)
 
-        relation_queries = [
-            query["sql"]
-            for query in captured
-            if "job_costset" in query["sql"] or "accounts_staff" in query["sql"]
-        ]
-        self.assertEqual(relation_queries, [])
+        self.assertEqual([query["sql"] for query in captured.captured_queries], [])
 
     def test_perform_advanced_search_preloads_quote_for_ranking(self):
         """Catches quote ranking that re-queries quotes per candidate job."""

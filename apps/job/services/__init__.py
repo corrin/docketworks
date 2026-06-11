@@ -49,7 +49,7 @@ try:
             KanbanCategorizationService,
             KanbanColumn,
         )
-        from .kanban_service import KanbanService
+        from .kanban_service import KanbanSerializationContext, KanbanService
         from .mcp_chat_service import MCPChatService
         from .month_end_service import MonthEndService
         from .paid_flag_service import PaidFlagResult, PaidFlagService
@@ -109,6 +109,7 @@ __all__ = [
     "JobStaffService",
     "KanbanCategorizationService",
     "KanbanColumn",
+    "KanbanSerializationContext",
     "KanbanService",
     "MCPChatService",
     "MonthEndService",
