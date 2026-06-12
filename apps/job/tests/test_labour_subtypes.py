@@ -15,16 +15,32 @@ class LabourSubtypeSeedTests(BaseTestCase):
         names = set(LabourSubtype.objects.values_list("name", flat=True))
         self.assertEqual(
             names,
-            {"Workshop", "Admin", "Quoting", "Delivery", "Onsite", "Supervision"},
+            {
+                "Workshop",
+                "Admin",
+                "Quoting",
+                "Onsite quoting",
+                "Delivery",
+                "Onsite",
+                "Supervision",
+            },
         )
 
-    def test_current_active_subtypes_exclude_delivery(self) -> None:
+    def test_all_catalogue_subtypes_are_active(self) -> None:
         active_names = set(
             LabourSubtype.objects.filter(is_active=True).values_list("name", flat=True)
         )
         self.assertEqual(
             active_names,
-            {"Workshop", "Admin", "Quoting", "Onsite", "Supervision"},
+            {
+                "Workshop",
+                "Admin",
+                "Quoting",
+                "Onsite quoting",
+                "Delivery",
+                "Onsite",
+                "Supervision",
+            },
         )
 
     def test_workshop_is_the_only_workshop_subtype(self) -> None:
@@ -69,7 +85,15 @@ class JobLabourRateSeedingTests(BaseTestCase):
         }
         self.assertEqual(
             set(rates),
-            {"Workshop", "Admin", "Quoting", "Onsite", "Supervision"},
+            {
+                "Workshop",
+                "Admin",
+                "Quoting",
+                "Onsite quoting",
+                "Delivery",
+                "Onsite",
+                "Supervision",
+            },
         )
         self.assertEqual(rates["Workshop"], Decimal("105.00"))
         self.assertEqual(rates["Onsite"], Decimal("165.00"))
@@ -81,14 +105,14 @@ class JobLabourRateSeedingTests(BaseTestCase):
             job.labour_rates.values_list("labour_subtype__name", flat=True)
         )
         self.assertNotIn("Quoting", subtype_names)
-        self.assertEqual(len(subtype_names), 4)
+        self.assertEqual(len(subtype_names), 6)
 
     def test_shop_job_seeds_zero_rates(self) -> None:
         job = Job(name="Shop Labour Rate Job")
         job.shop_job = True
         job.save(staff=self.test_staff)
         rates = list(job.labour_rates.values_list("charge_out_rate", flat=True))
-        self.assertEqual(len(rates), 5)
+        self.assertEqual(len(rates), 7)
         self.assertEqual(set(rates), {Decimal("0.00")})
 
 
