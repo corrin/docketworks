@@ -110,12 +110,12 @@ const normalizeQuoteUiLines = async (page: import('@playwright/test').Page) => {
       const optionList = page.locator('[data-automation-id^="ItemSelect-option-"]')
       await optionList.first().waitFor({ timeout: 5000 })
       const nonLabourOption = page.locator(
-        '[data-automation-id^="ItemSelect-option-"]:not([data-automation-id="ItemSelect-option-labour"])',
+        '[data-automation-id^="ItemSelect-option-"]:not([data-automation-id^="ItemSelect-option-labour"])',
       )
       if (await nonLabourOption.count()) {
         await nonLabourOption.first().click()
       } else {
-        await page.locator('[data-automation-id="ItemSelect-option-labour"]').first().click()
+        await page.locator('[data-automation-id^="ItemSelect-option-labour"]').first().click()
       }
       await page.waitForTimeout(800)
     }

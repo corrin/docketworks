@@ -275,13 +275,6 @@ export function useCostLineCalculations(options?: {
     return String(line.kind) !== 'time'
   }
 
-  function isItemSelectionEnabled(line: CostLine): boolean {
-    const kind = String(line.kind)
-    if (kind === 'time') return false
-    // material and adjustment: enabled
-    return true
-  }
-
   return {
     // State
     companyDefaults,
@@ -308,7 +301,6 @@ export function useCostLineCalculations(options?: {
     // UI capability helpers
     isUnitCostEditable,
     isUnitRevenueEditable,
-    isItemSelectionEnabled,
 
     // Rounding helpers (exported for custom cells if needed)
     roundMoney,

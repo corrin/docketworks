@@ -1,7 +1,7 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page, Response } from '@playwright/test'
 import { autoId, createTestJob } from '../fixtures/helpers'
-import { getCompanyDefaults, getStaffList } from '../fixtures/api'
+import { getCompanyDefaults, getJobLabourRates, getStaffList } from '../fixtures/api'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 type CostLine = {
@@ -279,6 +279,10 @@ test.describe('job cost entry data-first scenarios', () => {
     const jobUrl = await createTestJob(page, 'EstimateData')
     const jobId = getJobIdFromUrl(jobUrl)
     const defaults = await getCompanyDefaults(page)
+    // Labour revenue comes from the job's per-subtype rate, not company defaults
+    const labourRates = await getJobLabourRates(page, jobId)
+    const workshopRate = labourRates.find((rate) => rate.is_workshop)
+    if (!workshopRate) throw new Error('Job has no workshop labour rate')
     const stockA = await fetchStock(page, 'M8 ZINC WING NUT', (item) =>
       item.description.includes('M8 ZINC WING NUT'),
     )
@@ -295,7 +299,7 @@ test.describe('job cost entry data-first scenarios', () => {
       lineCost(10, money(stockB.unit_cost)) +
       lineCost(2, -15)
     const expectedEstimateRevenue =
-      lineRevenue(Number(labourQuantity), money(defaults.charge_out_rate)) +
+      lineRevenue(Number(labourQuantity), money(workshopRate.charge_out_rate)) +
       lineRevenue(10, money(stockB.unit_revenue)) +
       lineRevenue(2, -25)
 
@@ -303,10 +307,13 @@ test.describe('job cost entry data-first scenarios', () => {
 
     await clickAddRow(page)
     const labourCreate = waitForCostLineCreate(page)
-    await autoId(page, 'ItemSelect-option-labour').click()
+    await page
+      .locator('[data-automation-id^="ItemSelect-option-labour"]')
+      .filter({ hasText: 'Workshop' })
+      .click()
     await labourCreate
 
-    let labourIndex = await findRowIndexByDescription(page, 'Labour')
+    let labourIndex = await findRowIndexByDescription(page, 'Workshop')
     expect(labourIndex).toBeGreaterThanOrEqual(0)
     await editNumberCell(page, labourIndex, 'quantity', labourQuantity)
 
@@ -369,13 +376,13 @@ test.describe('job cost entry data-first scenarios', () => {
 
     const finalCostSet = await fetchCostSet(page, jobId, 'estimate')
     const lines = finalCostSet.cost_lines
-    const labour = findLine(lines, 'Labour', 'time')
+    const labour = findLine(lines, 'Workshop', 'time')
     const material = findLine(lines, stockB.description, 'material')
     const adjustment = findLine(lines, adjustmentDesc, 'adjust')
 
     expect(money(labour.quantity)).toBeCloseTo(Number(labourQuantity), 2)
     expect(money(labour.unit_cost)).toBeCloseTo(money(defaults.wage_rate), 2)
-    expect(money(labour.unit_rev)).toBeCloseTo(money(defaults.charge_out_rate), 2)
+    expect(money(labour.unit_rev)).toBeCloseTo(money(workshopRate.charge_out_rate), 2)
     expect(money(material.quantity)).toBeCloseTo(10, 2)
     expect(material.ext_refs).toEqual(expect.objectContaining({ stock_id: stockB.id }))
     expect(money(material.unit_cost)).toBeCloseTo(money(stockB.unit_cost), 2)
@@ -388,7 +395,7 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(sumCost(lines)).toBeCloseTo(expectedEstimateCost, 2)
     expect(sumRevenue(lines)).toBeCloseTo(expectedEstimateRevenue, 2)
 
-    labourIndex = await findRowIndexByDescription(page, 'Labour')
+    labourIndex = await findRowIndexByDescription(page, 'Workshop')
     materialIndex = await findRowIndexByDescription(page, stockB.description)
     adjustmentIndex = await findRowIndexByDescription(page, adjustmentDesc)
     await expect(autoId(page, `SmartCostLinesTable-quantity-${labourIndex}`)).toHaveValue(

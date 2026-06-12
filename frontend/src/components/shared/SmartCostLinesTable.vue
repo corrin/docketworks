@@ -21,7 +21,6 @@ import { Input } from '../ui/input'
 import { Button } from '../ui/button'
 import { Badge } from '../ui/badge'
 import { Textarea } from '../ui/textarea'
-import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
 import ItemSelect from '../../views/purchasing/ItemSelect.vue'
 import type { DataTableRowContext } from '../../utils/data-table-types'
 import { toast } from 'vue-sonner'
@@ -51,7 +50,15 @@ import {
 } from '../../composables/useGridKeyboardNav'
 import { costlineService } from '../../services/costline.service'
 import { jobService } from '../../services/job.service'
-import { rateForSubtype, workshopRateEntry, type JobLabourRate } from '../../utils/labourRates'
+import {
+  labourItemId,
+  nextLabourDesc,
+  parseLabourItemId,
+  rateForSubtype,
+  subtypeName,
+  workshopRateEntry,
+  type JobLabourRate,
+} from '../../utils/labourRates'
 
 import { schemas } from '../../api/generated/api'
 import type { z } from 'zod'
@@ -233,27 +240,53 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
   }
 }
 
-function setLabourSubtype(line: CostLine, subtypeId: string) {
-  if (line.labour_subtype === subtypeId) return
+/**
+ * A labour subtype was picked in the Item cell: turn the line into a time
+ * line for that subtype in one mutation + one durable save.
+ */
+async function handleLabourPicked(line: CostLine, subtypeId: string) {
+  const rate = jobLabourRates.value.find((r) => r.labour_subtype === subtypeId)
+  if (!rate) {
+    // Picker options come from jobLabourRates, so a miss is a bug: crash
+    // rather than save a line with rates we cannot resolve.
+    throw new Error(`Labour subtype not found in job labour rates: ${subtypeId}`)
+  }
 
   // Re-prefill unit_rev from the job's rate for the chosen subtype; the user
   // can still override it afterwards (consistent with item selection).
   resetUnitRevOverride(line)
-  Object.assign(line, {
-    labour_subtype: subtypeId,
-    unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
-  })
 
-  if (line.id && isLineReadyForSave(line)) {
-    const patch: PatchedCostLineCreateUpdate = {
-      labour_subtype: subtypeId,
-      unit_rev: Number(line.unit_rev ?? 0),
-    }
-    const optimistic: Partial<CostLine> = { ...patch }
-    autosave.scheduleSave(line, patch, optimistic)
-  } else if (!line.id && isLineReadyForSave(line)) {
+  // Material → labour conversion drops the stock reference.
+  const extRefs = { ...((line.ext_refs as Record<string, unknown>) || {}) }
+  delete extRefs.stock_id
+
+  Object.assign(line, {
+    kind: 'time' as const,
+    labour_subtype: subtypeId,
+    desc: nextLabourDesc(line.desc || '', rate, jobLabourRates.value),
+    unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
+    unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
+    ext_refs: extRefs,
+    quantity: line.quantity ?? 1,
+  })
+  selectedItemMap.set(line, null)
+
+  if (!line.id) {
     maybeEmitCreate(line)
+    return
   }
+
+  // Explicit subtype selection should be durable before the UI moves on.
+  const patch: PatchedCostLineCreateUpdate = {
+    kind: 'time',
+    labour_subtype: subtypeId,
+    desc: line.desc || '',
+    unit_cost: Number(line.unit_cost ?? 0),
+    unit_rev: Number(line.unit_rev ?? 0),
+    ext_refs: extRefs,
+  }
+  const optimistic: Partial<CostLine> = { ...patch } as Partial<CostLine>
+  await autosave.saveNow(line, patch, optimistic)
 }
 
 // Company Defaults and calculations
@@ -569,11 +602,17 @@ const columns = computed(() => {
           cell: ({ row }: RowCtx) => {
             const line = displayLines.value[row.index]
             const selectedItem = selectedItemMap.get(line)
-            const model =
-              selectedItem?.id ||
-              ((line.ext_refs as Record<string, unknown>)?.stock_id as string) ||
-              null
             const kind = String(line.kind)
+            const isTime = kind === 'time'
+            // Time lines derive their picker value from labour_subtype, so
+            // loaded lines resolve without selectedItemMap or the stock store.
+            const model = isTime
+              ? line.labour_subtype
+                ? labourItemId(line.labour_subtype)
+                : null
+              : selectedItem?.id ||
+                ((line.ext_refs as Record<string, unknown>)?.stock_id as string) ||
+                null
             const isMaterial = kind === 'material'
             const isNewLine = !line.id
             const isActualTab = props.tabKind === 'actual'
@@ -582,13 +621,33 @@ const columns = computed(() => {
             // Only lock existing stock lines on actual tab (where inventory is consumed)
             // Estimate/quote tabs should allow changing material selection
             const lockedStockExisting = isActualTab && !!line.id && isStockLine(line)
+            // Time lines are re-pickable on estimate/quote (changing subtype =
+            // re-pick); on the actual tab their subtype is edited in the
+            // timesheet UI only.
             const enabled =
-              kind !== 'time' && !props.readOnly && !lockedByDeliveryReceipt && !lockedStockExisting
+              !(isTime && isActualTab) &&
+              !props.readOnly &&
+              !lockedByDeliveryReceipt &&
+              !lockedStockExisting
 
             const isActive = selectedRowIndex.value === row.index
 
             // Lazy mount: render lightweight control until row is active (selected)
             if (!isActive) {
+              const labourLabel = subtypeName(jobLabourRates.value, line.labour_subtype) ?? 'Labour'
+
+              // Actual tab time lines: read-only blue text, not a button.
+              if (isTime && isActualTab) {
+                return h(
+                  'div',
+                  {
+                    class: 'col-item flex items-center',
+                    'data-automation-id': `SmartCostLinesTable-item-${row.index}`,
+                  },
+                  [h('span', { class: 'text-sm font-medium text-blue-800' }, labourLabel)],
+                )
+              }
+
               return h(
                 'div',
                 {
@@ -608,17 +667,18 @@ const columns = computed(() => {
                         // Also open the ItemSelect dropdown immediately
                         openItemSelect.value = true
                       },
-                      class: 'font-mono uppercase tracking-wide',
+                      class: isTime
+                        ? 'text-blue-800 font-medium'
+                        : 'font-mono uppercase tracking-wide',
                     },
                     () => {
+                      if (isTime) {
+                        return labourLabel
+                      }
+
                       if (!model) {
-                        // Check if this is a time line without stock_id (labour)
                         const stockId = (line.ext_refs as Record<string, unknown>)
                           ?.stock_id as string
-                        if (!stockId && String(line.kind) === 'time') {
-                          return 'LABOUR'
-                        }
-
                         // Check if this is an existing line with stock selected
                         if (stockId) {
                           // Try to find the item in the stock store by ID
@@ -642,18 +702,13 @@ const columns = computed(() => {
                         return 'Select Item'
                       }
 
-                      // Handle labour items specially
-                      if (model === '__labour__') {
-                        return 'LABOUR'
-                      }
-
                       // If we have selectedItem, use its code
                       if (selectedItem?.item_code) {
                         return selectedItem.item_code
                       }
 
                       // If no selectedItem but we have a model (stock_id), find the item in store
-                      if (model && model !== '__labour__') {
+                      if (model) {
                         const stockItem = store.items.find((item) => item.id === model)
                         if (stockItem?.item_code) {
                           return stockItem.item_code
@@ -695,38 +750,35 @@ const columns = computed(() => {
                   disabled: !enabled,
                   lineKind: String(line.kind),
                   tabKind: props.tabKind,
-                  labourChargeOutRate:
-                    workshopRateEntry(jobLabourRates.value)?.charge_out_rate ?? null,
+                  labourRates: jobLabourRates.value,
                   onClick: (e: Event) => e.stopPropagation(),
                   'onUpdate:modelValue': async (val: string | null) => {
                     if (!enabled) return
+
+                    // Labour pick: handled in one place, before any
+                    // kind-inference / stock-store lookup, so updateLineKind's
+                    // save never fires for picker-driven labour (no
+                    // double-save) and the stock-miss branch can't wipe desc.
+                    const labourSubtypeId = parseLabourItemId(val)
+                    if (labourSubtypeId) {
+                      // Leave active mode to show the subtype chip
+                      selectedRowIndex.value = -1
+                      await handleLabourPicked(line, labourSubtypeId)
+                      return
+                    }
+
                     if (val) {
                       debugLog('Storing item selection:', { val, lineId: line.id })
-                      // Store full item data for display
-                      if (val === '__labour__') {
-                        selectedItemMap.set(line, {
-                          id: val,
-                          description: 'Labour',
-                          item_code: 'LABOUR',
-                        })
-                        debugLog('Stored labour item in selectedItemMap')
-                      } else {
-                        // For regular items, we'll fetch the data below and update
-                        selectedItemMap.set(line, { id: val, description: '', item_code: '' })
-                        debugLog('Stored placeholder for stock item in selectedItemMap')
-                      }
+                      // For regular items, we'll fetch the data below and update
+                      selectedItemMap.set(line, { id: val, description: '', item_code: '' })
+                      debugLog('Stored placeholder for stock item in selectedItemMap')
                     } else {
                       selectedItemMap.set(line, null)
                       debugLog('Cleared selectedItemMap for line')
                     }
 
                     // Infer kind based on selection
-                    let newKind: KindOption = 'adjust' // Default fallback
-                    if (val === '__labour__') {
-                      newKind = 'time'
-                    } else if (val) {
-                      newKind = 'material'
-                    }
+                    const newKind: KindOption = val ? 'material' : 'adjust'
 
                     // Update kind if it changed
                     if (String(line.kind) !== newKind) {
@@ -838,8 +890,10 @@ const columns = computed(() => {
                       await autosave.saveNow(line, patch, optimistic)
                     }
                   },
+                  // Labour picks manage desc in handleLabourPicked (which can
+                  // preserve user-authored text); this assign is stock-only.
                   'onUpdate:description': (desc: string) =>
-                    enabled && Object.assign(line, { desc }),
+                    enabled && String(line.kind) !== 'time' && Object.assign(line, { desc }),
                   'onUpdate:unit_cost': (cost: number | null) => {
                     if (!enabled) return
                     Object.assign(line, { unit_cost: Number(cost ?? 0) })
@@ -936,55 +990,6 @@ const columns = computed(() => {
             : []),
         ])
       },
-    },
-
-    // Labour subtype (time lines only)
-    {
-      id: 'labour_subtype',
-      header: () => h('div', { class: 'col-labour text-left' }, 'Labour type'),
-      cell: ({ row }: RowCtx) => {
-        const line = displayLines.value[row.index]
-        if (String(line.kind) !== 'time') {
-          return h('div', { class: 'col-labour text-gray-400 text-sm text-center' }, '-')
-        }
-        const enabled = !props.readOnly && !isDeliveryReceipt(line)
-        return h('div', { class: 'col-labour' }, [
-          h(
-            Select,
-            {
-              modelValue: line.labour_subtype ?? '',
-              disabled: !enabled,
-              'onUpdate:modelValue': (v: unknown) => {
-                if (typeof v === 'string' && v) setLabourSubtype(line, v)
-              },
-            },
-            {
-              default: () => [
-                h(
-                  SelectTrigger,
-                  {
-                    class: 'h-9 text-sm w-full',
-                    'data-automation-id': `SmartCostLinesTable-labour-subtype-${row.index}`,
-                    ...gridCellAttrs(row.index, 'labour_subtype'),
-                    onClick: (e: Event) => e.stopPropagation(),
-                  },
-                  () => [h(SelectValue, { placeholder: 'Labour type' })],
-                ),
-                h(SelectContent, {}, () =>
-                  jobLabourRates.value.map((rate) =>
-                    h(
-                      SelectItem,
-                      { value: rate.labour_subtype, key: rate.labour_subtype },
-                      () => rate.labour_subtype_name,
-                    ),
-                  ),
-                ),
-              ],
-            },
-          ),
-        ])
-      },
-      meta: { editable: !props.readOnly },
     },
 
     // Quantity
@@ -1631,11 +1636,6 @@ const columns = computed(() => {
 .smart-costlines-table :deep(.col-12ch) {
   width: 12ch;
   max-width: 12ch;
-}
-
-.smart-costlines-table :deep(.col-labour) {
-  width: 16ch;
-  max-width: 16ch;
 }
 
 /* Description column: expand to fill remaining space */
