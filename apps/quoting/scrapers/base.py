@@ -5,6 +5,7 @@ import tempfile
 import time
 import uuid
 from abc import ABC, abstractmethod
+from typing import Any
 
 from django.utils import timezone
 from selenium import webdriver
@@ -72,9 +73,14 @@ class BaseScraper(ABC):
         self.driver = webdriver.Chrome(options=chrome_options)
         return self.driver
 
-    def get_credentials(self):
-        """Get credentials from environment variables"""
-        return self.supplier.get_credentials()
+    def get_credentials(self) -> dict[str, Any]:
+        """Get credentials from the supplier scraper configuration."""
+        from apps.quoting.models import SupplierScraperConfig
+
+        config = SupplierScraperConfig.objects.select_related("active_credential").get(
+            supplier=self.supplier, is_enabled=True
+        )
+        return config.active_credential.get_credential_dict()
 
     def cleanup(self):
         """Clean up resources"""

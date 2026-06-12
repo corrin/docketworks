@@ -3,10 +3,11 @@ import importlib
 import inspect
 import logging
 import os
+from typing import Any
 
 from django.core.management.base import BaseCommand
 
-from apps.client.models import Supplier
+from apps.quoting.models import SupplierScraperConfig
 
 logger = logging.getLogger(__name__)
 
@@ -140,12 +141,13 @@ class Command(BaseCommand):
 
         logger.info(f"Starting scraper: {class_name}")
 
-        # Find the supplier for this scraper
-        supplier = self.find_supplier_for_scraper(scraper_info, supplier_name)
-        if not supplier:
-            logger.error(f"No suitable supplier found for scraper {class_name}")
+        # Find the scraper configuration for this scraper
+        config = self.find_config_for_scraper(scraper_info, supplier_name)
+        if not config:
+            logger.error(f"No enabled scraper config found for scraper {class_name}")
             return
 
+        supplier = config.supplier
         logger.info(f"Running {class_name} for supplier: {supplier.name}")
 
         try:
@@ -160,37 +162,39 @@ class Command(BaseCommand):
             logger.error(f"Error running scraper {class_name}: {e}")
             raise
 
-    def find_supplier_for_scraper(self, scraper_info, supplier_name_filter=None):
-        """Find the supplier that should use this scraper"""
+    def find_config_for_scraper(
+        self, scraper_info: dict[str, Any], supplier_name_filter: str | None = None
+    ) -> SupplierScraperConfig | None:
+        """Find the enabled config that should use this scraper."""
         scraper_class = scraper_info["class_obj"]
+        scraper_path = f"{scraper_class.__module__}.{scraper_class.__name__}"
 
-        # If specific supplier name provided, find it
+        configs = SupplierScraperConfig.objects.select_related(
+            "supplier", "active_credential"
+        ).filter(is_enabled=True, scraper_class=scraper_path)
+
+        # If specific supplier name provided, filter by it
         if supplier_name_filter:
-            try:
-                supplier = Supplier.objects.get(name__icontains=supplier_name_filter)
-                return supplier
-            except Supplier.DoesNotExist:
-                logger.error(f"Supplier matching '{supplier_name_filter}' not found")
-                return None
-            except Supplier.MultipleObjectsReturned:
-                logger.error(
-                    f"Multiple suppliers found matching '{supplier_name_filter}'"
-                    " - be more specific"
-                )
-                return None
-
-        # Use the scraper's declared SUPPLIER_NAME
-        supplier_name = getattr(scraper_class, "SUPPLIER_NAME", None)
-        if not supplier_name:
-            logger.error(f"{scraper_class.__name__} has no SUPPLIER_NAME defined")
-            return None
+            configs = configs.filter(supplier__name__icontains=supplier_name_filter)
 
         try:
-            supplier = Supplier.objects.get(name=supplier_name)
-            logger.info(f"Found supplier: {supplier.name}")
-            return supplier
-        except Supplier.DoesNotExist:
-            logger.error(f"Supplier '{supplier_name}' not found")
+            config = configs.get()
+            logger.info(f"Found supplier config: {config.supplier.name}")
+            return config
+        except SupplierScraperConfig.DoesNotExist:
+            if supplier_name_filter:
+                logger.error(
+                    f"Enabled config for {scraper_path} and supplier matching "
+                    f"'{supplier_name_filter}' not found"
+                )
+            else:
+                logger.error(f"Enabled config for {scraper_path} not found")
+            return None
+        except SupplierScraperConfig.MultipleObjectsReturned:
+            logger.error(
+                f"Multiple enabled configs found for {scraper_path}"
+                " - be more specific"
+            )
             return None
 
 

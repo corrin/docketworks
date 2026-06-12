@@ -57,6 +57,16 @@ class XeroInstanceTemplateTests(SimpleTestCase):
 
         self.assertIn("xero-apps.json.template", content)
         self.assertIn(
+            'call_command("loaddata", "apps/workflow/fixtures/xero_apps.json")',
+            content,
+        )
+        self.assertIn(
+            "XeroApp already configured; skipping xero_apps.json load", content
+        )
+        self.assertIn("if XeroApp.objects.exists()", content)
+        self.assertNotIn("XeroApp.objects.filter", content)
+        self.assertNotIn(".delete()", content)
+        self.assertNotIn(
             "python manage.py loaddata apps/workflow/fixtures/xero_apps.json", content
         )
         self.assertNotIn(

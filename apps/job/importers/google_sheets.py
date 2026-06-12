@@ -69,9 +69,7 @@ def _get_credentials() -> service_account.Credentials:
 
         CREDS = service_account.Credentials.from_service_account_file(
             key_file, scopes=SCOPES
-        ).with_subject(  # type: ignore[no-untyped-call]
-            company_email
-        )
+        ).with_subject(company_email)
 
         logger.info(
             f"Google API credentials loaded from {key_file} "

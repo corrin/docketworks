@@ -1,3 +1,5 @@
+import base64
+import hashlib
 import logging
 import os
 import subprocess
@@ -118,6 +120,13 @@ PRODUCTION_LIKE = DJANGO_ENV == "production_like"
 
 # Load SECRET_KEY from environment - critical security requirement
 SECRET_KEY = os.getenv("SECRET_KEY")
+
+FIELD_ENCRYPTION_KEY = os.getenv("FIELD_ENCRYPTION_KEY")
+if not FIELD_ENCRYPTION_KEY:
+    assert SECRET_KEY is not None
+    FIELD_ENCRYPTION_KEY = base64.urlsafe_b64encode(
+        hashlib.sha256(SECRET_KEY.encode("utf-8")).digest()
+    ).decode("ascii")
 
 # Load ALLOWED_HOSTS from environment variables
 allowed_hosts_env = os.getenv("ALLOWED_HOSTS")

@@ -458,7 +458,8 @@ EOSQL
 
     # --- Load Xero apps ---
     log "Loading Xero apps..."
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/workflow/fixtures/xero_apps.json
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
+        'from django.core.management import call_command; from apps.workflow.models import XeroApp; print("XeroApp already configured; skipping xero_apps.json load") if XeroApp.objects.exists() else call_command("loaddata", "apps/workflow/fixtures/xero_apps.json")'
 
     # Intentionally NOT deleted after load: restore-prod-to-nonprod runs
     # loaddata against this file (workflow_xeroapp is excluded from the

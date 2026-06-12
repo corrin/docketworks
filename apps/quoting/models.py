@@ -1,11 +1,146 @@
 import uuid
+from typing import Any
 
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
+from encrypted_model_fields.fields import (  # type: ignore[import-untyped]  # third-party package without stubs
+    EncryptedCharField,
+)
 
 from apps.client.models import Client
 from apps.job.enums import MetalType
 from apps.purchasing.models import Stock
+
+
+class SupplierCredential(models.Model):
+    """Encrypted credentials for a supplier portal or API."""
+
+    class CredentialType(models.TextChoices):
+        USERNAME_PASSWORD = "username_password", "Username and password"
+        API_KEY = "api_key", "API key"
+        API_KEY_HEADER = "api_key_header", "API key header"
+        OAUTH2 = "oauth2", "OAuth 2"
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    supplier = models.ForeignKey(
+        Client, on_delete=models.PROTECT, related_name="supplier_credentials"
+    )
+    label = models.CharField(max_length=255)
+    credential_type = models.CharField(
+        max_length=50,
+        choices=CredentialType.choices,
+    )
+    username = EncryptedCharField(max_length=255, blank=True, null=True)
+    password = EncryptedCharField(max_length=255, blank=True, null=True)
+    api_key = EncryptedCharField(max_length=500, blank=True, null=True)
+    extra_config = models.JSONField(default=dict, blank=True)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["supplier__name", "label"]
+        verbose_name = "Supplier Credential"
+        verbose_name_plural = "Supplier Credentials"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["supplier", "label"],
+                name="unique_supplier_credential_label",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        if self.credential_type == self.CredentialType.USERNAME_PASSWORD:
+            if not self.username:
+                raise ValidationError({"username": "Username is required."})
+            if not self.password:
+                raise ValidationError({"password": "Password is required."})
+        elif self.credential_type in (
+            self.CredentialType.API_KEY,
+            self.CredentialType.API_KEY_HEADER,
+        ):
+            if not self.api_key:
+                raise ValidationError({"api_key": "API key is required."})
+        elif self.credential_type == self.CredentialType.OAUTH2:
+            required_keys = {"client_id", "client_secret", "token_url"}
+            missing = required_keys - set(self.extra_config)
+            if missing:
+                missing_keys = ", ".join(sorted(missing))
+                raise ValidationError(
+                    {"extra_config": f"Missing OAuth2 config keys: {missing_keys}."}
+                )
+        else:
+            raise ValidationError(
+                {"credential_type": f"Unknown credential type: {self.credential_type}"}
+            )
+
+    def get_credential_dict(self) -> dict[str, Any]:
+        if self.credential_type == self.CredentialType.USERNAME_PASSWORD:
+            return {"username": self.username, "password": self.password}
+        if self.credential_type == self.CredentialType.API_KEY:
+            return {"api_key": self.api_key}
+        if self.credential_type == self.CredentialType.API_KEY_HEADER:
+            header_name = self.extra_config.get("header_name")
+            if not header_name:
+                raise ValueError("api_key_header credentials require header_name")
+            return {"header_name": header_name, "api_key": self.api_key}
+        if self.credential_type == self.CredentialType.OAUTH2:
+            return dict(self.extra_config)
+        raise ValueError(f"Unknown credential type: {self.credential_type}")
+
+    def __str__(self) -> str:
+        return f"{self.supplier.name} - {self.label}"
+
+
+class SupplierScraperConfig(models.Model):
+    """Maps a supplier to the scraper implementation and credential to use."""
+
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    supplier = models.OneToOneField(
+        Client, on_delete=models.PROTECT, related_name="scraper_config"
+    )
+    scraper_class = models.CharField(max_length=255, db_index=True)
+    portal_url = models.URLField(max_length=1000)
+    is_enabled = models.BooleanField(default=True)
+    active_credential = models.ForeignKey(
+        SupplierCredential,
+        on_delete=models.PROTECT,
+        related_name="scraper_configs",
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["supplier__name"]
+        verbose_name = "Supplier Scraper Config"
+        verbose_name_plural = "Supplier Scraper Configs"
+        constraints = [
+            models.UniqueConstraint(
+                fields=["scraper_class"],
+                name="unique_supplier_scraper_class",
+            ),
+        ]
+
+    def clean(self) -> None:
+        super().clean()
+        if self.active_credential_id and self.supplier_id:
+            if self.active_credential.supplier_id != self.supplier_id:
+                raise ValidationError(
+                    {
+                        "active_credential": (
+                            "Active credential must belong to the same supplier."
+                        )
+                    }
+                )
+            if not self.active_credential.is_active:
+                raise ValidationError(
+                    {"active_credential": "Active credential must be active."}
+                )
+
+    def __str__(self) -> str:
+        return f"{self.supplier.name} - {self.scraper_class}"
 
 
 class SupplierProduct(models.Model):

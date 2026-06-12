@@ -91,12 +91,14 @@ def _preserved_client_names() -> set[str]:
     preserved.add(cd.shop_client.name)
     preserved.add(cd.test_client_name)
 
-    from apps.quoting.management.commands.run_scrapers import Command as ScraperCmd
+    from apps.quoting.models import SupplierScraperConfig
 
-    for scraper_info in ScraperCmd().get_available_scrapers():
-        supplier_name = getattr(scraper_info["class_obj"], "SUPPLIER_NAME", None)
-        if supplier_name:
-            preserved.add(supplier_name)
+    supplier_names = (
+        SupplierScraperConfig.objects.using(SCRUB_ALIAS)
+        .filter(is_enabled=True)
+        .values_list("supplier__name", flat=True)
+    )
+    preserved.update(supplier_names)
     return preserved
 
 
@@ -222,6 +224,7 @@ _EXCLUDED_TABLES = (
     "workflow_apperror",  # Parent; CASCADE will delete xeroerror children
     "workflow_xeroapp",
     "workflow_serviceapikey",
+    "quoting_suppliercredential",
     "accounts_historicalstaff",
     "process_historicalform",
     "process_historicalformentry",

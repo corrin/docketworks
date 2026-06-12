@@ -65,7 +65,7 @@ def _add_parents(tree: ast.AST) -> None:
     """Annotate every node with a `.parent` reference for upward traversal."""
     for parent in ast.walk(tree):
         for child in ast.iter_child_nodes(parent):
-            child.parent = parent  # type: ignore[attr-defined]
+            child.parent = parent
 
 
 def _enclosing_stmt_range(node: ast.AST) -> tuple[int, int]:

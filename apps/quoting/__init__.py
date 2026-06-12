@@ -12,8 +12,10 @@ try:
         from .models import (
             ProductParsingMapping,
             ScrapeJob,
+            SupplierCredential,
             SupplierPriceList,
             SupplierProduct,
+            SupplierScraperConfig,
         )
         from .serializers import (
             ExtractSupplierPriceListErrorSerializer,
@@ -45,6 +47,15 @@ except (ImportError, RuntimeError):
 
 # EXCLUDED IMPORTS - These contain problematic dependencies that cause circular imports
 # Import these directly where needed using:
+# from .admin import ClientAdmin
+# from .admin import SupplierAdmin
+# from .admin import SupplierCredentialAdmin
+# from .admin import SupplierCredentialAdminForm
+# from .admin import SupplierCredentialInline
+# from .admin import SupplierScraperConfigAdmin
+# from .admin import SupplierScraperConfigAdminForm
+# from .admin import SupplierScraperConfigInline
+# from .admin import SupplierScraperConfigInlineFormSet
 # from .views import extract_supplier_price_list_data_view
 #
 
@@ -62,12 +73,14 @@ __all__ = [
     "ScheduledTaskSerializer",
     "ScheduledTaskViewSet",
     "ScrapeJob",
+    "SupplierCredential",
     "SupplierInfoSerializer",
     "SupplierPriceList",
     "SupplierPriceListUploadSerializer",
     "SupplierProduct",
     "SupplierProductQueryTool",
     "SupplierProductQueryToolTests",
+    "SupplierScraperConfig",
     "TestCalculateSheetTenths",
     "ValidationInfoSerializer",
     "calculate_product_mapping_hash",

@@ -1,4 +1,3 @@
-import os
 import re
 import time
 
@@ -14,20 +13,14 @@ from .base import BaseScraper
 class SteelAndTubeScraper(BaseScraper):
     """Steel & Tube specific scraper implementation with comprehensive variant extraction"""
 
-    SUPPLIER_NAME = "S&T Stainless Limited"
-
-    def get_credentials(self):
-        """Get Steel & Tube credentials from environment variables"""
-        username = os.getenv("STEEL_TUBE_USERNAME")
-        password = os.getenv("STEEL_TUBE_PASSWORD")
-        return username, password
-
     def login(self):
         """Login to Steel & Tube portal"""
-        username, password = self.get_credentials()
+        credentials = self.get_credentials()
+        username = credentials["username"]
+        password = credentials["password"]
 
         if not username or not password:
-            self.logger.error("Credentials not found in environment variables")
+            self.logger.error("Credentials not found in supplier scraper config")
             return False
 
         try:
