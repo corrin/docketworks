@@ -3,11 +3,13 @@ import os
 import re
 import time
 from collections import defaultdict
+from html import escape
 from io import BytesIO
-from typing import Callable, Optional
+from typing import Callable, Optional, Union
 
 from bs4 import BeautifulSoup, NavigableString
 from django.conf import settings
+from django.db import models
 from django.utils import timezone
 from PIL import Image, ImageFile
 from pypdf import PdfWriter
@@ -16,10 +18,10 @@ from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
 from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
-from reportlab.platypus import Paragraph, Table, TableStyle
+from reportlab.platypus import Flowable, Paragraph, Table, TableStyle
 
 from apps.job.enums import SpeedQualityTradeoff
-from apps.job.models import Job
+from apps.job.models import CostLine, CostSet, Job, JobFile
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_and_raise
@@ -43,11 +45,26 @@ def format_hours_display(hours: Optional[float]) -> str:
     return f"{h}h {m}m"
 
 
+def format_hours_compact(hours: float) -> str:
+    """Format hours as H:MM for tight PDF summary rows."""
+    total_minutes = round(hours * 60)
+    h = total_minutes // 60
+    m = total_minutes % 60
+    return f"{h}:{m:02d}"
+
+
+def format_retail_line_total(line: CostLine) -> str:
+    """Format material retail line total, leaving unknown retail prices blank."""
+    if line.unit_rev == 0:
+        return ""
+    return f"${line.quantity * line.unit_rev:.2f}"
+
+
 def get_workshop_hours(job: Job) -> float:
     """
-    Calculate workshop time allocated from the latest estimate or quote.
+    Calculate production time allocated from the latest estimate or quote.
 
-    Sums all time CostLines except those ending in "office time" (case-insensitive).
+    Sums time CostLines whose labour subtype consumes schedulable staff capacity.
     Falls back to quote if estimate has zero workshop hours.
     """
     estimate = job.cost_sets.filter(kind="estimate").order_by("-rev").first()
@@ -55,10 +72,7 @@ def get_workshop_hours(job: Job) -> float:
         exc = ValueError(f"Job {job.job_number} has no estimate CostSet")
         raise exc
 
-    lines = estimate.cost_lines.filter(kind="time").exclude(
-        desc__iendswith=" office time"
-    )
-    workshop_hours = sum(float(line.quantity) for line in lines)
+    workshop_hours = _workshop_time_total(estimate)
 
     if workshop_hours <= 0:
         quote = job.cost_sets.filter(kind="quote").order_by("-rev").first()
@@ -68,12 +82,64 @@ def get_workshop_hours(job: Job) -> float:
             )
             raise exc
 
-        lines = quote.cost_lines.filter(kind="time").exclude(
-            desc__iendswith=" office time"
-        )
-        workshop_hours = sum(float(line.quantity) for line in lines)
+        workshop_hours = _workshop_time_total(quote)
 
     return workshop_hours
+
+
+def _workshop_time_total(cost_set: CostSet) -> float:
+    total = (
+        cost_set.cost_lines.filter(
+            kind="time", labour_subtype__counts_for_scheduling=True
+        )
+        .aggregate(total=models.Sum("quantity"))
+        .get("total")
+    )
+    return float(total or 0.0)
+
+
+def _production_time_by_bucket(
+    cost_set: CostSet,
+) -> dict[str, dict[str, bool | float | str]]:
+    rows = (
+        cost_set.cost_lines.filter(
+            kind="time", labour_subtype__counts_for_scheduling=True
+        )
+        .values(
+            "labour_subtype_id",
+            "labour_subtype__name",
+            "labour_subtype__is_workshop",
+        )
+        .annotate(hours=models.Sum("quantity"))
+        .order_by("-labour_subtype__is_workshop", "labour_subtype__name")
+    )
+    buckets: dict[str, dict[str, bool | float | str]] = {}
+    for row in rows:
+        is_workshop = bool(row["labour_subtype__is_workshop"])
+        subtype_name = str(row["labour_subtype__name"])
+        bucket_id = str(row["labour_subtype_id"])
+        buckets[bucket_id] = {
+            "name": "WORKSHOP TIME" if is_workshop else f"{subtype_name} Time",
+            "hours": float(row["hours"] or 0.0),
+            "is_workshop": is_workshop,
+        }
+    return buckets
+
+
+def _latest_budget_cost_set(job: Job) -> CostSet:
+    estimate = job.cost_sets.filter(kind="estimate").order_by("-rev").first()
+    if estimate is None:
+        exc = ValueError(f"Job {job.job_number} has no estimate CostSet")
+        raise exc
+
+    if _workshop_time_total(estimate) > 0:
+        return estimate
+
+    quote = job.cost_sets.filter(kind="quote").order_by("-rev").first()
+    if quote is None:
+        exc = ValueError(f"Job {job.job_number} has no quote CostSet to fall back to")
+        raise exc
+    return quote
 
 
 def get_time_breakdown(job: Job) -> dict:
@@ -82,27 +148,32 @@ def get_time_breakdown(job: Job) -> dict:
 
     Returns:
         dict with keys:
-            - budgeted_hours: Total hours from estimate/quote (uses existing logic)
-            - used_hours: Total hours from latest_actual
+            - budgeted_hours: Production labour hours from estimate/quote
+            - used_hours: Production labour hours from latest_actual
             - remaining_hours: Difference
             - is_over_budget: True if over budget
             - staff_breakdown: List of dicts with staff name and hours worked
+            - subtype_breakdown: List of dicts with workshop/other production hours
     """
-    budgeted_hours = get_workshop_hours(job)
+    budget_cost_set = _latest_budget_cost_set(job)
+    budgeted_by_subtype = _production_time_by_bucket(budget_cost_set)
+    budgeted_hours = sum(float(item["hours"]) for item in budgeted_by_subtype.values())
     used_hours = 0.0
+    production_budgeted_hours = _workshop_time_total(budget_cost_set)
+    production_used_hours = 0.0
     staff_breakdown = []
+    used_by_subtype: dict[str, dict[str, bool | float | str]] = {}
 
     # Get used hours and staff breakdown from actual
     if job.latest_actual:
-        if job.latest_actual.summary:
-            used_hours = float(job.latest_actual.summary.get("hours", 0.0))
+        used_by_subtype = _production_time_by_bucket(job.latest_actual)
+        used_hours = sum(float(item["hours"]) for item in used_by_subtype.values())
+        production_used_hours = _workshop_time_total(job.latest_actual)
 
         # Get breakdown by staff member
-        time_lines = (
-            job.latest_actual.cost_lines.filter(kind="time")
-            .exclude(desc__iendswith=" office time")
-            .select_related("cost_set", "staff")
-        )
+        time_lines = job.latest_actual.cost_lines.filter(
+            kind="time", labour_subtype__counts_for_scheduling=True
+        ).select_related("cost_set", "staff")
 
         # Group by staff
         staff_hours = defaultdict(float)
@@ -125,15 +196,46 @@ def get_time_breakdown(job: Job) -> dict:
             )
         ]
 
+    subtype_ids = list(budgeted_by_subtype)
+    subtype_ids.extend(
+        subtype_id for subtype_id in used_by_subtype if subtype_id not in subtype_ids
+    )
+    subtype_breakdown = []
+    for subtype_id in subtype_ids:
+        budgeted_item = budgeted_by_subtype.get(subtype_id)
+        used_item = used_by_subtype.get(subtype_id)
+        name = str((budgeted_item or used_item or {"name": "WORKSHOP TIME"})["name"])
+        estimated = float((budgeted_item or {"hours": 0.0})["hours"])
+        used = float((used_item or {"hours": 0.0})["hours"])
+        is_workshop = bool(
+            (budgeted_item or used_item or {"is_workshop": False})["is_workshop"]
+        )
+        if estimated == 0 and used == 0:
+            continue
+        subtype_breakdown.append(
+            {
+                "name": name,
+                "estimated_hours": estimated,
+                "used_hours": used,
+                "remaining_hours": estimated - used,
+                "is_workshop": is_workshop,
+            }
+        )
+
     remaining_hours = budgeted_hours - used_hours
     is_over_budget = used_hours > budgeted_hours and budgeted_hours > 0
+    production_remaining_hours = production_budgeted_hours - production_used_hours
 
     return {
         "budgeted_hours": budgeted_hours,
         "used_hours": used_hours,
         "remaining_hours": remaining_hours,
+        "production_budgeted_hours": production_budgeted_hours,
+        "production_used_hours": production_used_hours,
+        "production_remaining_hours": production_remaining_hours,
         "is_over_budget": is_over_budget,
         "staff_breakdown": staff_breakdown,
+        "subtype_breakdown": subtype_breakdown,
     }
 
 
@@ -143,6 +245,7 @@ MARGIN = 50
 CONTENT_WIDTH = PAGE_WIDTH - (2 * MARGIN)
 
 LOGO_BOX = 150
+WORKSHOP_LOGO_HEIGHT = 52
 
 styles = getSampleStyleSheet()
 
@@ -191,6 +294,39 @@ body_style = ParagraphStyle(
     fontSize=10,
     leading=14,
     textColor=TEXT_DARK,
+)
+
+brief_label_style = ParagraphStyle(
+    "BriefLabel",
+    parent=label_style,
+    fontSize=8,
+    leading=10,
+)
+
+brief_label_inverse_style = ParagraphStyle(
+    "BriefLabelInverse",
+    parent=brief_label_style,
+    textColor=colors.white,
+)
+
+brief_value_style = ParagraphStyle(
+    "BriefValue",
+    parent=body_style,
+    fontSize=10,
+    leading=12,
+)
+
+brief_value_bold_style = ParagraphStyle(
+    "BriefValueBold",
+    parent=brief_value_style,
+    fontName="Helvetica-Bold",
+)
+
+section_label_style = ParagraphStyle(
+    "SectionLabel",
+    parent=label_style,
+    fontSize=11,
+    leading=13,
 )
 
 # Keep the public name expected elsewhere in the file
@@ -285,7 +421,9 @@ def wait_until_file_ready(file_path, max_wait=10):
             wait_time += 1
 
 
-def _fit_dimensions(image_path, max_width, max_height):
+def _fit_dimensions(
+    image_path: str, max_width: float, max_height: float
+) -> tuple[float, float]:
     """Return (width_pt, height_pt) to draw the image inside
     (max_width, max_height) preserving aspect ratio. The on-page footprint
     is determined by the bounding box, not by the source pixel count."""
@@ -421,7 +559,7 @@ def convert_html_to_reportlab(html_content):
         raise
 
 
-def create_workshop_pdf(job):
+def create_workshop_pdf(job: Job) -> BytesIO:
     """
     Generate the workshop PDF with materials table and attachments.
     """
@@ -441,7 +579,7 @@ def create_workshop_pdf(job):
         raise e
 
 
-def create_delivery_docket_pdf(job):
+def create_delivery_docket_pdf(job: Job) -> BytesIO:
     """
     Generate a delivery docket PDF (no materials, workshop time, or internal notes).
     Includes handover section with signature, date, and notes fields.
@@ -454,15 +592,17 @@ def create_delivery_docket_pdf(job):
         raise e
 
 
-def create_workshop_main_document(job):
+def create_workshop_main_document(job: Job) -> BytesIO:
     """Create the workshop cover document with header, details, time used, and materials tables."""
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
 
     y_position = PAGE_HEIGHT - MARGIN
-    y_position = add_logo(pdf, y_position)
+    y_position = add_workshop_letterhead(pdf, y_position)
     y_position = add_title(pdf, y_position, job)
     y_position = add_workshop_details_table(pdf, y_position, job)
+    pdf.showPage()
+    y_position = PAGE_HEIGHT - MARGIN
     y_position = add_time_used_table(pdf, y_position, job)
     y_position = add_materials_used_table(pdf, y_position, job)
 
@@ -471,7 +611,7 @@ def create_workshop_main_document(job):
     return buffer
 
 
-def create_delivery_docket_main_document(job):
+def create_delivery_docket_main_document(job: Job) -> BytesIO:
     """Create the delivery docket document with two copies: Company Copy and Customer Copy."""
     buffer = BytesIO()
     pdf = canvas.Canvas(buffer, pagesize=A4)
@@ -508,7 +648,7 @@ def create_delivery_docket_main_document(job):
     return buffer
 
 
-def add_logo(pdf, y_position):
+def add_logo(pdf: canvas.Canvas, y_position: float) -> float:
     """Draw the square logo centred at the top and return the updated y position."""
     company = CompanyDefaults.get_solo()
     if not company.logo:
@@ -517,7 +657,30 @@ def add_logo(pdf, y_position):
     logo = ImageReader(company.logo.path)
     x = MARGIN + (CONTENT_WIDTH - w) / 2
     pdf.drawImage(logo, x, y_position - h, width=w, height=h, mask="auto")
-    return y_position - h - 50
+    return y_position - h - 24
+
+
+def add_workshop_letterhead(pdf: canvas.Canvas, y_position: float) -> float:
+    """Draw a compact wide logo for the workshop job sheet."""
+    company = CompanyDefaults.get_solo()
+    if company.logo_wide:
+        with Image.open(company.logo_wide.path) as img:
+            src_w, src_h = img.size
+        width = WORKSHOP_LOGO_HEIGHT * (src_w / src_h)
+        width = min(width, CONTENT_WIDTH)
+        logo = ImageReader(company.logo_wide.path)
+        x = MARGIN + (CONTENT_WIDTH - width) / 2
+        pdf.drawImage(
+            logo,
+            x,
+            y_position - WORKSHOP_LOGO_HEIGHT,
+            width=width,
+            height=WORKSHOP_LOGO_HEIGHT,
+            mask="auto",
+        )
+        return y_position - WORKSHOP_LOGO_HEIGHT - 20
+
+    return add_logo(pdf, y_position)
 
 
 def add_letterhead_banner(pdf, y_position):
@@ -588,7 +751,12 @@ def _wrap_text_for_canvas(
     return lines
 
 
-def add_title(pdf, y_position, job, title_prefix=None):
+def add_title(
+    pdf: canvas.Canvas,
+    y_position: float,
+    job: Job,
+    title_prefix: Optional[str] = None,
+) -> float:
     """
     Render the job title with consistent palette.
 
@@ -628,7 +796,7 @@ def add_title(pdf, y_position, job, title_prefix=None):
     return current_y - 4
 
 
-def add_time_used_table(pdf, y_position, job: Job):
+def add_time_used_table(pdf: canvas.Canvas, y_position: float, job: Job) -> float:
     """
     Render the time used table showing staff members and hours worked,
     similar to the materials notes table.
@@ -641,7 +809,7 @@ def add_time_used_table(pdf, y_position, job: Job):
     time_data = [["STAFF MEMBER", "HOURS", "REMAINING"]]
 
     # Calculate running remaining hours
-    budgeted = time_breakdown["budgeted_hours"]
+    budgeted = time_breakdown["production_budgeted_hours"]
     used_so_far = 0.0
 
     # Add actual time entries
@@ -655,6 +823,14 @@ def add_time_used_table(pdf, y_position, job: Job):
                 format_hours_display(remaining),
             ]
         )
+    total_row_number = len(time_data)
+    time_data.append(
+        [
+            "Total",
+            format_hours_display(used_so_far),
+            format_hours_display(budgeted - used_so_far),
+        ]
+    )
 
     # Always add 5 blank rows for handwritten entries
     for _ in range(5):
@@ -679,6 +855,19 @@ def add_time_used_table(pdf, y_position, job: Job):
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
                 ("TOPPADDING", (0, 1), (-1, -1), 10),
                 ("BOTTOMPADDING", (0, 1), (-1, -1), 10),
+                (
+                    "FONTNAME",
+                    (0, total_row_number),
+                    (-1, total_row_number),
+                    "Helvetica-Bold",
+                ),
+                (
+                    "LINEABOVE",
+                    (0, total_row_number),
+                    (-1, total_row_number),
+                    0.75,
+                    BORDER,
+                ),
             ]
         )
     )
@@ -705,120 +894,249 @@ def add_time_used_table(pdf, y_position, job: Job):
     return y_position - 20
 
 
-def add_workshop_details_table(pdf, y_position, job: Job):
-    """Render the workshop job details with workshop time and internal notes."""
+def _plain_paragraph(text: object, style: ParagraphStyle) -> Paragraph:
+    return Paragraph(escape(str(text or "N/A")), style)
+
+
+def _remaining_hours_text(hours: float) -> str:
+    if hours < 0:
+        return f"{format_hours_display(abs(hours))} over"
+    return f"{format_hours_display(hours)} remaining"
+
+
+def _approval_age_display(job: Job) -> str:
+    approved_at = job.accepted_for_work_at
+    if not approved_at:
+        return "N/A"
+
+    approved_date = timezone.localtime(
+        approved_at, timezone.get_current_timezone()
+    ).date()
+    today = timezone.localdate()
+    days = max((today - approved_date).days, 0)
+    if days == 0:
+        return "Today"
+    if days == 1:
+        return "1 day ago"
+    return f"{days} days ago"
+
+
+def _draw_table(pdf: canvas.Canvas, table: Table, y_position: float) -> float:
+    _, height = table.wrapOn(pdf, CONTENT_WIDTH, y_position - MARGIN)
+    table.drawOn(pdf, MARGIN, y_position - height)
+    return y_position - height
+
+
+def _draw_spec_section(
+    pdf: canvas.Canvas,
+    y_position: float,
+    label: str,
+    content: str,
+) -> float:
+    """Draw a labelled workshop spec section, splitting content across pages."""
+    label_width = 150
+    value_width = CONTENT_WIDTH - label_width
+    padding = 8
+    min_row_height = 44
+    remaining: list[Flowable] = [Paragraph(content, body_style)]
+    is_continuation = False
+
+    while remaining:
+        if y_position - min_row_height <= MARGIN:
+            y_position = _advance_to_new_page(pdf)
+
+        available_height = y_position - MARGIN - (padding * 2)
+        available_value_width = value_width - (padding * 2)
+        parts = remaining[0].split(available_value_width, available_height)
+        if not parts:
+            y_position = _advance_to_new_page(pdf)
+            available_height = y_position - MARGIN - (padding * 2)
+            parts = remaining[0].split(available_value_width, available_height)
+            if not parts:
+                parts = [remaining[0]]
+
+        part = parts[0]
+        remaining = list(parts[1:]) + remaining[1:]
+
+        _, part_height = part.wrap(available_value_width, available_height)
+        label_text = f"{label} (CONT.)" if is_continuation else label
+        label_paragraph = _plain_paragraph(label_text, section_label_style)
+        _, label_height = label_paragraph.wrap(label_width - (padding * 2), part_height)
+        row_height = max(part_height, label_height) + (padding * 2)
+
+        y_bottom = y_position - row_height
+        pdf.setFillColor(ROW_ALT)
+        pdf.rect(MARGIN, y_bottom, label_width, row_height, fill=1, stroke=0)
+        pdf.setStrokeColor(BORDER)
+        pdf.rect(MARGIN, y_bottom, CONTENT_WIDTH, row_height, fill=0, stroke=1)
+        pdf.line(MARGIN + label_width, y_bottom, MARGIN + label_width, y_position)
+
+        label_paragraph.drawOn(
+            pdf,
+            MARGIN + padding,
+            y_position - padding - label_height,
+        )
+        part.drawOn(
+            pdf,
+            MARGIN + label_width + padding,
+            y_position - padding - part_height,
+        )
+
+        y_position = y_bottom
+        is_continuation = True
+
+    return y_position - 8
+
+
+def add_workshop_details_table(
+    pdf: canvas.Canvas, y_position: float, job: Job
+) -> float:
+    """Render a full-page workshop brief: identity, constraints, labour budget, and specs."""
     client_name = job.client.name if job.client else "N/A"
     contact_name = job.contact.name if job.contact else ""
-
     contact_phone = (
         (job.contact.phone if job.contact and job.contact.phone else None)
         or (job.client.phone if job.client else None)
         or ""
     )
     contact_info = (
-        f"{contact_name}<br/>{contact_phone}" if contact_phone else contact_name
+        f"{escape(contact_name)}<br/>{escape(contact_phone)}"
+        if contact_phone
+        else escape(contact_name or "N/A")
     )
 
-    # Get time summary for the one-line display
-    time_breakdown = get_time_breakdown(job)
-    remaining = time_breakdown["remaining_hours"]
-    total = time_breakdown["budgeted_hours"]
-
-    if time_breakdown["is_over_budget"]:
-        workshop_display = (
-            f"{format_hours_display(abs(remaining))} OVER BUDGET"
-            f" ({format_hours_display(total)} total)"
-        )
-    else:
-        workshop_display = (
-            f"{format_hours_display(remaining)} remaining"
-            f" ({format_hours_display(total)} total)"
-        )
-
-    pricing_suffix = (
-        " (T&M)" if job.pricing_methodology == "time_materials" else " (Quoted)"
+    contact_table = Table(
+        [
+            [
+                _plain_paragraph(client_name, header_client_style),
+                Paragraph(contact_info, header_contact_style),
+            ]
+        ],
+        colWidths=[CONTENT_WIDTH * 0.42, CONTENT_WIDTH * 0.58],
     )
-    workshop_display += pricing_suffix
+    contact_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, -1), PRIMARY),
+                ("TEXTCOLOR", (0, 0), (-1, -1), colors.white),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 8),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 8),
+                ("TOPPADDING", (0, 0), (-1, -1), 8),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 8),
+            ]
+        )
+    )
+    y_position = _draw_table(pdf, contact_table, y_position)
 
-    # Get speed/quality tradeoff display
+    due_date = (
+        job.delivery_date.strftime("%a, %d %b %Y") if job.delivery_date else "N/A"
+    )
     tradeoff_display = dict(SpeedQualityTradeoff.choices).get(
         job.speed_quality_tradeoff, job.speed_quality_tradeoff
     )
-
-    # Use Paragraph styles so header text is white over the blue background
-    job_details = [
-        [
-            Paragraph(client_name, header_client_style),
-            Paragraph(contact_info, header_contact_style),
-        ],
-        [
-            Paragraph("DESCRIPTION", label_style),
-            Paragraph(job.description or "N/A", body_style),
-        ],
-        [
-            Paragraph("WORKSHOP TIME", label_style),
-            Paragraph(workshop_display, body_style),
-        ],
-        [
-            Paragraph("SPEED/QUALITY", label_style),
-            Paragraph(tradeoff_display, body_style),
-        ],
-        [
-            Paragraph("NOTES", label_style),
-            Paragraph(
-                convert_html_to_reportlab(job.notes) if job.notes else "N/A", body_style
-            ),
-        ],
-        [
-            Paragraph("ENTRY DATE", label_style),
-            timezone.localtime(
-                job.created_at, timezone.get_current_timezone()
-            ).strftime("%a, %d %b %Y"),
-        ],
-        [
-            Paragraph("DUE DATE", label_style),
-            (
-                job.delivery_date.strftime(
-                    "%a, %d %b %Y"
-                )  # Defined by the user + date object, doesn't need TZ conversion.
-                if job.delivery_date
-                else "N/A"
-            ),
-        ],
-        [
-            Paragraph("ORDER NUMBER", label_style),
-            Paragraph(job.order_number or "N/A", body_style),
-        ],
+    pricing_display = job.get_pricing_methodology_display()
+    meta_items = [
+        ("DUE", due_date),
+        ("ORDER", job.order_number or "N/A"),
+        ("PRICING", pricing_display),
+        ("APPROVED", _approval_age_display(job)),
+        ("SPEED/QUALITY", tradeoff_display),
     ]
+    meta_table = Table(
+        [
+            [
+                _plain_paragraph(label, brief_label_style)
+                for label, _value in meta_items
+            ],
+            [
+                _plain_paragraph(value, brief_value_style)
+                for _label, value in meta_items
+            ],
+        ],
+        colWidths=[CONTENT_WIDTH / len(meta_items)] * len(meta_items),
+    )
+    meta_table.setStyle(
+        TableStyle(
+            [
+                ("BACKGROUND", (0, 0), (-1, 0), ROW_ALT),
+                ("TEXTCOLOR", (0, 0), (-1, 0), TEXT_MUTED),
+                ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
+                ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
+                ("LEFTPADDING", (0, 0), (-1, -1), 6),
+                ("RIGHTPADDING", (0, 0), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
+            ]
+        )
+    )
+    y_position = _draw_table(pdf, meta_table, y_position)
 
-    details_table = Table(job_details, colWidths=[180, CONTENT_WIDTH - 180])
-    details_table.setStyle(
+    time_breakdown = get_time_breakdown(job)
+    labour_rows = [
+        [
+            _plain_paragraph("LABOUR BUDGET", brief_label_inverse_style),
+            _plain_paragraph("BUDGET", brief_label_inverse_style),
+            _plain_paragraph("REMAINING", brief_label_inverse_style),
+        ]
+    ]
+    workshop_row_numbers = []
+    for subtype_entry in time_breakdown["subtype_breakdown"]:
+        style = (
+            brief_value_bold_style
+            if subtype_entry["is_workshop"]
+            else brief_value_style
+        )
+        if subtype_entry["is_workshop"]:
+            workshop_row_numbers.append(len(labour_rows))
+        labour_rows.append(
+            [
+                _plain_paragraph(subtype_entry["name"], style),
+                _plain_paragraph(
+                    format_hours_display(subtype_entry["estimated_hours"]),
+                    style,
+                ),
+                _plain_paragraph(
+                    _remaining_hours_text(subtype_entry["remaining_hours"]),
+                    style,
+                ),
+            ]
+        )
+
+    labour_table = Table(
+        labour_rows,
+        colWidths=[CONTENT_WIDTH * 0.45, CONTENT_WIDTH * 0.2, CONTENT_WIDTH * 0.35],
+    )
+    labour_table.setStyle(
         TableStyle(
             [
                 ("BACKGROUND", (0, 0), (-1, 0), PRIMARY),
                 ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
                 ("FONTNAME", (0, 0), (-1, 0), "Helvetica-Bold"),
-                ("TOPPADDING", (0, 0), (-1, 0), 10),
-                ("BOTTOMPADDING", (0, 0), (-1, 0), 10),
-                ("FONTNAME", (0, 1), (0, -1), "Helvetica-Bold"),
-                ("TEXTCOLOR", (0, 1), (0, -1), TEXT_MUTED),
-                ("VALIGN", (0, 0), (-1, -1), "TOP"),
-                ("ALIGN", (0, 0), (-1, -1), "LEFT"),
                 ("GRID", (0, 0), (-1, -1), 0.5, BORDER),
+                ("VALIGN", (0, 0), (-1, -1), "TOP"),
                 ("LEFTPADDING", (0, 0), (-1, -1), 6),
                 ("RIGHTPADDING", (0, 0), (-1, -1), 6),
-                ("TOPPADDING", (0, 1), (-1, -1), 6),
-                ("BOTTOMPADDING", (0, 1), (-1, -1), 6),
+                ("TOPPADDING", (0, 0), (-1, -1), 5),
+                ("BOTTOMPADDING", (0, 0), (-1, -1), 5),
             ]
         )
     )
+    y_position = _draw_table(pdf, labour_table, y_position - 8)
 
-    y_position = draw_table_with_page_breaks(pdf, details_table, y_position)
-
-    if y_position - 36 <= MARGIN:
-        return _advance_to_new_page(pdf)
-
-    return y_position - 36
+    y_position = _draw_spec_section(
+        pdf,
+        y_position - 8,
+        "DESCRIPTION",
+        escape(str(job.description or "N/A")),
+    )
+    return _draw_spec_section(
+        pdf,
+        y_position,
+        "NOTES / WORK INSTRUCTIONS",
+        convert_html_to_reportlab(job.notes) if job.notes else "N/A",
+    )
 
 
 def add_delivery_docket_details_table(
@@ -964,9 +1282,9 @@ def add_handover_section(pdf, job):
     pdf.line(MARGIN + 70, y_notes_3, PAGE_WIDTH - MARGIN, y_notes_3)
 
 
-def add_materials_used_table(pdf, y_position, job: Job):
+def add_materials_used_table(pdf: canvas.Canvas, y_position: float, job: Job) -> float:
     """Render the materials notes table with actual materials used plus blank rows."""
-    materials_data = [["DESCRIPTION", "QUANTITY"]]
+    materials_data = [["DESCRIPTION", "QUANTITY", "RETAIL PRICE"]]
 
     # Get actual materials used from latest_actual cost set
     if job.latest_actual:
@@ -979,16 +1297,17 @@ def add_materials_used_table(pdf, y_position, job: Job):
                 [
                     line.desc or "",
                     f"{line.quantity:.2f}" if line.quantity else "",
+                    format_retail_line_total(line),
                 ]
             )
 
     # Always add 5 blank rows for handwritten entries
     for _ in range(5):
-        materials_data.append(["", ""])
+        materials_data.append(["", "", ""])
 
     materials_table = Table(
         materials_data,
-        colWidths=[CONTENT_WIDTH * 0.7, CONTENT_WIDTH * 0.3],
+        colWidths=[CONTENT_WIDTH * 0.58, CONTENT_WIDTH * 0.17, CONTENT_WIDTH * 0.25],
     )
     materials_table.setStyle(
         TableStyle(
@@ -1031,12 +1350,12 @@ def add_materials_used_table(pdf, y_position, job: Job):
     return y_position - 20
 
 
-def create_image_document(image_files):
+def create_image_document(image_files: list[JobFile]) -> BytesIO:
     """Create a PDF containing the selected images, one per page."""
-    if not image_files:
-        return None
-
     image_buffer = BytesIO()
+    if not image_files:
+        return image_buffer
+
     pdf = canvas.Canvas(image_buffer, pagesize=A4)
 
     for i, job_file in enumerate(image_files):
@@ -1071,7 +1390,9 @@ def create_image_document(image_files):
     return image_buffer
 
 
-def process_attachments(main_buffer, image_files, pdf_files):
+def process_attachments(
+    main_buffer: BytesIO, image_files: list[JobFile], pdf_files: list[JobFile]
+) -> BytesIO:
     """Append images and/or external PDFs to the main document."""
     if not image_files and not pdf_files:
         return main_buffer
@@ -1086,9 +1407,9 @@ def process_attachments(main_buffer, image_files, pdf_files):
     return merge_pdfs([main_buffer, image_buffer] + get_pdf_file_paths(pdf_files))
 
 
-def get_pdf_file_paths(pdf_files):
+def get_pdf_file_paths(pdf_files: list[JobFile]) -> list[str]:
     """Resolve absolute paths for PDF attachments on disk."""
-    file_paths = []
+    file_paths: list[str] = []
     for job_file in pdf_files:
         file_path = os.path.join(settings.DROPBOX_WORKFLOW_FOLDER, job_file.file_path)
         if os.path.exists(file_path):
@@ -1096,12 +1417,12 @@ def get_pdf_file_paths(pdf_files):
     return file_paths
 
 
-def merge_pdfs(pdf_sources):
+def merge_pdfs(pdf_sources: list[Union[BytesIO, str]]) -> BytesIO:
     """
     Merge multiple PDFs (BytesIO or file paths) into a single buffer.
     """
     merger = PdfWriter()
-    buffers_to_close = []
+    buffers_to_close: list[BytesIO] = []
 
     try:
         for source in pdf_sources:

@@ -25,8 +25,8 @@ from django.conf import settings
 
 from apps.accounts.models import Staff
 from apps.client.models import Client, ClientContact
-from apps.job.models import CostLine, Job, JobFile, LabourSubtype
-from apps.workflow.models import CompanyDefaults
+from apps.job.models import CostLine, Job, JobEvent, JobFile, LabourSubtype
+from apps.workflow.models import CompanyDefaults, XeroPayItem
 
 FROZEN_NOW = datetime.datetime(2026, 4, 25, 10, 30, tzinfo=ZoneInfo("Pacific/Auckland"))
 
@@ -65,6 +65,10 @@ def build_golden_job(test_staff: Staff) -> Job:
             "tests or set it directly in the regen script)."
         )
 
+    test_staff.first_name = "Golden"
+    test_staff.last_name = "Worker"
+    test_staff.save(update_fields=["first_name", "last_name"])
+
     company = CompanyDefaults.get_solo()
     company.starting_job_number = STARTING_JOB_NUMBER
     company.save()
@@ -95,30 +99,59 @@ def build_golden_job(test_staff: Staff) -> Job:
         speed_quality_tradeoff="balanced",
         staff=test_staff,
     )
+    JobEvent.objects.create(
+        job=job,
+        staff=test_staff,
+        event_type="status_changed",
+        timestamp=FROZEN_NOW - datetime.timedelta(days=4),
+        delta_after={"status": "approved"},
+    )
 
     estimate = job.cost_sets.get(kind="estimate")
-    CostLine.objects.create(
-        cost_set=estimate,
-        kind="time",
-        labour_subtype=LabourSubtype.objects.get(name="Workshop"),
-        desc="Fabrication",
-        quantity=Decimal("2.00"),
-        unit_cost=Decimal("32.00"),
-        unit_rev=Decimal("105.00"),
-        accounting_date=FROZEN_NOW.date(),
-    )
-    CostLine.objects.create(
-        cost_set=estimate,
-        kind="time",
-        labour_subtype=LabourSubtype.objects.get(name="Workshop"),
-        desc="Welding",
-        quantity=Decimal("1.50"),
-        unit_cost=Decimal("32.00"),
-        unit_rev=Decimal("105.00"),
-        accounting_date=FROZEN_NOW.date(),
-    )
+    for subtype_name, desc, quantity in [
+        ("Workshop", "Fabrication and welding", Decimal("3.50")),
+        ("Admin", "Project administration", Decimal("0.75")),
+        ("Quoting", "Quote review", Decimal("0.50")),
+        ("Onsite", "Site measure", Decimal("1.25")),
+        ("Supervision", "Workshop supervision", Decimal("0.50")),
+    ]:
+        CostLine.objects.create(
+            cost_set=estimate,
+            kind="time",
+            labour_subtype=LabourSubtype.objects.get(name=subtype_name),
+            desc=desc,
+            quantity=quantity,
+            unit_cost=Decimal("32.00"),
+            unit_rev=Decimal("105.00"),
+            accounting_date=FROZEN_NOW.date(),
+        )
 
     actual = job.cost_sets.get(kind="actual")
+    pay_item = XeroPayItem.get_ordinary_time()
+    for subtype_name, desc, quantity in [
+        ("Workshop", "Workshop actual", Decimal("1.25")),
+        ("Admin", "Admin actual", Decimal("0.25")),
+        ("Onsite", "Onsite actual", Decimal("0.50")),
+    ]:
+        CostLine.objects.create(
+            cost_set=actual,
+            kind="time",
+            labour_subtype=LabourSubtype.objects.get(name=subtype_name),
+            desc=desc,
+            quantity=quantity,
+            unit_cost=Decimal("32.00"),
+            unit_rev=Decimal("105.00"),
+            accounting_date=FROZEN_NOW.date(),
+            staff=test_staff,
+            xero_pay_item=pay_item,
+            meta={
+                "staff_id": str(test_staff.id),
+                "date": FROZEN_NOW.date().isoformat(),
+                "is_billable": True,
+                "wage_rate_multiplier": 1.0,
+            },
+        )
+
     CostLine.objects.create(
         cost_set=actual,
         kind="material",

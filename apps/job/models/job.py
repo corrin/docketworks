@@ -215,9 +215,9 @@ class Job(models.Model):
         blank=True,
         help_text="Set automatically when job moves to recently_completed or archived",
     )
-    status: str = models.CharField(
+    status = models.CharField(
         max_length=30, choices=JOB_STATUS_CHOICES, default="draft"
-    )  # type: ignore
+    )
 
     # Flag to track jobs that were rejected
     rejected_flag: bool = models.BooleanField(
@@ -414,6 +414,30 @@ class Job(models.Model):
             return self.quote is not None
         except AttributeError:
             return False
+
+    @property
+    def accepted_for_work_at(self) -> Optional[datetime]:
+        approved_event = (
+            self.events.filter(
+                delta_after__status="approved",
+            )
+            .order_by("timestamp")
+            .first()
+        )
+        if approved_event:
+            return approved_event.timestamp
+
+        in_progress_event = (
+            self.events.filter(
+                delta_after__status="in_progress",
+            )
+            .order_by("timestamp")
+            .first()
+        )
+        if in_progress_event:
+            return in_progress_event.timestamp
+
+        return None
 
     def __str__(self) -> str:
         status_display = self.get_status_display()

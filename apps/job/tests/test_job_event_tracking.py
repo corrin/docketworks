@@ -1,7 +1,10 @@
 """Tests for automatic JobEvent tracking via Job.save()."""
 
+from datetime import timedelta
+
 from django.contrib.auth import get_user_model
 from django.test import SimpleTestCase
+from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import Staff
@@ -169,6 +172,77 @@ class JobEventTrackingTest(BaseTestCase):
 
         self.job.refresh_from_db()
         self.assertIsNone(self.job.completed_at)
+
+    def test_accepted_for_work_at_returns_first_approved_event(self):
+        first = timezone.now() - timedelta(days=3)
+        second = timezone.now() - timedelta(days=1)
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="status_changed",
+            timestamp=first,
+            delta_after={"status": "approved"},
+        )
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="status_changed",
+            timestamp=second,
+            delta_after={"status": "approved"},
+        )
+
+        self.assertEqual(self.job.accepted_for_work_at, first)
+
+    def test_accepted_for_work_at_uses_in_progress_if_approved_was_skipped(self):
+        accepted = timezone.now() - timedelta(days=2)
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="status_changed",
+            timestamp=accepted,
+            delta_after={"status": "in_progress"},
+        )
+
+        self.assertEqual(self.job.accepted_for_work_at, accepted)
+
+    def test_accepted_for_work_at_prefers_approved_over_later_in_progress(self):
+        approved = timezone.now() - timedelta(days=4)
+        in_progress = timezone.now() - timedelta(days=1)
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="status_changed",
+            timestamp=approved,
+            delta_after={"status": "approved"},
+        )
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="status_changed",
+            timestamp=in_progress,
+            delta_after={"status": "in_progress"},
+        )
+
+        self.assertEqual(self.job.accepted_for_work_at, approved)
+
+    def test_accepted_for_work_at_ignores_quote_acceptance_date_without_status_event(
+        self,
+    ):
+        self.job.quote_acceptance_date = timezone.now() - timedelta(days=5)
+
+        self.assertIsNone(self.job.accepted_for_work_at)
+
+    def test_accepted_for_work_at_uses_approved_status_from_quote_accepted_event(self):
+        accepted = timezone.now() - timedelta(days=3)
+        JobEvent.objects.create(
+            job=self.job,
+            staff=self.user,
+            event_type="quote_accepted",
+            timestamp=accepted,
+            delta_after={"status": "approved"},
+        )
+
+        self.assertEqual(self.job.accepted_for_work_at, accepted)
 
     def test_status_change_with_update_fields_persists_completed_at(self):
         self.assertIsNone(self.job.completed_at)
@@ -577,26 +651,26 @@ class PriorityPositionCaptureTest(BaseTestCase):
 class QuerySetGuardTest(BaseTestCase):
     """Verify that .update() on tracked fields is blocked."""
 
-    def test_update_on_tracked_field_raises(self):
+    def test_update_on_tracked_field_raises(self) -> None:
         with self.assertRaises(RuntimeError) as ctx:
             Job.objects.filter(pk="00000000-0000-0000-0000-000000000000").update(
                 status="draft"
             )
         self.assertIn("tracked fields", str(ctx.exception))
 
-    def test_update_on_untracked_field_allowed(self):
+    def test_update_on_untracked_field_allowed(self) -> None:
         result = Job.objects.filter(pk="00000000-0000-0000-0000-000000000000").update(
             fully_invoiced=True
         )
         self.assertEqual(result, 0)
 
-    def test_untracked_update_bypasses_guard(self):
+    def test_untracked_update_bypasses_guard(self) -> None:
         result = Job.objects.filter(
             pk="00000000-0000-0000-0000-000000000000"
         ).untracked_update(status="draft")
         self.assertEqual(result, 0)
 
-    def test_mixed_tracked_and_untracked_raises(self):
+    def test_mixed_tracked_and_untracked_raises(self) -> None:
         with self.assertRaises(RuntimeError):
             Job.objects.filter(pk="00000000-0000-0000-0000-000000000000").update(
                 status="draft", fully_invoiced=True
@@ -606,7 +680,7 @@ class QuerySetGuardTest(BaseTestCase):
 class StaffRequiredTest(BaseTestCase):
     """Verify that Job.save() refuses to run without staff."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.user = Staff.objects.create_user(
             email="required@example.com",
             password="testpass123",
@@ -627,13 +701,13 @@ class StaffRequiredTest(BaseTestCase):
         )
         self.job.save(staff=self.user)
 
-    def test_save_without_staff_raises(self):
+    def test_save_without_staff_raises(self) -> None:
         self.job.status = "in_progress"
         with self.assertRaises(ValueError) as ctx:
             self.job.save()
         self.assertIn("requires staff", str(ctx.exception))
 
-    def test_save_without_staff_does_not_persist_change(self):
+    def test_save_without_staff_does_not_persist_change(self) -> None:
         self.job.status = "in_progress"
         with self.assertRaises(ValueError):
             self.job.save()

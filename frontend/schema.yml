@@ -11057,7 +11057,7 @@ components:
           type: string
           format: uuid
           nullable: true
-          description: The labour subtype for time lines (Workshop, Office/Admin,
+          description: The labour subtype for time lines (Workshop, Admin, Onsite,
             ...)
         total_cost:
           type: number
@@ -11148,7 +11148,7 @@ components:
           type: string
           format: uuid
           nullable: true
-          description: The labour subtype for time lines (Workshop, Office/Admin,
+          description: The labour subtype for time lines (Workshop, Admin, Onsite,
             ...)
       required:
         - accounting_date
@@ -14773,8 +14773,8 @@ components:
         is_workshop:
           type: boolean
           readOnly: true
-          description: Whether this subtype counts as workshop work for scheduling
-            and the workshop PDF
+          description: Whether this subtype is the default workshop subtype for staff
+            and rate selection
         default_charge_out_rate:
           type: number
           format: double
@@ -15903,7 +15903,7 @@ components:
           type: string
           format: uuid
           nullable: true
-          description: The labour subtype for time lines (Workshop, Office/Admin,
+          description: The labour subtype for time lines (Workshop, Admin, Onsite,
             ...)
     PatchedFormEntryRequest:
       type: object
@@ -20905,7 +20905,7 @@ components:
           format: uuid
           readOnly: true
           nullable: true
-          description: The labour subtype for time lines (Workshop, Office/Admin,
+          description: The labour subtype for time lines (Workshop, Admin, Onsite,
             ...)
         total_cost:
           type: number
