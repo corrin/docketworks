@@ -37,28 +37,30 @@ class UnschedulableJob:
     reason: str
 
 
-def _hours_from_summary(summary) -> float:
-    """Return the hours value from a CostSet summary dict."""
-    if not summary:
-        return 0.0
-    return float(summary.get("hours", 0.0))
-
-
-def _get_actual_hours(job: Job) -> float:
-    """Sum quantity of all time CostLines in the latest actual CostSet."""
-    annotated_hours = getattr(job, "actual_time_hours", None)
-    if annotated_hours is not None:
-        return float(annotated_hours)
-
-    if not job.latest_actual_id:
+def _workshop_hours_for_cost_set(cost_set_id) -> float:
+    """Sum production-capacity time for a CostSet."""
+    if not cost_set_id:
         return 0.0
 
     total = (
-        CostLine.objects.filter(cost_set_id=job.latest_actual_id, kind="time")
+        CostLine.objects.filter(
+            cost_set_id=cost_set_id,
+            kind="time",
+            labour_subtype__counts_for_scheduling=True,
+        )
         .aggregate(total=models.Sum("quantity"))
         .get("total")
     )
     return float(total or 0.0)
+
+
+def _get_actual_hours(job: Job) -> float:
+    """Sum quantity of workshop time CostLines in the latest actual CostSet."""
+    annotated_hours = getattr(job, "actual_workshop_time_hours", None)
+    if annotated_hours is not None:
+        return float(annotated_hours)
+
+    return _workshop_hours_for_cost_set(job.latest_actual_id)
 
 
 def _compute_remaining_hours(
@@ -72,22 +74,22 @@ def _compute_remaining_hours(
     """
     actual_hours = _get_actual_hours(job)
 
-    estimate_hours = 0.0
-    if hasattr(job, "latest_estimate_summary"):
-        estimate_hours = _hours_from_summary(job.latest_estimate_summary)
-    elif job.latest_estimate_id:
-        estimate_hours = _hours_from_summary(job.latest_estimate.summary)
+    annotated_estimate = getattr(job, "latest_estimate_workshop_hours", None)
+    if annotated_estimate is not None:
+        estimate_hours = float(annotated_estimate)
+    else:
+        estimate_hours = _workshop_hours_for_cost_set(job.latest_estimate_id)
 
     estimate_remaining = estimate_hours - actual_hours
     if estimate_remaining > 0:
         return estimate_remaining, None
 
     # Estimate exhausted or missing — fall back to quote
-    quote_hours = 0.0
-    if hasattr(job, "latest_quote_summary"):
-        quote_hours = _hours_from_summary(job.latest_quote_summary)
-    elif job.latest_quote_id:
-        quote_hours = _hours_from_summary(job.latest_quote.summary)
+    annotated_quote = getattr(job, "latest_quote_workshop_hours", None)
+    if annotated_quote is not None:
+        quote_hours = float(annotated_quote)
+    else:
+        quote_hours = _workshop_hours_for_cost_set(job.latest_quote_id)
 
     quote_remaining = quote_hours - actual_hours
     if quote_remaining > 0:
@@ -366,14 +368,32 @@ def run_workshop_schedule() -> SchedulerRun:
     from apps.workflow.models.company_defaults import CompanyDefaults
 
     today = timezone.localdate()
+    estimate_time_filter = models.Q(
+        latest_estimate__cost_lines__kind="time",
+        latest_estimate__cost_lines__labour_subtype__counts_for_scheduling=True,
+    )
+    quote_time_filter = models.Q(
+        latest_quote__cost_lines__kind="time",
+        latest_quote__cost_lines__labour_subtype__counts_for_scheduling=True,
+    )
+    actual_time_filter = models.Q(
+        latest_actual__cost_lines__kind="time",
+        latest_actual__cost_lines__labour_subtype__counts_for_scheduling=True,
+    )
 
     jobs = list(
         Job.objects.filter(status__in=["approved", "in_progress"]).annotate(
-            latest_estimate_summary=models.F("latest_estimate__summary"),
-            latest_quote_summary=models.F("latest_quote__summary"),
-            actual_time_hours=models.Sum(
+            latest_estimate_workshop_hours=models.Sum(
+                "latest_estimate__cost_lines__quantity",
+                filter=estimate_time_filter,
+            ),
+            latest_quote_workshop_hours=models.Sum(
+                "latest_quote__cost_lines__quantity",
+                filter=quote_time_filter,
+            ),
+            actual_workshop_time_hours=models.Sum(
                 "latest_actual__cost_lines__quantity",
-                filter=models.Q(latest_actual__cost_lines__kind="time"),
+                filter=actual_time_filter,
             ),
         )
     )

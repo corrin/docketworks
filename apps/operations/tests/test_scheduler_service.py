@@ -7,7 +7,7 @@ from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
-from apps.job.models import Job, LabourSubtype
+from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.operations.models import AllocationBlock, JobProjection
 from apps.operations.models.job_projection import UnscheduledReason
@@ -15,7 +15,9 @@ from apps.operations.services.scheduler_service import run_workshop_schedule
 from apps.testing import BaseTestCase
 
 
-def _make_staff(email_suffix, is_workshop=True, hours=8.0):
+def _make_staff(
+    email_suffix: str, is_workshop: bool = True, hours: float = 8.0
+) -> Staff:
     """Create a workshop staff member with predictable working hours."""
     return Staff.objects.create_user(
         email=f"staff-{email_suffix}@test.example",
@@ -33,7 +35,7 @@ def _make_staff(email_suffix, is_workshop=True, hours=8.0):
     )
 
 
-def _make_client():
+def _make_client() -> Client:
     return Client.objects.create(
         name="Test Client",
         xero_last_modified=timezone.now(),
@@ -41,8 +43,13 @@ def _make_client():
 
 
 def _make_job(
-    client, staff, name="Test Job", status="approved", min_people=1, max_people=1
-):
+    client: Client,
+    staff: Staff,
+    name: str = "Test Job",
+    status: str = "approved",
+    min_people: int = 1,
+    max_people: int = 1,
+) -> Job:
     job = Job(
         client=client,
         name=name,
@@ -54,12 +61,27 @@ def _make_job(
     return job
 
 
-def _set_summary_hours(cost_set, hours):
-    """Directly set the hours field on a CostSet summary."""
+def _set_summary_hours(cost_set: CostSet, hours: float) -> None:
+    """Set legacy summary hours and matching workshop CostLines for scheduler input."""
     summary = cost_set.summary or {}
     summary["hours"] = float(hours)
     cost_set.summary = summary
     cost_set.save()
+
+    cost_set.cost_lines.filter(kind="time").delete()
+    if Decimal(str(hours)) <= 0:
+        return
+
+    CostLine.objects.create(
+        cost_set=cost_set,
+        kind="time",
+        labour_subtype=LabourSubtype.objects.get(name="Workshop"),
+        desc="Workshop time",
+        quantity=Decimal(str(hours)),
+        unit_cost=Decimal("40.00"),
+        unit_rev=Decimal("105.00"),
+        accounting_date=date.today(),
+    )
 
 
 class TestHoursComputation(BaseTestCase):
@@ -93,6 +115,51 @@ class TestHoursComputation(BaseTestCase):
         proj = JobProjection.objects.get(scheduler_run=run, job=job)
         self.assertFalse(proj.is_unscheduled)
         self.assertAlmostEqual(proj.remaining_hours, 8.0, delta=0.1)
+
+    def test_non_workshop_estimate_hours_are_ignored(self):
+        """Office-like estimate lines do not create schedulable work."""
+        job = _make_job(self.client_obj, self.test_staff)
+        admin = LabourSubtype.objects.get(name="Admin")
+        CostLine.objects.create(
+            cost_set=job.latest_estimate,
+            kind="time",
+            labour_subtype=admin,
+            desc="Admin time",
+            quantity=Decimal("6.000"),
+            unit_cost=Decimal("40.00"),
+            unit_rev=Decimal("105.00"),
+            accounting_date=date.today(),
+        )
+
+        run = run_workshop_schedule()
+
+        proj = JobProjection.objects.get(scheduler_run=run, job=job)
+        self.assertTrue(proj.is_unscheduled)
+        self.assertEqual(
+            proj.unscheduled_reason,
+            UnscheduledReason.MISSING_ESTIMATE_OR_QUOTE_HOURS,
+        )
+
+    def test_onsite_estimate_hours_are_scheduled(self):
+        """Onsite work consumes the same schedulable staff capacity as workshop work."""
+        job = _make_job(self.client_obj, self.test_staff)
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        CostLine.objects.create(
+            cost_set=job.latest_estimate,
+            kind="time",
+            labour_subtype=onsite,
+            desc="Onsite time",
+            quantity=Decimal("6.000"),
+            unit_cost=Decimal("40.00"),
+            unit_rev=Decimal("165.00"),
+            accounting_date=date.today(),
+        )
+
+        run = run_workshop_schedule()
+
+        proj = JobProjection.objects.get(scheduler_run=run, job=job)
+        self.assertFalse(proj.is_unscheduled)
+        self.assertAlmostEqual(proj.remaining_hours, 6.0, delta=0.1)
 
     def test_remaining_hours_is_at_run_time_not_post_simulation(self):
         """Multi-day jobs persist the at-run-time remaining hours, not the
@@ -133,6 +200,7 @@ class TestHoursComputation(BaseTestCase):
         # Add actual time lines totalling 5 hours so nothing remains
         pay_item = XeroPayItem.objects.get(name="Ordinary Time")
         staff = Staff.objects.filter(is_workshop_staff=True).first()
+        assert staff is not None
         today = date.today()
 
         CostLine.objects.create(
@@ -157,6 +225,42 @@ class TestHoursComputation(BaseTestCase):
 
         proj = JobProjection.objects.get(scheduler_run=run, job=job)
         self.assertTrue(proj.is_unscheduled)
+
+    def test_non_workshop_actual_time_does_not_reduce_remaining_hours(self):
+        """Admin actual time does not consume workshop scheduled hours."""
+        from apps.workflow.models import XeroPayItem
+
+        job = _make_job(self.client_obj, self.test_staff)
+        _set_summary_hours(job.latest_estimate, 5.0)
+
+        pay_item = XeroPayItem.objects.get(name="Ordinary Time")
+        staff = Staff.objects.filter(is_workshop_staff=True).first()
+        assert staff is not None
+        today = date.today()
+
+        CostLine.objects.create(
+            cost_set=job.latest_actual,
+            kind="time",
+            labour_subtype=LabourSubtype.objects.get(name="Admin"),
+            desc="Admin time",
+            quantity=Decimal("5.000"),
+            unit_cost=Decimal("20.00"),
+            unit_rev=Decimal("40.00"),
+            accounting_date=today,
+            xero_pay_item=pay_item,
+            meta={
+                "staff_id": str(staff.id),
+                "date": today.isoformat(),
+                "is_billable": True,
+                "wage_rate_multiplier": 1.0,
+            },
+        )
+
+        run = run_workshop_schedule()
+
+        proj = JobProjection.objects.get(scheduler_run=run, job=job)
+        self.assertFalse(proj.is_unscheduled)
+        self.assertAlmostEqual(proj.remaining_hours, 5.0, delta=0.1)
 
 
 class TestStaffFiltering(BaseTestCase):
@@ -787,7 +891,7 @@ class TestPriorityAndCapacity(BaseTestCase):
             high_proj.anticipated_start_date, low_proj.anticipated_start_date
         )
 
-    def test_capacity_consumed_affects_later_jobs(self):
+    def test_capacity_consumed_affects_later_jobs(self) -> None:
         """High-priority job consuming capacity delays lower-priority job actual work."""
         _make_staff("w1")  # single worker, 8h/day
 
@@ -833,11 +937,11 @@ class TestPriorityAndCapacity(BaseTestCase):
 class TestJobModelUnchanged(BaseTestCase):
     """Tests that the scheduler does not mutate the Job model."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = _make_client()
         _make_staff("w1")
 
-    def test_output_not_written_to_job(self):
+    def test_output_not_written_to_job(self) -> None:
         """After a run, Job model has no anticipated_start_date field."""
         job = _make_job(self.client_obj, self.test_staff)
         _set_summary_hours(job.latest_estimate, 8.0)

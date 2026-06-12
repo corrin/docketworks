@@ -6,12 +6,12 @@ from django.db import models
 
 class LabourSubtype(models.Model):
     """
-    A configurable category of labour (Workshop, Office/Admin, Quoting,
-    Delivery, Installation, ...). Every time CostLine belongs to exactly one
+    A configurable category of labour (Workshop, Admin, Quoting, Onsite,
+    Supervision, ...). Every time CostLine belongs to exactly one
     subtype. Subtypes carry the company-level default charge-out rate used to
-    seed per-job rates (JobLabourRate) and the is_workshop flag that decides
-    whether the subtype counts as workshop work for scheduling and the
-    workshop PDF.
+    seed per-job rates (JobLabourRate). The is_workshop flag identifies the
+    default workshop subtype; counts_for_scheduling identifies labour that
+    consumes the workshop staff pool.
     """
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
@@ -29,8 +29,15 @@ class LabourSubtype(models.Model):
     is_workshop = models.BooleanField(
         default=False,
         help_text=(
-            "Whether this subtype counts as workshop work for scheduling and "
-            "the workshop PDF"
+            "Whether this subtype is the default workshop subtype for staff "
+            "and rate selection"
+        ),
+    )
+    counts_for_scheduling = models.BooleanField(
+        default=False,
+        help_text=(
+            "Whether this labour consumes the production staff pool for "
+            "scheduling and workshop PDF remaining-hours calculations"
         ),
     )
     default_charge_out_rate = models.DecimalField(
@@ -59,7 +66,13 @@ class LabourSubtype(models.Model):
 
     @classmethod
     def default_non_workshop(cls) -> "LabourSubtype":
-        """The first active non-workshop subtype by display order (Office/Admin as seeded)."""
+        """The default active non-workshop subtype for office/admin time."""
+        subtype = cls.objects.filter(
+            name="Admin", is_active=True, is_workshop=False
+        ).first()
+        if subtype is not None:
+            return subtype
+
         subtype = (
             cls.objects.filter(is_active=True, is_workshop=False)
             .order_by("display_order")

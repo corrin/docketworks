@@ -6,18 +6,22 @@ conversion handles actual Quill editor output correctly.
 """
 
 from decimal import Decimal
+from typing import Any
 
 from django.test import SimpleTestCase
 from django.utils import timezone
 from pypdf import PdfReader
 
 from apps.client.models import Client
-from apps.job.models import Job, LabourSubtype
+from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.services.workshop_pdf_service import (
     convert_html_to_reportlab,
     create_delivery_docket_pdf,
+    create_workshop_pdf,
     format_hours_display,
+    get_time_breakdown,
+    get_workshop_hours,
 )
 from apps.testing import BaseTestCase
 
@@ -313,10 +317,219 @@ class ConvertHtmlToReportlabTests(SimpleTestCase):
         self.assertIn("TextMore text", result)
 
 
+class WorkshopHourBreakdownTests(BaseTestCase):
+    """Tests for subtype-based workshop PDF hour calculations."""
+
+    def setUp(self) -> None:
+        self.client_obj = Client.objects.create(
+            name="PDF Time Client",
+            xero_last_modified=timezone.now(),
+        )
+        self.job = Job.objects.create(
+            client=self.client_obj,
+            name="PDF Time Job",
+            staff=self.test_staff,
+        )
+
+    def _add_time(
+        self,
+        cost_set: CostSet,
+        subtype_name: str,
+        hours: str,
+        desc: str,
+    ) -> CostLine:
+        kwargs: dict[str, Any] = {}
+        today = timezone.localdate()
+        if cost_set.kind == "actual":
+            from apps.workflow.models import XeroPayItem
+
+            kwargs = {
+                "staff": self.test_staff,
+                "xero_pay_item": XeroPayItem.objects.get(name="Ordinary Time"),
+                "meta": {
+                    "staff_id": str(self.test_staff.id),
+                    "date": today.isoformat(),
+                    "is_billable": True,
+                    "wage_rate_multiplier": 1.0,
+                },
+            }
+
+        return CostLine.objects.create(
+            cost_set=cost_set,
+            kind="time",
+            labour_subtype=LabourSubtype.objects.get(name=subtype_name),
+            desc=desc,
+            quantity=Decimal(str(hours)),
+            unit_cost=Decimal("40.00"),
+            unit_rev=Decimal("105.00"),
+            accounting_date=today,
+            **kwargs,
+        )
+
+    def _page_texts(self) -> list[str]:
+        pdf_buffer = create_workshop_pdf(self.job)
+        reader = PdfReader(pdf_buffer)
+        return [page.extract_text() or "" for page in reader.pages]
+
+    def test_budget_breakdown_skips_office_labour_and_buckets_production(
+        self,
+    ) -> None:
+        estimate = self.job.latest_estimate
+        self._add_time(estimate, "Workshop", "4.000", "Workshop")
+        self._add_time(estimate, "Onsite", "5.000", "Onsite")
+        self._add_time(estimate, "Supervision", "2.000", "Supervision")
+        self._add_time(estimate, "Admin", "3.000", "Admin")
+        self._add_time(estimate, "Quoting", "1.000", "Quoting")
+
+        self.assertEqual(get_workshop_hours(self.job), 11.0)
+
+        breakdown = get_time_breakdown(self.job)
+        self.assertEqual(breakdown["budgeted_hours"], 11.0)
+        subtype_hours = {
+            row["name"]: row["estimated_hours"]
+            for row in breakdown["subtype_breakdown"]
+        }
+        self.assertEqual(
+            subtype_hours,
+            {
+                "WORKSHOP TIME": 4.0,
+                "Onsite Time": 5.0,
+                "Supervision Time": 2.0,
+            },
+        )
+        workshop_rows = [
+            row for row in breakdown["subtype_breakdown"] if row["is_workshop"]
+        ]
+        self.assertEqual([row["name"] for row in workshop_rows], ["WORKSHOP TIME"])
+
+    def test_actual_hours_skip_office_like_subtypes_for_pdf(self) -> None:
+        estimate = self.job.latest_estimate
+        self._add_time(estimate, "Workshop", "8.000", "Workshop")
+        self._add_time(estimate, "Admin", "2.000", "Admin")
+
+        actual = self.job.latest_actual
+        self._add_time(actual, "Workshop", "3.000", "Workshop actual")
+        self._add_time(actual, "Admin", "2.000", "Admin actual")
+
+        breakdown = get_time_breakdown(self.job)
+
+        self.assertEqual(breakdown["used_hours"], 3.0)
+        self.assertEqual(breakdown["remaining_hours"], 5.0)
+        self.assertEqual(breakdown["production_budgeted_hours"], 8.0)
+        self.assertEqual(breakdown["production_used_hours"], 3.0)
+        self.assertEqual(breakdown["production_remaining_hours"], 5.0)
+        self.assertEqual(
+            breakdown["staff_breakdown"],
+            [{"name": "Test Staff", "hours": 3.0}],
+        )
+
+    def test_materials_used_shows_retail_line_total_when_known(self) -> None:
+        estimate = self.job.latest_estimate
+        assert estimate is not None
+        self._add_time(estimate, "Workshop", "2.000", "Workshop")
+
+        actual = self.job.latest_actual
+        assert actual is not None
+        CostLine.objects.create(
+            cost_set=actual,
+            kind="material",
+            desc="Known retail material",
+            quantity=Decimal("2.500"),
+            unit_cost=Decimal("5.00"),
+            unit_rev=Decimal("12.00"),
+            accounting_date=timezone.localdate(),
+        )
+        CostLine.objects.create(
+            cost_set=actual,
+            kind="material",
+            desc="Unknown retail material",
+            quantity=Decimal("2.000"),
+            unit_cost=Decimal("99.00"),
+            unit_rev=Decimal("0.00"),
+            accounting_date=timezone.localdate(),
+        )
+
+        pdf_buffer = create_workshop_pdf(self.job)
+        reader = PdfReader(pdf_buffer)
+        text = "\n".join(page.extract_text() or "" for page in reader.pages)
+
+        self.assertIn("RETAIL PRICE", text)
+        self.assertIn("Known retail material", text)
+        self.assertIn("$30.00", text)
+        self.assertIn("Unknown retail material", text)
+        self.assertNotIn("$0.00", text)
+        self.assertNotIn("$198.00", text)
+
+    def test_time_used_starts_on_page_two_when_specs_fit_page_one(self) -> None:
+        estimate = self.job.latest_estimate
+        assert estimate is not None
+        self._add_time(estimate, "Workshop", "2.000", "Workshop")
+        self.job.description = "Short description marker"
+        self.job.notes = "<p>Short notes marker</p>"
+        self.job.save(staff=self.test_staff, update_fields=["description", "notes"])
+
+        page_texts = self._page_texts()
+
+        self.assertIn("Short description marker", page_texts[0])
+        self.assertIn("Short notes marker", page_texts[0])
+        self.assertNotIn("Time Used", page_texts[0])
+        self.assertIn("Time Used", page_texts[1])
+
+    def test_long_description_finishes_before_notes_and_time_used(self) -> None:
+        estimate = self.job.latest_estimate
+        assert estimate is not None
+        self._add_time(estimate, "Workshop", "2.000", "Workshop")
+        self.job.description = "Long description marker " + (
+            "fabrication detail " * 900
+        )
+        self.job.notes = "<p>Short notes after long description marker</p>"
+        self.job.save(staff=self.test_staff, update_fields=["description", "notes"])
+
+        page_texts = self._page_texts()
+        combined_text = "\n".join(page_texts)
+
+        self.assertLess(
+            combined_text.index("Long description marker"),
+            combined_text.index("Short notes after long description marker"),
+        )
+        self.assertLess(
+            combined_text.index("Short notes after long description marker"),
+            combined_text.index("Time Used"),
+        )
+        self.assertGreater(
+            next(i for i, text in enumerate(page_texts) if "Time Used" in text),
+            1,
+        )
+
+    def test_long_notes_finish_before_time_used(self) -> None:
+        estimate = self.job.latest_estimate
+        assert estimate is not None
+        self._add_time(estimate, "Workshop", "2.000", "Workshop")
+        self.job.description = "Short description before long notes marker"
+        self.job.notes = "<p>Long notes marker " + ("instruction step " * 900) + "</p>"
+        self.job.save(staff=self.test_staff, update_fields=["description", "notes"])
+
+        page_texts = self._page_texts()
+        combined_text = "\n".join(page_texts)
+
+        self.assertLess(
+            combined_text.index("Short description before long notes marker"),
+            combined_text.index("Long notes marker"),
+        )
+        self.assertLess(
+            combined_text.index("Long notes marker"),
+            combined_text.index("Time Used"),
+        )
+        self.assertGreater(
+            next(i for i, text in enumerate(page_texts) if "Time Used" in text),
+            1,
+        )
+
+
 class DeliveryDocketPDFTests(BaseTestCase):
     """Tests for delivery docket PDF generation."""
 
-    def setUp(self):
+    def setUp(self) -> None:
         self.client_obj = Client.objects.create(
             name="Test Client",
             xero_last_modified=timezone.now(),
@@ -342,7 +555,7 @@ class DeliveryDocketPDFTests(BaseTestCase):
                 accounting_date=timezone.localdate(),
             )
 
-    def test_delivery_docket_is_exactly_two_pages(self):
+    def test_delivery_docket_is_exactly_two_pages(self) -> None:
         """Delivery docket should be exactly 2 pages: company copy + customer copy."""
         pdf_buffer = create_delivery_docket_pdf(self.job)
         reader = PdfReader(pdf_buffer)

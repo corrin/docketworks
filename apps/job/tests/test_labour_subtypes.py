@@ -11,11 +11,20 @@ from apps.testing import BaseTestCase
 
 
 class LabourSubtypeSeedTests(BaseTestCase):
-    def test_migration_seeds_initial_subtypes(self) -> None:
+    def test_migrations_seed_current_subtypes(self) -> None:
         names = set(LabourSubtype.objects.values_list("name", flat=True))
         self.assertEqual(
             names,
-            {"Workshop", "Office/Admin", "Quoting", "Delivery", "Installation"},
+            {"Workshop", "Admin", "Quoting", "Delivery", "Onsite", "Supervision"},
+        )
+
+    def test_current_active_subtypes_exclude_delivery(self) -> None:
+        active_names = set(
+            LabourSubtype.objects.filter(is_active=True).values_list("name", flat=True)
+        )
+        self.assertEqual(
+            active_names,
+            {"Workshop", "Admin", "Quoting", "Onsite", "Supervision"},
         )
 
     def test_workshop_is_the_only_workshop_subtype(self) -> None:
@@ -26,9 +35,17 @@ class LabourSubtypeSeedTests(BaseTestCase):
         )
         self.assertEqual(workshop_names, {"Workshop"})
 
-    def test_installation_defaults_to_onsite_charge_out_rate(self) -> None:
-        installation = LabourSubtype.objects.get(name="Installation")
-        self.assertEqual(installation.default_charge_out_rate, Decimal("165.00"))
+    def test_scheduler_subtypes_are_non_office_production_work(self) -> None:
+        scheduled_names = set(
+            LabourSubtype.objects.filter(counts_for_scheduling=True).values_list(
+                "name", flat=True
+            )
+        )
+        self.assertEqual(scheduled_names, {"Workshop", "Onsite", "Supervision"})
+
+    def test_onsite_defaults_to_onsite_charge_out_rate(self) -> None:
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        self.assertEqual(onsite.default_charge_out_rate, Decimal("165.00"))
 
 
 class JobLabourRateSeedingTests(BaseTestCase):
@@ -52,10 +69,10 @@ class JobLabourRateSeedingTests(BaseTestCase):
         }
         self.assertEqual(
             set(rates),
-            {"Workshop", "Office/Admin", "Quoting", "Delivery", "Installation"},
+            {"Workshop", "Admin", "Quoting", "Onsite", "Supervision"},
         )
         self.assertEqual(rates["Workshop"], Decimal("105.00"))
-        self.assertEqual(rates["Installation"], Decimal("165.00"))
+        self.assertEqual(rates["Onsite"], Decimal("165.00"))
 
     def test_inactive_subtype_is_not_seeded(self) -> None:
         LabourSubtype.objects.filter(name="Quoting").update(is_active=False)
@@ -96,6 +113,7 @@ class CostLineSubtypeBackfillRuleTests(BaseTestCase):
 
         estimate = self.job.cost_sets.get(kind="estimate")
         workshop_subtype = LabourSubtype.objects.get(name="Workshop")
+        LabourSubtype.objects.filter(name="Admin").update(name="Office/Admin")
         office_line = CostLine.objects.create(
             cost_set=estimate,
             kind="time",
@@ -151,7 +169,7 @@ class StaffDefaultLabourSubtypeTests(BaseTestCase):
             is_office_staff=True,
         )
         assert staff.default_labour_subtype is not None
-        self.assertEqual(staff.default_labour_subtype.name, "Office/Admin")
+        self.assertEqual(staff.default_labour_subtype.name, "Admin")
 
 
 class TimesheetLabourSubtypeTests(BaseTestCase):
@@ -192,8 +210,8 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
     def test_create_entry_with_explicit_subtype_uses_that_jobs_subtype_rate(
         self,
     ) -> None:
-        installation = LabourSubtype.objects.get(name="Installation")
-        self.job.labour_rates.filter(labour_subtype=installation).update(
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        self.job.labour_rates.filter(labour_subtype=onsite).update(
             charge_out_rate=Decimal("170.00")
         )
         line = self.service.create_entry(
@@ -202,10 +220,10 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
                 "description": "",
                 "hours": Decimal("1.000"),
                 "accounting_date": date.today(),
-                "labour_subtype_id": str(installation.id),
+                "labour_subtype_id": str(onsite.id),
             }
         )
-        self.assertEqual(line.labour_subtype, installation)
+        self.assertEqual(line.labour_subtype, onsite)
         self.assertEqual(line.unit_rev, Decimal("170.00"))
 
     def test_serializer_patch_of_subtype_alone_recalculates_rate(self) -> None:
@@ -222,16 +240,16 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
                 "accounting_date": date.today(),
             }
         )
-        installation = LabourSubtype.objects.get(name="Installation")
+        onsite = LabourSubtype.objects.get(name="Onsite")
         serializer = CostLineCreateUpdateSerializer(
             line,
-            data={"labour_subtype": str(installation.id)},
+            data={"labour_subtype": str(onsite.id)},
             partial=True,
             context={"staff": self.staff},
         )
         self.assertTrue(serializer.is_valid(), serializer.errors)
         updated = serializer.save()
-        self.assertEqual(updated.labour_subtype, installation)
+        self.assertEqual(updated.labour_subtype, onsite)
         self.assertEqual(updated.unit_rev, Decimal("165.00"))
 
     def test_update_entry_subtype_recalculates_rate(self) -> None:
@@ -243,12 +261,12 @@ class TimesheetLabourSubtypeTests(BaseTestCase):
                 "accounting_date": date.today(),
             }
         )
-        installation = LabourSubtype.objects.get(name="Installation")
+        onsite = LabourSubtype.objects.get(name="Onsite")
         updated = self.service.update_entry(
             {
                 "entry_id": str(line.id),
-                "labour_subtype_id": str(installation.id),
+                "labour_subtype_id": str(onsite.id),
             }
         )
-        self.assertEqual(updated.labour_subtype, installation)
+        self.assertEqual(updated.labour_subtype, onsite)
         self.assertEqual(updated.unit_rev, Decimal("165.00"))

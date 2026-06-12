@@ -255,7 +255,7 @@ class CostLine(models.Model):
         null=True,
         blank=True,
         related_name="cost_lines",
-        help_text="The labour subtype for time lines (Workshop, Office/Admin, ...)",
+        help_text="The labour subtype for time lines (Workshop, Admin, Onsite, ...)",
     )
 
     class Meta:
