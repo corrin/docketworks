@@ -146,6 +146,10 @@ describe('ItemSelect server-side search and rendering', () => {
     expect(labourOptions[0].text()).toContain('Workshop')
     expect(labourOptions[0].classes()).toContain('bg-blue-50')
     expect(labourOptions[0].find('.font-medium').classes()).toContain('text-blue-900')
+    // Every labour option carries an explicit LABOUR tag (bottom-left slot)
+    for (const option of labourOptions) {
+      expect(option.find('[data-automation-id="ItemSelect-labour-tag"]').text()).toBe('LABOUR')
+    }
     // No stock rendered without an active (>=3 char) query
     expect(wrapper.find('[data-automation-id="ItemSelect-option-CODE"]').exists()).toBe(false)
   })

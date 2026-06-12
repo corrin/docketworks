@@ -346,7 +346,10 @@ onMounted(() => {
                 {{ variantSignature(i) }}
               </span>
             </div>
-            <div v-if="i.item_code" class="mt-1 text-xs text-muted-foreground truncate">
+            <div v-if="isLabourItem(i)" class="mt-1 text-xs font-medium text-blue-700">
+              <span data-automation-id="ItemSelect-labour-tag">LABOUR</span>
+            </div>
+            <div v-else-if="i.item_code" class="mt-1 text-xs text-muted-foreground truncate">
               <span data-automation-id="ItemSelect-code">
                 {{ i.item_code }}
               </span>
