@@ -53,11 +53,21 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.state import StateApps
 from django.db.models import Q
 
-# The two stock items through which onsite labour was historically entered.
+# The two stock items through which onsite labour was historically entered:
 # ONSITE LABOUR CHARGES (general onsite labour) and Quote onsite charge (onsite
 # quoting/site-visit work). Both are deactivated in phase 4.
-ONSITE_LABOUR_STOCK_ID = "436e3dd1-8369-4076-859c-496cded0149d"
-QUOTE_ONSITE_STOCK_ID = "dac02069-7002-4db0-910d-bde31c8168c1"
+#
+# Located by searching the synced stock catalogue by item_code, NOT by the local
+# Stock UUID primary key. The local PK is generated per-instance (uuid4 on first
+# sync) and differs between dev / UAT / PROD unless they are restores of the same
+# DB; item_code is the human catalogue code and is identical across every
+# instance that syncs MSM's Xero. The migration resolves the local PK(s) from the
+# code at runtime (see _local_stock_ids); on an instance without these items it
+# resolves to nothing and the migration no-ops there. (xero_id — the immutable
+# Xero GUID — would be the rename-proof alternative; item_code is chosen for
+# readability since these retired items are not renamed.)
+ONSITE_LABOUR_ITEM_CODE = "LABOUR ONSITE"
+QUOTE_ONSITE_ITEM_CODE = "Quote Onsite"
 
 # Allowed meta keys per kind, mirroring TIME_META_SCHEMA / ADJUSTMENT_META_SCHEMA
 # in apps/job/models/costline_validators.py. Hardcoded (not imported) so this
@@ -129,6 +139,18 @@ def _without_stock_id(ext_refs: dict[str, Any] | None) -> dict[str, Any]:
     return {k: v for k, v in (ext_refs or {}).items() if k != "stock_id"}
 
 
+def _local_stock_ids(Stock: Any, item_code: str) -> list[str]:
+    """Resolve the local UUID PK(s) for a stock catalogue code (as the strings
+    stored in CostLine.ext_refs.stock_id). A list (not one id) so any pre-dedup
+    duplicate rows sharing the code are all caught; empty when absent."""
+    return [
+        str(pk)
+        for pk in Stock.objects.filter(item_code=item_code).values_list(
+            "id", flat=True
+        )
+    ]
+
+
 def _classify_actual_time(desc: str | None) -> str | None:
     """Phase-2 keyword classifier for an actual time line, first match wins.
     Returns the target subtype name, or None to leave the line as Workshop.
@@ -166,6 +188,12 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     onsite = subtype["Onsite"]
     onsite_quoting = subtype["Onsite quoting"]
 
+    # Resolve the two onsite stock items' local UUID PKs by searching the stock
+    # catalogue by item_code (see the module-level constants for why item_code,
+    # not the local PK).
+    quote_stock_ids = _local_stock_ids(Stock, QUOTE_ONSITE_ITEM_CODE)
+    onsite_stock_ids = _local_stock_ids(Stock, ONSITE_LABOUR_ITEM_CODE) + quote_stock_ids
+
     touched_ids: set[Any] = set()
 
     # ------------------------------------------------------------------ #
@@ -186,7 +214,7 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     #        165).                                                       #
     # ------------------------------------------------------------------ #
     onsite_match = (
-        Q(ext_refs__stock_id__in=[ONSITE_LABOUR_STOCK_ID, QUOTE_ONSITE_STOCK_ID])
+        Q(ext_refs__stock_id__in=onsite_stock_ids)
         | Q(desc__icontains="onsite labour")
         | Q(desc__icontains="labour onsite")
         | Q(desc__icontains="onsite charge")
@@ -222,8 +250,10 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
             line.kind = "time"
             # Onsite quoting when it came via the Quote-onsite stock item or the
             # description says quote/onsite-quote; otherwise general Onsite.
+            # (`in` is None-safe: a desc-only line's orig_stock_id None is simply
+            # not in the resolved id list.)
             is_quoting = (
-                orig_stock_id == QUOTE_ONSITE_STOCK_ID
+                orig_stock_id in quote_stock_ids
                 or "quote onsite" in desc
                 or "onsite quote" in desc
             )
@@ -307,7 +337,7 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     # Phase 4 — close the stock path                                     #
     # ------------------------------------------------------------------ #
     p4 = Stock.objects.filter(
-        id__in=[ONSITE_LABOUR_STOCK_ID, QUOTE_ONSITE_STOCK_ID]
+        item_code__in=[ONSITE_LABOUR_ITEM_CODE, QUOTE_ONSITE_ITEM_CODE]
     ).update(is_active=False)
 
     # ------------------------------------------------------------------ #

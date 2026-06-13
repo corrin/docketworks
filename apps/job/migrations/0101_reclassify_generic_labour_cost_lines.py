@@ -45,7 +45,13 @@ from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.state import StateApps
 
 # Generic "LABOUR" / "LABOUR CHARGE PER HOUR" stock item ($32 cost / $110 rev).
-GENERIC_LABOUR_STOCK_ID = "fd0ee1a5-3b0c-48c3-a475-74385149fab1"
+# Located by searching the stock catalogue by item_code, not the local Stock
+# UUID PK (which is generated per-instance and differs across dev/UAT/PROD unless
+# they are DB restores of one another). The local PK(s) are resolved from the
+# code at runtime; absent on an instance without this item -> the migration
+# no-ops. (xero_id is the rename-proof alternative; item_code chosen for
+# readability — this retired item is not renamed.)
+GENERIC_LABOUR_ITEM_CODE = "LABOUR"
 GENERIC_LABOUR_CHARGE = Decimal("110.00")
 
 # Meta keys valid per kind — mirrors TIME/ADJUSTMENT_META_SCHEMA in
@@ -102,12 +108,34 @@ def _without_stock_id(ext_refs: dict[str, Any] | None) -> dict[str, Any]:
     return {k: v for k, v in (ext_refs or {}).items() if k != "stock_id"}
 
 
+def _local_stock_ids(Stock: Any, item_code: str) -> list[str]:
+    """Resolve the local UUID PK(s) for a stock catalogue code (as the strings
+    stored in CostLine.ext_refs.stock_id); empty list when absent. A list so any
+    pre-dedup duplicate rows sharing the code are all caught."""
+    return [
+        str(pk)
+        for pk in Stock.objects.filter(item_code=item_code).values_list(
+            "id", flat=True
+        )
+    ]
+
+
 def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     CostLine = apps.get_model("job", "CostLine")
     LabourSubtype = apps.get_model("job", "LabourSubtype")
     Stock = apps.get_model("purchasing", "Stock")
 
     workshop = LabourSubtype.objects.get(name="Workshop")
+
+    # Resolve the generic LABOUR item's local PK(s) by item_code.
+    labour_stock_ids = _local_stock_ids(Stock, GENERIC_LABOUR_ITEM_CODE)
+    if not labour_stock_ids:
+        # Item absent on this instance (e.g. a non-MSM client) — nothing to do.
+        print(
+            "\n=== 0101 generic LABOUR reclassification: item not present, "
+            "no-op ===\n"
+        )
+        return
 
     # ------------------------------------------------------------------ #
     # Sever + minimal-convert the 65 lines linked to the generic LABOUR  #
@@ -124,7 +152,7 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     # ------------------------------------------------------------------ #
     lines = list(
         CostLine.objects.filter(
-            ext_refs__stock_id=GENERIC_LABOUR_STOCK_ID
+            ext_refs__stock_id__in=labour_stock_ids
         ).select_related("cost_set", "cost_set__job")
     )
 
@@ -178,10 +206,12 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
 
     # Retire the stock item: is_active=False removes it from every Docketworks
     # stock picker/list while leaving the Xero product untouched.
-    retired = Stock.objects.filter(id=GENERIC_LABOUR_STOCK_ID).update(is_active=False)
+    retired = Stock.objects.filter(item_code=GENERIC_LABOUR_ITEM_CODE).update(
+        is_active=False
+    )
 
     remaining = CostLine.objects.filter(
-        ext_refs__stock_id=GENERIC_LABOUR_STOCK_ID
+        ext_refs__stock_id__in=labour_stock_ids
     ).count()
     print("\n=== 0101 generic LABOUR reclassification reconciliation ===")
     print(

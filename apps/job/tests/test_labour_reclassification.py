@@ -26,9 +26,16 @@ from apps.job.services.workshop_service import WorkshopTimesheetService
 from apps.purchasing.models import Stock
 from apps.testing import BaseTestCase
 
+# Local Stock UUID PKs the cost lines reference (arbitrary in tests — the
+# migration resolves the real local PK from xero_id at runtime).
 ONSITE_LABOUR_STOCK_ID = "436e3dd1-8369-4076-859c-496cded0149d"
 QUOTE_ONSITE_STOCK_ID = "dac02069-7002-4db0-910d-bde31c8168c1"
 GENERIC_LABOUR_STOCK_ID = "fd0ee1a5-3b0c-48c3-a475-74385149fab1"
+# Stock catalogue codes the migrations search by (must match the migration
+# constants).
+ONSITE_LABOUR_ITEM_CODE = "LABOUR ONSITE"
+QUOTE_ONSITE_ITEM_CODE = "Quote Onsite"
+GENERIC_LABOUR_ITEM_CODE = "LABOUR"
 
 _migration = importlib.import_module(
     "apps.job.migrations.0100_reclassify_labour_cost_lines"
@@ -59,6 +66,24 @@ class OnsiteConversionTests(BaseTestCase):
         self.job.save(staff=self.test_staff)
         self.estimate = self.job.cost_sets.get(kind="estimate")
         self.actual = self.job.cost_sets.get(kind="actual")
+        # The migration resolves the local stock PK from xero_id, so the two
+        # onsite stock items must exist with the right xero_id <-> local id.
+        Stock.objects.create(
+            id=ONSITE_LABOUR_STOCK_ID,
+            item_code=ONSITE_LABOUR_ITEM_CODE,
+            description="ONSITE LABOUR CHARGES",
+            quantity=Decimal("0.00"),
+            unit_cost=Decimal("40.00"),
+            is_active=True,
+        )
+        Stock.objects.create(
+            id=QUOTE_ONSITE_STOCK_ID,
+            item_code=QUOTE_ONSITE_ITEM_CODE,
+            description="Quote onsite charge",
+            quantity=Decimal("0.00"),
+            unit_cost=Decimal("40.00"),
+            is_active=True,
+        )
 
     def _material(self, cost_set: CostSet, **kw: Any) -> CostLine:
         defaults = dict(
@@ -249,6 +274,7 @@ class GenericLabourReclassificationTests(BaseTestCase):
         # The generic LABOUR stock item the migration retires.
         self.stock = Stock.objects.create(
             id=GENERIC_LABOUR_STOCK_ID,
+            item_code=GENERIC_LABOUR_ITEM_CODE,
             description="LABOUR CHARGE PER HOUR",
             quantity=Decimal("0.00"),
             unit_cost=Decimal("32.00"),
