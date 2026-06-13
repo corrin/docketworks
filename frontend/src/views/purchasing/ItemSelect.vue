@@ -131,12 +131,14 @@ watch(searchTerm, () => {
 const filteredItems = computed<DisplayItem[]>(() => {
   // Labour entries only on the estimate and quote tabs (actuals get their
   // labour from the timesheet UI). Pinned above stock results; filtered by
-  // case-insensitive substring on the subtype name, all shown when the
-  // search term is empty.
+  // case-insensitive substring on the subtype name or the word 'labour'
+  // (every entry carries the LABOUR tag), all shown when the term is empty.
   const term = searchTerm.value.trim().toLowerCase()
   const labour =
     props.tabKind === 'estimate' || props.tabKind === 'quote'
-      ? labourItems.value.filter((i) => !term || i.description.toLowerCase().includes(term))
+      ? labourItems.value.filter(
+          (i) => !term || `${i.description} labour`.toLowerCase().includes(term),
+        )
       : []
 
   const stockItems = isQueryActive.value ? serverResults.value : []
