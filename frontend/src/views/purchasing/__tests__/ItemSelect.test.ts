@@ -240,6 +240,26 @@ describe('ItemSelect server-side search and rendering', () => {
     vi.useRealTimers()
   })
 
+  it("matches every labour option when searching for 'labour'", async () => {
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate', labourRates },
+    })
+    await flushPromises()
+
+    for (const term of ['lab', 'LABOUR']) {
+      await wrapper.find('input').setValue(term)
+      await flushPromises()
+      expect(
+        wrapper.findAll('[data-automation-id^="ItemSelect-option-labour-"]'),
+        `term: ${term}`,
+      ).toHaveLength(labourRates.length)
+    }
+  })
+
   it('shows the subtype name in blue on the trigger for a labour modelValue', async () => {
     const wrapper = mount(ItemSelect, {
       props: {
