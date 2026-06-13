@@ -947,6 +947,7 @@ async function onCopyFromEstimate() {
     // Copy each estimate line to quote
     const createdLines: CostLine[] = []
     for (const estimateLine of estimateLines) {
+      const isTimeLine = estimateLine.kind === 'time'
       const createPayload = {
         kind: estimateLine.kind as 'material' | 'time' | 'adjust',
         desc: estimateLine.desc || '',
@@ -956,6 +957,10 @@ async function onCopyFromEstimate() {
         accounting_date: estimateLine.accounting_date || toLocalDateString(),
         ext_refs: (estimateLine.ext_refs as Record<string, unknown>) || {},
         meta: (estimateLine.meta as Record<string, unknown>) || {},
+        // Time lines carry a labour subtype and pay item; copy them so the
+        // quote line keeps the estimate's subtype (and rate provenance).
+        xero_pay_item: isTimeLine ? (estimateLine.xero_pay_item ?? null) : null,
+        labour_subtype: isTimeLine ? (estimateLine.labour_subtype ?? null) : null,
       }
 
       const created = await costlineService.createCostLine(props.jobId, 'quote', createPayload)

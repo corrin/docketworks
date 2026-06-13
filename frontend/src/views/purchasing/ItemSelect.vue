@@ -10,9 +10,17 @@ import { logSearchResultClick } from '@/services/searchTelemetry.service'
 import { useDebounceFn } from '@vueuse/core'
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { formatCurrency } from '@/utils/string-formatting'
+import {
+  labourItemId,
+  parseLabourItemId,
+  subtypeName,
+  type JobLabourRate,
+} from '@/utils/labourRates'
 
 type LabourItem = {
-  id: '__labour__'
+  type: 'labour'
+  id: string
+  labour_subtype: string
   description: string
   item_code: string
   unit_cost: number
@@ -27,6 +35,10 @@ type LabourItem = {
 
 type DisplayItem = StockItem | LabourItem
 
+function isLabourItem(item: DisplayItem): item is LabourItem {
+  return (item as LabourItem).type === 'labour'
+}
+
 const props = withDefaults(
   defineProps<{
     modelValue: string | null
@@ -36,18 +48,17 @@ const props = withDefaults(
     lineKind?: string
     tabKind?: string
     /**
-     * The job's workshop charge-out rate (from job labour_rates), used as the
-     * displayed price for the Labour pseudo-item. Charge-out rates are
-     * per-job/per-subtype, not company-wide.
+     * The job's per-labour-subtype charge-out rates: one labour picker entry
+     * per rate. Charge-out rates are per-job/per-subtype, not company-wide.
      */
-    labourChargeOutRate?: number | null
+    labourRates?: JobLabourRate[]
   }>(),
   {
     disabled: false,
     showQuantity: true,
     lineKind: undefined,
     tabKind: undefined,
-    labourChargeOutRate: null,
+    labourRates: () => [],
   },
 )
 
@@ -68,18 +79,23 @@ const isSearching = ref(false)
 const searchInput = ref<{ $el?: HTMLInputElement } | HTMLInputElement | null>(null)
 const localOpen = ref(false)
 
-// Mocked Labour item for time entries. Revenue comes from the job's workshop
-// labour rate (passed in by the cost-lines table); cost from company wage rate.
-const mockedLabourItem = computed<LabourItem>(() => ({
-  id: '__labour__',
-  description: 'Labour',
-  item_code: 'LABOUR',
-  unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
-  unit_rev: props.labourChargeOutRate ?? 0,
-  unit_revenue: props.labourChargeOutRate ?? 0,
-  quantity: null,
-  times_used: null,
-}))
+// One labour picker item per job labour subtype. Revenue comes from the
+// subtype's job charge-out rate (passed in by the cost-lines table); cost
+// from company wage rate. Order is preserved (backend sends display_order).
+const labourItems = computed<LabourItem[]>(() =>
+  props.labourRates.map((rate) => ({
+    type: 'labour' as const,
+    id: labourItemId(rate.labour_subtype),
+    labour_subtype: rate.labour_subtype,
+    description: rate.labour_subtype_name,
+    item_code: '',
+    unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
+    unit_rev: rate.charge_out_rate ?? 0,
+    unit_revenue: rate.charge_out_rate ?? 0,
+    quantity: null,
+    times_used: null,
+  })),
+)
 
 const isQueryActive = computed(() => searchTerm.value.trim().length >= 3)
 
@@ -113,12 +129,18 @@ watch(searchTerm, () => {
 })
 
 const filteredItems = computed<DisplayItem[]>(() => {
-  // Only show labour in job-related contexts (estimate, quote, actual tabs).
-  const labourItem =
-    props.tabKind === 'estimate' || props.tabKind === 'quote' ? [mockedLabourItem.value] : []
+  // Labour entries only on the estimate and quote tabs (actuals get their
+  // labour from the timesheet UI). Pinned above stock results; filtered by
+  // case-insensitive substring on the subtype name, all shown when the
+  // search term is empty.
+  const term = searchTerm.value.trim().toLowerCase()
+  const labour =
+    props.tabKind === 'estimate' || props.tabKind === 'quote'
+      ? labourItems.value.filter((i) => !term || i.description.toLowerCase().includes(term))
+      : []
 
   const stockItems = isQueryActive.value ? serverResults.value : []
-  return [...labourItem, ...stockItems]
+  return [...labour, ...stockItems]
 })
 
 const popoverOpen = computed({
@@ -129,9 +151,13 @@ const popoverOpen = computed({
   },
 })
 
+const selectedLabourSubtype = computed(() => parseLabourItemId(props.modelValue))
+
 const selectedDisplay = computed(() => {
   if (!props.modelValue) return 'Select Item'
-  if (props.modelValue === '__labour__') return mockedLabourItem.value.item_code
+  if (selectedLabourSubtype.value) {
+    return subtypeName(props.labourRates, selectedLabourSubtype.value) ?? 'Labour'
+  }
 
   const found =
     serverResults.value.find((i: StockItem) => i.id === props.modelValue) ||
@@ -145,7 +171,7 @@ const displayPrice = (item: DisplayItem) => {
 }
 
 function variantSignature(item: DisplayItem): string {
-  if (item.id === '__labour__') return ''
+  if (isLabourItem(item)) return ''
   const stock = item as StockItem
   const metalType = stock.metal_type && stock.metal_type !== 'unspecified' ? stock.metal_type : null
 
@@ -156,7 +182,7 @@ function variantSignature(item: DisplayItem): string {
 }
 
 function usageLabel(item: DisplayItem): string {
-  if (item.id === '__labour__') return ''
+  if (isLabourItem(item)) return ''
   return typeof item.times_used === 'number' && item.times_used > 0
     ? `Used ${item.times_used} times`
     : ''
@@ -166,10 +192,18 @@ function handleSelectedValue(val: string | null): void {
   emit('update:modelValue', val)
   popoverOpen.value = false
 
-  if (val === '__labour__') {
-    emit('selectedItem', mockedLabourItem.value)
-    emit('update:description', 'Labour')
-    emit('update:unit_cost', companyDefaultsStore.companyDefaults?.wage_rate ?? 0)
+  const labourSubtypeId = parseLabourItemId(val)
+  if (labourSubtypeId) {
+    const labour = labourItems.value.find((i) => i.labour_subtype === labourSubtypeId)
+    if (!labour) {
+      // Options come from labourItems, so a miss means the rates changed
+      // mid-selection; crash rather than emit a half-formed selection.
+      throw new Error(`ItemSelect: labour subtype not found in labourRates: ${labourSubtypeId}`)
+    }
+    // No search telemetry for labour: telemetry tracks stock search quality.
+    emit('selectedItem', labour)
+    emit('update:description', labour.description)
+    emit('update:unit_cost', labour.unit_cost)
     emit('update:kind', 'time')
     return
   }
@@ -248,7 +282,9 @@ onMounted(() => {
         class="h-10 item-select-trigger w-full min-w-64 justify-between font-normal"
         data-automation-id="ItemSelect-trigger"
       >
-        <span class="truncate">{{ selectedDisplay }}</span>
+        <span class="truncate" :class="selectedLabourSubtype ? 'text-blue-800 font-medium' : ''">
+          {{ selectedDisplay }}
+        </span>
       </Button>
     </PopoverTrigger>
 
@@ -278,13 +314,25 @@ onMounted(() => {
         v-for="i in filteredItems"
         :key="i.id || 'unknown'"
         type="button"
-        class="cursor-pointer p-4 border-b border-border last:border-b-0 hover:bg-accent/50 focus:bg-accent/50 bg-background w-full text-left"
-        :data-automation-id="`ItemSelect-option-${i.id === '__labour__' ? 'labour' : i.item_code || i.id}`"
+        class="cursor-pointer p-4 border-b border-border last:border-b-0 w-full text-left"
+        :class="
+          isLabourItem(i)
+            ? 'bg-blue-50 hover:bg-blue-100 focus:bg-blue-100'
+            : 'bg-background hover:bg-accent/50 focus:bg-accent/50'
+        "
+        :data-automation-id="
+          isLabourItem(i)
+            ? `ItemSelect-option-labour-${i.labour_subtype}`
+            : `ItemSelect-option-${i.item_code || i.id}`
+        "
         @click="handleSelectedValue(i.id || null)"
       >
         <div class="flex w-full items-start justify-between gap-6 !min-w-[500px]">
           <div class="flex-1 min-w-0">
-            <div class="font-medium text-sm leading-tight whitespace-normal break-words">
+            <div
+              class="font-medium text-sm leading-tight whitespace-normal break-words"
+              :class="isLabourItem(i) ? 'text-blue-900' : ''"
+            >
               {{ i.description || 'Unnamed Item' }}
             </div>
             <div
@@ -298,7 +346,10 @@ onMounted(() => {
                 {{ variantSignature(i) }}
               </span>
             </div>
-            <div v-if="i.item_code" class="mt-1 text-xs text-muted-foreground truncate">
+            <div v-if="isLabourItem(i)" class="mt-1 text-xs font-medium text-blue-700">
+              <span data-automation-id="ItemSelect-labour-tag">LABOUR</span>
+            </div>
+            <div v-else-if="i.item_code" class="mt-1 text-xs text-muted-foreground truncate">
               <span data-automation-id="ItemSelect-code">
                 {{ i.item_code }}
               </span>
@@ -310,13 +361,14 @@ onMounted(() => {
               v-if="i.unit_revenue || i.unit_revenue === 0"
               variant="secondary"
               class="text-xs font-semibold"
+              :class="isLabourItem(i) ? 'bg-blue-100 text-blue-800' : ''"
             >
               {{ displayPrice(i) }}
             </Badge>
             <Badge v-else variant="secondary" class="text-xs"> No price </Badge>
 
             <div class="text-xs text-muted-foreground">
-              {{ i.id === '__labour__' ? 'per hour' : '' }}
+              {{ isLabourItem(i) ? 'per hour' : '' }}
             </div>
           </div>
         </div>

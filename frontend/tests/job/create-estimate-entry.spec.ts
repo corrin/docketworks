@@ -134,13 +134,16 @@ test.describe.serial('estimate operations', () => {
 
     await clickAddRow(page)
 
-    const labourOption = autoId(page, 'ItemSelect-option-labour')
+    // One labour option per subtype; pick the Workshop one
+    const labourOption = page
+      .locator('[data-automation-id^="ItemSelect-option-labour"]')
+      .filter({ hasText: 'Workshop' })
     await labourOption.waitFor({ timeout: 10000 })
     await labourOption.click()
 
     await page.waitForTimeout(1000)
 
-    const labourRow = await findRowByDescription(page, 'Labour')
+    const labourRow = await findRowByDescription(page, 'Workshop')
     expect(labourRow).not.toBeNull()
 
     await labourRow!.click()
@@ -154,7 +157,7 @@ test.describe.serial('estimate operations', () => {
     // Verify persistence
     await navigateToEstimateTab(page, jobUrl)
 
-    const labourRowAfter = await findRowByDescription(page, 'Labour')
+    const labourRowAfter = await findRowByDescription(page, 'Workshop')
     expect(labourRowAfter).not.toBeNull()
   })
 
@@ -208,7 +211,7 @@ test.describe.serial('estimate operations', () => {
   test('verify all entries persist', async ({ authenticatedPage: page }) => {
     await navigateToEstimateTab(page, jobUrl)
 
-    const labourRow = await findRowByDescription(page, 'Labour')
+    const labourRow = await findRowByDescription(page, 'Workshop')
     const materialRow = await findRowByDescription(page, 'M8 ZINC WING NUT')
     const adjustmentRow = await findRowByDescription(page, 'Discount - repeat customer')
 

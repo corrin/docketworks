@@ -61,10 +61,41 @@ vi.mock('../../../components/ui/input', () => ({
 import ItemSelect from '../ItemSelect.vue'
 import { api } from '@/api/client'
 import { useStockStore } from '@/stores/stockStore'
+import { useCompanyDefaultsStore } from '@/stores/companyDefaults'
+import { labourItemId, type JobLabourRate } from '@/utils/labourRates'
+import type { z } from 'zod'
+import type { schemas } from '@/api/generated/api'
+
+type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
 
 const purchasing_stock_search_retrieve = api.purchasing_stock_search_retrieve as ReturnType<
   typeof vi.fn
 >
+
+const WORKSHOP_SUBTYPE = '11111111-1111-4111-8111-111111111111'
+const ADMIN_SUBTYPE = '22222222-2222-4222-8222-222222222222'
+
+const labourRates: JobLabourRate[] = [
+  {
+    id: 'aaaaaaaa-0000-4000-8000-000000000001',
+    labour_subtype: WORKSHOP_SUBTYPE,
+    labour_subtype_name: 'Workshop',
+    is_workshop: true,
+    charge_out_rate: 105,
+  },
+  {
+    id: 'aaaaaaaa-0000-4000-8000-000000000002',
+    labour_subtype: ADMIN_SUBTYPE,
+    labour_subtype_name: 'Admin',
+    is_workshop: false,
+    charge_out_rate: 90,
+  },
+]
+
+function setCompanyWageRate(wageRate: number) {
+  const defaultsStore = useCompanyDefaultsStore()
+  defaultsStore.companyDefaults = { wage_rate: wageRate } as unknown as CompanyDefaults
+}
 
 function buildStockItem(over: Partial<Record<string, unknown>> = {}) {
   return {
@@ -94,42 +125,166 @@ beforeEach(() => {
 })
 
 describe('ItemSelect server-side search and rendering', () => {
-  it('renders the labour option by default in estimate context', async () => {
+  it('renders one blue labour option per job labour rate in estimate context', async () => {
     const store = useStockStore()
     store.items = [buildStockItem({ id: 's1', times_used: 9 })]
     store.fetchStock = vi.fn().mockResolvedValue(store.items)
 
     const wrapper = mount(ItemSelect, {
-      props: { modelValue: null, tabKind: 'estimate' },
+      props: { modelValue: null, tabKind: 'estimate', labourRates },
     })
     await flushPromises()
 
-    const labourOption = wrapper.find('[data-automation-id="ItemSelect-option-labour"]')
-    expect(labourOption.exists()).toBe(true)
+    const labourOptions = wrapper.findAll('[data-automation-id^="ItemSelect-option-labour-"]')
+    expect(labourOptions).toHaveLength(2)
+    expect(labourOptions[0].attributes('data-automation-id')).toBe(
+      `ItemSelect-option-labour-${WORKSHOP_SUBTYPE}`,
+    )
+    expect(labourOptions[1].attributes('data-automation-id')).toBe(
+      `ItemSelect-option-labour-${ADMIN_SUBTYPE}`,
+    )
+    expect(labourOptions[0].text()).toContain('Workshop')
+    expect(labourOptions[0].classes()).toContain('bg-blue-50')
+    expect(labourOptions[0].find('.font-medium').classes()).toContain('text-blue-900')
+    // Every labour option carries an explicit LABOUR tag (bottom-left slot)
+    for (const option of labourOptions) {
+      expect(option.find('[data-automation-id="ItemSelect-labour-tag"]').text()).toBe('LABOUR')
+    }
+    // No stock rendered without an active (>=3 char) query
     expect(wrapper.find('[data-automation-id="ItemSelect-option-CODE"]').exists()).toBe(false)
   })
 
-  it('emits the labour item payload rather than the computed ref wrapper', async () => {
+  it('pins labour options above stock results', async () => {
+    vi.useFakeTimers()
     const store = useStockStore()
     store.items = []
-    store.fetchStock = vi.fn().mockResolvedValue([])
+    purchasing_stock_search_retrieve.mockResolvedValue({
+      results: [buildStockItem({ id: 's1', description: 'Workbench top' })],
+      count: 1,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    })
 
     const wrapper = mount(ItemSelect, {
-      props: { modelValue: null, tabKind: 'estimate' },
+      props: { modelValue: null, tabKind: 'estimate', labourRates },
     })
     await flushPromises()
 
-    wrapper.vm.handleSelectedValue('__labour__')
+    await wrapper.find('input').setValue('work')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    const options = wrapper.findAll('[data-automation-id^="ItemSelect-option-"]')
+    expect(options).toHaveLength(2)
+    expect(options[0].attributes('data-automation-id')).toBe(
+      `ItemSelect-option-labour-${WORKSHOP_SUBTYPE}`,
+    )
+    expect(options[1].attributes('data-automation-id')).toBe('ItemSelect-option-CODE')
+
+    vi.useRealTimers()
+  })
+
+  it('emits the full labour payload with the per-subtype rate on selection', async () => {
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+    setCompanyWageRate(32)
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate', labourRates },
+    })
+    await flushPromises()
+
+    wrapper.vm.handleSelectedValue(labourItemId(ADMIN_SUBTYPE))
 
     const selectedItemEvents = wrapper.emitted('selectedItem')
     expect(selectedItemEvents).toBeTruthy()
     const payload = selectedItemEvents?.at(-1)?.[0] as Record<string, unknown>
     expect(payload).toMatchObject({
-      id: '__labour__',
-      description: 'Labour',
+      type: 'labour',
+      id: labourItemId(ADMIN_SUBTYPE),
+      labour_subtype: ADMIN_SUBTYPE,
+      description: 'Admin',
+      unit_cost: 32,
+      unit_rev: 90,
+      unit_revenue: 90,
     })
     expect(payload).not.toHaveProperty('value')
+    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([labourItemId(ADMIN_SUBTYPE)])
+    expect(wrapper.emitted('update:description')?.at(-1)).toEqual(['Admin'])
+    expect(wrapper.emitted('update:unit_cost')?.at(-1)).toEqual([32])
     expect(wrapper.emitted('update:kind')?.at(-1)).toEqual(['time'])
+  })
+
+  it('filters labour options by name at short query lengths without a server call', async () => {
+    vi.useFakeTimers()
+    const store = useStockStore()
+    store.items = []
+    store.fetchStock = vi.fn().mockResolvedValue([])
+
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate', labourRates },
+    })
+    await flushPromises()
+
+    await wrapper.find('input').setValue('ad')
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
+    const labourOptions = wrapper.findAll('[data-automation-id^="ItemSelect-option-labour-"]')
+    expect(labourOptions).toHaveLength(1)
+    expect(labourOptions[0].text()).toContain('Admin')
+
+    vi.useRealTimers()
+  })
+
+  it('shows the subtype name in blue on the trigger for a labour modelValue', async () => {
+    const wrapper = mount(ItemSelect, {
+      props: {
+        modelValue: labourItemId(WORKSHOP_SUBTYPE),
+        tabKind: 'estimate',
+        labourRates,
+      },
+    })
+    await flushPromises()
+
+    const triggerText = wrapper.find('.truncate')
+    expect(triggerText.text()).toBe('Workshop')
+    expect(triggerText.classes()).toContain('text-blue-800')
+    expect(triggerText.classes()).toContain('font-medium')
+  })
+
+  it("falls back to 'Labour' on the trigger for an unknown labour subtype", async () => {
+    const wrapper = mount(ItemSelect, {
+      props: {
+        modelValue: labourItemId('99999999-9999-4999-8999-999999999999'),
+        tabKind: 'estimate',
+        labourRates,
+      },
+    })
+    await flushPromises()
+
+    expect(wrapper.find('.truncate').text()).toBe('Labour')
+  })
+
+  it('renders no labour options on the actual tab', async () => {
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'actual', labourRates },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-automation-id^="ItemSelect-option-labour-"]')).toHaveLength(0)
+  })
+
+  it('renders no labour options when the job has no labour rates', async () => {
+    const wrapper = mount(ItemSelect, {
+      props: { modelValue: null, tabKind: 'estimate', labourRates: [] },
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('[data-automation-id^="ItemSelect-option-labour-"]')).toHaveLength(0)
   })
 
   it('focuses the search field when opened', async () => {
@@ -331,7 +486,7 @@ describe('ItemSelect server-side search and rendering', () => {
     store.fetchStock = vi.fn().mockResolvedValue(store.items)
 
     const wrapper = mount(ItemSelect, {
-      props: { modelValue: null, tabKind: 'estimate' },
+      props: { modelValue: null, tabKind: 'estimate', labourRates },
     })
     await flushPromises()
 
@@ -341,7 +496,8 @@ describe('ItemSelect server-side search and rendering', () => {
     await flushPromises()
 
     expect(purchasing_stock_search_retrieve).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-automation-id="ItemSelect-option-labour"]').exists()).toBe(true)
+    // 'st' matches no labour subtype name and stock search is not active yet
+    expect(wrapper.findAll('[data-automation-id^="ItemSelect-option-labour-"]')).toHaveLength(0)
     expect(wrapper.find('[data-automation-id="ItemSelect-option-CODE"]').exists()).toBe(false)
 
     vi.useRealTimers()

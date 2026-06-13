@@ -27,6 +27,19 @@ export async function getTimesheetStaff(page: Page, date?: string) {
   return data.staff
 }
 
+export async function getJobLabourRates(page: Page, jobId: string) {
+  const response = await page.request.get(`/api/job/jobs/${jobId}/labour-rates/`, {
+    headers: { Accept: 'application/json' },
+  })
+  return (await response.json()) as Array<{
+    id: string
+    labour_subtype: string
+    labour_subtype_name: string
+    is_workshop: boolean
+    charge_out_rate: number
+  }>
+}
+
 export async function getTimesheetJobs(page: Page) {
   const response = await page.request.get('/api/timesheets/jobs/', {
     headers: { Accept: 'application/json' },

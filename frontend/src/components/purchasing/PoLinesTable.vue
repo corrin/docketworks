@@ -80,7 +80,10 @@ function isSelectableStockItem(value: unknown): value is {
   id: string
 } {
   if (!value || typeof value !== 'object') return false
-  if (!('id' in value) || (value as { id?: unknown }).id === '__labour__') return false
+  if (!('id' in value)) return false
+  // Labour picker items (type: 'labour') are never stock; PO lines don't see
+  // them today (no tabKind passed), but stay strict about the payload shape.
+  if ((value as { type?: unknown }).type === 'labour') return false
   return 'description' in value && 'unit_cost' in value
 }
 
