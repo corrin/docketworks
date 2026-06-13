@@ -3,8 +3,12 @@
 
 import os
 import sys
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Setup Django environment
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 if "DJANGO_SITE_DOMAIN" not in os.environ:
     raise RuntimeError("DJANGO_SITE_DOMAIN must be set in .env")
