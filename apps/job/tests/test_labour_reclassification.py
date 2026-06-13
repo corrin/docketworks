@@ -23,18 +23,27 @@ from apps.job.models.costline_validators import (
     validate_costline_meta,
 )
 from apps.job.services.workshop_service import WorkshopTimesheetService
+from apps.purchasing.models import Stock
 from apps.testing import BaseTestCase
 
 ONSITE_LABOUR_STOCK_ID = "436e3dd1-8369-4076-859c-496cded0149d"
 QUOTE_ONSITE_STOCK_ID = "dac02069-7002-4db0-910d-bde31c8168c1"
+GENERIC_LABOUR_STOCK_ID = "fd0ee1a5-3b0c-48c3-a475-74385149fab1"
 
 _migration = importlib.import_module(
     "apps.job.migrations.0100_reclassify_labour_cost_lines"
+)
+_migration_0101 = importlib.import_module(
+    "apps.job.migrations.0101_reclassify_generic_labour_cost_lines"
 )
 
 
 def run_migration() -> None:
     _migration.forward(live_apps, None)
+
+
+def run_migration_0101() -> None:
+    _migration_0101.forward(live_apps, None)
 
 
 class OnsiteConversionTests(BaseTestCase):
@@ -222,3 +231,101 @@ class KeywordRelabelTests(BaseTestCase):
         self.assertEqual(
             self._subtype_after(self.workshop_staff, "GENERAL FABRICATION"), "Workshop"
         )
+
+
+class GenericLabourReclassificationTests(BaseTestCase):
+    """Guards migration 0101 — generic LABOUR stock-item cost lines."""
+
+    def setUp(self) -> None:
+        self.client_obj = Client.objects.create(
+            name="Generic Labour Client",
+            email="genlabour@example.com",
+            xero_last_modified="2024-01-01T00:00:00Z",
+        )
+        self.job = Job(name="Generic Labour Job", client=self.client_obj)
+        self.job.save(staff=self.test_staff)
+        self.estimate = self.job.cost_sets.get(kind="estimate")
+        self.actual = self.job.cost_sets.get(kind="actual")
+        # The generic LABOUR stock item the migration retires.
+        self.stock = Stock.objects.create(
+            id=GENERIC_LABOUR_STOCK_ID,
+            description="LABOUR CHARGE PER HOUR",
+            quantity=Decimal("0.00"),
+            unit_cost=Decimal("32.00"),
+            is_active=True,
+        )
+
+    def _line(self, cost_set: CostSet, kind: str, **kw: Any) -> CostLine:
+        defaults = dict(
+            cost_set=cost_set,
+            kind=kind,
+            desc="LABOUR CHARGE PER HOUR",
+            accounting_date=date.today(),
+            quantity=Decimal("1.000"),
+            unit_cost=Decimal("0.00"),
+            unit_rev=Decimal("110.00"),
+            ext_refs={"stock_id": GENERIC_LABOUR_STOCK_ID},
+        )
+        defaults.update(kw)
+        return CostLine.objects.create(**defaults)
+
+    def test_estimate_material_becomes_workshop_time(self) -> None:
+        line = self._line(self.estimate, "material", unit_cost=Decimal("32.00"))
+        run_migration_0101()
+        line.refresh_from_db()
+        self.assertEqual(line.kind, "time")
+        assert line.labour_subtype is not None
+        self.assertEqual(line.labour_subtype.name, "Workshop")
+        self.assertNotIn("stock_id", line.ext_refs)
+        validate_costline_meta(line.meta, "time")
+        validate_costline_ext_refs(line.ext_refs)
+
+    def test_actual_material_becomes_adjust_and_drops_consumed_by(self) -> None:
+        line = self._line(
+            self.actual,
+            "material",
+            meta={"consumed_by": "c198ccc4-d2b0-474a-ada4-b7d02168943f"},
+        )
+        run_migration_0101()
+        line.refresh_from_db()
+        self.assertEqual(line.kind, "adjust")
+        self.assertIsNone(line.labour_subtype)
+        self.assertNotIn("consumed_by", line.meta)
+        validate_costline_meta(line.meta, "adjust")
+        self.assertNotIn("stock_id", line.ext_refs)
+
+    def test_adjust_lines_stay_adjust_with_values_intact(self) -> None:
+        # A negative-rev credit/adjustment is a genuine adjustment — keep it.
+        credit = self._line(self.actual, "adjust", unit_rev=Decimal("-110.00"))
+        quote_adj = self._line(self.estimate, "adjust", unit_rev=Decimal("110.00"))
+        run_migration_0101()
+        for ln in (credit, quote_adj):
+            ln.refresh_from_db()
+        self.assertEqual(credit.kind, "adjust")
+        self.assertEqual(credit.unit_rev, Decimal("-110.00"))
+        self.assertEqual(quote_adj.kind, "adjust")
+        self.assertIsNone(credit.labour_subtype)
+        for ln in (credit, quote_adj):
+            self.assertNotIn("stock_id", ln.ext_refs)
+
+    def test_markup_repair_to_110(self) -> None:
+        # rev == cost*1.2 corrupted pairs -> rev 110, cost kept.
+        corrupt_pairs = [
+            (Decimal("32.00"), Decimal("38.40")),
+            (Decimal("43.00"), Decimal("51.60")),
+            (Decimal("44.00"), Decimal("52.80")),
+        ]
+        lines = [
+            self._line(self.actual, "material", unit_cost=cost, unit_rev=rev)
+            for cost, rev in corrupt_pairs
+        ]
+        run_migration_0101()
+        for line, (cost, _rev) in zip(lines, corrupt_pairs):
+            line.refresh_from_db()
+            self.assertEqual((line.unit_cost, line.unit_rev), (cost, Decimal("110.00")))
+
+    def test_stock_item_is_retired(self) -> None:
+        self._line(self.estimate, "material", unit_cost=Decimal("32.00"))
+        run_migration_0101()
+        self.stock.refresh_from_db()
+        self.assertFalse(self.stock.is_active)
