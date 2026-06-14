@@ -1,19 +1,22 @@
 """Tests for scheduler persistence: SchedulerRun, JobProjection, AllocationBlock."""
 
+from datetime import date
 from decimal import Decimal
+from typing import cast
 from unittest.mock import patch
 
 from django.utils import timezone
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
-from apps.job.models import Job
+from apps.job.models import CostSet, Job, LabourSubtype
+from apps.job.models.costing import CostLine
 from apps.operations.models import AllocationBlock, JobProjection, SchedulerRun
 from apps.operations.services.scheduler_service import run_workshop_schedule
 from apps.testing import BaseTestCase
 
 
-def _make_staff(email_suffix):
+def _make_staff(email_suffix: str) -> Staff:
     return Staff.objects.create_user(
         email=f"staff-{email_suffix}@persist.example",
         password="testpass",
@@ -30,18 +33,40 @@ def _make_staff(email_suffix):
     )
 
 
-def _make_job(client, staff, name="Persist Test Job"):
-    job = Job.objects.create(
-        client=client,
-        name=name,
-        status="approved",
-        staff=staff,
+def _set_workshop_hours(cost_set: CostSet, hours: float) -> None:
+    """Create scheduler-visible workshop hours for a cost set."""
+    summary = cost_set.summary or {}
+    summary["hours"] = float(hours)
+    cost_set.summary = summary
+    cost_set.save()
+
+    cost_set.cost_lines.filter(kind="time").delete()
+    if Decimal(str(hours)) <= 0:
+        return
+
+    CostLine.objects.create(
+        cost_set=cost_set,
+        kind="time",
+        labour_subtype=LabourSubtype.objects.get(name="Workshop"),
+        desc="Workshop time",
+        quantity=Decimal(str(hours)),
+        unit_cost=Decimal("40.00"),
+        unit_rev=Decimal("105.00"),
+        accounting_date=date.today(),
     )
-    # Set estimate hours so the job gets scheduled
-    summary = job.latest_estimate.summary or {}
-    summary["hours"] = 8.0
-    job.latest_estimate.summary = summary
-    job.latest_estimate.save()
+
+
+def _make_job(client: Client, staff: Staff, name: str = "Persist Test Job") -> Job:
+    job = cast(
+        Job,
+        Job.objects.create(
+            client=client,
+            name=name,
+            status="approved",
+            staff=staff,
+        ),
+    )
+    _set_workshop_hours(job.latest_estimate, 8.0)
     return job
 
 
