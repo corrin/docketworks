@@ -1718,35 +1718,26 @@ apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a r
 apps/quoting/tests/test_pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
 apps/quoting/tests/test_pdf_data_validation.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/quoting/tests/test_pdf_data_validation.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
 apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_workshop_schedule_api.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
+apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
+apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
+apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
+apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
+apps/operations/tests/test_workshop_schedule_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/operations/tests/test_workshop_schedule_api.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -1857,12 +1848,6 @@ apps/operations/tests/test_scheduler_service.py:0: error: Item "None" of "Alloca
 apps/operations/tests/test_scheduler_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_service.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -1871,19 +1856,16 @@ apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missin
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_staff" in typed context  [no-untyped-call]
 apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
-apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
-apps/operations/tests/test_scheduler_persistence.py:0: error: Call to untyped function "_make_job" in typed context  [no-untyped-call]
+apps/operations/tests/test_scheduler_persistence.py:0: error: Function is missing a return type annotation  [no-untyped-def]
+apps/operations/tests/test_scheduler_persistence.py:0: note: Use "-> None" if function does not return a value
 apps/operations/tests/test_scheduler_persistence.py:0: error: Item "None" of "SchedulerRun | None" has no attribute "id"  [union-attr]
 apps/job/tests/test_workshop_timesheet_api.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
 apps/job/tests/test_workshop_timesheet_api.py:0: error: Returning Any from function declared to return "dict[Any, Any]"  [no-any-return]

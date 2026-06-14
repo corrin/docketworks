@@ -18,9 +18,13 @@ import argparse
 import os
 import sys
 import time
+from pathlib import Path
 from typing import Any, Dict
 
+from dotenv import load_dotenv
+
 # Setup Django environment
+load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 if "DJANGO_SITE_DOMAIN" not in os.environ:
     raise RuntimeError("DJANGO_SITE_DOMAIN must be set in .env")
@@ -31,12 +35,13 @@ import django
 
 django.setup()
 
+from django.db.models import Count, Prefetch
 from django.test import RequestFactory
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
 from apps.job.models import CostLine, CostSet, Job
-from apps.purchasing.models import PurchaseOrder
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
 
 class SerializerTester:
@@ -66,6 +71,7 @@ class SerializerTester:
         name: str,
         batch_size: int = 100,
         transform_fn=None,
+        serializer_context=None,
     ) -> Dict[str, Any]:
         """Test a serializer against a queryset with progress reporting.
 
@@ -78,7 +84,13 @@ class SerializerTester:
                          Use this for response serializers that expect service output.
         """
 
-        total_count = queryset.count()
+        if isinstance(queryset, list):
+            total_count = len(queryset)
+            iterator = iter(queryset)
+        else:
+            total_count = queryset.count()
+            iterator = queryset.iterator(chunk_size=100)
+
         if total_count == 0:
             return {
                 "name": name,
@@ -95,12 +107,15 @@ class SerializerTester:
         start_time = time.time()
         success_count = 0
         failed_items = []
+        context = {"request": self.request}
+        if serializer_context:
+            context.update(serializer_context)
 
-        for i, item in enumerate(queryset.iterator(chunk_size=100)):
+        for i, item in enumerate(iterator):
             try:
                 # Transform item if transform function provided (for service-layer tests)
                 data = transform_fn(item) if transform_fn else item
-                serializer = serializer_class(data, context={"request": self.request})
+                serializer = serializer_class(data, context=context)
                 _ = serializer.data  # Trigger serialization
                 success_count += 1
 
@@ -166,19 +181,22 @@ class SerializerTester:
         from apps.job.serializers.kanban_serializer import KanbanJobSerializer
         from apps.job.services.kanban_service import KanbanService
 
-        queryset = (
+        jobs = list(
             Job.objects.filter(
                 status__in=["quoting", "in_progress", "ready_for_delivery"]
             )
             .select_related("contact", "client", "created_by")
             .prefetch_related("people")
         )
+        context = KanbanService.build_serialization_context(jobs)
 
         return self._test_serializer_batch(
             KanbanJobSerializer,
-            queryset,
+            jobs,
             "KanbanJobSerializer (via Service)",
-            transform_fn=KanbanService.serialize_job_for_api,
+            transform_fn=lambda job: KanbanService.serialize_job_for_api(
+                job, context=context
+            ),
         )
 
     def test_costing_serializer(self) -> Dict[str, Any]:
@@ -219,11 +237,37 @@ class SerializerTester:
         queryset = (
             PurchaseOrder.objects.all()
             .select_related("supplier", "pickup_address", "created_by")
-            .prefetch_related("po_lines")
+            .prefetch_related(
+                Prefetch(
+                    "po_lines",
+                    queryset=PurchaseOrderLine.objects.select_related("job__client"),
+                    to_attr="detail_lines",
+                )
+            )
         )
+        item_codes = list(
+            PurchaseOrderLine.objects.filter(
+                purchase_order__in=queryset,
+                item_code__isnull=False,
+            ).values_list("item_code", flat=True)
+        )
+        usage_counts = {
+            item_code: count
+            for item_code, count in (
+                CostLine.objects.filter(kind="material", meta__item_code__in=item_codes)
+                .values_list("meta__item_code")
+                .annotate(count=Count("id"))
+            )
+        }
+        serializer_context = {
+            "line_usage_counts": usage_counts,
+        }
 
         return self._test_serializer_batch(
-            PurchaseOrderDetailSerializer, queryset, "PurchaseOrderDetailSerializer"
+            PurchaseOrderDetailSerializer,
+            queryset,
+            "PurchaseOrderDetailSerializer",
+            serializer_context=serializer_context,
         )
 
     def test_modern_timesheet_serializer(self) -> Dict[str, Any]:
