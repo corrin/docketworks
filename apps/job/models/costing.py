@@ -426,6 +426,9 @@ class CostLine(models.Model):
         # of a CostLine write, not an attributable action.
         job_model = cost_set._meta.get_field("job").remote_field.model
         job_model.objects.filter(pk=cost_set.job_id).update(updated_at=timezone.now())
+        from apps.job.tasks import request_job_summary_pdf_refresh
+
+        request_job_summary_pdf_refresh()
 
     def save(self, *args, **kwargs):
         staff_was_already_set = self.staff_id is not None

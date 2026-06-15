@@ -710,6 +710,10 @@ class Job(models.Model):
                     )
                     self._clear_assigned_staff_on_archive(changes_after)
 
+        from apps.job.tasks import request_job_summary_pdf_refresh
+
+        request_job_summary_pdf_refresh()
+
     # ── Field change tracking ──────────────────────────────────────────
     #
     # All concrete fields are tracked unless listed in UNTRACKED_FIELDS.

@@ -45,6 +45,7 @@ try:
             get_paid_complete_jobs,
             recalculate_job_invoicing_state,
         )
+        from .job_summary_pdf_service import JobSummaryPdfService
         from .kanban_categorization_service import (
             KanbanCategorizationService,
             KanbanColumn,
@@ -110,6 +111,7 @@ __all__ = [
     "JobProfitabilityReportService",
     "JobRestService",
     "JobStaffService",
+    "JobSummaryPdfService",
     "KanbanCategorizationService",
     "KanbanColumn",
     "KanbanSerializationContext",

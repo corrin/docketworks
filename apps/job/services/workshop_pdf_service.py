@@ -28,6 +28,8 @@ from apps.workflow.services.error_persistence import persist_and_raise
 
 logger = logging.getLogger(__name__)
 
+JOB_SUMMARY_PDF_FILENAME = "JobSummary.pdf"
+
 
 def format_hours_display(hours: Optional[float]) -> str:
     """Format hours as human-readable 'Xh Ym' string."""
@@ -566,7 +568,9 @@ def create_workshop_pdf(job: Job) -> BytesIO:
     try:
         main_buffer = create_workshop_main_document(job)
 
-        files_to_print = job.files.filter(print_on_jobsheet=True)
+        files_to_print = job.files.filter(print_on_jobsheet=True).exclude(
+            filename=JOB_SUMMARY_PDF_FILENAME
+        )
         if not files_to_print.exists():
             return main_buffer
 
