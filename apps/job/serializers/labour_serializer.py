@@ -1,3 +1,4 @@
+from decimal import Decimal
 from typing import Any
 
 from rest_framework import serializers
@@ -19,6 +20,50 @@ class LabourSubtypeSerializer(serializers.ModelSerializer[LabourSubtype]):
             "default_charge_out_rate",
         ]
         read_only_fields = fields
+
+
+class LabourSubtypeManageSerializer(serializers.ModelSerializer[LabourSubtype]):
+    """Read/write serializer for the company labour-subtype management UI."""
+
+    class Meta:
+        model = LabourSubtype
+        fields = [
+            "id",
+            "name",
+            "display_order",
+            "is_active",
+            "is_workshop",
+            "counts_for_scheduling",
+            "default_charge_out_rate",
+        ]
+        read_only_fields = ["id"]
+
+    def validate_default_charge_out_rate(self, value: Decimal) -> Decimal:
+        if value < 0:
+            raise serializers.ValidationError("Charge-out rate cannot be negative.")
+        return value
+
+    def update(
+        self, instance: LabourSubtype, validated_data: dict[str, Any]
+    ) -> LabourSubtype:
+        # Guard: a subtype that is a staff member's default cannot be
+        # deactivated — their new timesheet lines resolve via that default and
+        # would silently use a subtype no longer offered for entry.
+        deactivating = instance.is_active and validated_data.get("is_active") is False
+        if deactivating:
+            from apps.accounts.models import Staff
+
+            dependent = Staff.objects.filter(default_labour_subtype=instance).count()
+            if dependent:
+                raise serializers.ValidationError(
+                    {
+                        "is_active": (
+                            f"{dependent} staff default to '{instance.name}'; "
+                            "reassign them before deactivating it."
+                        )
+                    }
+                )
+        return super().update(instance, validated_data)
 
 
 class JobLabourRateSerializer(serializers.ModelSerializer[JobLabourRate]):

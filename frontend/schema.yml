@@ -4894,6 +4894,127 @@ paths:
                 items:
                   $ref: '#/components/schemas/LabourSubtype'
           description: ''
+  /api/job/labour-subtypes/manage/:
+    get:
+      operationId: job_labour_subtypes_manage_list
+      description: |-
+        List all labour subtypes (including inactive) and create new ones.
+
+        GET  /job/rest/labour-subtypes/manage/
+        POST /job/rest/labour-subtypes/manage/
+
+        Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+        every existing job so the data-integrity invariant stays satisfied.
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabourSubtypeManage'
+          description: ''
+    post:
+      operationId: job_labour_subtypes_manage_create
+      description: |-
+        List all labour subtypes (including inactive) and create new ones.
+
+        GET  /job/rest/labour-subtypes/manage/
+        POST /job/rest/labour-subtypes/manage/
+
+        Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+        every existing job so the data-integrity invariant stays satisfied.
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LabourSubtypeManageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LabourSubtypeManageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LabourSubtypeManageRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabourSubtypeManage'
+          description: ''
+  /api/job/labour-subtypes/manage/{id}/:
+    get:
+      operationId: job_labour_subtypes_manage_retrieve
+      description: |-
+        Retrieve or update one labour subtype (office staff). No delete — subtypes
+        are referenced by historical cost lines (PROTECT); deactivate instead.
+
+        GET   /job/rest/labour-subtypes/manage/<id>/
+        PATCH /job/rest/labour-subtypes/manage/<id>/
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabourSubtypeManage'
+          description: ''
+    patch:
+      operationId: job_labour_subtypes_manage_partial_update
+      description: |-
+        Retrieve or update one labour subtype (office staff). No delete — subtypes
+        are referenced by historical cost lines (PROTECT); deactivate instead.
+
+        GET   /job/rest/labour-subtypes/manage/<id>/
+        PATCH /job/rest/labour-subtypes/manage/<id>/
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedLabourSubtypeManageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedLabourSubtypeManageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedLabourSubtypeManageRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabourSubtypeManage'
+          description: ''
   /api/job/month-end/:
     get:
       operationId: job_month_end_retrieve
@@ -10139,13 +10260,6 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 10000
-          minimum: -10000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
         wage_rate:
           type: number
           format: double
@@ -10506,16 +10620,11 @@ components:
           type: number
           format: double
           description: Default markup percentage for time
-        charge_out_rate:
-          type: number
-          format: double
-          description: Default charge-out rate for staff
         wage_rate:
           type: number
           format: double
           description: Default wage rate for staff
       required:
-        - charge_out_rate
         - materials_markup
         - time_markup
         - wage_rate
@@ -10557,13 +10666,6 @@ components:
           format: double
           maximum: 1000
           minimum: -1000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 10000
-          minimum: -10000
           exclusiveMaximum: true
           exclusiveMinimum: true
         wage_rate:
@@ -12514,6 +12616,9 @@ components:
           minimum: -2147483648
           description: Maximum number of workshop staff that can work on this job
             simultaneously
+        is_urgent:
+          type: boolean
+          description: Whether this job requires urgent rates and priority handling
       required:
         - client_name
         - contact_name
@@ -12819,6 +12924,9 @@ components:
           minimum: 0
           exclusiveMaximum: true
           description: Estimated workshop time in hours
+        is_urgent:
+          type: boolean
+          default: false
       required:
         - client_id
         - estimated_materials
@@ -14064,6 +14172,9 @@ components:
           minimum: -2147483648
           description: Maximum number of workshop staff that can work on this job
             simultaneously
+        is_urgent:
+          type: boolean
+          description: Whether this job requires urgent rates and priority handling
       required:
         - client_name
         - contact_name
@@ -14791,6 +14902,84 @@ components:
         - is_active
         - is_workshop
         - name
+    LabourSubtypeManage:
+      type: object
+      description: Read/write serializer for the company labour-subtype management
+        UI.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Sort order in dropdowns and reports
+        is_active:
+          type: boolean
+          description: Inactive subtypes keep historical lines valid but are not offered
+            for new entry and are not seeded onto new jobs
+        is_workshop:
+          type: boolean
+          description: Whether this subtype is the default workshop subtype for staff
+            and rate selection
+        counts_for_scheduling:
+          type: boolean
+          description: Whether this labour consumes the production staff pool for
+            scheduling and workshop PDF remaining-hours calculations
+        default_charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Company-level rate used to seed JobLabourRate on new jobs
+      required:
+        - default_charge_out_rate
+        - id
+        - name
+    LabourSubtypeManageRequest:
+      type: object
+      description: Read/write serializer for the company labour-subtype management
+        UI.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Sort order in dropdowns and reports
+        is_active:
+          type: boolean
+          description: Inactive subtypes keep historical lines valid but are not offered
+            for new entry and are not seeded onto new jobs
+        is_workshop:
+          type: boolean
+          description: Whether this subtype is the default workshop subtype for staff
+            and rate selection
+        counts_for_scheduling:
+          type: boolean
+          description: Whether this labour consumes the production staff pool for
+            scheduling and workshop PDF remaining-hours calculations
+        default_charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Company-level rate used to seed JobLabourRate on new jobs
+      required:
+        - default_charge_out_rate
+        - name
     LinkQuoteSheetRequest:
       type: object
       description: Serializer for link quote sheet request data.
@@ -15508,13 +15697,6 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 10000
-          minimum: -10000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
         wage_rate:
           type: number
           format: double
@@ -15999,6 +16181,40 @@ components:
           minLength: 1
         metadata:
           description: Extra data like streaming status, processing time, etc.
+    PatchedLabourSubtypeManageRequest:
+      type: object
+      description: Read/write serializer for the company labour-subtype management
+        UI.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Sort order in dropdowns and reports
+        is_active:
+          type: boolean
+          description: Inactive subtypes keep historical lines valid but are not offered
+            for new entry and are not seeded onto new jobs
+        is_workshop:
+          type: boolean
+          description: Whether this subtype is the default workshop subtype for staff
+            and rate selection
+        counts_for_scheduling:
+          type: boolean
+          description: Whether this labour consumes the production staff pool for
+            scheduling and workshop PDF remaining-hours calculations
+        default_charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: -100000000
+          exclusiveMaximum: true
+          exclusiveMinimum: true
+          description: Company-level rate used to seed JobLabourRate on new jobs
     PatchedProcedureUpdateRequest:
       type: object
       description: Update serializer for procedures.

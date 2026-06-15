@@ -1453,7 +1453,6 @@ def get_company_defaults_api(request):
         {
             "materials_markup": float(defaults.materials_markup),
             "time_markup": float(defaults.time_markup),
-            "charge_out_rate": float(defaults.charge_out_rate),
             "wage_rate": float(defaults.wage_rate),
         }
     )

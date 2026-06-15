@@ -13,7 +13,6 @@ from xero_python.project.models import (
 )
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
-from apps.workflow.models import CompanyDefaults
 
 logger = logging.getLogger("xero")
 
@@ -226,12 +225,12 @@ def create_default_task(project_id: str) -> Any:
     tenant_id = get_tenant_id()
     projects_api = ProjectApi(api_client)
 
-    # Get charge out rate from company defaults
-    company_defaults = CompanyDefaults.get_solo()
+    # Labour charge-out rate now lives on the Workshop labour subtype.
+    from apps.job.models import LabourSubtype
 
-    rate_amount = Amount(
-        currency=CurrencyCode.NZD, value=float(company_defaults.charge_out_rate)
-    )
+    workshop_rate = LabourSubtype.default_workshop().default_charge_out_rate
+
+    rate_amount = Amount(currency=CurrencyCode.NZD, value=float(workshop_rate))
 
     task_data = TaskCreateOrUpdate(
         name="Labor", rate=rate_amount, charge_type=ChargeType.TIME

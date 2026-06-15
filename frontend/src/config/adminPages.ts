@@ -9,6 +9,7 @@ import {
   ExternalLink,
   KeyRound,
   MonitorPlay,
+  Wrench,
 } from 'lucide-vue-next'
 import type { Component } from 'vue'
 import { APP_NAME } from '@/config/app'
@@ -26,6 +27,13 @@ export interface AdminPage {
 // Define pages with short titles - APP_NAME is appended in the getter
 const adminPagesConfig = [
   { key: 'staff', label: 'Staff', title: 'Staff Admin', icon: Users, view: 'AdminStaffView' },
+  {
+    key: 'labour-rates',
+    label: 'Labour Rates',
+    title: 'Labour Rates',
+    icon: Wrench,
+    view: 'AdminLabourSubtypesView',
+  },
   {
     key: 'company',
     label: 'Company',

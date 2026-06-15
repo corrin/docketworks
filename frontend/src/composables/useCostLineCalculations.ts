@@ -10,8 +10,9 @@
  * Responsibilities:
  * - Compute unit_cost and unit_rev according to the line kind (material, time, adjust).
  * - For time: unit_cost from Company Defaults wage_rate; unit_rev from the job's
- *   per-labour-subtype charge-out rate when a resolver is provided (rates are
- *   per job + labour subtype, not company-wide).
+ *   per-labour-subtype charge-out rate (rates are per job + labour subtype, not
+ *   company-wide). The charge-out resolver is mandatory — there is no company
+ *   default to fall back to.
  * - For material (and adjustment by design), default unit_rev uses materials_markup when not overridden.
  * - Maintain local "unit_rev overridden" state so that recalculation does not override user's explicit values,
  *   until the kind or selected item changes.
@@ -61,23 +62,33 @@ export interface ApplyResult {
 /**
  * Public API of the composable
  */
-export function useCostLineCalculations(options?: {
+export function useCostLineCalculations(options: {
   getCompanyDefaults?: () => CompanyDefaults | null
   /**
    * Resolves the charge-out rate for a time line from the job's per-subtype
    * labour rates (looked up by line.labour_subtype, workshop fallback).
-   * When omitted, time unit_rev falls back to the company default rate.
+   * Required: every job carries its own per-subtype rate via job labour_rates,
+   * so there is no company-wide default to fall back to (ADR 0015). A caller
+   * that cannot supply this is a contract violation, not a default case.
    */
-  getTimeChargeOutRate?: (line: CostLine) => number | null
+  getTimeChargeOutRate: (line: CostLine) => number | null
   // Monetary rounding scale, defaults to 2 decimals for currency
   moneyScale?: number
   // Quantity scale, defaults to 3 decimals for better time precision (optional)
   quantityScale?: number
 }) {
-  const getDefaults = options?.getCompanyDefaults ?? (() => null)
-  const getTimeChargeOutRate = options?.getTimeChargeOutRate
-  const moneyScale = options?.moneyScale ?? 2
-  const quantityScale = options?.quantityScale ?? 3
+  const getDefaults = options.getCompanyDefaults ?? (() => null)
+  const getTimeChargeOutRate = options.getTimeChargeOutRate
+  if (!getTimeChargeOutRate) {
+    // Contract violation, not a recoverable default: time charge-out rates are
+    // per job + labour subtype (job labour_rates). There is no company-wide
+    // rate to fall back to (ADR 0015 — fix the caller, don't soften here).
+    throw new Error(
+      'useCostLineCalculations requires getTimeChargeOutRate; time charge-out rates are per job/subtype, not a company default.',
+    )
+  }
+  const moneyScale = options.moneyScale ?? 2
+  const quantityScale = options.quantityScale ?? 3
 
   const companyDefaults = computed(() => getDefaults())
 
@@ -148,11 +159,9 @@ export function useCostLineCalculations(options?: {
 
     if (kind === 'time') {
       const wage = roundMoney(defaults?.wage_rate ?? 0)
-      // Per-subtype job rate when the caller supplies the resolver; company
-      // default only for contexts without job labour rates.
-      const charge = roundMoney(
-        getTimeChargeOutRate ? (getTimeChargeOutRate(line) ?? 0) : (defaults?.charge_out_rate ?? 0),
-      )
+      // Per-subtype job rate (job labour_rates). There is no company-wide
+      // charge-out rate — the resolver is mandatory (enforced at construction).
+      const charge = roundMoney(getTimeChargeOutRate(line) ?? 0)
       return { unit_cost: wage, unit_rev: charge, usedDefaultRevenue: true }
     }
 

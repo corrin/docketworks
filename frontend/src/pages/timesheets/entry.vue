@@ -381,12 +381,17 @@
                             {{ jobData.job.client_name }}
                           </p>
                         </div>
-                        <Badge
-                          :variant="getStatusVariant(resolveJobStatus(jobData.job))"
-                          class="text-xs"
-                        >
-                          {{ getStatusLabel(resolveJobStatus(jobData.job)) }}
-                        </Badge>
+                        <div class="flex items-center gap-1.5">
+                          <Badge v-if="jobData.job.is_urgent" variant="destructive" class="text-xs">
+                            URGENT
+                          </Badge>
+                          <Badge
+                            :variant="getStatusVariant(resolveJobStatus(jobData.job))"
+                            class="text-xs"
+                          >
+                            {{ getStatusLabel(resolveJobStatus(jobData.job)) }}
+                          </Badge>
+                        </div>
                       </div>
 
                       <!-- Hours Progress -->

@@ -164,6 +164,18 @@ DEFAULT_WAGE_RATE = Decimal("32.00")
 DEFAULT_CHARGE_OUT_RATE = Decimal("110.00")
 DEFAULT_MATERIALS_MARKUP = Decimal("0.20")  # 20%
 
+
+def _workshop_charge_out_rate() -> Decimal:
+    """Current company charge-out rate, sourced from the Workshop labour subtype.
+
+    Charge-out rates live per labour subtype (KAN-230); the Workshop subtype is
+    the company baseline that previously lived on CompanyDefaults.charge_out_rate.
+    """
+    from apps.job.models import LabourSubtype
+
+    return LabourSubtype.default_workshop().default_charge_out_rate
+
+
 # Columns to ignore for DraftLine creation
 IGNORE_COLS = [
     "total cost",
@@ -267,11 +279,11 @@ def parse_xlsx(
         material_total_col, material_item_col = detect_material_columns(
             df
         )  # Get company rates from CompanyDefaults if available
+        # Labour charge-out rate now comes from the Workshop labour subtype;
+        # wage + materials markup still come from CompanyDefaults.
+        charge_out_rate = _workshop_charge_out_rate()
         if company:
             wage_rate = getattr(company, "wage_rate", DEFAULT_WAGE_RATE)
-            charge_out_rate = getattr(
-                company, "charge_out_rate", DEFAULT_CHARGE_OUT_RATE
-            )
             materials_markup = getattr(
                 company, "materials_markup", DEFAULT_MATERIALS_MARKUP
             )
@@ -283,15 +295,12 @@ def parse_xlsx(
                 defaults = CompanyDefaults.get_solo()
                 if defaults:
                     wage_rate = defaults.wage_rate
-                    charge_out_rate = defaults.charge_out_rate
                     materials_markup = defaults.materials_markup
                 else:
                     wage_rate = DEFAULT_WAGE_RATE
-                    charge_out_rate = DEFAULT_CHARGE_OUT_RATE
                     materials_markup = DEFAULT_MATERIALS_MARKUP
             except (ImportError, Exception):
                 wage_rate = DEFAULT_WAGE_RATE
-                charge_out_rate = DEFAULT_CHARGE_OUT_RATE
                 materials_markup = DEFAULT_MATERIALS_MARKUP
 
         draft_lines = []
@@ -537,7 +546,7 @@ def validate_totals(
             try:
                 defaults = CompanyDefaults.get_solo()
                 if defaults:
-                    our_charge_out_rate = defaults.charge_out_rate
+                    our_charge_out_rate = _workshop_charge_out_rate()
                     our_materials_markup = defaults.materials_markup
 
                     # Validate labour cost (should match charge_out_rate)
@@ -940,7 +949,7 @@ def _validate_pricing_consistency(path: str, df) -> List[ValidationError]:
 
             defaults = CompanyDefaults.get_solo()
             if defaults:
-                expected_charge = defaults.charge_out_rate
+                expected_charge = _workshop_charge_out_rate()
                 expected_markup = defaults.materials_markup
             else:
                 expected_charge = DEFAULT_CHARGE_OUT_RATE

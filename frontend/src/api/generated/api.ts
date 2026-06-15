@@ -894,7 +894,6 @@ const CompanyDefaults = z.object({
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
-  charge_out_rate: z.number().gt(-10000).lt(10000).optional(),
   wage_rate: z.number().gt(-10000).lt(10000).optional(),
   annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
   workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
@@ -967,7 +966,6 @@ const CompanyDefaultsRequest = z.object({
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
-  charge_out_rate: z.number().gt(-10000).lt(10000).optional(),
   wage_rate: z.number().gt(-10000).lt(10000).optional(),
   annual_leave_loading: z.number().gt(-1000).lt(1000).optional(),
   workshop_efficiency_factor: z.number().gt(-10).lt(10).optional(),
@@ -1039,7 +1037,6 @@ const PatchedCompanyDefaultsRequest = z
     company_acronym: z.string().max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
-    charge_out_rate: z.number().gt(-10000).lt(10000),
     wage_rate: z.number().gt(-10000).lt(10000),
     annual_leave_loading: z.number().gt(-1000).lt(1000),
     workshop_efficiency_factor: z.number().gt(-10).lt(10),
@@ -1180,7 +1177,6 @@ const DataVersions = z.object({ stock: z.string(), kanban: z.string() })
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),
-  charge_out_rate: z.number(),
   wage_rate: z.number(),
 })
 const CostLineKindEnum = z.enum(['time', 'material', 'adjust'])
@@ -1335,6 +1331,7 @@ const JobCreateRequest = z.object({
   pricing_methodology: z.string().nullish(),
   estimated_materials: z.number().gte(0).lt(100000000),
   estimated_time: z.number().gte(0).lt(100000000),
+  is_urgent: z.boolean().optional().default(false),
 })
 const JobCreateResponse = z.object({
   success: z.boolean().optional().default(true),
@@ -1459,6 +1456,7 @@ const Job = z.object({
   default_xero_pay_item_name: z.string().nullable(),
   min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  is_urgent: z.boolean().optional(),
 })
 const JobEvent = z.object({
   id: z.string().uuid(),
@@ -1796,6 +1794,7 @@ const JobSummary = z.object({
   default_xero_pay_item_name: z.string().nullable(),
   min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  is_urgent: z.boolean().optional(),
 })
 const JobSummaryData = z.object({
   job: JobSummary,
@@ -2049,6 +2048,33 @@ const LabourSubtype = z.object({
   is_workshop: z.boolean(),
   default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
 })
+const LabourSubtypeManage = z.object({
+  id: z.string().uuid(),
+  name: z.string().max(100),
+  display_order: z.number().int().gte(0).lte(2147483647).optional(),
+  is_active: z.boolean().optional(),
+  is_workshop: z.boolean().optional(),
+  counts_for_scheduling: z.boolean().optional(),
+  default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+})
+const LabourSubtypeManageRequest = z.object({
+  name: z.string().min(1).max(100),
+  display_order: z.number().int().gte(0).lte(2147483647).optional(),
+  is_active: z.boolean().optional(),
+  is_workshop: z.boolean().optional(),
+  counts_for_scheduling: z.boolean().optional(),
+  default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+})
+const PatchedLabourSubtypeManageRequest = z
+  .object({
+    name: z.string().min(1).max(100),
+    display_order: z.number().int().gte(0).lte(2147483647),
+    is_active: z.boolean(),
+    is_workshop: z.boolean(),
+    counts_for_scheduling: z.boolean(),
+    default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  })
+  .partial()
 const MonthEndJobHistory = z.object({
   date: z.string(),
   total_hours: z.number(),
@@ -3650,6 +3676,9 @@ export const schemas = {
   WeeklyMetrics,
   WorkshopJob,
   LabourSubtype,
+  LabourSubtypeManage,
+  LabourSubtypeManageRequest,
+  PatchedLabourSubtypeManageRequest,
   MonthEndJobHistory,
   MonthEndJob,
   MonthEndStockHistory,
@@ -7190,6 +7219,84 @@ Expected JSON:
 GET /job/rest/labour-subtypes/`,
     requestFormat: 'json',
     response: z.array(LabourSubtype),
+  },
+  {
+    method: 'get',
+    path: '/api/job/labour-subtypes/manage/',
+    alias: 'job_labour_subtypes_manage_list',
+    description: `List all labour subtypes (including inactive) and create new ones.
+
+GET  /job/rest/labour-subtypes/manage/
+POST /job/rest/labour-subtypes/manage/
+
+Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+every existing job so the data-integrity invariant stays satisfied.`,
+    requestFormat: 'json',
+    response: z.array(LabourSubtypeManage),
+  },
+  {
+    method: 'post',
+    path: '/api/job/labour-subtypes/manage/',
+    alias: 'job_labour_subtypes_manage_create',
+    description: `List all labour subtypes (including inactive) and create new ones.
+
+GET  /job/rest/labour-subtypes/manage/
+POST /job/rest/labour-subtypes/manage/
+
+Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+every existing job so the data-integrity invariant stays satisfied.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: LabourSubtypeManageRequest,
+      },
+    ],
+    response: LabourSubtypeManage,
+  },
+  {
+    method: 'get',
+    path: '/api/job/labour-subtypes/manage/:id/',
+    alias: 'job_labour_subtypes_manage_retrieve',
+    description: `Retrieve or update one labour subtype (office staff). No delete — subtypes
+are referenced by historical cost lines (PROTECT); deactivate instead.
+
+GET   /job/rest/labour-subtypes/manage/&lt;id&gt;/
+PATCH /job/rest/labour-subtypes/manage/&lt;id&gt;/`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: LabourSubtypeManage,
+  },
+  {
+    method: 'patch',
+    path: '/api/job/labour-subtypes/manage/:id/',
+    alias: 'job_labour_subtypes_manage_partial_update',
+    description: `Retrieve or update one labour subtype (office staff). No delete — subtypes
+are referenced by historical cost lines (PROTECT); deactivate instead.
+
+GET   /job/rest/labour-subtypes/manage/&lt;id&gt;/
+PATCH /job/rest/labour-subtypes/manage/&lt;id&gt;/`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedLabourSubtypeManageRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: LabourSubtypeManage,
   },
   {
     method: 'get',

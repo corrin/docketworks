@@ -304,6 +304,7 @@ const formData = ref<JobCreateData>({
   contact_id: null,
   estimated_materials: 0,
   estimated_time: 0,
+  is_urgent: false,
   pricing_methodology: 'time_materials',
 })
 

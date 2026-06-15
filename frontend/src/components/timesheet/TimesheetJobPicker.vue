@@ -215,6 +215,12 @@ function onKeyDown(e: KeyboardEvent) {
         @keydown="(e) => emit('gridKeydown', e)"
       >
         {{ triggerLabel }}
+        <span
+          v-if="selectedJob?.is_urgent"
+          class="inline-block ml-1 text-[10px] font-bold text-red-600 bg-red-50 px-1 rounded"
+        >
+          !
+        </span>
       </button>
     </PopoverTrigger>
     <PopoverContent class="p-0 w-[360px]" align="start">
@@ -243,13 +249,21 @@ function onKeyDown(e: KeyboardEvent) {
         >
           <div class="flex justify-between items-start gap-2">
             <span class="font-semibold text-slate-800 shrink-0">#{{ job.job_number }}</span>
-            <span
-              v-if="statusLabel(job.status)"
-              class="text-[11px] font-medium text-right leading-tight"
-              :style="{ color: statusColor(job.status) }"
-            >
-              {{ statusLabel(job.status) }}
-            </span>
+            <div class="flex items-center gap-1">
+              <span
+                v-if="job.is_urgent"
+                class="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded"
+              >
+                URGENT
+              </span>
+              <span
+                v-if="statusLabel(job.status)"
+                class="text-[11px] font-medium text-right leading-tight"
+                :style="{ color: statusColor(job.status) }"
+              >
+                {{ statusLabel(job.status) }}
+              </span>
+            </div>
           </div>
           <div class="text-slate-700 font-medium leading-tight mt-0.5 break-words">
             {{ job.name }}

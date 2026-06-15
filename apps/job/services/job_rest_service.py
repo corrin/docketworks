@@ -291,6 +291,9 @@ class JobRestService:
             except ClientContact.DoesNotExist:
                 raise ValueError(f"Contact with id {contact_id} not found")
 
+        if "is_urgent" in data:
+            job_data["is_urgent"] = data["is_urgent"]
+
         # Set default pay item to Ordinary Time for new jobs
         ordinary_time = XeroPayItem.get_ordinary_time()
         if not ordinary_time:
@@ -1858,6 +1861,5 @@ class JobRestService:
         return {
             "materials_markup": float(defaults.materials_markup),
             "time_markup": float(defaults.time_markup),
-            "charge_out_rate": float(defaults.charge_out_rate),
             "wage_rate": float(defaults.wage_rate),
         }

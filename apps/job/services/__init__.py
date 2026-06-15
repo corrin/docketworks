@@ -51,6 +51,7 @@ try:
             KanbanColumn,
         )
         from .kanban_service import KanbanSerializationContext, KanbanService
+        from .labour_subtype_service import seed_subtype_onto_existing_jobs
         from .mcp_chat_service import MCPChatService
         from .month_end_service import MonthEndService
         from .paid_flag_service import PaidFlagResult, PaidFlagService
@@ -172,6 +173,7 @@ __all__ = [
     "recalculate_job_invoicing_state",
     "resolve_xero_pay_item",
     "resolve_xero_pay_item_for_job",
+    "seed_subtype_onto_existing_jobs",
     "serialize_draft_lines",
     "serialize_validation_report",
     "sync_job_folder",

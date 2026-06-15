@@ -1,5 +1,3 @@
-from decimal import Decimal
-
 import pytest
 from django.utils import timezone
 
@@ -27,7 +25,6 @@ def job(db, test_staff):
     )
     CompanyDefaults.objects.create(
         company_name="Process Test Co",
-        charge_out_rate=Decimal("105.00"),
         shop_client=shop_client,
     )
     client = Client.objects.create(

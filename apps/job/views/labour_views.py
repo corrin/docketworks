@@ -8,11 +8,14 @@ Labour subtype REST views
 import logging
 from uuid import UUID
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
@@ -21,8 +24,10 @@ from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.labour_serializer import (
     JobLabourRateSerializer,
     JobLabourRatesUpdateRequestSerializer,
+    LabourSubtypeManageSerializer,
     LabourSubtypeSerializer,
 )
+from apps.job.services.labour_subtype_service import seed_subtype_onto_existing_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +47,45 @@ class LabourSubtypeListView(APIView):
         subtypes = LabourSubtype.objects.filter(is_active=True)
         serializer = LabourSubtypeSerializer(subtypes, many=True)
         return Response(serializer.data)
+
+
+class LabourSubtypeManageListCreateView(ListCreateAPIView[LabourSubtype]):
+    """
+    List all labour subtypes (including inactive) and create new ones.
+
+    GET  /job/rest/labour-subtypes/manage/
+    POST /job/rest/labour-subtypes/manage/
+
+    Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+    every existing job so the data-integrity invariant stays satisfied.
+    """
+
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+    serializer_class = LabourSubtypeManageSerializer
+    queryset = LabourSubtype.objects.all()
+
+    @transaction.atomic
+    def perform_create(self, serializer: BaseSerializer[LabourSubtype]) -> None:
+        subtype = serializer.save()
+        if subtype.is_active:
+            seed_subtype_onto_existing_jobs(subtype)
+        else:
+            pass  # inactive subtype is not seeded onto jobs (matches Job.save)
+
+
+class LabourSubtypeManageDetailView(RetrieveUpdateAPIView[LabourSubtype]):
+    """
+    Retrieve or update one labour subtype (office staff). No delete — subtypes
+    are referenced by historical cost lines (PROTECT); deactivate instead.
+
+    GET   /job/rest/labour-subtypes/manage/<id>/
+    PATCH /job/rest/labour-subtypes/manage/<id>/
+    """
+
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+    serializer_class = LabourSubtypeManageSerializer
+    queryset = LabourSubtype.objects.all()
+    http_method_names = ["get", "patch", "head", "options"]
 
 
 class JobLabourRatesView(APIView):
