@@ -18,6 +18,7 @@
  */
 
 import { computed, h, nextTick, onUnmounted, ref, useId, watch } from 'vue'
+import { toast } from 'vue-sonner'
 import DataTable from '../DataTable.vue'
 import { Textarea } from '../ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
@@ -402,6 +403,13 @@ function setLabourType(entry: TimesheetCostLine, subtypeId: string): void {
   // the autosave onSaved hook refreshes the row from the response. New rows
   // carry the selection into the create payload.
   commit(entry, ['labour_subtype'])
+
+  const selectedJob = entryJob(entry)
+  if (selectedJob?.is_urgent && rateEntry?.labour_subtype_name !== 'Urgent') {
+    toast.warning('This job is urgent — did you mean to use the Urgent labour rate?', {
+      duration: 4000,
+    })
+  }
 }
 
 function setJob(entry: TimesheetCostLine, job: Job): void {
@@ -435,6 +443,12 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
     total_rev: calculatedBill(entry),
   })
   commit(entry, ['unit_rev', 'meta', 'xero_pay_item'])
+
+  if (job.is_urgent) {
+    toast.warning(`Job #${job.job_number} is urgent — consider using the Urgent labour rate.`, {
+      duration: 5000,
+    })
+  }
 
   // After picking a job, focus the Hours cell on the same row so the user can
   // type without an extra click. The cell renders <HoursCell> inside <Input>.

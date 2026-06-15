@@ -254,6 +254,13 @@ frontend/manual/.vitepress/dist/
 frontend/dist-manual/
 frontend/dist/
 
+# Per-instance runtime data written into the checkout when the storage-root
+# env vars are set to relative paths (see PHONE_RECORDING_STORAGE_ROOT /
+# SESSION_REPLAY_STORAGE_ROOT in .env.example). These belong outside the repo;
+# ignored here so they never get committed in the meantime.
+phone-recordings/
+session-replays/
+
 # Claude Code MCP config (developer-specific paths and credentials)
 .mcp.json
 .codex

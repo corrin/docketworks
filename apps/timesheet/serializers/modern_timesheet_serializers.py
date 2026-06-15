@@ -35,6 +35,7 @@ class ModernTimesheetJobSerializer(serializers.ModelSerializer):
     # Exposed so the timesheet UI can mark new entries non-billable up front
     # (the cost-line validator rejects billable time on shop jobs).
     shop_job = serializers.BooleanField(read_only=True)
+    is_urgent = serializers.BooleanField(read_only=True)
 
     class Meta:
         model = Job
@@ -51,6 +52,7 @@ class ModernTimesheetJobSerializer(serializers.ModelSerializer):
             "default_xero_pay_item_id",
             "default_xero_pay_item_name",
             "shop_job",
+            "is_urgent",
         ]
 
     @extend_schema_field(serializers.BooleanField)

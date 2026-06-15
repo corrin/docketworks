@@ -865,6 +865,7 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
             status: 'draft',
             labour_rates: [],
             shop_job: false,
+            is_urgent: false,
             estimated_hours: null,
             default_xero_pay_item_id: entryWithJobData.xero_pay_item ?? '',
             default_xero_pay_item_name: entryWithJobData.xero_pay_item_name ?? '',

@@ -15029,6 +15029,9 @@ components:
         shop_job:
           type: boolean
           readOnly: true
+        is_urgent:
+          type: boolean
+          readOnly: true
       required:
         - client_name
         - default_xero_pay_item_id
@@ -15036,6 +15039,7 @@ components:
         - estimated_hours
         - has_actual_costset
         - id
+        - is_urgent
         - job_number
         - labour_rates
         - leave_type
