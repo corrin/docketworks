@@ -23,7 +23,6 @@ class LabourSubtypeSeedTests(BaseTestCase):
         "Delivery",
         "Onsite",
         "Supervision",
-        "Urgent",
     }
 
     def test_migrations_seed_current_subtypes(self) -> None:
@@ -86,7 +85,6 @@ class JobLabourRateSeedingTests(BaseTestCase):
                 "Delivery",
                 "Onsite",
                 "Supervision",
-                "Urgent",
             },
         )
         self.assertEqual(rates["Workshop"], Decimal("105.00"))
@@ -99,14 +97,14 @@ class JobLabourRateSeedingTests(BaseTestCase):
             job.labour_rates.values_list("labour_subtype__name", flat=True)
         )
         self.assertNotIn("Quoting", subtype_names)
-        self.assertEqual(len(subtype_names), 7)
+        self.assertEqual(len(subtype_names), 6)
 
     def test_shop_job_seeds_zero_rates(self) -> None:
         job = Job(name="Shop Labour Rate Job")
         job.shop_job = True
         job.save(staff=self.test_staff)
         rates = list(job.labour_rates.values_list("charge_out_rate", flat=True))
-        self.assertEqual(len(rates), 8)
+        self.assertEqual(len(rates), 7)
         self.assertEqual(set(rates), {Decimal("0.00")})
 
 

@@ -18,9 +18,9 @@
  */
 
 import { computed, h, nextTick, onUnmounted, ref, useId, watch } from 'vue'
-import { toast } from 'vue-sonner'
 import DataTable from '../DataTable.vue'
 import { Textarea } from '../ui/textarea'
+import { Badge } from '../ui/badge'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
 import TimesheetActionsCell from './TimesheetActionsCell.vue'
 import TimesheetJobPicker from './TimesheetJobPicker.vue'
@@ -403,13 +403,6 @@ function setLabourType(entry: TimesheetCostLine, subtypeId: string): void {
   // the autosave onSaved hook refreshes the row from the response. New rows
   // carry the selection into the create payload.
   commit(entry, ['labour_subtype'])
-
-  const selectedJob = entryJob(entry)
-  if (selectedJob?.is_urgent && rateEntry?.labour_subtype_name !== 'Urgent') {
-    toast.warning('This job is urgent — did you mean to use the Urgent labour rate?', {
-      duration: 4000,
-    })
-  }
 }
 
 function setJob(entry: TimesheetCostLine, job: Job): void {
@@ -442,13 +435,20 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
     unit_rev: Math.round(rate * getBillMultiplier(entry) * 100) / 100,
     total_rev: calculatedBill(entry),
   })
-  commit(entry, ['unit_rev', 'meta', 'xero_pay_item'])
-
-  if (job.is_urgent) {
-    toast.warning(`Job #${job.job_number} is urgent — consider using the Urgent labour rate.`, {
-      duration: 5000,
+  // Urgent jobs default the *customer charge* to overtime (1.5x) while the
+  // worker's wage multiplier stays Ordinary — urgent means charge overtime,
+  // pay regular. Skip when the job is non-billable (the forcing above wins) and
+  // never stomp an explicit bill choice the user already made. Both multipliers
+  // remain independently adjustable afterwards.
+  if (job.is_urgent && !isJobNonBillable(job) && !hasExplicitBillOverride(entry)) {
+    billOverrides.add(entry)
+    setMeta(entry, { bill_rate_multiplier: 1.5, is_billable: true })
+    Object.assign(entry, {
+      unit_rev: Math.round(rate * 1.5 * 100) / 100,
+      total_rev: calculatedBill(entry),
     })
   }
+  commit(entry, ['unit_rev', 'meta', 'xero_pay_item'])
 
   // After picking a job, focus the Hours cell on the same row so the user can
   // type without an extra click. The cell renders <HoursCell> inside <Input>.
@@ -593,16 +593,31 @@ const columns = computed(() => [
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
       const full = entry.job_name || ''
-      // Fixed visual width with CSS-driven ellipsis. Full name on hover.
-      return h(
-        'span',
-        {
-          class: 'block max-w-[55ch] truncate text-sm text-slate-700 font-medium',
-          'data-automation-id': `SmartTimesheetTable-jobName-${row.index}`,
-          title: full,
-        },
-        full,
-      )
+      const isUrgent = !!entryJob(entry)?.is_urgent
+      // Fixed visual width with CSS-driven ellipsis. Full name on hover. Urgent
+      // jobs get a subtle amber pill so the overtime charge default is visible.
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h(
+          'span',
+          {
+            class: 'block max-w-[55ch] truncate text-sm text-slate-700 font-medium',
+            'data-automation-id': `SmartTimesheetTable-jobName-${row.index}`,
+            title: full,
+          },
+          full,
+        ),
+        isUrgent
+          ? h(
+              Badge,
+              {
+                variant: 'outline',
+                class: 'border-amber-300 bg-amber-50 text-amber-700',
+                'data-automation-id': `SmartTimesheetTable-urgentBadge-${row.index}`,
+              },
+              () => 'Urgent',
+            )
+          : null,
+      ])
     },
   },
   {
