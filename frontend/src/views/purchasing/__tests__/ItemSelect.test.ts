@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const { logSearchResultClick } = vi.hoisted(() => ({
@@ -119,9 +119,23 @@ function buildStockItem(over: Partial<Record<string, unknown>> = {}) {
   }
 }
 
+// Unmount every wrapper after each test. ItemSelect schedules a 300ms
+// useDebounceFn timer on every searchTerm change; a wrapper left mounted keeps
+// that timer pending across tests. A later test calling vi.useFakeTimers() +
+// advanceTimersByTime then fires the stale debounce with the *previous* test's
+// query, calling the server-search mock and breaking its assertions.
+enableAutoUnmount(afterEach)
+
 beforeEach(() => {
   vi.clearAllMocks()
   setActivePinia(createPinia())
+})
+
+afterEach(() => {
+  // Drop any pending debounce timer left by the unmounted component and hand
+  // the next test a clean real-timer baseline.
+  vi.clearAllTimers()
+  vi.useRealTimers()
 })
 
 describe('ItemSelect server-side search and rendering', () => {
@@ -241,9 +255,21 @@ describe('ItemSelect server-side search and rendering', () => {
   })
 
   it("matches every labour option when searching for 'labour'", async () => {
+    // Fake timers so the >=3-char term ('LABOUR') debounce can be drained
+    // inside the test. Under real timers it would leave a pending 300ms
+    // server-search timeout that fires during a later fake-timer test and
+    // pollutes the shared search mock.
+    vi.useFakeTimers()
     const store = useStockStore()
     store.items = []
     store.fetchStock = vi.fn().mockResolvedValue([])
+    purchasing_stock_search_retrieve.mockResolvedValue({
+      results: [],
+      count: 0,
+      page: 1,
+      page_size: 50,
+      total_pages: 0,
+    })
 
     const wrapper = mount(ItemSelect, {
       props: { modelValue: null, tabKind: 'estimate', labourRates },
@@ -258,6 +284,12 @@ describe('ItemSelect server-side search and rendering', () => {
         `term: ${term}`,
       ).toHaveLength(labourRates.length)
     }
+
+    // Drain the pending debounce so no server-search timer leaks past this test.
+    await vi.advanceTimersByTimeAsync(300)
+    await flushPromises()
+
+    vi.useRealTimers()
   })
 
   it('shows the subtype name in blue on the trigger for a labour modelValue', async () => {
