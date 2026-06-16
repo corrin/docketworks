@@ -1,5 +1,5 @@
 # Managed by scripts/server/instance.sh — do not edit by hand.
-# Lets the instance's OS user restart its own gunicorn, scheduler, and
-# celery-worker units without a password (used by deploy.sh and the
-# in-app Xero-app swap action).
-__INSTANCE_USER__ ALL=(root) NOPASSWD: /bin/systemctl restart gunicorn-__INSTANCE__.service, /bin/systemctl restart celery-beat-__INSTANCE__.service, /bin/systemctl restart celery-worker-__INSTANCE__.service
+# Lets the instance's OS user start, stop, and restart its own gunicorn,
+# scheduler, and celery-worker units without a password (used by
+# deploy.sh and the in-app Xero-app swap action).
+__INSTANCE_USER__ ALL=(root) NOPASSWD: /bin/systemctl restart gunicorn-__INSTANCE__.service, /bin/systemctl restart celery-beat-__INSTANCE__.service, /bin/systemctl restart celery-worker-__INSTANCE__.service, /bin/systemctl start gunicorn-__INSTANCE__.service, /bin/systemctl start celery-beat-__INSTANCE__.service, /bin/systemctl start celery-worker-__INSTANCE__.service, /bin/systemctl stop gunicorn-__INSTANCE__.service, /bin/systemctl stop celery-beat-__INSTANCE__.service, /bin/systemctl stop celery-worker-__INSTANCE__.service
