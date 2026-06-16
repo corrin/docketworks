@@ -1,16 +1,17 @@
 """Re-rate onsite labour on not-yet-invoiced jobs to the $165 onsite rate.
 
-Retrospective fix for a gap left by the onsite-labour rollout, detected in prod.
-Two earlier migrations combined to leave in-progress onsite work billing at the
-old workshop rate ($105) instead of the onsite rate ($165):
+Retrospective fix for a gap left by the labour-subtype launch (~08:00 NZ,
+2026-06-16). Before that launch there were no subtypes — every job had a single
+charge-out rate (~$105) and onsite work just billed at that. The launch
+introduced a distinct Onsite subtype that should bill $165, but two of the launch
+migrations combined to leave in-progress onsite work still at $105:
 
   * 0095 backfilled JobLabourRate for every pre-existing job by copying the old
     single Job.charge_out_rate (the ~$105 blanket) into EVERY subtype's row,
     including Onsite — whose company default is $165. So existing jobs carry
     Onsite @ $105.
-  * 0100 phase 2 relabeled actual time lines onto the Onsite subtype but
-    deliberately left unit_rev untouched ("actuals already have their charge-out
-    locked in"). Correct for invoiced work; wrong for work not yet invoiced.
+  * 0100 relabeled historical actual time lines onto the Onsite subtype but left
+    their unit_rev locked at the old $105.
 
 For invoiced/closed jobs that history stays. For OPEN jobs (still in the active
 workflow, not yet invoiced) both the rate row and the accrued actual time lines
@@ -21,10 +22,12 @@ default ($165) is the only one that differs from the old blanket ($105). Every
 other subtype's $105 is already the correct company default ("Onsite quoting" is
 itself $105 by design), so this migration touches Onsite only.
 
-A per-job rate editor shipped 2026-06-10 (PATCH .../labour-rates/), recording a
-``pricing_changed`` JobEvent on every change. Any Onsite rate set deliberately
-since then must be respected, so step 1 skips any job whose audit trail shows an
-``Onsite:`` pricing edit, and only fixes rows still below the $165 default.
+There is no per-job rate-editing UI in prod, so no operator-set custom rates
+exist; the only non-$105 onsite rates are a handful hand-set via SQL, all at or
+above $165. So the fix needs no audit-trail / custom-rate handling: raising only
+rates BELOW $165 up to $165 fixes every mis-seed and leaves those ≥$165 rows (and
+any already-correct row) untouched. Legitimate custom rates are a future concern
+once the editor ships; they do not exist today.
 
 FORWARD-ONLY (reverse = noop): this corrects under-billing; reversing would
 re-introduce it. Idempotent — re-running fixes nothing further.
@@ -62,31 +65,10 @@ OPEN_STATUSES = (
 ONSITE_SUBTYPE_NAME = "Onsite"
 
 
-def _jobs_with_deliberate_onsite_edit(JobEvent: Any, job_ids: list[Any]) -> set[Any]:
-    """Job ids whose audit trail shows a deliberate Onsite charge-out edit.
-
-    The labour-rates editor writes a ``pricing_changed`` JobEvent whose
-    ``detail['changes']`` is a list of strings shaped
-    ``"<subtype>: $<old>/hour -> $<new>/hour"``. A change to the Onsite subtype
-    starts with ``"Onsite: "`` — the trailing colon-space distinguishes it from
-    ``"Onsite quoting: "``.
-    """
-    edited: set[Any] = set()
-    events = JobEvent.objects.filter(
-        event_type="pricing_changed", job_id__in=job_ids
-    ).values_list("job_id", "detail")
-    for job_id, detail in events:
-        changes = (detail or {}).get("changes", [])
-        if any(isinstance(c, str) and c.startswith("Onsite: ") for c in changes):
-            edited.add(job_id)
-    return edited
-
-
 def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     LabourSubtype = apps.get_model("job", "LabourSubtype")
     JobLabourRate = apps.get_model("job", "JobLabourRate")
     Job = apps.get_model("job", "Job")
-    JobEvent = apps.get_model("job", "JobEvent")
     CostLine = apps.get_model("job", "CostLine")
     CompanyDefaults = apps.get_model("workflow", "CompanyDefaults")
 
@@ -95,7 +77,7 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
 
     # Open jobs, excluding shop jobs. Shop jobs (identified by the shop client,
     # not a field — Job.shop_job is a property) seed every rate to $0 and never
-    # bill revenue, so they must never be bumped to the onsite rate.
+    # bill revenue, so onsite work on them must stay $0, never be bumped to $165.
     company_defaults = CompanyDefaults.objects.first()
     shop_client_id = (
         company_defaults.shop_client_id if company_defaults is not None else None
@@ -105,22 +87,19 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
         open_jobs = open_jobs.exclude(client_id=shop_client_id)
     open_job_ids = list(open_jobs.values_list("id", flat=True))
 
-    edited_job_ids = _jobs_with_deliberate_onsite_edit(JobEvent, open_job_ids)
-
     # ------------------------------------------------------------------ #
     # Step 1 — correct the mis-seeded Onsite JobLabourRate rows.         #
     #                                                                    #
-    # Fix rows still below the $165 default (the 0095 blanket leftover), #
-    # skipping any job whose audit trail shows a deliberate Onsite edit. #
+    # Raise rows still below the $165 default (the 0095 blanket          #
+    # leftover). The < 165 filter is the whole safety: it leaves the     #
+    # user's ≥$165 SQL-set rates and any already-correct row untouched.  #
     # ------------------------------------------------------------------ #
     rows_to_fix = list(
         JobLabourRate.objects.filter(
             job_id__in=open_job_ids,
             labour_subtype=onsite,
             charge_out_rate__lt=onsite_rate,
-        )
-        .exclude(job_id__in=edited_job_ids)
-        .select_related("job")
+        ).select_related("job")
     )
     rate_fix_lines: list[str] = []
     for rate in rows_to_fix:
@@ -198,7 +177,6 @@ def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:
     total_delta = sum(rev_delta_by_job.values(), Decimal("0"))
     print("\n=== 0102 onsite re-rate reconciliation ===")
     print(f"Open non-shop jobs considered: {len(open_job_ids)}")
-    print(f"Jobs skipped (deliberate Onsite rate edit): {len(edited_job_ids)}")
     print(f"Step 1 Onsite rate rows corrected: {len(rows_to_fix)}")
     for row in rate_fix_lines:
         print(row)
