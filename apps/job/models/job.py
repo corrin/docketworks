@@ -145,6 +145,7 @@ class Job(models.Model):
         "rdti_type",
         "min_people",
         "max_people",
+        "is_urgent",
     ]
 
     # Fields where changes are NOT audited via JobEvent. Every field NOT in

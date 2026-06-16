@@ -663,6 +663,7 @@ class KanbanService:
             "time_and_materials_revenue": time_and_materials_revenue,
             "min_people": job.min_people,
             "max_people": job.max_people,
+            "is_urgent": job.is_urgent,
             "badge_label": badge_info["label"],
             "badge_color": badge_info["color_class"],
         }

@@ -175,9 +175,15 @@
 
     <!-- Status icons bottom-right -->
     <div
-      v-if="job.fully_invoiced || job.paid || job.rejected_flag"
+      v-if="job.fully_invoiced || job.paid || job.rejected_flag || job.is_urgent"
       class="absolute bottom-1.5 right-1.5 flex items-center gap-1"
     >
+      <span
+        v-if="job.is_urgent"
+        class="text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded"
+      >
+        URGENT
+      </span>
       <Receipt v-if="job.fully_invoiced" class="w-4 h-4 text-green-600" title="Fully invoiced" />
       <DollarSign v-if="job.paid" class="w-4 h-4 text-green-600" title="Paid" />
       <XCircle v-if="job.rejected_flag" class="w-4 h-4 text-red-500" title="Rejected" />

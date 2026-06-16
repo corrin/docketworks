@@ -135,6 +135,9 @@ class KanbanJobSerializer(serializers.Serializer):
     # Shop job flag
     shop_job = serializers.BooleanField()
 
+    # Urgency
+    is_urgent = serializers.BooleanField()
+
     # Budget status
     over_budget = serializers.BooleanField()
     quote_revenue = serializers.FloatField()
@@ -227,6 +230,9 @@ class KanbanColumnJobSerializer(serializers.Serializer):
 
     # Shop job flag
     shop_job = serializers.BooleanField()
+
+    # Urgency
+    is_urgent = serializers.BooleanField()
 
     # Budget status
     over_budget = serializers.BooleanField()

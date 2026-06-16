@@ -13523,6 +13523,9 @@ components:
           minimum: -2147483648
           description: Maximum number of workshop staff that can work on this job
             simultaneously
+        is_urgent:
+          type: boolean
+          description: Whether this job requires urgent rates and priority handling
       required:
         - client_id
         - client_name
@@ -14654,6 +14657,8 @@ components:
           format: double
         shop_job:
           type: boolean
+        is_urgent:
+          type: boolean
         over_budget:
           type: boolean
         quote_revenue:
@@ -14681,6 +14686,7 @@ components:
         - description
         - fully_invoiced
         - id
+        - is_urgent
         - job_number
         - max_people
         - min_people
@@ -14762,6 +14768,8 @@ components:
           format: double
         shop_job:
           type: boolean
+        is_urgent:
+          type: boolean
         over_budget:
           type: boolean
         quote_revenue:
@@ -14783,6 +14791,7 @@ components:
         - description
         - fully_invoiced
         - id
+        - is_urgent
         - job_number
         - max_people
         - min_people

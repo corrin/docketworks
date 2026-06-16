@@ -1657,6 +1657,7 @@ const JobHeaderResponse = z.object({
   rdti_type: z.union([RdtiTypeEnum, BlankEnum, NullEnum]).nullish(),
   min_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
   max_people: z.number().int().gte(-2147483648).lte(2147483647).optional(),
+  is_urgent: z.boolean().optional(),
 })
 const JobInvoicesResponse = z.object({ invoices: z.array(Invoice) })
 const JobLabourRate = z.object({
@@ -1915,6 +1916,7 @@ const KanbanJob = z.object({
   delivery_date: z.string().nullable(),
   priority: z.number(),
   shop_job: z.boolean(),
+  is_urgent: z.boolean(),
   over_budget: z.boolean(),
   quote_revenue: z.number(),
   time_and_materials_revenue: z.number(),
@@ -1981,6 +1983,7 @@ const KanbanColumnJob = z.object({
   delivery_date: z.string().nullable(),
   priority: z.number(),
   shop_job: z.boolean(),
+  is_urgent: z.boolean(),
   over_budget: z.boolean(),
   quote_revenue: z.number(),
   time_and_materials_revenue: z.number(),
