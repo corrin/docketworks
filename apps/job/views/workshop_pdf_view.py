@@ -10,6 +10,8 @@ from rest_framework.views import APIView
 from apps.job.models import Job
 from apps.job.serializers.job_serializer import WorkshopPDFResponseSerializer
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.error_persistence import persist_and_raise
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +34,9 @@ class WorkshopPDFView(APIView):
 
     def get(self, request, job_id):
         """Generate and return a workshop PDF for printing."""
-        try:
-            job = get_object_or_404(Job, pk=job_id)
+        job = get_object_or_404(Job, pk=job_id)
 
+        try:
             # Generate the workshop PDF
             pdf_buffer = create_workshop_pdf(job)
 
@@ -53,9 +55,32 @@ class WorkshopPDFView(APIView):
 
             return response
 
-        except Exception as e:
-            logger.exception(f"Error generating workshop PDF for job {job_id}")
+        except AlreadyLoggedException as exc:
+            logger.exception("Error generating workshop PDF for job %s", job_id)
+            payload = {"status": "error", "message": str(exc.original)}
+            if exc.app_error_id:
+                payload["error_id"] = str(exc.app_error_id)
             return Response(
-                {"status": "error", "message": str(e)},
+                payload,
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+        except Exception as exc:
+            logger.exception("Error generating workshop PDF for job %s", job_id)
+            try:
+                persist_and_raise(
+                    exc,
+                    job_id=str(job_id),
+                    user_id=(
+                        str(request.user.id)
+                        if getattr(request.user, "is_authenticated", False)
+                        else None
+                    ),
+                )
+            except AlreadyLoggedException as logged_exc:
+                payload = {"status": "error", "message": str(logged_exc.original)}
+                if logged_exc.app_error_id:
+                    payload["error_id"] = str(logged_exc.app_error_id)
+                return Response(
+                    payload,
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )

@@ -5,11 +5,11 @@ import time
 from collections import defaultdict
 from html import escape
 from io import BytesIO
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, cast
 
 from bs4 import BeautifulSoup, NavigableString
 from django.conf import settings
-from django.db import models
+from django.db.models import Prefetch
 from django.utils import timezone
 from PIL import Image, ImageFile
 from pypdf import PdfWriter
@@ -29,6 +29,95 @@ from apps.workflow.services.error_persistence import persist_and_raise
 logger = logging.getLogger(__name__)
 
 JOB_SUMMARY_PDF_FILENAME = "JobSummary.pdf"
+WORKSHOP_PDF_COST_LINES_ATTR = "_workshop_pdf_cost_lines"
+WORKSHOP_PDF_FILES_ATTR = "_workshop_pdf_files_to_print"
+
+
+def get_job_for_workshop_pdf(job_id: object) -> Job:
+    """Load a job with the relations required to render a workshop PDF."""
+    cost_lines = CostLine.objects.select_related("staff", "labour_subtype").order_by(
+        "kind", "-quantity", "-created_at", "-id"
+    )
+    files_to_print = (
+        JobFile.objects.filter(print_on_jobsheet=True)
+        .exclude(filename=JOB_SUMMARY_PDF_FILENAME)
+        .order_by("-uploaded_at")
+    )
+    return cast(
+        Job,
+        Job.objects.select_related(
+            "client",
+            "contact",
+            "latest_estimate",
+            "latest_quote",
+            "latest_actual",
+        )
+        .prefetch_related(
+            Prefetch(
+                "latest_estimate__cost_lines",
+                queryset=cost_lines,
+                to_attr=WORKSHOP_PDF_COST_LINES_ATTR,
+            ),
+            Prefetch(
+                "latest_quote__cost_lines",
+                queryset=cost_lines,
+                to_attr=WORKSHOP_PDF_COST_LINES_ATTR,
+            ),
+            Prefetch(
+                "latest_actual__cost_lines",
+                queryset=cost_lines,
+                to_attr=WORKSHOP_PDF_COST_LINES_ATTR,
+            ),
+            Prefetch(
+                "files",
+                queryset=files_to_print,
+                to_attr=WORKSHOP_PDF_FILES_ATTR,
+            ),
+        )
+        .get(id=job_id),
+    )
+
+
+def _ensure_workshop_pdf_job_loaded(job: Job) -> Job:
+    if hasattr(job, WORKSHOP_PDF_FILES_ATTR) and hasattr(
+        job.latest_actual, WORKSHOP_PDF_COST_LINES_ATTR
+    ):
+        return job
+    return get_job_for_workshop_pdf(job.id)
+
+
+def _cost_lines_for_pdf(cost_set: CostSet) -> list[CostLine]:
+    prefetched = getattr(cost_set, WORKSHOP_PDF_COST_LINES_ATTR, None)
+    if prefetched is not None:
+        return list(prefetched)
+    return list(
+        CostLine.objects.filter(cost_set_id=cost_set.id)
+        .select_related("staff", "labour_subtype")
+        .order_by("kind", "-quantity", "-created_at", "-id")
+    )
+
+
+def _production_time_lines(cost_set: CostSet) -> list[CostLine]:
+    return [
+        line
+        for line in _cost_lines_for_pdf(cost_set)
+        if (
+            line.kind == "time"
+            and line.labour_subtype is not None
+            and line.labour_subtype.counts_for_scheduling
+        )
+    ]
+
+
+def _printable_job_files(job: Job) -> list[JobFile]:
+    prefetched = getattr(job, WORKSHOP_PDF_FILES_ATTR, None)
+    if prefetched is not None:
+        return list(prefetched)
+    return list(
+        JobFile.objects.filter(job_id=job.id, print_on_jobsheet=True)
+        .exclude(filename=JOB_SUMMARY_PDF_FILENAME)
+        .order_by("-uploaded_at")
+    )
 
 
 def format_hours_display(hours: Optional[float]) -> str:
@@ -69,16 +158,16 @@ def get_workshop_hours(job: Job) -> float:
     Sums time CostLines whose labour subtype consumes schedulable staff capacity.
     Falls back to quote if estimate has zero workshop hours.
     """
-    estimate = job.cost_sets.filter(kind="estimate").order_by("-rev").first()
-    if not estimate:
+    estimate = job.latest_estimate
+    if estimate is None:
         exc = ValueError(f"Job {job.job_number} has no estimate CostSet")
         raise exc
 
     workshop_hours = _workshop_time_total(estimate)
 
     if workshop_hours <= 0:
-        quote = job.cost_sets.filter(kind="quote").order_by("-rev").first()
-        if not quote:
+        quote = job.latest_quote
+        if quote is None:
             exc = ValueError(
                 f"Job {job.job_number} has no quote CostSet to fall back to"
             )
@@ -90,46 +179,47 @@ def get_workshop_hours(job: Job) -> float:
 
 
 def _workshop_time_total(cost_set: CostSet) -> float:
-    total = (
-        cost_set.cost_lines.filter(
-            kind="time", labour_subtype__counts_for_scheduling=True
-        )
-        .aggregate(total=models.Sum("quantity"))
-        .get("total")
-    )
-    return float(total or 0.0)
+    total = sum(line.quantity for line in _production_time_lines(cost_set))
+    return float(total)
 
 
 def _production_time_by_bucket(
     cost_set: CostSet,
 ) -> dict[str, dict[str, bool | float | str]]:
-    rows = (
-        cost_set.cost_lines.filter(
-            kind="time", labour_subtype__counts_for_scheduling=True
-        )
-        .values(
-            "labour_subtype_id",
-            "labour_subtype__name",
-            "labour_subtype__is_workshop",
-        )
-        .annotate(hours=models.Sum("quantity"))
-        .order_by("-labour_subtype__is_workshop", "labour_subtype__name")
-    )
     buckets: dict[str, dict[str, bool | float | str]] = {}
-    for row in rows:
-        is_workshop = bool(row["labour_subtype__is_workshop"])
-        subtype_name = str(row["labour_subtype__name"])
-        bucket_id = str(row["labour_subtype_id"])
-        buckets[bucket_id] = {
-            "name": "WORKSHOP TIME" if is_workshop else f"{subtype_name} Time",
-            "hours": float(row["hours"] or 0.0),
-            "is_workshop": is_workshop,
-        }
+    for line in _production_time_lines(cost_set):
+        labour_subtype = line.labour_subtype
+        if labour_subtype is None:
+            exc = ValueError(f"CostLine {line.id} has no labour subtype")
+            raise exc
+        bucket_id = str(labour_subtype.id)
+        bucket = buckets.setdefault(
+            bucket_id,
+            {
+                "name": (
+                    "WORKSHOP TIME"
+                    if labour_subtype.is_workshop
+                    else f"{labour_subtype.name} Time"
+                ),
+                "hours": 0.0,
+                "is_workshop": labour_subtype.is_workshop,
+            },
+        )
+        bucket["hours"] = float(bucket["hours"]) + float(line.quantity)
+    buckets = dict(
+        sorted(
+            buckets.items(),
+            key=lambda item: (
+                not bool(item[1]["is_workshop"]),
+                str(item[1]["name"]),
+            ),
+        )
+    )
     return buckets
 
 
 def _latest_budget_cost_set(job: Job) -> CostSet:
-    estimate = job.cost_sets.filter(kind="estimate").order_by("-rev").first()
+    estimate = job.latest_estimate
     if estimate is None:
         exc = ValueError(f"Job {job.job_number} has no estimate CostSet")
         raise exc
@@ -137,7 +227,7 @@ def _latest_budget_cost_set(job: Job) -> CostSet:
     if _workshop_time_total(estimate) > 0:
         return estimate
 
-    quote = job.cost_sets.filter(kind="quote").order_by("-rev").first()
+    quote = job.latest_quote
     if quote is None:
         exc = ValueError(f"Job {job.job_number} has no quote CostSet to fall back to")
         raise exc
@@ -173,9 +263,7 @@ def get_time_breakdown(job: Job) -> dict:
         production_used_hours = _workshop_time_total(job.latest_actual)
 
         # Get breakdown by staff member
-        time_lines = job.latest_actual.cost_lines.filter(
-            kind="time", labour_subtype__counts_for_scheduling=True
-        ).select_related("cost_set", "staff")
+        time_lines = _production_time_lines(job.latest_actual)
 
         # Group by staff
         staff_hours = defaultdict(float)
@@ -566,21 +654,23 @@ def create_workshop_pdf(job: Job) -> BytesIO:
     Generate the workshop PDF with materials table and attachments.
     """
     try:
+        job = _ensure_workshop_pdf_job_loaded(job)
         main_buffer = create_workshop_main_document(job)
 
-        files_to_print = job.files.filter(print_on_jobsheet=True).exclude(
-            filename=JOB_SUMMARY_PDF_FILENAME
-        )
-        if not files_to_print.exists():
+        files_to_print = _printable_job_files(job)
+        if not files_to_print:
             return main_buffer
 
         image_files = [f for f in files_to_print if f.mime_type.startswith("image/")]
         pdf_files = [f for f in files_to_print if f.mime_type == "application/pdf"]
 
         return process_attachments(main_buffer, image_files, pdf_files)
-    except Exception as e:
-        logger.error(f"Error creating workshop PDF: {str(e)}")
-        raise e
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        logger.error("Error creating workshop PDF: %s", exc)
+        persist_and_raise(exc, job_id=str(job.id))
+        raise AssertionError("persist_and_raise returned unexpectedly")
 
 
 def create_delivery_docket_pdf(job: Job) -> BytesIO:
@@ -1292,9 +1382,12 @@ def add_materials_used_table(pdf: canvas.Canvas, y_position: float, job: Job) ->
 
     # Get actual materials used from latest_actual cost set
     if job.latest_actual:
-        material_lines = job.latest_actual.cost_lines.filter(kind="material").order_by(
-            "-quantity"
-        )  # Show largest quantities first
+        material_lines = [
+            line
+            for line in _cost_lines_for_pdf(job.latest_actual)
+            if line.kind == "material"
+        ]
+        material_lines.sort(key=lambda line: line.quantity, reverse=True)
 
         for line in material_lines:
             materials_data.append(
