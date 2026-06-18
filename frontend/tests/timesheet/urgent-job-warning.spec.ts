@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page } from '@playwright/test'
-import { autoId, getPhantomRowIndex } from '../fixtures/helpers'
+import { autoId, getPhantomRowIndex, TEST_CLIENT_NAME } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 /**
@@ -32,15 +32,32 @@ async function navigateToTimesheetEntry(page: Page): Promise<void> {
  * Fetch the active client's ID so we can create a job via the API.
  */
 async function getClientId(page: Page): Promise<string> {
-  return await page.evaluate(async () => {
-    const res = await fetch('/api/clients/list/')
-    const body = await res.json()
-    const match = (body.clients as Array<{ id: string; name: string }>).find(
-      (c) => c.name === 'ABC Carpet Cleaning TEST IGNORE',
-    )
-    if (!match) throw new Error('Test client not found')
-    return match.id
+  const response = await page.request.get('/api/clients/all/', {
+    headers: { Accept: 'application/json' },
   })
+  const responseText = await response.text()
+
+  if (!response.ok()) {
+    throw new Error(`Client list failed with HTTP ${response.status()}: ${responseText}`)
+  }
+
+  let clients: Array<{ id: string; name: string }>
+  try {
+    clients = JSON.parse(responseText) as Array<{ id: string; name: string }>
+  } catch {
+    throw new Error(`Client list returned non-JSON response: ${responseText}`)
+  }
+
+  if (!Array.isArray(clients)) {
+    throw new Error(`Client list returned unexpected payload: ${responseText}`)
+  }
+
+  const match = clients.find((client) => client.name === TEST_CLIENT_NAME)
+  if (!match) {
+    throw new Error(`Test client not found: ${TEST_CLIENT_NAME}`)
+  }
+
+  return match.id
 }
 
 /**
@@ -52,33 +69,40 @@ async function createUrgentJob(page: Page): Promise<{ jobNumber: string; jobUrl:
   const timestamp = Date.now()
   const jobName = `[TEST] Urgent Job ${timestamp}`
 
-  const result = await page.evaluate(
-    async ({ clientId, jobName }) => {
-      const res = await fetch('/api/job/rest/jobs/', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: jobName,
-          client_id: clientId,
-          description: '',
-          order_number: '',
-          notes: '',
-          contact_id: null,
-          estimated_materials: 0,
-          estimated_time: 0,
-          is_urgent: true,
-          pricing_methodology: 'time_materials',
-        }),
-      })
-      const body = await res.json()
-      if (!res.ok) throw new Error(`Job create failed: ${JSON.stringify(body)}`)
-      return { jobId: body.job_id, jobNumber: String(body.job_number) }
+  const response = await page.request.post('/api/job/jobs/', {
+    headers: { Accept: 'application/json' },
+    data: {
+      name: jobName,
+      client_id: clientId,
+      description: '',
+      order_number: '',
+      notes: '',
+      contact_id: null,
+      estimated_materials: 0,
+      estimated_time: 0,
+      is_urgent: true,
+      pricing_methodology: 'time_materials',
     },
-    { clientId, jobName },
-  )
+  })
+  const responseText = await response.text()
 
-  const jobUrl = `/jobs/${result.jobId}`
-  return { jobNumber: result.jobNumber, jobUrl }
+  if (!response.ok()) {
+    throw new Error(`Job create failed with HTTP ${response.status()}: ${responseText}`)
+  }
+
+  let result: { job_id?: string; job_number?: number }
+  try {
+    result = JSON.parse(responseText) as { job_id?: string; job_number?: number }
+  } catch {
+    throw new Error(`Job create returned non-JSON response: ${responseText}`)
+  }
+
+  if (!result.job_id || result.job_number === undefined) {
+    throw new Error(`Job create returned unexpected payload: ${responseText}`)
+  }
+
+  const jobUrl = `/jobs/${result.job_id}`
+  return { jobNumber: String(result.job_number), jobUrl }
 }
 
 // ============================================================================

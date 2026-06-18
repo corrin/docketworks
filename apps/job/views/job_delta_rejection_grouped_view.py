@@ -1,4 +1,4 @@
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -13,6 +13,19 @@ from apps.job.serializers.job_serializer import (
     GroupedJobDeltaRejectionResolveResponseSerializer,
 )
 from apps.job.services.job_rest_service import JobRestService
+
+GROUPED_DELTA_REJECTION_LIST_PARAMETERS = [
+    OpenApiParameter("limit", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False),
+    OpenApiParameter(
+        "offset", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "job_id", OpenApiTypes.UUID, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "resolved", OpenApiTypes.BOOL, OpenApiParameter.QUERY, required=False
+    ),
+]
 
 
 def _parse_pagination(request: Request) -> tuple[int, int]:
@@ -41,6 +54,7 @@ class JobDeltaRejectionGroupedListView(APIView):
     serializer_class = GroupedJobDeltaRejectionListResponseSerializer
 
     @extend_schema(
+        parameters=GROUPED_DELTA_REJECTION_LIST_PARAMETERS,
         responses={200: GroupedJobDeltaRejectionListResponseSerializer},
         tags=["Jobs"],
     )

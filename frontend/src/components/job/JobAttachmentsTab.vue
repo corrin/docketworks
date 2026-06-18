@@ -194,6 +194,7 @@
                       class="p-2 text-gray-400 hover:text-blue-600 transition-colors duration-200"
                       aria-label="Download"
                       title="Download"
+                      :data-automation-id="`JobAttachmentsTab-download-${file.id}`"
                     >
                       <Download class="w-4 h-4" />
                     </button>
@@ -204,6 +205,7 @@
                       class="p-2 text-gray-400 hover:text-red-600 transition-colors duration-200"
                       aria-label="Delete"
                       title="Delete"
+                      :data-automation-id="`JobAttachmentsTab-delete-${file.id}`"
                     >
                       <Trash2 class="w-4 h-4" />
                     </button>

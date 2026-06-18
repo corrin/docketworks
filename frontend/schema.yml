@@ -1025,6 +1025,37 @@ paths:
   /api/app-errors/grouped/:
     get:
       operationId: app_errors_grouped_retrieve
+      parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - app-errors
       security:
@@ -4683,6 +4714,24 @@ paths:
   /api/job/jobs/delta-rejections/grouped/:
     get:
       operationId: job_jobs_delta_rejections_grouped_retrieve
+      parameters:
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
       tags:
         - Jobs
       security:
@@ -7437,6 +7486,37 @@ paths:
         - ``severity`` (exact integer)
         - ``resolved`` (boolean)
         - ``job_id`` / ``user_id`` (UUID strings)
+      parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - rest
       security:
@@ -8611,6 +8691,37 @@ paths:
   /api/xero-errors/grouped/:
     get:
       operationId: xero_errors_grouped_retrieve
+      parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - xero-errors
       security:

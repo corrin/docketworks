@@ -4601,6 +4601,43 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
     path: '/api/app-errors/grouped/',
     alias: 'app_errors_grouped_retrieve',
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'app',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'job_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'offset',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'resolved',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
+        name: 'severity',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'user_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+    ],
     response: GroupedAppErrorListResponse,
   },
   {
@@ -7097,6 +7134,28 @@ Expected JSON:
     path: '/api/job/jobs/delta-rejections/grouped/',
     alias: 'job_jobs_delta_rejections_grouped_retrieve',
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'job_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'offset',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'resolved',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+    ],
     response: GroupedJobDeltaRejectionListResponse,
   },
   {
@@ -8964,6 +9023,43 @@ Supports pagination via &#x60;&#x60;limit&#x60;&#x60;/&#x60;&#x60;offset&#x60;&#
 - &#x60;&#x60;resolved&#x60;&#x60; (boolean)
 - &#x60;&#x60;job_id&#x60;&#x60; / &#x60;&#x60;user_id&#x60;&#x60; (UUID strings)`,
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'app',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'job_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'offset',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'resolved',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
+        name: 'severity',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'user_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+    ],
     response: AppErrorListResponse,
   },
   {
@@ -9758,6 +9854,43 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
     path: '/api/xero-errors/grouped/',
     alias: 'xero_errors_grouped_retrieve',
     requestFormat: 'json',
+    parameters: [
+      {
+        name: 'app',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'job_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'limit',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'offset',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'resolved',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
+        name: 'severity',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'user_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+    ],
     response: GroupedAppErrorListResponse,
   },
   {

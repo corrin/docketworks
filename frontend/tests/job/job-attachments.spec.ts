@@ -42,7 +42,7 @@ test.describe('job attachments', () => {
     const fileInput = autoId(page, 'JobAttachmentsTab-file-input')
     await fileInput.waitFor({ state: 'attached' })
 
-    await Promise.all([
+    const [uploadResponse] = await Promise.all([
       page.waitForResponse((response) => {
         return (
           response.url().includes(`/api/job/jobs/${jobId}/files/`) &&
@@ -54,12 +54,19 @@ test.describe('job attachments', () => {
       fileInput.setInputFiles(fixturePath),
     ])
 
-    await expect(page.getByText(fileName, { exact: true })).toBeVisible({ timeout: 20000 })
+    const uploadPayload = await uploadResponse.json()
+    const uploadedFileId: string | undefined = uploadPayload?.uploaded?.[0]?.id
+    if (!uploadedFileId) {
+      throw new Error(`Upload response missing uploaded[0].id: ${JSON.stringify(uploadPayload)}`)
+    }
 
-    const fileRow = page.locator('div', { has: page.getByText(fileName, { exact: true }) }).first()
+    await expect(page.getByText(fileName, { exact: true })).toBeVisible({ timeout: 20000 })
+    await expect(autoId(page, `JobAttachmentsTab-file-row-${uploadedFileId}`)).toBeVisible({
+      timeout: 10000,
+    })
 
     page.once('dialog', (dialog) => dialog.accept())
-    await fileRow.getByRole('button', { name: 'Delete' }).click()
+    await autoId(page, `JobAttachmentsTab-delete-${uploadedFileId}`).click()
 
     await expect(page.getByText(fileName, { exact: true })).toHaveCount(0)
   })
@@ -120,8 +127,6 @@ test.describe('job attachments', () => {
 
     await expect(page.getByText(fileName, { exact: true })).toBeVisible({ timeout: 20000 })
 
-    const fileRow = page.locator('div', { has: page.getByText(fileName, { exact: true }) }).first()
-
     // Pin the wait to this specific file id so concurrent list refreshes or
     // thumbnails on other files can't satisfy the matcher.
     const downloadUrlRe = new RegExp(`/api/job/jobs/${jobId}/files/${uploadedFileId}/$`)
@@ -129,7 +134,7 @@ test.describe('job attachments', () => {
       page.waitForResponse(
         (response) => downloadUrlRe.test(response.url()) && response.request().method() === 'GET',
       ),
-      fileRow.getByRole('button', { name: 'Download' }).click(),
+      autoId(page, `JobAttachmentsTab-download-${uploadedFileId}`).click(),
     ])
 
     expect(downloadResponse.status()).toBe(200)
@@ -140,7 +145,7 @@ test.describe('job attachments', () => {
     // Shared edit job is reused across tests; delete so subsequent runs start
     // from a clean attachment list.
     page.once('dialog', (dialog) => dialog.accept())
-    await fileRow.getByRole('button', { name: 'Delete' }).click()
+    await autoId(page, `JobAttachmentsTab-delete-${uploadedFileId}`).click()
     await expect(page.getByText(fileName, { exact: true })).toHaveCount(0)
     fs.unlinkSync(tmpPath)
   })
@@ -227,7 +232,7 @@ test.describe('job attachments', () => {
     await expect(savedRow.getByText(/Uploading|Saving/)).toHaveCount(0)
 
     page.once('dialog', (dialog) => dialog.accept())
-    await savedRow.getByRole('button', { name: 'Delete' }).click()
+    await autoId(page, `JobAttachmentsTab-delete-${uploadedFileId}`).click()
     await expect(page.getByText(fileName, { exact: true })).toHaveCount(0)
     fs.unlinkSync(tmpPath)
   })

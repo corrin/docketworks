@@ -1,6 +1,7 @@
 from uuid import UUID
 
 from django_filters.rest_framework import DjangoFilterBackend
+from drf_spectacular.utils import OpenApiParameter, OpenApiTypes, extend_schema
 from rest_framework import filters, status
 from rest_framework.decorators import action
 from rest_framework.generics import ListAPIView, RetrieveAPIView
@@ -15,6 +16,26 @@ from apps.workflow.models import AppError
 from apps.workflow.serializers import AppErrorListResponseSerializer, AppErrorSerializer
 from apps.workflow.services.error_persistence import list_app_errors
 from apps.workflow.utils import parse_pagination_params
+
+APP_ERROR_REST_LIST_PARAMETERS = [
+    OpenApiParameter("limit", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False),
+    OpenApiParameter(
+        "offset", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter("app", OpenApiTypes.STR, OpenApiParameter.QUERY, required=False),
+    OpenApiParameter(
+        "severity", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "resolved", OpenApiTypes.BOOL, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "job_id", OpenApiTypes.UUID, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "user_id", OpenApiTypes.UUID, OpenApiParameter.QUERY, required=False
+    ),
+]
 
 
 class AppErrorListAPIView(ListAPIView):
@@ -67,6 +88,10 @@ class AppErrorRestListView(APIView):
     serializer_class = AppErrorListResponseSerializer
     permission_classes = [IsAuthenticated, IsOfficeStaff]
 
+    @extend_schema(
+        parameters=APP_ERROR_REST_LIST_PARAMETERS,
+        responses={200: AppErrorListResponseSerializer},
+    )
     def get(self, request):
         try:
             limit, offset = parse_pagination_params(request)

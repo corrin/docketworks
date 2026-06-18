@@ -12,6 +12,7 @@
     "lint": "eslint . --fix",
     "format": "prettier --write src/",
     "gen:api": "node ./scripts/gen-api.js",
+    "check:api-contract": "node ./scripts/check-api-contract-boundary.js",
     "gen:typed-router": "tsx ./scripts/generate-typed-router.ts",
     "check:typed-router": "tsx ./scripts/generate-typed-router.ts --check",
     "update-schema": "npx prettier --write schema.yml && npm run gen:api",
