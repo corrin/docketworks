@@ -112,13 +112,15 @@ class Job(models.Model):
     #   4. get_client_jobs() response dict in apps/client/services/client_rest_service.py
     #   5. KanbanService.serialize_job_for_api() in apps/job/services/kanban_service.py
     #   6. KanbanJobSerializer and KanbanColumnJobSerializer in apps/job/serializers/kanban_serializer.py
-    #   7. data_quality_report.py in apps/job/services/
-    #   8. JobAgingService job_info dict in apps/accounting/services.py
-    #   9. serialize_job_list() in apps/workflow/api/reports/job_movement.py
-    #  10. get_jobs_for_dropdown() in apps/job/utils.py
-    #  11. jobs_data dict in apps/purchasing/views/purchasing_rest_views.py
-    #  12. job_metrics dict in JobRestService.get_weekly_metrics() in apps/job/services/job_rest_service.py
-    #  13. job_data dict in DailyTimesheetService._get_job_breakdown() in apps/timesheet/services/daily_timesheet_service.py
+    #   7. TestSerializeJobForApi.test_serialized_shape_for_fully_populated_job
+    #      in apps/job/tests/test_kanban_service.py
+    #   8. data_quality_report.py in apps/job/services/
+    #   9. JobAgingService job_info dict in apps/accounting/services/core.py
+    #  10. serialize_job_list() in apps/workflow/api/reports/job_movement.py
+    #  11. get_jobs_for_dropdown() in apps/job/utils.py
+    #  12. jobs_data dict in apps/purchasing/views/purchasing_rest_views.py
+    #  13. job_metrics dict in JobRestService.get_weekly_metrics() in apps/job/services/job_rest_service.py
+    #  14. job_data dict in DailyTimesheetService._get_job_breakdown() in apps/timesheet/services/daily_timesheet_service.py
     #
     # Field change events are created automatically by Job.save().
     # All fields are tracked unless listed in UNTRACKED_FIELDS.
