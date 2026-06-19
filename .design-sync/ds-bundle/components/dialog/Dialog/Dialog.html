@@ -1,0 +1,44 @@
+<!-- @dsCard group="Overlays" -->
+<style>
+:root{
+  --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+  --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+  --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+  --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+  --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+  --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+  --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+  --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+  --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+  --radius:0.625rem;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+.ds-dialog-card{width:360px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-sizing:border-box;}
+.ds-dialog-card *{box-sizing:border-box;}
+.ds-title{font-size:13px;font-weight:600;margin:0 0 2px;}
+.ds-sub{font-size:11px;color:var(--muted-foreground);margin:0 0 12px;}
+.ds-stage{position:relative;background:rgba(0,0,0,0.80);border-radius:calc(var(--radius) - 2px);padding:22px 14px;display:flex;align-items:center;justify-content:center;}
+.ds-panel{position:relative;width:100%;max-width:280px;background:var(--background);border:1px solid var(--border);border-radius:var(--radius);padding:20px;box-shadow:0 10px 15px -3px rgba(0,0,0,.2);}
+.ds-x{position:absolute;top:12px;right:12px;width:16px;height:16px;color:var(--muted-foreground);opacity:.7;}
+.ds-dlg-title{font-size:16px;font-weight:600;line-height:1.1;margin:0 0 6px;color:var(--foreground);}
+.ds-dlg-desc{font-size:12px;color:var(--muted-foreground);margin:0 0 18px;line-height:1.35;}
+.ds-row{display:flex;justify-content:flex-end;gap:8px;}
+.ds-btn{height:32px;display:inline-flex;align-items:center;padding:0 12px;font-size:12px;font-weight:500;border-radius:calc(var(--radius) - 2px);cursor:default;}
+.ds-btn-outline{background:transparent;border:1px solid var(--border);color:var(--foreground);}
+.ds-btn-primary{background:var(--primary);color:var(--primary-foreground);border:1px solid var(--primary);}
+</style>
+<div class="ds-dialog-card">
+  <p class="ds-title">Dialog</p>
+  <p class="ds-sub">Modal overlay · centered · max-w-lg · built-in close</p>
+  <div class="ds-stage">
+    <div class="ds-panel">
+      <svg class="ds-x" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+      <h3 class="ds-dlg-title">Edit job</h3>
+      <p class="ds-dlg-desc">Update details, then save your changes.</p>
+      <div class="ds-row">
+        <span class="ds-btn ds-btn-outline">Cancel</span>
+        <span class="ds-btn ds-btn-primary">Save</span>
+      </div>
+    </div>
+  </div>
+</div>

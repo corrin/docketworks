@@ -1,0 +1,9 @@
+{
+  "projectId": "3511bfb4-deb6-409a-86ad-5f99e5382b32",
+  "pkg": "frontend",
+  "shape": "package",
+  "mode": "tokens-and-specs-only",
+  "note": "Vue (reka-ui) component kit. Claude Design renders React, so no _ds_bundle.js is produced. We extract framework-agnostic artifacts only: oklch token system, styles.css, per-component prop/variant/slot specs (.d.ts + .prompt.md), and a conventions header. Extraction is read-only from frontend/src/components/ui/ — no isolated lib build, no stub-and-render verification (per user direction: couplings are minimal; Pinia is cache-only, all API via the generated OpenAPI client).",
+  "source": "frontend/src/components/ui",
+  "readmeHeader": ".design-sync/conventions.md"
+}

@@ -1,0 +1,29 @@
+<!-- @dsCard group="Display" -->
+<style>
+  :root{
+    --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+    --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+    --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+    --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+    --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+    --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+    --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+    --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+    --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+    --radius:0.625rem;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  .dscard{width:360px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:14px}
+  .dscard h4{margin:0;font-size:13px;font-weight:600}
+  .dscard .sub{font-size:11px;color:var(--muted-foreground);margin-top:-6px}
+  .track{position:relative;height:8px;width:100%;overflow:hidden;border-radius:9999px;background:color-mix(in oklab,var(--primary) 20%,transparent)}
+  .ind{height:100%;background:var(--primary);border-radius:9999px}
+  .lbl{font-size:11px;color:var(--muted-foreground);display:flex;justify-content:space-between}
+</style>
+<div class="dscard">
+  <h4>Progress</h4>
+  <div class="sub">Determinate bar · modelValue 0–100 (default 0)</div>
+  <div><div class="lbl"><span>33%</span></div><div class="track"><div class="ind" style="width:33%"></div></div></div>
+  <div><div class="lbl"><span>66%</span></div><div class="track"><div class="ind" style="width:66%"></div></div></div>
+  <div><div class="lbl"><span>100%</span></div><div class="track"><div class="ind" style="width:100%"></div></div></div>
+</div>

@@ -1,5 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { mount, flushPromises } from '@vue/test-utils'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { mount, flushPromises, enableAutoUnmount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 
 const { logSearchResultClick } = vi.hoisted(() => ({
@@ -119,9 +119,25 @@ function buildStockItem(over: Partial<Record<string, unknown>> = {}) {
   }
 }
 
+// Unmount every wrapper after each test. ItemSelect schedules a 300ms
+// useDebounceFn timer on every searchTerm change; a wrapper left mounted keeps
+// that timer pending across tests. A later test calling vi.useFakeTimers() +
+// advanceTimersByTime then fires the stale debounce with the previous test's
+// query, calling the server-search mock and breaking its assertions.
+enableAutoUnmount(afterEach)
+
 beforeEach(() => {
+  vi.clearAllTimers()
+  vi.useRealTimers()
   vi.clearAllMocks()
   setActivePinia(createPinia())
+})
+
+afterEach(() => {
+  // Drop any pending debounce timer left by the unmounted component and hand
+  // the next test a clean real-timer baseline.
+  vi.clearAllTimers()
+  vi.useRealTimers()
 })
 
 describe('ItemSelect server-side search and rendering', () => {

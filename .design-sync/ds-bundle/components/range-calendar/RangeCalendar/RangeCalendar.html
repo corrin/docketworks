@@ -1,0 +1,49 @@
+<!-- @dsCard group="Date & Time" -->
+<style>
+:root{
+  --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+  --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+  --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+  --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+  --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+  --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+  --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+  --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+  --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+  --radius:0.625rem;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+.ds-cal-card{width:360px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-sizing:border-box;}
+.ds-cal-title{font-size:13px;font-weight:600;color:var(--muted-foreground);margin:0 0 12px;}
+.ds-cal{border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);padding:12px;}
+.ds-cal-hdr{display:flex;align-items:center;justify-content:center;position:relative;padding-top:2px;margin-bottom:12px;}
+.ds-cal-heading{font-size:13px;font-weight:500;}
+.ds-nav{position:absolute;top:0;width:28px;height:28px;border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);background:transparent;opacity:.5;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.ds-nav.prev{left:0;} .ds-nav.next{right:0;}
+.ds-grid{display:grid;grid-template-columns:repeat(7,32px);gap:0;}
+.ds-wd{height:24px;display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted-foreground);}
+.ds-day{width:32px;height:32px;display:flex;align-items:center;justify-content:center;font-size:13px;}
+.ds-day.muted{color:var(--muted-foreground);}
+.ds-day.span{background:var(--accent);color:var(--accent-foreground);}
+.ds-day.start{background:var(--primary);color:var(--primary-foreground);border-top-left-radius:calc(var(--radius) - 2px);border-bottom-left-radius:calc(var(--radius) - 2px);}
+.ds-day.end{background:var(--primary);color:var(--primary-foreground);border-top-right-radius:calc(var(--radius) - 2px);border-bottom-right-radius:calc(var(--radius) - 2px);}
+</style>
+
+<div class="ds-cal-card">
+  <p class="ds-cal-title">RangeCalendar — start/end range · reka-ui RangeCalendarRoot</p>
+  <div class="ds-cal">
+    <div class="ds-cal-hdr">
+      <button class="ds-nav prev">‹</button>
+      <span class="ds-cal-heading">June 2026</span>
+      <button class="ds-nav next">›</button>
+    </div>
+    <div class="ds-grid">
+      <div class="ds-wd">Su</div><div class="ds-wd">Mo</div><div class="ds-wd">Tu</div><div class="ds-wd">We</div><div class="ds-wd">Th</div><div class="ds-wd">Fr</div><div class="ds-wd">Sa</div>
+      <div class="ds-day muted">31</div><div class="ds-day">1</div><div class="ds-day">2</div><div class="ds-day">3</div><div class="ds-day">4</div><div class="ds-day">5</div><div class="ds-day">6</div>
+      <div class="ds-day">7</div><div class="ds-day">8</div><div class="ds-day start">9</div><div class="ds-day span">10</div><div class="ds-day span">11</div><div class="ds-day span">12</div><div class="ds-day end">13</div>
+      <div class="ds-day">14</div><div class="ds-day">15</div><div class="ds-day">16</div><div class="ds-day">17</div><div class="ds-day">18</div><div class="ds-day">19</div><div class="ds-day">20</div>
+      <div class="ds-day">21</div><div class="ds-day">22</div><div class="ds-day">23</div><div class="ds-day">24</div><div class="ds-day">25</div><div class="ds-day">26</div><div class="ds-day">27</div>
+      <div class="ds-day">28</div><div class="ds-day">29</div><div class="ds-day">30</div><div class="ds-day muted">1</div><div class="ds-day muted">2</div><div class="ds-day muted">3</div><div class="ds-day muted">4</div>
+    </div>
+  </div>
+</div>

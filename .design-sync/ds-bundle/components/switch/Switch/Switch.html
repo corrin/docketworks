@@ -1,0 +1,43 @@
+<!-- @dsCard group="Forms" -->
+<div class="ds-card">
+  <style>
+    :root{
+      --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+      --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+      --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+      --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+      --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+      --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+      --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+      --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+      --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+      --radius:0.625rem;
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    }
+    .ds-card{width:360px;box-sizing:border-box;padding:20px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);}
+    .ds-title{font-size:13px;font-weight:600;margin:0 0 14px;}
+    .ds-sw-row{display:flex;align-items:center;gap:0.5rem;margin-bottom:12px;}
+    .ds-sw{position:relative;width:2rem;height:1.15rem;border-radius:9999px;border:1px solid transparent;box-shadow:0 1px 2px rgba(0,0,0,0.04);flex:none;}
+    .ds-sw.off{background:var(--input);}
+    .ds-sw.on{background:var(--primary);}
+    .ds-sw.disabled{opacity:0.5;}
+    .ds-thumb{position:absolute;top:50%;width:1rem;height:1rem;border-radius:9999px;background:var(--background);transform:translateY(-50%);}
+    .ds-sw.off .ds-thumb{left:1px;}
+    .ds-sw.on .ds-thumb{left:calc(100% - 1rem - 1px);}
+    .ds-sw-text{font-size:14px;}
+    .ds-sw-text.muted{color:var(--muted-foreground);}
+  </style>
+  <p class="ds-title">Switch</p>
+  <div class="ds-sw-row">
+    <span class="ds-sw off"><span class="ds-thumb"></span></span>
+    <span class="ds-sw-text">Off (unchecked)</span>
+  </div>
+  <div class="ds-sw-row">
+    <span class="ds-sw on"><span class="ds-thumb"></span></span>
+    <span class="ds-sw-text">On (checked)</span>
+  </div>
+  <div class="ds-sw-row" style="margin-bottom:0;">
+    <span class="ds-sw on disabled"><span class="ds-thumb"></span></span>
+    <span class="ds-sw-text muted">Disabled</span>
+  </div>
+</div>

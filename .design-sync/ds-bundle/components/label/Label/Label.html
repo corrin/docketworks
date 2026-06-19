@@ -1,0 +1,30 @@
+<!-- @dsCard group="Forms" -->
+<div class="ds-card">
+  <style>
+    :root{
+      --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+      --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+      --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+      --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+      --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+      --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+      --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+      --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+      --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+      --radius:0.625rem;
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    }
+    .ds-card{width:360px;box-sizing:border-box;padding:20px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);}
+    .ds-title{font-size:13px;font-weight:600;margin:0 0 14px;}
+    .ds-hint{font-size:12px;color:var(--muted-foreground);margin:0 0 6px;}
+    .ds-label{display:flex;align-items:center;gap:0.5rem;font-size:14px;font-weight:500;line-height:1;user-select:none;color:var(--foreground);}
+    .ds-input{display:block;width:100%;height:2.25rem;margin-top:6px;box-sizing:border-box;padding:0.25rem 0.75rem;font-size:14px;background:transparent;border:1px solid var(--input);border-radius:calc(var(--radius) - 2px);color:var(--muted-foreground);}
+    .ds-disabled{opacity:0.5;}
+  </style>
+  <p class="ds-title">Label</p>
+  <p class="ds-hint">Default</p>
+  <label class="ds-label" for="x">Email address</label>
+  <input class="ds-input" value="you@example.com" readonly />
+  <p class="ds-hint" style="margin-top:16px;">Disabled (peer-disabled)</p>
+  <label class="ds-label ds-disabled">Disabled field</label>
+</div>

@@ -1,0 +1,16 @@
+{
+  "$comment": "Border-radius scale, derived from a single base token --radius. Tailwind utilities: rounded-sm/md/lg/xl.",
+  "base": "0.625rem",
+  "scale": {
+    "sm": "calc(var(--radius) - 4px)",
+    "md": "calc(var(--radius) - 2px)",
+    "lg": "var(--radius)",
+    "xl": "calc(var(--radius) + 4px)"
+  },
+  "resolved": {
+    "sm": "0.625rem - 4px",
+    "md": "0.625rem - 2px",
+    "lg": "0.625rem",
+    "xl": "0.625rem + 4px"
+  }
+}

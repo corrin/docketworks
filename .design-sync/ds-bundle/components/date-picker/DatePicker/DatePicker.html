@@ -1,0 +1,41 @@
+<!-- @dsCard group="Date & Time" -->
+<style>
+:root{
+  --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+  --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+  --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+  --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+  --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+  --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+  --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+  --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+  --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+  --radius:0.625rem;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+.ds-dp-card{width:360px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-sizing:border-box;}
+.ds-dp-title{font-size:13px;font-weight:600;color:var(--muted-foreground);margin:0 0 12px;}
+.ds-dp-label{display:block;font-size:13px;font-weight:500;margin-bottom:6px;}
+.ds-dp-btn{display:flex;align-items:center;width:100%;height:2.25rem;padding:0 12px;font-size:13px;font-weight:400;background:var(--background);border:1px solid var(--border);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px rgba(0,0,0,.05);box-sizing:border-box;}
+.ds-dp-ico{width:16px;height:16px;margin-right:8px;border:1.5px solid currentColor;border-radius:3px;position:relative;opacity:.8;flex:none;}
+.ds-dp-ico::before{content:"";position:absolute;top:-3px;left:3px;right:3px;height:3px;border-left:1.5px solid currentColor;border-right:1.5px solid currentColor;}
+.ds-pop{margin-top:8px;width:220px;background:var(--popover);border:1px solid var(--border);border-radius:var(--radius);box-shadow:0 8px 24px rgba(0,0,0,.12);padding:10px;}
+.ds-pop-hdr{display:flex;align-items:center;justify-content:space-between;font-size:12px;font-weight:500;margin-bottom:8px;}
+.ds-mini{display:grid;grid-template-columns:repeat(7,1fr);gap:2px;}
+.ds-mini span{height:20px;display:flex;align-items:center;justify-content:center;font-size:11px;border-radius:4px;}
+.ds-mini .sel{background:var(--primary);color:var(--primary-foreground);}
+.ds-mini .mut{color:var(--muted-foreground);}
+</style>
+
+<div class="ds-dp-card">
+  <p class="ds-dp-title">DatePicker — Button + Popover + Calendar</p>
+  <label class="ds-dp-label">Due date</label>
+  <div class="ds-dp-btn"><span class="ds-dp-ico"></span>18 June 2026</div>
+  <div class="ds-pop">
+    <div class="ds-pop-hdr"><span>‹</span><span>June 2026</span><span>›</span></div>
+    <div class="ds-mini">
+      <span class="mut">M</span><span class="mut">T</span><span class="mut">W</span><span class="mut">T</span><span class="mut">F</span><span class="mut">S</span><span class="mut">S</span>
+      <span>15</span><span>16</span><span>17</span><span class="sel">18</span><span>19</span><span>20</span><span>21</span>
+    </div>
+  </div>
+</div>
