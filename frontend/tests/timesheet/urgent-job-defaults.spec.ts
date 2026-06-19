@@ -1,18 +1,18 @@
 import { test, expect } from '../fixtures/auth'
-import type { Page } from '@playwright/test'
+import type { Page, Response } from '@playwright/test'
 import { autoId, getPhantomRowIndex, TEST_CLIENT_NAME } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
-/**
- * Tests for urgent job warning behaviour.
- * When a job is marked urgent, the timesheet entry UI should:
- *  - Show an "URGENT" visual indicator in the job picker
- *  - Warn the user when they select a non-Urgent labour subtype
- */
+type JsonObject = Record<string, unknown>
 
-// ============================================================================
-// Helpers
-// ============================================================================
+function isJsonObject(value: unknown): value is JsonObject {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function numberField(value: unknown, fieldName: string): number {
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  throw new Error(`Expected numeric ${fieldName}, got ${JSON.stringify(value)}`)
+}
 
 async function navigateToTimesheetEntry(page: Page): Promise<void> {
   const weekday = getLatestWeekdayDate()
@@ -28,9 +28,6 @@ async function navigateToTimesheetEntry(page: Page): Promise<void> {
   await page.waitForTimeout(1000)
 }
 
-/**
- * Fetch the active client's ID so we can create a job via the API.
- */
 async function getClientId(page: Page): Promise<string> {
   const response = await page.request.get('/api/clients/all/', {
     headers: { Accept: 'application/json' },
@@ -60,11 +57,7 @@ async function getClientId(page: Page): Promise<string> {
   return match.id
 }
 
-/**
- * Create a job via the REST API with `is_urgent: true`.
- * Returns the job number.
- */
-async function createUrgentJob(page: Page): Promise<{ jobNumber: string; jobUrl: string }> {
+async function createUrgentJob(page: Page): Promise<{ jobId: string; jobNumber: string }> {
   const clientId = await getClientId(page)
   const timestamp = Date.now()
   const jobName = `[TEST] Urgent Job ${timestamp}`
@@ -101,65 +94,77 @@ async function createUrgentJob(page: Page): Promise<{ jobNumber: string; jobUrl:
     throw new Error(`Job create returned unexpected payload: ${responseText}`)
   }
 
-  const jobUrl = `/jobs/${result.job_id}`
-  return { jobNumber: String(result.job_number), jobUrl }
+  return {
+    jobId: result.job_id,
+    jobNumber: String(result.job_number),
+  }
 }
 
-// ============================================================================
-// Test: Urgent Job Warning
-// ============================================================================
+function isCostLineCreateResponse(response: Response, jobId: string): boolean {
+  const url = new URL(response.url())
+  return (
+    url.pathname === `/api/job/jobs/${jobId}/cost_sets/actual/cost_lines/` &&
+    response.request().method() === 'POST'
+  )
+}
 
-test.describe('urgent job warning', () => {
-  test('shows urgent badge in picker and warns on non-urgent labour subtype', async ({
+test.describe('urgent job timesheet defaults', () => {
+  test('marks urgent jobs and saves a 1.5x customer charge with ordinary wage', async ({
     authenticatedPage: page,
   }) => {
-    // 1. Create an urgent job via the API
-    const { jobNumber } = await createUrgentJob(page)
-    console.log(`Created urgent job #${jobNumber}`)
+    const { jobId, jobNumber } = await createUrgentJob(page)
 
-    // 2. Navigate to the timesheet entry page
     await navigateToTimesheetEntry(page)
 
-    // 3. Find the phantom row and open the job picker — verify the
-    //    urgent indicator appears in the picker options
     const rowIdx = await getPhantomRowIndex(page)
     const trigger = autoId(page, `SmartTimesheetTable-jobPicker-${rowIdx}-trigger`)
 
-    // Click trigger, search for the urgent job, but don't select it
-    // yet — inspect the picker list for the URGENT badge.
     await trigger.click()
     const search = autoId(page, `SmartTimesheetTable-jobPicker-${rowIdx}-search`)
     await search.waitFor({ timeout: 5000 })
     await search.fill(jobNumber)
 
-    // The option for our job should appear
     const option = autoId(page, `SmartTimesheetTable-jobPicker-${rowIdx}-option-${jobNumber}`)
     await option.waitFor({ timeout: 5000 })
-
-    // Verify the URGENT badge is visible inside the option
     await expect(option.locator('span', { hasText: 'URGENT' })).toBeVisible()
 
-    // 4. Select the urgent job
     await option.click()
 
-    // 5. Verify the trigger button now shows the urgent "!" indicator
     await expect(trigger.locator('span', { hasText: '!' })).toBeVisible({ timeout: 5000 })
+    await expect(autoId(page, `SmartTimesheetTable-urgentBadge-${rowIdx}`)).toContainText('Urgent')
+    await expect(autoId(page, `SmartTimesheetTable-rate-${rowIdx}`)).toContainText('Ord')
+    await expect(autoId(page, `SmartTimesheetTable-billRate-${rowIdx}`)).toContainText('1.5x')
 
-    // 6. Verify the toast warning appeared ("is urgent — consider using the
-    //    Urgent labour rate")
-    const toast = page.locator('[data-sonner-toaster]')
-    await expect(toast).toContainText('urgent', { timeout: 5000 })
-
-    // 7. Enter hours to create the entry, then verify the entry is
-    //    saved correctly
     const hoursInput = autoId(page, `SmartTimesheetTable-hours-${rowIdx}`)
+    const createResponsePromise = page.waitForResponse(
+      (response) => isCostLineCreateResponse(response, jobId),
+      { timeout: 30000 },
+    )
+
     await hoursInput.click()
     await page.keyboard.type('2')
     await page.keyboard.press('Enter')
 
-    // Wait for the POST to finish so the entry is committed
-    await page.waitForTimeout(2000)
+    const createResponse = await createResponsePromise
+    const responseText = await createResponse.text()
+    expect(createResponse.ok(), responseText).toBe(true)
 
-    console.log('Urgent job warning test completed successfully')
+    const requestPayload = createResponse.request().postDataJSON() as unknown
+    if (!isJsonObject(requestPayload) || !isJsonObject(requestPayload.meta)) {
+      throw new Error(`Cost line create sent unexpected payload: ${JSON.stringify(requestPayload)}`)
+    }
+    expect(numberField(requestPayload.meta.wage_rate_multiplier, 'wage_rate_multiplier')).toBe(1.0)
+    expect(numberField(requestPayload.meta.bill_rate_multiplier, 'bill_rate_multiplier')).toBe(1.5)
+    expect(requestPayload.meta.is_billable).toBe(true)
+
+    const responsePayload = JSON.parse(responseText) as unknown
+    if (isJsonObject(responsePayload) && isJsonObject(responsePayload.meta)) {
+      expect(
+        numberField(responsePayload.meta.wage_rate_multiplier, 'response wage multiplier'),
+      ).toBe(1.0)
+      expect(
+        numberField(responsePayload.meta.bill_rate_multiplier, 'response bill multiplier'),
+      ).toBe(1.5)
+    }
   })
 })

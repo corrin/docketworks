@@ -156,6 +156,21 @@ describe('SmartTimesheetTable urgent charge default', () => {
     expect(getRateTypeFromMultiplier(getBillMultiplier(entry))).toBe('1.5')
   })
 
+  it('does not replace an explicit customer charge override when an urgent job is selected', async () => {
+    const job = makeJob({ is_urgent: true })
+    const entry = makeEntry()
+    Object.assign(entry.meta, { bill_rate_multiplier: 2.0, is_billable: true })
+    const wrapper = mountTable([job], [entry])
+
+    selectJob(job)
+    await wrapper.vm.$nextTick()
+
+    expect(getBillMultiplier(entry)).toBe(2.0)
+    expect(getMultiplier(entry)).toBe(1.0)
+    expect(getRateTypeFromMultiplier(getBillMultiplier(entry))).toBe('2.0')
+    expect(entry.unit_rev).toBe(200)
+  })
+
   it('renders an Urgent badge in the Job Name cell for a row linked to an urgent job', () => {
     const job = makeJob({ is_urgent: true })
     const entry = makeEntry()

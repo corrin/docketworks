@@ -6,13 +6,13 @@ import { gridCellAttrs } from '../../composables/useGridKeyboardNav'
 
 import { schemas } from '../../api/generated/api'
 import type { z } from 'zod'
-import { workshopRateEntry } from '../../utils/labourRates'
+import { rateForSubtype } from '../../utils/labourRates'
 
 type Job = z.infer<typeof schemas.ModernTimesheetJob>
 
 /** Workshop charge-out rate shown in the picker (rates are per labour subtype). */
 function jobDisplayRate(job: Job): number {
-  return workshopRateEntry(job.labour_rates)?.charge_out_rate ?? 0
+  return rateForSubtype(job.labour_rates, null)
 }
 
 const props = withDefaults(

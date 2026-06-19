@@ -16,6 +16,7 @@ import {
   subtypeName,
   type JobLabourRate,
 } from '@/utils/labourRates'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type LabourItem = {
   type: 'labour'
@@ -89,9 +90,18 @@ const labourItems = computed<LabourItem[]>(() =>
     labour_subtype: rate.labour_subtype,
     description: rate.labour_subtype_name,
     item_code: '',
-    unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
-    unit_rev: rate.charge_out_rate ?? 0,
-    unit_revenue: rate.charge_out_rate ?? 0,
+    unit_cost: requiredNumber(
+      companyDefaultsStore.companyDefaults?.wage_rate,
+      'company defaults wage_rate',
+    ),
+    unit_rev: requiredNumber(
+      rate.charge_out_rate,
+      `charge_out_rate for ${rate.labour_subtype_name}`,
+    ),
+    unit_revenue: requiredNumber(
+      rate.charge_out_rate,
+      `charge_out_rate for ${rate.labour_subtype_name}`,
+    ),
     quantity: null,
     times_used: null,
   })),
@@ -169,7 +179,7 @@ const selectedDisplay = computed(() => {
 })
 
 const displayPrice = (item: DisplayItem) => {
-  return formatCurrency(item.unit_revenue ?? 0)
+  return formatCurrency(requiredNumber(item.unit_revenue, 'item unit_revenue'))
 }
 
 function variantSignature(item: DisplayItem): string {

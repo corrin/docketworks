@@ -1,6 +1,7 @@
 import { computed, type Ref } from 'vue'
 import { schemas } from '../api/generated/api'
 import type { z } from 'zod'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 
@@ -29,9 +30,9 @@ export function useCostSummary(options: UseCostSummaryOptions) {
     let hours = 0
 
     for (const line of costLines.value) {
-      const quantity = line.quantity || 0
-      const unitCost = line.unit_cost || 0
-      const unitRev = line.unit_rev || 0
+      const quantity = requiredNumber(line.quantity, 'cost line quantity')
+      const unitCost = requiredNumber(line.unit_cost, 'cost line unit_cost')
+      const unitRev = requiredNumber(line.unit_rev, 'cost line unit_rev')
 
       if (line.kind === 'time') {
         cost += quantity * unitCost
@@ -66,9 +67,9 @@ export function useCostSummary(options: UseCostSummaryOptions) {
     let hours = 0
 
     for (const line of costLines.value) {
-      const quantity = line.quantity || 0
-      const unitCost = line.unit_cost || 0
-      const unitRev = line.unit_rev || 0
+      const quantity = requiredNumber(line.quantity, 'cost line quantity')
+      const unitCost = requiredNumber(line.unit_cost, 'cost line unit_cost')
+      const unitRev = requiredNumber(line.unit_rev, 'cost line unit_rev')
 
       cost += quantity * unitCost
       rev += quantity * unitRev

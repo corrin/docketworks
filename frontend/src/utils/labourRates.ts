@@ -10,6 +10,7 @@
 
 import type { z } from 'zod'
 import type { schemas } from '../api/generated/api'
+import { requiredNumber } from './requiredNumber'
 
 export type JobLabourRate = z.infer<typeof schemas.JobLabourRate>
 
@@ -23,18 +24,24 @@ export function workshopRateEntry(rates: JobLabourRate[]): JobLabourRate | undef
 
 /**
  * Charge-out rate for a labour subtype on this job.
- * Falls back to the workshop rate when the subtype is unset/unknown, and to 0
- * when the job has no labour rates loaded at all.
+ * Falls back to the workshop rate only when the subtype is unset. Missing job
+ * rates or unknown subtype IDs are contract/data errors, not zero-rate cases.
  */
 export function rateForSubtype(
   rates: JobLabourRate[],
   labourSubtypeId: string | null | undefined,
 ): number {
-  const bySubtype = labourSubtypeId
+  const entry = labourSubtypeId
     ? rates.find((r) => r.labour_subtype === labourSubtypeId)
-    : undefined
-  const entry = bySubtype ?? workshopRateEntry(rates)
-  return entry?.charge_out_rate ?? 0
+    : workshopRateEntry(rates)
+  if (!entry) {
+    throw new Error(
+      labourSubtypeId
+        ? `No job labour rate for subtype ${labourSubtypeId}`
+        : 'No workshop job labour rate available',
+    )
+  }
+  return requiredNumber(entry.charge_out_rate, `charge_out_rate for ${entry.labour_subtype_name}`)
 }
 
 /**

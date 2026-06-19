@@ -28,6 +28,7 @@
 import { computed } from 'vue'
 import { schemas } from '../api/generated/api'
 import type { z } from 'zod'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CompanyDefaults = z.infer<typeof schemas.CompanyDefaults>
@@ -116,14 +117,12 @@ export function useCostLineCalculations(options: {
   /**
    * Format helpers (rounding with fixed decimals)
    */
-  function roundMoney(v: number | undefined | null): number {
-    const n = Number(v ?? 0)
-    return roundTo(n, moneyScale)
+  function roundMoney(v: unknown, label: string): number {
+    return roundTo(requiredNumber(v, label), moneyScale)
   }
 
-  function roundQty(v: number | undefined | null): number {
-    const n = Number(v ?? 0)
-    return roundTo(n, quantityScale)
+  function roundQty(v: unknown, label: string): number {
+    return roundTo(requiredNumber(v, label), quantityScale)
   }
 
   function roundTo(value: number, scale: number): number {
@@ -139,8 +138,8 @@ export function useCostLineCalculations(options: {
     unit_cost: number,
     materials_markup: number | undefined | null,
   ): number {
-    const markup = Number(materials_markup ?? 0)
-    return roundMoney(unit_cost * (1 + markup))
+    const markup = requiredNumber(materials_markup, 'company defaults materials_markup')
+    return roundMoney(unit_cost * (1 + markup), 'calculated material unit_rev')
   }
 
   /**
@@ -158,22 +157,22 @@ export function useCostLineCalculations(options: {
     const kind = String(line.kind)
 
     if (kind === 'time') {
-      const wage = roundMoney(defaults?.wage_rate ?? 0)
+      const wage = roundMoney(defaults?.wage_rate, 'company defaults wage_rate')
       // Per-subtype job rate (job labour_rates). There is no company-wide
       // charge-out rate — the resolver is mandatory (enforced at construction).
-      const charge = roundMoney(getTimeChargeOutRate(line) ?? 0)
+      const charge = roundMoney(getTimeChargeOutRate(line), 'time charge_out_rate')
       return { unit_cost: wage, unit_rev: charge, usedDefaultRevenue: true }
     }
 
     // For material and adjustment, use provided unit_cost; default unit_rev = cost * (1 + materials_markup)
-    const baseCost = roundMoney(line.unit_cost ?? 0)
+    const baseCost = roundMoney(line.unit_cost, 'cost line unit_cost')
 
     if (kind === 'material' || kind === 'adjust') {
       if (isUnitRevOverridden(line)) {
         // Respect manual override; do not change unit_rev here
         return {
           unit_cost: baseCost,
-          unit_rev: roundMoney(line.unit_rev ?? 0),
+          unit_rev: roundMoney(line.unit_rev, 'cost line unit_rev'),
           usedDefaultRevenue: false,
         }
       }
@@ -188,8 +187,8 @@ export function useCostLineCalculations(options: {
 
     // Fallback: keep existing numbers (defensive, though kinds are limited)
     return {
-      unit_cost: roundMoney(line.unit_cost ?? 0),
-      unit_rev: roundMoney(line.unit_rev ?? 0),
+      unit_cost: roundMoney(line.unit_cost, 'cost line unit_cost'),
+      unit_rev: roundMoney(line.unit_rev, 'cost line unit_rev'),
       usedDefaultRevenue: false,
     }
   }
@@ -205,10 +204,10 @@ export function useCostLineCalculations(options: {
     total_cost: number
     total_rev: number
   } {
-    const qty = roundQty(quantity)
+    const qty = roundQty(quantity, 'cost line quantity')
     return {
-      total_cost: roundMoney(qty * unit_cost),
-      total_rev: roundMoney(qty * unit_rev),
+      total_cost: roundMoney(qty * unit_cost, 'calculated total_cost'),
+      total_rev: roundMoney(qty * unit_rev, 'calculated total_rev'),
     }
   }
 
@@ -221,7 +220,13 @@ export function useCostLineCalculations(options: {
   function validateLine(line: CostLine): ValidationResult {
     const issues: ValidationIssue[] = []
     const kind = String(line.kind)
-    const qty = Number(line.quantity ?? 0)
+    let qty: number
+    try {
+      qty = requiredNumber(line.quantity, 'cost line quantity')
+    } catch {
+      issues.push({ field: 'quantity', message: 'Quantity must be a valid number.' })
+      return { isValid: false, issues }
+    }
 
     if (kind === 'material' || kind === 'time') {
       if (!(qty > 0)) {
@@ -240,7 +245,7 @@ export function useCostLineCalculations(options: {
    */
   function apply(line: CostLine): ApplyResult {
     const units = computeUnits(line)
-    const qty = Number(line.quantity ?? 0)
+    const qty = requiredNumber(line.quantity, 'cost line quantity')
     const totals = computeTotals(qty, units.unit_cost, units.unit_rev)
     return {
       derived: {

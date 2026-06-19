@@ -5,6 +5,7 @@ import { schemas } from '../api/generated/api'
 import type { z } from 'zod'
 import { toLocalDateString } from '../utils/dateUtils'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CostLineCreateUpdate = z.infer<typeof schemas.CostLineCreateUpdateRequest>
@@ -49,9 +50,9 @@ export function useAddMaterialCostLine(options: UseAddMaterialCostLineOptions) {
       const createPayload: CostLineCreateUpdate = {
         kind: 'material' as const,
         desc: payload.desc,
-        quantity: payload.quantity,
-        unit_cost: payload.unit_cost ?? 0,
-        unit_rev: payload.unit_rev ?? 0,
+        quantity: requiredNumber(payload.quantity, 'material quantity'),
+        unit_cost: requiredNumber(payload.unit_cost, 'material unit_cost'),
+        unit_rev: requiredNumber(payload.unit_rev, 'material unit_rev'),
         accounting_date: accountingDate,
         ext_refs: (payload.ext_refs as Record<string, unknown>) || {},
         meta: (payload.meta as Record<string, unknown>) || {},
