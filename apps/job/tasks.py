@@ -32,6 +32,13 @@ def request_job_summary_pdf_refresh() -> None:
     transaction.on_commit(_queue_job_summary_pdf_refresh)
 
 
+def _schedule_job_summary_pdf_refresh(countdown: int) -> None:
+    refresh_job_summary_pdfs_task.apply_async(
+        kwargs={"limit": JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE},
+        countdown=countdown,
+    )
+
+
 def _queue_job_summary_pdf_refresh(countdown: int | None = None) -> None:
     cache = caches["shared"]
     queued = cache.add(
@@ -40,14 +47,28 @@ def _queue_job_summary_pdf_refresh(countdown: int | None = None) -> None:
         timeout=JOB_SUMMARY_PDF_REFRESH_QUEUED_SECONDS,
     )
     if queued:
-        refresh_job_summary_pdfs_task.apply_async(
-            kwargs={"limit": JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE},
-            countdown=(
-                JOB_SUMMARY_PDF_REFRESH_DELAY_SECONDS
-                if countdown is None
-                else countdown
-            ),
+        scheduled_countdown = (
+            JOB_SUMMARY_PDF_REFRESH_DELAY_SECONDS if countdown is None else countdown
         )
+        try:
+            _schedule_job_summary_pdf_refresh(scheduled_countdown)
+        except AlreadyLoggedException:
+            cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+            raise
+        except Exception as exc:
+            cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+            logger.error(
+                "Error queueing JobSummary.pdf refresh: %s",
+                exc,
+                exc_info=True,
+            )
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "countdown": scheduled_countdown,
+                    "limit": JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE,
+                },
+            )
     else:
         logger.debug("JobSummary.pdf refresh is already queued.")
 
@@ -112,6 +133,7 @@ def _refresh_job_summary_pdfs_task(
         logger.info("Skipping JobSummary.pdf refresh; another run is active.")
         return
 
+    follow_up_required = False
     try:
         if not connection.in_atomic_block:
             close_old_connections()
@@ -123,11 +145,14 @@ def _refresh_job_summary_pdfs_task(
             "Refreshed %s stale JobSummary.pdf files.",
             refreshed,
         )
-        if remaining:
-            _queue_job_summary_pdf_refresh(countdown=0)
+        follow_up_required = remaining or bool(
+            cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        )
     except AlreadyLoggedException:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
         raise
     except Exception as exc:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
         logger.error(
             "Error refreshing JobSummary.pdf files: %s",
             exc,
@@ -136,6 +161,10 @@ def _refresh_job_summary_pdfs_task(
         persist_and_raise(exc)
     finally:
         cache.delete(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY)
+
+    if follow_up_required:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        _queue_job_summary_pdf_refresh(countdown=0)
 
 
 refresh_job_summary_pdfs_task = cast(

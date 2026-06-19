@@ -4,7 +4,7 @@ from decimal import Decimal
 from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from django.core.cache import caches
 from django.test import TestCase, override_settings
@@ -16,6 +16,7 @@ from apps.job.services.job_summary_pdf_service import JobSummaryPdfService
 from apps.job.services.workshop_pdf_service import JOB_SUMMARY_PDF_FILENAME
 from apps.job.tasks import (
     JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY,
+    JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY,
     refresh_job_summary_pdfs_task,
     request_job_summary_pdf_refresh,
 )
@@ -126,13 +127,128 @@ class JobSummaryPdfTaskTests(TestCase):
         self.assertEqual(task.apply_async.call_count, 1)
         self.assertTrue(caches["shared"].get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
 
+    def test_request_refresh_persists_dispatch_failure_and_clears_queue(
+        self,
+    ) -> None:
+        before = AppError.objects.count()
+        cache = caches["shared"]
+
+        with patch(
+            "apps.job.tasks.refresh_job_summary_pdfs_task.apply_async",
+            side_effect=RuntimeError("broker unavailable"),
+        ):
+            with self.assertRaises(AlreadyLoggedException):
+                with self.captureOnCommitCallbacks(execute=True):
+                    request_job_summary_pdf_refresh()
+
+        self.assertEqual(AppError.objects.count(), before + 1)
+        self.assertIsNone(cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
+
     def test_refresh_task_persists_failure_once(self) -> None:
         before = AppError.objects.count()
-        with patch(
-            "apps.job.services.job_summary_pdf_service.JobSummaryPdfService.refresh_stale",
-            side_effect=RuntimeError("summary render failed"),
+        cache = caches["shared"]
+        cache.set(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY, True, timeout=60)
+        with (
+            patch(
+                "apps.job.services.job_summary_pdf_service.JobSummaryPdfService.refresh_stale",
+                side_effect=RuntimeError("summary render failed"),
+            ),
+            patch("apps.job.tasks._schedule_job_summary_pdf_refresh") as schedule,
         ):
             with self.assertRaises(AlreadyLoggedException):
                 refresh_job_summary_pdfs_task()
 
         self.assertEqual(AppError.objects.count(), before + 1)
+        self.assertIsNone(cache.get(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY))
+        self.assertIsNone(cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
+        schedule.assert_not_called()
+
+    def test_refresh_task_passes_prelogged_failure_without_duplicate(self) -> None:
+        before = AppError.objects.count()
+        cache = caches["shared"]
+        cache.set(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY, True, timeout=60)
+        prelogged = AlreadyLoggedException(
+            RuntimeError("summary render failed"),
+            uuid4(),
+        )
+
+        with patch(
+            "apps.job.services.job_summary_pdf_service.JobSummaryPdfService.refresh_stale",
+            side_effect=prelogged,
+        ):
+            with self.assertRaises(AlreadyLoggedException):
+                refresh_job_summary_pdfs_task()
+
+        self.assertEqual(AppError.objects.count(), before)
+        self.assertIsNone(cache.get(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY))
+        self.assertIsNone(cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
+
+    def test_refresh_task_keeps_queued_marker_when_another_run_is_active(
+        self,
+    ) -> None:
+        cache = caches["shared"]
+        cache.set(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY, True, timeout=60)
+        cache.set(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY, True, timeout=60)
+
+        with patch(
+            "apps.job.services.job_summary_pdf_service.JobSummaryPdfService.refresh_stale"
+        ) as refresh_stale:
+            refresh_job_summary_pdfs_task()
+
+        refresh_stale.assert_not_called()
+        self.assertTrue(cache.get(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY))
+        self.assertTrue(cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
+
+    def test_refresh_task_schedules_remaining_work_after_releasing_lock(
+        self,
+    ) -> None:
+        cache = caches["shared"]
+
+        def assert_lock_released(countdown: int) -> None:
+            self.assertEqual(countdown, 0)
+            self.assertIsNone(cache.get(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY))
+
+        with (
+            patch(
+                "apps.job.services.job_summary_pdf_service.JobSummaryPdfService.refresh_stale",
+                return_value=(1, True),
+            ),
+            patch(
+                "apps.job.tasks._schedule_job_summary_pdf_refresh",
+                side_effect=assert_lock_released,
+            ) as schedule,
+        ):
+            refresh_job_summary_pdfs_task()
+
+        schedule.assert_called_once_with(0)
+        self.assertTrue(cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
+
+    def test_refresh_task_schedules_mid_run_request_after_releasing_lock(
+        self,
+    ) -> None:
+        cache = caches["shared"]
+
+        def mark_queued_during_run(limit: int) -> tuple[int, bool]:
+            self.assertEqual(limit, 20)
+            self.assertTrue(cache.get(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY))
+            cache.set(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY, True, timeout=60)
+            return 1, False
+
+        def assert_lock_released(countdown: int) -> None:
+            self.assertEqual(countdown, 0)
+            self.assertIsNone(cache.get(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY))
+
+        with (
+            patch(
+                "apps.job.services.job_summary_pdf_service.JobSummaryPdfService.refresh_stale",
+                side_effect=mark_queued_during_run,
+            ),
+            patch(
+                "apps.job.tasks._schedule_job_summary_pdf_refresh",
+                side_effect=assert_lock_released,
+            ) as schedule,
+        ):
+            refresh_job_summary_pdfs_task()
+
+        schedule.assert_called_once_with(0)
+        self.assertTrue(cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY))
