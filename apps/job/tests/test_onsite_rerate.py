@@ -188,3 +188,13 @@ class OnsiteRerateTests(BaseTestCase):
         line.refresh_from_db()
         self.assertEqual(self._onsite_rate(shop_job), Decimal("0.00"))
         self.assertEqual(line.unit_rev, Decimal("0.00"))
+
+    def test_migration_does_not_import_live_rate_helpers(self) -> None:
+        # Historical migrations must replay with the behavior they shipped with.
+        # Future service changes must not alter this one-shot financial fix.
+        self.assertEqual(
+            _migration.calculate_time_unit_rates.__module__, _migration.__name__
+        )
+        self.assertEqual(
+            _migration.get_bill_rate_multiplier.__module__, _migration.__name__
+        )

@@ -87,6 +87,19 @@ class LabourSubtypeManageDetailView(RetrieveUpdateAPIView[LabourSubtype]):
     queryset = LabourSubtype.objects.all()
     http_method_names = ["get", "patch", "head", "options"]
 
+    @transaction.atomic
+    def perform_update(self, serializer: BaseSerializer[LabourSubtype]) -> None:
+        instance = serializer.instance
+        assert instance is not None
+        subtype = LabourSubtype.objects.select_for_update().get(pk=instance.pk)
+        was_active = subtype.is_active
+        serializer.instance = subtype
+        updated = serializer.save()
+        if not was_active and updated.is_active:
+            seed_subtype_onto_existing_jobs(updated)
+        else:
+            pass  # no activation boundary crossed; no backfill needed
+
 
 class JobLabourRatesView(APIView):
     """

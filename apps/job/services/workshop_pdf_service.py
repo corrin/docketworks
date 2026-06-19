@@ -98,15 +98,17 @@ def _cost_lines_for_pdf(cost_set: CostSet) -> list[CostLine]:
 
 
 def _production_time_lines(cost_set: CostSet) -> list[CostLine]:
-    return [
-        line
-        for line in _cost_lines_for_pdf(cost_set)
-        if (
-            line.kind == "time"
-            and line.labour_subtype is not None
-            and line.labour_subtype.counts_for_scheduling
-        )
-    ]
+    lines: list[CostLine] = []
+    for line in _cost_lines_for_pdf(cost_set):
+        if line.kind != "time":
+            continue
+        if line.labour_subtype is None:
+            raise ValueError(f"CostLine {line.id} has no labour subtype")
+        if line.labour_subtype.counts_for_scheduling:
+            lines.append(line)
+        else:
+            pass  # Office/admin-like labour does not consume production capacity.
+    return lines
 
 
 def _printable_job_files(job: Job) -> list[JobFile]:

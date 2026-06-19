@@ -24,6 +24,13 @@
             </div>
           </div>
           <div
+            v-else-if="apiError"
+            class="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700"
+            role="alert"
+          >
+            {{ apiError }}
+          </div>
+          <div
             v-else
             class="overflow-x-auto rounded-2xl shadow-xl bg-white border border-slate-200"
           >
@@ -118,7 +125,7 @@ import type { z } from 'zod'
 
 type LabourSubtype = z.infer<typeof schemas.LabourSubtypeManage>
 
-const { listLabourSubtypes, updateLabourSubtype } = useLabourSubtypesApi()
+const { listLabourSubtypes, updateLabourSubtype, error: apiError } = useLabourSubtypesApi()
 const subtypes = ref<LabourSubtype[]>([])
 const loading = ref(true)
 const showModal = ref(false)
@@ -191,8 +198,18 @@ async function deactivateSubtype() {
 
 async function fetchSubtypes() {
   loading.value = true
-  subtypes.value = await listLabourSubtypes()
-  loading.value = false
+  try {
+    subtypes.value = await listLabourSubtypes()
+  } catch (e) {
+    subtypes.value = []
+    if (e instanceof Error && !apiError.value) {
+      apiError.value = e.message
+    } else {
+      // The composable already recorded the user-facing failure.
+    }
+  } finally {
+    loading.value = false
+  }
 }
 onMounted(fetchSubtypes)
 </script>

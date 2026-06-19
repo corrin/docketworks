@@ -9,6 +9,14 @@ from apps.job.models import JobLabourRate, LabourSubtype
 class LabourSubtypeSerializer(serializers.ModelSerializer[LabourSubtype]):
     """Read serializer for labour subtypes (dropdowns, rate displays)."""
 
+    default_charge_out_rate = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        read_only=True,
+        help_text="Company-level rate used to seed JobLabourRate on new jobs",
+    )
+
     class Meta:
         model = LabourSubtype
         fields = [
@@ -25,6 +33,13 @@ class LabourSubtypeSerializer(serializers.ModelSerializer[LabourSubtype]):
 class LabourSubtypeManageSerializer(serializers.ModelSerializer[LabourSubtype]):
     """Read/write serializer for the company labour-subtype management UI."""
 
+    default_charge_out_rate = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        help_text="Company-level rate used to seed JobLabourRate on new jobs",
+    )
+
     class Meta:
         model = LabourSubtype
         fields = [
@@ -37,11 +52,6 @@ class LabourSubtypeManageSerializer(serializers.ModelSerializer[LabourSubtype]):
             "default_charge_out_rate",
         ]
         read_only_fields = ["id"]
-
-    def validate_default_charge_out_rate(self, value: Decimal) -> Decimal:
-        if value < 0:
-            raise serializers.ValidationError("Charge-out rate cannot be negative.")
-        return value
 
     def update(
         self, instance: LabourSubtype, validated_data: dict[str, Any]
@@ -69,6 +79,12 @@ class LabourSubtypeManageSerializer(serializers.ModelSerializer[LabourSubtype]):
 class JobLabourRateSerializer(serializers.ModelSerializer[JobLabourRate]):
     """A job's charge-out rate for one labour subtype."""
 
+    charge_out_rate = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0"),
+        read_only=True,
+    )
     labour_subtype_name = serializers.CharField(
         source="labour_subtype.name", read_only=True
     )
@@ -99,7 +115,11 @@ class JobLabourRateUpdateSerializer(serializers.Serializer[Any]):
     labour_subtype = serializers.PrimaryKeyRelatedField(
         queryset=LabourSubtype.objects.all()
     )
-    charge_out_rate = serializers.DecimalField(max_digits=10, decimal_places=2)
+    charge_out_rate = serializers.DecimalField(
+        max_digits=10,
+        decimal_places=2,
+        min_value=Decimal("0"),
+    )
 
 
 class JobLabourRatesUpdateRequestSerializer(serializers.Serializer[Any]):

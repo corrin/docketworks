@@ -21,7 +21,7 @@ export function useLabourSubtypesApi() {
       } else {
         error.value = 'Failed to fetch labour subtypes.'
       }
-      return []
+      throw e
     }
   }
 

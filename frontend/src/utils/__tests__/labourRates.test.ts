@@ -121,6 +121,10 @@ describe('rateForSubtype', () => {
     )
   })
 
+  it('treats an empty subtype id as invalid instead of falling back to workshop', () => {
+    expect(() => rateForSubtype(rates, '')).toThrow('No job labour rate for subtype')
+  })
+
   it('throws when no rates are loaded', () => {
     expect(() => rateForSubtype([], WORKSHOP_ID)).toThrow('No job labour rate for subtype')
   })

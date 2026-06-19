@@ -1665,11 +1665,11 @@ const JobLabourRate = z.object({
   labour_subtype: z.string().uuid(),
   labour_subtype_name: z.string(),
   is_workshop: z.boolean(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000).optional(),
+  charge_out_rate: z.number().gte(0).lt(100000000),
 })
 const JobLabourRateUpdateRequest = z.object({
   labour_subtype: z.string().uuid(),
-  charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  charge_out_rate: z.number().gte(0).lt(100000000),
 })
 const PatchedJobLabourRatesUpdateRequestRequest = z
   .object({ rates: z.array(JobLabourRateUpdateRequest) })
@@ -2049,7 +2049,7 @@ const LabourSubtype = z.object({
   display_order: z.number().int(),
   is_active: z.boolean(),
   is_workshop: z.boolean(),
-  default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  default_charge_out_rate: z.number().gte(0).lt(100000000),
 })
 const LabourSubtypeManage = z.object({
   id: z.string().uuid(),
@@ -2058,7 +2058,7 @@ const LabourSubtypeManage = z.object({
   is_active: z.boolean().optional(),
   is_workshop: z.boolean().optional(),
   counts_for_scheduling: z.boolean().optional(),
-  default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  default_charge_out_rate: z.number().gte(0).lt(100000000),
 })
 const LabourSubtypeManageRequest = z.object({
   name: z.string().min(1).max(100),
@@ -2066,7 +2066,7 @@ const LabourSubtypeManageRequest = z.object({
   is_active: z.boolean().optional(),
   is_workshop: z.boolean().optional(),
   counts_for_scheduling: z.boolean().optional(),
-  default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+  default_charge_out_rate: z.number().gte(0).lt(100000000),
 })
 const PatchedLabourSubtypeManageRequest = z
   .object({
@@ -2075,7 +2075,7 @@ const PatchedLabourSubtypeManageRequest = z
     is_active: z.boolean(),
     is_workshop: z.boolean(),
     counts_for_scheduling: z.boolean(),
-    default_charge_out_rate: z.number().gt(-100000000).lt(100000000),
+    default_charge_out_rate: z.number().gte(0).lt(100000000),
   })
   .partial()
 const MonthEndJobHistory = z.object({

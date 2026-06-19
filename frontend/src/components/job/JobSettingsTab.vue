@@ -696,7 +696,12 @@ const handleFieldInput = (field: string, value: string) => {
   } else if (field === 'rdti_type') {
     localJobData.value.rdti_type = (newValue || null) as Job['rdti_type']
   } else if (field === 'is_urgent') {
-    localJobData.value.is_urgent = newValue === 'true'
+    const urgent = newValue === 'true'
+    localJobData.value.is_urgent = urgent
+    if (!isInitializing.value) {
+      autosave.queueChange(field, urgent)
+    }
+    return
   }
 
   // Queue autosave change
@@ -1298,7 +1303,7 @@ const autosave = createJobAutosave({
         if ('fully_invoiced' in payload) next.fully_invoiced = !!payload.fully_invoiced
         if ('paid' in payload) next.paid = !!payload.paid
         if ('rejected_flag' in payload) next.rejected_flag = !!payload.rejected_flag
-        if ('is_urgent' in payload) next.is_urgent = !!payload.is_urgent
+        if ('is_urgent' in payload) next.is_urgent = payload.is_urgent as boolean
         if ('quote_acceptance_date' in payload) {
           next.quote_acceptance_date = (payload.quote_acceptance_date as string | null) ?? undefined
         }

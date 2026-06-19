@@ -2,13 +2,15 @@ from __future__ import annotations
 
 from datetime import date
 from decimal import Decimal
+from unittest.mock import patch
 
+from django.db import IntegrityError, transaction
 from django.urls import reverse
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
 from apps.client.models import Client
-from apps.job.models import Job, LabourSubtype
+from apps.job.models import Job, JobLabourRate, LabourSubtype
 from apps.job.services.labour_subtype_service import seed_subtype_onto_existing_jobs
 from apps.job.services.workshop_service import WorkshopTimesheetService
 from apps.testing import BaseTestCase
@@ -443,6 +445,80 @@ class LabourSubtypeManagementApiTests(BaseTestCase):
             set(later.labour_rates.values_list("labour_subtype__name", flat=True)),
         )
 
+    def test_reactivation_backfills_jobs_created_while_inactive(self) -> None:
+        delivery = LabourSubtype.objects.get(name="Delivery")
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[delivery.id]),
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+        later = self._create_job("Created While Delivery Inactive")
+        self.assertFalse(later.labour_rates.filter(labour_subtype=delivery).exists())
+
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[delivery.id]),
+            {"is_active": True},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(
+            later.labour_rates.get(labour_subtype=delivery).charge_out_rate,
+            delivery.default_charge_out_rate,
+        )
+
+    def test_reactivation_preserves_existing_job_rates(self) -> None:
+        delivery = LabourSubtype.objects.get(name="Delivery")
+        existing_rate = self.job.labour_rates.get(labour_subtype=delivery)
+        existing_rate.charge_out_rate = Decimal("222.00")
+        existing_rate.save(update_fields=["charge_out_rate"])
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[delivery.id]),
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+        later = self._create_job("Missing Delivery Rate")
+
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[delivery.id]),
+            {"is_active": True},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        existing_rate.refresh_from_db()
+        self.assertEqual(existing_rate.charge_out_rate, Decimal("222.00"))
+        self.assertEqual(
+            later.labour_rates.get(labour_subtype=delivery).charge_out_rate,
+            delivery.default_charge_out_rate,
+        )
+
+    def test_reactivation_backfills_shop_jobs_at_zero(self) -> None:
+        delivery = LabourSubtype.objects.get(name="Delivery")
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[delivery.id]),
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 200, resp.content)
+        shop_job = Job(name="Shop Job Created While Delivery Inactive")
+        shop_job.shop_job = True
+        shop_job.save(staff=self.test_staff)
+
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[delivery.id]),
+            {"is_active": True},
+            format="json",
+        )
+
+        self.assertEqual(resp.status_code, 200, resp.content)
+        self.assertEqual(
+            shop_job.labour_rates.get(labour_subtype=delivery).charge_out_rate,
+            Decimal("0.00"),
+        )
+
     def test_negative_rate_rejected(self) -> None:
         resp = self.api.post(
             reverse("jobs:labour_subtype_manage_list_rest"),
@@ -457,6 +533,54 @@ class LabourSubtypeManagementApiTests(BaseTestCase):
         )
         self.assertEqual(resp.status_code, 400, resp.content)
 
+    def test_negative_rate_patch_rejected(self) -> None:
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        original_rate = onsite.default_charge_out_rate
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[onsite.id]),
+            {"default_charge_out_rate": "-5.00"},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400, resp.content)
+        onsite.refresh_from_db()
+        self.assertEqual(onsite.default_charge_out_rate, original_rate)
+
+    def test_negative_job_labour_rate_patch_rejected(self) -> None:
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        rate = self.job.labour_rates.get(labour_subtype=onsite)
+        original_rate = rate.charge_out_rate
+        resp = self.api.patch(
+            reverse("jobs:job_labour_rates_rest", args=[self.job.id]),
+            {
+                "rates": [
+                    {
+                        "labour_subtype": str(onsite.id),
+                        "charge_out_rate": "-1.00",
+                    }
+                ]
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400, resp.content)
+        rate.refresh_from_db()
+        self.assertEqual(rate.charge_out_rate, original_rate)
+
+    def test_database_rejects_negative_subtype_default_rate(self) -> None:
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            LabourSubtype.objects.create(
+                name="Negative Default",
+                display_order=99,
+                default_charge_out_rate=Decimal("-0.01"),
+            )
+
+    def test_database_rejects_negative_job_labour_rate(self) -> None:
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        rate = self.job.labour_rates.get(labour_subtype=onsite)
+        with self.assertRaises(IntegrityError), transaction.atomic():
+            self.job.labour_rates.filter(id=rate.id).update(
+                charge_out_rate=Decimal("-0.01")
+            )
+
     def test_backfill_service_is_idempotent(self) -> None:
         rush = LabourSubtype.objects.create(
             name="Rush",
@@ -467,6 +591,71 @@ class LabourSubtypeManagementApiTests(BaseTestCase):
         self.assertGreater(first, 0)
         # Running again creates no duplicates (rows already exist).
         self.assertEqual(seed_subtype_onto_existing_jobs(rush), 0)
+
+    def test_backfill_service_tolerates_benign_unique_conflict(self) -> None:
+        rush = LabourSubtype.objects.create(
+            name="Rush",
+            display_order=99,
+            default_charge_out_rate=Decimal("200.00"),
+        )
+        original_bulk_create = JobLabourRate.objects.bulk_create
+
+        def concurrent_insert(
+            rows: list[JobLabourRate],
+            batch_size: int | None = None,
+            ignore_conflicts: bool = False,
+            update_conflicts: bool = False,
+            update_fields: list[str] | None = None,
+            unique_fields: list[str] | None = None,
+        ) -> list[JobLabourRate]:
+            first = rows[0]
+            JobLabourRate.objects.create(
+                job_id=first.job_id,
+                labour_subtype=rush,
+                charge_out_rate=first.charge_out_rate,
+            )
+            return original_bulk_create(
+                rows,
+                batch_size=batch_size,
+                ignore_conflicts=ignore_conflicts,
+                update_conflicts=update_conflicts,
+                update_fields=update_fields,
+                unique_fields=unique_fields,
+            )
+
+        with patch.object(JobLabourRate.objects, "bulk_create", concurrent_insert):
+            seed_subtype_onto_existing_jobs(rush)
+
+        self.assertFalse(
+            Job.objects.exclude(labour_rates__labour_subtype=rush).exists()
+        )
+
+    def test_backfill_service_raises_when_invariant_remains_broken(self) -> None:
+        rush = LabourSubtype.objects.create(
+            name="Rush",
+            display_order=99,
+            default_charge_out_rate=Decimal("200.00"),
+        )
+
+        with (
+            patch.object(JobLabourRate.objects, "bulk_create", return_value=[]),
+            self.assertRaisesRegex(
+                RuntimeError,
+                "Failed to satisfy active labour-subtype rate-row invariant",
+            ),
+        ):
+            seed_subtype_onto_existing_jobs(rush)
+
+    def test_backfill_service_rejects_inactive_subtype(self) -> None:
+        rush = LabourSubtype.objects.create(
+            name="Rush",
+            display_order=99,
+            is_active=False,
+            default_charge_out_rate=Decimal("200.00"),
+        )
+
+        with self.assertRaisesRegex(ValueError, "Cannot seed inactive"):
+            seed_subtype_onto_existing_jobs(rush)
 
 
 class CompanyDefaultsChargeOutRateRemovedTests(BaseTestCase):

@@ -35,18 +35,12 @@ re-introduce it. Idempotent — re-running fixes nothing further.
 
 from __future__ import annotations
 
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from django.db import migrations
 from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 from django.db.migrations.state import StateApps
-
-from apps.job.services.time_entry_rates import (
-    calculate_time_unit_rates,
-    get_bill_rate_multiplier,
-    normalize_multiplier,
-)
 
 # Jobs still in the active workflow — not yet invoiced. recently_completed /
 # archived / special are excluded: completed work is (or is about to be) billed
@@ -63,6 +57,57 @@ OPEN_STATUSES = (
 # "Installation" by 0098). Its company default_charge_out_rate is the source of
 # truth for the correct rate; we never hardcode the dollar figure.
 ONSITE_SUBTYPE_NAME = "Onsite"
+
+CENT = Decimal("0.01")
+DEFAULT_MULTIPLIER = Decimal("1.00")
+ZERO_MULTIPLIER = Decimal("0.00")
+
+
+def to_decimal(value: Any, *, default: Decimal = DEFAULT_MULTIPLIER) -> Decimal:
+    """Frozen copy of apps.job.services.time_entry_rates.to_decimal at 0102."""
+    if isinstance(value, Decimal):
+        return value
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return default
+
+
+def normalize_multiplier(
+    value: Any, *, default: Decimal = DEFAULT_MULTIPLIER
+) -> Decimal:
+    """Frozen copy of rate multiplier normalization at 0102."""
+    return to_decimal(value, default=default).quantize(CENT)
+
+
+def get_bill_rate_multiplier(
+    meta: dict[str, Any], wage_rate_multiplier: Decimal
+) -> Decimal:
+    """Frozen copy of bill multiplier precedence at 0102."""
+    if "bill_rate_multiplier" in meta and meta.get("bill_rate_multiplier") is not None:
+        return normalize_multiplier(meta["bill_rate_multiplier"])
+    if meta.get("is_billable") is False:
+        return ZERO_MULTIPLIER
+    return normalize_multiplier(wage_rate_multiplier)
+
+
+def calculate_time_unit_rates(
+    *,
+    wage_rate: Any,
+    charge_out_rate: Any,
+    wage_rate_multiplier: Any,
+    bill_rate_multiplier: Any,
+) -> tuple[Decimal, Decimal, Decimal, Decimal]:
+    """Frozen copy of time unit-rate calculation at 0102."""
+    base_wage_rate = to_decimal(wage_rate, default=Decimal("0")).quantize(CENT)
+    base_charge_out_rate = to_decimal(
+        charge_out_rate, default=Decimal("0")
+    ).quantize(CENT)
+    wage_multiplier = normalize_multiplier(wage_rate_multiplier)
+    bill_multiplier = normalize_multiplier(bill_rate_multiplier)
+    unit_cost = (base_wage_rate * wage_multiplier).quantize(CENT)
+    unit_rev = (base_charge_out_rate * bill_multiplier).quantize(CENT)
+    return unit_cost, unit_rev, base_wage_rate, base_charge_out_rate
 
 
 def forward(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -> None:

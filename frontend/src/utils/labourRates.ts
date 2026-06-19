@@ -31,12 +31,13 @@ export function rateForSubtype(
   rates: JobLabourRate[],
   labourSubtypeId: string | null | undefined,
 ): number {
-  const entry = labourSubtypeId
+  const hasSubtype = labourSubtypeId !== null && labourSubtypeId !== undefined
+  const entry = hasSubtype
     ? rates.find((r) => r.labour_subtype === labourSubtypeId)
     : workshopRateEntry(rates)
   if (!entry) {
     throw new Error(
-      labourSubtypeId
+      hasSubtype
         ? `No job labour rate for subtype ${labourSubtypeId}`
         : 'No workshop job labour rate available',
     )

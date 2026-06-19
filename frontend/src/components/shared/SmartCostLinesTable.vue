@@ -474,6 +474,8 @@ function isIncompleteNewLine(line: CostLine): boolean {
 
 function canRenderDerivedValues(line: CostLine): boolean {
   if (isIncompleteNewLine(line)) return false
+  if (line.unit_cost === undefined || line.unit_cost === null) return false
+  if (line.unit_rev === undefined || line.unit_rev === null) return false
   if (String(line.kind) === 'time' && !jobLabourRatesLoaded.value) return false
   return true
 }
@@ -930,6 +932,10 @@ const columns = computed(() => {
                     enabled && String(line.kind) !== 'time' && Object.assign(line, { desc }),
                   'onUpdate:unit_cost': (cost: number | null) => {
                     if (!enabled) return
+                    if (cost === null) {
+                      Object.assign(line, { unit_cost: null })
+                      return
+                    }
                     Object.assign(line, {
                       unit_cost: requiredNumber(cost, 'cost line unit_cost'),
                     })
@@ -1128,7 +1134,8 @@ const columns = computed(() => {
               'onUpdate:modelValue': (val: string | number) => {
                 if (!editable) return
                 if (val === '') {
-                  Object.assign(line, { unit_cost: 0 })
+                  Object.assign(line, { unit_cost: null })
+                  return
                 } else {
                   const num = Number(val)
                   if (!Number.isNaN(num)) {

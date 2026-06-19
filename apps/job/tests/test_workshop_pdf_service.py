@@ -426,6 +426,19 @@ class WorkshopHourBreakdownTests(BaseTestCase):
             [{"name": "Test Staff", "hours": 3.0}],
         )
 
+    def test_missing_time_line_subtype_raises_instead_of_hiding_hours(self) -> None:
+        """A migration or direct SQL edit can leave a time line without subtype.
+
+        The workshop PDF must fail visibly so the data is repaired, not silently
+        exclude those hours from remaining-work calculations.
+        """
+        estimate = self.job.latest_estimate
+        line = self._add_time(estimate, "Workshop", "4.000", "Workshop")
+        CostLine.objects.filter(id=line.id).update(labour_subtype=None)
+
+        with self.assertRaisesRegex(ValueError, "has no labour subtype"):
+            get_workshop_hours(self.job)
+
     def test_materials_used_shows_retail_line_total_when_known(self) -> None:
         estimate = self.job.latest_estimate
         assert estimate is not None
