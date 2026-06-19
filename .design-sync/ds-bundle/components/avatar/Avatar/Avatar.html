@@ -1,0 +1,35 @@
+<!-- @dsCard group="Display" -->
+<style>
+  :root{
+    --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+    --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+    --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+    --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+    --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+    --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+    --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+    --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+    --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+    --radius:0.625rem;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  .dscard{width:360px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:12px}
+  .dscard h4{margin:0;font-size:13px;font-weight:600}
+  .dscard .sub{font-size:11px;color:var(--muted-foreground);margin-top:-6px}
+  .row{display:flex;gap:12px;align-items:center}
+  .avatar{position:relative;display:flex;flex-shrink:0;overflow:hidden;border-radius:9999px;align-items:center;justify-content:center;background:var(--muted);color:var(--muted-foreground);font-size:13px;font-weight:500}
+  .avatar.sm{width:24px;height:24px;font-size:11px}
+  .avatar.md{width:32px;height:32px}
+  .avatar.lg{width:40px;height:40px;font-size:15px}
+  .avatar.img{background:linear-gradient(135deg,var(--primary),var(--accent-foreground))}
+</style>
+<div class="dscard">
+  <h4>Avatar</h4>
+  <div class="sub">Circular image + initials fallback · default size 32px</div>
+  <div class="row">
+    <div class="avatar sm">AB</div>
+    <div class="avatar md">JD</div>
+    <div class="avatar lg">CL</div>
+    <div class="avatar md img"></div>
+  </div>
+</div>

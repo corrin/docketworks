@@ -1,0 +1,31 @@
+<!-- @dsCard group="Date & Time" -->
+<style>
+:root{
+  --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+  --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+  --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+  --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+  --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+  --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+  --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+  --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+  --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+  --radius:0.625rem;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+.ds-cdp-card{width:360px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:16px;box-sizing:border-box;}
+.ds-cdp-title{font-size:13px;font-weight:600;color:var(--muted-foreground);margin:0 0 12px;}
+.ds-cdp-row{display:flex;align-items:center;gap:8px;}
+.ds-cdp-input{width:9rem;height:2.25rem;padding:0 10px;font-size:13px;background:var(--background);border:1px solid var(--input);border-radius:calc(var(--radius) - 2px);box-shadow:0 1px 2px rgba(0,0,0,.05);box-sizing:border-box;display:flex;align-items:center;justify-content:space-between;}
+.ds-cdp-input .cal{width:14px;height:14px;border:1.5px solid var(--muted-foreground);border-radius:2px;opacity:.7;}
+.ds-cdp-dash{margin:0 4px;color:var(--muted-foreground);}
+</style>
+
+<div class="ds-cdp-card">
+  <p class="ds-cdp-title">CustomDatePicker — native from / to range</p>
+  <div class="ds-cdp-row">
+    <div class="ds-cdp-input"><span>01/06/2026</span><span class="cal"></span></div>
+    <span class="ds-cdp-dash">–</span>
+    <div class="ds-cdp-input"><span>18/06/2026</span><span class="cal"></span></div>
+  </div>
+</div>

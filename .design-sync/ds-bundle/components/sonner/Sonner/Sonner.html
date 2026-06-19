@@ -1,0 +1,33 @@
+<!-- @dsCard group="Display" -->
+<style>
+  :root{
+    --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+    --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+    --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+    --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+    --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+    --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+    --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+    --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+    --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+    --radius:0.625rem;
+    font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+  }
+  .dscard{width:360px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:16px;display:flex;flex-direction:column;gap:10px}
+  .dscard h4{margin:0;font-size:13px;font-weight:600}
+  .dscard .sub{font-size:11px;color:var(--muted-foreground);margin-top:-6px}
+  .toast{display:flex;align-items:center;gap:10px;background:var(--popover);color:var(--popover-foreground);border:1px solid var(--border);border-radius:var(--radius);padding:10px 12px;box-shadow:0 4px 12px rgba(0,0,0,.08);font-size:13px}
+  .dot{width:8px;height:8px;border-radius:9999px;flex:none}
+  .dot.ok{background:oklch(0.6 0.17 150)}
+  .dot.err{background:var(--destructive)}
+  .dot.info{background:var(--primary)}
+  .toast .msg{font-weight:500}
+  .toast .x{margin-left:auto;color:var(--muted-foreground)}
+</style>
+<div class="dscard">
+  <h4>Sonner (Toast)</h4>
+  <div class="sub">Transient notifications · toast.success / error / info</div>
+  <div class="toast"><span class="dot ok"></span><span class="msg">Job created</span><span class="x">×</span></div>
+  <div class="toast"><span class="dot err"></span><span class="msg">Could not save</span><span class="x">×</span></div>
+  <div class="toast"><span class="dot info"></span><span class="msg">Synced with Xero</span><span class="x">×</span></div>
+</div>

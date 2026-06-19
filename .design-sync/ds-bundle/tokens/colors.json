@@ -1,0 +1,52 @@
+{
+  "$comment": "Semantic colour tokens. Each maps to a CSS var (--name) in styles.css and a Tailwind utility namespace (bg-/text-/border-<name>). Values are oklch; light + dark given. Foreground tokens are the on-color text/icon color paired with their base.",
+  "format": "oklch",
+  "semantic": {
+    "background":            { "light": "oklch(1 0 0)",                 "dark": "oklch(0.129 0.042 264.695)" },
+    "foreground":            { "light": "oklch(0.129 0.042 264.695)",   "dark": "oklch(0.984 0.003 247.858)" },
+    "card":                  { "light": "oklch(1 0 0)",                 "dark": "oklch(0.129 0.042 264.695)" },
+    "card-foreground":       { "light": "oklch(0.129 0.042 264.695)",   "dark": "oklch(0.984 0.003 247.858)" },
+    "popover":               { "light": "oklch(1 0 0)",                 "dark": "oklch(0.129 0.042 264.695)" },
+    "popover-foreground":    { "light": "oklch(0.129 0.042 264.695)",   "dark": "oklch(0.984 0.003 247.858)" },
+    "primary":               { "light": "oklch(0.208 0.042 265.755)",   "dark": "oklch(0.984 0.003 247.858)" },
+    "primary-foreground":    { "light": "oklch(0.984 0.003 247.858)",   "dark": "oklch(0.208 0.042 265.755)" },
+    "secondary":             { "light": "oklch(0.968 0.007 247.896)",   "dark": "oklch(0.279 0.041 260.031)" },
+    "secondary-foreground":  { "light": "oklch(0.208 0.042 265.755)",   "dark": "oklch(0.984 0.003 247.858)" },
+    "muted":                 { "light": "oklch(0.968 0.007 247.896)",   "dark": "oklch(0.279 0.041 260.031)" },
+    "muted-foreground":      { "light": "oklch(0.554 0.046 257.417)",   "dark": "oklch(0.704 0.04 256.788)" },
+    "accent":                { "light": "oklch(0.968 0.007 247.896)",   "dark": "oklch(0.279 0.041 260.031)" },
+    "accent-foreground":     { "light": "oklch(0.208 0.042 265.755)",   "dark": "oklch(0.984 0.003 247.858)" },
+    "destructive":           { "light": "oklch(0.577 0.245 27.325)",    "dark": "oklch(0.396 0.141 25.723)" },
+    "destructive-foreground":{ "light": "oklch(0.577 0.245 27.325)",    "dark": "oklch(0.637 0.237 25.331)" },
+    "border":                { "light": "oklch(0.929 0.013 255.508)",   "dark": "oklch(0.279 0.041 260.031)" },
+    "input":                 { "light": "oklch(0.929 0.013 255.508)",   "dark": "oklch(0.279 0.041 260.031)" },
+    "ring":                  { "light": "oklch(0.704 0.04 256.788)",    "dark": "oklch(0.446 0.043 257.281)" }
+  },
+  "chart": {
+    "chart-1": { "light": "oklch(0.646 0.222 41.116)",  "dark": "oklch(0.488 0.243 264.376)" },
+    "chart-2": { "light": "oklch(0.6 0.118 184.704)",   "dark": "oklch(0.696 0.17 162.48)" },
+    "chart-3": { "light": "oklch(0.398 0.07 227.392)",  "dark": "oklch(0.769 0.188 70.08)" },
+    "chart-4": { "light": "oklch(0.828 0.189 84.429)",  "dark": "oklch(0.627 0.265 303.9)" },
+    "chart-5": { "light": "oklch(0.769 0.188 70.08)",   "dark": "oklch(0.645 0.246 16.439)" }
+  },
+  "sidebar": {
+    "sidebar":                    { "light": "oklch(0.984 0.003 247.858)", "dark": "oklch(0.208 0.042 265.755)" },
+    "sidebar-foreground":         { "light": "oklch(0.129 0.042 264.695)", "dark": "oklch(0.984 0.003 247.858)" },
+    "sidebar-primary":            { "light": "oklch(0.208 0.042 265.755)", "dark": "oklch(0.488 0.243 264.376)" },
+    "sidebar-primary-foreground": { "light": "oklch(0.984 0.003 247.858)", "dark": "oklch(0.984 0.003 247.858)" },
+    "sidebar-accent":             { "light": "oklch(0.968 0.007 247.896)", "dark": "oklch(0.279 0.041 260.031)" },
+    "sidebar-accent-foreground":  { "light": "oklch(0.208 0.042 265.755)", "dark": "oklch(0.984 0.003 247.858)" },
+    "sidebar-border":             { "light": "oklch(0.929 0.013 255.508)", "dark": "oklch(0.279 0.041 260.031)" },
+    "sidebar-ring":               { "light": "oklch(0.704 0.04 256.788)",  "dark": "oklch(0.446 0.043 257.281)" }
+  },
+  "palette": {
+    "$comment": "Fixed (theme-independent) hex palette for status accents. Same values in light and dark.",
+    "white": "#ffffff",
+    "gray":   { "50": "#f9fafb", "100": "#f3f4f6", "200": "#e5e7eb", "300": "#d1d5db", "400": "#9ca3af", "500": "#6b7280", "600": "#4b5563", "700": "#374151", "800": "#1f2937", "900": "#111827" },
+    "green":  { "50": "#f0fdf4", "100": "#dcfce7", "200": "#bbf7d0", "600": "#16a34a", "700": "#15803d", "800": "#166534", "900": "#14532d" },
+    "yellow": { "50": "#fefce8", "200": "#fef08a", "600": "#ca8a04", "800": "#854d0e", "900": "#713f12" },
+    "red":    { "50": "#fef2f2", "200": "#fecaca", "600": "#dc2626", "700": "#b91c1c", "800": "#991b1b", "900": "#7f1d1d" },
+    "blue":   { "50": "#eff6ff", "100": "#dbeafe", "200": "#bfdbfe", "300": "#93c5fd", "400": "#60a5fa", "500": "#3b82f6", "600": "#2563eb", "700": "#1d4ed8" },
+    "slate":  { "800": "#1e293b", "900": "#0f172a" }
+  }
+}

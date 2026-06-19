@@ -1,0 +1,43 @@
+<!-- @dsCard group="Data & Navigation" -->
+<style>
+:root{
+  --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+  --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+  --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+  --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+  --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+  --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+  --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+  --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+  --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+  --radius:0.625rem;
+  font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+}
+.ds-pg-card{width:360px;box-sizing:border-box;background:var(--card);color:var(--card-foreground);
+  border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+.ds-pg-card h3{margin:0 0 12px;font-size:13px;font-weight:600;color:var(--foreground);}
+.ds-pg{display:flex;align-items:center;justify-content:center;gap:4px;padding:8px 0;}
+.ds-pg .btn{height:32px;min-width:32px;padding:0 8px;display:inline-flex;align-items:center;
+  justify-content:center;font-size:14px;font-weight:500;border:none;background:transparent;
+  color:var(--foreground);border-radius:calc(var(--radius) - 2px);cursor:pointer;}
+.ds-pg .btn:hover{background:var(--accent);}
+.ds-pg .btn.active{background:var(--primary);color:#fff;}
+.ds-pg .btn.dis{color:var(--muted-foreground);opacity:.5;}
+.ds-pg svg{width:16px;height:16px;}
+</style>
+<div class="ds-pg-card">
+  <h3>Pagination</h3>
+  <div class="ds-pg">
+    <button class="btn dis" aria-label="Previous">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+    </button>
+    <button class="btn active">1</button>
+    <button class="btn">2</button>
+    <button class="btn">3</button>
+    <button class="btn">4</button>
+    <button class="btn">5</button>
+    <button class="btn" aria-label="Next">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m9 18 6-6-6-6"/></svg>
+    </button>
+  </div>
+</div>

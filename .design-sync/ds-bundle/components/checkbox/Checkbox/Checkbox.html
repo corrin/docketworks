@@ -1,0 +1,46 @@
+<!-- @dsCard group="Forms" -->
+<div class="ds-card">
+  <style>
+    :root{
+      --background:oklch(1 0 0);--foreground:oklch(0.129 0.042 264.695);
+      --card:oklch(1 0 0);--card-foreground:oklch(0.129 0.042 264.695);
+      --popover:oklch(1 0 0);--popover-foreground:oklch(0.129 0.042 264.695);
+      --primary:oklch(0.208 0.042 265.755);--primary-foreground:oklch(0.984 0.003 247.858);
+      --secondary:oklch(0.968 0.007 247.896);--secondary-foreground:oklch(0.208 0.042 265.755);
+      --muted:oklch(0.968 0.007 247.896);--muted-foreground:oklch(0.554 0.046 257.417);
+      --accent:oklch(0.968 0.007 247.896);--accent-foreground:oklch(0.208 0.042 265.755);
+      --destructive:oklch(0.577 0.245 27.325);--destructive-foreground:oklch(0.577 0.245 27.325);
+      --border:oklch(0.929 0.013 255.508);--input:oklch(0.929 0.013 255.508);--ring:oklch(0.704 0.04 256.788);
+      --radius:0.625rem;
+      font-family:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    }
+    .ds-card{width:360px;box-sizing:border-box;padding:20px;background:var(--card);color:var(--card-foreground);border:1px solid var(--border);border-radius:var(--radius);}
+    .ds-title{font-size:13px;font-weight:600;margin:0 0 14px;}
+    .ds-cb-row{display:flex;align-items:center;gap:0.5rem;margin-bottom:12px;}
+    .ds-cb{width:1rem;height:1rem;box-sizing:border-box;border:1px solid var(--input);border-radius:4px;display:inline-flex;align-items:center;justify-content:center;box-shadow:0 1px 2px rgba(0,0,0,0.04);}
+    .ds-cb.checked{background:var(--primary);border-color:var(--primary);color:var(--primary-foreground);}
+    .ds-cb.indeterminate{background:var(--primary);border-color:var(--primary);}
+    .ds-cb.indeterminate::after{content:"";width:8px;height:2px;background:var(--primary-foreground);border-radius:1px;}
+    .ds-cb.disabled{opacity:0.5;}
+    .ds-cb svg{width:0.875rem;height:0.875rem;}
+    .ds-cb-text{font-size:14px;}
+    .ds-cb-text.muted{color:var(--muted-foreground);}
+  </style>
+  <p class="ds-title">Checkbox</p>
+  <div class="ds-cb-row">
+    <span class="ds-cb"></span>
+    <span class="ds-cb-text">Unchecked</span>
+  </div>
+  <div class="ds-cb-row">
+    <span class="ds-cb checked"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg></span>
+    <span class="ds-cb-text">Checked</span>
+  </div>
+  <div class="ds-cb-row">
+    <span class="ds-cb indeterminate"></span>
+    <span class="ds-cb-text">Indeterminate</span>
+  </div>
+  <div class="ds-cb-row" style="margin-bottom:0;">
+    <span class="ds-cb disabled"></span>
+    <span class="ds-cb-text muted">Disabled</span>
+  </div>
+</div>
