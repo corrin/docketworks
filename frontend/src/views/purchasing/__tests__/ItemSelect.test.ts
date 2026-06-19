@@ -129,6 +129,7 @@ enableAutoUnmount(afterEach)
 beforeEach(() => {
   vi.clearAllMocks()
   setActivePinia(createPinia())
+  setCompanyWageRate(32)
 })
 
 afterEach(() => {
