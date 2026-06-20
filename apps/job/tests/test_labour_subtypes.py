@@ -425,6 +425,72 @@ class LabourSubtypeManagementApiTests(BaseTestCase):
         workshop.refresh_from_db()
         self.assertTrue(workshop.is_active)
 
+    def test_cannot_flip_last_workshop_subtype_off(self) -> None:
+        """Flipping is_workshop off the only Workshop subtype empties the pool, so
+        default_workshop() would raise (breaks job creation, Xero sync, quote
+        import). The serializer must refuse it. The staff-default guard does not
+        cover this — it only fires on is_active=False."""
+        workshop = LabourSubtype.objects.get(name="Workshop")
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[workshop.id]),
+            {"is_workshop": False},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertIn("only active Workshop", str(resp.json()))
+        workshop.refresh_from_db()
+        self.assertTrue(workshop.is_workshop)
+
+    def test_cannot_deactivate_last_workshop_subtype(self) -> None:
+        """Deactivating the only active Workshop subtype is blocked even when no
+        staff defaults to it — distinct from (and beyond) the staff-default guard."""
+        workshop = LabourSubtype.objects.get(name="Workshop")
+        # Remove any staff-default dependency so the last-workshop guard, not the
+        # staff-default guard, is what rejects the change.
+        Staff.objects.filter(default_labour_subtype=workshop).update(
+            default_labour_subtype=LabourSubtype.default_non_workshop()
+        )
+        resp = self.api.patch(
+            reverse("jobs:labour_subtype_manage_detail_rest", args=[workshop.id]),
+            {"is_active": False},
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertIn("only active Workshop", str(resp.json()))
+        workshop.refresh_from_db()
+        self.assertTrue(workshop.is_active)
+
+    def test_job_rate_patch_rejects_unseeded_subtype_without_writing(self) -> None:
+        """A subtype with no rate row on the job is rejected up front (400) and no
+        other rate is written — no partial update (ADR 0015 + ADR 0019)."""
+        onsite = LabourSubtype.objects.get(name="Onsite")
+        original = self.job.labour_rates.get(labour_subtype=onsite).charge_out_rate
+        # Exists but never seeded onto this job (direct create skips the backfill).
+        orphan = LabourSubtype.objects.create(
+            name="Orphan",
+            display_order=98,
+            is_active=True,
+            is_workshop=False,
+            counts_for_scheduling=False,
+            default_charge_out_rate=Decimal("70.00"),
+        )
+        resp = self.api.patch(
+            reverse("jobs:job_labour_rates_rest", args=[self.job.id]),
+            {
+                "rates": [
+                    {"labour_subtype": str(onsite.id), "charge_out_rate": "999.00"},
+                    {"labour_subtype": str(orphan.id), "charge_out_rate": "70.00"},
+                ]
+            },
+            format="json",
+        )
+        self.assertEqual(resp.status_code, 400, resp.content)
+        self.assertIn("rates", resp.json())
+        # The valid subtype's rate must be untouched (validate-first, no partial write).
+        self.assertEqual(
+            self.job.labour_rates.get(labour_subtype=onsite).charge_out_rate, original
+        )
+
     def test_deactivate_succeeds_and_drops_from_active_list(self) -> None:
         delivery = LabourSubtype.objects.get(name="Delivery")
         self.assertFalse(Staff.objects.filter(default_labour_subtype=delivery).exists())
@@ -564,6 +630,44 @@ class LabourSubtypeManagementApiTests(BaseTestCase):
         self.assertEqual(resp.status_code, 400, resp.content)
         rate.refresh_from_db()
         self.assertEqual(rate.charge_out_rate, original_rate)
+
+    def test_job_labour_rate_patch_event_renders_in_timeline(self) -> None:
+        """A rate edit must write the event shape the timeline data model requires.
+
+        The regression was `pricing_changed.detail.changes` being written as
+        strings while JobEvent rendering requires change dictionaries. A
+        write-only test let invalid model data through; this follows the
+        user-visible PATCH -> timeline-read path so the strict consumer enforces
+        the contract.
+        """
+        workshop = LabourSubtype.objects.get(name="Workshop")
+
+        patch_resp = self.api.patch(
+            reverse("jobs:job_labour_rates_rest", args=[self.job.id]),
+            {
+                "rates": [
+                    {
+                        "labour_subtype": str(workshop.id),
+                        "charge_out_rate": "125.00",
+                    }
+                ]
+            },
+            format="json",
+        )
+        self.assertEqual(patch_resp.status_code, 200, patch_resp.content)
+
+        timeline_resp = self.api.get(
+            reverse("jobs:job_timeline_rest", args=[self.job.id])
+        )
+
+        self.assertEqual(timeline_resp.status_code, 200, timeline_resp.content)
+        descriptions = {
+            entry["description"] for entry in timeline_resp.json()["timeline"]
+        }
+        self.assertIn(
+            "Workshop charge-out rate changed from '$105.00/hour' to '$125.00/hour'",
+            descriptions,
+        )
 
     def test_database_rejects_negative_subtype_default_rate(self) -> None:
         with self.assertRaises(IntegrityError), transaction.atomic():

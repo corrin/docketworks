@@ -340,7 +340,7 @@
                 type="number"
                 step="0.01"
                 min="0"
-                :value="rate.charge_out_rate ?? 0"
+                :value="requiredNumber(rate.charge_out_rate, 'charge_out_rate')"
                 :data-automation-id="`JobSettingsTab-labour-rate-${rate.labour_subtype_name}`"
                 @blur="handleLabourRateBlur(rate, $event)"
                 class="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-right"
@@ -382,6 +382,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { api } from '../../api/client'
 import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type ClientContact = z.infer<typeof schemas.ClientContact>
 
@@ -591,13 +592,16 @@ const labourRatesSaveFeedback = useSaveFeedback(`job-labour-rates:${props.jobId}
 
 const handleLabourRateBlur = async (rate: JobLabourRate, event: Event) => {
   const target = event.target as HTMLInputElement
+  // charge_out_rate is schema-guaranteed (z.number().gte(0)); a missing value is
+  // a data anomaly, not a zero rate, so the canonical persisted-value reads throw.
+  const persistedRate = requiredNumber(rate.charge_out_rate, 'charge_out_rate')
   const value = Number(target.value)
   if (!Number.isFinite(value) || value < 0) {
     toast.error('Charge-out rate must be a non-negative number')
-    target.value = String(rate.charge_out_rate ?? 0)
+    target.value = String(persistedRate)
     return
   }
-  if (value === (rate.charge_out_rate ?? 0)) return
+  if (value === persistedRate) return
 
   labourRatesSaveFeedback.saving()
   try {
@@ -609,7 +613,7 @@ const handleLabourRateBlur = async (rate: JobLabourRate, event: Event) => {
   } catch (error) {
     console.error('Failed to update labour rate:', error)
     labourRatesSaveFeedback.error('Failed to update labour rate')
-    target.value = String(rate.charge_out_rate ?? 0)
+    target.value = String(persistedRate)
   }
 }
 

@@ -6,8 +6,9 @@ class Migration(migrations.Migration):
 
     The per-subtype charge-out rate (LabourSubtype.default_charge_out_rate, with
     the Workshop subtype as the company baseline) is now the single source of
-    truth (ADR 0017). Ordered after the latest job migration so the
-    labour-subtype catalogue is in place before the column is dropped.
+    truth (ADR 0017). Depends on job 0103 because the labour-subtype catalogue
+    (seeded in job 0093) must exist before the column is dropped; the prerequisite
+    is the catalogue, not the later 0104 non-negative-rate constraint.
     """
 
     dependencies = [

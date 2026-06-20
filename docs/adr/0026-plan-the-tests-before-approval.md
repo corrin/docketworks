@@ -30,6 +30,12 @@ Choose the tests by the risk the work carries:
 A change can owe both; a purely mechanical change may owe neither — but "neither" is a
 decision recorded in the plan, not a silent omission.
 
+Bug-fix plans name the regression test the bug owes. If a real user-impacting bug escaped
+the suite, the plan names the test that would have failed before the fix and now passes;
+"no new test" is acceptable only when the plan states why the existing suite already
+covers the bug or why no useful automated boundary exists (see
+[ADR 0025](0025-tests-state-business-risk.md)).
+
 Because the tests are designed before the code, they pin **purpose**, not implementation:
 a test that mirrors the code just written guards nothing and must instead assert the
 business contract (see [ADR 0025](0025-tests-state-business-risk.md)). If changing the

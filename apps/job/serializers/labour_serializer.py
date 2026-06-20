@@ -73,6 +73,44 @@ class LabourSubtypeManageSerializer(serializers.ModelSerializer[LabourSubtype]):
                         )
                     }
                 )
+
+        # Guard: never empty the active Workshop (or non-workshop) pool.
+        # default_workshop()/default_non_workshop() raise when their pool is empty,
+        # which breaks job creation, Xero sync, and quote import company-wide. This
+        # covers both deactivation (is_active=False) and flipping is_workshop.
+        new_active = validated_data.get("is_active", instance.is_active)
+        new_workshop = validated_data.get("is_workshop", instance.is_workshop)
+        leaving_field = "is_active" if not new_active else "is_workshop"
+        for was, now, is_ws, label in (
+            (
+                instance.is_active and instance.is_workshop,
+                new_active and new_workshop,
+                True,
+                "Workshop",
+            ),
+            (
+                instance.is_active and not instance.is_workshop,
+                new_active and not new_workshop,
+                False,
+                "non-workshop",
+            ),
+        ):
+            if was and not now:
+                others = (
+                    LabourSubtype.objects.filter(is_active=True, is_workshop=is_ws)
+                    .exclude(pk=instance.pk)
+                    .exists()
+                )
+                if not others:
+                    raise serializers.ValidationError(
+                        {
+                            leaving_field: (
+                                f"'{instance.name}' is the only active {label} "
+                                "subtype; job creation, Xero sync and quote import "
+                                "depend on it."
+                            )
+                        }
+                    )
         return super().update(instance, validated_data)
 
 
