@@ -187,6 +187,20 @@ NPLUSONE_ENABLED: bool = DEBUG
 NPLUSONE_LOG: bool = True
 NPLUSONE_RAISE: bool = True
 
+# apps/job/services/workshop_pdf_service.get_job_for_workshop_pdf prefetches the
+# estimate/quote/actual cost lines and the job's printable files. The quote cost
+# lines and the files are only sometimes read, so those prefetches are deliberate,
+# cheap eager loads that are occasionally unused. Whitelist them so nplusone does
+# not raise when the JobSummary refresh runs inside a web request under
+# CELERY_TASK_ALWAYS_EAGER (e.g. the E2E create_invoice path).
+#
+# Matched by their unique to_attr names (field-only): this is exact regardless of
+# whether the web-middleware DjangoRule or the Celery-worker base Rule evaluates it.
+NPLUSONE_WHITELIST: list[dict[str, str]] = [
+    {"field": "_workshop_pdf_cost_lines"},  # CostSet.cost_lines prefetch
+    {"field": "_workshop_pdf_files_to_print"},  # Job.files prefetch
+]
+
 if NPLUSONE_ENABLED:
     MIDDLEWARE.insert(0, "nplusone.ext.django.NPlusOneMiddleware")
 

@@ -53,6 +53,11 @@ def get_job_for_workshop_pdf(job_id: object) -> Job:
             "latest_actual",
         )
         .prefetch_related(
+            # Prefetch cost lines for all three cost sets uniformly. The quote is
+            # only read on the rare zero-estimate-hours fallback, so its prefetch
+            # is sometimes unused — that is a deliberate, cheap (~5 rows) eager
+            # load, whitelisted in settings.NPLUSONE_WHITELIST so nplusone does
+            # not raise on it under CELERY_TASK_ALWAYS_EAGER.
             Prefetch(
                 "latest_estimate__cost_lines",
                 queryset=cost_lines,

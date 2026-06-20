@@ -134,7 +134,7 @@ except Exception as exc:
 
 ## Environment Configuration
 
-See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/deploy.sh` with hostname detection (`msm` → PROD, `uat-scheduler` → SCHEDULER, `uat`/`uat-frontend` → UAT); the same script runs on boot via systemd so a cold UAT machine catches up to `main`.
+See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`); it also runs on boot via systemd so a cold machine catches up to `main`.
 
 ## Migration Management
 
@@ -153,7 +153,7 @@ See ADR 0020. Backend owns data, calculations, and external systems; frontend ow
 
 ## E2E Test Runs
 
-`npm run test:e2e` (from `frontend/`) runs Playwright tests against live HTTP endpoints. The suite takes ~15 minutes.
+`npm run test:e2e` (from `frontend/`) runs Playwright tests against live HTTP endpoints. The suite takes ~20–25 min.
 
 **CRITICAL: The global teardown (`global-teardown.ts`) MUST always run to completion.** It restores the database from backup, saves/reinjects Xero tokens, removes the lock file, and runs integrity checks. If the bash process is killed (timeout, SIGTERM, etc.) the teardown never executes and the database is left polluted with `[TEST]` data.
 
