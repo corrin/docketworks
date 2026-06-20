@@ -10,6 +10,7 @@
 
 import type { z } from 'zod'
 import type { schemas } from '../api/generated/api'
+import { requiredNumber } from './requiredNumber'
 
 export type TimesheetCostLine = z.infer<typeof schemas.TimesheetCostLine>
 
@@ -62,8 +63,11 @@ export function getBillMultiplier(entry: TimesheetCostLine): number {
 export function calculatedWage(entry: TimesheetCostLine): number {
   // Prefer wage_rate (the staff's per-hour rate at entry time); fall through to
   // unit_cost when wage_rate is 0/missing on a phantom row.
-  const wageRate = entry.wage_rate && entry.wage_rate > 0 ? entry.wage_rate : (entry.unit_cost ?? 0)
-  const hours = entry.quantity ?? 0
+  const wageRate =
+    entry.wage_rate && entry.wage_rate > 0
+      ? entry.wage_rate
+      : requiredNumber(entry.unit_cost, 'timesheet entry unit_cost')
+  const hours = requiredNumber(entry.quantity, 'timesheet entry quantity')
   const mult = getMultiplier(entry)
   if (hours <= 0 || wageRate <= 0) return 0
   return Math.round(hours * mult * wageRate * 100) / 100
@@ -74,8 +78,11 @@ export function calculatedWage(entry: TimesheetCostLine): number {
  * `charge_out_rate` is the job's rate for this line's labour subtype.
  */
 export function calculatedBill(entry: TimesheetCostLine): number {
-  const rate = entry.charge_out_rate ?? entry.unit_rev ?? 0
-  const hours = entry.quantity ?? 0
+  const rate =
+    entry.charge_out_rate !== null && entry.charge_out_rate !== undefined
+      ? requiredNumber(entry.charge_out_rate, 'timesheet entry charge_out_rate')
+      : requiredNumber(entry.unit_rev, 'timesheet entry unit_rev')
+  const hours = requiredNumber(entry.quantity, 'timesheet entry quantity')
   const mult = getBillMultiplier(entry)
   if (hours <= 0 || rate <= 0 || mult <= 0) return 0
   return Math.round(hours * mult * rate * 100) / 100

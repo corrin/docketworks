@@ -156,6 +156,7 @@ class TestSerializeJobForApi(BaseTestCase):
                 "time_and_materials_revenue",
                 "min_people",
                 "max_people",
+                "is_urgent",
                 "badge_label",
                 "badge_color",
             },
@@ -166,6 +167,7 @@ class TestSerializeJobForApi(BaseTestCase):
         self.assertEqual(serialized["time_and_materials_revenue"], 100.0)
         self.assertEqual(serialized["created_by_id"], str(self.test_staff.id))
         self.assertEqual(serialized["delivery_date"], job.delivery_date.isoformat())
+        self.assertFalse(serialized["is_urgent"])
         # People sorted by (last_name, first_name), matching the old
         # prefetched Staff.Meta ordering
         self.assertEqual(

@@ -1025,6 +1025,37 @@ paths:
   /api/app-errors/grouped/:
     get:
       operationId: app_errors_grouped_retrieve
+      parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - app-errors
       security:
@@ -4663,6 +4694,11 @@ paths:
           schema:
             type: integer
           description: Offset for pagination (default 0).
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+          description: Optional resolved-state filter (omit for all).
       tags:
         - Jobs
       security:
@@ -4683,6 +4719,24 @@ paths:
   /api/job/jobs/delta-rejections/grouped/:
     get:
       operationId: job_jobs_delta_rejections_grouped_retrieve
+      parameters:
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
       tags:
         - Jobs
       security:
@@ -4893,6 +4947,127 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/LabourSubtype'
+          description: ''
+  /api/job/labour-subtypes/manage/:
+    get:
+      operationId: job_labour_subtypes_manage_list
+      description: |-
+        List all labour subtypes (including inactive) and create new ones.
+
+        GET  /job/rest/labour-subtypes/manage/
+        POST /job/rest/labour-subtypes/manage/
+
+        Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+        every existing job so the data-integrity invariant stays satisfied.
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LabourSubtypeManage'
+          description: ''
+    post:
+      operationId: job_labour_subtypes_manage_create
+      description: |-
+        List all labour subtypes (including inactive) and create new ones.
+
+        GET  /job/rest/labour-subtypes/manage/
+        POST /job/rest/labour-subtypes/manage/
+
+        Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+        every existing job so the data-integrity invariant stays satisfied.
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LabourSubtypeManageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/LabourSubtypeManageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/LabourSubtypeManageRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabourSubtypeManage'
+          description: ''
+  /api/job/labour-subtypes/manage/{id}/:
+    get:
+      operationId: job_labour_subtypes_manage_retrieve
+      description: |-
+        Retrieve or update one labour subtype (office staff). No delete — subtypes
+        are referenced by historical cost lines (PROTECT); deactivate instead.
+
+        GET   /job/rest/labour-subtypes/manage/<id>/
+        PATCH /job/rest/labour-subtypes/manage/<id>/
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabourSubtypeManage'
+          description: ''
+    patch:
+      operationId: job_labour_subtypes_manage_partial_update
+      description: |-
+        Retrieve or update one labour subtype (office staff). No delete — subtypes
+        are referenced by historical cost lines (PROTECT); deactivate instead.
+
+        GET   /job/rest/labour-subtypes/manage/<id>/
+        PATCH /job/rest/labour-subtypes/manage/<id>/
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - job
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedLabourSubtypeManageRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedLabourSubtypeManageRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedLabourSubtypeManageRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LabourSubtypeManage'
           description: ''
   /api/job/month-end/:
     get:
@@ -7316,6 +7491,37 @@ paths:
         - ``severity`` (exact integer)
         - ``resolved`` (boolean)
         - ``job_id`` / ``user_id`` (UUID strings)
+      parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - rest
       security:
@@ -8441,12 +8647,40 @@ paths:
 
         Endpoint: /api/xero/errors/
       parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
         - name: page
           required: false
           in: query
           description: A page number within the paginated result set.
           schema:
             type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - name: search
+          required: false
+          in: query
+          description: A search term.
+          schema:
+            type: string
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - xero-errors
       security:
@@ -8490,6 +8724,37 @@ paths:
   /api/xero-errors/grouped/:
     get:
       operationId: xero_errors_grouped_retrieve
+      parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - xero-errors
       security:
@@ -10139,13 +10404,6 @@ components:
           minimum: -1000
           exclusiveMaximum: true
           exclusiveMinimum: true
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 10000
-          minimum: -10000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
         wage_rate:
           type: number
           format: double
@@ -10506,16 +10764,11 @@ components:
           type: number
           format: double
           description: Default markup percentage for time
-        charge_out_rate:
-          type: number
-          format: double
-          description: Default charge-out rate for staff
         wage_rate:
           type: number
           format: double
           description: Default wage rate for staff
       required:
-        - charge_out_rate
         - materials_markup
         - time_markup
         - wage_rate
@@ -10557,13 +10810,6 @@ components:
           format: double
           maximum: 1000
           minimum: -1000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 10000
-          minimum: -10000
           exclusiveMaximum: true
           exclusiveMinimum: true
         wage_rate:
@@ -12088,6 +12334,8 @@ components:
         latest_id:
           type: string
           format: uuid
+        resolved:
+          type: boolean
       required:
         - app
         - fingerprint
@@ -12096,6 +12344,7 @@ components:
         - latest_id
         - message
         - occurrence_count
+        - resolved
         - severity
     GroupedAppErrorListResponse:
       type: object
@@ -12164,6 +12413,8 @@ components:
         latest_id:
           type: string
           format: uuid
+        resolved:
+          type: boolean
       required:
         - fingerprint
         - first_seen
@@ -12171,6 +12422,7 @@ components:
         - latest_id
         - occurrence_count
         - reason
+        - resolved
     GroupedJobDeltaRejectionListResponse:
       type: object
       description: Paginated response for grouped delta rejections.
@@ -12514,6 +12766,9 @@ components:
           minimum: -2147483648
           description: Maximum number of workshop staff that can work on this job
             simultaneously
+        is_urgent:
+          type: boolean
+          description: Whether this job requires urgent rates and priority handling
       required:
         - client_name
         - contact_name
@@ -12819,6 +13074,9 @@ components:
           minimum: 0
           exclusiveMaximum: true
           description: Estimated workshop time in hours
+        is_urgent:
+          type: boolean
+          default: false
       required:
         - client_id
         - estimated_materials
@@ -13415,6 +13673,9 @@ components:
           minimum: -2147483648
           description: Maximum number of workshop staff that can work on this job
             simultaneously
+        is_urgent:
+          type: boolean
+          description: Whether this job requires urgent rates and priority handling
       required:
         - client_id
         - client_name
@@ -13458,10 +13719,11 @@ components:
           type: number
           format: double
           maximum: 100000000
-          minimum: -100000000
+          minimum: 0
           exclusiveMaximum: true
-          exclusiveMinimum: true
+          readOnly: true
       required:
+        - charge_out_rate
         - id
         - is_workshop
         - labour_subtype
@@ -13477,9 +13739,8 @@ components:
           type: number
           format: double
           maximum: 100000000
-          minimum: -100000000
+          minimum: 0
           exclusiveMaximum: true
-          exclusiveMinimum: true
       required:
         - charge_out_rate
         - labour_subtype
@@ -14064,6 +14325,9 @@ components:
           minimum: -2147483648
           description: Maximum number of workshop staff that can work on this job
             simultaneously
+        is_urgent:
+          type: boolean
+          description: Whether this job requires urgent rates and priority handling
       required:
         - client_name
         - contact_name
@@ -14543,6 +14807,8 @@ components:
           format: double
         shop_job:
           type: boolean
+        is_urgent:
+          type: boolean
         over_budget:
           type: boolean
         quote_revenue:
@@ -14570,6 +14836,7 @@ components:
         - description
         - fully_invoiced
         - id
+        - is_urgent
         - job_number
         - max_people
         - min_people
@@ -14651,6 +14918,8 @@ components:
           format: double
         shop_job:
           type: boolean
+        is_urgent:
+          type: boolean
         over_budget:
           type: boolean
         quote_revenue:
@@ -14672,6 +14941,7 @@ components:
         - description
         - fully_invoiced
         - id
+        - is_urgent
         - job_number
         - max_people
         - min_people
@@ -14779,9 +15049,8 @@ components:
           type: number
           format: double
           maximum: 100000000
-          minimum: -100000000
+          minimum: 0
           exclusiveMaximum: true
-          exclusiveMinimum: true
           readOnly: true
           description: Company-level rate used to seed JobLabourRate on new jobs
       required:
@@ -14790,6 +15059,82 @@ components:
         - id
         - is_active
         - is_workshop
+        - name
+    LabourSubtypeManage:
+      type: object
+      description: Read/write serializer for the company labour-subtype management
+        UI.
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 100
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Sort order in dropdowns and reports
+        is_active:
+          type: boolean
+          description: Inactive subtypes keep historical lines valid but are not offered
+            for new entry and are not seeded onto new jobs
+        is_workshop:
+          type: boolean
+          description: Whether this subtype is the default workshop subtype for staff
+            and rate selection
+        counts_for_scheduling:
+          type: boolean
+          description: Whether this labour consumes the production staff pool for
+            scheduling and workshop PDF remaining-hours calculations
+        default_charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: 0
+          exclusiveMaximum: true
+          description: Company-level rate used to seed JobLabourRate on new jobs
+      required:
+        - default_charge_out_rate
+        - id
+        - name
+    LabourSubtypeManageRequest:
+      type: object
+      description: Read/write serializer for the company labour-subtype management
+        UI.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Sort order in dropdowns and reports
+        is_active:
+          type: boolean
+          description: Inactive subtypes keep historical lines valid but are not offered
+            for new entry and are not seeded onto new jobs
+        is_workshop:
+          type: boolean
+          description: Whether this subtype is the default workshop subtype for staff
+            and rate selection
+        counts_for_scheduling:
+          type: boolean
+          description: Whether this labour consumes the production staff pool for
+            scheduling and workshop PDF remaining-hours calculations
+        default_charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: 0
+          exclusiveMaximum: true
+          description: Company-level rate used to seed JobLabourRate on new jobs
+      required:
+        - default_charge_out_rate
         - name
     LinkQuoteSheetRequest:
       type: object
@@ -15029,6 +15374,9 @@ components:
         shop_job:
           type: boolean
           readOnly: true
+        is_urgent:
+          type: boolean
+          readOnly: true
       required:
         - client_name
         - default_xero_pay_item_id
@@ -15036,6 +15384,7 @@ components:
         - estimated_hours
         - has_actual_costset
         - id
+        - is_urgent
         - job_number
         - labour_rates
         - leave_type
@@ -15502,13 +15851,6 @@ components:
           format: double
           maximum: 1000
           minimum: -1000
-          exclusiveMaximum: true
-          exclusiveMinimum: true
-        charge_out_rate:
-          type: number
-          format: double
-          maximum: 10000
-          minimum: -10000
           exclusiveMaximum: true
           exclusiveMinimum: true
         wage_rate:
@@ -15995,6 +16337,39 @@ components:
           minLength: 1
         metadata:
           description: Extra data like streaming status, processing time, etc.
+    PatchedLabourSubtypeManageRequest:
+      type: object
+      description: Read/write serializer for the company labour-subtype management
+        UI.
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        display_order:
+          type: integer
+          maximum: 2147483647
+          minimum: 0
+          description: Sort order in dropdowns and reports
+        is_active:
+          type: boolean
+          description: Inactive subtypes keep historical lines valid but are not offered
+            for new entry and are not seeded onto new jobs
+        is_workshop:
+          type: boolean
+          description: Whether this subtype is the default workshop subtype for staff
+            and rate selection
+        counts_for_scheduling:
+          type: boolean
+          description: Whether this labour consumes the production staff pool for
+            scheduling and workshop PDF remaining-hours calculations
+        default_charge_out_rate:
+          type: number
+          format: double
+          maximum: 100000000
+          minimum: 0
+          exclusiveMaximum: true
+          description: Company-level rate used to seed JobLabourRate on new jobs
     PatchedProcedureUpdateRequest:
       type: object
       description: Update serializer for procedures.

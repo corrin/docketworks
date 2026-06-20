@@ -33,6 +33,7 @@ import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
 import { roundToDecimalPlaces } from '@/utils/number'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 
@@ -146,19 +147,27 @@ async function createFromDraft(selectedStockId: string) {
       throw new Error('Stock item not found')
     }
 
-    const quantity = Number(draft.value.quantity || 1)
+    const quantity = requiredNumber(draft.value.quantity, 'workshop material quantity')
     if (!Number.isFinite(quantity) || quantity <= 0) {
       toast.error('Quantity must be greater than 0')
       creating.value = false
       return
     }
 
-    const unitCost = Number(draft.value.unitCost ?? stock.unit_cost ?? 0)
+    const unitCost = requiredNumber(
+      draft.value.unitCost ?? stock.unit_cost,
+      `unit_cost for stock ${stock.id}`,
+    )
     const unitRev =
       stock.unit_revenue != null
-        ? Number(stock.unit_revenue)
+        ? requiredNumber(stock.unit_revenue, `unit_revenue for stock ${stock.id}`)
         : roundToDecimalPlaces(
-            unitCost * (1 + (companyDefaultsStore.companyDefaults?.materials_markup ?? 0)),
+            unitCost *
+              (1 +
+                requiredNumber(
+                  companyDefaultsStore.companyDefaults?.materials_markup,
+                  'company defaults materials_markup',
+                )),
             2,
           )
 
@@ -200,7 +209,7 @@ async function createAdjustFromDraft(unitRevOverride?: number | null) {
     return
   }
 
-  const quantity = Number(draft.value.quantity ?? 0)
+  const quantity = requiredNumber(draft.value.quantity, 'workshop adjustment quantity')
   if (!Number.isFinite(quantity) || quantity === 0) {
     toast.error('Quantity must be different from 0')
     return
@@ -208,13 +217,11 @@ async function createAdjustFromDraft(unitRevOverride?: number | null) {
 
   creating.value = true
   try {
-    const unitRev = Number(unitRevOverride ?? 0)
-    if (!Number.isFinite(unitRev)) {
-      toast.error('Unit revenue must be a valid number')
-      creating.value = false
-      return
-    }
-    const markup = Number(companyDefaultsStore.companyDefaults?.materials_markup ?? 0)
+    const unitRev = requiredNumber(unitRevOverride, 'workshop adjustment unit revenue')
+    const markup = requiredNumber(
+      companyDefaultsStore.companyDefaults?.materials_markup,
+      'company defaults materials_markup',
+    )
     const unitCost = markup > 0 ? unitRev / (1 + markup) : unitRev
     const normalizedUnitCost = roundToDecimalPlaces(unitCost, 2)
     const normalizedUnitRev = roundToDecimalPlaces(unitRev, 2)
@@ -409,12 +416,12 @@ watch(
                     inputmode="decimal"
                     class="w-20 sm:w-24 text-right"
                     :disabled="!canEditLine(line)"
-                    :model-value="line.quantity ?? 0"
+                    :model-value="requiredNumber(line.quantity, 'workshop material quantity')"
                     @update:model-value="(v) => (line.quantity = Number(v))"
                     @blur="
                       () => {
                         if (!canEditLine(line)) return
-                        const qty = Number(line.quantity ?? 0)
+                        const qty = requiredNumber(line.quantity, 'workshop material quantity')
                         const isAdjust = isAdjustLine(line)
                         if (
                           !Number.isFinite(qty) ||

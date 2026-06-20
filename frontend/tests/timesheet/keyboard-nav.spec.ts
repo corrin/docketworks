@@ -13,6 +13,25 @@ type JobLabourRate = {
   charge_out_rate: number
 }
 
+function requireNumber(value: unknown, label: string): number {
+  if (value === null || value === undefined || value === '') {
+    throw new Error(`Missing ${label}`)
+  }
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue)) {
+    throw new Error(`Invalid ${label}: ${JSON.stringify(value)}`)
+  }
+  return numberValue
+}
+
+function parseCurrencyText(text: string | null, label: string): number {
+  const match = text?.match(/\$?([\d,]+\.?\d*)/)
+  if (!match) {
+    throw new Error(`Could not parse ${label} from ${JSON.stringify(text)}`)
+  }
+  return requireNumber(match[1].replace(/,/g, ''), label)
+}
+
 async function expectCreatedCostLine(
   response: Response,
   expected: {
@@ -68,7 +87,7 @@ test.describe('keyboard Tab entry flow', () => {
     const timesheetStaff = await getTimesheetStaff(page, date)
     expect(timesheetStaff.length).toBeGreaterThan(0)
     staffId = timesheetStaff[0].id
-    staffWageRate = timesheetStaff[0].wageRate ?? 30
+    staffWageRate = requireNumber(timesheetStaff[0].wageRate, `staff ${staffId} wageRate`)
 
     const url1 = await createTestJob(page, 'KbdNav-1')
     await page.goto(url1.split('?')[0])
@@ -143,12 +162,8 @@ test.describe('keyboard Tab entry flow', () => {
       const billText = await row
         .locator(`[data-automation-id^="SmartTimesheetTable-bill-"]`)
         .textContent()
-      const wageVal = parseFloat(
-        (wageText?.match(/\$?([\d,]+\.?\d*)/) ?? ['0'])[1].replace(/,/g, ''),
-      )
-      const billVal = parseFloat(
-        (billText?.match(/\$?([\d,]+\.?\d*)/) ?? ['0'])[1].replace(/,/g, ''),
-      )
+      const wageVal = parseCurrencyText(wageText, 'wage cell')
+      const billVal = parseCurrencyText(billText, 'bill cell')
 
       expect(wageVal).toBeCloseTo(hrs * staffWageRate, 1)
       // The bill cell must match the backend-verified total_rev (hours x the

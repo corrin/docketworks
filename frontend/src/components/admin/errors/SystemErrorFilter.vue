@@ -16,7 +16,7 @@ import type { SystemErrorFilterState } from '@/types/errorFilters'
 const defaultState: SystemErrorFilterState = {
   app: '',
   severity: '',
-  resolved: 'all',
+  resolved: 'false',
   jobId: '',
   userId: '',
 }
@@ -31,7 +31,7 @@ const hasActiveFilters = computed(() => {
   return (
     !!value.app.trim() ||
     !!value.severity.trim() ||
-    value.resolved !== 'all' ||
+    value.resolved !== 'false' ||
     !!value.jobId.trim() ||
     !!value.userId.trim()
   )
@@ -68,12 +68,11 @@ function resetFilters() {
       <Label for="system-error-resolved">Resolved</Label>
       <Select v-model="model.resolved">
         <SelectTrigger id="system-error-resolved">
-          <SelectValue placeholder="All statuses" />
+          <SelectValue placeholder="Unresolved" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All</SelectItem>
-          <SelectItem value="true">Resolved</SelectItem>
           <SelectItem value="false">Unresolved</SelectItem>
+          <SelectItem value="true">Resolved</SelectItem>
         </SelectContent>
       </Select>
     </div>

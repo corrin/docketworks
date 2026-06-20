@@ -381,12 +381,17 @@
                             {{ jobData.job.client_name }}
                           </p>
                         </div>
-                        <Badge
-                          :variant="getStatusVariant(resolveJobStatus(jobData.job))"
-                          class="text-xs"
-                        >
-                          {{ getStatusLabel(resolveJobStatus(jobData.job)) }}
-                        </Badge>
+                        <div class="flex items-center gap-1.5">
+                          <Badge v-if="jobData.job.is_urgent" variant="destructive" class="text-xs">
+                            URGENT
+                          </Badge>
+                          <Badge
+                            :variant="getStatusVariant(resolveJobStatus(jobData.job))"
+                            class="text-xs"
+                          >
+                            {{ getStatusLabel(resolveJobStatus(jobData.job)) }}
+                          </Badge>
+                        </div>
                       </div>
 
                       <!-- Hours Progress -->
@@ -865,6 +870,7 @@ const activeJobsWithData = computed<ActiveJobWithData[]>(() => {
             status: 'draft',
             labour_rates: [],
             shop_job: false,
+            is_urgent: false,
             estimated_hours: null,
             default_xero_pay_item_id: entryWithJobData.xero_pay_item ?? '',
             default_xero_pay_item_name: entryWithJobData.xero_pay_item_name ?? '',

@@ -48,6 +48,12 @@ class LabourSubtype(models.Model):
 
     class Meta:
         ordering = ["display_order", "name"]
+        constraints = [
+            models.CheckConstraint(
+                condition=models.Q(default_charge_out_rate__gte=0),
+                name="laboursubtype_default_rate_non_negative",
+            ),
+        ]
 
     def __str__(self) -> str:
         return self.name
@@ -106,9 +112,13 @@ class JobLabourRate(models.Model):
         # rely on labour_rates arriving in subtype display order.
         ordering = ["labour_subtype__display_order", "labour_subtype__name"]
         constraints = [
+            models.CheckConstraint(
+                condition=models.Q(charge_out_rate__gte=0),
+                name="joblabourrate_charge_out_rate_non_negative",
+            ),
             models.UniqueConstraint(
                 fields=["job", "labour_subtype"], name="unique_job_labour_subtype"
-            )
+            ),
         ]
 
     def __str__(self) -> str:

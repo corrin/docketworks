@@ -3,8 +3,9 @@
   "tasks": [
     {
       "label": "Frontend Dev Server",
-      "type": "shell",
-      "command": "npm run dev",
+      "type": "process",
+      "command": "${env:HOME}/.nvm/nvm-exec",
+      "args": ["npm", "run", "dev"],
       "hide": true,
       "options": {
         "cwd": "${workspaceFolder}/frontend"
@@ -28,8 +29,9 @@
     },
     {
       "label": "Frontend Manual Dev Server",
-      "type": "shell",
-      "command": "npm run manual:dev",
+      "type": "process",
+      "command": "${env:HOME}/.nvm/nvm-exec",
+      "args": ["npm", "run", "manual:dev"],
       "hide": true,
       "options": {
         "cwd": "${workspaceFolder}/frontend"

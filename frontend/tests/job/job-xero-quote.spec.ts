@@ -38,13 +38,22 @@ const summarizeQuoteCostSet = async (page: import('@playwright/test').Page, jobI
 
   const materialMissingStock = materialLines.filter((line) => !hasStockId(line))
   const missingDesc = lines.filter((line) => !line?.desc || String(line.desc).trim() === '')
-  const zeroUnitRev = lines.filter((line) => Number(line?.unit_rev ?? 0) <= 0)
+  const missingUnitRev = lines.filter(
+    (line) => line?.unit_rev === null || line?.unit_rev === undefined,
+  )
+  const zeroUnitRev = lines.filter((line) => {
+    if (line?.unit_rev === null || line?.unit_rev === undefined) return false
+    const unitRev = Number(line.unit_rev)
+    if (!Number.isFinite(unitRev)) return true
+    return unitRev <= 0
+  })
 
   return [
     `lines=${lines.length}`,
     `materialLines=${materialLines.length}`,
     `materialMissingStock=${materialMissingStock.length}`,
     `missingDesc=${missingDesc.length}`,
+    `missingUnitRev=${missingUnitRev.length}`,
     `zeroUnitRev=${zeroUnitRev.length}`,
   ].join(' ')
 }

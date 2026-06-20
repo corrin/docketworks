@@ -8,7 +8,9 @@ conversion handles actual Quill editor output correctly.
 from decimal import Decimal
 from typing import Any
 
+from django.db import connection
 from django.test import SimpleTestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from pypdf import PdfReader
 
@@ -20,6 +22,7 @@ from apps.job.services.workshop_pdf_service import (
     create_delivery_docket_pdf,
     create_workshop_pdf,
     format_hours_display,
+    get_job_for_workshop_pdf,
     get_time_breakdown,
     get_workshop_hours,
 )
@@ -423,6 +426,19 @@ class WorkshopHourBreakdownTests(BaseTestCase):
             [{"name": "Test Staff", "hours": 3.0}],
         )
 
+    def test_missing_time_line_subtype_raises_instead_of_hiding_hours(self) -> None:
+        """A migration or direct SQL edit can leave a time line without subtype.
+
+        The workshop PDF must fail visibly so the data is repaired, not silently
+        exclude those hours from remaining-work calculations.
+        """
+        estimate = self.job.latest_estimate
+        line = self._add_time(estimate, "Workshop", "4.000", "Workshop")
+        CostLine.objects.filter(id=line.id).update(labour_subtype=None)
+
+        with self.assertRaisesRegex(ValueError, "has no labour subtype"):
+            get_workshop_hours(self.job)
+
     def test_materials_used_shows_retail_line_total_when_known(self) -> None:
         estimate = self.job.latest_estimate
         assert estimate is not None
@@ -459,6 +475,36 @@ class WorkshopHourBreakdownTests(BaseTestCase):
         self.assertIn("Unknown retail material", text)
         self.assertNotIn("$0.00", text)
         self.assertNotIn("$198.00", text)
+
+    def test_preloaded_workshop_pdf_render_does_not_query_cost_lines(self) -> None:
+        """Workshop PDF rendering must use the preloaded CostLine lists."""
+        estimate = self.job.latest_estimate
+        assert estimate is not None
+        self._add_time(estimate, "Workshop", "4.000", "Workshop")
+
+        actual = self.job.latest_actual
+        assert actual is not None
+        self._add_time(actual, "Workshop", "1.500", "Workshop actual")
+        CostLine.objects.create(
+            cost_set=actual,
+            kind="material",
+            desc="Preloaded material",
+            quantity=Decimal("2.000"),
+            unit_cost=Decimal("5.00"),
+            unit_rev=Decimal("12.00"),
+            accounting_date=timezone.localdate(),
+        )
+
+        loaded_job = get_job_for_workshop_pdf(self.job.id)
+
+        with CaptureQueriesContext(connection) as captured:
+            pdf_buffer = create_workshop_pdf(loaded_job)
+
+        cost_line_queries = [
+            query["sql"] for query in captured if 'FROM "job_costline"' in query["sql"]
+        ]
+        self.assertEqual(cost_line_queries, [])
+        self.assertGreater(len(pdf_buffer.getvalue()), 0)
 
     def test_time_used_starts_on_page_two_when_specs_fit_page_one(self) -> None:
         estimate = self.job.latest_estimate

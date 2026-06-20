@@ -20,21 +20,11 @@ type GroupedResultMap = {
   job: GroupedJobDeltaRejection
 }
 
-interface DateRange {
-  start: string | null
-  end: string | null
-}
-
 type ErrorType = 'xero' | 'system' | 'job'
 type ErrorResultMap = {
   xero: XeroError
   system: AppError
   job: JobDeltaRejection
-}
-
-type XeroErrorFilters = {
-  search?: string
-  range?: DateRange
 }
 
 type SystemErrorFilters = {
@@ -45,8 +35,13 @@ type SystemErrorFilters = {
   userId?: string
 }
 
+// XeroError extends AppError and exposes the same app/severity/resolved/job/user
+// fields, so the xero tab reuses the system filter shape.
+type XeroErrorFilters = SystemErrorFilters
+
 type JobErrorFilters = {
   jobId?: string
+  resolved?: boolean
 }
 
 type ErrorFilterMap = {
@@ -56,6 +51,16 @@ type ErrorFilterMap = {
 }
 
 const PAGE_SIZE = 20
+type ErrorQueryParams = {
+  limit?: number
+  offset?: number
+  page?: number
+  app?: string
+  severity?: number
+  resolved?: boolean
+  job_id?: string
+  user_id?: string
+}
 
 export function useErrorApi() {
   const error = ref<string | null>(null)
@@ -68,9 +73,25 @@ export function useErrorApi() {
     error.value = null
     try {
       if (type === 'xero') {
-        // Use Zodios API for xero errors
-        // Note: search and date filtering not available in current API, would need backend update
-        const response = await api.xero_errors_list(page > 1 ? { queries: { page } } : {})
+        // The xero individual endpoint is PAGE-paginated (not limit/offset).
+        // It accepts the same app/severity/resolved/job/user filters as the
+        // system tab — forward them exactly like the system branch does.
+        const xeroFilters = filters as XeroErrorFilters
+        const params: ErrorQueryParams = {}
+        if (page > 1) params.page = page
+        if (xeroFilters?.app) params.app = xeroFilters.app
+        if (typeof xeroFilters?.severity === 'number' && Number.isFinite(xeroFilters.severity)) {
+          params.severity = xeroFilters.severity
+        }
+        if (typeof xeroFilters?.resolved === 'boolean') {
+          params.resolved = xeroFilters.resolved
+        }
+        if (xeroFilters?.jobId) params.job_id = xeroFilters.jobId
+        if (xeroFilters?.userId) params.user_id = xeroFilters.userId
+
+        const response = await api.xero_errors_list(
+          Object.keys(params).length > 0 ? { queries: params } : {},
+        )
         return {
           results: response.results || [],
           pageCount: response.count
@@ -82,7 +103,7 @@ export function useErrorApi() {
       if (type === 'system') {
         const systemFilters = filters as SystemErrorFilters
         const offset = Math.max(page - 1, 0) * PAGE_SIZE
-        const params: Record<string, unknown> = {
+        const params: ErrorQueryParams = {
           limit: PAGE_SIZE,
           offset,
         }
@@ -99,10 +120,9 @@ export function useErrorApi() {
         if (systemFilters?.jobId) params.job_id = systemFilters.jobId
         if (systemFilters?.userId) params.user_id = systemFilters.userId
 
-        const response = await api.axios.get<AppErrorListResponse>('/api/rest/app-errors/', {
-          params,
+        const payload: AppErrorListResponse = await api.rest_app_errors_retrieve({
+          queries: params,
         })
-        const payload = response.data
         return {
           results: payload.results || [],
           pageCount: payload.count ? Math.ceil(payload.count / PAGE_SIZE) : 0,
@@ -112,12 +132,15 @@ export function useErrorApi() {
       if (type === 'job') {
         const jobFilters = filters as JobErrorFilters
         const offset = Math.max(page - 1, 0) * PAGE_SIZE
-        const params: Record<string, unknown> = {
+        const params: ErrorQueryParams = {
           limit: PAGE_SIZE,
           offset,
         }
         if (jobFilters?.jobId) {
           params.job_id = jobFilters.jobId
+        }
+        if (typeof jobFilters?.resolved === 'boolean') {
+          params.resolved = jobFilters.resolved
         }
 
         const response = await api.job_rest_jobs_delta_rejections_admin_list({
@@ -147,18 +170,25 @@ export function useErrorApi() {
     try {
       if (type === 'xero') {
         const xeroFilters = filters as XeroErrorFilters
-        const params: Record<string, unknown> = { limit: PAGE_SIZE, offset }
-        if (xeroFilters?.search) params.search = xeroFilters.search
-        const response = await api.axios.get<GroupedAppErrorListResponse>(
-          '/api/xero-errors/grouped/',
-          { params },
-        )
-        return mapGroupedResponse<T>(response.data)
+        const params: ErrorQueryParams = { limit: PAGE_SIZE, offset }
+        if (xeroFilters?.app) params.app = xeroFilters.app
+        if (typeof xeroFilters?.severity === 'number' && Number.isFinite(xeroFilters.severity)) {
+          params.severity = xeroFilters.severity
+        }
+        if (typeof xeroFilters?.resolved === 'boolean') {
+          params.resolved = xeroFilters.resolved
+        }
+        if (xeroFilters?.jobId) params.job_id = xeroFilters.jobId
+        if (xeroFilters?.userId) params.user_id = xeroFilters.userId
+        const response: GroupedAppErrorListResponse = await api.xero_errors_grouped_retrieve({
+          queries: params,
+        })
+        return mapGroupedResponse<T>(response)
       }
 
       if (type === 'system') {
         const systemFilters = filters as SystemErrorFilters
-        const params: Record<string, unknown> = { limit: PAGE_SIZE, offset }
+        const params: ErrorQueryParams = { limit: PAGE_SIZE, offset }
         if (systemFilters?.app) params.app = systemFilters.app
         if (
           typeof systemFilters?.severity === 'number' &&
@@ -171,21 +201,22 @@ export function useErrorApi() {
         }
         if (systemFilters?.jobId) params.job_id = systemFilters.jobId
         if (systemFilters?.userId) params.user_id = systemFilters.userId
-        const response = await api.axios.get<GroupedAppErrorListResponse>(
-          '/api/app-errors/grouped/',
-          { params },
-        )
-        return mapGroupedResponse<T>(response.data)
+        const response: GroupedAppErrorListResponse = await api.app_errors_grouped_retrieve({
+          queries: params,
+        })
+        return mapGroupedResponse<T>(response)
       }
 
       const jobFilters = filters as JobErrorFilters
-      const params: Record<string, unknown> = { limit: PAGE_SIZE, offset }
+      const params: Pick<ErrorQueryParams, 'limit' | 'offset' | 'job_id' | 'resolved'> = {
+        limit: PAGE_SIZE,
+        offset,
+      }
       if (jobFilters?.jobId) params.job_id = jobFilters.jobId
-      const response = await api.axios.get<GroupedJobDeltaRejectionListResponse>(
-        '/api/job/jobs/delta-rejections/grouped/',
-        { params },
-      )
-      return mapGroupedResponse<T>(response.data)
+      if (typeof jobFilters?.resolved === 'boolean') params.resolved = jobFilters.resolved
+      const response: GroupedJobDeltaRejectionListResponse =
+        await api.job_jobs_delta_rejections_grouped_retrieve({ queries: params })
+      return mapGroupedResponse<T>(response)
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to fetch grouped errors.'
       console.error('[useErrorApi] fetchGroupedErrors failed:', e)
@@ -209,29 +240,34 @@ export function useErrorApi() {
     action: 'mark_resolved' | 'mark_unresolved',
   ): Promise<number> {
     error.value = null
-    const endpoint =
-      type === 'xero'
-        ? `/api/xero-errors/grouped/${action}/`
-        : type === 'system'
-          ? `/api/app-errors/grouped/${action}/`
-          : `/api/job/jobs/delta-rejections/grouped/${action}/`
     // Identify the group by the SHA-256 fingerprint of the message/reason.
     // Hashing sidesteps the global trimStringsDeep axios interceptor, which
     // would otherwise strip trailing whitespace on the raw text and break
     // downstream matching.
     const body = { fingerprint }
     try {
-      const response = await api.axios.post<{ updated: number }>(endpoint, body)
-      const updated = response.data.updated
+      const response =
+        type === 'xero'
+          ? action === 'mark_resolved'
+            ? await api.xero_errors_grouped_mark_resolved_create(body)
+            : await api.xero_errors_grouped_mark_unresolved_create(body)
+          : type === 'system'
+            ? action === 'mark_resolved'
+              ? await api.app_errors_grouped_mark_resolved_create(body)
+              : await api.app_errors_grouped_mark_unresolved_create(body)
+            : action === 'mark_resolved'
+              ? await api.job_jobs_delta_rejections_grouped_mark_resolved_create(body)
+              : await api.job_jobs_delta_rejections_grouped_mark_unresolved_create(body)
+      const updated = response.updated
       if (updated === 0) {
         const msg = `${action} matched no rows — the row may have been deleted.`
-        console.warn('[useErrorApi] resolveGroup:', msg, { endpoint, body })
+        console.warn('[useErrorApi] resolveGroup:', msg, { type, action, body })
         error.value = msg
       }
       return updated
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Failed to update group.'
-      console.error('[useErrorApi] resolveGroup failed:', e, { endpoint, body })
+      console.error('[useErrorApi] resolveGroup failed:', e, { type, action, body })
       error.value = message
       return 0
     }

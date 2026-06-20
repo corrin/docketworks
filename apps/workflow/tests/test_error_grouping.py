@@ -33,6 +33,9 @@ def test_groups_unresolved_by_default(app_errors):
     assert "Failure A" in messages
     assert "Failure B" in messages
     assert "Failure C" not in messages
+    # Every group carries the resolved state it was filtered to so the frontend
+    # can pick the Resolve vs Unresolve action without a second lookup.
+    assert all(row["resolved"] is False for row in payload["results"])
 
 
 def test_group_has_count_and_first_last_seen(app_errors):
@@ -47,6 +50,7 @@ def test_includes_resolved_when_requested(app_errors):
     payload = list_grouped_app_errors(limit=50, offset=0, resolved=True)
     messages = [row["message"] for row in payload["results"]]
     assert messages == ["Failure C"]
+    assert all(row["resolved"] is True for row in payload["results"])
 
 
 def test_filters_by_app(app_errors):

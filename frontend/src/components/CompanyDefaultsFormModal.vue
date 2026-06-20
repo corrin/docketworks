@@ -11,10 +11,6 @@
             <input v-model="form.company_name" class="input" required />
           </div>
           <div>
-            <label class="block text-sm font-medium mb-1">Charge Out Rate</label>
-            <input v-model.number="form.charge_out_rate" type="number" class="input" required />
-          </div>
-          <div>
             <label class="block text-sm font-medium mb-1">Wage Rate</label>
             <input v-model.number="form.wage_rate" type="number" class="input" required />
           </div>

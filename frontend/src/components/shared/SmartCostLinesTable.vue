@@ -27,6 +27,7 @@ import { toast } from 'vue-sonner'
 import { debugLog } from '../../utils/debug'
 import { formatCurrency } from '../../utils/string-formatting'
 import { roundToDecimalPlaces } from '@/utils/number'
+import { requiredNumber } from '@/utils/requiredNumber'
 import { HelpCircle, Trash2, AlertTriangle, Check } from 'lucide-vue-next'
 import {
   Dialog,
@@ -199,9 +200,15 @@ function maybeEmitCreate(line: CostLine) {
 function updateLineKind(line: CostLine, newKind: KindOption) {
   if (String(line.kind) === newKind) return
 
-  Object.assign(line, { kind: newKind })
-
   if (newKind === 'time') {
+    // Time lines need the company wage rate as unit_cost. If defaults haven't
+    // loaded yet, abort BEFORE mutating kind so the line stays in its prior
+    // kind (tryCompanyWageRate toasts on the null case).
+    const wage = tryCompanyWageRate()
+    if (wage === null) return
+
+    Object.assign(line, { kind: newKind })
+
     // Time lines require a labour subtype; default to the workshop subtype.
     // unit_cost from company wage rate, unit_rev from the job's subtype rate.
     // If the labour-rates fetch hasn't resolved yet, subtypeId stays null and
@@ -212,10 +219,11 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
       line.labour_subtype ?? workshopRateEntry(jobLabourRates.value)?.labour_subtype ?? null
     Object.assign(line, {
       labour_subtype: subtypeId,
-      unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
+      unit_cost: wage,
       unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
     })
   } else {
+    Object.assign(line, { kind: newKind })
     // Recalculate unit_rev with markup for material/adjust
     Object.assign(line, { labour_subtype: null })
     const derived = apply(line).derived
@@ -230,10 +238,10 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
       labour_subtype: line.labour_subtype ?? null,
       ...(newKind === 'time'
         ? {
-            unit_cost: Number(line.unit_cost ?? 0),
-            unit_rev: Number(line.unit_rev ?? 0),
+            unit_cost: requiredNumber(line.unit_cost, 'cost line unit_cost'),
+            unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
           }
-        : { unit_rev: Number(line.unit_rev) }),
+        : { unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev') }),
     }
     const optimistic: Partial<CostLine> = { ...patch }
     autosave.scheduleSave(line, patch, optimistic)
@@ -252,6 +260,11 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
     throw new Error(`Labour subtype not found in job labour rates: ${subtypeId}`)
   }
 
+  // Time lines need the company wage rate as unit_cost; abort the conversion
+  // (leaving the line untouched) if defaults haven't loaded yet.
+  const wage = tryCompanyWageRate()
+  if (wage === null) return
+
   // Re-prefill unit_rev from the job's rate for the chosen subtype; the user
   // can still override it afterwards (consistent with item selection).
   resetUnitRevOverride(line)
@@ -264,7 +277,7 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
     kind: 'time' as const,
     labour_subtype: subtypeId,
     desc: nextLabourDesc(line.desc || '', rate, jobLabourRates.value),
-    unit_cost: companyDefaultsStore.companyDefaults?.wage_rate ?? 0,
+    unit_cost: wage,
     unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
     ext_refs: extRefs,
     quantity: line.quantity ?? 1,
@@ -281,8 +294,8 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
     kind: 'time',
     labour_subtype: subtypeId,
     desc: line.desc || '',
-    unit_cost: Number(line.unit_cost ?? 0),
-    unit_rev: Number(line.unit_rev ?? 0),
+    unit_cost: requiredNumber(line.unit_cost, 'cost line unit_cost'),
+    unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
     ext_refs: extRefs,
   }
   const optimistic: Partial<CostLine> = { ...patch } as Partial<CostLine>
@@ -293,9 +306,33 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
 const companyDefaultsStore = useCompanyDefaultsStore()
 const store = useStockStore()
 
+/**
+ * Time-line conversion needs the company wage rate as the line's unit_cost.
+ * Before company defaults have loaded `wage_rate` is null/undefined/'' — reading
+ * it via requiredNumber would throw and crash the table on early interaction.
+ * Return null (and toast) so callers can abort the conversion cleanly; never
+ * fall back to a fabricated wage number.
+ */
+function tryCompanyWageRate(): number | null {
+  const wageRate = companyDefaultsStore.companyDefaults?.wage_rate
+  if (wageRate === null || wageRate === undefined || wageRate === ('' as unknown)) {
+    toast.error('Company defaults are still loading. Please try again.')
+    return null
+  }
+  return requiredNumber(wageRate, 'company defaults wage_rate')
+}
+
+function companyMaterialsMarkup(): number {
+  return requiredNumber(
+    companyDefaultsStore.companyDefaults?.materials_markup,
+    'company defaults materials_markup',
+  )
+}
+
 // Job's per-labour-subtype charge-out rates: drives time-line unit_rev and the
 // labour subtype dropdown options.
 const jobLabourRates = ref<JobLabourRate[]>([])
+const jobLabourRatesLoaded = ref(false)
 
 onMounted(() => {
   if (!companyDefaultsStore.isLoaded && !companyDefaultsStore.isLoading) {
@@ -310,6 +347,7 @@ onMounted(() => {
       .getJobLabourRates(props.jobId)
       .then((rates) => {
         jobLabourRates.value = rates
+        jobLabourRatesLoaded.value = true
       })
       .catch((error) => {
         console.error('Failed to load job labour rates:', error)
@@ -444,9 +482,22 @@ function canEditField(
  */
 function isLineReadyForSave(line: CostLine): boolean {
   if (!line.desc || line.desc.trim() === '') return false
-  if (!line.quantity || line.quantity <= 0) return false
+  const quantity = Number(line.quantity)
+  if (!Number.isFinite(quantity) || quantity <= 0) return false
   if (line.unit_cost === undefined || line.unit_cost === null) return false
   if (line.unit_rev === undefined || line.unit_rev === null) return false
+  return true
+}
+
+function isIncompleteNewLine(line: CostLine): boolean {
+  return !line.id && !isLineReadyForSave(line)
+}
+
+function canRenderDerivedValues(line: CostLine): boolean {
+  if (isIncompleteNewLine(line)) return false
+  if (line.unit_cost === undefined || line.unit_cost === null) return false
+  if (line.unit_rev === undefined || line.unit_rev === null) return false
+  if (String(line.kind) === 'time' && !jobLabourRatesLoaded.value) return false
   return true
 }
 
@@ -801,9 +852,12 @@ const columns = computed(() => {
                         if (!stock) {
                           throw new Error('Stock item not found in store')
                         }
-                        const qty = Number(line.quantity || 1)
-                        const unitCost = Number(stock.unit_cost || 0)
-                        const markup = companyDefaultsStore.companyDefaults?.materials_markup || 0
+                        const qty = requiredNumber(line.quantity, 'cost line quantity')
+                        const unitCost = requiredNumber(
+                          stock.unit_cost,
+                          `unit_cost for stock ${stock.id}`,
+                        )
+                        const markup = companyMaterialsMarkup()
                         const unitRev = roundToDecimalPlaces(unitCost * (1 + markup), 2)
                         await props.consumeStockFn({
                           line,
@@ -833,11 +887,14 @@ const columns = computed(() => {
                         item_code: found.item_code,
                         description: found.description,
                       })
-                      const stockUnitCost = Number(found.unit_cost ?? 0)
+                      const stockUnitCost = requiredNumber(
+                        found.unit_cost,
+                        `unit_cost for stock ${found.id}`,
+                      )
                       const stockUnitRevenue =
                         found.unit_revenue === null || found.unit_revenue === undefined
                           ? null
-                          : Number(found.unit_revenue)
+                          : requiredNumber(found.unit_revenue, `unit_revenue for stock ${found.id}`)
                       Object.assign(line, { desc: found.description || '' })
                       Object.assign(line, { unit_cost: stockUnitCost })
                       // Update ext_refs.stock_id to reference the selected item
@@ -882,8 +939,8 @@ const columns = computed(() => {
                     if (line.id && isLineReadyForSave(line)) {
                       const patch: PatchedCostLineCreateUpdate = {
                         desc: line.desc || '',
-                        unit_cost: Number(line.unit_cost ?? 0),
-                        unit_rev: Number(line.unit_rev ?? 0),
+                        unit_cost: requiredNumber(line.unit_cost, 'cost line unit_cost'),
+                        unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
                         ext_refs: { stock_id: val },
                       }
                       const optimistic: Partial<CostLine> = { ...patch }
@@ -896,7 +953,13 @@ const columns = computed(() => {
                     enabled && String(line.kind) !== 'time' && Object.assign(line, { desc }),
                   'onUpdate:unit_cost': (cost: number | null) => {
                     if (!enabled) return
-                    Object.assign(line, { unit_cost: Number(cost ?? 0) })
+                    if (cost === null) {
+                      Object.assign(line, { unit_cost: null })
+                      return
+                    }
+                    Object.assign(line, {
+                      unit_cost: requiredNumber(cost, 'cost line unit_cost'),
+                    })
                     if (kind !== 'time')
                       Object.assign(line, { unit_rev: apply(line).derived.unit_rev })
                     nextTick(() => {
@@ -1036,7 +1099,7 @@ const columns = computed(() => {
                   return
                 }
                 if (!line.id || !isLineReadyForSave(line)) return
-                const qtyNum = Number(line.quantity || 0)
+                const qtyNum = requiredNumber(line.quantity, 'cost line quantity')
                 const patch: PatchedCostLineCreateUpdate = { quantity: qtyNum }
                 const optimistic: Partial<CostLine> = { quantity: qtyNum }
                 autosave.onBlurSave(line, patch, optimistic)
@@ -1072,7 +1135,7 @@ const columns = computed(() => {
           isActualTab && isNewLine && kind === 'material' && isFieldBlocked && !hasStockSelected
         const editable = canEditField(line, 'unit_cost') && !isBlocked
         const isTime = kind === 'time'
-        const resolved = apply(line).derived
+        const resolved = canRenderDerivedValues(line) ? apply(line).derived : null
         return [
           h('div', { class: 'col-10ch' }, [
             h(Input, {
@@ -1080,7 +1143,7 @@ const columns = computed(() => {
               step: '0.01',
               min: '0',
               modelValue: isTime
-                ? (line.unit_cost ?? resolved.unit_cost ?? '')
+                ? (line.unit_cost ?? resolved?.unit_cost ?? '')
                 : (line.unit_cost ?? ''),
               disabled: !editable,
               class: 'w-full text-right numeric-input',
@@ -1092,7 +1155,8 @@ const columns = computed(() => {
               'onUpdate:modelValue': (val: string | number) => {
                 if (!editable) return
                 if (val === '') {
-                  Object.assign(line, { unit_cost: 0 })
+                  Object.assign(line, { unit_cost: null })
+                  return
                 } else {
                   const num = Number(val)
                   if (!Number.isNaN(num)) {
@@ -1129,8 +1193,10 @@ const columns = computed(() => {
                 // For material/adjust, unit_rev may be auto recalculated unless overridden
                 const derived = apply(line).derived
                 const patch: PatchedCostLineCreateUpdate = {
-                  unit_cost: Number(line.unit_cost ?? 0),
-                  ...(kind !== 'time' ? { unit_rev: Number(derived.unit_rev) } : {}),
+                  unit_cost: requiredNumber(line.unit_cost, 'cost line unit_cost'),
+                  ...(kind !== 'time'
+                    ? { unit_rev: requiredNumber(derived.unit_rev, 'derived cost line unit_rev') }
+                    : {}),
                 }
                 const optimistic: Partial<CostLine> = { ...patch }
                 autosave.onBlurSave(line, patch, optimistic)
@@ -1166,7 +1232,7 @@ const columns = computed(() => {
           isActualTab && isNewLine && kind === 'material' && isFieldBlocked && !hasStockSelected
         const editable = canEditField(line, 'unit_rev') && !isBlocked
         const isTime = kind === 'time'
-        const resolved = apply(line).derived
+        const resolved = canRenderDerivedValues(line) ? apply(line).derived : null
         return [
           h('div', { class: 'col-10ch' }, [
             h(Input, {
@@ -1174,7 +1240,7 @@ const columns = computed(() => {
               step: '0.01',
               min: '0',
               modelValue: isTime
-                ? (line.unit_rev ?? resolved.unit_rev ?? '')
+                ? (line.unit_rev ?? resolved?.unit_rev ?? '')
                 : (line.unit_rev ?? ''),
               disabled: !editable,
               class: 'w-full text-right numeric-input',
@@ -1228,9 +1294,9 @@ const columns = computed(() => {
 
                 debugLog('Saving unit_rev change:', line.id, line.unit_rev)
                 const patch: PatchedCostLineCreateUpdate = {
-                  unit_rev: Number(line.unit_rev ?? 0),
+                  unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
                 }
-                const optimistic: Partial<CostLine> = { unit_rev: Number(line.unit_rev ?? 0) }
+                const optimistic: Partial<CostLine> = { unit_rev: patch.unit_rev }
                 autosave.onBlurSave(line, patch, optimistic)
               },
             }),
@@ -1254,8 +1320,13 @@ const columns = computed(() => {
       header: () => h('div', { class: 'col-12ch text-center' }, 'Total Cost'),
       cell: ({ row }: RowCtx) => {
         const line = displayLines.value[row.index]
-        const qty = Number(line.quantity || 0)
-        const umc = Number(line.unit_cost ?? apply(line).derived.unit_cost ?? 0)
+        if (!canRenderDerivedValues(line)) return h('div', { class: 'col-12ch' }, '')
+        const qty = requiredNumber(line.quantity, 'cost line quantity')
+        const unitCost =
+          line.unit_cost !== null && line.unit_cost !== undefined
+            ? line.unit_cost
+            : apply(line).derived.unit_cost
+        const umc = requiredNumber(unitCost, 'cost line unit_cost')
         const totalCost = String(line.kind) === 'time' ? qty * umc : qty * umc
         return h(
           'div',
@@ -1272,8 +1343,13 @@ const columns = computed(() => {
       header: () => h('div', { class: 'col-12ch text-center' }, 'Total Revenue'),
       cell: ({ row }: RowCtx) => {
         const line = displayLines.value[row.index]
-        const qty = Number(line.quantity ?? 0)
-        const umr = Number(line.unit_rev ?? apply(line).derived.unit_rev ?? 0)
+        if (!canRenderDerivedValues(line)) return h('div', { class: 'col-12ch' }, '')
+        const qty = requiredNumber(line.quantity, 'cost line quantity')
+        const unitRev =
+          line.unit_rev !== null && line.unit_rev !== undefined
+            ? line.unit_rev
+            : apply(line).derived.unit_rev
+        const umr = requiredNumber(unitRev, 'cost line unit_rev')
         const totalRev = qty * umr
         return h(
           'div',

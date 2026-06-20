@@ -17,6 +17,7 @@ import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import type { z } from 'zod'
 import { formatHoursDisplay } from '@/utils/string-formatting'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type KanbanStaff = z.infer<typeof schemas.KanbanStaff>
@@ -81,14 +82,13 @@ const sortedTimeLines = computed(() =>
 const timeRows = computed(() => {
   let runningTotal = 0
   return sortedTimeLines.value.map((line) => {
-    const hours = Number(line.quantity ?? 0)
-    const safeHours = Number.isFinite(hours) ? hours : 0
-    runningTotal += safeHours
+    const hours = requiredNumber(line.quantity, 'workshop time quantity')
+    runningTotal += hours
     const remaining =
       props.workshopHours == null ? null : Number(props.workshopHours) - runningTotal
     return {
       line,
-      hours: Number.isFinite(hours) ? hours : null,
+      hours,
       remaining,
     }
   })

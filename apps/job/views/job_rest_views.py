@@ -1281,6 +1281,13 @@ class JobDeltaRejectionAdminRestView(BaseJobRestView):
                 required=False,
                 description="Optional job UUID filter.",
             ),
+            OpenApiParameter(
+                name="resolved",
+                type=OpenApiTypes.BOOL,
+                location=OpenApiParameter.QUERY,
+                required=False,
+                description="Optional resolved-state filter (omit for all).",
+            ),
         ],
         description="Fetch rejected job delta envelopes (global admin view).",
         tags=["Jobs"],
@@ -1302,8 +1309,21 @@ class JobDeltaRejectionAdminRestView(BaseJobRestView):
             except ValueError:
                 return self.handle_service_error(ValueError("Invalid job_id parameter"))
 
+        resolved_param = request.query_params.get("resolved")
+        resolved: bool | None = None
+        if resolved_param is not None:
+            value = resolved_param.strip().lower()
+            if value in {"true", "1", "yes"}:
+                resolved = True
+            elif value in {"false", "0", "no"}:
+                resolved = False
+            else:
+                return self.handle_service_error(
+                    ValueError("Invalid resolved parameter")
+                )
+
         payload = JobRestService.list_job_delta_rejections(
-            job_id=job_id, limit=limit, offset=offset
+            job_id=job_id, resolved=resolved, limit=limit, offset=offset
         )
         serializer = JobDeltaRejectionListResponseSerializer(payload)
         return Response(serializer.data, status=status.HTTP_200_OK)
@@ -1453,7 +1473,6 @@ def get_company_defaults_api(request):
         {
             "materials_markup": float(defaults.materials_markup),
             "time_markup": float(defaults.time_markup),
-            "charge_out_rate": float(defaults.charge_out_rate),
             "wage_rate": float(defaults.wage_rate),
         }
     )

@@ -144,6 +144,7 @@ try:
             JobLabourRateSerializer,
             JobLabourRateUpdateSerializer,
             JobLabourRatesUpdateRequestSerializer,
+            LabourSubtypeManageSerializer,
             LabourSubtypeSerializer,
         )
         from .quote_spreadsheet_serializer import QuoteSpreadsheetSerializer
@@ -262,6 +263,7 @@ __all__ = [
     "KanbanJobPersonSerializer",
     "KanbanJobSerializer",
     "KanbanSuccessResponseSerializer",
+    "LabourSubtypeManageSerializer",
     "LabourSubtypeSerializer",
     "LinkQuoteSheetResponseSerializer",
     "LinkQuoteSheetSerializer",

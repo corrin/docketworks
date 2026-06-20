@@ -35,6 +35,15 @@ method calls, branch coverage) is acceptable only when those internals
 themselves are the regression risk (an accidental N+1, for example) and no
 algorithmic-level test already covers the same risk.
 
+Every real bug that could hit a user and escaped the existing suite is evidence
+that the suite did not fully test the data model or behavioural contract it was
+claiming to protect. The fix must add a regression test at that contract
+boundary — the strict consumer that enforces the shape — not at the easiest
+internal side effect. The classic miss: a write that succeeds, so the write-path
+test passes, while a strict reader the data later feeds cannot parse what was
+stored. The owed test exercises that reader, not just the write, and enforces the
+shape rather than softening it ([ADR 0015](0015-fix-data-not-fallback.md)).
+
 When reviewing an existing test, sort it into one of four outcomes:
 
 - **Good:** it already states a plausible regression and catches that regression.
@@ -58,4 +67,5 @@ Tests may be deleted during refactors when no plausible regression can be
 articulated. New tests carry a small writing cost, but the suite should be
 smaller, clearer, and more defensible. Tests that guard the same regression
 through implementation internals while an algorithm-level test already covers
-it are redundant and should be removed.
+it are redundant and should be removed. Bug fixes carry their regression tests
+with them; "no new test" is an explicit review decision, not a silent omission.

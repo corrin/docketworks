@@ -6,15 +6,71 @@ idempotent; failures persist via AppError (ADR 0019).
 
 import logging
 import os
+from typing import Any, cast
 
 from celery import shared_task
 from django.conf import settings
-from django.db import close_old_connections
+from django.core.cache import caches
+from django.db import close_old_connections, connection, transaction
 
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_and_raise
 
 logger = logging.getLogger("apps.job.tasks")
+
+JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY = "job-summary-pdf-refresh-queued"
+JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY = "job-summary-pdf-refresh-running"
+JOB_SUMMARY_PDF_REFRESH_LOCK_SECONDS = 15 * 60
+JOB_SUMMARY_PDF_REFRESH_QUEUED_SECONDS = 15 * 60
+JOB_SUMMARY_PDF_REFRESH_DELAY_SECONDS = 30
+JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE = 20
+
+
+def request_job_summary_pdf_refresh() -> None:
+    """Request one bounded JobSummary.pdf refresh after commit."""
+
+    transaction.on_commit(_queue_job_summary_pdf_refresh)
+
+
+def _schedule_job_summary_pdf_refresh(countdown: int) -> None:
+    refresh_job_summary_pdfs_task.apply_async(
+        kwargs={"limit": JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE},
+        countdown=countdown,
+    )
+
+
+def _queue_job_summary_pdf_refresh(countdown: int | None = None) -> None:
+    cache = caches["shared"]
+    queued = cache.add(
+        JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY,
+        True,
+        timeout=JOB_SUMMARY_PDF_REFRESH_QUEUED_SECONDS,
+    )
+    if queued:
+        scheduled_countdown = (
+            JOB_SUMMARY_PDF_REFRESH_DELAY_SECONDS if countdown is None else countdown
+        )
+        try:
+            _schedule_job_summary_pdf_refresh(scheduled_countdown)
+        except AlreadyLoggedException:
+            cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+            raise
+        except Exception as exc:
+            cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+            logger.error(
+                "Error queueing JobSummary.pdf refresh: %s",
+                exc,
+                exc_info=True,
+            )
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "countdown": scheduled_countdown,
+                    "limit": JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE,
+                },
+            )
+    else:
+        logger.debug("JobSummary.pdf refresh is already queued.")
 
 
 @shared_task(name="apps.job.tasks.create_job_file_thumbnail_task")
@@ -61,6 +117,62 @@ def create_job_file_thumbnail_task(job_file_id: str) -> None:
             exc_info=True,
         )
         persist_and_raise(exc, additional_context={"job_file_id": job_file_id})
+
+
+def _refresh_job_summary_pdfs_task(
+    limit: int = JOB_SUMMARY_PDF_REFRESH_BATCH_SIZE,
+) -> None:
+    """Refresh a bounded batch of missing/stale disaster-recovery PDFs."""
+    logger.info("Refreshing stale JobSummary.pdf files.")
+    cache = caches["shared"]
+    if not cache.add(
+        JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY,
+        True,
+        timeout=JOB_SUMMARY_PDF_REFRESH_LOCK_SECONDS,
+    ):
+        logger.info("Skipping JobSummary.pdf refresh; another run is active.")
+        return
+
+    follow_up_required = False
+    try:
+        if not connection.in_atomic_block:
+            close_old_connections()
+        from apps.job.services.job_summary_pdf_service import JobSummaryPdfService
+
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        refreshed, remaining = JobSummaryPdfService.refresh_stale(limit)
+        logger.info(
+            "Refreshed %s stale JobSummary.pdf files.",
+            refreshed,
+        )
+        follow_up_required = remaining or bool(
+            cache.get(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        )
+    except AlreadyLoggedException:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        raise
+    except Exception as exc:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        logger.error(
+            "Error refreshing JobSummary.pdf files: %s",
+            exc,
+            exc_info=True,
+        )
+        persist_and_raise(exc)
+    finally:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_RUNNING_KEY)
+
+    if follow_up_required:
+        cache.delete(JOB_SUMMARY_PDF_REFRESH_QUEUED_KEY)
+        _queue_job_summary_pdf_refresh(countdown=0)
+
+
+refresh_job_summary_pdfs_task = cast(
+    Any,
+    shared_task(name="apps.job.tasks.refresh_job_summary_pdfs_task")(
+        _refresh_job_summary_pdfs_task
+    ),
+)
 
 
 @shared_task(name="apps.job.tasks.set_paid_flag_task")

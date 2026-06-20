@@ -1,5 +1,6 @@
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
+import { requiredNumber } from './requiredNumber'
 
 type CostSet = z.infer<typeof schemas.CostSet>
 type CostSetSummaryOnly = z.infer<typeof schemas.CostSetSummaryOnly>
@@ -16,7 +17,7 @@ function getCostSetHours(costSet?: CostSet | CostSetSummaryOnly | null): number 
 
   if (!Array.isArray(costSet.cost_lines)) return 0
   return costSet.cost_lines.reduce((sum: number, line: unknown) => {
-    const qty = (line as { quantity?: number })?.quantity || 0
+    const qty = requiredNumber((line as { quantity?: number })?.quantity, 'cost line quantity')
     return sum + qty
   }, 0)
 }

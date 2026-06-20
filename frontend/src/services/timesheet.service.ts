@@ -3,6 +3,7 @@ import { api } from '@/api/client'
 import { debugLog } from '../utils/debug'
 import { toLocalDateString } from '../utils/dateUtils'
 import { formatHoursDisplay } from '@/utils/string-formatting'
+import { requiredNumber } from '@/utils/requiredNumber'
 import type { z } from 'zod'
 
 type Staff = z.infer<typeof schemas.ModernStaff>
@@ -15,20 +16,18 @@ export class TimesheetService {
       const staffResponse = await api.timesheets_staff_retrieve(
         targetDate ? { queries: { date: targetDate } } : undefined,
       )
-      const staffList = staffResponse.staff ?? []
+      if (!Array.isArray(staffResponse.staff)) {
+        throw new Error('timesheets_staff response missing staff array')
+      }
 
-      const defaults = await api.company_defaults_retrieve()
-      const defaultWageRate = defaults.wage_rate ?? 0
-
-      const normalizedStaff = staffList.map((staff) => ({
+      const normalizedStaff = staffResponse.staff.map((staff) => ({
         ...staff,
-        wageRate: staff.wageRate ?? defaultWageRate,
+        wageRate: requiredNumber(staff.wageRate, `wageRate for staff ${staff.id}`),
       }))
 
       debugLog('Staff normalized for timesheet:', {
         count: normalizedStaff.length,
         sample: normalizedStaff[0],
-        defaultWageRate,
         keys: normalizedStaff[0] ? Object.keys(normalizedStaff[0]) : [],
       })
 

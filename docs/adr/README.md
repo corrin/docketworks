@@ -35,3 +35,5 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0021 | Frontend reads and writes the API only through the generated client |
 | 0024 | Background work runs through Celery; tasks are idempotent and tenant-aware |
 | 0025 | Tests state the business risk |
+| 0026 | Plan the tests before the plan is approved |
+| 0027 | A capability deploys with the means to operate it |

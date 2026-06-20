@@ -287,6 +287,23 @@
               </p>
             </div>
 
+            <div>
+              <label class="block text-sm font-medium text-gray-700 mb-2"> Urgent Job </label>
+              <select
+                :value="localJobData.is_urgent ? 'true' : 'false'"
+                data-automation-id="JobSettingsTab-is-urgent"
+                @change="handleFieldInput('is_urgent', ($event.target as HTMLSelectElement).value)"
+                @blur="handleBlurFlush"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+              >
+                <option value="false">No</option>
+                <option value="true">Yes</option>
+              </select>
+              <p class="mt-1 text-xs text-gray-500">
+                Mark this job as urgent for higher charge-out rates and priority
+              </p>
+            </div>
+
             <div class="flex-grow">
               <RichTextEditor
                 :model-value="(localJobData.notes as string) || ''"
@@ -323,7 +340,7 @@
                 type="number"
                 step="0.01"
                 min="0"
-                :value="rate.charge_out_rate ?? 0"
+                :value="requiredNumber(rate.charge_out_rate, 'charge_out_rate')"
                 :data-automation-id="`JobSettingsTab-labour-rate-${rate.labour_subtype_name}`"
                 @blur="handleLabourRateBlur(rate, $event)"
                 class="w-32 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors text-right"
@@ -365,6 +382,7 @@ import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../..
 import { api } from '../../api/client'
 import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type ClientContact = z.infer<typeof schemas.ClientContact>
 
@@ -574,13 +592,19 @@ const labourRatesSaveFeedback = useSaveFeedback(`job-labour-rates:${props.jobId}
 
 const handleLabourRateBlur = async (rate: JobLabourRate, event: Event) => {
   const target = event.target as HTMLInputElement
-  const value = Number(target.value)
+  // charge_out_rate is schema-guaranteed (z.number().gte(0)); a missing value is
+  // a data anomaly, not a zero rate, so the canonical persisted-value reads throw.
+  const persistedRate = requiredNumber(rate.charge_out_rate, 'charge_out_rate')
+  // Number('') === 0, so an empty/whitespace field would otherwise persist a 0
+  // rate; treat blank as NaN to fall into the reject-and-reset branch below.
+  const raw = target.value.trim()
+  const value = raw === '' ? Number.NaN : Number(raw)
   if (!Number.isFinite(value) || value < 0) {
     toast.error('Charge-out rate must be a non-negative number')
-    target.value = String(rate.charge_out_rate ?? 0)
+    target.value = String(persistedRate)
     return
   }
-  if (value === (rate.charge_out_rate ?? 0)) return
+  if (value === persistedRate) return
 
   labourRatesSaveFeedback.saving()
   try {
@@ -592,7 +616,7 @@ const handleLabourRateBlur = async (rate: JobLabourRate, event: Event) => {
   } catch (error) {
     console.error('Failed to update labour rate:', error)
     labourRatesSaveFeedback.error('Failed to update labour rate')
-    target.value = String(rate.charge_out_rate ?? 0)
+    target.value = String(persistedRate)
   }
 }
 
@@ -678,6 +702,13 @@ const handleFieldInput = (field: string, value: string) => {
     localJobData.value.speed_quality_tradeoff = newValue as Job['speed_quality_tradeoff']
   } else if (field === 'rdti_type') {
     localJobData.value.rdti_type = (newValue || null) as Job['rdti_type']
+  } else if (field === 'is_urgent') {
+    const urgent = newValue === 'true'
+    localJobData.value.is_urgent = urgent
+    if (!isInitializing.value) {
+      autosave.queueChange(field, urgent)
+    }
+    return
   }
 
   // Queue autosave change
@@ -750,6 +781,7 @@ watch(
         quote_acceptance_date: undefined,
         paid: false,
         rejected_flag: false,
+        is_urgent: false,
         price_cap: null,
         default_xero_pay_item_id: null,
         default_xero_pay_item_name: null,
@@ -788,6 +820,7 @@ watch(
       default_xero_pay_item_id: newJobData.default_xero_pay_item_id ?? null,
       default_xero_pay_item_name: newJobData.default_xero_pay_item_name ?? null,
       rdti_type: newJobData.rdti_type ?? null,
+      is_urgent: newJobData.is_urgent ?? false,
     }
 
     // Preserve existing basic info fields when updating with header data
@@ -1190,6 +1223,7 @@ const autosave = createJobAutosave({
       notes: data.notes || null,
       delivery_date: data.delivery_date || null,
       rdti_type: data.rdti_type ?? null,
+      is_urgent: data.is_urgent ?? false,
     }
   },
   applyOptimistic: (patch) => {
@@ -1276,6 +1310,7 @@ const autosave = createJobAutosave({
         if ('fully_invoiced' in payload) next.fully_invoiced = !!payload.fully_invoiced
         if ('paid' in payload) next.paid = !!payload.paid
         if ('rejected_flag' in payload) next.rejected_flag = !!payload.rejected_flag
+        if ('is_urgent' in payload) next.is_urgent = payload.is_urgent as boolean
         if ('quote_acceptance_date' in payload) {
           next.quote_acceptance_date = (payload.quote_acceptance_date as string | null) ?? undefined
         }
@@ -1346,6 +1381,11 @@ const autosave = createJobAutosave({
           nextBaseline.rdti_type = serverJobDetail.rdti_type ?? null
           localJobData.value.rdti_type = serverJobDetail.rdti_type ?? null
           headerPatch.rdti_type = serverJobDetail.rdti_type ?? null
+        }
+        if (touchedKeys.includes('is_urgent')) {
+          nextBaseline.is_urgent = !!serverJobDetail.is_urgent
+          localJobData.value.is_urgent = !!serverJobDetail.is_urgent
+          headerPatch.is_urgent = !!serverJobDetail.is_urgent
         }
         if (touchedKeys.includes('speed_quality_tradeoff')) {
           nextBaseline.speed_quality_tradeoff = serverJobDetail.speed_quality_tradeoff

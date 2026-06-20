@@ -291,6 +291,9 @@ class JobRestService:
             except ClientContact.DoesNotExist:
                 raise ValueError(f"Contact with id {contact_id} not found")
 
+        if "is_urgent" in data:
+            job_data["is_urgent"] = data["is_urgent"]
+
         # Set default pay item to Ordinary Time for new jobs
         ordinary_time = XeroPayItem.get_ordinary_time()
         if not ordinary_time:
@@ -803,9 +806,18 @@ class JobRestService:
 
     @staticmethod
     def list_job_delta_rejections(
-        *, job_id: UUID | str | None = None, limit: int = 50, offset: int = 0
+        *,
+        job_id: UUID | str | None = None,
+        resolved: bool | None = None,
+        limit: int = 50,
+        offset: int = 0,
     ) -> Dict[str, Any]:
-        """Return paginated delta rejection records, optionally filtered by job."""
+        """Return paginated delta rejection records, optionally filtered by job.
+
+        ``resolved=None`` applies no resolved filter (show all), matching the
+        System tab's individual-list semantics; ``True``/``False`` narrow to that
+        state.
+        """
         if limit <= 0:
             limit = 1
         limit = min(limit, 200)
@@ -818,6 +830,8 @@ class JobRestService:
         )
         if job_id:
             queryset = queryset.filter(job_id=job_id)
+        if resolved is not None:
+            queryset = queryset.filter(resolved=resolved)
         total = queryset.count()
         results = list(queryset[offset : offset + limit])
 
@@ -854,10 +868,11 @@ class JobRestService:
         offset = max(offset, 0)
 
         queryset = JobDeltaRejection.objects.all()
-        if resolved is None:
-            queryset = queryset.filter(resolved=False)
-        else:
-            queryset = queryset.filter(resolved=resolved)
+        # Groups are scoped to a single resolved state, so every row in the
+        # response carries that state (defaulting to unresolved). The frontend
+        # uses it to choose the Resolve vs Unresolve action per group.
+        group_resolved = False if resolved is None else resolved
+        queryset = queryset.filter(resolved=group_resolved)
         if job_id:
             queryset = queryset.filter(job_id=job_id)
 
@@ -893,6 +908,7 @@ class JobRestService:
                 "first_seen": row["first_seen"],
                 "last_seen": row["last_seen"],
                 "latest_id": row["latest_id"],
+                "resolved": group_resolved,
             }
             for row in rows
         ]
@@ -1858,6 +1874,5 @@ class JobRestService:
         return {
             "materials_markup": float(defaults.materials_markup),
             "time_markup": float(defaults.time_markup),
-            "charge_out_rate": float(defaults.charge_out_rate),
             "wage_rate": float(defaults.wage_rate),
         }

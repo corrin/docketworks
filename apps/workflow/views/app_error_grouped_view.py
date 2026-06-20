@@ -1,6 +1,7 @@
 from typing import Any
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
@@ -23,6 +24,26 @@ from apps.workflow.services.error_grouping import (
     mark_xero_error_group_unresolved_by_fingerprint,
 )
 from apps.workflow.utils import parse_pagination_params
+
+GROUPED_ERROR_LIST_PARAMETERS = [
+    OpenApiParameter("limit", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False),
+    OpenApiParameter(
+        "offset", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter("app", OpenApiTypes.STR, OpenApiParameter.QUERY, required=False),
+    OpenApiParameter(
+        "severity", OpenApiTypes.INT, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "resolved", OpenApiTypes.BOOL, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "job_id", OpenApiTypes.UUID, OpenApiParameter.QUERY, required=False
+    ),
+    OpenApiParameter(
+        "user_id", OpenApiTypes.UUID, OpenApiParameter.QUERY, required=False
+    ),
+]
 
 
 def _parse_common_filters(request: Request) -> dict[str, Any]:
@@ -59,7 +80,10 @@ class _BaseGroupedErrorListView(APIView):
     serializer_class = GroupedAppErrorListResponseSerializer
     list_callable = staticmethod(list_grouped_app_errors)
 
-    @extend_schema(responses={200: GroupedAppErrorListResponseSerializer})
+    @extend_schema(
+        parameters=GROUPED_ERROR_LIST_PARAMETERS,
+        responses={200: GroupedAppErrorListResponseSerializer},
+    )
     def get(self, request: Request) -> Response:
         try:
             limit, offset = parse_pagination_params(request)

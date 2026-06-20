@@ -20,6 +20,7 @@
 import { computed, h, nextTick, onUnmounted, ref, useId, watch } from 'vue'
 import DataTable from '../DataTable.vue'
 import { Textarea } from '../ui/textarea'
+import { Badge } from '../ui/badge'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '../ui/select'
 import TimesheetActionsCell from './TimesheetActionsCell.vue'
 import TimesheetJobPicker from './TimesheetJobPicker.vue'
@@ -37,6 +38,7 @@ import { costlineService } from '@/services/costline.service'
 import { formatCurrency } from '@/utils/string-formatting'
 import { logError } from '@/utils/error-handler'
 import { debugLog } from '@/utils/debug'
+import { requiredNumber } from '@/utils/requiredNumber'
 import {
   getRateMultiplier,
   getRateTypeFromMultiplier,
@@ -161,9 +163,17 @@ function hasExplicitBillOverride(entry: TimesheetCostLine): boolean {
   )
 }
 
+function entryWageRate(entry: TimesheetCostLine): number {
+  return requiredNumber(entry.wage_rate, 'timesheet entry wage_rate')
+}
+
+function entryChargeOutRate(entry: TimesheetCostLine): number {
+  return requiredNumber(entry.charge_out_rate, 'timesheet entry charge_out_rate')
+}
+
 function isEntryReady(entry: TimesheetCostLine): boolean {
   const hasJob = Boolean(entry.job_id) || (entry.job_number != null && entry.job_number > 0)
-  const hours = entry.quantity ?? 0
+  const hours = requiredNumber(entry.quantity, 'timesheet entry quantity')
   return hasJob && hours > 0
 }
 
@@ -281,7 +291,7 @@ function setHours(
   reason?: 'forward-tab' | null,
 ): void {
   if (isCreateLocked(entry)) return
-  const fallback = entry.quantity ?? 0
+  const fallback = requiredNumber(entry.quantity, 'timesheet entry quantity')
   const v = parseHoursInput(raw, fallback)
   if (v === fallback) return
   Object.assign(entry, { quantity: v })
@@ -317,7 +327,7 @@ function setBill(entry: TimesheetCostLine, rateType: string): void {
   billOverrides.add(entry)
   setMeta(entry, { bill_rate_multiplier: mult, is_billable: mult > 0 })
   Object.assign(entry, {
-    unit_rev: Math.round((entry.charge_out_rate ?? 0) * mult * 100) / 100,
+    unit_rev: Math.round(entryChargeOutRate(entry) * mult * 100) / 100,
     total_rev: calculatedBill(entry),
   })
   commit(entry, ['unit_rev', 'meta'])
@@ -358,9 +368,9 @@ function setRate(entry: TimesheetCostLine, rateType: string): void {
     }
   }
   Object.assign(entry, {
-    unit_cost: Math.round((entry.wage_rate ?? 0) * mult * 100) / 100,
+    unit_cost: Math.round(entryWageRate(entry) * mult * 100) / 100,
     ...(shouldMirrorBill && {
-      unit_rev: Math.round((entry.charge_out_rate ?? 0) * mult * 100) / 100,
+      unit_rev: Math.round(entryChargeOutRate(entry) * mult * 100) / 100,
     }),
     total_cost: calculatedWage(entry),
     total_rev: calculatedBill(entry),
@@ -388,14 +398,20 @@ function setLabourType(entry: TimesheetCostLine, subtypeId: string): void {
   if (entry.labour_subtype === subtypeId) return
   const job = entryJob(entry)
   const rateEntry = job?.labour_rates.find((r) => r.labour_subtype === subtypeId)
+  if (!rateEntry) {
+    throw new Error(`Labour subtype not found in job labour rates: ${subtypeId}`)
+  }
   Object.assign(entry, {
     labour_subtype: subtypeId,
-    labour_subtype_name: rateEntry?.labour_subtype_name ?? entry.labour_subtype_name,
-    ...(rateEntry && { charge_out_rate: rateEntry.charge_out_rate ?? 0 }),
+    labour_subtype_name: rateEntry.labour_subtype_name,
+    charge_out_rate: requiredNumber(
+      rateEntry.charge_out_rate,
+      `charge_out_rate for ${rateEntry.labour_subtype_name}`,
+    ),
   })
   const mult = getBillMultiplier(entry)
   Object.assign(entry, {
-    unit_rev: Math.round((entry.charge_out_rate ?? 0) * mult * 100) / 100,
+    unit_rev: Math.round(entryChargeOutRate(entry) * mult * 100) / 100,
     total_rev: calculatedBill(entry),
   })
   // Saved rows: PATCH labour_subtype only — the backend reprices unit_rev and
@@ -423,13 +439,30 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
       xero_pay_item_name: job.default_xero_pay_item_name ?? '',
     })
   }
-  // Shop jobs and 'special' status jobs are non-billable; force the meta flag
-  // so the user (and the backend) see a consistent state.
-  if (isJobNonBillable(job)) {
+  // Apply the bill-rate default for the newly selected job.
+  //  - Non-billable (shop / 'special'): force off, multiplier 0.
+  //  - No explicit user override: set THIS job's default — urgent jobs charge
+  //    the customer overtime (1.5x) while the worker's wage multiplier stays
+  //    Ordinary; non-urgent jobs reset to 1.0. This also clears a stale 1.5x
+  //    left over from a previously-selected urgent job on the same unsaved row.
+  //  - Explicit user override (via setBill): leave the multiplier untouched.
+  // billOverrides now means ONLY "user explicitly chose a bill rate via setBill"
+  // — the urgent auto-default no longer adds to it, so it can't masquerade as a
+  // user choice and block this reset. Use billOverrides.has directly (not
+  // hasExplicitBillOverride, whose meta-key arm would treat a prior auto-default
+  // as an override).
+  const nonBillable = isJobNonBillable(job)
+  const userBillOverride = billOverrides.has(entry)
+  if (nonBillable) {
     setMeta(entry, { is_billable: false, bill_rate_multiplier: 0.0 })
+  } else if (!userBillOverride) {
+    const mult = job.is_urgent ? 1.5 : 1.0
+    setMeta(entry, { bill_rate_multiplier: mult, is_billable: true })
+  } else {
+    // User override stands: do not touch the multiplier.
   }
-  // unit_rev is the bill rate: subtype rate x bill multiplier (zero after the
-  // non-billable forcing above), mirroring setLabourType.
+  // unit_rev is the bill rate: subtype rate x bill multiplier (zero when the
+  // job is non-billable), mirroring setLabourType.
   Object.assign(entry, {
     unit_rev: Math.round(rate * getBillMultiplier(entry) * 100) / 100,
     total_rev: calculatedBill(entry),
@@ -579,16 +612,31 @@ const columns = computed(() => [
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
       const full = entry.job_name || ''
-      // Fixed visual width with CSS-driven ellipsis. Full name on hover.
-      return h(
-        'span',
-        {
-          class: 'block max-w-[55ch] truncate text-sm text-slate-700 font-medium',
-          'data-automation-id': `SmartTimesheetTable-jobName-${row.index}`,
-          title: full,
-        },
-        full,
-      )
+      const isUrgent = !!entryJob(entry)?.is_urgent
+      // Fixed visual width with CSS-driven ellipsis. Full name on hover. Urgent
+      // jobs get a subtle amber pill so the overtime charge default is visible.
+      return h('div', { class: 'flex items-center gap-1.5' }, [
+        h(
+          'span',
+          {
+            class: 'block max-w-[55ch] truncate text-sm text-slate-700 font-medium',
+            'data-automation-id': `SmartTimesheetTable-jobName-${row.index}`,
+            title: full,
+          },
+          full,
+        ),
+        isUrgent
+          ? h(
+              Badge,
+              {
+                variant: 'outline',
+                class: 'border-amber-300 bg-amber-50 text-amber-700',
+                'data-automation-id': `SmartTimesheetTable-urgentBadge-${row.index}`,
+              },
+              () => 'Urgent',
+            )
+          : null,
+      ])
     },
   },
   {
@@ -597,7 +645,7 @@ const columns = computed(() => [
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
       return h(HoursCell, {
-        hours: entry.quantity ?? 0,
+        hours: requiredNumber(entry.quantity, 'timesheet entry quantity'),
         disabled: props.readOnly || isCreateLocked(entry),
         automationId: `SmartTimesheetTable-hours-${row.index}`,
         ...gridCellAttrs(row.index, 'hours'),

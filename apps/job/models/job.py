@@ -2,7 +2,7 @@ import logging
 import uuid
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from django.db import models, transaction
 from django.db.models import Index, Max, Min
@@ -81,6 +81,29 @@ class JobQuerySet(models.QuerySet):
 JobManager = models.Manager.from_queryset(JobQuerySet)
 
 
+def _handle_boolean_change(
+    true_event: str, false_event: str, field_name: str
+) -> Callable[..., Optional[Tuple[str, Dict[str, str]]]]:
+    """Factory: returns a handler for boolean field changes."""
+
+    def handler(
+        _self_job: Any, old_value: Any, new_value: Any
+    ) -> Optional[Tuple[str, Dict[str, str]]]:
+        if new_value and not old_value:
+            return (
+                true_event,
+                {"field_name": field_name, "old_value": "No", "new_value": "Yes"},
+            )
+        elif old_value and not new_value:
+            return (
+                false_event,
+                {"field_name": field_name, "old_value": "Yes", "new_value": "No"},
+            )
+        return None
+
+    return handler
+
+
 class Job(models.Model):
     # CHECKLIST - when adding a new field or property to Job, check these locations:
     #   1. JOB_DIRECT_FIELDS below (if it's a model field)
@@ -89,13 +112,15 @@ class Job(models.Model):
     #   4. get_client_jobs() response dict in apps/client/services/client_rest_service.py
     #   5. KanbanService.serialize_job_for_api() in apps/job/services/kanban_service.py
     #   6. KanbanJobSerializer and KanbanColumnJobSerializer in apps/job/serializers/kanban_serializer.py
-    #   7. data_quality_report.py in apps/job/services/
-    #   8. JobAgingService job_info dict in apps/accounting/services.py
-    #   9. serialize_job_list() in apps/workflow/api/reports/job_movement.py
-    #  10. get_jobs_for_dropdown() in apps/job/utils.py
-    #  11. jobs_data dict in apps/purchasing/views/purchasing_rest_views.py
-    #  12. job_metrics dict in JobRestService.get_weekly_metrics() in apps/job/services/job_rest_service.py
-    #  13. job_data dict in DailyTimesheetService._get_job_breakdown() in apps/timesheet/services/daily_timesheet_service.py
+    #   7. TestSerializeJobForApi.test_serialized_shape_for_fully_populated_job
+    #      in apps/job/tests/test_kanban_service.py
+    #   8. data_quality_report.py in apps/job/services/
+    #   9. JobAgingService job_info dict in apps/accounting/services/core.py
+    #  10. serialize_job_list() in apps/workflow/api/reports/job_movement.py
+    #  11. get_jobs_for_dropdown() in apps/job/utils.py
+    #  12. jobs_data dict in apps/purchasing/views/purchasing_rest_views.py
+    #  13. job_metrics dict in JobRestService.get_weekly_metrics() in apps/job/services/job_rest_service.py
+    #  14. job_data dict in DailyTimesheetService._get_job_breakdown() in apps/timesheet/services/daily_timesheet_service.py
     #
     # Field change events are created automatically by Job.save().
     # All fields are tracked unless listed in UNTRACKED_FIELDS.
@@ -122,6 +147,7 @@ class Job(models.Model):
         "rdti_type",
         "min_people",
         "max_people",
+        "is_urgent",
     ]
 
     # Fields where changes are NOT audited via JobEvent. Every field NOT in
@@ -292,6 +318,11 @@ class Job(models.Model):
     objects = JobManager()
 
     complex_job = models.BooleanField(default=False)
+
+    is_urgent = models.BooleanField(
+        default=False,
+        help_text="Whether this job requires urgent rates and priority handling",
+    )
 
     notes = models.TextField(
         blank=True,
@@ -710,6 +741,10 @@ class Job(models.Model):
                     )
                     self._clear_assigned_staff_on_archive(changes_after)
 
+        from apps.job.tasks import request_job_summary_pdf_refresh
+
+        request_job_summary_pdf_refresh()
+
     # ── Field change tracking ──────────────────────────────────────────
     #
     # All concrete fields are tracked unless listed in UNTRACKED_FIELDS.
@@ -827,6 +862,12 @@ class Job(models.Model):
         the DB when the caller restricted which fields to save.
         """
         mutated = set()
+        if changes_after.get("is_urgent") is True:
+            from django.db.models import Max
+
+            max_p = Job.objects.aggregate(m=Max("priority"))["m"] or 0
+            self.priority = max_p + self.PRIORITY_INCREMENT
+            mutated.add("priority")
         if "status" in changes_after:
             new_status = changes_after["status"]
             # Set completed_at on first transition to a completed status
@@ -1049,25 +1090,6 @@ class Job(models.Model):
             },
         )
 
-    @staticmethod
-    def _handle_boolean_change(true_event, false_event, field_name):
-        """Factory: returns a handler for boolean field changes."""
-
-        def handler(_self_job, old_value, new_value):
-            if new_value and not old_value:
-                return (
-                    true_event,
-                    {"field_name": field_name, "old_value": "No", "new_value": "Yes"},
-                )
-            elif old_value and not new_value:
-                return (
-                    false_event,
-                    {"field_name": field_name, "old_value": "Yes", "new_value": "No"},
-                )
-            return None
-
-        return handler
-
     # Maps field attname → handler(self_job, old, new) → (event_type, detail_dict) | None
     # Fields not listed here get a generic detail via verbose_name.
     _FIELD_HANDLERS = {
@@ -1112,20 +1134,25 @@ class Job(models.Model):
                 "new_value": str(new),
             },
         ),
-        "paid": _handle_boolean_change.__func__(
+        "paid": _handle_boolean_change(
             "payment_received",
             "payment_updated",
             "Paid",
         ),
-        "collected": _handle_boolean_change.__func__(
+        "collected": _handle_boolean_change(
             "job_collected",
             "collection_updated",
             "Collected",
         ),
-        "complex_job": _handle_boolean_change.__func__(
+        "complex_job": _handle_boolean_change(
             "job_updated",
             "job_updated",
             "Complex job",
+        ),
+        "is_urgent": _handle_boolean_change(
+            "urgent_flagged",
+            "urgent_cleared",
+            "Urgent job",
         ),
         "rdti_type": _handle_rdti_type_change.__func__,
         "default_xero_pay_item_id": _handle_xero_pay_item_change.__func__,

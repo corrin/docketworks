@@ -46,6 +46,8 @@ from apps.job.views.job_rest_views import (
 from apps.job.views.labour_views import (
     JobLabourRatesView,
     LabourSubtypeListView,
+    LabourSubtypeManageDetailView,
+    LabourSubtypeManageListCreateView,
 )
 from apps.job.views.modern_timesheet_views import (
     ModernTimesheetDayView,
@@ -69,6 +71,16 @@ rest_urlpatterns = [
         "labour-subtypes/",
         LabourSubtypeListView.as_view(),
         name="labour_subtype_list_rest",
+    ),
+    path(
+        "labour-subtypes/manage/",
+        LabourSubtypeManageListCreateView.as_view(),
+        name="labour_subtype_manage_list_rest",
+    ),
+    path(
+        "labour-subtypes/manage/<uuid:pk>/",
+        LabourSubtypeManageDetailView.as_view(),
+        name="labour_subtype_manage_detail_rest",
     ),
     path(
         "jobs/<uuid:job_id>/labour-rates/",

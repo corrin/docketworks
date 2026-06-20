@@ -111,12 +111,21 @@ describe('rateForSubtype', () => {
     expect(rateForSubtype(rates, ONSITE_ID)).toBe(120)
   })
 
-  it('falls back to the workshop rate when the subtype is unset or unknown', () => {
+  it('uses the workshop rate when the subtype is unset', () => {
     expect(rateForSubtype(rates, null)).toBe(105)
-    expect(rateForSubtype(rates, '99999999-9999-4999-8999-999999999999')).toBe(105)
   })
 
-  it('returns 0 when no rates are loaded', () => {
-    expect(rateForSubtype([], WORKSHOP_ID)).toBe(0)
+  it('throws when the subtype is unknown', () => {
+    expect(() => rateForSubtype(rates, '99999999-9999-4999-8999-999999999999')).toThrow(
+      'No job labour rate for subtype',
+    )
+  })
+
+  it('treats an empty subtype id as invalid instead of falling back to workshop', () => {
+    expect(() => rateForSubtype(rates, '')).toThrow('No job labour rate for subtype')
+  })
+
+  it('throws when no rates are loaded', () => {
+    expect(() => rateForSubtype([], WORKSHOP_ID)).toThrow('No job labour rate for subtype')
   })
 })

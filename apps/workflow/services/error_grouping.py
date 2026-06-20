@@ -26,6 +26,7 @@ def _group_payload(
     group_field: str,
     limit: int,
     offset: int,
+    group_resolved: bool,
 ) -> Dict[str, Any]:
     model = queryset.model
 
@@ -62,6 +63,7 @@ def _group_payload(
             "severity": row["severity"],
             "app": row["app"],
             "latest_id": row["latest_id"],
+            "resolved": group_resolved,
         }
         for row in rows
     ]
@@ -121,7 +123,13 @@ def list_grouped_app_errors(
         job_id=job_id,
         user_id=user_id,
     )
-    return _group_payload(queryset, group_field="message", limit=limit, offset=offset)
+    return _group_payload(
+        queryset,
+        group_field="message",
+        limit=limit,
+        offset=offset,
+        group_resolved=False if resolved is None else resolved,
+    )
 
 
 def list_grouped_xero_errors(
@@ -143,7 +151,13 @@ def list_grouped_xero_errors(
         job_id=job_id,
         user_id=user_id,
     )
-    return _group_payload(queryset, group_field="message", limit=limit, offset=offset)
+    return _group_payload(
+        queryset,
+        group_field="message",
+        limit=limit,
+        offset=offset,
+        group_resolved=False if resolved is None else resolved,
+    )
 
 
 def _mark_group(

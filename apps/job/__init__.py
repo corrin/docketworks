@@ -15,6 +15,7 @@ try:
         from .tasks import (
             auto_archive_completed_jobs_task,
             create_job_file_thumbnail_task,
+            request_job_summary_pdf_refresh,
             set_paid_flag_task,
         )
         from .utils import get_active_jobs
@@ -38,5 +39,6 @@ __all__ = [
     "diff_costset",
     "get_active_jobs",
     "get_job_folder_path",
+    "request_job_summary_pdf_refresh",
     "set_paid_flag_task",
 ]

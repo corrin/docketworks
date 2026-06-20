@@ -45,11 +45,13 @@ try:
             get_paid_complete_jobs,
             recalculate_job_invoicing_state,
         )
+        from .job_summary_pdf_service import JobSummaryPdfService
         from .kanban_categorization_service import (
             KanbanCategorizationService,
             KanbanColumn,
         )
         from .kanban_service import KanbanSerializationContext, KanbanService
+        from .labour_subtype_service import seed_subtype_onto_existing_jobs
         from .mcp_chat_service import MCPChatService
         from .month_end_service import MonthEndService
         from .paid_flag_service import PaidFlagResult, PaidFlagService
@@ -85,6 +87,7 @@ try:
             format_hours_compact,
             format_hours_display,
             format_retail_line_total,
+            get_job_for_workshop_pdf,
             get_pdf_file_paths,
             get_time_breakdown,
             get_workshop_hours,
@@ -110,6 +113,7 @@ __all__ = [
     "JobProfitabilityReportService",
     "JobRestService",
     "JobStaffService",
+    "JobSummaryPdfService",
     "KanbanCategorizationService",
     "KanbanColumn",
     "KanbanSerializationContext",
@@ -149,6 +153,7 @@ __all__ = [
     "format_retail_line_total",
     "generate_delivery_docket",
     "get_bill_rate_multiplier",
+    "get_job_for_workshop_pdf",
     "get_job_total_value",
     "get_paid_complete_jobs",
     "get_pdf_file_paths",
@@ -170,6 +175,7 @@ __all__ = [
     "recalculate_job_invoicing_state",
     "resolve_xero_pay_item",
     "resolve_xero_pay_item_for_job",
+    "seed_subtype_onto_existing_jobs",
     "serialize_draft_lines",
     "serialize_validation_report",
     "sync_job_folder",

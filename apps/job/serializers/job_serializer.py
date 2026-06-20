@@ -91,9 +91,6 @@ class CompanyDefaultsJobDetailSerializer(serializers.Serializer):
         help_text="Default markup percentage for materials"
     )
     time_markup = serializers.FloatField(help_text="Default markup percentage for time")
-    charge_out_rate = serializers.FloatField(
-        help_text="Default charge-out rate for staff"
-    )
     wage_rate = serializers.FloatField(help_text="Default wage rate for staff")
 
 
@@ -246,6 +243,7 @@ class JobSerializer(serializers.ModelSerializer):
             "default_xero_pay_item_name",
             "min_people",
             "max_people",
+            "is_urgent",
         ]
 
     def validate(self, attrs):
@@ -537,6 +535,7 @@ class JobCreateSerializer(serializers.Serializer):
         min_value=0,
         help_text="Estimated workshop time in hours",
     )
+    is_urgent = serializers.BooleanField(required=False, default=False)
 
 
 class JobCreateResponseSerializer(serializers.Serializer):
@@ -1216,6 +1215,7 @@ class GroupedJobDeltaRejectionSerializer(serializers.Serializer):
     first_seen = serializers.DateTimeField()
     last_seen = serializers.DateTimeField()
     latest_id = serializers.UUIDField()
+    resolved = serializers.BooleanField()
 
 
 class GroupedJobDeltaRejectionListResponseSerializer(serializers.Serializer):

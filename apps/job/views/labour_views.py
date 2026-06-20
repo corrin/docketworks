@@ -8,11 +8,14 @@ Labour subtype REST views
 import logging
 from uuid import UUID
 
+from django.db import transaction
 from django.shortcuts import get_object_or_404
 from drf_spectacular.utils import extend_schema
+from rest_framework.generics import ListCreateAPIView, RetrieveUpdateAPIView
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer, ValidationError
 from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
@@ -21,8 +24,10 @@ from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.labour_serializer import (
     JobLabourRateSerializer,
     JobLabourRatesUpdateRequestSerializer,
+    LabourSubtypeManageSerializer,
     LabourSubtypeSerializer,
 )
+from apps.job.services.labour_subtype_service import seed_subtype_onto_existing_jobs
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +47,58 @@ class LabourSubtypeListView(APIView):
         subtypes = LabourSubtype.objects.filter(is_active=True)
         serializer = LabourSubtypeSerializer(subtypes, many=True)
         return Response(serializer.data)
+
+
+class LabourSubtypeManageListCreateView(ListCreateAPIView[LabourSubtype]):
+    """
+    List all labour subtypes (including inactive) and create new ones.
+
+    GET  /job/rest/labour-subtypes/manage/
+    POST /job/rest/labour-subtypes/manage/
+
+    Office-staff only. Creating an active subtype backfills a JobLabourRate onto
+    every existing job so the data-integrity invariant stays satisfied.
+    """
+
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+    serializer_class = LabourSubtypeManageSerializer
+    queryset = LabourSubtype.objects.all()
+
+    @transaction.atomic
+    def perform_create(self, serializer: BaseSerializer[LabourSubtype]) -> None:
+        subtype = serializer.save()
+        if subtype.is_active:
+            seed_subtype_onto_existing_jobs(subtype)
+        else:
+            pass  # inactive subtype is not seeded onto jobs (matches Job.save)
+
+
+class LabourSubtypeManageDetailView(RetrieveUpdateAPIView[LabourSubtype]):
+    """
+    Retrieve or update one labour subtype (office staff). No delete — subtypes
+    are referenced by historical cost lines (PROTECT); deactivate instead.
+
+    GET   /job/rest/labour-subtypes/manage/<id>/
+    PATCH /job/rest/labour-subtypes/manage/<id>/
+    """
+
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+    serializer_class = LabourSubtypeManageSerializer
+    queryset = LabourSubtype.objects.all()
+    http_method_names = ["get", "patch", "head", "options"]
+
+    @transaction.atomic
+    def perform_update(self, serializer: BaseSerializer[LabourSubtype]) -> None:
+        instance = serializer.instance
+        assert instance is not None
+        subtype = LabourSubtype.objects.select_for_update().get(pk=instance.pk)
+        was_active = subtype.is_active
+        serializer.instance = subtype
+        updated = serializer.save()
+        if not was_active and updated.is_active:
+            seed_subtype_onto_existing_jobs(updated)
+        else:
+            pass  # no activation boundary crossed; no backfill needed
 
 
 class JobLabourRatesView(APIView):
@@ -75,30 +132,55 @@ class JobLabourRatesView(APIView):
         serializer = JobLabourRatesUpdateRequestSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        changes: list[str] = []
-        for entry in serializer.validated_data["rates"]:
-            rate = job.labour_rates.get(labour_subtype=entry["labour_subtype"])
-            if rate.charge_out_rate == entry["charge_out_rate"]:
-                continue
-            changes.append(
-                f"{entry['labour_subtype'].name}: "
-                f"${rate.charge_out_rate}/hour -> ${entry['charge_out_rate']}/hour"
+        entries = serializer.validated_data["rates"]
+        # Check the bad case first (ADR 0015): the request serializer accepts any
+        # LabourSubtype, but only subtypes seeded onto this job have a rate row.
+        # Reject unknown subtypes up front so the write loop below can't raise an
+        # unpersisted DoesNotExist (ADR 0019) partway through.
+        rates_by_subtype = {
+            r.labour_subtype_id: r
+            for r in job.labour_rates.select_related("labour_subtype")
+        }
+        unknown = [
+            e["labour_subtype"].name
+            for e in entries
+            if e["labour_subtype"].id not in rates_by_subtype
+        ]
+        if unknown:
+            raise ValidationError(
+                {"rates": f"No rate row on this job for: {', '.join(unknown)}."}
             )
-            rate.charge_out_rate = entry["charge_out_rate"]
-            rate.save(update_fields=["charge_out_rate"])
 
-        if changes:
-            JobEvent.objects.create(
-                job=job,
-                event_type="pricing_changed",
-                detail={
-                    "field_name": "Labour charge-out rates",
-                    "changes": changes,
-                },
-                staff=request.user,
-            )
-        else:
-            pass  # No-op update: nothing changed, no event to record
+        # Atomic so a failure mid-loop never leaves a half-applied update without a
+        # matching JobEvent.
+        with transaction.atomic():
+            changes: list[dict[str, str]] = []
+            for entry in entries:
+                rate = rates_by_subtype[entry["labour_subtype"].id]
+                if rate.charge_out_rate == entry["charge_out_rate"]:
+                    continue
+                # Each change must be a dict {field_name, old_value, new_value} —
+                # JobEvent.build_description renders them via _render_change, which
+                # indexes those keys. A list[str] here 500s the timeline on render.
+                changes.append(
+                    {
+                        "field_name": f"{entry['labour_subtype'].name} charge-out rate",
+                        "old_value": f"${rate.charge_out_rate}/hour",
+                        "new_value": f"${entry['charge_out_rate']}/hour",
+                    }
+                )
+                rate.charge_out_rate = entry["charge_out_rate"]
+                rate.save(update_fields=["charge_out_rate"])
+
+            if changes:
+                JobEvent.objects.create(
+                    job=job,
+                    event_type="pricing_changed",
+                    detail={"changes": changes},
+                    staff=request.user,
+                )
+            else:
+                pass  # No-op update: nothing changed, no event to record
 
         refreshed = JobLabourRateSerializer(
             job.labour_rates.select_related("labour_subtype"), many=True

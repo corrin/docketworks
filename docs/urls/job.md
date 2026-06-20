@@ -85,6 +85,8 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/labour-subtypes/` | `labour_views.LabourSubtypeListView` | `jobs:labour_subtype_list_rest` | List active labour subtypes. |
+| `/labour-subtypes/manage/` | `labour_views.LabourSubtypeManageListCreateView` | `jobs:labour_subtype_manage_list_rest` | List all labour subtypes (including inactive) and create new ones. |
+| `/labour-subtypes/manage/<uuid:pk>/` | `labour_views.LabourSubtypeManageDetailView` | `jobs:labour_subtype_manage_detail_rest` | Retrieve or update one labour subtype (office staff). No delete — subtypes |
 
 ### Month-End Management
 | URL Pattern | View | Name | Description |

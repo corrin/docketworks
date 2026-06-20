@@ -7,6 +7,7 @@ import { debugLog } from '../utils/debug'
 import { toLocalDateString } from '../utils/dateUtils'
 import { useJobsStore } from '../stores/jobs'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
+import { requiredNumber } from '@/utils/requiredNumber'
 
 type CostLine = z.infer<typeof schemas.CostLine>
 type CostLineCreateUpdate = z.infer<typeof schemas.CostLineCreateUpdateRequest>
@@ -49,9 +50,9 @@ export function useCreateCostLineFromEmpty(options: UseCreateCostLineFromEmptyOp
       const createPayload: CostLineCreateUpdate = {
         kind: line.kind as 'material' | 'time' | 'adjust',
         desc: line.desc || '',
-        quantity: line.quantity || 1,
-        unit_cost: line.unit_cost ?? 0,
-        unit_rev: line.unit_rev ?? 0,
+        quantity: requiredNumber(line.quantity, 'cost line quantity'),
+        unit_cost: requiredNumber(line.unit_cost, 'cost line unit_cost'),
+        unit_rev: requiredNumber(line.unit_rev, 'cost line unit_rev'),
         accounting_date: accountingDate,
         ext_refs: (line.ext_refs as Record<string, unknown>) || {},
         meta: (line.meta as Record<string, unknown>) || {},

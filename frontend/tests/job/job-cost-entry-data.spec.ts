@@ -37,7 +37,16 @@ type XeroPayItem = {
   multiplier?: number | null
 }
 
-const money = (value: unknown): number => Number(value ?? 0)
+const money = (value: unknown, label = 'numeric value'): number => {
+  if (value === null || value === undefined || value === '') {
+    throw new Error(`Missing ${label}`)
+  }
+  const numberValue = Number(value)
+  if (!Number.isFinite(numberValue)) {
+    throw new Error(`Invalid ${label}: ${JSON.stringify(value)}`)
+  }
+  return numberValue
+}
 const roundMoney = (value: number): number => Math.round(value * 100) / 100
 const lineCost = (quantity: number, unitCost: number): number => quantity * unitCost
 const lineRevenue = (quantity: number, unitRev: number): number => quantity * unitRev
@@ -83,7 +92,13 @@ async function fetchOrdinaryPayItem(page: Page): Promise<XeroPayItem> {
   const items = (await response.json()) as XeroPayItem[]
   const ordinary =
     items.find((item) => item.name === 'Ordinary Time' && !item.uses_leave_api) ??
-    items.find((item) => !item.uses_leave_api && Number(item.multiplier ?? 0) === 1)
+    items.find(
+      (item) =>
+        !item.uses_leave_api &&
+        item.multiplier !== null &&
+        item.multiplier !== undefined &&
+        money(item.multiplier, `Xero pay item multiplier for ${item.name}`) === 1,
+    )
   if (!ordinary) throw new Error('No ordinary-time Xero pay item found')
   return ordinary
 }
@@ -414,9 +429,12 @@ test.describe('job cost entry data-first scenarios', () => {
     const staffList = await getStaffList(page)
     const staff = staffList.find(
       (candidate: { id: string; date_left: string | null; wage_rate: number }) =>
-        !candidate.date_left && Number(candidate.wage_rate ?? 0) > 0,
+        !candidate.date_left && money(candidate.wage_rate, `staff ${candidate.id} wage_rate`) > 0,
     )
     if (!staff) throw new Error('No active staff with wage_rate found')
+    const labourRates = await getJobLabourRates(page, jobId)
+    const workshopRate = labourRates.find((rate) => rate.is_workshop)
+    if (!workshopRate) throw new Error('Job has no workshop labour rate')
     const ordinaryPayItem = await fetchOrdinaryPayItem(page)
     const stock = await fetchStock(page, 'M8 ZINC WING NUT', (item) =>
       item.description.includes('M8 ZINC WING NUT'),
@@ -433,7 +451,7 @@ test.describe('job cost entry data-first scenarios', () => {
       lineCost(2, money(stock.unit_cost)) +
       lineCost(3, -12)
     const expectedActualRevenue =
-      lineRevenue(1.25, money(defaults.charge_out_rate)) +
+      lineRevenue(1.25, money(workshopRate.charge_out_rate)) +
       lineRevenue(2, expectedActualMaterialUnitRev) +
       lineRevenue(3, -18)
 
@@ -505,7 +523,7 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(labour.meta).toEqual(expect.objectContaining({ staff_id: staff.id }))
     expect(money(labour.quantity)).toBeCloseTo(1.25, 2)
     expect(money(labour.unit_cost)).toBeCloseTo(money(staff.wage_rate), 2)
-    expect(money(labour.unit_rev)).toBeCloseTo(money(defaults.charge_out_rate), 2)
+    expect(money(labour.unit_rev)).toBeCloseTo(money(workshopRate.charge_out_rate), 2)
     expect(material.approved).toBe(true)
     expect(material.ext_refs).toEqual(expect.objectContaining({ stock_id: stock.id }))
     expect(money(material.quantity)).toBeCloseTo(2, 2)
@@ -520,7 +538,13 @@ test.describe('job cost entry data-first scenarios', () => {
     expect(sumRevenue(lines)).toBeCloseTo(expectedActualRevenue, 2)
 
     const timeExpensesText = await autoId(page, 'JobActualTab-time-expenses').textContent()
-    const timeExpensesValue = Number(timeExpensesText?.match(/\$?([\d,]+\.?\d*)/)?.[1] ?? 0)
+    const timeExpensesMatch = timeExpensesText?.match(/\$?([\d,]+\.?\d*)/)
+    if (!timeExpensesMatch) {
+      throw new Error(
+        `Could not parse Time & Expenses value from ${JSON.stringify(timeExpensesText)}`,
+      )
+    }
+    const timeExpensesValue = money(timeExpensesMatch[1].replace(/,/g, ''), 'Time & Expenses')
     expect(timeExpensesValue).toBeCloseTo(actualRevenue, 2)
 
     materialIndex = await findRowIndexByDescription(page, stock.description)
