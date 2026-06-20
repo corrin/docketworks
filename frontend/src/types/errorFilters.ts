@@ -1,12 +1,12 @@
 export interface SystemErrorFilterState {
   app: string
   severity: string
-  resolved: 'all' | 'true' | 'false'
+  resolved: 'true' | 'false'
   jobId: string
   userId: string
 }
 
 export interface JobErrorFilterState {
   jobId: string
-  resolved: 'all' | 'true' | 'false'
+  resolved: 'true' | 'false'
 }

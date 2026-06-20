@@ -110,20 +110,20 @@ let openRequestId = 0
 const xeroFilter = ref<SystemErrorFilterState>({
   app: '',
   severity: '',
-  resolved: 'all',
+  resolved: 'false',
   jobId: '',
   userId: '',
 })
 const systemFilter = ref<SystemErrorFilterState>({
   app: '',
   severity: '',
-  resolved: 'all',
+  resolved: 'false',
   jobId: '',
   userId: '',
 })
 const jobFilter = ref<JobErrorFilterState>({
   jobId: '',
-  resolved: 'all',
+  resolved: 'false',
 })
 
 const tableHeaders = computed(() => {
@@ -434,12 +434,7 @@ function buildSystemFilterPayload() {
   return {
     app: systemFilter.value.app.trim() || undefined,
     severity: Number.isNaN(parsedSeverity) ? undefined : parsedSeverity,
-    resolved:
-      systemFilter.value.resolved === 'true'
-        ? true
-        : systemFilter.value.resolved === 'false'
-          ? false
-          : undefined,
+    resolved: systemFilter.value.resolved === 'true',
     jobId: systemFilter.value.jobId.trim() || undefined,
     userId: systemFilter.value.userId.trim() || undefined,
   }
@@ -451,12 +446,7 @@ function buildXeroFilterPayload() {
   return {
     app: xeroFilter.value.app.trim() || undefined,
     severity: Number.isNaN(parsedSeverity) ? undefined : parsedSeverity,
-    resolved:
-      xeroFilter.value.resolved === 'true'
-        ? true
-        : xeroFilter.value.resolved === 'false'
-          ? false
-          : undefined,
+    resolved: xeroFilter.value.resolved === 'true',
     jobId: xeroFilter.value.jobId.trim() || undefined,
     userId: xeroFilter.value.userId.trim() || undefined,
   }
@@ -465,12 +455,7 @@ function buildXeroFilterPayload() {
 function buildJobFilterPayload() {
   return {
     jobId: jobFilter.value.jobId.trim() || undefined,
-    resolved:
-      jobFilter.value.resolved === 'true'
-        ? true
-        : jobFilter.value.resolved === 'false'
-          ? false
-          : undefined,
+    resolved: jobFilter.value.resolved === 'true',
   }
 }
 </script>

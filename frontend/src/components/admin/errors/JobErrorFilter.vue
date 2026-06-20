@@ -15,7 +15,7 @@ import type { JobErrorFilterState } from '@/types/errorFilters'
 
 const defaultState: JobErrorFilterState = {
   jobId: '',
-  resolved: 'all',
+  resolved: 'false',
 }
 
 const props = defineProps<{ modelValue: JobErrorFilterState }>()
@@ -23,7 +23,7 @@ const emit = defineEmits<{ 'update:modelValue': [JobErrorFilterState] }>()
 
 const model = useVModel(props, 'modelValue', emit)
 
-const hasFilters = computed(() => !!model.value.jobId.trim() || model.value.resolved !== 'all')
+const hasFilters = computed(() => !!model.value.jobId.trim() || model.value.resolved !== 'false')
 
 function resetFilters() {
   model.value = { ...defaultState }
@@ -45,12 +45,11 @@ function resetFilters() {
       <Label for="job-error-resolved">Resolved</Label>
       <Select v-model="model.resolved">
         <SelectTrigger id="job-error-resolved">
-          <SelectValue placeholder="All statuses" />
+          <SelectValue placeholder="Unresolved" />
         </SelectTrigger>
         <SelectContent>
-          <SelectItem value="all">All</SelectItem>
-          <SelectItem value="true">Resolved</SelectItem>
           <SelectItem value="false">Unresolved</SelectItem>
+          <SelectItem value="true">Resolved</SelectItem>
         </SelectContent>
       </Select>
     </div>

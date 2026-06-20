@@ -157,6 +157,19 @@ describe('AdminErrorView job resolved filter', () => {
     })
   })
 
+  it('defaults the grouped job endpoint to resolved:false (unresolved work queue)', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+
+    // Switch to the job tab; no filter change — should fetch unresolved.
+    await wrapper.get('[data-test="tab-job"]').trigger('click')
+    await flushPromises()
+
+    const lastCall = groupedRetrieveMock.mock.calls.at(-1)
+    expect(lastCall).toBeTruthy()
+    expect(lastCall![0].queries.resolved).toBe(false)
+  })
+
   it('forwards resolved:true to the grouped job endpoint and maps the response resolved flag', async () => {
     const wrapper = mountView()
     await flushPromises()
@@ -193,6 +206,17 @@ describe('AdminErrorView xero resolved filter', () => {
       previous: null,
       results: [],
     })
+  })
+
+  it('defaults the grouped xero endpoint to resolved:false on initial load', async () => {
+    mountView()
+    await flushPromises()
+
+    // The xero tab is the default; the initial grouped fetch must request the
+    // unresolved work queue.
+    const lastCall = xeroGroupedRetrieveMock.mock.calls.at(-1)
+    expect(lastCall).toBeTruthy()
+    expect(lastCall![0].queries.resolved).toBe(false)
   })
 
   it('renders the resolved filter control on the xero tab and forwards resolved:true to the grouped xero endpoint', async () => {
