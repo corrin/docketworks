@@ -595,7 +595,10 @@ const handleLabourRateBlur = async (rate: JobLabourRate, event: Event) => {
   // charge_out_rate is schema-guaranteed (z.number().gte(0)); a missing value is
   // a data anomaly, not a zero rate, so the canonical persisted-value reads throw.
   const persistedRate = requiredNumber(rate.charge_out_rate, 'charge_out_rate')
-  const value = Number(target.value)
+  // Number('') === 0, so an empty/whitespace field would otherwise persist a 0
+  // rate; treat blank as NaN to fall into the reject-and-reset branch below.
+  const raw = target.value.trim()
+  const value = raw === '' ? Number.NaN : Number(raw)
   if (!Number.isFinite(value) || value < 0) {
     toast.error('Charge-out rate must be a non-negative number')
     target.value = String(persistedRate)

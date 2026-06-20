@@ -205,6 +205,20 @@ describe('JobSettingsTab labour rate edit', () => {
     expect((input.element as HTMLInputElement).value).toBe('95')
   })
 
+  it('rejects an empty rate (Number("")===0) without persisting a zero', async () => {
+    const wrapper = mountTab()
+    await flushPromises()
+
+    const input = rateInput(wrapper)
+    await input.setValue('')
+    await input.trigger('blur')
+    await flushPromises()
+
+    expect(updateJobLabourRatesMock).not.toHaveBeenCalled()
+    expect(toastErrorMock).toHaveBeenCalledWith('Charge-out rate must be a non-negative number')
+    expect((input.element as HTMLInputElement).value).toBe('95')
+  })
+
   it('rolls back to the persisted value when the save fails', async () => {
     updateJobLabourRatesMock.mockRejectedValue(new Error('boom'))
     const wrapper = mountTab()
