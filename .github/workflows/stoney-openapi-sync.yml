@@ -9,7 +9,7 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - run: pip install pyyaml
       - run: python -c "import yaml, json; json.dump(yaml.safe_load(open('frontend/schema.yml')), open('schema.json','w'))"
       - name: Upload to Stoney
