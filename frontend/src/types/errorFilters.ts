@@ -8,4 +8,5 @@ export interface SystemErrorFilterState {
 
 export interface JobErrorFilterState {
   jobId: string
+  resolved: 'all' | 'true' | 'false'
 }

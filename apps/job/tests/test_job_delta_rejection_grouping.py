@@ -36,6 +36,38 @@ def test_excludes_resolved_by_default(db, staff):
     payload = JobRestService.list_grouped_job_delta_rejections(limit=50, offset=0)
     reasons = [row["reason"] for row in payload["results"]]
     assert reasons == ["conflict"]
+    assert all(row["resolved"] is False for row in payload["results"])
+
+
+def test_resolved_groups_carry_resolved_true(db: None, staff: Staff) -> None:
+    """The frontend reads `resolved` per group to choose Resolve vs Unresolve."""
+    rej = JobDeltaRejection.objects.create(reason="stale_etag", envelope={})
+    rej.mark_resolved(staff)
+    JobDeltaRejection.objects.create(reason="conflict", envelope={})
+
+    payload = JobRestService.list_grouped_job_delta_rejections(
+        limit=50, offset=0, resolved=True
+    )
+    reasons = [row["reason"] for row in payload["results"]]
+    assert reasons == ["stale_etag"]
+    assert all(row["resolved"] is True for row in payload["results"])
+
+
+def test_individual_list_filters_by_resolved(db: None, staff: Staff) -> None:
+    """The individual admin list honours the resolved filter in both directions;
+    None shows everything (parity with the System tab's individual list)."""
+    open_rej = JobDeltaRejection.objects.create(reason="stale_etag", envelope={})
+    done_rej = JobDeltaRejection.objects.create(reason="conflict", envelope={})
+    done_rej.mark_resolved(staff)
+
+    all_ids = {str(r.id) for r in JobRestService.list_job_delta_rejections()["results"]}
+    assert all_ids == {str(open_rej.id), str(done_rej.id)}
+
+    unresolved = JobRestService.list_job_delta_rejections(resolved=False)["results"]
+    assert [str(r.id) for r in unresolved] == [str(open_rej.id)]
+
+    resolved = JobRestService.list_job_delta_rejections(resolved=True)["results"]
+    assert [str(r.id) for r in resolved] == [str(done_rej.id)]
 
 
 def test_mark_group_resolved(db, staff):

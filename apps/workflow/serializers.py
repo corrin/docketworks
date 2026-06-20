@@ -635,6 +635,7 @@ class GroupedAppErrorSerializer(serializers.Serializer):
     severity = serializers.IntegerField(allow_null=True)
     app = serializers.CharField(allow_null=True)
     latest_id = serializers.UUIDField()
+    resolved = serializers.BooleanField()
 
 
 class GroupedAppErrorListResponseSerializer(serializers.Serializer):

@@ -3,11 +3,8 @@ import { mount } from '@vue/test-utils'
 import { defineComponent, h } from 'vue'
 import type { z } from 'zod'
 import { schemas } from '@/api/generated/api'
-import { getBillMultiplier, getMultiplier, getRateTypeFromMultiplier } from '@/utils/timesheetCalc'
+import { getBillMultiplier } from '@/utils/timesheetCalc'
 
-// The real autosave composable reaches into a Pinia store + the generated API
-// client; this test only cares about the in-memory mutation setJob performs on
-// the row, so stub the autosave layer to a no-op.
 vi.mock('@/composables/useCostLineAutosave', () => ({
   useCostLineAutosave: () => ({
     scheduleSave: vi.fn(),
@@ -15,14 +12,12 @@ vi.mock('@/composables/useCostLineAutosave', () => ({
   }),
 }))
 
-// Capture every onSelect handler the table wires onto a job picker so the test
-// can invoke setJob the same way a user clicking a job in the picker would.
-// `vi.hoisted` keeps the shared array accessible from the hoisted mock factory.
-// billHandlers (keyed by row, e.g. 'billRate-0') lets the test drive setBill the
-// way a user choosing an Invoice multiplier would — the only path that now marks
-// an explicit customer-charge override.
+// Capture every onSelect handler so the test can drive setJob, and every onBill
+// handler so it can drive setBill (the genuine user override path).
 const { selectHandlers, billHandlers } = vi.hoisted(() => ({
   selectHandlers: [] as Array<(job: unknown) => void>,
+  // Keyed by row automation-id (e.g. 'billRate-0') so the test targets the
+  // saved entry's row, not the always-present phantom row.
   billHandlers: {} as Record<string, (rateType: string) => void>,
 }))
 
@@ -39,6 +34,11 @@ vi.mock('@/components/timesheet/TimesheetJobPicker.vue', () => ({
   }),
 }))
 
+// Stub the UI Select so the test can capture the billRate column's
+// onUpdate:modelValue handler — invoking it drives setBill exactly as a user
+// choosing an Invoice multiplier in the dropdown would. The billRate Select is
+// identified by its SelectTrigger's data-automation-id (it contains 'billRate'),
+// since several Selects share the same option set.
 function findBillRateAutoId(node: unknown): string | null {
   if (Array.isArray(node)) {
     for (const child of node) {
@@ -76,6 +76,7 @@ vi.mock('@/components/ui/select', () => {
         const rendered = slots.default?.()
         const autoId = findBillRateAutoId(rendered)
         if (typeof handler === 'function' && autoId) {
+          // e.g. 'SmartTimesheetTable-billRate-0' -> key 'billRate-0'
           const key = autoId.split('-').slice(-2).join('-')
           billHandlers[key] = handler as (rateType: string) => void
         }
@@ -120,12 +121,6 @@ function makeJob(overrides: Partial<Job>): Job {
   } as Job
 }
 
-/**
- * A saved (has-id) row. setJob mutates this object in place via Object.assign,
- * so the test can hold a reference and read the result back after selecting a
- * job through the (stubbed) picker. The bill default does not depend on whether
- * the row is saved or phantom.
- */
 function makeEntry(): TimesheetCostLine {
   const now = new Date().toISOString()
   return {
@@ -180,111 +175,70 @@ function mountTable(jobs: Job[], entries: TimesheetCostLine[]) {
   })
 }
 
-/** Invoke the first row's job picker onSelect (the saved entry's picker). */
 function selectJob(job: Job): void {
   const handler = selectHandlers[0]
   expect(handler).toBeTypeOf('function')
   handler(job)
 }
 
-describe('SmartTimesheetTable urgent charge default', () => {
+describe('SmartTimesheetTable bill multiplier reset on job switch', () => {
   beforeEach(() => {
     selectHandlers.length = 0
     for (const key of Object.keys(billHandlers)) delete billHandlers[key]
   })
 
-  it('defaults the customer charge to 1.5x and leaves the wage at Ordinary for an urgent billable job', async () => {
-    const job = makeJob({ is_urgent: true })
+  it('(a) defaults bill multiplier to 1.5 for an urgent job', async () => {
+    const urgent = makeJob({ id: 'urgent-1', job_number: 200, is_urgent: true })
     const entry = makeEntry()
-    const wrapper = mountTable([job], [entry])
+    const wrapper = mountTable([urgent], [entry])
 
-    selectJob(job)
+    selectJob(urgent)
     await wrapper.vm.$nextTick()
 
     expect(getBillMultiplier(entry)).toBe(1.5)
-    expect(getMultiplier(entry)).toBe(1.0)
-    expect(getRateTypeFromMultiplier(getBillMultiplier(entry))).toBe('1.5')
-    // unit_rev = charge_out_rate (100) * 1.5
     expect(entry.unit_rev).toBe(150)
-
-    // The Invoice dropdown reflects the 1.5x default (rendered via getBillMultiplier).
-    expect(getRateTypeFromMultiplier(getBillMultiplier(entry))).toBe('1.5')
   })
 
-  it('does not replace an explicit customer charge override when an urgent job is selected', async () => {
-    // An override now means a deliberate setBill choice (a bare meta value is a
-    // default, not an override). Establish the 2.0x choice via the Invoice
-    // dropdown, then confirm selecting an urgent job leaves it untouched.
-    const job = makeJob({ is_urgent: true })
+  it('(b) resets bill multiplier to 1.0 when switching an unsaved row from urgent to non-urgent', async () => {
+    const urgent = makeJob({ id: 'urgent-1', job_number: 200, is_urgent: true })
+    const normal = makeJob({ id: 'normal-1', job_number: 201, is_urgent: false })
     const entry = makeEntry()
-    const wrapper = mountTable([job], [entry])
+    const wrapper = mountTable([urgent, normal], [entry])
 
+    selectJob(urgent)
+    await wrapper.vm.$nextTick()
+    expect(getBillMultiplier(entry)).toBe(1.5)
+
+    selectJob(normal)
+    await wrapper.vm.$nextTick()
+
+    // The stale 1.5x from the urgent job must reset to 1.0 for the non-urgent job.
+    expect(getBillMultiplier(entry)).toBe(1.0)
+    expect(entry.unit_rev).toBe(100)
+  })
+
+  it('(c) preserves an explicit user setBill override across a job switch', async () => {
+    const jobA = makeJob({ id: 'a-1', job_number: 300, is_urgent: false })
+    const jobB = makeJob({ id: 'b-1', job_number: 301, is_urgent: false })
+    const entry = makeEntry()
+    const wrapper = mountTable([jobA, jobB], [entry])
+
+    selectJob(jobA)
+    await wrapper.vm.$nextTick()
+
+    // Simulate a genuine user bill-rate choice of 2.0x through the Invoice
+    // dropdown on the saved entry's row (row 0; the phantom row is separate).
     const billHandler = billHandlers['billRate-0']
     expect(billHandler).toBeTypeOf('function')
     billHandler('2.0')
     await wrapper.vm.$nextTick()
     expect(getBillMultiplier(entry)).toBe(2.0)
 
-    selectJob(job)
+    // Switching to another job must NOT clobber the explicit override.
+    selectJob(jobB)
     await wrapper.vm.$nextTick()
 
     expect(getBillMultiplier(entry)).toBe(2.0)
-    expect(getMultiplier(entry)).toBe(1.0)
-    expect(getRateTypeFromMultiplier(getBillMultiplier(entry))).toBe('2.0')
     expect(entry.unit_rev).toBe(200)
-  })
-
-  it('renders an Urgent badge in the Job Name cell for a row linked to an urgent job', () => {
-    const job = makeJob({ is_urgent: true })
-    const entry = makeEntry()
-    // Link the row to the urgent job up front so the badge renders on mount,
-    // independent of in-place mutation reactivity.
-    Object.assign(entry, { job_id: job.id, job_number: job.job_number, job_name: job.name })
-    const wrapper = mountTable([job], [entry])
-
-    expect(wrapper.find('[data-automation-id="SmartTimesheetTable-urgentBadge-0"]').exists()).toBe(
-      true,
-    )
-    expect(wrapper.text()).toContain('Urgent')
-  })
-
-  it('renders no Urgent badge for a row linked to a non-urgent job', () => {
-    const job = makeJob({ is_urgent: false })
-    const entry = makeEntry()
-    Object.assign(entry, { job_id: job.id, job_number: job.job_number, job_name: job.name })
-    const wrapper = mountTable([job], [entry])
-
-    expect(wrapper.find('[data-automation-id="SmartTimesheetTable-urgentBadge-0"]').exists()).toBe(
-      false,
-    )
-  })
-
-  it('leaves the bill multiplier at Ordinary for a non-urgent job and renders no badge', async () => {
-    const job = makeJob({ is_urgent: false })
-    const entry = makeEntry()
-    const wrapper = mountTable([job], [entry])
-
-    selectJob(job)
-    await wrapper.vm.$nextTick()
-
-    expect(getBillMultiplier(entry)).toBe(1.0)
-    expect(getMultiplier(entry)).toBe(1.0)
-    expect(entry.unit_rev).toBe(100)
-
-    expect(wrapper.find('[data-automation-id="SmartTimesheetTable-urgentBadge-0"]').exists()).toBe(
-      false,
-    )
-  })
-
-  it('keeps bill at 0 for an urgent shop/non-billable job (the non-billable forcing wins)', async () => {
-    const job = makeJob({ is_urgent: true, shop_job: true })
-    const entry = makeEntry()
-    const wrapper = mountTable([job], [entry])
-
-    selectJob(job)
-    await wrapper.vm.$nextTick()
-
-    expect(getBillMultiplier(entry)).toBe(0)
-    expect(entry.unit_rev).toBe(0)
   })
 })

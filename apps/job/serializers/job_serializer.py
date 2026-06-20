@@ -1215,6 +1215,7 @@ class GroupedJobDeltaRejectionSerializer(serializers.Serializer):
     first_seen = serializers.DateTimeField()
     last_seen = serializers.DateTimeField()
     latest_id = serializers.UUIDField()
+    resolved = serializers.BooleanField()
 
 
 class GroupedJobDeltaRejectionListResponseSerializer(serializers.Serializer):

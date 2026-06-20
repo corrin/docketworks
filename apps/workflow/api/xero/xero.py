@@ -13,6 +13,8 @@ from xero_python.project.models import (
 )
 
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
 
@@ -226,9 +228,18 @@ def create_default_task(project_id: str) -> Any:
     projects_api = ProjectApi(api_client)
 
     # Labour charge-out rate now lives on the Workshop labour subtype.
+    # default_workshop() raises ValueError when no active Workshop subtype is
+    # configured; that failure sits before the external call, so persist it here
+    # rather than leaving an unlogged crash path (ADR 0019).
     from apps.job.models import LabourSubtype
 
-    workshop_rate = LabourSubtype.default_workshop().default_charge_out_rate
+    try:
+        workshop_rate = LabourSubtype.default_workshop().default_charge_out_rate
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
     rate_amount = Amount(currency=CurrencyCode.NZD, value=float(workshop_rate))
 
@@ -244,11 +255,15 @@ def create_default_task(project_id: str) -> Any:
         )
         logger.info(f"Successfully created default Labor task for Project {project_id}")
         return created_task
-    except Exception as e:
-        logger.error(
-            f"Error creating default task for Project {project_id}: {e}", exc_info=True
-        )
+    except AlreadyLoggedException:
         raise
+    except Exception as exc:
+        logger.error(
+            f"Error creating default task for Project {project_id}: {exc}",
+            exc_info=True,
+        )
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
 
 def create_expense_entries(

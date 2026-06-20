@@ -21,8 +21,9 @@ from django.utils import timezone
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 from django.views.generic import TemplateView
+from django_filters.rest_framework import DjangoFilterBackend
 from drf_spectacular.utils import OpenApiParameter, extend_schema
-from rest_framework import status
+from rest_framework import filters, status
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.generics import ListAPIView, RetrieveAPIView
 from rest_framework.permissions import IsAuthenticated
@@ -1164,6 +1165,12 @@ class XeroErrorListAPIView(ListAPIView):
     queryset = XeroError.objects.all().order_by("-timestamp")
     serializer_class = XeroErrorSerializer
     pagination_class = FiftyPerPagePagination
+    # XeroError extends AppError, so it carries the same triage fields. Mirror
+    # AppErrorListAPIView so the individual Xero view supports the same filters
+    # as the System tab (parity for the admin error-triage tool).
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_fields = ["app", "severity", "resolved", "job_id", "user_id"]
+    search_fields = ["message", "function", "file"]
     permission_classes = [IsAuthenticated, IsOfficeStaff]
 
 

@@ -3,7 +3,7 @@
     <div class="p-4 relative space-y-4">
       <ErrorTabs v-model="activeTab" />
       <Alert v-if="fetchError" variant="destructive">{{ fetchError }}</Alert>
-      <ErrorFilter v-if="activeTab === 'xero'" v-model="xeroFilter" />
+      <SystemErrorFilter v-if="activeTab === 'xero'" v-model="xeroFilter" />
       <SystemErrorFilter v-else-if="activeTab === 'system'" v-model="systemFilter" />
       <JobErrorFilter v-else v-model="jobFilter" />
       <label class="flex items-center gap-2 text-sm">
@@ -39,7 +39,6 @@ import AppLayout from '@/components/AppLayout.vue'
 import Progress from '@/components/ui/progress/Progress.vue'
 import { Alert } from '@/components/ui/alert'
 import ErrorTabs from '@/components/admin/errors/ErrorTabs.vue'
-import ErrorFilter from '@/components/admin/errors/ErrorFilter.vue'
 import SystemErrorFilter from '@/components/admin/errors/SystemErrorFilter.vue'
 import JobErrorFilter from '@/components/admin/errors/JobErrorFilter.vue'
 import ErrorTable, { type ErrorRow } from '@/components/admin/errors/ErrorTable.vue'
@@ -50,7 +49,6 @@ import { api } from '@/api/client'
 import { z } from 'zod'
 import { schemas } from '@/api/generated/api'
 import type { SystemErrorFilterState, JobErrorFilterState } from '@/types/errorFilters'
-import type { FilterState } from '@/constants/date-range'
 
 // Use generated types from Zodios API
 type XeroError = z.infer<typeof schemas.XeroError>
@@ -109,9 +107,12 @@ const selectedGroupMeta = ref<null | {
 }>(null)
 const showIndividual = ref(false)
 let openRequestId = 0
-const xeroFilter = ref<FilterState>({
-  search: '',
-  range: { from: undefined, to: undefined },
+const xeroFilter = ref<SystemErrorFilterState>({
+  app: '',
+  severity: '',
+  resolved: 'all',
+  jobId: '',
+  userId: '',
 })
 const systemFilter = ref<SystemErrorFilterState>({
   app: '',
@@ -122,6 +123,7 @@ const systemFilter = ref<SystemErrorFilterState>({
 })
 const jobFilter = ref<JobErrorFilterState>({
   jobId: '',
+  resolved: 'all',
 })
 
 const tableHeaders = computed(() => {
@@ -150,13 +152,7 @@ async function loadErrors() {
 async function loadFlatErrors() {
   let res
   if (activeTab.value === 'xero') {
-    res = await fetchErrors('xero', page.value, {
-      search: xeroFilter.value.search,
-      range: {
-        start: xeroFilter.value.range.from ?? null,
-        end: xeroFilter.value.range.to ?? null,
-      },
-    })
+    res = await fetchErrors('xero', page.value, buildXeroFilterPayload())
   } else if (activeTab.value === 'system') {
     res = await fetchErrors('system', page.value, buildSystemFilterPayload())
   } else {
@@ -169,13 +165,7 @@ async function loadFlatErrors() {
 async function loadGroupedErrors() {
   let res
   if (activeTab.value === 'xero') {
-    res = await fetchGroupedErrors('xero', page.value, {
-      search: xeroFilter.value.search,
-      range: {
-        start: xeroFilter.value.range.from ?? null,
-        end: xeroFilter.value.range.to ?? null,
-      },
-    })
+    res = await fetchGroupedErrors('xero', page.value, buildXeroFilterPayload())
   } else if (activeTab.value === 'system') {
     res = await fetchGroupedErrors('system', page.value, buildSystemFilterPayload())
   } else {
@@ -226,11 +216,6 @@ function mapGroupedRows(
   type: ErrorTab,
   rows: (GroupedAppError | GroupedJobDeltaRejection)[],
 ): GroupedErrorRow[] {
-  // `resolved` is hardcoded false because the grouped endpoints only return
-  // unresolved groups by default — the default `resolved=false` filter is
-  // applied server-side. When the `resolved=true` filter is used (showing
-  // resolved groups), the Resolve button will incorrectly show instead of
-  // Unresolve until the backend serializer exposes `resolved` on each group.
   if (type === 'job') {
     return (rows as GroupedJobDeltaRejection[]).map((row) => ({
       id: row.latest_id,
@@ -240,7 +225,7 @@ function mapGroupedRows(
       entity: '-',
       severity: '-',
       occurrenceCount: row.occurrence_count,
-      resolved: false,
+      resolved: row.resolved,
       fingerprint: row.fingerprint,
       keyField: 'reason' as const,
       keyValue: row.reason,
@@ -254,7 +239,7 @@ function mapGroupedRows(
     entity: row.app ?? '-',
     severity: row.severity != null ? String(row.severity) : '-',
     occurrenceCount: row.occurrence_count,
-    resolved: false,
+    resolved: row.resolved,
     fingerprint: row.fingerprint,
     keyField: 'message' as const,
     keyValue: row.message,
@@ -460,9 +445,32 @@ function buildSystemFilterPayload() {
   }
 }
 
+function buildXeroFilterPayload() {
+  const severityValue = xeroFilter.value.severity.trim()
+  const parsedSeverity = severityValue === '' ? undefined : Number.parseInt(severityValue, 10)
+  return {
+    app: xeroFilter.value.app.trim() || undefined,
+    severity: Number.isNaN(parsedSeverity) ? undefined : parsedSeverity,
+    resolved:
+      xeroFilter.value.resolved === 'true'
+        ? true
+        : xeroFilter.value.resolved === 'false'
+          ? false
+          : undefined,
+    jobId: xeroFilter.value.jobId.trim() || undefined,
+    userId: xeroFilter.value.userId.trim() || undefined,
+  }
+}
+
 function buildJobFilterPayload() {
   return {
     jobId: jobFilter.value.jobId.trim() || undefined,
+    resolved:
+      jobFilter.value.resolved === 'true'
+        ? true
+        : jobFilter.value.resolved === 'false'
+          ? false
+          : undefined,
   }
 }
 </script>

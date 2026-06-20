@@ -607,6 +607,7 @@ const GroupedAppError = z.object({
   severity: z.number().int().nullable(),
   app: z.string().nullable(),
   latest_id: z.string().uuid(),
+  resolved: z.boolean(),
 })
 const GroupedAppErrorListResponse = z.object({
   count: z.number().int(),
@@ -1938,6 +1939,7 @@ const GroupedJobDeltaRejection = z.object({
   first_seen: z.string().datetime({ offset: true }),
   last_seen: z.string().datetime({ offset: true }),
   latest_id: z.string().uuid(),
+  resolved: z.boolean(),
 })
 const GroupedJobDeltaRejectionListResponse = z.object({
   count: z.number().int(),
@@ -7120,6 +7122,11 @@ Expected JSON:
         type: 'Query',
         schema: z.number().int().optional(),
       },
+      {
+        name: 'resolved',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
     ],
     response: JobDeltaRejectionListResponse,
     errors: [
@@ -9821,9 +9828,39 @@ Endpoint: /api/xero/errors/`,
     requestFormat: 'json',
     parameters: [
       {
+        name: 'app',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'job_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
         name: 'page',
         type: 'Query',
         schema: z.number().int().optional(),
+      },
+      {
+        name: 'resolved',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
+        name: 'search',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'severity',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'user_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
       },
     ],
     response: PaginatedXeroErrorList,

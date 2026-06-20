@@ -4694,6 +4694,11 @@ paths:
           schema:
             type: integer
           description: Offset for pagination (default 0).
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+          description: Optional resolved-state filter (omit for all).
       tags:
         - Jobs
       security:
@@ -8642,12 +8647,40 @@ paths:
 
         Endpoint: /api/xero/errors/
       parameters:
+        - in: query
+          name: app
+          schema:
+            type: string
+        - in: query
+          name: job_id
+          schema:
+            type: string
+            format: uuid
         - name: page
           required: false
           in: query
           description: A page number within the paginated result set.
           schema:
             type: integer
+        - in: query
+          name: resolved
+          schema:
+            type: boolean
+        - name: search
+          required: false
+          in: query
+          description: A search term.
+          schema:
+            type: string
+        - in: query
+          name: severity
+          schema:
+            type: integer
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
       tags:
         - xero-errors
       security:
@@ -12301,6 +12334,8 @@ components:
         latest_id:
           type: string
           format: uuid
+        resolved:
+          type: boolean
       required:
         - app
         - fingerprint
@@ -12309,6 +12344,7 @@ components:
         - latest_id
         - message
         - occurrence_count
+        - resolved
         - severity
     GroupedAppErrorListResponse:
       type: object
@@ -12377,6 +12413,8 @@ components:
         latest_id:
           type: string
           format: uuid
+        resolved:
+          type: boolean
       required:
         - fingerprint
         - first_seen
@@ -12384,6 +12422,7 @@ components:
         - latest_id
         - occurrence_count
         - reason
+        - resolved
     GroupedJobDeltaRejectionListResponse:
       type: object
       description: Paginated response for grouped delta rejections.

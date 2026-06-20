@@ -200,9 +200,15 @@ function maybeEmitCreate(line: CostLine) {
 function updateLineKind(line: CostLine, newKind: KindOption) {
   if (String(line.kind) === newKind) return
 
-  Object.assign(line, { kind: newKind })
-
   if (newKind === 'time') {
+    // Time lines need the company wage rate as unit_cost. If defaults haven't
+    // loaded yet, abort BEFORE mutating kind so the line stays in its prior
+    // kind (tryCompanyWageRate toasts on the null case).
+    const wage = tryCompanyWageRate()
+    if (wage === null) return
+
+    Object.assign(line, { kind: newKind })
+
     // Time lines require a labour subtype; default to the workshop subtype.
     // unit_cost from company wage rate, unit_rev from the job's subtype rate.
     // If the labour-rates fetch hasn't resolved yet, subtypeId stays null and
@@ -213,10 +219,11 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
       line.labour_subtype ?? workshopRateEntry(jobLabourRates.value)?.labour_subtype ?? null
     Object.assign(line, {
       labour_subtype: subtypeId,
-      unit_cost: companyWageRate(),
+      unit_cost: wage,
       unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
     })
   } else {
+    Object.assign(line, { kind: newKind })
     // Recalculate unit_rev with markup for material/adjust
     Object.assign(line, { labour_subtype: null })
     const derived = apply(line).derived
@@ -253,6 +260,11 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
     throw new Error(`Labour subtype not found in job labour rates: ${subtypeId}`)
   }
 
+  // Time lines need the company wage rate as unit_cost; abort the conversion
+  // (leaving the line untouched) if defaults haven't loaded yet.
+  const wage = tryCompanyWageRate()
+  if (wage === null) return
+
   // Re-prefill unit_rev from the job's rate for the chosen subtype; the user
   // can still override it afterwards (consistent with item selection).
   resetUnitRevOverride(line)
@@ -265,7 +277,7 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
     kind: 'time' as const,
     labour_subtype: subtypeId,
     desc: nextLabourDesc(line.desc || '', rate, jobLabourRates.value),
-    unit_cost: companyWageRate(),
+    unit_cost: wage,
     unit_rev: rateForSubtype(jobLabourRates.value, subtypeId),
     ext_refs: extRefs,
     quantity: line.quantity ?? 1,
@@ -294,11 +306,20 @@ async function handleLabourPicked(line: CostLine, subtypeId: string) {
 const companyDefaultsStore = useCompanyDefaultsStore()
 const store = useStockStore()
 
-function companyWageRate(): number {
-  return requiredNumber(
-    companyDefaultsStore.companyDefaults?.wage_rate,
-    'company defaults wage_rate',
-  )
+/**
+ * Time-line conversion needs the company wage rate as the line's unit_cost.
+ * Before company defaults have loaded `wage_rate` is null/undefined/'' — reading
+ * it via requiredNumber would throw and crash the table on early interaction.
+ * Return null (and toast) so callers can abort the conversion cleanly; never
+ * fall back to a fabricated wage number.
+ */
+function tryCompanyWageRate(): number | null {
+  const wageRate = companyDefaultsStore.companyDefaults?.wage_rate
+  if (wageRate === null || wageRate === undefined || wageRate === ('' as unknown)) {
+    toast.error('Company defaults are still loading. Please try again.')
+    return null
+  }
+  return requiredNumber(wageRate, 'company defaults wage_rate')
 }
 
 function companyMaterialsMarkup(): number {

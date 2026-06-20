@@ -439,30 +439,34 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
       xero_pay_item_name: job.default_xero_pay_item_name ?? '',
     })
   }
-  // Shop jobs and 'special' status jobs are non-billable; force the meta flag
-  // so the user (and the backend) see a consistent state.
-  if (isJobNonBillable(job)) {
+  // Apply the bill-rate default for the newly selected job.
+  //  - Non-billable (shop / 'special'): force off, multiplier 0.
+  //  - No explicit user override: set THIS job's default — urgent jobs charge
+  //    the customer overtime (1.5x) while the worker's wage multiplier stays
+  //    Ordinary; non-urgent jobs reset to 1.0. This also clears a stale 1.5x
+  //    left over from a previously-selected urgent job on the same unsaved row.
+  //  - Explicit user override (via setBill): leave the multiplier untouched.
+  // billOverrides now means ONLY "user explicitly chose a bill rate via setBill"
+  // — the urgent auto-default no longer adds to it, so it can't masquerade as a
+  // user choice and block this reset. Use billOverrides.has directly (not
+  // hasExplicitBillOverride, whose meta-key arm would treat a prior auto-default
+  // as an override).
+  const nonBillable = isJobNonBillable(job)
+  const userBillOverride = billOverrides.has(entry)
+  if (nonBillable) {
     setMeta(entry, { is_billable: false, bill_rate_multiplier: 0.0 })
+  } else if (!userBillOverride) {
+    const mult = job.is_urgent ? 1.5 : 1.0
+    setMeta(entry, { bill_rate_multiplier: mult, is_billable: true })
+  } else {
+    // User override stands: do not touch the multiplier.
   }
-  // unit_rev is the bill rate: subtype rate x bill multiplier (zero after the
-  // non-billable forcing above), mirroring setLabourType.
+  // unit_rev is the bill rate: subtype rate x bill multiplier (zero when the
+  // job is non-billable), mirroring setLabourType.
   Object.assign(entry, {
     unit_rev: Math.round(rate * getBillMultiplier(entry) * 100) / 100,
     total_rev: calculatedBill(entry),
   })
-  // Urgent jobs default the *customer charge* to overtime (1.5x) while the
-  // worker's wage multiplier stays Ordinary — urgent means charge overtime,
-  // pay regular. Skip when the job is non-billable (the forcing above wins) and
-  // never stomp an explicit bill choice the user already made. Both multipliers
-  // remain independently adjustable afterwards.
-  if (job.is_urgent && !isJobNonBillable(job) && !hasExplicitBillOverride(entry)) {
-    billOverrides.add(entry)
-    setMeta(entry, { bill_rate_multiplier: 1.5, is_billable: true })
-    Object.assign(entry, {
-      unit_rev: Math.round(rate * 1.5 * 100) / 100,
-      total_rev: calculatedBill(entry),
-    })
-  }
   commit(entry, ['unit_rev', 'meta', 'xero_pay_item'])
 
   // After picking a job, focus the Hours cell on the same row so the user can

@@ -20,21 +20,11 @@ type GroupedResultMap = {
   job: GroupedJobDeltaRejection
 }
 
-interface DateRange {
-  start: string | null
-  end: string | null
-}
-
 type ErrorType = 'xero' | 'system' | 'job'
 type ErrorResultMap = {
   xero: XeroError
   system: AppError
   job: JobDeltaRejection
-}
-
-type XeroErrorFilters = {
-  search?: string
-  range?: DateRange
 }
 
 type SystemErrorFilters = {
@@ -45,8 +35,13 @@ type SystemErrorFilters = {
   userId?: string
 }
 
+// XeroError extends AppError and exposes the same app/severity/resolved/job/user
+// fields, so the xero tab reuses the system filter shape.
+type XeroErrorFilters = SystemErrorFilters
+
 type JobErrorFilters = {
   jobId?: string
+  resolved?: boolean
 }
 
 type ErrorFilterMap = {
@@ -59,6 +54,7 @@ const PAGE_SIZE = 20
 type ErrorQueryParams = {
   limit?: number
   offset?: number
+  page?: number
   app?: string
   severity?: number
   resolved?: boolean
@@ -77,9 +73,25 @@ export function useErrorApi() {
     error.value = null
     try {
       if (type === 'xero') {
-        // Use Zodios API for xero errors
-        // Note: search and date filtering not available in current API, would need backend update
-        const response = await api.xero_errors_list(page > 1 ? { queries: { page } } : {})
+        // The xero individual endpoint is PAGE-paginated (not limit/offset).
+        // It accepts the same app/severity/resolved/job/user filters as the
+        // system tab — forward them exactly like the system branch does.
+        const xeroFilters = filters as XeroErrorFilters
+        const params: ErrorQueryParams = {}
+        if (page > 1) params.page = page
+        if (xeroFilters?.app) params.app = xeroFilters.app
+        if (typeof xeroFilters?.severity === 'number' && Number.isFinite(xeroFilters.severity)) {
+          params.severity = xeroFilters.severity
+        }
+        if (typeof xeroFilters?.resolved === 'boolean') {
+          params.resolved = xeroFilters.resolved
+        }
+        if (xeroFilters?.jobId) params.job_id = xeroFilters.jobId
+        if (xeroFilters?.userId) params.user_id = xeroFilters.userId
+
+        const response = await api.xero_errors_list(
+          Object.keys(params).length > 0 ? { queries: params } : {},
+        )
         return {
           results: response.results || [],
           pageCount: response.count
@@ -127,6 +139,9 @@ export function useErrorApi() {
         if (jobFilters?.jobId) {
           params.job_id = jobFilters.jobId
         }
+        if (typeof jobFilters?.resolved === 'boolean') {
+          params.resolved = jobFilters.resolved
+        }
 
         const response = await api.job_rest_jobs_delta_rejections_admin_list({
           queries: params,
@@ -154,7 +169,17 @@ export function useErrorApi() {
     const offset = Math.max(page - 1, 0) * PAGE_SIZE
     try {
       if (type === 'xero') {
+        const xeroFilters = filters as XeroErrorFilters
         const params: ErrorQueryParams = { limit: PAGE_SIZE, offset }
+        if (xeroFilters?.app) params.app = xeroFilters.app
+        if (typeof xeroFilters?.severity === 'number' && Number.isFinite(xeroFilters.severity)) {
+          params.severity = xeroFilters.severity
+        }
+        if (typeof xeroFilters?.resolved === 'boolean') {
+          params.resolved = xeroFilters.resolved
+        }
+        if (xeroFilters?.jobId) params.job_id = xeroFilters.jobId
+        if (xeroFilters?.userId) params.user_id = xeroFilters.userId
         const response: GroupedAppErrorListResponse = await api.xero_errors_grouped_retrieve({
           queries: params,
         })
@@ -183,11 +208,12 @@ export function useErrorApi() {
       }
 
       const jobFilters = filters as JobErrorFilters
-      const params: Pick<ErrorQueryParams, 'limit' | 'offset' | 'job_id'> = {
+      const params: Pick<ErrorQueryParams, 'limit' | 'offset' | 'job_id' | 'resolved'> = {
         limit: PAGE_SIZE,
         offset,
       }
       if (jobFilters?.jobId) params.job_id = jobFilters.jobId
+      if (typeof jobFilters?.resolved === 'boolean') params.resolved = jobFilters.resolved
       const response: GroupedJobDeltaRejectionListResponse =
         await api.job_jobs_delta_rejections_grouped_retrieve({ queries: params })
       return mapGroupedResponse<T>(response)
