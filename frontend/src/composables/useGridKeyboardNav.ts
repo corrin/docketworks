@@ -92,10 +92,23 @@ function isNavigableCell(element: HTMLElement): boolean {
   return true
 }
 
+function isNumericGridInput(element: HTMLElement): element is HTMLInputElement {
+  if (!(element instanceof HTMLInputElement)) return false
+  if (element.type === 'number') return true
+  if (element.inputMode === 'decimal') return true
+  return element.classList.contains('numeric-input')
+}
+
 function focusElement(element: Element | null): boolean {
   if (!(element instanceof HTMLElement)) return false
   element.focus()
   return document.activeElement === element
+}
+
+function focusGridDestination(element: Element | null): void {
+  if (!focusElement(element)) return
+  if (!(element instanceof HTMLElement)) return
+  if (isNumericGridInput(element)) element.select()
 }
 
 export function handleGridCellKeydown(e: KeyboardEvent, opts: GridCellKeydownOptions): boolean {
@@ -111,7 +124,7 @@ export function handleGridCellKeydown(e: KeyboardEvent, opts: GridCellKeydownOpt
       const idx = cells.indexOf(target)
       if (idx < 0) return
       const next = cells[idx + focusTarget.delta]
-      if (next) window.setTimeout(() => focusElement(next), 0)
+      if (next) window.setTimeout(() => focusGridDestination(next), 0)
       return
     }
 
@@ -121,7 +134,7 @@ export function handleGridCellKeydown(e: KeyboardEvent, opts: GridCellKeydownOpt
     const selector = `[data-grid-nav-cell="true"][data-grid-row="${rowIndex}"][data-grid-col="${columnId}"]:not([disabled]):not([aria-disabled="true"])`
     window.setTimeout(() => {
       const next = container.querySelector(selector)
-      if (next instanceof HTMLElement && isNavigableCell(next)) focusElement(next)
+      if (next instanceof HTMLElement && isNavigableCell(next)) focusGridDestination(next)
     }, 0)
   }
 
