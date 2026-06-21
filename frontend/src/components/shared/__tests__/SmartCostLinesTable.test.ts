@@ -60,8 +60,13 @@ vi.mock('@/components/DataTable.vue', () => ({
           id: string
           cell: (ctx: { row: { index: number } }) => unknown
         }>
-        const unitCostColumn = columns.find((column) => column.id === 'unit_cost')
-        return h('div', unitCostColumn ? [unitCostColumn.cell({ row: { index: 0 } })] : [])
+        const renderedColumns = ['quantity', 'unit_cost', 'unit_rev']
+          .map((id) => columns.find((column) => column.id === id))
+          .filter((column): column is NonNullable<typeof column> => column !== undefined)
+        return h(
+          'div',
+          renderedColumns.map((column) => column.cell({ row: { index: 0 } })),
+        )
       }
     },
   }),
@@ -136,5 +141,46 @@ describe('SmartCostLinesTable draft inputs', () => {
 
     expect(line.unit_cost).toBeNull()
     expect(saveNowMock).not.toHaveBeenCalled()
+  })
+
+  it('marks job cost-line numeric fields as numeric grid inputs', () => {
+    const wrapper = mount(SmartCostLinesTable, {
+      props: {
+        lines: [makeLine()],
+        tabKind: 'estimate',
+      },
+      global: {
+        stubs: {
+          Button: { template: '<button><slot /></button>' },
+          Badge: { template: '<span><slot /></span>' },
+          Dialog: { template: '<div><slot /></div>' },
+          DialogContent: { template: '<div><slot /></div>' },
+          DialogHeader: { template: '<div><slot /></div>' },
+          DialogTitle: { template: '<div><slot /></div>' },
+          DialogDescription: { template: '<div><slot /></div>' },
+          DialogFooter: { template: '<div><slot /></div>' },
+          HelpCircle: { template: '<span />' },
+          Trash2: { template: '<span />' },
+          AlertTriangle: { template: '<span />' },
+          Check: { template: '<span />' },
+        },
+      },
+    })
+
+    const expectedFields = [
+      ['SmartCostLinesTable-quantity-0', 'quantity'],
+      ['SmartCostLinesTable-unit-cost-0', 'unit_cost'],
+      ['SmartCostLinesTable-unit-rev-0', 'unit_rev'],
+    ] as const
+
+    for (const [automationId, gridColumn] of expectedFields) {
+      const input = wrapper.get<HTMLInputElement>(`[data-automation-id="${automationId}"]`)
+      expect(input.attributes('data-grid-nav-cell')).toBe('true')
+      expect(input.attributes('data-grid-row')).toBe('0')
+      expect(input.attributes('data-grid-col')).toBe(gridColumn)
+      expect(input.attributes('type')).toBe('number')
+      expect(input.attributes('inputmode')).toBe('decimal')
+      expect(input.classes()).toContain('numeric-input')
+    }
   })
 })
