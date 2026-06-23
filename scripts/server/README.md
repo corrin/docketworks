@@ -63,14 +63,8 @@ sudo vi /opt/docketworks/config/mycompany-uat.credentials.env
 
 # Step 2: reads credentials, creates everything
 sudo ./scripts/server/instance.sh create mycompany uat
-```
 
-`create` is safe to rerun for an existing instance: it preserves generated
-secrets, updates `.env` from the credentials file, and re-renders systemd,
-Nginx, backup, sudoers, and frontend config. `reconfigure` is a synonym for
-the same convergent path:
-
-```bash
+# Re-run after credential/config edits
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
 ```
 
@@ -101,25 +95,17 @@ How to get them:
 
 1. **Create a Xero app** at https://developer.xero.com/app/manage
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
-3. **Copy Client ID, Client Secret, and webhook signing key** into either
-   `apps/workflow/fixtures/xero_apps.json` (copy from `.example` first)
-   or paste them via Admin → Xero Apps after deploy.
-4. **XERO_DEFAULT_USER_ID:** Create the instance first (it will work without Xero initially), create a Staff member in the app's admin, then copy that staff member's UUID into the credentials file and re-run create
+3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
+4. **XERO_DEFAULT_USER_ID:** Create the instance first, create a Staff member, copy that UUID into the credentials file, then run `instance.sh reconfigure`.
 5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
 6. **BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Google Drive folder ID for the backup parent. Share that folder with the service account. Backups upload under `dw_backups/<instance>/` from that root.
 7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
 
 ## Deploying Updates
 
-```bash
-# Single instance
-sudo ./scripts/server/deploy.sh mycompany-uat
+Operator runbook (the commands to run): [docs/updating.md](../../docs/updating.md).
 
-# All instances
-sudo ./scripts/server/deploy.sh --all
-```
-
-What deploy does, in order:
+What `deploy.sh` does, in order:
 1. Pull latest code from GitHub (into the shared local repo).
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
 3. Update shared Python/Node deps.

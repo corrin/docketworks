@@ -400,4 +400,6 @@ gunzip -c "$LATEST" | PGPASSWORD="$DB_PASSWORD" psql \
 
 ## First-time setup (existing instances only)
 
-New instances pick up the scrub DB automatically via `scripts/server/instance.sh`. Existing instances provisioned before this change need a one-off `instance.sh create` re-run (idempotent — adds the scrub DB, skips anything that already exists).
+New instances pick up the scrub DB automatically via `scripts/server/instance.sh`.
+Existing instances provisioned before this change need one `instance.sh reconfigure`
+run.

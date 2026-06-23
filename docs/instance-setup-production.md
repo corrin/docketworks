@@ -14,7 +14,7 @@ Set up a production instance for a client connecting to their real Xero organisa
 sudo scripts/server/instance.sh prepare-config <client> prod
 ```
 
-Fill in `/opt/docketworks/instances/<client>-prod/credentials.env`:
+Fill in `/opt/docketworks/config/<client>-prod.credentials.env`:
 - XERO_DEFAULT_USER_ID (leave blank for now — set after Step 7)
 - GCP_CREDENTIALS path (from Phase 3a of client_onboarding.md)
 - EMAIL_HOST_USER + EMAIL_HOST_PASSWORD
@@ -27,7 +27,7 @@ Fill in `/opt/docketworks/instances/<client>-prod/credentials.env`:
 sudo scripts/server/instance.sh create <client> prod
 ```
 
-Creates: OS user, database, .env, code clone, frontend build, migrations, admin user, gunicorn service, nginx config.
+Creates: OS user, database, .env, code clone, frontend build, migrations, admin user, systemd services (gunicorn + celery), nightly backup timer, and nginx config.
 
 **Check:** `https://<client>-prod.docketworks.site` shows login page.
 
@@ -120,7 +120,7 @@ After import, find the default Xero user ID for timesheets:
 scripts/server/dw-run.sh <client>-prod python manage.py xero --users
 ```
 Copy the relevant user ID into credentials.env as XERO_DEFAULT_USER_ID, then
-reconfigure the instance to update `.env` while preserving generated secrets:
+reconfigure:
 ```bash
 sudo scripts/server/instance.sh reconfigure <client> prod
 ```

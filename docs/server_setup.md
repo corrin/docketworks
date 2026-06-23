@@ -123,17 +123,11 @@ sudo nano /opt/docketworks/config/<client>-<env>.credentials.env
 # Step 3: create the instance
 sudo scripts/server/instance.sh create <client> <env>
 
+# Re-run after credential/config edits
+sudo scripts/server/instance.sh reconfigure <client> <env>
+
 # Or with demo fixtures:
 sudo scripts/server/instance.sh create <client> <env> --seed
-```
-
-`create` is safe to rerun on an existing instance. It preserves generated
-secrets and database passwords, updates `.env` from the credentials file, and
-re-renders systemd, Nginx, backup, sudoers, and frontend config. The explicit
-synonym is:
-
-```bash
-sudo scripts/server/instance.sh reconfigure <client> <env>
 ```
 
 ### Manual steps (reference)
@@ -299,11 +293,7 @@ For a prospect trying DocketWorks with their own Xero:
 
 ### Deploy (update to latest code)
 
-```bash
-sudo scripts/server/deploy.sh <name>
-```
-
-This pulls latest code, installs dependencies, runs migrations, rebuilds frontend, and restarts Gunicorn.
+See [updating.md](updating.md) — the deploy runbook (the `deploy.sh` command, and when to also run `instance.sh reconfigure`).
 
 ### Backups
 
@@ -429,17 +419,7 @@ ssh-keygen -t ed25519 -C "github-actions-uat" -f uat_deploy_key -N ""
 
 **Step 1 (automatic):** On push to `main`, `deploy-uat.yml` SSHes into the server as `docketworks` and pulls the latest code into `/opt/docketworks/repo`. This only updates the shared repo — no instances are touched.
 
-**Step 2 (manual):** When ready to deploy to instances, SSH into the server and run:
-
-```bash
-# Deploy all instances
-sudo ./scripts/server/deploy.sh --all
-
-# Or a single instance
-sudo ./scripts/server/deploy.sh <name>
-```
-
-This updates shared Python/Node deps, then for each instance: builds frontend, runs migrate, restarts Gunicorn.
+**Step 2 (manual):** When ready to deploy to instances, follow the deploy runbook in [updating.md](updating.md).
 
 ### Install log
 

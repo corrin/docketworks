@@ -18,7 +18,7 @@ Onboard a prospect for a paid trial of DocketWorks. Uses dummy staff but the pro
 sudo scripts/server/instance.sh prepare-config <client> uat
 ```
 
-Fill in `/opt/docketworks/instances/<client>-uat/credentials.env`:
+Fill in `/opt/docketworks/config/<client>-uat.credentials.env`:
 - GCP_CREDENTIALS — shared dev service account key
 - EMAIL credentials
 

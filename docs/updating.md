@@ -28,23 +28,25 @@ If you're running the application locally for development:
 
 ## Server Environment (Multi-Tenant)
 
-See [server_setup.md](server_setup.md) for full architecture details.
+**This section is the deploy runbook.** PR merged to `main`? SSH into the server and run:
 
-Deployment is a two-step process:
+```bash
+# One client
+sudo ./scripts/server/deploy.sh <client>-<env>
 
-1. **Merge a PR to `main`** — GitHub Actions (`deploy-uat.yml`) automatically pulls the latest code into `/opt/docketworks/repo` on the server.
+# Or all instances
+sudo ./scripts/server/deploy.sh --all
+```
 
-2. **Deploy to instances** — SSH into the server and run:
+That's it for a normal code release. `deploy.sh` pulls `main` itself, then for each instance takes a pre-deploy DB backup, runs migrations, rebuilds the frontend, and restarts its services — you don't run anything per service.
 
-   ```bash
-   # All instances
-   sudo ./scripts/server/deploy.sh --all
+**Only if the release changed per-instance config** that `deploy.sh` does not re-render — a new `.env` variable, or a change to the gunicorn systemd unit — also run, once per instance:
 
-   # Single instance
-   sudo ./scripts/server/deploy.sh <name>
-   ```
+```bash
+sudo ./scripts/server/instance.sh reconfigure <client> <env>
+```
 
-   This updates shared Python/Node deps, then for each instance: builds frontend, runs migrate, restarts Gunicorn.
+For architecture, see [server_setup.md](server_setup.md); for the exact internal deploy sequence, see [scripts/server/README.md](../scripts/server/README.md).
 
 ## Troubleshooting
 
