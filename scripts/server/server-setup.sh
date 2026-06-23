@@ -696,8 +696,14 @@ log "Installing shared node_modules..."
 sudo -u docketworks bash -c "
     cp '$LOCAL_REPO/frontend/package.json' '/opt/docketworks/package.json'
     cp '$LOCAL_REPO/frontend/package-lock.json' '/opt/docketworks/package-lock.json'
+    REQUIRED_NODE_MAJOR=\$(tr -d 'v[:space:]' < '$LOCAL_REPO/frontend/.nvmrc')
+    CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
+    if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
+        echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2
+        exit 1
+    fi
     cd /opt/docketworks
-    npm install
+    npm ci --include=dev
 "
 log "  Shared node_modules installed."
 

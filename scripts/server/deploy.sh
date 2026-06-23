@@ -206,8 +206,14 @@ log "Updating shared node_modules..."
 sudo -u docketworks bash -c "
     cp '$LOCAL_REPO/frontend/package.json' '$BASE_DIR/package.json'
     cp '$LOCAL_REPO/frontend/package-lock.json' '$BASE_DIR/package-lock.json'
+    REQUIRED_NODE_MAJOR=\$(tr -d 'v[:space:]' < '$LOCAL_REPO/frontend/.nvmrc')
+    CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
+    if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
+        echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2
+        exit 1
+    fi
     cd '$BASE_DIR'
-    npm install
+    npm ci --include=dev
 "
 
 # --- Per-instance: build, migrate, restart ---
@@ -224,9 +230,16 @@ for instance in "${TARGETS[@]}"; do
     log "  Building frontend..."
     sudo -u "$inst_user" bash -c "
         cd '$instance_dir/frontend'
+        npm run check:typed-router
         npm run build
         npm run manual:build
     "
+    if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD -- frontend/src/typed-router.d.ts; then
+        log "  ERROR: server generated a different frontend/src/typed-router.d.ts for $instance"
+        log "  Investigate with: sudo -u $inst_user git -C $instance_dir diff -- frontend/src/typed-router.d.ts"
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
 
     # Collect static files + run migrations
     log "  Running migrate..."
