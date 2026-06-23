@@ -119,9 +119,10 @@ After import, find the default Xero user ID for timesheets:
 ```bash
 scripts/server/dw-run.sh <client>-prod python manage.py xero --users
 ```
-Copy the relevant user ID into credentials.env as XERO_DEFAULT_USER_ID, then re-run create to update .env:
+Copy the relevant user ID into credentials.env as XERO_DEFAULT_USER_ID, then
+reconfigure the instance to update `.env` while preserving generated secrets:
 ```bash
-sudo scripts/server/instance.sh create <client> prod
+sudo scripts/server/instance.sh reconfigure <client> prod
 ```
 
 ## Step 8: Create Shop Jobs

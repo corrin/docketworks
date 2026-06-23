@@ -72,3 +72,53 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertNotIn(
             'rm -f "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"', content
         )
+
+    def test_instance_script_exposes_reconfigure_as_convergent_command(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn("instance.sh reconfigure <client> <env>", content)
+        self.assertIn("do_reconfigure()", content)
+        self.assertIn("do_configure false reconfigure", content)
+        self.assertIn("reconfigure)    do_reconfigure", content)
+
+    def test_instance_script_rerenders_env_preserving_generated_values(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn("render_instance_env()", content)
+        self.assertIn(
+            'db_password="$(read_env_value "$env_file" DB_PASSWORD)"', content
+        )
+        self.assertIn(
+            'test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"',
+            content,
+        )
+        self.assertIn('secret_key="$(read_env_value "$env_file" SECRET_KEY)"', content)
+        self.assertIn(
+            'bearer_secret="$(read_env_value "$env_file" BEARER_SECRET)"',
+            content,
+        )
+        self.assertIn('tmp_env="$(mktemp "$instance_dir/.env.tmp.XXXXXX")"', content)
+        self.assertIn('mv "$tmp_env" "$env_file"', content)
+        self.assertNotIn(".env already exists — skipping", content)
+
+    def test_instance_script_only_seeds_missing_db_config(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn(
+            "AIProvider already configured; skipping ai_providers.json load", content
+        )
+        self.assertIn("if AIProvider.objects.exists()", content)
+        self.assertIn(
+            "XeroApp already configured; skipping xero_apps.json load", content
+        )
+        self.assertIn("if XeroApp.objects.exists()", content)
+        self.assertNotIn(
+            "python manage.py loaddata apps/workflow/fixtures/ai_providers.json",
+            content,
+        )
+
+    def test_instance_script_rejects_seed_for_existing_checkout(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn('[[ -d "$INSTANCE_DIR/.git" && "$SEED" == "true" ]]', content)
+        self.assertIn("--seed is only valid when creating a new instance", content)

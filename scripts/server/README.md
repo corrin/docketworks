@@ -65,6 +65,15 @@ sudo vi /opt/docketworks/config/mycompany-uat.credentials.env
 sudo ./scripts/server/instance.sh create mycompany uat
 ```
 
+`create` is safe to rerun for an existing instance: it preserves generated
+secrets, updates `.env` from the credentials file, and re-renders systemd,
+Nginx, backup, sudoers, and frontend config. `reconfigure` is a synonym for
+the same convergent path:
+
+```bash
+sudo ./scripts/server/instance.sh reconfigure mycompany uat
+```
+
 Add `--seed` to load demo fixture data:
 
 ```bash
@@ -201,7 +210,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 |------|-------------|
 | `common.sh` | Shared constants: domain, paths, directories |
 | `server-setup.sh` | Host-level convergence (packages, venv, SSL, shared config). Runs every deploy — see "Server Setup". |
-| `instance.sh` | Prepare config, create, destroy, or list instances |
+| `instance.sh` | Prepare config, create/reconfigure, destroy, or list instances |
 | `deploy.sh` | Pull updates and redeploy one or all instances |
 | `dw-run.sh` | Run a command in an instance's environment |
 | `certbot-dreamhost-auth.sh` | Certbot DNS-01 auth hook (adds TXT record via Dreamhost API) |

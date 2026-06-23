@@ -118,13 +118,22 @@ Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 sudo scripts/server/instance.sh prepare-config <client> <env>
 
 # Step 2: fill in the credentials
-sudo nano /opt/docketworks/instances/<client>-<env>/credentials.env
+sudo nano /opt/docketworks/config/<client>-<env>.credentials.env
 
 # Step 3: create the instance
 sudo scripts/server/instance.sh create <client> <env>
 
 # Or with demo fixtures:
 sudo scripts/server/instance.sh create <client> <env> --seed
+```
+
+`create` is safe to rerun on an existing instance. It preserves generated
+secrets and database passwords, updates `.env` from the credentials file, and
+re-renders systemd, Nginx, backup, sudoers, and frontend config. The explicit
+synonym is:
+
+```bash
+sudo scripts/server/instance.sh reconfigure <client> <env>
 ```
 
 ### Manual steps (reference)
