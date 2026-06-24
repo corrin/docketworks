@@ -117,6 +117,7 @@ require_instance_credentials() {
 
     # Safe only after the root-owned/mode guard above: source executes shell.
     set -a
+    # shellcheck source=/dev/null  # runtime credentials file, path not statically known
     source "$creds_file"
     set +a
 
@@ -661,7 +662,7 @@ do_destroy() {
     echo "    - Timer:     backup-db-$INSTANCE"
     echo "    - Nginx:     docketworks-$INSTANCE"
     echo ""
-    read -p "Are you sure? (yes/no): " CONFIRM
+    read -r -p "Are you sure? (yes/no): " CONFIRM
     if [[ "$CONFIRM" != "yes" ]]; then
         echo "Aborted."
         exit 0
@@ -790,7 +791,6 @@ do_list() {
             sched_status="no service"
         fi
 
-        local inst_dir="$INSTANCES_DIR/$name"
         sha="$(instance_current_sha "$name")"
         if [[ -n "$sha" ]]; then
             sha="${sha:0:12}"

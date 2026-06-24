@@ -24,7 +24,8 @@ MANIFEST="/opt/docketworks/server-manifest.txt"
 # --- Logging helpers ---
 
 log() {
-    local msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
+    local msg
+    msg="[$(date '+%Y-%m-%d %H:%M:%S')] $*"
     echo "$msg" | tee -a "$SETUP_LOG"
 }
 
@@ -207,7 +208,7 @@ log "=========================================="
 log "Base server setup starting"
 log "=========================================="
 log "Host: $(hostname)"
-log "OS: $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2)"
+log "OS: $(lsb_release -ds 2>/dev/null || grep PRETTY_NAME /etc/os-release | cut -d= -f2)"
 log "Arch: $(uname -m)"
 
 # --- System packages (all unconditional installs in one pass) ---
@@ -618,7 +619,7 @@ cat > "$MANIFEST" <<MANIFEST
 # Docketworks Demo Server Manifest
 # Generated: $(date '+%Y-%m-%d %H:%M:%S')
 # Host: $(hostname)
-# OS: $(lsb_release -ds 2>/dev/null || cat /etc/os-release | grep PRETTY_NAME | cut -d= -f2)
+# OS: $(lsb_release -ds 2>/dev/null || grep PRETTY_NAME /etc/os-release | cut -d= -f2)
 # Arch: $(uname -m)
 
 ## Installed Software

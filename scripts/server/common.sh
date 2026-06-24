@@ -1,5 +1,6 @@
 #!/bin/bash
 # Shared constants and helpers for server scripts.
+# shellcheck disable=SC2034  # constants below are consumed by scripts that source this library
 
 DOMAIN="docketworks.site"
 BASE_DIR="/opt/docketworks"

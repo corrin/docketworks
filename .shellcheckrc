@@ -1,0 +1,7 @@
+# Follow `source`d files so shared libraries are analysed, not guessed at.
+external-sources=true
+# Resolve `source "$SCRIPT_DIR/common.sh"` relative to each script's own
+# directory. Without this, every script that sources scripts/server/common.sh
+# (or release-utils.sh) trips SC1091 "not following" and the downstream
+# SC2153 "INSTANCES_DIR may not be assigned" false positives.
+source-path=SCRIPTDIR

@@ -38,7 +38,6 @@ if [[ -z "$DB_NAME" ]]; then
     exit 1
 fi
 
-INST_USER="$(instance_user "$INSTANCE")"
 HASH="$(instance_current_sha "$INSTANCE")"
 if [[ -z "$HASH" ]]; then
     echo "ERROR: could not determine current release SHA for $INSTANCE" >&2

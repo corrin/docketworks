@@ -61,7 +61,10 @@ if [[ -z "$DB_NAME" || -z "$DB_USER" || -z "$DB_PASSWORD" ]]; then
     local_DB_NAME="$DB_NAME"
     local_DB_USER="$DB_USER"
     local_DB_PASSWORD="$DB_PASSWORD"
-    set -a; source "$ENV_FILE"; set +a
+    set -a
+    # shellcheck source=/dev/null  # runtime .env path, not statically resolvable
+    source "$ENV_FILE"
+    set +a
     # Restore any CLI-provided values (they take precedence)
     [[ -n "$local_DB_NAME" ]] && DB_NAME="$local_DB_NAME"
     [[ -n "$local_DB_USER" ]] && DB_USER="$local_DB_USER"

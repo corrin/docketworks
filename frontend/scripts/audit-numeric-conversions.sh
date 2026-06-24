@@ -33,6 +33,6 @@ echo "📋 Generating detailed report..."
   echo ""
   echo "## toString() Occurrences"
   grep -rn "\.toString()" src/ --include="*.vue" --include="*.ts"
-} > .kilocode/tasks/numeric-migration/conversion-audit-$(date +%Y%m%d).md
+} > ".kilocode/tasks/numeric-migration/conversion-audit-$(date +%Y%m%d).md"
 
 echo "✅ Report saved to .kilocode/tasks/numeric-migration/conversion-audit-$(date +%Y%m%d).md"

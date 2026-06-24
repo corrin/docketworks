@@ -41,6 +41,7 @@ DUMP_NAME="scrubbed_${INSTANCE_USER}_${TS}.dump"
 TMP_PATH="/tmp/$DUMP_NAME"
 
 echo ">> Generating $DUMP_NAME on $REMOTE_HOST as $INSTANCE_USER..."
+# shellcheck disable=SC2029  # $INSTANCE_USER and $TMP_PATH are meant to expand client-side
 ssh "$REMOTE_USER@$REMOTE_HOST" \
     "sudo -iu $INSTANCE_USER bash -lc 'python manage.py backport_data_backup --output $TMP_PATH'"
 
@@ -50,6 +51,7 @@ scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
 echo ">> Removing remote staging file..."
 # Dump is owned by $INSTANCE_USER and /tmp has the sticky bit, so the
 # delete has to run as the same user that created it.
+# shellcheck disable=SC2029  # $INSTANCE_USER and $TMP_PATH are meant to expand client-side
 ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -u $INSTANCE_USER rm -f '$TMP_PATH'"
 
 echo ">> Done: $LOCAL_DIR/$DUMP_NAME"

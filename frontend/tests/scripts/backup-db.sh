@@ -16,7 +16,10 @@ if [ ! -f "$BACKEND_ENV_PATH" ]; then
 fi
 
 # Source database credentials from backend .env
-set -a; source "$BACKEND_ENV_PATH"; set +a
+set -a
+# shellcheck source=/dev/null  # runtime .env path, not statically resolvable
+source "$BACKEND_ENV_PATH"
+set +a
 
 if [ -z "${DB_HOST:-}" ]; then
     echo "Error: DB_HOST must be set in $BACKEND_ENV_PATH"
@@ -53,6 +56,7 @@ echo "$BACKUP_FILE" > "$BACKUP_DIR/.latest_backup"
 
 # Clean up old backups (keep last 5)
 cd "$BACKUP_DIR"
+# shellcheck disable=SC2012  # backup_*.sql names are controlled; ls -t gives the mtime order we need
 ls -t backup_*.sql 2>/dev/null | tail -n +6 | xargs -r rm -f
 
 echo "Database backup ready for E2E tests"
