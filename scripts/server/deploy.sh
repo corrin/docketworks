@@ -237,6 +237,8 @@ for instance in "${TARGETS[@]}"; do
     if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD -- frontend/src/typed-router.d.ts; then
         log "  ERROR: server generated a different frontend/src/typed-router.d.ts for $instance"
         log "  Investigate with: sudo -u $inst_user git -C $instance_dir diff -- frontend/src/typed-router.d.ts"
+        log "  Restoring frontend/src/typed-router.d.ts so the checkout is not left dirty"
+        sudo -u "$inst_user" git -C "$instance_dir" restore --source=HEAD -- frontend/src/typed-router.d.ts
         FAILED_INSTANCES+=("$instance")
         continue
     fi

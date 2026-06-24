@@ -167,3 +167,17 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         )
         self.assertIn("chown root:root /opt/docketworks/config", server_setup_content)
         self.assertIn("chmod 755 /opt/docketworks/config", server_setup_content)
+
+    def test_deploy_restores_typed_router_after_drift_detection(self) -> None:
+        content = DEPLOY_SCRIPT.read_text()
+
+        self.assertIn(
+            "server generated a different frontend/src/typed-router.d.ts",
+            content,
+        )
+        self.assertIn(
+            'git -C "$instance_dir" restore --source=HEAD -- '
+            "frontend/src/typed-router.d.ts",
+            content,
+        )
+        self.assertIn('FAILED_INSTANCES+=("$instance")', content)
