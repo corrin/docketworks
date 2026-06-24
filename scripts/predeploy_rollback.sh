@@ -4,15 +4,16 @@ set -euo pipefail
 # Usage: predeploy_rollback.sh <instance> <hash>
 # Example: predeploy_rollback.sh msm-prod b54eddc7
 #
-# Rolls an instance back to a specific commit and its paired pre-deploy
+# Rolls an instance back to a specific release and its paired pre-deploy
 # DB backup. Locates the newest predeploy_*_<hash>.sql.gz in the
-# instance's backups dir, prompts for confirmation, stops gunicorn,
-# checks out the commit, restores the DB, and restarts gunicorn.
+# instance's backups dir, prompts for confirmation, stops services,
+# switches current to the release, restores the DB, and restarts services.
 #
 # Must run as root. Destructive: drops the current DB contents.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/server/common.sh"
+source "$SCRIPT_DIR/server/release-utils.sh"
 
 if [[ $# -ne 2 ]]; then
     echo "Usage: $0 <instance> <hash>"
@@ -54,27 +55,39 @@ BACKUP="${SORTED[-1]}"
 
 echo "=== Rolling $INSTANCE back to $HASH using:"
 echo "===   $BACKUP"
-echo "=== This will stop $SERVICE, check out $HASH, and restore the DB."
+echo "=== This will stop services, switch current to $HASH, and restore the DB."
 read -rp "Continue? [y/N] " ans
 if [[ "$ans" != "y" && "$ans" != "Y" ]]; then
     echo "Aborted."
     exit 1
 fi
 
-echo "=== Stopping $SERVICE"
-systemctl stop "$SERVICE"
+FULL_SHA="$(resolve_existing_release_sha "$HASH")"
+if ! release_complete "$FULL_SHA"; then
+    echo "ERROR: release $FULL_SHA is not present under $RELEASES_DIR" >&2
+    echo "Deploy or rebuild that release before rollback." >&2
+    exit 1
+fi
 
-echo "=== Checking out $HASH in $INSTANCE_DIR"
-sudo -u "$INST_USER" git -C "$INSTANCE_DIR" checkout "$HASH"
+echo "=== Stopping services"
+systemctl stop "celery-beat-$INSTANCE" 2>/dev/null || true
+systemctl stop "celery-worker-$INSTANCE" 2>/dev/null || true
+systemctl stop "$SERVICE" 2>/dev/null || true
+
+echo "=== Switching current release to $FULL_SHA"
+switch_instance_release "$INSTANCE" "$FULL_SHA"
+chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/current"
 
 echo "=== Restoring DB $DB_NAME from $BACKUP"
 gunzip -c "$BACKUP" | sudo -u postgres psql "$DB_NAME"
 
-echo "=== Starting $SERVICE"
-systemctl start "$SERVICE"
+echo "=== Starting services"
+if [[ -f "$INSTANCE_DIR/.dr-mode" ]]; then
+    echo "=== DR mode present; leaving services stopped."
+else
+    systemctl start "celery-worker-$INSTANCE"
+    systemctl start "celery-beat-$INSTANCE"
+    systemctl start "$SERVICE"
+fi
 
 echo "=== Rollback complete."
-echo "=== Note: frontend dist and shared Python/node deps were NOT rebuilt."
-echo "=== If the old commit's deps or frontend diverge from current shared state, run:"
-echo "===   sudo $SCRIPT_DIR/server/dw-run.sh $INSTANCE bash -c 'cd frontend && npm run build'"
-echo "=== and/or re-run poetry install from $LOCAL_REPO."

@@ -14,16 +14,30 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env", override=False)
 
-# Git SHA of the running process. Served by /api/build-id/ so the frontend can
-# detect when a deploy has happened and force a reload. Captured at import
-# time: gunicorn restart on deploy re-imports and picks up the new SHA.
-BUILD_ID = subprocess.run(
-    ["git", "rev-parse", "HEAD"],
-    cwd=BASE_DIR,
-    check=True,
-    capture_output=True,
-    text=True,
-).stdout.strip()
+
+def read_build_id() -> str:
+    """Return the release SHA for this running process."""
+    env_sha = os.environ.get("DOCKETWORKS_BUILD_SHA", "").strip()
+    if env_sha:
+        return env_sha
+
+    release_sha_file = BASE_DIR / ".release-sha"
+    if release_sha_file.exists():
+        return release_sha_file.read_text().strip()
+
+    return subprocess.run(
+        ["git", "rev-parse", "HEAD"],
+        cwd=BASE_DIR,
+        check=True,
+        capture_output=True,
+        text=True,
+    ).stdout.strip()
+
+
+# Served by /api/build-id/ so the frontend can detect when a deploy has
+# happened and force a reload. Captured at import time: gunicorn restart on
+# deploy re-imports and picks up the new release SHA.
+BUILD_ID = read_build_id()
 
 
 def validate_required_settings() -> None:

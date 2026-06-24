@@ -24,10 +24,6 @@ declare module 'dompurify' {
   export default DOMPurify
 }
 
-interface ImportMetaEnv {
-  readonly VITE_UAT_URL?: string
-}
-
 interface ImportMeta {
   readonly env: ImportMetaEnv
 }

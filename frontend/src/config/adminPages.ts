@@ -104,9 +104,20 @@ export const adminExternalLinks: AdminPage[] = [
     title: 'Open UAT',
     icon: ExternalLink,
     component: () => Promise.resolve({} as Component),
-    externalUrl: import.meta.env.VITE_UAT_URL,
+    externalUrl: getUatUrl(),
   },
 ].filter((link) => link.externalUrl)
 
 // Default admin page (for redirect from /admin)
 export const defaultAdminPage = adminPages[0]
+
+function getUatUrl(): string | undefined {
+  if (typeof window === 'undefined') return undefined
+
+  const host = window.location.hostname
+  const match = /^(?<client>.+)-(?<env>dev|uat|staging|prod|demo)\.docketworks\.site$/.exec(host)
+  const client = match?.groups?.client
+  if (!client) return undefined
+
+  return `https://${client}-uat.docketworks.site`
+}

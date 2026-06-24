@@ -648,6 +648,10 @@ chown docketworks:docketworks /opt/docketworks/instances
 # groups and need world-x to traverse into their own instance dir.
 chmod 755 /opt/docketworks/instances
 
+mkdir -p /opt/docketworks/releases /opt/docketworks/.npm-cache
+chown docketworks:docketworks /opt/docketworks/releases /opt/docketworks/.npm-cache
+chmod 755 /opt/docketworks/releases
+
 # --- Clone repository (HTTPS, no SSH key needed) ---
 
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
@@ -669,43 +673,9 @@ git config --system --add safe.directory "$LOCAL_REPO"
 git config --system --unset-all safe.directory "${LOCAL_REPO}/.git" 2>/dev/null || true
 git config --system --add safe.directory "${LOCAL_REPO}/.git"
 
-# --- Create shared Python venv + install dependencies ---
-
-SHARED_VENV="/opt/docketworks/.venv"
-
-if [[ -d "$SHARED_VENV" ]]; then
-    log "Shared venv already exists, updating dependencies..."
-else
-    log "Creating shared Python venv at $SHARED_VENV..."
-    sudo -u docketworks python3.12 -m venv "$SHARED_VENV"
-fi
-
-sudo -u docketworks bash -c "
-    export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
-    export POETRY_VIRTUALENVS_CREATE=false
-    source '$SHARED_VENV/bin/activate'
-    pip install --upgrade pip
-    cd '$LOCAL_REPO'
-    poetry install --no-interaction
-"
-log "  Shared Python dependencies installed."
-
-# --- Install shared node_modules ---
-
-log "Installing shared node_modules..."
-sudo -u docketworks bash -c "
-    cp '$LOCAL_REPO/frontend/package.json' '/opt/docketworks/package.json'
-    cp '$LOCAL_REPO/frontend/package-lock.json' '/opt/docketworks/package-lock.json'
-    REQUIRED_NODE_MAJOR=\$(tr -d 'v[:space:]' < '$LOCAL_REPO/frontend/.nvmrc')
-    CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
-    if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
-        echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2
-        exit 1
-    fi
-    cd /opt/docketworks
-    npm ci --include=dev
-"
-log "  Shared node_modules installed."
+# App dependencies are installed per immutable release by deploy.sh. This keeps
+# idle instances cheap while preventing one instance deploy from mutating the
+# runtime dependencies used by another instance.
 
 # --- Install shared Playwright browsers ---
 

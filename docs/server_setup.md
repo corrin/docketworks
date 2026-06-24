@@ -130,80 +130,13 @@ sudo scripts/server/instance.sh reconfigure <client> <env>
 sudo scripts/server/instance.sh create <client> <env> --seed
 ```
 
-### Manual steps (reference)
+### What instance.sh creates
 
-1. **Clone repo**
-   ```bash
-   sudo -u dw-<name> git clone git@github.com:corrin/docketworks.git /opt/docketworks/instances/<name>
-   ```
-
-2. **Create PostgreSQL databases and roles**
-
-   Two roles per instance: the app role owns the live and scrub DBs; a
-   separate test role owns only the pre-provisioned test DB and has no
-   CREATEDB, so a misconfigured pytest run cannot reach the app DB.
-
-   ```bash
-   sudo -u postgres psql <<SQL
-   CREATE ROLE "dw_<name>" WITH LOGIN PASSWORD '<password>';
-   CREATE ROLE "dw_<name>_test" WITH LOGIN PASSWORD '<test_password>';
-   CREATE DATABASE "dw_<name>" OWNER "dw_<name>";
-   CREATE DATABASE "dw_<name>_scrub" OWNER "dw_<name>";
-   CREATE DATABASE "dw_<name>_test" OWNER "dw_<name>_test";
-   GRANT ALL PRIVILEGES ON DATABASE "dw_<name>" TO "dw_<name>";
-   GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_scrub" TO "dw_<name>";
-   GRANT ALL PRIVILEGES ON DATABASE "dw_<name>_test" TO "dw_<name>_test";
-   SQL
-   ```
-
-   Pytest never needs CREATEDB: `conftest.py` resets the public schema in
-   `dw_<name>_test` (the test role owns the DB) and re-runs migrations on
-   every session.
-
-3. **Generate `.env`** from `scripts/server/templates/env-instance.template`
-   - Replace all `__PLACEHOLDER__` values
-   - `chmod 600 /opt/docketworks/instances/<name>/.env`
-
-4. **Install dependencies** (uses shared venv)
-   ```bash
-   scripts/server/dw-run.sh <name> poetry install --no-interaction
-   ```
-
-5. **Migrate**
-   ```bash
-   scripts/server/dw-run.sh <name> python manage.py migrate --no-input
-   ```
-
-6. **Load fixtures** (optional)
-   ```bash
-   scripts/server/dw-run.sh <name> python manage.py loaddata demo_fixtures
-   ```
-
-7. **Build frontend**
-   ```bash
-   sudo -u dw-<name> bash -c "
-       cd /opt/docketworks/instances/<name>/frontend
-       npm install
-       npm run build
-   "
-   ```
-
-8. **Install systemd service**
-   ```bash
-   sudo sed 's/__INSTANCE__/<name>/g' scripts/server/templates/gunicorn-instance.service.template \
-       > /etc/systemd/system/gunicorn-<name>.service
-   sudo systemctl daemon-reload
-   sudo systemctl enable --now gunicorn-<name>
-   ```
-
-9. **Install Nginx server block**
-   ```bash
-   sudo sed -e 's/__INSTANCE__/<name>/g' -e 's/__DOMAIN__/docketworks.site/g' \
-       scripts/server/templates/nginx-instance.conf.template \
-       > /etc/nginx/sites-available/docketworks-<name>
-   sudo ln -sf /etc/nginx/sites-available/docketworks-<name> /etc/nginx/sites-enabled/
-   sudo nginx -t && sudo systemctl reload nginx
-   ```
+`instance.sh create` is the supported provisioning path. It creates the OS
+user, databases, generated `.env`, per-instance data directories, service
+units, backup timer, nginx config, and `current` symlink to a shared
+`/opt/docketworks/releases/<sha>` release. App code, Python dependencies, and
+frontend builds live in the shared release, not in the instance directory.
 
 ### Migrating an instance created before per-tenant test roles
 
@@ -252,6 +185,7 @@ For a prospect trying DocketWorks with their own Xero:
 1. **Instance created** — admin user auto-created (`defaultadmin@example.com` / `Default-admin-password`)
 
 2. **Load CompanyDefaults fixture**
+
    ```bash
    # Copy the template and edit with prospect's details
    cp apps/workflow/fixtures/company_defaults_prospect.json \
@@ -268,6 +202,7 @@ For a prospect trying DocketWorks with their own Xero:
 3. **Xero OAuth** — log into `https://<name>.docketworks.site` as admin, go to Admin > Xero Settings, click "Login with Xero" and authorize
 
 4. **Xero configuration**
+
    ```bash
    scripts/server/dw-run.sh <name> python manage.py xero --setup
    scripts/server/dw-run.sh <name> python manage.py xero --configure-payroll
@@ -275,6 +210,7 @@ For a prospect trying DocketWorks with their own Xero:
    ```
 
 5. **Import staff from Xero**
+
    ```bash
    # Preview first
    scripts/server/dw-run.sh <name> python manage.py xero --import-staff-dry-run
@@ -282,6 +218,7 @@ For a prospect trying DocketWorks with their own Xero:
    # Then import
    scripts/server/dw-run.sh <name> python manage.py xero --import-staff
    ```
+
    This pulls employees from Xero Payroll and creates Staff records with their
    wage rates and working hours. All imported staff get `password_needs_reset=True`.
 
@@ -401,11 +338,11 @@ Merging a PR to `main` triggers a two-step deployment process:
 
 Add these GitHub repository secrets:
 
-| Secret | Value |
-|--------|-------|
+| Secret        | Value                                                           |
+| ------------- | --------------------------------------------------------------- |
 | `UAT_SSH_KEY` | Private SSH key that can connect to the server as `docketworks` |
-| `UAT_HOST` | Server IP address |
-| `UAT_USER` | `docketworks` |
+| `UAT_HOST`    | Server IP address                                               |
+| `UAT_USER`    | `docketworks`                                                   |
 
 To generate the SSH key:
 

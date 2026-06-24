@@ -38,7 +38,7 @@ sudo ./scripts/server/deploy.sh <client>-<env>
 sudo ./scripts/server/deploy.sh --all
 ```
 
-That's it for a normal code release. `deploy.sh` pulls `main` itself, then for each instance takes a pre-deploy DB backup, runs migrations, rebuilds the frontend, and restarts its services — you don't run anything per service.
+That's it for a normal code release. `deploy.sh` pulls `main` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, switches `current` to that release, runs migrations, and restarts its services — you don't run anything per service.
 
 **Only if the release changed per-instance config** that `deploy.sh` does not re-render — a new `.env` variable, or a change to the gunicorn systemd unit — also run, once per instance:
 
@@ -53,7 +53,6 @@ For architecture, see [server_setup.md](server_setup.md); for the exact internal
 If you encounter issues after updating:
 
 1. Check the logs:
-
    - SQL logs: `logs/debug_sql.log`
    - Xero integration: `logs/xero_integration.log`
 
