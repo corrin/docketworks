@@ -203,11 +203,18 @@ sudo -u docketworks bash -c "
 
 # --- Update shared node_modules ---
 log "Updating shared node_modules..."
+REQUIRED_NODE_MAJOR="$(node_major_from_nvmrc "$LOCAL_REPO/frontend/.nvmrc")"
 sudo -u docketworks bash -c "
     cp '$LOCAL_REPO/frontend/package.json' '$BASE_DIR/package.json'
     cp '$LOCAL_REPO/frontend/package-lock.json' '$BASE_DIR/package-lock.json'
+    REQUIRED_NODE_MAJOR='$REQUIRED_NODE_MAJOR'
+    CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
+    if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
+        echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2
+        exit 1
+    fi
     cd '$BASE_DIR'
-    npm install
+    npm ci --include=dev
 "
 
 # --- Per-instance: build, migrate, restart ---
@@ -224,9 +231,18 @@ for instance in "${TARGETS[@]}"; do
     log "  Building frontend..."
     sudo -u "$inst_user" bash -c "
         cd '$instance_dir/frontend'
+        npm run check:typed-router
         npm run build
         npm run manual:build
     "
+    if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD -- frontend/src/typed-router.d.ts; then
+        log "  ERROR: server generated a different frontend/src/typed-router.d.ts for $instance"
+        log "  Investigate with: sudo -u $inst_user git -C $instance_dir diff -- frontend/src/typed-router.d.ts"
+        log "  Restoring frontend/src/typed-router.d.ts so the checkout is not left dirty"
+        sudo -u "$inst_user" git -C "$instance_dir" restore --source=HEAD -- frontend/src/typed-router.d.ts
+        FAILED_INSTANCES+=("$instance")
+        continue
+    fi
 
     # Collect static files + run migrations
     log "  Running migrate..."
@@ -286,6 +302,7 @@ for instance in "${TARGETS[@]}"; do
     backup_root_folder_id=""
     creds_file="$CONFIG_DIR/$instance.credentials.env"
     if [[ -f "$creds_file" ]]; then
+        require_root_owned_credentials_file "$creds_file"
         backup_root_folder_id="$(
             bash -c 'set -a; source "$1"; printf "%s" "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"' _ "$creds_file"
         )"

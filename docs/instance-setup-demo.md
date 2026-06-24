@@ -18,11 +18,22 @@ Onboard a prospect for a paid trial of DocketWorks. Uses dummy staff but the pro
 sudo scripts/server/instance.sh prepare-config <client> uat
 ```
 
-Fill in `/opt/docketworks/instances/<client>-uat/credentials.env`:
+Edit the root-owned credentials file:
+
+```bash
+sudoedit /opt/docketworks/config/<client>-uat.credentials.env
+```
+
+Fill in:
+- XERO_DEFAULT_USER_ID — the existing Xero Demo Company login/user ID that will own time entries
 - GCP_CREDENTIALS — shared dev service account key
 - EMAIL credentials
 
-(The Xero Client ID, Client Secret, and Webhook Key for the **Xero Demo Company** app go into the `xero_apps.json` fixture in Step 3.5, not `credentials.env`.)
+XERO_DEFAULT_USER_ID must be present before `instance.sh create` runs.
+
+Also fill in the Xero Client ID, Client Secret, Webhook Key, and Redirect URI
+for the **Xero Demo Company** app. `instance.sh create` uses these values to
+render and load the initial XeroApp fixture.
 
 ## Step 2: Create Instance
 
@@ -47,23 +58,8 @@ scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fi
 scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_company_defaults.py
 ```
 
-## Step 3.5: Load Xero App Credentials
+## Step 3.5: Check Xero App Credentials
 
-Copy the example fixture and fill in the **Xero Demo Company** app's Client ID, Client Secret, Redirect URI, and Webhook Key. Set `label` to something identifiable like `<client>-uat xero`.
-
-```bash
-# instance.sh creates the checkout directly at /opt/docketworks/instances/<INSTANCE>/
-# (no /docketworks suffix) and the OS user as dw_<client>_<env> (underscores —
-# matches the DB role; see scripts/server/common.sh:instance_user).
-INSTANCE_DIR=/opt/docketworks/instances/<client>-uat
-sudo -u dw_<client>_uat cp \
-  $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json.example \
-  $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
-sudo -u dw_<client>_uat $EDITOR $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
-scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fixtures/xero_apps.json
-```
-
-**Check:**
 ```bash
 scripts/server/dw-run.sh <client>-uat python scripts/restore_checks/check_xero_app.py
 ```

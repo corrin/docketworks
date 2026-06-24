@@ -4,6 +4,7 @@ set -euo pipefail
 # Manage docketworks instances.
 # Usage: instance.sh prepare-config <client> <env>
 #        instance.sh create <client> <env> [--seed] [--fqdn <hostname>] [--no-start]
+#        instance.sh reconfigure <client> <env> [--fqdn <hostname>] [--no-start]
 #        instance.sh destroy <client> <env>
 #        instance.sh list
 #
@@ -74,9 +75,10 @@ do_prepare_config() {
         exit 0
     fi
 
-    mkdir -p "$CONFIG_DIR"
+    ensure_config_dir
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
+    chown root:root "$CREDS_FILE"
     chmod 600 "$CREDS_FILE"
 
     echo ""
@@ -91,48 +93,59 @@ do_prepare_config() {
     echo "============================================================"
 }
 
-# ============================================================
-# create
-# ============================================================
-do_create() {
-    parse_client_env "$@"
-    shift 2
+read_env_value() {
+    local env_file="$1"
+    local var_name="$2"
+    local line value
 
-    local SEED=false
-    local CUSTOM_FQDN=""
-    local NO_START=false
-    local parsed
-    if ! parsed=$(getopt -o '' --long seed,fqdn:,no-start -n "$(basename "$0") create" -- "$@"); then
-        echo "Usage: $(basename "$0") create <client> <env> [--seed] [--fqdn <hostname>] [--no-start]" >&2
-        exit 1
+    if [[ ! -f "$env_file" ]]; then
+        printf ""
+        return
     fi
-    eval set -- "$parsed"
-    while true; do
-        case "$1" in
-            --seed)     SEED=true;        shift ;;
-            --fqdn)     CUSTOM_FQDN="$2"; shift 2 ;;
-            --no-start) NO_START=true;    shift ;;
-            --)         shift; break ;;
-        esac
-    done
-    if [[ $# -gt 0 ]]; then
-        echo "ERROR: Unexpected arguments to 'create': $*" >&2
+    if [[ ! "$var_name" =~ ^[A-Z0-9_]+$ ]]; then
+        echo "ERROR: Invalid env var name requested: $var_name" >&2
         exit 1
     fi
 
-    # --- Read instance credentials file ---
-    local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
-    if [[ ! -f "$CREDS_FILE" ]]; then
-        echo "ERROR: No credentials file found at $CREDS_FILE"
+    line="$(grep -m1 -E "^${var_name}=" "$env_file" || true)"
+    if [[ -z "$line" ]]; then
+        printf ""
+        return
+    fi
+
+    value="${line#*=}"
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+    printf "%s" "$value"
+}
+
+generate_secret() {
+    python3 -c 'import secrets; print(secrets.token_urlsafe(50))'
+}
+
+generate_password() {
+    openssl rand -base64 24 | tr -d '/+=' | head -c 32
+}
+
+require_instance_credentials() {
+    local creds_file="$1"
+
+    if [[ ! -f "$creds_file" ]]; then
+        echo "ERROR: No credentials file found at $creds_file"
         echo ""
         echo "Run prepare-config first:"
         echo "  sudo $0 prepare-config $CLIENT $ENV"
         exit 1
     fi
 
-    # Safe: edited only by the sysadmin who already has root access to run this script
+    require_root_owned_credentials_file "$creds_file"
+
+    # Safe only after the root-owned/mode guard above: source executes shell.
     set -a
-    source "$CREDS_FILE"
+    source "$creds_file"
     set +a
 
     local MISSING=()
@@ -155,19 +168,195 @@ do_create() {
     [[ -z "${XERO_REDIRECT_URI:-}" ]] && MISSING+=("XERO_REDIRECT_URI")
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
-        echo "ERROR: Missing required values in $CREDS_FILE:"
+        echo "ERROR: Missing required values in $creds_file:"
         for var in "${MISSING[@]}"; do
             echo "  - $var"
         done
         exit 1
     fi
 
-    # Validate GCP credentials file exists at the path provided
     if [[ ! -f "$GCP_CREDENTIALS" ]]; then
         echo "ERROR: GCP_CREDENTIALS file not found: $GCP_CREDENTIALS"
-        echo "  Provide a valid path to a GCP service account JSON key in $CREDS_FILE"
+        echo "  Provide a valid path to a GCP service account JSON key in $creds_file"
         exit 1
     fi
+}
+
+render_instance_env() {
+    local instance_dir="$1"
+    local instance_user="$2"
+    local db_name="$3"
+    local db_user="$4"
+    local scrub_db_name="$5"
+    local test_db_user="$6"
+    local fqdn="$7"
+
+    local env_file="$instance_dir/.env"
+    local db_password test_db_password secret_key bearer_secret
+    db_password="$(read_env_value "$env_file" DB_PASSWORD)"
+    test_db_password="$(read_env_value "$env_file" TEST_DB_PASSWORD)"
+    secret_key="$(read_env_value "$env_file" SECRET_KEY)"
+    bearer_secret="$(read_env_value "$env_file" BEARER_SECRET)"
+
+    [[ -n "$db_password" ]] || db_password="$(generate_password)"
+    [[ -n "$test_db_password" ]] || test_db_password="$(generate_password)"
+    [[ -n "$secret_key" ]] || secret_key="$(generate_secret)"
+    [[ -n "$bearer_secret" ]] || bearer_secret="$(generate_secret)"
+
+    local ESC_XERO_DEFAULT_USER_ID
+    ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
+    local ESC_EMAIL_HOST_USER ESC_EMAIL_HOST_PASSWORD ESC_DJANGO_ADMINS ESC_EMAIL_BCC
+    ESC_EMAIL_HOST_USER="$(sed_escape "$EMAIL_HOST_USER")"
+    ESC_EMAIL_HOST_PASSWORD="$(sed_escape "$EMAIL_HOST_PASSWORD")"
+    ESC_DJANGO_ADMINS="$(sed_escape "$DJANGO_ADMINS")"
+    ESC_EMAIL_BCC="$(sed_escape "$EMAIL_BCC")"
+    local gcp_dest="$instance_dir/gcp-credentials.json"
+    local tmp_env
+    tmp_env="$(mktemp "$instance_dir/.env.tmp.XXXXXX")"
+
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__DOMAIN__|$DOMAIN|g" \
+        -e "s|__FQDN__|$fqdn|g" \
+        -e "s|__DB_NAME__|$db_name|g" \
+        -e "s|__DB_USER__|$db_user|g" \
+        -e "s|__DB_PASSWORD__|$db_password|g" \
+        -e "s|__SCRUB_DB_NAME__|$scrub_db_name|g" \
+        -e "s|__TEST_DB_USER__|$test_db_user|g" \
+        -e "s|__TEST_DB_PASSWORD__|$test_db_password|g" \
+        -e "s|__SECRET_KEY__|$secret_key|g" \
+        -e "s|__BEARER_SECRET__|$bearer_secret|g" \
+        -e "s|__XERO_DEFAULT_USER_ID__|$ESC_XERO_DEFAULT_USER_ID|g" \
+        -e "s|__GCP_CREDENTIALS_PATH__|$gcp_dest|g" \
+        -e "s|__EMAIL_HOST_USER__|$ESC_EMAIL_HOST_USER|g" \
+        -e "s|__EMAIL_HOST_PASSWORD__|$ESC_EMAIL_HOST_PASSWORD|g" \
+        -e "s|__DJANGO_ADMINS__|$ESC_DJANGO_ADMINS|g" \
+        -e "s|__EMAIL_BCC__|$ESC_EMAIL_BCC|g" \
+        "$TEMPLATE_DIR/env-instance.template" > "$tmp_env"
+
+    local shared_env="$BASE_DIR/shared.env"
+    if [[ ! -f "$shared_env" ]]; then
+        rm -f "$tmp_env"
+        echo "ERROR: $shared_env not found. Run server-setup.sh first."
+        exit 1
+    fi
+    echo "" >> "$tmp_env"
+    grep '^GOOGLE_MAPS_API_KEY=' "$shared_env" >> "$tmp_env"
+    chown "$instance_user:$instance_user" "$tmp_env"
+    chmod 600 "$tmp_env"
+    mv "$tmp_env" "$env_file"
+}
+
+render_frontend_env() {
+    local instance_dir="$1"
+    local instance_user="$2"
+    local frontend_env="$instance_dir/frontend/.env"
+
+    log "Rendering frontend/.env from template..."
+    local ESC_E2E_TEST_USERNAME ESC_E2E_TEST_PASSWORD ESC_XERO_USERNAME ESC_XERO_PASSWORD
+    ESC_E2E_TEST_USERNAME="$(sed_escape "$E2E_TEST_USERNAME")"
+    ESC_E2E_TEST_PASSWORD="$(sed_escape "$E2E_TEST_PASSWORD")"
+    ESC_XERO_USERNAME="$(sed_escape "$XERO_USERNAME")"
+    ESC_XERO_PASSWORD="$(sed_escape "$XERO_PASSWORD")"
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__CLIENT__|$CLIENT|g" \
+        -e "s|__DOMAIN__|$DOMAIN|g" \
+        -e "s|__E2E_TEST_USERNAME__|$ESC_E2E_TEST_USERNAME|g" \
+        -e "s|__E2E_TEST_PASSWORD__|$ESC_E2E_TEST_PASSWORD|g" \
+        -e "s|__XERO_USERNAME__|$ESC_XERO_USERNAME|g" \
+        -e "s|__XERO_PASSWORD__|$ESC_XERO_PASSWORD|g" \
+        "$TEMPLATE_DIR/frontend-env-instance.template" > "$frontend_env"
+    chown "$instance_user:$instance_user" "$frontend_env"
+    chmod 600 "$frontend_env"
+}
+
+render_ai_providers_fixture() {
+    local instance_dir="$1"
+    local instance_user="$2"
+
+    log "Generating AI providers fixture..."
+    local ESC_ANTHROPIC_API_KEY ESC_GEMINI_API_KEY ESC_MISTRAL_API_KEY
+    ESC_ANTHROPIC_API_KEY="$(sed_escape "$ANTHROPIC_API_KEY")"
+    ESC_GEMINI_API_KEY="$(sed_escape "$GEMINI_API_KEY")"
+    ESC_MISTRAL_API_KEY="$(sed_escape "$MISTRAL_API_KEY")"
+    sed \
+        -e "s|__ANTHROPIC_API_KEY__|$ESC_ANTHROPIC_API_KEY|g" \
+        -e "s|__GEMINI_API_KEY__|$ESC_GEMINI_API_KEY|g" \
+        -e "s|__MISTRAL_API_KEY__|$ESC_MISTRAL_API_KEY|g" \
+        "$TEMPLATE_DIR/ai-providers.json.template" \
+        > "$instance_dir/apps/workflow/fixtures/ai_providers.json"
+    chown "$instance_user:$instance_user" \
+        "$instance_dir/apps/workflow/fixtures/ai_providers.json"
+    chmod 600 "$instance_dir/apps/workflow/fixtures/ai_providers.json"
+}
+
+render_xero_apps_fixture() {
+    local instance_dir="$1"
+    local instance_user="$2"
+
+    log "Generating Xero apps fixture..."
+    local ESC_XERO_CLIENT_ID ESC_XERO_CLIENT_SECRET ESC_XERO_WEBHOOK_KEY ESC_XERO_REDIRECT_URI
+    ESC_XERO_CLIENT_ID="$(sed_escape "$XERO_CLIENT_ID")"
+    ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
+    ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
+    ESC_XERO_REDIRECT_URI="$(sed_escape "$XERO_REDIRECT_URI")"
+    sed \
+        -e "s|__INSTANCE__|$INSTANCE|g" \
+        -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
+        -e "s|__XERO_CLIENT_SECRET__|$ESC_XERO_CLIENT_SECRET|g" \
+        -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
+        -e "s|__XERO_REDIRECT_URI__|$ESC_XERO_REDIRECT_URI|g" \
+        "$TEMPLATE_DIR/xero-apps.json.template" \
+        > "$instance_dir/apps/workflow/fixtures/xero_apps.json"
+    chown "$instance_user:$instance_user" \
+        "$instance_dir/apps/workflow/fixtures/xero_apps.json"
+    chmod 600 "$instance_dir/apps/workflow/fixtures/xero_apps.json"
+}
+
+# ============================================================
+# create / reconfigure
+# ============================================================
+do_configure() {
+    local allow_seed="$1"
+    local command_name="$2"
+    shift 2
+
+    parse_client_env "$@"
+    shift 2
+
+    local SEED=false
+    local CUSTOM_FQDN=""
+    local NO_START=false
+    local parsed
+    local long_opts="fqdn:,no-start"
+    if [[ "$allow_seed" == "true" ]]; then
+        long_opts="seed,$long_opts"
+    fi
+    if ! parsed=$(getopt -o '' --long "$long_opts" -n "$(basename "$0") $command_name" -- "$@"); then
+        if [[ "$allow_seed" == "true" ]]; then
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--seed] [--fqdn <hostname>] [--no-start]" >&2
+        else
+            echo "Usage: $(basename "$0") $command_name <client> <env> [--fqdn <hostname>] [--no-start]" >&2
+        fi
+        exit 1
+    fi
+    eval set -- "$parsed"
+    while true; do
+        case "$1" in
+            --seed)     SEED=true;        shift ;;
+            --fqdn)     CUSTOM_FQDN="$2"; shift 2 ;;
+            --no-start) NO_START=true;    shift ;;
+            --)         shift; break ;;
+        esac
+    done
+    if [[ $# -gt 0 ]]; then
+        echo "ERROR: Unexpected arguments to '$command_name': $*" >&2
+        exit 1
+    fi
+
+    local CREDS_FILE="$CONFIG_DIR/$INSTANCE.credentials.env"
+    require_instance_credentials "$CREDS_FILE"
 
     local INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
     local INSTANCE_USER
@@ -177,9 +366,26 @@ do_create() {
     local SCRUB_DB_NAME="dw_${CLIENT}_${ENV}_scrub"
     local TEST_DB_USER="dw_${CLIENT}_${ENV}_test"
     local TEST_DB_NAME="$TEST_DB_USER"
+    local IS_EXISTING=false
+    local NEEDS_APP_BOOTSTRAP=false
+    if [[ -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
+        IS_EXISTING=true
+    fi
+    if [[ ! -d "$INSTANCE_DIR/.git" ]]; then
+        NEEDS_APP_BOOTSTRAP=true
+    fi
+    if [[ -d "$INSTANCE_DIR/.git" && "$SEED" == "true" ]]; then
+        echo "ERROR: --seed is only valid when creating a new instance." >&2
+        echo "  Existing instance: $INSTANCE_DIR" >&2
+        exit 1
+    fi
 
     log "=========================================="
-    log "Creating docketworks instance: $INSTANCE"
+    if [[ "$IS_EXISTING" == "true" ]]; then
+        log "Reconfiguring docketworks instance: $INSTANCE"
+    else
+        log "Creating docketworks instance: $INSTANCE"
+    fi
     log "  Client:    $CLIENT"
     log "  Env:       $ENV"
     log "  Directory: $INSTANCE_DIR (= git checkout)"
@@ -215,35 +421,40 @@ do_create() {
         log "WARNING: setquota not found — install quota package: sudo apt install quota"
     fi
 
-    # --- Create instance directory structure ---
-    # Instance dir is 750 with group www-data so nginx can traverse to
-    # mediafiles, frontend/dist, and gunicorn.sock.
-    # .env and logs stay owner-only (dw_<client>_<env>:dw_<client>_<env>, 600/700).
-    # Instance users have NO supplementary groups, so dw_acme_uat cannot
-    # traverse dw_msm_uat's dir (not owner, not in www-data).
-    # Derive FQDN and cert domain
     local FQDN CERT_DOMAIN
     if [[ -n "$CUSTOM_FQDN" ]]; then
         FQDN="$CUSTOM_FQDN"
         CERT_DOMAIN="$CUSTOM_FQDN"
+    elif [[ "$IS_EXISTING" == "true" && -f "$INSTANCE_DIR/.fqdn" ]]; then
+        FQDN="$(cat "$INSTANCE_DIR/.fqdn")"
+        if [[ "$FQDN" == *".$DOMAIN" ]]; then
+            CERT_DOMAIN="$DOMAIN"
+        else
+            CERT_DOMAIN="$FQDN"
+        fi
     else
         FQDN="${INSTANCE}.${DOMAIN}"
         CERT_DOMAIN="$DOMAIN"
     fi
 
-    log "Creating instance directory structure..."
-    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox}
-    chown -R "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
+    log "Ensuring instance directory structure..."
+    mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
     chmod 750 "$INSTANCE_DIR"
+    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"
     chmod 700 "$INSTANCE_DIR/logs"
     chmod 700 "$INSTANCE_DIR/dropbox"
-    # Lock down credentials file — not needed by www-data
-    chmod 600 "$CREDS_FILE"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$CREDS_FILE"
-    # Copy GCP service account key into instance dir with restricted perms
+    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"
+    chmod 750 "$INSTANCE_DIR/mediafiles"
+    chown "$INSTANCE_USER:$INSTANCE_USER" \
+        "$INSTANCE_DIR/phone-recordings" \
+        "$INSTANCE_DIR/session-replays"
+    chmod 700 "$INSTANCE_DIR/phone-recordings" "$INSTANCE_DIR/session-replays"
+    require_root_owned_credentials_file "$CREDS_FILE"
     cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
+
     log "Writing rclone config for $INSTANCE to $(instance_rclone_config "$INSTANCE")..."
     write_instance_rclone_config \
         "$INSTANCE" \
@@ -251,11 +462,8 @@ do_create() {
         "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"
     echo "$FQDN" > "$INSTANCE_DIR/.fqdn"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
-    # Symlink shared venv into instance dir so the user can `source ~/.venv/bin/activate`
     ln -sfn "$SHARED_VENV" "$INSTANCE_DIR/.venv"
-    # Create .bash_profile that activates venv and loads .env.
-    # .bash_profile (not .bashrc) because SSH login shells read .bash_profile.
-    # The home dir IS the git checkout, so no cd needed.
+
     cat > "$INSTANCE_DIR/.bash_profile" <<'BASH_PROFILE'
 source ~/.venv/bin/activate
 set -a; source ~/.env; set +a
@@ -263,69 +471,19 @@ BASH_PROFILE
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.bash_profile"
     chmod 644 "$INSTANCE_DIR/.bash_profile"
 
-    # --- Generate .env (skip if it already exists) ---
-    if [[ -f "$INSTANCE_DIR/.env" ]]; then
-        log ".env already exists — skipping (credentials preserved)."
-    else
-        local DB_PASSWORD TEST_DB_PASSWORD SECRET_KEY BEARER_SECRET
-        DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-        TEST_DB_PASSWORD="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
-        SECRET_KEY="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
-        BEARER_SECRET="$(python3 -c 'import secrets; print(secrets.token_urlsafe(50))')"
+    log "Rendering .env from template (preserving generated secrets)..."
+    render_instance_env \
+        "$INSTANCE_DIR" \
+        "$INSTANCE_USER" \
+        "$DB_NAME" \
+        "$DB_USER" \
+        "$SCRUB_DB_NAME" \
+        "$TEST_DB_USER" \
+        "$FQDN"
 
-        log "Generating .env from template..."
-        # Escape sed-special chars in values that come from human-edited credentials.env
-        local ESC_XERO_DEFAULT_USER_ID
-        ESC_XERO_DEFAULT_USER_ID="$(sed_escape "$XERO_DEFAULT_USER_ID")"
-        local ESC_EMAIL_HOST_USER ESC_EMAIL_HOST_PASSWORD ESC_DJANGO_ADMINS ESC_EMAIL_BCC
-        ESC_EMAIL_HOST_USER="$(sed_escape "$EMAIL_HOST_USER")"
-        ESC_EMAIL_HOST_PASSWORD="$(sed_escape "$EMAIL_HOST_PASSWORD")"
-        ESC_DJANGO_ADMINS="$(sed_escape "$DJANGO_ADMINS")"
-        ESC_EMAIL_BCC="$(sed_escape "$EMAIL_BCC")"
-        local GCP_DEST="$INSTANCE_DIR/gcp-credentials.json"
-        sed \
-            -e "s|__INSTANCE__|$INSTANCE|g" \
-            -e "s|__DOMAIN__|$DOMAIN|g" \
-            -e "s|__FQDN__|$FQDN|g" \
-            -e "s|__DB_NAME__|$DB_NAME|g" \
-            -e "s|__DB_USER__|$DB_USER|g" \
-            -e "s|__DB_PASSWORD__|$DB_PASSWORD|g" \
-            -e "s|__SCRUB_DB_NAME__|$SCRUB_DB_NAME|g" \
-            -e "s|__TEST_DB_USER__|$TEST_DB_USER|g" \
-            -e "s|__TEST_DB_PASSWORD__|$TEST_DB_PASSWORD|g" \
-            -e "s|__SECRET_KEY__|$SECRET_KEY|g" \
-            -e "s|__BEARER_SECRET__|$BEARER_SECRET|g" \
-            -e "s|__XERO_DEFAULT_USER_ID__|$ESC_XERO_DEFAULT_USER_ID|g" \
-            -e "s|__GCP_CREDENTIALS_PATH__|$GCP_DEST|g" \
-            -e "s|__EMAIL_HOST_USER__|$ESC_EMAIL_HOST_USER|g" \
-            -e "s|__EMAIL_HOST_PASSWORD__|$ESC_EMAIL_HOST_PASSWORD|g" \
-            -e "s|__DJANGO_ADMINS__|$ESC_DJANGO_ADMINS|g" \
-            -e "s|__EMAIL_BCC__|$ESC_EMAIL_BCC|g" \
-            "$TEMPLATE_DIR/env-instance.template" > "$INSTANCE_DIR/.env"
-
-        # Append shared config: Google credentials (base-setup must have run first)
-        local SHARED_ENV="$BASE_DIR/shared.env"
-        if [[ ! -f "$SHARED_ENV" ]]; then
-            echo "ERROR: $SHARED_ENV not found. Run server-setup.sh first."
-            exit 1
-        fi
-        echo "" >> "$INSTANCE_DIR/.env"
-        grep '^GOOGLE_MAPS_API_KEY=' "$SHARED_ENV" >> "$INSTANCE_DIR/.env"
-        log "  Appended Google Maps API key from $SHARED_ENV"
-        chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.env"
-        chmod 600 "$INSTANCE_DIR/.env"
-    fi
-
-    # --- Ensure databases and DB users exist (always, even if .env was preserved) ---
-    # Two roles per tenant, each owning only its own DB(s):
-    #   $DB_USER      → $DB_NAME (app), $SCRUB_DB_NAME (backport scrubber)
-    #   $TEST_DB_USER → $TEST_DB_NAME (pytest)
-    # Test role has no CREATEDB; the test DB is pre-provisioned here so pytest
-    # never needs cluster-level privileges. Keeping it separate from $DB_USER
-    # means a misconfigured pytest run cannot reach the app DB.
     local DB_PASSWORD TEST_DB_PASSWORD
-    DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$DB_PASSWORD")"
-    TEST_DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$TEST_DB_PASSWORD")"
+    DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
+    TEST_DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" TEST_DB_PASSWORD)"
     if [[ -z "$TEST_DB_PASSWORD" ]]; then
         echo "ERROR: TEST_DB_PASSWORD missing from $INSTANCE_DIR/.env" >&2
         echo "  This instance was created before per-tenant test roles were added." >&2
@@ -363,13 +521,9 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$TEST_DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$TEST_DB_NAME" TO "$TEST_DB_USER";
 EOSQL
 
-    # --- Clone repo directly into instance dir (instance dir = git checkout) ---
     if [[ -d "$INSTANCE_DIR/.git" ]]; then
-        log "Code already cloned — pulling latest on main..."
+        log "Code already cloned — ensuring origin points at local repo."
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" remote set-url origin "$LOCAL_REPO"
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" fetch origin
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" checkout main
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" pull --ff-only
     else
         log "Initialising codebase in $INSTANCE_DIR from local repo (branch: main)..."
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" init -b main
@@ -378,112 +532,41 @@ EOSQL
         sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" checkout -f main
     fi
 
-    # --- Generate frontend/.env (skip if it already exists) ---
-    local FRONTEND_ENV="$INSTANCE_DIR/frontend/.env"
-    if [[ -f "$FRONTEND_ENV" ]]; then
-        log "frontend/.env already exists — skipping (credentials preserved)."
-    else
-        log "Generating frontend/.env from template..."
-        local ESC_E2E_TEST_USERNAME ESC_E2E_TEST_PASSWORD ESC_XERO_USERNAME ESC_XERO_PASSWORD
-        ESC_E2E_TEST_USERNAME="$(sed_escape "$E2E_TEST_USERNAME")"
-        ESC_E2E_TEST_PASSWORD="$(sed_escape "$E2E_TEST_PASSWORD")"
-        ESC_XERO_USERNAME="$(sed_escape "$XERO_USERNAME")"
-        ESC_XERO_PASSWORD="$(sed_escape "$XERO_PASSWORD")"
-        sed \
-            -e "s|__INSTANCE__|$INSTANCE|g" \
-            -e "s|__CLIENT__|$CLIENT|g" \
-            -e "s|__DOMAIN__|$DOMAIN|g" \
-            -e "s|__E2E_TEST_USERNAME__|$ESC_E2E_TEST_USERNAME|g" \
-            -e "s|__E2E_TEST_PASSWORD__|$ESC_E2E_TEST_PASSWORD|g" \
-            -e "s|__XERO_USERNAME__|$ESC_XERO_USERNAME|g" \
-            -e "s|__XERO_PASSWORD__|$ESC_XERO_PASSWORD|g" \
-            "$TEMPLATE_DIR/frontend-env-instance.template" > "$FRONTEND_ENV"
-        chown "$INSTANCE_USER:$INSTANCE_USER" "$FRONTEND_ENV"
-        chmod 600 "$FRONTEND_ENV"
+    render_frontend_env "$INSTANCE_DIR" "$INSTANCE_USER"
+
+    if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
+        log "Building frontend for instance $INSTANCE..."
+        sudo -u "$INSTANCE_USER" bash -c "
+            cd '$INSTANCE_DIR/frontend'
+            npm run build
+            npm run manual:build
+        "
+
+        log "Running Django migrate..."
+        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py migrate --no-input
     fi
 
-    # --- Build frontend ---
-    log "Building frontend for instance $INSTANCE..."
-    sudo -u "$INSTANCE_USER" bash -c "
-        cd '$INSTANCE_DIR/frontend'
-        npm run build
-        npm run manual:build
-    "
-
-    # --- Generate AI providers fixture from template ---
-    log "Generating AI providers fixture..."
-    local ESC_ANTHROPIC_API_KEY ESC_GEMINI_API_KEY ESC_MISTRAL_API_KEY
-    ESC_ANTHROPIC_API_KEY="$(sed_escape "$ANTHROPIC_API_KEY")"
-    ESC_GEMINI_API_KEY="$(sed_escape "$GEMINI_API_KEY")"
-    ESC_MISTRAL_API_KEY="$(sed_escape "$MISTRAL_API_KEY")"
-    sed \
-        -e "s|__ANTHROPIC_API_KEY__|$ESC_ANTHROPIC_API_KEY|g" \
-        -e "s|__GEMINI_API_KEY__|$ESC_GEMINI_API_KEY|g" \
-        -e "s|__MISTRAL_API_KEY__|$ESC_MISTRAL_API_KEY|g" \
-        "$TEMPLATE_DIR/ai-providers.json.template" \
-        > "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
-    chmod 600 "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
-
-    # --- Run Django commands as instance user ---
-    log "Running Django migrate..."
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py migrate --no-input
-
-    # --- Load AI providers ---
+    render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading AI providers..."
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata apps/workflow/fixtures/ai_providers.json
-
-    # Remove the fixture after loading — keys live in the DB now, and the
-    # file is a loaddata time-bomb (restore-prod-to-nonprod runs loaddata on
-    # it, which would overwrite real DB keys with whatever is on disk).
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
+        'from django.core.management import call_command; from apps.workflow.models import AIProvider; print("AIProvider already configured; skipping ai_providers.json load") if AIProvider.objects.exists() else call_command("loaddata", "apps/workflow/fixtures/ai_providers.json")'
     rm -f "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
 
-    # --- Generate Xero apps fixture from template ---
-    log "Generating Xero apps fixture..."
-    local ESC_XERO_CLIENT_ID ESC_XERO_CLIENT_SECRET ESC_XERO_WEBHOOK_KEY ESC_XERO_REDIRECT_URI
-    ESC_XERO_CLIENT_ID="$(sed_escape "$XERO_CLIENT_ID")"
-    ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
-    ESC_XERO_WEBHOOK_KEY="$(sed_escape "$XERO_WEBHOOK_KEY")"
-    ESC_XERO_REDIRECT_URI="$(sed_escape "$XERO_REDIRECT_URI")"
-    sed \
-        -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__XERO_CLIENT_ID__|$ESC_XERO_CLIENT_ID|g" \
-        -e "s|__XERO_CLIENT_SECRET__|$ESC_XERO_CLIENT_SECRET|g" \
-        -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
-        -e "s|__XERO_REDIRECT_URI__|$ESC_XERO_REDIRECT_URI|g" \
-        "$TEMPLATE_DIR/xero-apps.json.template" \
-        > "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"
-    chmod 600 "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"
-
-    # --- Load Xero apps ---
+    render_xero_apps_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading Xero apps..."
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
         'from django.core.management import call_command; from apps.workflow.models import XeroApp; print("XeroApp already configured; skipping xero_apps.json load") if XeroApp.objects.exists() else call_command("loaddata", "apps/workflow/fixtures/xero_apps.json")'
 
-    # Intentionally NOT deleted after load: restore-prod-to-nonprod runs
-    # loaddata against this file (workflow_xeroapp is excluded from the
-    # prod dump, so the table is empty after restore and needs reseeding).
-    # The file holds only the static OAuth app credentials; runtime token
-    # state is never written back to disk, so re-loaddata at restore time
-    # is safe.
+    if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
+        log "Creating initial admin user..."
+        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py
 
-    # --- Create initial admin user ---
-    log "Creating initial admin user..."
-    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py
-
-    # --- Optionally seed data ---
-    if [[ "$SEED" == "true" ]]; then
-        log "Loading demo fixtures..."
-        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
+        if [[ "$SEED" == "true" ]]; then
+            log "Loading demo fixtures..."
+            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
+        fi
     fi
 
-    # --- DR-mode marker ---
-    # If --no-start was passed, drop a marker file BEFORE the systemd installs
-    # below so the marker check skips enable/restart for celery-beat+celery-worker
-    # in this run, and so subsequent deploy.sh runs also leave them alone. The
-    # unit files themselves are still rendered — "go live" later is just
-    # `rm .dr-mode && systemctl enable --now celery-beat-* celery-worker-*`.
     if [[ "$NO_START" == "true" ]]; then
         log "DR mode: writing $INSTANCE_DIR/.dr-mode (celery-beat+celery-worker will not be auto-started)"
         touch "$INSTANCE_DIR/.dr-mode"
@@ -491,7 +574,6 @@ EOSQL
         chmod 644 "$INSTANCE_DIR/.dr-mode"
     fi
 
-    # --- Install systemd service ---
     log "Installing systemd service gunicorn-$INSTANCE..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
@@ -538,19 +620,12 @@ EOSQL
         systemctl restart "celery-worker-$INSTANCE"
     fi
 
-    # --- Install backup timer ---
-    # Backups run nightly as the instance user, using the per-instance
-    # rclone config generated above.
     log "Installing backup timer backup-db-$INSTANCE..."
     render_backup_units "$INSTANCE" "$INSTANCE_USER" "$TEMPLATE_DIR"
     systemctl daemon-reload
     systemctl enable --now "backup-db-$INSTANCE.timer"
     log "  Enabled nightly backup timer backup-db-$INSTANCE.timer"
 
-    # --- Install sudoers drop-in ---
-    # Lets the instance user restart its own units without a password.
-    # Render to a temp file, validate with visudo, then install atomically —
-    # a malformed file in /etc/sudoers.d locks out sudo entirely.
     log "Installing sudoers drop-in for $INSTANCE_USER..."
     local SUDOERS_TMP
     SUDOERS_TMP="$(mktemp)"
@@ -563,7 +638,6 @@ EOSQL
     install -m 0440 -o root -g root "$SUDOERS_TMP" "/etc/sudoers.d/$INSTANCE_USER"
     rm -f "$SUDOERS_TMP"
 
-    # --- Install Nginx server block ---
     log "Installing Nginx config for $FQDN..."
     sed \
         -e "s|__INSTANCE__|$INSTANCE|g" \
@@ -581,9 +655,12 @@ EOSQL
         log "  After DNS cutover: sudo certbot --nginx -d $FQDN"
     fi
 
-    # --- Summary ---
     log "=========================================="
-    log "Instance '$INSTANCE' created successfully"
+    if [[ "$IS_EXISTING" == "true" ]]; then
+        log "Instance '$INSTANCE' reconfigured successfully"
+    else
+        log "Instance '$INSTANCE' created successfully"
+    fi
     log "  URL:        https://$FQDN"
     log "  Directory:  $INSTANCE_DIR (= git checkout)"
     log "  User:       $INSTANCE_USER"
@@ -594,6 +671,14 @@ EOSQL
 
     echo ""
     echo "  Instance is live at: https://$FQDN"
+}
+
+do_create() {
+    do_configure true create "$@"
+}
+
+do_reconfigure() {
+    do_configure false reconfigure "$@"
 }
 
 # ============================================================
@@ -770,9 +855,10 @@ do_list() {
 # main
 # ============================================================
 if [[ $# -lt 1 ]]; then
-    echo "Usage: $0 {prepare-config|create|destroy|list} [args...]"
+    echo "Usage: $0 {prepare-config|create|reconfigure|destroy|list} [args...]"
     echo "  prepare-config <client> <env>    — scaffold credentials file"
-    echo "  create         <client> <env> [--seed]"
+    echo "  create         <client> <env> [--seed] [--fqdn <hostname>] [--no-start]"
+    echo "  reconfigure    <client> <env> [--fqdn <hostname>] [--no-start]"
     echo "  destroy        <client> <env>"
     echo "  list"
     exit 1
@@ -788,7 +874,8 @@ fi
 case "$COMMAND" in
     prepare-config) do_prepare_config "$@" ;;
     create)         do_create "$@" ;;
+    reconfigure)    do_reconfigure "$@" ;;
     destroy)        do_destroy "$@" ;;
     list)           do_list ;;
-    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|destroy|list}"; exit 1 ;;
+    *)              echo "Unknown command: $COMMAND"; echo "Usage: $0 {prepare-config|create|reconfigure|destroy|list}"; exit 1 ;;
 esac

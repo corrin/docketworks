@@ -117,11 +117,14 @@ Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 # Step 1: scaffold credentials file
 sudo scripts/server/instance.sh prepare-config <client> <env>
 
-# Step 2: fill in the credentials
-sudo nano /opt/docketworks/instances/<client>-<env>/credentials.env
+# Step 2: fill in the root-owned credentials
+sudoedit /opt/docketworks/config/<client>-<env>.credentials.env
 
 # Step 3: create the instance
 sudo scripts/server/instance.sh create <client> <env>
+
+# Re-run after root-owned credential/config edits
+sudo scripts/server/instance.sh reconfigure <client> <env>
 
 # Or with demo fixtures:
 sudo scripts/server/instance.sh create <client> <env> --seed
@@ -290,11 +293,7 @@ For a prospect trying DocketWorks with their own Xero:
 
 ### Deploy (update to latest code)
 
-```bash
-sudo scripts/server/deploy.sh <name>
-```
-
-This pulls latest code, installs dependencies, runs migrations, rebuilds frontend, and restarts Gunicorn.
+See [updating.md](updating.md) — the deploy runbook (the `deploy.sh` command, and when to also run `instance.sh reconfigure`).
 
 ### Backups
 
@@ -308,6 +307,10 @@ with the instance service account. If you want rclone anchored to that folder,
 put the folder ID in `BACKUP_GDRIVE_ROOT_FOLDER_ID` in
 `/opt/docketworks/config/<name>.credentials.env`; create/deploy writes
 `/opt/docketworks/config/rclone/<name>.conf`.
+
+The credentials file is a root-owned operator input (`root:root`, mode 600).
+Edit it with `sudoedit`; do not hand ownership to the instance user, because
+root-run orchestration sources the file.
 
 Smoke test:
 
@@ -420,17 +423,7 @@ ssh-keygen -t ed25519 -C "github-actions-uat" -f uat_deploy_key -N ""
 
 **Step 1 (automatic):** On push to `main`, `deploy-uat.yml` SSHes into the server as `docketworks` and pulls the latest code into `/opt/docketworks/repo`. This only updates the shared repo — no instances are touched.
 
-**Step 2 (manual):** When ready to deploy to instances, SSH into the server and run:
-
-```bash
-# Deploy all instances
-sudo ./scripts/server/deploy.sh --all
-
-# Or a single instance
-sudo ./scripts/server/deploy.sh <name>
-```
-
-This updates shared Python/Node deps, then for each instance: builds frontend, runs migrate, restarts Gunicorn.
+**Step 2 (manual):** When ready to deploy to instances, follow the deploy runbook in [updating.md](updating.md).
 
 ### Install log
 

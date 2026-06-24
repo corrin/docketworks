@@ -99,7 +99,7 @@ The client needs a Xero subscription. DocketWorks handles jobs and delegates inv
 6. Create the app, copy **Client ID** and **Client Secret**
 7. Under Webhooks, create a subscription, copy the **Webhook Key**
 
-These go into the instance's `credentials.env`.
+These go into the instance's root-owned `credentials.env`.
 
 ---
 
@@ -216,7 +216,7 @@ Follow `uat_setup.md` (Part C) or the production deployment process.
 ```bash
 # UAT
 sudo scripts/server/instance.sh prepare-config <client> <env>
-# Fill credentials.env with Xero values
+sudoedit /opt/docketworks/config/<client>-<env>.credentials.env
 sudo scripts/server/instance.sh create <client> <env>
 ```
 
@@ -298,10 +298,10 @@ Upload the company logo and wide/letterhead logo via Admin > Settings > Company 
 
 | Information | Destination |
 |------------|-------------|
-| Xero Client ID / Secret / Webhook Key | `credentials.env` |
-| GCP service account JSON key path | `.env` (`GCP_CREDENTIALS`) |
-| Google Maps API key | `.env` or `shared.env` (`GOOGLE_MAPS_API_KEY`) |
-| Email SMTP credentials | `.env` or `shared.env` |
+| Xero Client ID / Secret / Webhook Key | root-owned `credentials.env` |
+| GCP service account JSON key path | root-owned `credentials.env` (`GCP_CREDENTIALS`) |
+| Google Maps API key | `shared.env` (`GOOGLE_MAPS_API_KEY`) |
+| Email SMTP credentials | root-owned `credentials.env` |
 | Supplier credentials (Steel & Tube) | `.env` |
 | Company details, rates, markups, hours | CompanyDefaults (Admin > Settings) |
 | Google Drive folder IDs | CompanyDefaults (Admin > Settings) |

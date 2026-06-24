@@ -142,6 +142,7 @@ backups/
 
 # Environments
 .env
+.env.tmp.*
 .venv
 env/
 venv/
