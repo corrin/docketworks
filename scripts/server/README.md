@@ -58,13 +58,13 @@ Two-step process:
 # Step 1: creates the credentials file from template
 sudo ./scripts/server/instance.sh prepare-config mycompany uat
 
-# Fill out the credentials file (see "Xero Setup" below)
-sudo vi /opt/docketworks/config/mycompany-uat.credentials.env
+# Fill out the root-owned credentials file (see "Xero Setup" below)
+sudoedit /opt/docketworks/config/mycompany-uat.credentials.env
 
 # Step 2: reads credentials, creates everything
 sudo ./scripts/server/instance.sh create mycompany uat
 
-# Re-run after credential/config edits
+# Re-run after root-owned credential/config edits
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
 ```
 
@@ -151,7 +151,7 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ├── package.json              # Shared node_modules
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 ├── config/
-│   ├── <name>.credentials.env    # Xero + GCP + email secrets (survives destroy)
+│   ├── <name>.credentials.env    # root-owned operator input (survives destroy)
 │   └── rclone/<name>.conf        # Per-instance backup upload config
 └── instances/
     └── <name>/               # = git checkout (always on main)
@@ -169,7 +169,7 @@ Shows each instance's name, status (running/stopped/no service), git branch, and
 ### How Env Vars Flow
 
 ```
-config/<name>.credentials.env (user fills Xero + GCP + email values)
+config/<name>.credentials.env (root-owned operator input: Xero + GCP + email)
         ↓
 instance.sh reads + validates
         ↓
@@ -186,6 +186,8 @@ gunicorn systemd service loads .env via EnvironmentFile=
 
 - **Shared user** `docketworks` owns the venv, repo, and shared.env
 - **Per-instance user** `dw-<name>` runs gunicorn, owns the instance directory
+- **Credentials input** in `/opt/docketworks/config` is `root:root` mode 600
+  because `instance.sh` and `deploy.sh` source it during root-run orchestration
 - Instance dirs are `dw-<name>:www-data` mode 750 — Nginx (www-data) can read static files, other instance users cannot access
 - `.env` files are mode 600, owner-only — even www-data can't read secrets
 - Each instance has its own PostgreSQL database and user

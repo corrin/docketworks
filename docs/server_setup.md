@@ -117,13 +117,13 @@ Certs auto-renew via `certbot renew` using the same Dreamhost DNS hooks.
 # Step 1: scaffold credentials file
 sudo scripts/server/instance.sh prepare-config <client> <env>
 
-# Step 2: fill in the credentials
-sudo nano /opt/docketworks/config/<client>-<env>.credentials.env
+# Step 2: fill in the root-owned credentials
+sudoedit /opt/docketworks/config/<client>-<env>.credentials.env
 
 # Step 3: create the instance
 sudo scripts/server/instance.sh create <client> <env>
 
-# Re-run after credential/config edits
+# Re-run after root-owned credential/config edits
 sudo scripts/server/instance.sh reconfigure <client> <env>
 
 # Or with demo fixtures:
@@ -307,6 +307,10 @@ with the instance service account. If you want rclone anchored to that folder,
 put the folder ID in `BACKUP_GDRIVE_ROOT_FOLDER_ID` in
 `/opt/docketworks/config/<name>.credentials.env`; create/deploy writes
 `/opt/docketworks/config/rclone/<name>.conf`.
+
+The credentials file is a root-owned operator input (`root:root`, mode 600).
+Edit it with `sudoedit`; do not hand ownership to the instance user, because
+root-run orchestration sources the file.
 
 Smoke test:
 

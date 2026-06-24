@@ -299,6 +299,7 @@ for instance in "${TARGETS[@]}"; do
     backup_root_folder_id=""
     creds_file="$CONFIG_DIR/$instance.credentials.env"
     if [[ -f "$creds_file" ]]; then
+        require_root_owned_credentials_file "$creds_file"
         backup_root_folder_id="$(
             bash -c 'set -a; source "$1"; printf "%s" "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"' _ "$creds_file"
         )"

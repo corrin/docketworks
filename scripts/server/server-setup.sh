@@ -434,6 +434,9 @@ chown docketworks:docketworks /opt/docketworks
 # of its own home and gunicorn/celery/dw-run all fail with EACCES.
 chmod 755 /opt/docketworks
 chown -R docketworks:docketworks /opt/docketworks/.local
+mkdir -p /opt/docketworks/config
+chown root:root /opt/docketworks/config
+chmod 755 /opt/docketworks/config
 
 # --- Install Dreamhost API key for certbot hooks ---
 

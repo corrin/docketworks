@@ -14,7 +14,13 @@ Set up a production instance for a client connecting to their real Xero organisa
 sudo scripts/server/instance.sh prepare-config <client> prod
 ```
 
-Fill in `/opt/docketworks/config/<client>-prod.credentials.env`:
+Edit the root-owned credentials file:
+
+```bash
+sudoedit /opt/docketworks/config/<client>-prod.credentials.env
+```
+
+Fill in:
 - XERO_DEFAULT_USER_ID (leave blank for now — set after Step 7)
 - GCP_CREDENTIALS path (from Phase 3a of client_onboarding.md)
 - EMAIL_HOST_USER + EMAIL_HOST_PASSWORD
