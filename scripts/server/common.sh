@@ -44,6 +44,17 @@ instance_rclone_config() {
     echo "$RCLONE_CONFIG_DIR/$instance.conf"
 }
 
+node_major_from_nvmrc() {
+    local nvmrc_file="$1"
+    local major
+    major="$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' "$nvmrc_file" | head -n 1)"
+    if [[ -z "$major" ]]; then
+        echo "ERROR: Could not parse Node major from $nvmrc_file" >&2
+        exit 1
+    fi
+    printf "%s\n" "$major"
+}
+
 ensure_config_dir() {
     if [[ -L "$CONFIG_DIR" ]]; then
         echo "ERROR: Credentials directory must not be a symlink: $CONFIG_DIR" >&2

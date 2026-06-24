@@ -203,10 +203,11 @@ sudo -u docketworks bash -c "
 
 # --- Update shared node_modules ---
 log "Updating shared node_modules..."
+REQUIRED_NODE_MAJOR="$(node_major_from_nvmrc "$LOCAL_REPO/frontend/.nvmrc")"
 sudo -u docketworks bash -c "
     cp '$LOCAL_REPO/frontend/package.json' '$BASE_DIR/package.json'
     cp '$LOCAL_REPO/frontend/package-lock.json' '$BASE_DIR/package-lock.json'
-    REQUIRED_NODE_MAJOR=\$(tr -d 'v[:space:]' < '$LOCAL_REPO/frontend/.nvmrc')
+    REQUIRED_NODE_MAJOR='$REQUIRED_NODE_MAJOR'
     CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
     if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
         echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2

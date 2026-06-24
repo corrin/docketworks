@@ -1,4 +1,6 @@
 import json
+import subprocess
+import tempfile
 from pathlib import Path
 
 from django.test import SimpleTestCase
@@ -14,12 +16,16 @@ INSTANCE_SCRIPT = REPO_ROOT / "scripts" / "server" / "instance.sh"
 DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "server" / "deploy.sh"
 COMMON_SCRIPT = REPO_ROOT / "scripts" / "server" / "common.sh"
 SERVER_SETUP_SCRIPT = REPO_ROOT / "scripts" / "server" / "server-setup.sh"
+SERVER_README = REPO_ROOT / "scripts" / "server" / "README.md"
+PRODUCTION_SETUP_DOC = REPO_ROOT / "docs" / "instance-setup-production.md"
+DEMO_SETUP_DOC = REPO_ROOT / "docs" / "instance-setup-demo.md"
 
 
 class XeroInstanceTemplateTests(SimpleTestCase):
     def test_credentials_template_includes_xero_oauth_env_vars(self):
         content = CREDENTIALS_TEMPLATE.read_text()
 
+        self.assertIn("XERO_DEFAULT_USER_ID=", content)
         self.assertIn("XERO_CLIENT_ID=", content)
         self.assertIn("XERO_CLIENT_SECRET=", content)
         self.assertIn("XERO_WEBHOOK_KEY=", content)
@@ -75,6 +81,13 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertNotIn(
             'rm -f "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"', content
         )
+
+    def test_instance_script_requires_xero_default_user_id(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn('[[ -z "${XERO_DEFAULT_USER_ID:-}" ]]', content)
+        self.assertIn('MISSING+=("XERO_DEFAULT_USER_ID")', content)
+        self.assertNotIn("UNCONFIGURED_XERO_DEFAULT_USER_ID", content)
 
     def test_instance_script_exposes_reconfigure_as_convergent_command(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
@@ -167,6 +180,82 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         )
         self.assertIn("chown root:root /opt/docketworks/config", server_setup_content)
         self.assertIn("chmod 755 /opt/docketworks/config", server_setup_content)
+
+    def test_node_major_parsing_accepts_patch_versions(self) -> None:
+        common_content = COMMON_SCRIPT.read_text()
+        deploy_content = DEPLOY_SCRIPT.read_text()
+        server_setup_content = SERVER_SETUP_SCRIPT.read_text()
+
+        self.assertIn("node_major_from_nvmrc()", common_content)
+        self.assertIn("node_major_from_nvmrc()", server_setup_content)
+        self.assertIn(
+            "sed -nE 's/^[[:space:]]*v?([0-9]+).*/\\1/p'",
+            common_content,
+        )
+        self.assertIn(
+            'REQUIRED_NODE_MAJOR="$(node_major_from_nvmrc '
+            '"$LOCAL_REPO/frontend/.nvmrc")',
+            deploy_content,
+        )
+        self.assertIn(
+            'REQUIRED_NODE_MAJOR="$(node_major_from_nvmrc '
+            '"$LOCAL_REPO/frontend/.nvmrc")',
+            server_setup_content,
+        )
+        self.assertNotIn("tr -d 'v[:space:]'", deploy_content)
+        self.assertNotIn("tr -d 'v[:space:]'", server_setup_content)
+
+        for nvmrc_value in ["18", "v18", "18.2.0", "v18.2.0", "  v18.2.0"]:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8") as nvmrc:
+                nvmrc.write(nvmrc_value)
+                nvmrc.flush()
+
+                result = subprocess.run(
+                    [
+                        "bash",
+                        "-c",
+                        'source "$1"; node_major_from_nvmrc "$2"',
+                        "_",
+                        str(COMMON_SCRIPT),
+                        nvmrc.name,
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+
+            self.assertEqual(result.stdout.strip(), "18")
+
+    def test_instance_mediafiles_are_owned_for_app_writes_and_nginx_reads(
+        self,
+    ) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn(
+            'chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"',
+            content,
+        )
+        self.assertIn('chmod 750 "$INSTANCE_DIR/mediafiles"', content)
+
+    def test_xero_default_user_id_docs_match_required_create_time_workflow(
+        self,
+    ) -> None:
+        docs = "\n".join(
+            [
+                CREDENTIALS_TEMPLATE.read_text(),
+                SERVER_README.read_text(),
+                PRODUCTION_SETUP_DOC.read_text(),
+                DEMO_SETUP_DOC.read_text(),
+            ]
+        )
+
+        self.assertIn("XERO_DEFAULT_USER_ID must be present", docs)
+        self.assertIn("required before `instance.sh create`", docs)
+        self.assertNotIn("leave blank for now", docs)
+        self.assertNotIn("Create the instance first", docs)
+        self.assertNotIn("copy that UUID", docs)
+        self.assertNotIn("Copy the relevant user ID into credentials.env", docs)
+        self.assertNotIn("then run `instance.sh reconfigure`", docs)
 
     def test_deploy_restores_typed_router_after_drift_detection(self) -> None:
         content = DEPLOY_SCRIPT.read_text()

@@ -34,6 +34,17 @@ log_version() {
     log "  Installed: $name $version"
 }
 
+node_major_from_nvmrc() {
+    local nvmrc_file="$1"
+    local major
+    major="$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' "$nvmrc_file" | head -n 1)"
+    if [[ -z "$major" ]]; then
+        echo "ERROR: Could not parse Node major from $nvmrc_file" >&2
+        exit 1
+    fi
+    printf "%s\n" "$major"
+}
+
 # --- Pre-flight checks ---
 
 if [[ $EUID -ne 0 ]]; then
@@ -696,10 +707,11 @@ log "  Shared Python dependencies installed."
 # --- Install shared node_modules ---
 
 log "Installing shared node_modules..."
+REQUIRED_NODE_MAJOR="$(node_major_from_nvmrc "$LOCAL_REPO/frontend/.nvmrc")"
 sudo -u docketworks bash -c "
     cp '$LOCAL_REPO/frontend/package.json' '/opt/docketworks/package.json'
     cp '$LOCAL_REPO/frontend/package-lock.json' '/opt/docketworks/package-lock.json'
-    REQUIRED_NODE_MAJOR=\$(tr -d 'v[:space:]' < '$LOCAL_REPO/frontend/.nvmrc')
+    REQUIRED_NODE_MAJOR='$REQUIRED_NODE_MAJOR'
     CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
     if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
         echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2

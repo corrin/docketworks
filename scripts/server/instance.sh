@@ -444,6 +444,8 @@ do_configure() {
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"
     chmod 700 "$INSTANCE_DIR/logs"
     chmod 700 "$INSTANCE_DIR/dropbox"
+    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"
+    chmod 750 "$INSTANCE_DIR/mediafiles"
     chown "$INSTANCE_USER:$INSTANCE_USER" \
         "$INSTANCE_DIR/phone-recordings" \
         "$INSTANCE_DIR/session-replays"

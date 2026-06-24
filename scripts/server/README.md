@@ -82,21 +82,25 @@ The credentials file needs:
 
 ```
 XERO_DEFAULT_USER_ID=
+XERO_CLIENT_ID=
+XERO_CLIENT_SECRET=
+XERO_WEBHOOK_KEY=
+XERO_REDIRECT_URI=
 GCP_CREDENTIALS=
 EMAIL_HOST_USER=
 EMAIL_HOST_PASSWORD=
 ```
 
-Xero client_id, client_secret, and webhook_key live on the XeroApp model
-(loaded from `apps/workflow/fixtures/xero_apps.json` or set via the Xero
-Apps admin UI), not in the credentials file.
+Xero client_id, client_secret, webhook_key, and redirect URI are also required
+in the credentials file. `instance.sh create` renders them into the XeroApp
+bootstrap fixture and only loads that fixture when no XeroApp exists yet.
 
 How to get them:
 
 1. **Create a Xero app** at https://developer.xero.com/app/manage
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
 3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
-4. **XERO_DEFAULT_USER_ID:** Create the instance first, create a Staff member, copy that UUID into the credentials file, then run `instance.sh reconfigure`.
+4. **XERO_DEFAULT_USER_ID:** Use the existing Xero login/user ID that will own time entries. This value is required before `instance.sh create`; do not leave it blank for a first create.
 5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
 6. **BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Google Drive folder ID for the backup parent. Share that folder with the service account. Backups upload under `dw_backups/<instance>/` from that root.
 7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
