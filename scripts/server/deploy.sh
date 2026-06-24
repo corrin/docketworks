@@ -4,6 +4,7 @@ set -euo pipefail
 # Deploy one or all instances through a shared immutable release directory.
 # Usage: deploy.sh <name> [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
 #        deploy.sh --all  [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+#        deploy.sh --cleanup-releases
 #
 # Normal operator path after a PR is merged:
 #   sudo scripts/server/deploy.sh <instance>
@@ -26,9 +27,10 @@ fi
 cd /
 
 USAGE="Usage: $0 <instance-name> [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
-       $0 --all          [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]"
+       $0 --all          [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+       $0 --cleanup-releases"
 
-if ! parsed=$(getopt -o '' --long all,no-backup,allow-dirty,ref: -n "$(basename "$0")" -- "$@"); then
+if ! parsed=$(getopt -o '' --long all,no-backup,allow-dirty,cleanup-releases,ref: -n "$(basename "$0")" -- "$@"); then
     echo "$USAGE" >&2
     exit 1
 fi
@@ -37,11 +39,13 @@ eval set -- "$parsed"
 DO_BACKUP=1
 ALLOW_DIRTY=0
 DEPLOY_ALL=0
+DO_CLEANUP_RELEASES=0
 TARGET_REF="origin/main"
 while true; do
     case "$1" in
         --no-backup)   DO_BACKUP=0;      shift ;;
         --allow-dirty) ALLOW_DIRTY=1;    shift ;;
+        --cleanup-releases) DO_CLEANUP_RELEASES=1; shift ;;
         --all)         DEPLOY_ALL=1;     shift ;;
         --ref)         TARGET_REF="$2";  shift 2 ;;
         --)            shift; break ;;
@@ -52,6 +56,17 @@ exec 9>"$BASE_DIR/.deploy.lock"
 if ! flock -n 9; then
     echo "ERROR: another deploy is already running." >&2
     exit 1
+fi
+
+if [[ $DO_CLEANUP_RELEASES -eq 1 ]]; then
+    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || $ALLOW_DIRTY -eq 1 || "$TARGET_REF" != "origin/main" ]]; then
+        echo "ERROR: --cleanup-releases cannot be combined with deploy targets or deploy flags." >&2
+        echo "$USAGE" >&2
+        exit 1
+    fi
+    cleanup_stale_release_builds
+    cleanup_unreferenced_releases
+    exit 0
 fi
 
 validate_instance() {
@@ -107,9 +122,8 @@ render_backup_timer() {
     local creds_file="$CONFIG_DIR/$instance.credentials.env"
 
     if [[ -f "$creds_file" ]]; then
-        backup_root_folder_id="$(
-            bash -c 'set -a; source "$1"; printf "%s" "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"' _ "$creds_file"
-        )"
+        require_root_owned_credentials_file "$creds_file"
+        backup_root_folder_id="$(read_env_value "$creds_file" BACKUP_GDRIVE_ROOT_FOLDER_ID)"
     fi
     log "  Rendering backup-db-$instance units"
     write_instance_rclone_config "$instance" "$inst_user" "$backup_root_folder_id"
@@ -344,7 +358,7 @@ else
     exit 1
 fi
 
-cleanup_unreferenced_releases
+cleanup_unreferenced_releases "$TARGET_SHA"
 
 log "=========================================="
 log "Deploy complete"

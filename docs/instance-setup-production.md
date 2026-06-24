@@ -14,12 +14,22 @@ Set up a production instance for a client connecting to their real Xero organisa
 sudo scripts/server/instance.sh prepare-config <client> prod
 ```
 
-Fill in `/opt/docketworks/config/<client>-prod.credentials.env`:
-- XERO_DEFAULT_USER_ID (leave blank for now — set after Step 7)
+Edit the root-owned credentials file:
+
+```bash
+sudoedit /opt/docketworks/config/<client>-prod.credentials.env
+```
+
+Fill in:
+- XERO_DEFAULT_USER_ID — the existing Xero login/user ID that will own time entries
 - GCP_CREDENTIALS path (from Phase 3a of client_onboarding.md)
 - EMAIL_HOST_USER + EMAIL_HOST_PASSWORD
 
-(The Xero Client ID, Client Secret, and Webhook Key go into the `xero_apps.json` fixture in Step 2.5, not `credentials.env`.)
+XERO_DEFAULT_USER_ID must be present before `instance.sh create` runs.
+
+Also fill in the Xero Client ID, Client Secret, Webhook Key, and Redirect URI
+from the client's Xero app. `instance.sh create` uses these values to render
+and load the initial XeroApp fixture.
 
 ## Step 2: Create Instance
 
@@ -31,23 +41,8 @@ Creates: OS user, database, .env, code clone, frontend build, migrations, admin 
 
 **Check:** `https://<client>-prod.docketworks.site` shows login page.
 
-## Step 2.5: Load Xero App Credentials
+## Step 2.5: Check Xero App Credentials
 
-Copy the example fixture and fill in the client's prod Xero app's Client ID, Client Secret, Redirect URI, and Webhook Key (all from Phase 2b of client_onboarding.md). Set `label` to `<client>-prod xero`.
-
-```bash
-# instance.sh creates the checkout directly at /opt/docketworks/instances/<INSTANCE>/
-# (no /docketworks suffix) and the OS user as dw_<client>_<env> (underscores —
-# matches the DB role; see scripts/server/common.sh:instance_user).
-INSTANCE_DIR=/opt/docketworks/instances/<client>-prod
-sudo -u dw_<client>_prod cp \
-  $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json.example \
-  $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
-sudo -u dw_<client>_prod $EDITOR $INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json
-scripts/server/dw-run.sh <client>-prod python manage.py loaddata apps/workflow/fixtures/xero_apps.json
-```
-
-**Check:**
 ```bash
 scripts/server/dw-run.sh <client>-prod python scripts/restore_checks/check_xero_app.py
 ```
@@ -114,16 +109,6 @@ scripts/server/dw-run.sh <client>-prod python manage.py xero --import-staff
 ```
 
 This creates Staff records from Xero Payroll employees with wage rates and working hours. All imported staff get `password_needs_reset=True`.
-
-After import, find the default Xero user ID for timesheets:
-```bash
-scripts/server/dw-run.sh <client>-prod python manage.py xero --users
-```
-Copy the relevant user ID into credentials.env as XERO_DEFAULT_USER_ID, then
-reconfigure:
-```bash
-sudo scripts/server/instance.sh reconfigure <client> prod
-```
 
 ## Step 8: Create Shop Jobs
 

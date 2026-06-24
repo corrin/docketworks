@@ -59,13 +59,13 @@ Two-step process:
 # Step 1: creates the credentials file from template
 sudo ./scripts/server/instance.sh prepare-config mycompany uat
 
-# Fill out the credentials file (see "Xero Setup" below)
-sudo vi /opt/docketworks/config/mycompany-uat.credentials.env
+# Fill out the root-owned credentials file (see "Xero Setup" below)
+sudoedit /opt/docketworks/config/mycompany-uat.credentials.env
 
 # Step 2: reads credentials, creates everything
 sudo ./scripts/server/instance.sh create mycompany uat
 
-# Re-run after credential/config edits
+# Re-run after root-owned credential/config edits
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
 ```
 
@@ -83,21 +83,25 @@ The credentials file needs:
 
 ```
 XERO_DEFAULT_USER_ID=
+XERO_CLIENT_ID=
+XERO_CLIENT_SECRET=
+XERO_WEBHOOK_KEY=
+XERO_REDIRECT_URI=
 GCP_CREDENTIALS=
 EMAIL_HOST_USER=
 EMAIL_HOST_PASSWORD=
 ```
 
-Xero client_id, client_secret, and webhook_key live on the XeroApp model
-(loaded from `apps/workflow/fixtures/xero_apps.json` or set via the Xero
-Apps admin UI), not in the credentials file.
+Xero client_id, client_secret, webhook_key, and redirect URI are also required
+in the credentials file. `instance.sh create` renders them into the XeroApp
+bootstrap fixture and only loads that fixture when no XeroApp exists yet.
 
 How to get them:
 
 1. **Create a Xero app** at https://developer.xero.com/app/manage
 2. **Set redirect URI** to `https://<instance>.docketworks.site/api/xero/oauth/callback/`
 3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
-4. **XERO_DEFAULT_USER_ID:** Create the instance first, create a Staff member, copy that UUID into the credentials file, then run `instance.sh reconfigure`.
+4. **XERO_DEFAULT_USER_ID:** Use the existing Xero login/user ID that will own time entries. This value is required before `instance.sh create`; do not leave it blank for a first create.
 5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
 6. **BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Google Drive folder ID for the backup parent. Share that folder with the service account. Backups upload under `dw_backups/<instance>/` from that root.
 7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
@@ -112,6 +116,9 @@ What `deploy.sh` does, in order:
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
 3. Resolve the target ref to a SHA and build `/opt/docketworks/releases/<sha>` once if it does not already exist.
 4. For each instance: pre-deploy backup (unless `--no-backup`), switch `current` to the release, run migrate, render backup units, render+restart `celery-worker-<instance>`, render+restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
+5. Clean up complete releases that are no longer referenced by an instance
+   `current` symlink or rollback state. To run only cleanup:
+   `sudo ./scripts/server/deploy.sh --cleanup-releases`.
 
 ## Backups
 
@@ -148,11 +155,11 @@ Shows each instance's name, status (running/stopped/no service), current release
 ```
 /opt/docketworks/
 ├── repo/                     # Local git clone/cache
-├── releases/<sha>/           # Shared immutable app release (code, .venv, frontend dist)
+├── releases/<sha>/           # Shared immutable app release (code, release-local .venv, frontend dist)
 ├── shared.env                # Maps API key (appended to each .env)
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 ├── config/
-│   ├── <name>.credentials.env    # Xero + GCP + email secrets (survives destroy)
+│   ├── <name>.credentials.env    # root-owned operator input (survives destroy)
 │   └── rclone/<name>.conf        # Per-instance backup upload config
 └── instances/
     └── <name>/               # Mutable instance state
@@ -170,7 +177,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 ### How Env Vars Flow
 
 ```
-config/<name>.credentials.env (user fills Xero + GCP + email values)
+config/<name>.credentials.env (root-owned operator input: Xero + GCP + email)
         ↓
 instance.sh reads + validates
         ↓
@@ -185,8 +192,10 @@ gunicorn systemd service loads .env via EnvironmentFile=
 
 ### Security Model
 
-- **Shared user** `docketworks` owns the venv, repo, and shared.env
+- **Shared user** `docketworks` owns the local repo, release directories, release-local venvs, and shared.env
 - **Per-instance user** `dw-<name>` runs gunicorn, owns the instance directory
+- **Credentials input** in `/opt/docketworks/config` is `root:root` mode 600
+  because `instance.sh` and `deploy.sh` source it during root-run orchestration
 - Instance dirs are `dw-<name>:www-data` mode 750 — Nginx (www-data) can read static files, other instance users cannot access
 - `.env` files are mode 600, owner-only — even www-data can't read secrets
 - Each instance has its own PostgreSQL database and user
@@ -199,6 +208,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `server-setup.sh`                                   | Host-level convergence (packages, venv, SSL, shared config). Runs every deploy — see "Server Setup". |
 | `instance.sh`                                       | Prepare config, create/reconfigure, destroy, or list instances                                       |
 | `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
+| `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |
 | `dw-run.sh`                                         | Run a command in an instance's environment                                                           |
 | `certbot-dreamhost-auth.sh`                         | Certbot DNS-01 auth hook (adds TXT record via Dreamhost API)                                         |
 | `certbot-dreamhost-cleanup.sh`                      | Certbot DNS-01 cleanup hook (removes TXT record)                                                     |

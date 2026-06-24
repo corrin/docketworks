@@ -76,9 +76,10 @@ do_prepare_config() {
         exit 0
     fi
 
-    mkdir -p "$CONFIG_DIR"
+    ensure_config_dir
     sed "s|__INSTANCE__|$INSTANCE|g" "$TEMPLATE_DIR/credentials-instance.template" \
         > "$CREDS_FILE"
+    chown root:root "$CREDS_FILE"
     chmod 600 "$CREDS_FILE"
 
     echo ""
@@ -91,19 +92,6 @@ do_prepare_config() {
     echo ""
     echo "  See instructions in the file for Xero app setup."
     echo "============================================================"
-}
-
-read_env_value() {
-    local env_file="$1"
-    local var_name="$2"
-
-    if [[ ! -f "$env_file" ]]; then
-        printf ""
-        return
-    fi
-
-    bash -c 'set -a; source "$1"; set +a; var="$2"; printf "%s" "${!var:-}"' \
-        _ "$env_file" "$var_name"
 }
 
 generate_secret() {
@@ -125,7 +113,9 @@ require_instance_credentials() {
         exit 1
     fi
 
-    # Safe: edited only by the sysadmin who already has root access to run this script.
+    require_root_owned_credentials_file "$creds_file"
+
+    # Safe only after the root-owned/mode guard above: source executes shell.
     set -a
     source "$creds_file"
     set +a
@@ -406,12 +396,13 @@ do_configure() {
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"
     chmod 700 "$INSTANCE_DIR/logs"
     chmod 700 "$INSTANCE_DIR/dropbox"
+    chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"
+    chmod 750 "$INSTANCE_DIR/mediafiles"
     chown "$INSTANCE_USER:$INSTANCE_USER" \
         "$INSTANCE_DIR/phone-recordings" \
         "$INSTANCE_DIR/session-replays"
     chmod 700 "$INSTANCE_DIR/phone-recordings" "$INSTANCE_DIR/session-replays"
-    chmod 600 "$CREDS_FILE"
-    chown "$INSTANCE_USER:$INSTANCE_USER" "$CREDS_FILE"
+    require_root_owned_credentials_file "$CREDS_FILE"
     cp "$GCP_CREDENTIALS" "$INSTANCE_DIR/gcp-credentials.json"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/gcp-credentials.json"
     chmod 600 "$INSTANCE_DIR/gcp-credentials.json"
@@ -443,8 +434,8 @@ BASH_PROFILE
         "$FQDN"
 
     local DB_PASSWORD TEST_DB_PASSWORD
-    DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$DB_PASSWORD")"
-    TEST_DB_PASSWORD="$(. "$INSTANCE_DIR/.env" && echo "$TEST_DB_PASSWORD")"
+    DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"
+    TEST_DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" TEST_DB_PASSWORD)"
     if [[ -z "$TEST_DB_PASSWORD" ]]; then
         echo "ERROR: TEST_DB_PASSWORD missing from $INSTANCE_DIR/.env" >&2
         echo "  This instance was created before per-tenant test roles were added." >&2

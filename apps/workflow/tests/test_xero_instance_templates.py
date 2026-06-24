@@ -1,4 +1,6 @@
 import json
+import subprocess
+import tempfile
 from pathlib import Path
 
 from django.test import SimpleTestCase
@@ -12,6 +14,11 @@ XERO_APPS_TEMPLATE = (
 )
 INSTANCE_SCRIPT = REPO_ROOT / "scripts" / "server" / "instance.sh"
 DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "server" / "deploy.sh"
+COMMON_SCRIPT = REPO_ROOT / "scripts" / "server" / "common.sh"
+SERVER_SETUP_SCRIPT = REPO_ROOT / "scripts" / "server" / "server-setup.sh"
+SERVER_README = REPO_ROOT / "scripts" / "server" / "README.md"
+PRODUCTION_SETUP_DOC = REPO_ROOT / "docs" / "instance-setup-production.md"
+DEMO_SETUP_DOC = REPO_ROOT / "docs" / "instance-setup-demo.md"
 DW_RUN_SCRIPT = REPO_ROOT / "scripts" / "server" / "dw-run.sh"
 RELEASE_UTILS = REPO_ROOT / "scripts" / "server" / "release-utils.sh"
 GUNICORN_TEMPLATE = (
@@ -52,6 +59,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
     def test_credentials_template_includes_xero_oauth_env_vars(self):
         content = CREDENTIALS_TEMPLATE.read_text()
 
+        self.assertIn("XERO_DEFAULT_USER_ID=", content)
         self.assertIn("XERO_CLIENT_ID=", content)
         self.assertIn("XERO_CLIENT_SECRET=", content)
         self.assertIn("XERO_WEBHOOK_KEY=", content)
@@ -108,6 +116,13 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             'rm -f "$INSTANCE_DIR/apps/workflow/fixtures/xero_apps.json"', content
         )
 
+    def test_instance_script_requires_xero_default_user_id(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn('[[ -z "${XERO_DEFAULT_USER_ID:-}" ]]', content)
+        self.assertIn('MISSING+=("XERO_DEFAULT_USER_ID")', content)
+        self.assertNotIn("UNCONFIGURED_XERO_DEFAULT_USER_ID", content)
+
     def test_instance_script_exposes_reconfigure_as_convergent_command(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
@@ -135,6 +150,11 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn('tmp_env="$(mktemp "$instance_dir/.env.tmp.XXXXXX")"', content)
         self.assertIn('mv "$tmp_env" "$env_file"', content)
         self.assertNotIn(".env already exists — skipping", content)
+        self.assertIn(
+            'DB_PASSWORD="$(read_env_value "$INSTANCE_DIR/.env" DB_PASSWORD)"',
+            content,
+        )
+        self.assertNotIn('DB_PASSWORD="$(. "$INSTANCE_DIR/.env"', content)
 
     def test_instance_script_only_seeds_missing_db_config(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
@@ -257,3 +277,135 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn('os.environ.get("DOCKETWORKS_BUILD_SHA"', content)
         self.assertIn('release_sha_file = BASE_DIR / ".release-sha"', content)
         self.assertIn('["git", "rev-parse", "HEAD"]', content)
+
+    def test_credentials_file_stays_root_owned_before_root_source(self) -> None:
+        common_content = COMMON_SCRIPT.read_text()
+        instance_content = INSTANCE_SCRIPT.read_text()
+        deploy_content = DEPLOY_SCRIPT.read_text()
+        server_setup_content = SERVER_SETUP_SCRIPT.read_text()
+
+        self.assertIn("require_root_owned_credentials_file()", common_content)
+        self.assertIn("stat -c '%u:%g:%a' \"$creds_file\"", common_content)
+        self.assertIn('"0:0:600"', common_content)
+        self.assertIn('[[ -L "$creds_file" ]]', common_content)
+        self.assertIn("ensure_config_dir()", common_content)
+        self.assertIn("stat -c '%u:%g:%a' \"$config_dir\"", common_content)
+        self.assertIn('"0:0:755"', common_content)
+        self.assertIn('[[ -L "$CONFIG_DIR" ]]', common_content)
+        self.assertIn('[[ -L "$config_dir" ]]', common_content)
+
+        self.assertIn('chown root:root "$CREDS_FILE"', instance_content)
+        self.assertIn(
+            'require_root_owned_credentials_file "$creds_file"',
+            instance_content,
+        )
+        self.assertIn(
+            'require_root_owned_credentials_file "$CREDS_FILE"',
+            instance_content,
+        )
+        self.assertNotIn(
+            'chown "$INSTANCE_USER:$INSTANCE_USER" "$CREDS_FILE"',
+            instance_content,
+        )
+
+        self.assertIn(
+            'require_root_owned_credentials_file "$creds_file"',
+            deploy_content,
+        )
+        self.assertIn("chown root:root /opt/docketworks/config", server_setup_content)
+        self.assertIn("chmod 755 /opt/docketworks/config", server_setup_content)
+
+    def test_node_major_parsing_accepts_patch_versions(self) -> None:
+        common_content = COMMON_SCRIPT.read_text()
+        release_utils_content = RELEASE_UTILS.read_text()
+        server_setup_content = SERVER_SETUP_SCRIPT.read_text()
+
+        self.assertIn("node_major_from_nvmrc()", common_content)
+        self.assertIn("node_major_from_nvmrc()", server_setup_content)
+        self.assertIn(
+            "sed -nE 's/^[[:space:]]*v?([0-9]+).*/\\1/p'",
+            common_content,
+        )
+        self.assertIn(
+            "sed -nE 's/^[[:space:]]*v?([0-9]+).*/\\1/p' .nvmrc",
+            release_utils_content,
+        )
+        self.assertNotIn("tr -d 'v[:space:]'", release_utils_content)
+        self.assertNotIn("tr -d 'v[:space:]'", server_setup_content)
+
+        for nvmrc_value in ["18", "v18", "18.2.0", "v18.2.0", "  v18.2.0"]:
+            with tempfile.NamedTemporaryFile("w", encoding="utf-8") as nvmrc:
+                nvmrc.write(nvmrc_value)
+                nvmrc.flush()
+
+                result = subprocess.run(
+                    [
+                        "bash",
+                        "-c",
+                        'source "$1"; node_major_from_nvmrc "$2"',
+                        "_",
+                        str(COMMON_SCRIPT),
+                        nvmrc.name,
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+
+            self.assertEqual(result.stdout.strip(), "18")
+
+    def test_instance_mediafiles_are_owned_for_app_writes_and_nginx_reads(
+        self,
+    ) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn(
+            'chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR/mediafiles"',
+            content,
+        )
+        self.assertIn('chmod 750 "$INSTANCE_DIR/mediafiles"', content)
+
+    def test_xero_default_user_id_docs_match_required_create_time_workflow(
+        self,
+    ) -> None:
+        docs = "\n".join(
+            [
+                CREDENTIALS_TEMPLATE.read_text(),
+                SERVER_README.read_text(),
+                PRODUCTION_SETUP_DOC.read_text(),
+                DEMO_SETUP_DOC.read_text(),
+            ]
+        )
+
+        self.assertIn("XERO_DEFAULT_USER_ID must be present", docs)
+        self.assertIn("required before `instance.sh create`", docs)
+        self.assertNotIn("leave blank for now", docs)
+        self.assertNotIn("Create the instance first", docs)
+        self.assertNotIn("copy that UUID", docs)
+        self.assertNotIn("Copy the relevant user ID into credentials.env", docs)
+        self.assertNotIn("then run `instance.sh reconfigure`", docs)
+
+    def test_release_cleanup_is_deploy_integrated_and_reachability_based(self) -> None:
+        deploy_content = DEPLOY_SCRIPT.read_text()
+        release_utils_content = RELEASE_UTILS.read_text()
+
+        self.assertIn("--cleanup-releases", deploy_content)
+        self.assertIn("cleanup_stale_release_builds", deploy_content)
+        self.assertIn('cleanup_unreferenced_releases "$TARGET_SHA"', deploy_content)
+        self.assertIn("release_is_referenced()", release_utils_content)
+        self.assertIn(
+            'read_env_value "$instance_dir/deploy-state.env" PREVIOUS_SHA',
+            release_utils_content,
+        )
+        self.assertIn("Removing unreferenced release", release_utils_content)
+
+    def test_typed_router_drift_is_checked_in_release_build(self) -> None:
+        deploy_content = DEPLOY_SCRIPT.read_text()
+        release_utils_content = RELEASE_UTILS.read_text()
+
+        self.assertIn("npm run check:typed-router", release_utils_content)
+        self.assertNotIn(
+            "server generated a different frontend/src/typed-router.d.ts",
+            deploy_content,
+        )
+        self.assertNotIn("frontend/src/typed-router.d.ts", deploy_content)

@@ -40,6 +40,15 @@ sudo ./scripts/server/deploy.sh --all
 
 That's it for a normal code release. `deploy.sh` pulls `main` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, switches `current` to that release, runs migrations, and restarts its services — you don't run anything per service.
 
+Release cleanup is part of deploy. The script removes stale incomplete
+`.building-*` directories at the start and removes complete releases that are no
+longer referenced by any instance `current` symlink or rollback state at the end.
+To run only the cleanup pass:
+
+```bash
+sudo ./scripts/server/deploy.sh --cleanup-releases
+```
+
 **Only if the release changed per-instance config** that `deploy.sh` does not re-render — a new `.env` variable, or a change to the gunicorn systemd unit — also run, once per instance:
 
 ```bash

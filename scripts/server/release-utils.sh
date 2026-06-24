@@ -106,7 +106,11 @@ ensure_release() {
         cd '$tmp_dir'
         poetry install --no-interaction
         cd '$tmp_dir/frontend'
-        REQUIRED_NODE_MAJOR=\$(tr -d 'v[:space:]' < .nvmrc)
+        REQUIRED_NODE_MAJOR=\$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' .nvmrc | head -n 1)
+        if [[ -z \"\$REQUIRED_NODE_MAJOR\" ]]; then
+            echo \"ERROR: Could not parse Node major from frontend/.nvmrc\" >&2
+            exit 1
+        fi
         CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
         if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
             echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2
@@ -155,9 +159,7 @@ release_is_referenced() {
             return 0
         fi
         if [[ -f "$instance_dir/deploy-state.env" ]]; then
-            state_sha="$(
-                bash -c 'set -a; source "$1"; printf "%s" "${PREVIOUS_SHA:-}"' _ "$instance_dir/deploy-state.env"
-            )"
+            state_sha="$(read_env_value "$instance_dir/deploy-state.env" PREVIOUS_SHA)"
             if [[ "$state_sha" == "$sha" ]]; then
                 return 0
             fi
@@ -167,19 +169,21 @@ release_is_referenced() {
 }
 
 cleanup_unreferenced_releases() {
+    local protected_sha="${1:-}"
     local release_dir sha
 
     mkdir -p "$RELEASES_DIR"
     for release_dir in "$RELEASES_DIR"/*; do
         [[ -d "$release_dir" && -f "$release_dir/.complete" ]] || continue
         sha="$(basename "$release_dir")"
+        if [[ -n "$protected_sha" && "$sha" == "$protected_sha" ]]; then
+            continue
+        fi
         if release_is_referenced "$sha"; then
             continue
         fi
-        if [[ "$(find "$release_dir" -maxdepth 0 -mtime +7 -print)" == "$release_dir" ]]; then
-            log "Removing unreferenced release $sha"
-            rm -rf "$release_dir"
-        fi
+        log "Removing unreferenced release $sha"
+        rm -rf "$release_dir"
     done
 }
 

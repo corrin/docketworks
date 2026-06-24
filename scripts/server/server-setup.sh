@@ -34,6 +34,17 @@ log_version() {
     log "  Installed: $name $version"
 }
 
+node_major_from_nvmrc() {
+    local nvmrc_file="$1"
+    local major
+    major="$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' "$nvmrc_file" | head -n 1)"
+    if [[ -z "$major" ]]; then
+        echo "ERROR: Could not parse Node major from $nvmrc_file" >&2
+        exit 1
+    fi
+    printf "%s\n" "$major"
+}
+
 # --- Pre-flight checks ---
 
 if [[ $EUID -ne 0 ]]; then
@@ -434,6 +445,9 @@ chown docketworks:docketworks /opt/docketworks
 # of its own home and gunicorn/celery/dw-run all fail with EACCES.
 chmod 755 /opt/docketworks
 chown -R docketworks:docketworks /opt/docketworks/.local
+mkdir -p /opt/docketworks/config
+chown root:root /opt/docketworks/config
+chmod 755 /opt/docketworks/config
 
 # --- Install Dreamhost API key for certbot hooks ---
 

@@ -44,6 +44,92 @@ instance_rclone_config() {
     echo "$RCLONE_CONFIG_DIR/$instance.conf"
 }
 
+node_major_from_nvmrc() {
+    local nvmrc_file="$1"
+    local major
+    major="$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' "$nvmrc_file" | head -n 1)"
+    if [[ -z "$major" ]]; then
+        echo "ERROR: Could not parse Node major from $nvmrc_file" >&2
+        exit 1
+    fi
+    printf "%s\n" "$major"
+}
+
+read_env_value() {
+    local env_file="$1"
+    local var_name="$2"
+    local line value
+
+    if [[ ! -f "$env_file" ]]; then
+        printf ""
+        return
+    fi
+    if [[ ! "$var_name" =~ ^[A-Z0-9_]+$ ]]; then
+        echo "ERROR: Invalid env var name requested: $var_name" >&2
+        exit 1
+    fi
+
+    line="$(grep -m1 -E "^${var_name}=" "$env_file" || true)"
+    if [[ -z "$line" ]]; then
+        printf ""
+        return
+    fi
+
+    value="${line#*=}"
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+    printf "%s" "$value"
+}
+
+ensure_config_dir() {
+    if [[ -L "$CONFIG_DIR" ]]; then
+        echo "ERROR: Credentials directory must not be a symlink: $CONFIG_DIR" >&2
+        exit 1
+    fi
+    mkdir -p "$CONFIG_DIR"
+    chown root:root "$CONFIG_DIR"
+    chmod 755 "$CONFIG_DIR"
+}
+
+require_root_owned_credentials_file() {
+    local creds_file="$1"
+    local config_dir
+    config_dir="$(dirname "$creds_file")"
+
+    if [[ ! -d "$config_dir" ]]; then
+        echo "ERROR: Credentials directory not found: $config_dir" >&2
+        exit 1
+    fi
+    if [[ -L "$config_dir" ]]; then
+        echo "ERROR: Credentials directory must not be a symlink: $config_dir" >&2
+        exit 1
+    fi
+    if [[ "$(stat -c '%u:%g:%a' "$config_dir")" != "0:0:755" ]]; then
+        echo "ERROR: Credentials directory must be root:root mode 755: $config_dir" >&2
+        echo "  Fix after auditing contents:" >&2
+        echo "    sudo chown root:root $config_dir && sudo chmod 755 $config_dir" >&2
+        exit 1
+    fi
+
+    if [[ ! -f "$creds_file" ]]; then
+        echo "ERROR: Credentials file not found: $creds_file" >&2
+        exit 1
+    fi
+    if [[ -L "$creds_file" ]]; then
+        echo "ERROR: Credentials file must not be a symlink: $creds_file" >&2
+        exit 1
+    fi
+    if [[ "$(stat -c '%u:%g:%a' "$creds_file")" != "0:0:600" ]]; then
+        echo "ERROR: Credentials file must be root:root mode 600: $creds_file" >&2
+        echo "  Fix after auditing contents:" >&2
+        echo "    sudo chown root:root $creds_file && sudo chmod 600 $creds_file" >&2
+        exit 1
+    fi
+}
+
 write_instance_rclone_config() {
     local instance="$1"
     local instance_user="$2"
