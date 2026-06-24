@@ -180,6 +180,19 @@ restart_instance_units() {
     systemctl restart "gunicorn-$instance"
 }
 
+stop_instance_units() {
+    local instance="$1"
+
+    log "  Stopping celery-beat-$instance"
+    systemctl stop "celery-beat-$instance" 2>/dev/null || true
+
+    log "  Stopping celery-worker-$instance"
+    systemctl stop "celery-worker-$instance" 2>/dev/null || true
+
+    log "  Stopping gunicorn-$instance"
+    systemctl stop "gunicorn-$instance" 2>/dev/null || true
+}
+
 remove_legacy_scheduler_unit() {
     local instance="$1"
 
@@ -310,6 +323,8 @@ for instance in "${TARGETS[@]}"; do
         log "  Skipping pre-deploy backup for $instance (--no-backup)"
     fi
 
+    stop_instance_units "$instance"
+
     switch_instance_release "$instance" "$TARGET_SHA"
     chown -h "$inst_user:$inst_user" "$instance_dir/current"
 
@@ -317,11 +332,19 @@ for instance in "${TARGETS[@]}"; do
     if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
         log "  Migration complete for $instance"
     else
-        log "  ERROR: migrate failed for $instance — not restarting services"
-        if [[ -n "$previous_sha" && -d "$(release_path "$previous_sha")" ]]; then
-            log "  Switching current back to previous release $previous_sha"
-            switch_instance_release "$instance" "$previous_sha"
-            chown -h "$inst_user:$inst_user" "$instance_dir/current"
+        log "  ERROR: migrate failed for $instance — services remain stopped"
+        log "  ERROR: DB may be partially migrated; code-only rollback is unsafe"
+        log "  Inspect migrations:"
+        log "    $SCRIPT_DIR/dw-run.sh $instance python manage.py showmigrations"
+        if [[ -n "$previous_sha" ]]; then
+            if [[ $DO_BACKUP -eq 1 ]]; then
+                log "  Manual rollback, if required:"
+                log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}"
+            else
+                log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
+            fi
+        else
+            log "  WARNING: no previous release SHA recorded for rollback guidance"
         fi
         FAILED_INSTANCES+=("$instance")
         continue

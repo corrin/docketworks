@@ -39,7 +39,7 @@ Run manually for one-off or periodic data tasks:
 
 - **`backup_db.sh`** — Instance-user database backup. Writes daily/monthly dumps, then runs retention and Google Drive sync through `cleanup_backups.py`. Runs via `backup-db-<instance>.timer`.
 - **`predeploy_backup.sh`** — Called by `scripts/server/deploy.sh` before each instance is switched to a new release. Stamps the dump with the current release hash so rollback is a (switch release, psql restore) pair. Runnable by hand: `sudo predeploy_backup.sh <instance>`
-- **`predeploy_rollback.sh`** — Restore an instance to the release + data that paired with a given commit hash. Usage: `sudo predeploy_rollback.sh <instance> <hash>` (interactive confirm before it stops services and restores the DB)
+- **`predeploy_rollback.sh`** — Restore an instance to the release + data that paired with a given commit hash. Usage: `sudo predeploy_rollback.sh <instance> <hash>` (interactive confirm; restores the dump into a temporary DB before stopping services and swapping DBs)
 - **`cleanup_backups.py`** — Backup retention and remote sync. `ts_dir` style: keep 24h + daily for a week + monthly beyond. `predeploy_*.sql.gz`: keep 30 days. `daily_*.sql.gz`: keep 14. `monthly_*.sql.gz`: keep 12. Other filenames left alone.
 - **`cleanup_backups.sh`** — Wrapper that activates venv and runs `cleanup_backups.py`
 
