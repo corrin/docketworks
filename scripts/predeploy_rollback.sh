@@ -39,12 +39,12 @@ if [[ ! -f "$ENV_FILE" ]]; then
     exit 1
 fi
 
-DB_NAME=$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2)
+DB_NAME="$(read_env_value "$ENV_FILE" DB_NAME)"
 if [[ -z "$DB_NAME" ]]; then
     echo "ERROR: DB_NAME not set in $ENV_FILE" >&2
     exit 1
 fi
-DB_USER=$(grep -E '^DB_USER=' "$ENV_FILE" | cut -d= -f2)
+DB_USER="$(read_env_value "$ENV_FILE" DB_USER)"
 if [[ -z "$DB_USER" ]]; then
     echo "ERROR: DB_USER not set in $ENV_FILE" >&2
     exit 1

@@ -27,7 +27,7 @@ resolve_existing_release_sha() {
     local ref="$1"
     local matches=()
 
-    if [[ -d "$RELEASES_DIR/$ref" ]]; then
+    if release_complete "$ref"; then
         echo "$ref"
         return 0
     fi
@@ -65,13 +65,18 @@ switch_instance_release() {
     local instance_dir="$INSTANCES_DIR/$instance"
     local tmp_link="$instance_dir/current.tmp"
 
+    if ! release_complete "$sha"; then
+        echo "ERROR: refusing to point $instance at incomplete/missing release $sha" >&2
+        exit 1
+    fi
+
     ln -sfn "../../releases/$sha" "$tmp_link"
     mv -Tf "$tmp_link" "$instance_dir/current"
 }
 
 ensure_release() {
     local sha="$1"
-    local release_dir tmp_dir
+    local release_dir
     release_dir="$(release_path "$sha")"
 
     if release_complete "$sha"; then
@@ -83,29 +88,30 @@ ensure_release() {
     chown docketworks:docketworks "$RELEASES_DIR"
     chmod 755 "$RELEASES_DIR"
 
-    tmp_dir="$RELEASES_DIR/.building-$sha-$$"
-    if [[ -e "$tmp_dir" ]]; then
-        echo "ERROR: temporary release directory already exists: $tmp_dir" >&2
-        exit 1
-    fi
+    # Build directly at the final path. .complete (written last) is the only
+    # completion gate, so an interrupted build leaves an incomplete, unreferenced
+    # dir that we clear here and rebuild. Building in place (not build-then-mv)
+    # keeps the venv's console-script shebangs valid — a moved venv is not
+    # relocatable. Serial deploys mean there is no concurrent build to race.
+    rm -rf "$release_dir"
 
     log "Building shared release $sha..."
-    mkdir "$tmp_dir"
-    chown docketworks:docketworks "$tmp_dir"
+    mkdir "$release_dir"
+    chown docketworks:docketworks "$release_dir"
 
     if ! sudo -u docketworks bash -c "
         set -euo pipefail
-        git -C '$LOCAL_REPO' archive '$sha' | tar -x -C '$tmp_dir'
-        printf '%s\n' '$sha' > '$tmp_dir/.release-sha'
-        python3.12 -m venv '$tmp_dir/.venv'
+        git -C '$LOCAL_REPO' archive '$sha' | tar -x -C '$release_dir'
+        printf '%s\n' '$sha' > '$release_dir/.release-sha'
+        python3.12 -m venv '$release_dir/.venv'
         export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
         export POETRY_VIRTUALENVS_CREATE=false
         export DOCKETWORKS_BUILD_SHA='$sha'
-        source '$tmp_dir/.venv/bin/activate'
+        source '$release_dir/.venv/bin/activate'
         pip install --upgrade pip
-        cd '$tmp_dir'
+        cd '$release_dir'
         poetry install --no-interaction
-        cd '$tmp_dir/frontend'
+        cd '$release_dir/frontend'
         REQUIRED_NODE_MAJOR=\$(sed -nE 's/^[[:space:]]*v?([0-9]+).*/\1/p' .nvmrc | head -n 1)
         if [[ -z \"\$REQUIRED_NODE_MAJOR\" ]]; then
             echo \"ERROR: Could not parse Node major from frontend/.nvmrc\" >&2
@@ -121,32 +127,31 @@ ensure_release() {
         npm run build
         npm run manual:build
         rm -rf node_modules
-        touch '$tmp_dir/.complete'
+        touch '$release_dir/.complete'
     "; then
         log "  ERROR: failed to build release $sha"
-        rm -rf "$tmp_dir"
+        rm -rf "$release_dir"
         exit 1
     fi
 
-    if [[ -e "$release_dir" ]]; then
-        if release_complete "$sha"; then
-            log "Release $sha appeared during build; discarding duplicate temporary release."
-            rm -rf "$tmp_dir"
-        else
-            echo "ERROR: incomplete release exists at $release_dir" >&2
-            echo "  Remove or inspect it before retrying." >&2
-            rm -rf "$tmp_dir"
-            exit 1
-        fi
-    else
-        mv "$tmp_dir" "$release_dir"
-        log "Release $sha ready at $release_dir"
-    fi
+    log "Release $sha ready at $release_dir"
 }
 
-cleanup_stale_release_builds() {
+cleanup_incomplete_releases() {
+    # Remove leftover release dirs from an interrupted build (no .complete
+    # marker). Releases are built in place, so a crashed build can leave an
+    # incomplete dir at the canonical path; the >1-day guard avoids touching a
+    # build still in progress.
     mkdir -p "$RELEASES_DIR"
-    find "$RELEASES_DIR" -maxdepth 1 -type d -name '.building-*' -mtime +0 -print -exec rm -rf {} +
+    local release_dir
+    for release_dir in "$RELEASES_DIR"/*; do
+        [[ -d "$release_dir" ]] || continue
+        [[ -f "$release_dir/.complete" ]] && continue
+        if [[ -n "$(find "$release_dir" -maxdepth 0 -mtime +0)" ]]; then
+            log "Removing stale incomplete release build $(basename "$release_dir")"
+            rm -rf "$release_dir"
+        fi
+    done
 }
 
 release_is_referenced() {

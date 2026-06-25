@@ -64,7 +64,7 @@ if [[ $DO_CLEANUP_RELEASES -eq 1 ]]; then
         echo "$USAGE" >&2
         exit 1
     fi
-    cleanup_stale_release_builds
+    cleanup_incomplete_releases
     cleanup_unreferenced_releases
     exit 0
 fi
@@ -142,8 +142,8 @@ render_nginx_config() {
         return 1
     fi
 
-    fqdn=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | awk '{$1=$1; print}')
-    cert_domain=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1)
+    fqdn=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | awk '{$1=$1; print}' || true)
+    cert_domain=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1 || true)
     if [[ -z "$fqdn" || -z "$cert_domain" ]]; then
         log "  ERROR: Could not extract FQDN/CERT_DOMAIN from $existing_conf"
         return 1
@@ -283,7 +283,7 @@ else
     log "  Stamped $SERVER_SETUP_STAMP with current input hash."
 fi
 
-cleanup_stale_release_builds
+cleanup_incomplete_releases
 ensure_release "$TARGET_SHA"
 
 FAILED_INSTANCES=()
@@ -381,7 +381,11 @@ else
     exit 1
 fi
 
-cleanup_unreferenced_releases "$TARGET_SHA"
+if [[ ${#FAILED_INSTANCES[@]} -eq 0 ]]; then
+    cleanup_unreferenced_releases "$TARGET_SHA"
+else
+    log "  Skipping release cleanup — failed instances may still need their previous release for rollback"
+fi
 
 log "=========================================="
 log "Deploy complete"
