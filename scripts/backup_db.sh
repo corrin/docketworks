@@ -33,7 +33,10 @@ if [[ ! -f "$ENV_FILE" ]]; then
 fi
 
 # Read DB settings from instance .env.
-set -a; source "$ENV_FILE"; set +a
+set -a
+# shellcheck source=/dev/null  # runtime .env path, not statically resolvable
+source "$ENV_FILE"
+set +a
 for var in DB_NAME DB_USER DB_PASSWORD; do
     if [[ -z "${!var:-}" ]]; then
         echo "Error: $var not set in $ENV_FILE" >&2

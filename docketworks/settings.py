@@ -2,6 +2,7 @@ import base64
 import hashlib
 import logging
 import os
+import re
 import subprocess
 import sys
 from datetime import timedelta
@@ -14,16 +15,48 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 load_dotenv(BASE_DIR / ".env", override=False)
 
-# Git SHA of the running process. Served by /api/build-id/ so the frontend can
-# detect when a deploy has happened and force a reload. Captured at import
-# time: gunicorn restart on deploy re-imports and picks up the new SHA.
-BUILD_ID = subprocess.run(
-    ["git", "rev-parse", "HEAD"],
-    cwd=BASE_DIR,
-    check=True,
-    capture_output=True,
-    text=True,
-).stdout.strip()
+
+def _validate_sha(value: str, source: str) -> str:
+    """Return value as a 40-char hex git SHA, or fail fast.
+
+    Every build-id source is a full git SHA; a malformed value would propagate
+    into /api/build-id/ and silently break the frontend version-check reload, so
+    validate upfront and crash rather than serve a bad id.
+    """
+    sha = value.strip()
+    if not re.fullmatch(r"[0-9a-f]{40}", sha):
+        raise ImproperlyConfigured(
+            f"{source} must be a 40-character hex git SHA, got: {value!r}"
+        )
+    return sha
+
+
+def read_build_id() -> str:
+    """Return the release SHA for this running process."""
+    env_sha = os.environ.get("DOCKETWORKS_BUILD_SHA", "").strip()
+    if env_sha:
+        return _validate_sha(env_sha, "DOCKETWORKS_BUILD_SHA")
+
+    release_sha_file = BASE_DIR / ".release-sha"
+    if release_sha_file.exists():
+        return _validate_sha(release_sha_file.read_text(), str(release_sha_file))
+
+    return _validate_sha(
+        subprocess.run(
+            ["git", "rev-parse", "HEAD"],
+            cwd=BASE_DIR,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout,
+        "git rev-parse HEAD",
+    )
+
+
+# Served by /api/build-id/ so the frontend can detect when a deploy has
+# happened and force a reload. Captured at import time: gunicorn restart on
+# deploy re-imports and picks up the new release SHA.
+BUILD_ID = read_build_id()
 
 
 def validate_required_settings() -> None:

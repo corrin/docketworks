@@ -4,17 +4,18 @@ set -euo pipefail
 # Usage: predeploy_backup.sh <instance>
 # Example: predeploy_backup.sh msm-prod
 #
-# Captures the instance's current HEAD short hash + a timestamp, then
+# Captures the instance's current release short hash + a timestamp, then
 # pg_dumps the instance DB into:
 #   /opt/docketworks/instances/<instance>/backups/predeploy_<ts>_<hash>.sql.gz
 #
 # The hash tags the dump with the commit that produced the data, so a
-# rollback pair is (`git checkout <hash>`, restore this file).
+# rollback pair is (switch current release to <hash>, restore this file).
 #
 # Must run as root (calls `sudo -u postgres pg_dump`).
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 source "$SCRIPT_DIR/server/common.sh"
+source "$SCRIPT_DIR/server/release-utils.sh"
 
 if [[ $# -lt 1 ]]; then
     echo "Usage: $0 <instance>"
@@ -31,19 +32,18 @@ if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: $ENV_FILE missing" >&2
     exit 1
 fi
-if [[ ! -d "$INSTANCE_DIR/.git" ]]; then
-    echo "ERROR: $INSTANCE_DIR is not a git checkout" >&2
-    exit 1
-fi
-
-DB_NAME=$(grep -E '^DB_NAME=' "$ENV_FILE" | cut -d= -f2)
+DB_NAME="$(read_env_value "$ENV_FILE" DB_NAME)"
 if [[ -z "$DB_NAME" ]]; then
     echo "ERROR: DB_NAME not set in $ENV_FILE" >&2
     exit 1
 fi
 
-INST_USER="$(instance_user "$INSTANCE")"
-HASH=$(sudo -u "$INST_USER" git -C "$INSTANCE_DIR" rev-parse --short HEAD)
+HASH="$(instance_current_sha "$INSTANCE")"
+if [[ -z "$HASH" ]]; then
+    echo "ERROR: could not determine current release SHA for $INSTANCE" >&2
+    exit 1
+fi
+HASH="${HASH:0:12}"
 TS=$(date +%Y%m%d_%H%M%S)
 OUT="$BACKUP_DIR/predeploy_${TS}_${HASH}.sql.gz"
 

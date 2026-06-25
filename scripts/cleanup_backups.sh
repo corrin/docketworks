@@ -14,5 +14,6 @@ INSTANCE="$1"
 shift
 BACKUP_DIR="/opt/docketworks/instances/$INSTANCE/backups"
 
+# shellcheck source=/dev/null  # venv activate, only present at runtime on the server
 source /opt/docketworks/.venv/bin/activate
 exec python "$(dirname "$0")/cleanup_backups.py" "$BACKUP_DIR" "$@"

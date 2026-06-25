@@ -25,6 +25,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 TEMPLATE_DIR="$SCRIPT_DIR/templates"
 source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/release-utils.sh"
 
 # Escape special chars for sed replacement strings (handles / & \ in values)
 sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\\"]/\\&/g'; }
@@ -93,35 +94,6 @@ do_prepare_config() {
     echo "============================================================"
 }
 
-read_env_value() {
-    local env_file="$1"
-    local var_name="$2"
-    local line value
-
-    if [[ ! -f "$env_file" ]]; then
-        printf ""
-        return
-    fi
-    if [[ ! "$var_name" =~ ^[A-Z0-9_]+$ ]]; then
-        echo "ERROR: Invalid env var name requested: $var_name" >&2
-        exit 1
-    fi
-
-    line="$(grep -m1 -E "^${var_name}=" "$env_file" || true)"
-    if [[ -z "$line" ]]; then
-        printf ""
-        return
-    fi
-
-    value="${line#*=}"
-    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
-        value="${value:1:${#value}-2}"
-    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
-        value="${value:1:${#value}-2}"
-    fi
-    printf "%s" "$value"
-}
-
 generate_secret() {
     python3 -c 'import secrets; print(secrets.token_urlsafe(50))'
 }
@@ -145,6 +117,7 @@ require_instance_credentials() {
 
     # Safe only after the root-owned/mode guard above: source executes shell.
     set -a
+    # shellcheck source=/dev/null  # runtime credentials file, path not statically known
     source "$creds_file"
     set +a
 
@@ -247,35 +220,13 @@ render_instance_env() {
     mv "$tmp_env" "$env_file"
 }
 
-render_frontend_env() {
-    local instance_dir="$1"
-    local instance_user="$2"
-    local frontend_env="$instance_dir/frontend/.env"
-
-    log "Rendering frontend/.env from template..."
-    local ESC_E2E_TEST_USERNAME ESC_E2E_TEST_PASSWORD ESC_XERO_USERNAME ESC_XERO_PASSWORD
-    ESC_E2E_TEST_USERNAME="$(sed_escape "$E2E_TEST_USERNAME")"
-    ESC_E2E_TEST_PASSWORD="$(sed_escape "$E2E_TEST_PASSWORD")"
-    ESC_XERO_USERNAME="$(sed_escape "$XERO_USERNAME")"
-    ESC_XERO_PASSWORD="$(sed_escape "$XERO_PASSWORD")"
-    sed \
-        -e "s|__INSTANCE__|$INSTANCE|g" \
-        -e "s|__CLIENT__|$CLIENT|g" \
-        -e "s|__DOMAIN__|$DOMAIN|g" \
-        -e "s|__E2E_TEST_USERNAME__|$ESC_E2E_TEST_USERNAME|g" \
-        -e "s|__E2E_TEST_PASSWORD__|$ESC_E2E_TEST_PASSWORD|g" \
-        -e "s|__XERO_USERNAME__|$ESC_XERO_USERNAME|g" \
-        -e "s|__XERO_PASSWORD__|$ESC_XERO_PASSWORD|g" \
-        "$TEMPLATE_DIR/frontend-env-instance.template" > "$frontend_env"
-    chown "$instance_user:$instance_user" "$frontend_env"
-    chmod 600 "$frontend_env"
-}
-
 render_ai_providers_fixture() {
     local instance_dir="$1"
     local instance_user="$2"
+    local fixture_dir="$instance_dir/.fixtures"
 
     log "Generating AI providers fixture..."
+    mkdir -p "$fixture_dir"
     local ESC_ANTHROPIC_API_KEY ESC_GEMINI_API_KEY ESC_MISTRAL_API_KEY
     ESC_ANTHROPIC_API_KEY="$(sed_escape "$ANTHROPIC_API_KEY")"
     ESC_GEMINI_API_KEY="$(sed_escape "$GEMINI_API_KEY")"
@@ -285,17 +236,19 @@ render_ai_providers_fixture() {
         -e "s|__GEMINI_API_KEY__|$ESC_GEMINI_API_KEY|g" \
         -e "s|__MISTRAL_API_KEY__|$ESC_MISTRAL_API_KEY|g" \
         "$TEMPLATE_DIR/ai-providers.json.template" \
-        > "$instance_dir/apps/workflow/fixtures/ai_providers.json"
-    chown "$instance_user:$instance_user" \
-        "$instance_dir/apps/workflow/fixtures/ai_providers.json"
-    chmod 600 "$instance_dir/apps/workflow/fixtures/ai_providers.json"
+        > "$fixture_dir/ai_providers.json"
+    chown -R "$instance_user:$instance_user" "$fixture_dir"
+    chmod 700 "$fixture_dir"
+    chmod 600 "$fixture_dir/ai_providers.json"
 }
 
 render_xero_apps_fixture() {
     local instance_dir="$1"
     local instance_user="$2"
+    local fixture_dir="$instance_dir/.fixtures"
 
     log "Generating Xero apps fixture..."
+    mkdir -p "$fixture_dir"
     local ESC_XERO_CLIENT_ID ESC_XERO_CLIENT_SECRET ESC_XERO_WEBHOOK_KEY ESC_XERO_REDIRECT_URI
     ESC_XERO_CLIENT_ID="$(sed_escape "$XERO_CLIENT_ID")"
     ESC_XERO_CLIENT_SECRET="$(sed_escape "$XERO_CLIENT_SECRET")"
@@ -308,10 +261,10 @@ render_xero_apps_fixture() {
         -e "s|__XERO_WEBHOOK_KEY__|$ESC_XERO_WEBHOOK_KEY|g" \
         -e "s|__XERO_REDIRECT_URI__|$ESC_XERO_REDIRECT_URI|g" \
         "$TEMPLATE_DIR/xero-apps.json.template" \
-        > "$instance_dir/apps/workflow/fixtures/xero_apps.json"
-    chown "$instance_user:$instance_user" \
-        "$instance_dir/apps/workflow/fixtures/xero_apps.json"
-    chmod 600 "$instance_dir/apps/workflow/fixtures/xero_apps.json"
+        > "$fixture_dir/xero_apps.json"
+    chown -R "$instance_user:$instance_user" "$fixture_dir"
+    chmod 700 "$fixture_dir"
+    chmod 600 "$fixture_dir/xero_apps.json"
 }
 
 # ============================================================
@@ -368,13 +321,13 @@ do_configure() {
     local TEST_DB_NAME="$TEST_DB_USER"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
-    if [[ -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
+    if [[ -L "$INSTANCE_DIR/current" || -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
         IS_EXISTING=true
     fi
-    if [[ ! -d "$INSTANCE_DIR/.git" ]]; then
+    if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
         NEEDS_APP_BOOTSTRAP=true
     fi
-    if [[ -d "$INSTANCE_DIR/.git" && "$SEED" == "true" ]]; then
+    if [[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]; then
         echo "ERROR: --seed is only valid when creating a new instance." >&2
         echo "  Existing instance: $INSTANCE_DIR" >&2
         exit 1
@@ -388,7 +341,7 @@ do_configure() {
     fi
     log "  Client:    $CLIENT"
     log "  Env:       $ENV"
-    log "  Directory: $INSTANCE_DIR (= git checkout)"
+    log "  Directory: $INSTANCE_DIR"
     log "  User:      $INSTANCE_USER"
     log "  Database:  $DB_NAME"
     log "  URL:       https://$INSTANCE.$DOMAIN"
@@ -462,11 +415,11 @@ do_configure() {
         "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"
     echo "$FQDN" > "$INSTANCE_DIR/.fqdn"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
-    ln -sfn "$SHARED_VENV" "$INSTANCE_DIR/.venv"
 
     cat > "$INSTANCE_DIR/.bash_profile" <<'BASH_PROFILE'
-source ~/.venv/bin/activate
+source ~/current/.venv/bin/activate
 set -a; source ~/.env; set +a
+cd ~/current
 BASH_PROFILE
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.bash_profile"
     chmod 644 "$INSTANCE_DIR/.bash_profile"
@@ -521,45 +474,46 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$TEST_DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$TEST_DB_NAME" TO "$TEST_DB_USER";
 EOSQL
 
-    if [[ -d "$INSTANCE_DIR/.git" ]]; then
-        log "Code already cloned — ensuring origin points at local repo."
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" remote set-url origin "$LOCAL_REPO"
-    else
-        log "Initialising codebase in $INSTANCE_DIR from local repo (branch: main)..."
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" init -b main
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" remote add origin "$LOCAL_REPO"
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" fetch origin
-        sudo -u "$INSTANCE_USER" git -C "$INSTANCE_DIR" checkout -f main
+    if [[ ! -L "$INSTANCE_DIR/current" ]]; then
+        local TARGET_SHA
+        fetch_local_repo
+        if [[ -d "$INSTANCE_DIR/.git" ]]; then
+            TARGET_SHA="$(instance_current_sha "$INSTANCE")"
+            log "Creating current release link from legacy checkout SHA $TARGET_SHA"
+        else
+            TARGET_SHA="$(resolve_release_ref origin/main)"
+            log "Creating current release link from origin/main SHA $TARGET_SHA"
+        fi
+        ensure_release "$TARGET_SHA"
+        switch_instance_release "$INSTANCE" "$TARGET_SHA"
+        chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/current"
     fi
 
-    render_frontend_env "$INSTANCE_DIR" "$INSTANCE_USER"
-
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
-        log "Building frontend for instance $INSTANCE..."
-        sudo -u "$INSTANCE_USER" bash -c "
-            cd '$INSTANCE_DIR/frontend'
-            npm run build
-            npm run manual:build
-        "
-
         log "Running Django migrate..."
         "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py migrate --no-input
     fi
 
     render_ai_providers_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading AI providers..."
+    local AI_PROVIDERS_FIXTURE="$INSTANCE_DIR/.fixtures/ai_providers.json"
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        'from django.core.management import call_command; from apps.workflow.models import AIProvider; print("AIProvider already configured; skipping ai_providers.json load") if AIProvider.objects.exists() else call_command("loaddata", "apps/workflow/fixtures/ai_providers.json")'
-    rm -f "$INSTANCE_DIR/apps/workflow/fixtures/ai_providers.json"
+        "from django.core.management import call_command; from apps.workflow.models import AIProvider; print('AIProvider already configured; skipping ai_providers.json load') if AIProvider.objects.exists() else call_command('loaddata', '$AI_PROVIDERS_FIXTURE')"
+    rm -f "$AI_PROVIDERS_FIXTURE"
 
     render_xero_apps_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
     log "Loading Xero apps..."
+    local XERO_APPS_FIXTURE="$INSTANCE_DIR/.fixtures/xero_apps.json"
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
-        'from django.core.management import call_command; from apps.workflow.models import XeroApp; print("XeroApp already configured; skipping xero_apps.json load") if XeroApp.objects.exists() else call_command("loaddata", "apps/workflow/fixtures/xero_apps.json")'
+        "from django.core.management import call_command; from apps.workflow.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
+    rm -f "$XERO_APPS_FIXTURE"
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
         log "Creating initial admin user..."
-        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py
+        # --admin-only: ensure the default admin exists but do NOT reset staff
+        # passwords. The password reset is strictly part of restore-prod-to-nonprod
+        # (see docs/restore-prod-to-nonprod.md), never instance creation.
+        "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python scripts/setup_dev_logins.py --admin-only
 
         if [[ "$SEED" == "true" ]]; then
             log "Loading demo fixtures..."
@@ -662,7 +616,7 @@ EOSQL
         log "Instance '$INSTANCE' created successfully"
     fi
     log "  URL:        https://$FQDN"
-    log "  Directory:  $INSTANCE_DIR (= git checkout)"
+    log "  Directory:  $INSTANCE_DIR"
     log "  User:       $INSTANCE_USER"
     log "  Database:   $DB_NAME"
     log "  Service:    gunicorn-$INSTANCE"
@@ -711,7 +665,7 @@ do_destroy() {
     echo "    - Timer:     backup-db-$INSTANCE"
     echo "    - Nginx:     docketworks-$INSTANCE"
     echo ""
-    read -p "Are you sure? (yes/no): " CONFIRM
+    read -r -p "Are you sure? (yes/no): " CONFIRM
     if [[ "$CONFIRM" != "yes" ]]; then
         echo "Aborted."
         exit 0
@@ -819,11 +773,11 @@ do_list() {
         exit 0
     fi
 
-    printf "%-15s %-12s %-12s %-20s %-40s\n" "INSTANCE" "GUNICORN" "SCHEDULER" "BRANCH" "URL"
-    printf "%-15s %-12s %-12s %-20s %-40s\n" "--------" "--------" "---------" "------" "---"
+    printf "%-15s %-12s %-12s %-14s %-40s\n" "INSTANCE" "GUNICORN" "SCHEDULER" "SHA" "URL"
+    printf "%-15s %-12s %-12s %-14s %-40s\n" "--------" "--------" "---------" "---" "---"
 
     for name in "${INSTANCES[@]}"; do
-        local status sched_status branch
+        local status sched_status sha
         if systemctl is-active --quiet "gunicorn-$name" 2>/dev/null; then
             status="running"
         elif systemctl is-enabled --quiet "gunicorn-$name" 2>/dev/null; then
@@ -840,14 +794,14 @@ do_list() {
             sched_status="no service"
         fi
 
-        local inst_dir="$INSTANCES_DIR/$name"
-        if [[ -d "$inst_dir/.git" ]]; then
-            branch="$(git -C "$inst_dir" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "unknown")"
+        sha="$(instance_current_sha "$name")"
+        if [[ -n "$sha" ]]; then
+            sha="${sha:0:12}"
         else
-            branch="no code"
+            sha="no release"
         fi
 
-        printf "%-15s %-12s %-12s %-20s %-40s\n" "$name" "$status" "$sched_status" "$branch" "https://$(get_fqdn "$name")"
+        printf "%-15s %-12s %-12s %-14s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(get_fqdn "$name")"
     done
 }
 

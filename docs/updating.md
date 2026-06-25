@@ -38,7 +38,36 @@ sudo ./scripts/server/deploy.sh <client>-<env>
 sudo ./scripts/server/deploy.sh --all
 ```
 
-That's it for a normal code release. `deploy.sh` pulls `main` itself, then for each instance takes a pre-deploy DB backup, runs migrations, rebuilds the frontend, and restarts its services — you don't run anything per service.
+That's it for a normal code release. `deploy.sh` pulls `main` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, stops runtime services, switches `current` to that release, runs migrations, and restarts its services — you don't run anything per service.
+
+If migrations fail, deploy leaves that instance's services stopped and does not
+perform an automatic rollback. Django records successful migrations in the
+instance database's `django_migrations` table, so a failed `migrate` can leave
+the database partially upgraded. Investigate in the failed release first:
+
+```bash
+sudo ./scripts/server/dw-run.sh <client>-<env> python manage.py showmigrations
+```
+
+If the right response is rollback rather than fix-forward, run the explicit
+rollback command printed by deploy. It restores the paired pre-deploy database
+backup and switches the instance back to the matching release:
+
+```bash
+sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-sha>
+```
+
+Do not switch only the `current` symlink after a migration failure; old code can
+be incompatible with the partially migrated database.
+
+Release cleanup is part of deploy. The script removes stale incomplete
+`.building-*` directories at the start and removes complete releases that are no
+longer referenced by any instance `current` symlink or rollback state at the end.
+To run only the cleanup pass:
+
+```bash
+sudo ./scripts/server/deploy.sh --cleanup-releases
+```
 
 **Only if the release changed per-instance config** that `deploy.sh` does not re-render — a new `.env` variable, or a change to the gunicorn systemd unit — also run, once per instance:
 
@@ -53,7 +82,6 @@ For architecture, see [server_setup.md](server_setup.md); for the exact internal
 If you encounter issues after updating:
 
 1. Check the logs:
-
    - SQL logs: `logs/debug_sql.log`
    - Xero integration: `logs/xero_integration.log`
 

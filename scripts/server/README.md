@@ -10,18 +10,18 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 
 **Collect before you start:**
 
-| What | Where to get it | Used for |
-|------|----------------|----------|
-| Dreamhost API key | panel.dreamhost.com → API → generate key with `dns-*` permissions | Wildcard SSL cert (DNS-01 challenge) |
-| Google Maps API key | console.cloud.google.com/apis/credentials (enable Address Validation API) | Address validation |
+| What                | Where to get it                                                           | Used for                             |
+| ------------------- | ------------------------------------------------------------------------- | ------------------------------------ |
+| Dreamhost API key   | panel.dreamhost.com → API → generate key with `dns-*` permissions         | Wildcard SSL cert (DNS-01 challenge) |
+| Google Maps API key | console.cloud.google.com/apis/credentials (enable Address Validation API) | Address validation                   |
 
 **Per instance (configured in `config/<name>.credentials.env`):**
 
-| What | Where to get it | Used for |
-|------|----------------|----------|
-| Gmail address + app password | Google Account → Security → App passwords | Password resets, notifications |
-| GCP service account JSON key | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server | Google Sheets/Drive integration |
-| Google Drive backup folder | Share a Drive folder with the service account; optional folder ID goes in `BACKUP_GDRIVE_ROOT_FOLDER_ID` | Nightly DB backups |
+| What                         | Where to get it                                                                                          | Used for                        |
+| ---------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------- |
+| Gmail address + app password | Google Account → Security → App passwords                                                                | Password resets, notifications  |
+| GCP service account JSON key | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server                    | Google Sheets/Drive integration |
+| Google Drive backup folder   | Share a Drive folder with the service account; optional folder ID goes in `BACKUP_GDRIVE_ROOT_FOLDER_ID` | Nightly DB backups              |
 
 ## Server Setup
 
@@ -40,9 +40,10 @@ sudo ./scripts/server/server-setup.sh --no-cert --google-maps-key <GOOGLE_MAPS_A
 sudo ./scripts/server/server-setup.sh
 ```
 
-Installs everything needed by the app: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, Poetry, rclone, Claude Code CLI. Creates the `docketworks` system user, clones the repo, builds the shared venv and node_modules, obtains the wildcard SSL cert.
+Installs host-level requirements: Python 3.12, Node 22, PostgreSQL, Redis, Nginx, Certbot, Poetry, rclone, Claude Code CLI. Creates the `docketworks` system user, clones the repo, prepares release/cache directories, and obtains the wildcard SSL cert. App dependencies are installed by `deploy.sh` into each shared release directory.
 
 Required keys (passed once on first run, then cached):
+
 1. Dreamhost API key (for the Let's Encrypt DNS-01 challenge — UAT only)
 2. Google Maps API key (for address validation)
 
@@ -110,10 +111,14 @@ How to get them:
 Operator runbook (the commands to run): [docs/updating.md](../../docs/updating.md).
 
 What `deploy.sh` does, in order:
+
 1. Pull latest code from GitHub (into the shared local repo).
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
-3. Update shared Python/Node deps.
-4. For each instance: pre-deploy backup (unless `--no-backup`), git pull, build frontend, run migrate, render backup units, render+restart `celery-worker-<instance>`, render+restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
+3. Resolve the target ref to a SHA and build `/opt/docketworks/releases/<sha>` once if it does not already exist.
+4. For each instance: pre-deploy backup (unless `--no-backup`), stop `celery-beat-<instance>`, `celery-worker-<instance>`, and `gunicorn-<instance>`, switch `current` to the release, run migrate, render backup units, restart `celery-worker-<instance>`, restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. If migrate fails, services stay stopped and rollback is explicit via `sudo ./scripts/predeploy_rollback.sh <instance> <previous-sha>`. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
+5. Clean up complete releases that are no longer referenced by an instance
+   `current` symlink or rollback state. To run only cleanup:
+   `sudo ./scripts/server/deploy.sh --cleanup-releases`.
 
 ## Backups
 
@@ -141,31 +146,30 @@ Prompts for confirmation, then removes: systemd service, Nginx config, database 
 ./scripts/server/instance.sh list
 ```
 
-Shows each instance's name, status (running/stopped/no service), git branch, and URL. No sudo required.
+Shows each instance's name, status (running/stopped/no service), current release SHA, and URL. No sudo required.
 
 ## Architecture Quick Reference
 
 ### Directory Layout
 
-```
+```text
 /opt/docketworks/
-├── .venv/                    # Shared Python venv (all instances use this)
-├── repo/                     # Local git clone (source for instance clones)
+├── repo/                     # Local git clone/cache
+├── releases/<sha>/           # Shared immutable app release (code, release-local .venv, frontend dist)
 ├── shared.env                # Maps API key (appended to each .env)
-├── package.json              # Shared node_modules
 ├── certbot-hooks/            # Dreamhost DNS challenge scripts
 ├── config/
 │   ├── <name>.credentials.env    # root-owned operator input (survives destroy)
 │   └── rclone/<name>.conf        # Per-instance backup upload config
 └── instances/
-    └── <name>/               # = git checkout (always on main)
+    └── <name>/               # Mutable instance state
+        ├── current -> ../../releases/<sha>
         ├── gcp-credentials.json  # Copied from path in credentials.env (mode 600)
         ├── .env                  # Full env (generated from template + credentials + shared.env)
-        ├── manage.py
-        ├── apps/
-        ├── frontend/dist/
         ├── mediafiles/
         ├── dropbox/
+        ├── phone-recordings/
+        ├── session-replays/
         ├── logs/
         └── gunicorn.sock
 ```
@@ -188,7 +192,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 
 ### Security Model
 
-- **Shared user** `docketworks` owns the venv, repo, and shared.env
+- **Shared user** `docketworks` owns the local repo, release directories, release-local venvs, and shared.env
 - **Per-instance user** `dw-<name>` runs gunicorn, owns the instance directory
 - **Credentials input** in `/opt/docketworks/config` is `root:root` mode 600
   because `instance.sh` and `deploy.sh` source it during root-run orchestration
@@ -198,20 +202,21 @@ gunicorn systemd service loads .env via EnvironmentFile=
 
 ## File Inventory
 
-| File | Description |
-|------|-------------|
-| `common.sh` | Shared constants: domain, paths, directories |
-| `server-setup.sh` | Host-level convergence (packages, venv, SSL, shared config). Runs every deploy — see "Server Setup". |
-| `instance.sh` | Prepare config, create/reconfigure, destroy, or list instances |
-| `deploy.sh` | Pull updates and redeploy one or all instances |
-| `dw-run.sh` | Run a command in an instance's environment |
-| `certbot-dreamhost-auth.sh` | Certbot DNS-01 auth hook (adds TXT record via Dreamhost API) |
-| `certbot-dreamhost-cleanup.sh` | Certbot DNS-01 cleanup hook (removes TXT record) |
-| `templates/credentials-instance.template` | Template for per-instance credentials (Xero, GCP, email) |
-| `templates/env-instance.template` | Template for full .env file |
-| `templates/gunicorn-instance.service.template` | Systemd unit template (web) |
-| `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker) |
-| `templates/celery-beat-instance.service.template` | Systemd unit template (Celery Beat — periodic task dispatcher) |
-| `templates/backup-db-instance.service.template` | Systemd unit template (database backup) |
-| `templates/backup-db-instance.timer.template` | Systemd timer template (nightly database backup) |
-| `templates/nginx-instance.conf.template` | Nginx server block template |
+| File                                                | Description                                                                                          |
+| --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `common.sh`                                         | Shared constants: domain, paths, directories                                                         |
+| `server-setup.sh`                                   | Host-level convergence (system packages, SSL, shared config). Runs every deploy — see "Server Setup". |
+| `instance.sh`                                       | Prepare config, create/reconfigure, destroy, or list instances                                       |
+| `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
+| `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |
+| `dw-run.sh`                                         | Run a command in an instance's environment                                                           |
+| `certbot-dreamhost-auth.sh`                         | Certbot DNS-01 auth hook (adds TXT record via Dreamhost API)                                         |
+| `certbot-dreamhost-cleanup.sh`                      | Certbot DNS-01 cleanup hook (removes TXT record)                                                     |
+| `templates/credentials-instance.template`           | Template for per-instance credentials (Xero, GCP, email)                                             |
+| `templates/env-instance.template`                   | Template for full .env file                                                                          |
+| `templates/gunicorn-instance.service.template`      | Systemd unit template (web)                                                                          |
+| `templates/celery-worker-instance.service.template` | Systemd unit template (Celery worker)                                                                |
+| `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |
+| `templates/backup-db-instance.service.template`     | Systemd unit template (database backup)                                                              |
+| `templates/backup-db-instance.timer.template`       | Systemd timer template (nightly database backup)                                                     |
+| `templates/nginx-instance.conf.template`            | Nginx server block template                                                                          |

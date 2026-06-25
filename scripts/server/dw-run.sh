@@ -1,7 +1,8 @@
 #!/bin/bash
 set -euo pipefail
 
-# Run a command as an instance user with the shared venv and instance .env loaded.
+# Run a command as an instance user with the current release venv and instance
+# .env loaded.
 #
 # Usage: dw-run <instance> <command> [args...]
 # Examples:
@@ -21,6 +22,7 @@ fi
 INSTANCE="$1"
 shift
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
+CURRENT_DIR="$INSTANCE_DIR/current"
 INSTANCE_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -d "$INSTANCE_DIR" ]]; then
@@ -33,13 +35,20 @@ if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
     exit 1
 fi
 
+if [[ ! -d "$CURRENT_DIR" ]]; then
+    echo "ERROR: No current release found at $CURRENT_DIR" >&2
+    exit 1
+fi
+
 # Build the command string with proper escaping
-# Instance dir IS the git checkout, so cd there directly.
-CMD="source '$SHARED_VENV/bin/activate'
+# Commands run from the immutable release; mutable instance state is supplied
+# through the instance .env.
+CMD="source '$CURRENT_DIR/.venv/bin/activate'
 set -a
 source '$INSTANCE_DIR/.env'
 set +a
-cd '$INSTANCE_DIR'
+export PYTHONDONTWRITEBYTECODE=1
+cd '$CURRENT_DIR'
 $(printf '%q ' "$@")"
 
 exec sudo -u "$INSTANCE_USER" bash -c "$CMD"

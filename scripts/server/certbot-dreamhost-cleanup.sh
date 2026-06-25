@@ -10,7 +10,7 @@ set -euo pipefail
 if [[ -n "${DREAMHOST_API_KEY:-}" ]]; then
     API_KEY="$DREAMHOST_API_KEY"
 elif [[ -f /etc/letsencrypt/dreamhost-api-key.txt ]]; then
-    API_KEY="$(cat /etc/letsencrypt/dreamhost-api-key.txt | tr -d '[:space:]')"
+    API_KEY="$(tr -d '[:space:]' < /etc/letsencrypt/dreamhost-api-key.txt)"
 else
     echo "ERROR: No Dreamhost API key found."
     exit 1

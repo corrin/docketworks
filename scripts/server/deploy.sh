@@ -1,49 +1,36 @@
 #!/bin/bash
 set -euo pipefail
 
-# Deploy one or all instances.
-# Usage: deploy.sh <name> [--no-backup] [--allow-dirty]
-#        deploy.sh --all  [--no-backup] [--allow-dirty]
+# Deploy one or all instances through a shared immutable release directory.
+# Usage: deploy.sh <name> [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+#        deploy.sh --all  [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+#        deploy.sh --cleanup-releases
 #
-# Flags:
-#   --no-backup     Skip the pre-deploy pg_dump. Default: take a backup.
-#   --allow-dirty   Proceed even if an instance's working tree has uncommitted
-#                   changes. Default: abort (a dirty tree makes the hash we
-#                   stamp on the backup a lie about what code will restore).
+# Normal operator path after a PR is merged:
+#   sudo scripts/server/deploy.sh <instance>
 #
-# DR mode: if an instance directory contains a .dr-mode marker file, this
-# script still runs migrations, builds the frontend, and re-renders unit and
-# nginx configs — but it does NOT enable or restart gunicorn / celery-worker.
-# This is the "cold standby" posture: deploys keep the instance current
-# without it ever serving traffic or hitting Xero with shared live tokens.
-#
-# Steps:
-#   1. Per-instance: clean-tree check, pg_dump, git pull
-#   2. Update shared deps (poetry install, npm install)
-#   3. Per-instance: npm run build, migrate, restart
+# That command fetches GitHub, resolves origin/main to a SHA, builds
+# /opt/docketworks/releases/<sha> if missing, then switches only the requested
+# instance to that release.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELF="$SCRIPT_DIR/$(basename "$0")"
 ORIG_ARGS=("$@")
 source "$SCRIPT_DIR/common.sh"
+source "$SCRIPT_DIR/release-utils.sh"
 
 if [[ $EUID -ne 0 ]]; then
     echo "ERROR: This script must be run as root (use sudo)."
     exit 1
 fi
 
-# sudo inherits the caller's cwd. If the operator ran this from /home/ubuntu
-# (mode 750 ubuntu:ubuntu), the docketworks/instance users sudo'd to below
-# can't read it, and python/poetry/npm startup hits getcwd EACCES and dies —
-# silently aborting the deploy before per-instance work runs. Anchor cwd to /
-# so every sudo -u below (and the server-setup.sh invocation) inherits
-# something universally readable.
 cd /
 
-USAGE="Usage: $0 <instance-name> [--no-backup] [--allow-dirty]
-       $0 --all          [--no-backup] [--allow-dirty]"
+USAGE="Usage: $0 <instance-name> [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+       $0 --all          [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+       $0 --cleanup-releases"
 
-if ! parsed=$(getopt -o '' --long all,no-backup,allow-dirty -n "$(basename "$0")" -- "$@"); then
+if ! parsed=$(getopt -o '' --long all,no-backup,allow-dirty,cleanup-releases,ref: -n "$(basename "$0")" -- "$@"); then
     echo "$USAGE" >&2
     exit 1
 fi
@@ -52,16 +39,173 @@ eval set -- "$parsed"
 DO_BACKUP=1
 ALLOW_DIRTY=0
 DEPLOY_ALL=0
+DO_CLEANUP_RELEASES=0
+TARGET_REF="origin/main"
 while true; do
     case "$1" in
-        --no-backup)   DO_BACKUP=0;   shift ;;
-        --allow-dirty) ALLOW_DIRTY=1; shift ;;
-        --all)         DEPLOY_ALL=1;  shift ;;
+        --no-backup)   DO_BACKUP=0;      shift ;;
+        --allow-dirty) ALLOW_DIRTY=1;    shift ;;
+        --cleanup-releases) DO_CLEANUP_RELEASES=1; shift ;;
+        --all)         DEPLOY_ALL=1;     shift ;;
+        --ref)         TARGET_REF="$2";  shift 2 ;;
         --)            shift; break ;;
     esac
 done
 
-# --- Determine which instances to deploy ---
+exec 9>"$BASE_DIR/.deploy.lock"
+if ! flock -n 9; then
+    echo "ERROR: another deploy is already running." >&2
+    exit 1
+fi
+
+if [[ $DO_CLEANUP_RELEASES -eq 1 ]]; then
+    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || $ALLOW_DIRTY -eq 1 || "$TARGET_REF" != "origin/main" ]]; then
+        echo "ERROR: --cleanup-releases cannot be combined with deploy targets or deploy flags." >&2
+        echo "$USAGE" >&2
+        exit 1
+    fi
+    cleanup_incomplete_releases
+    cleanup_unreferenced_releases
+    exit 0
+fi
+
+validate_instance() {
+    local instance="$1"
+    local local_dir="$INSTANCES_DIR/$instance"
+
+    if [[ ! -d "$local_dir" ]]; then
+        echo "ERROR: Instance directory $local_dir does not exist." >&2
+        exit 1
+    fi
+    if [[ ! -f "$local_dir/.env" ]]; then
+        echo "ERROR: No .env file found at $local_dir/.env" >&2
+        exit 1
+    fi
+    if [[ ! -L "$local_dir/current" && ! -d "$local_dir/.git" ]]; then
+        echo "ERROR: $local_dir has neither current release link nor legacy git checkout." >&2
+        exit 1
+    fi
+}
+
+render_runtime_units() {
+    local instance="$1"
+    local inst_user="$2"
+
+    log "  Rendering celery-worker-$instance unit"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__INSTANCE_USER__|$inst_user|g" \
+        "$SCRIPT_DIR/templates/celery-worker-instance.service.template" \
+        > "/etc/systemd/system/celery-worker-$instance.service"
+
+    log "  Rendering celery-beat-$instance unit"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__INSTANCE_USER__|$inst_user|g" \
+        "$SCRIPT_DIR/templates/celery-beat-instance.service.template" \
+        > "/etc/systemd/system/celery-beat-$instance.service"
+
+    log "  Rendering gunicorn-$instance unit"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__INSTANCE_USER__|$inst_user|g" \
+        "$SCRIPT_DIR/templates/gunicorn-instance.service.template" \
+        > "/etc/systemd/system/gunicorn-$instance.service"
+
+    systemctl daemon-reload
+}
+
+render_backup_timer() {
+    local instance="$1"
+    local inst_user="$2"
+    local backup_root_folder_id=""
+    local creds_file="$CONFIG_DIR/$instance.credentials.env"
+
+    if [[ -f "$creds_file" ]]; then
+        require_root_owned_credentials_file "$creds_file"
+        backup_root_folder_id="$(read_env_value "$creds_file" BACKUP_GDRIVE_ROOT_FOLDER_ID)"
+    fi
+    log "  Rendering backup-db-$instance units"
+    write_instance_rclone_config "$instance" "$inst_user" "$backup_root_folder_id"
+    render_backup_units "$instance" "$inst_user" "$SCRIPT_DIR/templates"
+    systemctl daemon-reload
+    systemctl enable --now "backup-db-$instance.timer"
+}
+
+render_nginx_config() {
+    local instance="$1"
+    local existing_conf="/etc/nginx/sites-available/docketworks-$instance"
+    local fqdn cert_domain
+
+    if [[ ! -f "$existing_conf" ]]; then
+        log "  ERROR: No existing nginx config at $existing_conf. Run instance.sh first."
+        return 1
+    fi
+
+    fqdn=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | awk '{$1=$1; print}' || true)
+    cert_domain=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1 || true)
+    if [[ -z "$fqdn" || -z "$cert_domain" ]]; then
+        log "  ERROR: Could not extract FQDN/CERT_DOMAIN from $existing_conf"
+        return 1
+    fi
+
+    log "  Re-rendering nginx config (FQDN=$fqdn, CERT_DOMAIN=$cert_domain)"
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__FQDN__|$fqdn|g" \
+        -e "s|__CERT_DOMAIN__|$cert_domain|g" \
+        "$SCRIPT_DIR/templates/nginx-instance.conf.template" \
+        > "$existing_conf"
+}
+
+restart_instance_units() {
+    local instance="$1"
+    local instance_dir="$INSTANCES_DIR/$instance"
+
+    if [[ -f "$instance_dir/.dr-mode" ]]; then
+        log "  DR mode (.dr-mode present): skipping enable/restart of celery-worker-$instance, celery-beat-$instance, and gunicorn-$instance"
+        return 0
+    fi
+
+    systemctl enable "celery-worker-$instance"
+    log "  Restarting celery-worker-$instance"
+    systemctl restart "celery-worker-$instance"
+
+    systemctl enable "celery-beat-$instance"
+    log "  Restarting celery-beat-$instance"
+    systemctl restart "celery-beat-$instance"
+
+    systemctl enable "gunicorn-$instance"
+    log "  Restarting gunicorn-$instance"
+    systemctl restart "gunicorn-$instance"
+}
+
+stop_instance_units() {
+    local instance="$1"
+
+    log "  Stopping celery-beat-$instance"
+    systemctl stop "celery-beat-$instance" 2>/dev/null || true
+
+    log "  Stopping celery-worker-$instance"
+    systemctl stop "celery-worker-$instance" 2>/dev/null || true
+
+    log "  Stopping gunicorn-$instance"
+    systemctl stop "gunicorn-$instance" 2>/dev/null || true
+}
+
+remove_legacy_scheduler_unit() {
+    local instance="$1"
+
+    if [[ -f "/etc/systemd/system/scheduler-$instance.service" ]]; then
+        log "  Removing legacy scheduler-$instance unit (replaced by celery-beat)"
+        systemctl stop "scheduler-$instance" 2>/dev/null || true
+        systemctl disable "scheduler-$instance" 2>/dev/null || true
+        rm -f "/etc/systemd/system/scheduler-$instance.service"
+        systemctl daemon-reload
+    fi
+}
+
+# --- Determine targets ---
 TARGETS=()
 if [[ $DEPLOY_ALL -eq 1 ]]; then
     if [[ $# -gt 0 ]]; then
@@ -71,7 +215,7 @@ if [[ $DEPLOY_ALL -eq 1 ]]; then
     fi
     for instance_dir in "$INSTANCES_DIR"/*/; do
         [[ -d "$instance_dir" ]] || continue
-        if [[ -f "$instance_dir/.env" && -d "$instance_dir/.git" ]]; then
+        if [[ -f "$instance_dir/.env" ]]; then
             TARGETS+=("$(basename "$instance_dir")")
         fi
     done
@@ -85,23 +229,15 @@ else
         exit 1
     fi
     TARGETS=("$1")
-    local_dir="$INSTANCES_DIR/$1"
-    if [[ ! -d "$local_dir" ]]; then
-        echo "ERROR: Instance directory $local_dir does not exist." >&2
-        exit 1
-    fi
-    if [[ ! -f "$local_dir/.env" ]]; then
-        echo "ERROR: No .env file found at $local_dir/.env" >&2
-        exit 1
-    fi
-    if [[ ! -d "$local_dir/.git" ]]; then
-        echo "ERROR: No git repo found at $local_dir" >&2
-        exit 1
-    fi
 fi
+
+for instance in "${TARGETS[@]}"; do
+    validate_instance "$instance"
+done
 
 log "=========================================="
 log "Deploying: ${TARGETS[*]}"
+log "Target ref: $TARGET_REF"
 log "=========================================="
 
 # --- Update local repo from GitHub ---
@@ -109,24 +245,18 @@ log "Pulling latest from GitHub into local repo..."
 SELF_HASH_BEFORE="$(sha256sum "$SELF" | awk '{print $1}')"
 sudo -u docketworks git -C "$LOCAL_REPO" pull --ff-only
 
-# Self-re-exec when git pull updated deploy.sh itself. bash loads $0 into
-# memory at invocation, so without this any deploy.sh change can only take
-# effect on the *next* deploy — see the May 2026 celery-beat migration where
-# the cleanup-and-rerender block existed in the new deploy.sh but couldn't
-# run on the deploy that delivered it. Guard env var prevents an infinite
-# loop if a future change ever produces a non-deterministic hash.
 SELF_HASH_AFTER="$(sha256sum "$SELF" | awk '{print $1}')"
 if [[ "$SELF_HASH_BEFORE" != "$SELF_HASH_AFTER" && -z "${DOCKETWORKS_DEPLOY_REEXECED:-}" ]]; then
     log "deploy.sh updated by git pull — re-execing with new version"
     DOCKETWORKS_DEPLOY_REEXECED=1 exec "$SELF" "${ORIG_ARGS[@]}"
 fi
 
+fetch_local_repo
+TARGET_SHA="$(resolve_release_ref "$TARGET_REF")"
+TARGET_SHORT="${TARGET_SHA:0:12}"
+log "Resolved $TARGET_REF to $TARGET_SHA"
+
 # --- Converge system-level dependencies (only when inputs change) ---
-# server-setup.sh is idempotent, but its no-op path still scans every dpkg
-# and `command -v` guard. ~80% of PRs touch nothing host-level. Hash the
-# files that should force host convergence; skip the re-run when the hash
-# matches the last successful run. Adding a new host-affecting file requires
-# adding it here too — review-visible because it lives next to the invocation.
 SERVER_SETUP_INPUTS=(
     "$SCRIPT_DIR/server-setup.sh"
     "$SCRIPT_DIR/certbot-dreamhost-auth.sh"
@@ -135,6 +265,9 @@ SERVER_SETUP_INPUTS=(
     "$SCRIPT_DIR/templates/nginx-instance.conf.template"
     "$SCRIPT_DIR/templates/backup-db-instance.service.template"
     "$SCRIPT_DIR/templates/backup-db-instance.timer.template"
+    "$SCRIPT_DIR/templates/gunicorn-instance.service.template"
+    "$SCRIPT_DIR/templates/celery-worker-instance.service.template"
+    "$SCRIPT_DIR/templates/celery-beat-instance.service.template"
 )
 SERVER_SETUP_HASH="$(sha256sum "${SERVER_SETUP_INPUTS[@]}" | sha256sum | awk '{print $1}')"
 SERVER_SETUP_STAMP="/opt/docketworks/.server-setup-hash"
@@ -146,235 +279,99 @@ else
         log "  ERROR: server-setup.sh failed; not stamping."
         exit 1
     fi
-    # Stamp only after successful return — never on failure or partial run.
     echo "$SERVER_SETUP_HASH" > "$SERVER_SETUP_STAMP"
     log "  Stamped $SERVER_SETUP_STAMP with current input hash."
 fi
 
-# --- Per-instance prepare: clean-tree check, pre-deploy backup, git pull ---
-for instance in "${TARGETS[@]}"; do
-    inst_dir="$INSTANCES_DIR/$instance"
-    inst_user="$(instance_user "$instance")"
+cleanup_incomplete_releases
+ensure_release "$TARGET_SHA"
 
-    # Clean-tree check. A dirty tree means the commit hash we'd stamp on
-    # the backup doesn't fully describe the code that produced the data,
-    # so a later `git checkout <hash>` would silently drop the uncommitted
-    # bit. UAT/prod instances should never be dirty; dirty = something
-    # needs investigation.
-    tree_dirty=0
-    if ! sudo -u "$inst_user" git -C "$inst_dir" diff --quiet --ignore-submodules HEAD --; then
-        tree_dirty=1
-    elif [[ -n "$(sudo -u "$inst_user" git -C "$inst_dir" status --porcelain)" ]]; then
-        tree_dirty=1
-    fi
-    if [[ $tree_dirty -eq 1 ]]; then
-        if [[ $ALLOW_DIRTY -eq 1 ]]; then
-            log "WARNING: $instance has a dirty working tree (--allow-dirty set, proceeding)"
-        else
-            log "ERROR: $instance has a dirty working tree. Refusing to deploy."
-            log "  Investigate with: sudo -u $inst_user git -C $inst_dir status"
-            log "  To override: re-run with --allow-dirty"
-            exit 1
-        fi
-    fi
-
-    if [[ $DO_BACKUP -eq 1 ]]; then
-        log "Backing up DB for $instance (pre-deploy)..."
-        "$SCRIPT_DIR/../predeploy_backup.sh" "$instance"
-    else
-        log "Skipping pre-deploy backup for $instance (--no-backup)"
-    fi
-
-    log "Pulling latest code for $instance..."
-    sudo -u "$inst_user" git -C "$inst_dir" fetch origin
-    sudo -u "$inst_user" git -C "$inst_dir" pull --ff-only
-done
-
-# --- Update shared Python dependencies (from local repo) ---
-log "Updating shared Python dependencies..."
-sudo -u docketworks bash -c "
-    export PATH='/opt/docketworks/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin'
-    export POETRY_VIRTUALENVS_CREATE=false
-    source '$SHARED_VENV/bin/activate'
-    pip install --upgrade pip
-    cd '$LOCAL_REPO'
-    poetry install --no-interaction
-"
-
-# --- Update shared node_modules ---
-log "Updating shared node_modules..."
-REQUIRED_NODE_MAJOR="$(node_major_from_nvmrc "$LOCAL_REPO/frontend/.nvmrc")"
-sudo -u docketworks bash -c "
-    cp '$LOCAL_REPO/frontend/package.json' '$BASE_DIR/package.json'
-    cp '$LOCAL_REPO/frontend/package-lock.json' '$BASE_DIR/package-lock.json'
-    REQUIRED_NODE_MAJOR='$REQUIRED_NODE_MAJOR'
-    CURRENT_NODE_MAJOR=\$(node --version | sed -E 's/^v([0-9]+).*/\1/')
-    if [[ \"\$CURRENT_NODE_MAJOR\" != \"\$REQUIRED_NODE_MAJOR\" ]]; then
-        echo \"ERROR: Node major \$CURRENT_NODE_MAJOR does not match frontend/.nvmrc (\$REQUIRED_NODE_MAJOR)\" >&2
-        exit 1
-    fi
-    cd '$BASE_DIR'
-    npm ci --include=dev
-"
-
-# --- Per-instance: build, migrate, restart ---
 FAILED_INSTANCES=()
 for instance in "${TARGETS[@]}"; do
     instance_dir="$INSTANCES_DIR/$instance"
     inst_user="$(instance_user "$instance")"
+    previous_sha="$(instance_current_sha "$instance")"
 
     log "--- Processing instance: $instance ---"
+    log "  Previous SHA: ${previous_sha:-none}"
+    log "  Target SHA:   $TARGET_SHA"
 
-    # Build frontend (main app + VitePress training manual). manual:build is
-    # also run by instance.sh at creation time; running it here too means
-    # manual content changes ship on deploy and pre-manual instances catch up.
-    log "  Building frontend..."
-    sudo -u "$inst_user" bash -c "
-        cd '$instance_dir/frontend'
-        npm run check:typed-router
-        npm run build
-        npm run manual:build
-    "
-    if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD -- frontend/src/typed-router.d.ts; then
-        log "  ERROR: server generated a different frontend/src/typed-router.d.ts for $instance"
-        log "  Investigate with: sudo -u $inst_user git -C $instance_dir diff -- frontend/src/typed-router.d.ts"
-        log "  Restoring frontend/src/typed-router.d.ts so the checkout is not left dirty"
-        sudo -u "$inst_user" git -C "$instance_dir" restore --source=HEAD -- frontend/src/typed-router.d.ts
-        FAILED_INSTANCES+=("$instance")
-        continue
-    fi
-
-    # Collect static files + run migrations
-    log "  Running migrate..."
-    if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
-        log "  Django commands complete for $instance"
-    else
-        # Skip the unit-restart block below: starting Beat against a
-        # half-migrated schema dispatches periodic tasks autonomously and can
-        # hit "no such column" on every fire until the next deploy. Same
-        # caution applies to celery-worker / gunicorn restart, but Beat is
-        # the new failure mode worth guarding against here.
-        log "  ERROR: Django commands failed for $instance — skipping unit restarts"
-        FAILED_INSTANCES+=("$instance")
-        continue
-    fi
-
-    # Legacy cleanup: pre-celery-beat instances had a scheduler-$instance unit
-    # running `manage.py run_scheduler`. After this PR's git-pull the
-    # `run_scheduler` command no longer exists, so the unit (Restart=always)
-    # would crash-loop until manually disabled. Idempotent: silently skip
-    # when the unit isn't present (clean instances and second-deploy onward).
-    if [[ -f "/etc/systemd/system/scheduler-$instance.service" ]]; then
-        log "  Removing legacy scheduler-$instance unit (replaced by celery-beat)"
-        systemctl stop "scheduler-$instance" 2>/dev/null || true
-        systemctl disable "scheduler-$instance" 2>/dev/null || true
-        rm -f "/etc/systemd/system/scheduler-$instance.service"
-        systemctl daemon-reload
-    fi
-
-    # Re-render the celery-worker unit on every deploy. Idempotent: systemd's
-    # daemon-reload only re-reads files that changed, and `enable` is a no-op
-    # on an already-enabled unit. Always-rendering means template edits
-    # (flags, environment, hostname) reach existing instances without manual
-    # intervention — the previous "render once" guard meant a flag added in
-    # this PR would silently never apply on UAT/prod.
-    log "  Rendering celery-worker-$instance unit"
-    sed \
-        -e "s|__INSTANCE__|$instance|g" \
-        -e "s|__INSTANCE_USER__|$inst_user|g" \
-        "$SCRIPT_DIR/templates/celery-worker-instance.service.template" \
-        > "/etc/systemd/system/celery-worker-$instance.service"
-    systemctl daemon-reload
-
-    # Same idempotent re-render for celery-beat (the periodic-task dispatcher).
-    # Same rationale as celery-worker above.
-    log "  Rendering celery-beat-$instance unit"
-    sed \
-        -e "s|__INSTANCE__|$instance|g" \
-        -e "s|__INSTANCE_USER__|$inst_user|g" \
-        "$SCRIPT_DIR/templates/celery-beat-instance.service.template" \
-        > "/etc/systemd/system/celery-beat-$instance.service"
-    systemctl daemon-reload
-
-    # Backup units run as the instance user and use a per-instance rclone
-    # config. Re-render on every deploy so timer/template edits reach existing
-    # instances without hand work.
-    backup_root_folder_id=""
-    creds_file="$CONFIG_DIR/$instance.credentials.env"
-    if [[ -f "$creds_file" ]]; then
-        require_root_owned_credentials_file "$creds_file"
-        backup_root_folder_id="$(
-            bash -c 'set -a; source "$1"; printf "%s" "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"' _ "$creds_file"
-        )"
-    fi
-    log "  Rendering backup-db-$instance units"
-    write_instance_rclone_config "$instance" "$inst_user" "$backup_root_folder_id"
-    render_backup_units "$instance" "$inst_user" "$SCRIPT_DIR/templates"
-    systemctl daemon-reload
-    systemctl enable --now "backup-db-$instance.timer"
-    log "  Enabled backup-db-$instance.timer"
-
-    # DR-mode short-circuit. The marker means this instance is a cold standby:
-    # render unit files (so a future "go live" picks up template changes), but
-    # never enable or start the services that talk to live external systems.
-    if [[ -f "$instance_dir/.dr-mode" ]]; then
-        log "  DR mode (.dr-mode present): skipping enable/restart of celery-worker-$instance, celery-beat-$instance, and gunicorn-$instance"
-    else
-        systemctl enable "celery-worker-$instance"
-
-        # Restart celery-worker BEFORE celery-beat and gunicorn. If gunicorn or
-        # beat restart first they dispatch new task names while the worker still
-        # has stale code; the old worker silently ack-discards messages it
-        # doesn't know (Celery's default behaviour) and webhook events / Beat
-        # firings are lost without a trace. Worker-first means new task names
-        # are always registered before any new dispatch can land.
-        log "  Restarting celery-worker-$instance"
-        systemctl restart "celery-worker-$instance"
-
-        # Restart celery-beat after the worker so the next periodic dispatch
-        # lands on a worker that knows the task. Without restarting beat here
-        # it would keep running stale code with stale schedule definitions.
-        systemctl enable "celery-beat-$instance"
-        log "  Restarting celery-beat-$instance"
-        systemctl restart "celery-beat-$instance"
-
-        # Restart gunicorn
-        if systemctl is-enabled "gunicorn-$instance" &>/dev/null; then
-            log "  Restarting gunicorn-$instance"
-            systemctl restart "gunicorn-$instance"
+    if [[ -d "$instance_dir/.git" ]]; then
+        tree_dirty=0
+        if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD --; then
+            tree_dirty=1
+        elif [[ -n "$(sudo -u "$inst_user" git -C "$instance_dir" status --porcelain)" ]]; then
+            tree_dirty=1
+        fi
+        if [[ $tree_dirty -eq 1 ]]; then
+            if [[ $ALLOW_DIRTY -eq 1 ]]; then
+                log "  WARNING: $instance has a dirty legacy working tree (--allow-dirty set, proceeding)"
+            else
+                log "  ERROR: $instance has a dirty legacy working tree. Refusing to deploy."
+                log "    Investigate with: sudo -u $inst_user git -C $instance_dir status"
+                log "    To override: re-run with --allow-dirty"
+                FAILED_INSTANCES+=("$instance")
+                continue
+            fi
         fi
     fi
 
-    # Re-render nginx config from template. The rendered config is written once
-    # at instance creation (instance.sh), so template edits only reach live
-    # servers if we re-render on each deploy. FQDN and cert domain are pulled
-    # back out of the existing rendered config — we need whatever was true at
-    # creation time, and parsing the live config is the one source of truth
-    # we know matches the cert actually in use.
-    existing_conf="/etc/nginx/sites-available/docketworks-$instance"
-    if [[ ! -f "$existing_conf" ]]; then
-        log "  ERROR: No existing nginx config at $existing_conf. Run instance.sh first."
+    if [[ $DO_BACKUP -eq 1 ]]; then
+        log "  Backing up DB for $instance (pre-deploy)..."
+        "$SCRIPT_DIR/../predeploy_backup.sh" "$instance"
+    else
+        log "  Skipping pre-deploy backup for $instance (--no-backup)"
+    fi
+
+    stop_instance_units "$instance"
+
+    switch_instance_release "$instance" "$TARGET_SHA"
+    chown -h "$inst_user:$inst_user" "$instance_dir/current"
+
+    log "  Running migrate..."
+    if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
+        log "  Migration complete for $instance"
+    else
+        log "  ERROR: migrate failed for $instance — services remain stopped"
+        log "  ERROR: DB may be partially migrated; code-only rollback is unsafe"
+        log "  Inspect migrations:"
+        log "    $SCRIPT_DIR/dw-run.sh $instance python manage.py showmigrations"
+        if [[ -n "$previous_sha" ]]; then
+            if [[ $DO_BACKUP -eq 1 ]]; then
+                log "  Manual rollback, if required:"
+                log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}"
+            else
+                log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
+            fi
+        else
+            log "  WARNING: no previous release SHA recorded for rollback guidance"
+        fi
         FAILED_INSTANCES+=("$instance")
         continue
     fi
-    # Keep internal spaces so multi-name server_name directives survive re-rendering.
-    FQDN=$(grep -oP 'server_name \K[^;]+' "$existing_conf" | head -1 | awk '{$1=$1; print}')
-    CERT_DOMAIN=$(grep -oP 'ssl_certificate /etc/letsencrypt/live/\K[^/]+' "$existing_conf" | head -1)
-    if [[ -z "$FQDN" || -z "$CERT_DOMAIN" ]]; then
-        log "  ERROR: Could not extract FQDN/CERT_DOMAIN from $existing_conf"
+
+    remove_legacy_scheduler_unit "$instance"
+    render_runtime_units "$instance" "$inst_user"
+    render_backup_timer "$instance" "$inst_user"
+    if ! render_nginx_config "$instance"; then
         FAILED_INSTANCES+=("$instance")
         continue
     fi
-    log "  Re-rendering nginx config (FQDN=$FQDN, CERT_DOMAIN=$CERT_DOMAIN)"
-    sed \
-        -e "s|__INSTANCE__|$instance|g" \
-        -e "s|__FQDN__|$FQDN|g" \
-        -e "s|__CERT_DOMAIN__|$CERT_DOMAIN|g" \
-        "$SCRIPT_DIR/templates/nginx-instance.conf.template" \
-        > "$existing_conf"
+
+    restart_instance_units "$instance"
+
+    {
+        echo "PREVIOUS_SHA=$previous_sha"
+        echo "CURRENT_SHA=$TARGET_SHA"
+        echo "DEPLOYED_AT=$(date --iso-8601=seconds)"
+    } > "$instance_dir/deploy-state.env"
+    chown "$inst_user:$inst_user" "$instance_dir/deploy-state.env"
+    chmod 600 "$instance_dir/deploy-state.env"
+
+    compact_legacy_instance_checkout "$instance"
+    log "  $instance now runs $TARGET_SHORT"
 done
 
-# --- Reload nginx once if any configs were rewritten ---
 if nginx -t 2>&1; then
     log "Reloading nginx..."
     systemctl reload nginx
@@ -384,10 +381,16 @@ else
     exit 1
 fi
 
-# --- Summary ---
+if [[ ${#FAILED_INSTANCES[@]} -eq 0 ]]; then
+    cleanup_unreferenced_releases "$TARGET_SHA"
+else
+    log "  Skipping release cleanup — failed instances may still need their previous release for rollback"
+fi
+
 log "=========================================="
 log "Deploy complete"
 if [[ ${#FAILED_INSTANCES[@]} -gt 0 ]]; then
     log "  WARNING: Failed instances: ${FAILED_INSTANCES[*]}"
+    exit 1
 fi
 log "=========================================="

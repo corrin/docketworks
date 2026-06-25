@@ -16,7 +16,10 @@ if [ ! -f "$BACKEND_ENV_PATH" ]; then
 fi
 
 # Source database credentials from backend .env
-set -a; source "$BACKEND_ENV_PATH"; set +a
+set -a
+# shellcheck source=/dev/null  # runtime .env path, not statically resolvable
+source "$BACKEND_ENV_PATH"
+set +a
 
 if [ -z "${DB_HOST:-}" ]; then
     echo "Error: DB_HOST must be set in $BACKEND_ENV_PATH"

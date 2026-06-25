@@ -6,13 +6,14 @@ Requires=redis-server.service
 [Service]
 User=__INSTANCE_USER__
 Group=www-data
-WorkingDirectory=/opt/docketworks/instances/__INSTANCE__
-ExecStart=/opt/docketworks/.venv/bin/gunicorn \
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/current
+ExecStart=/opt/docketworks/instances/__INSTANCE__/current/.venv/bin/gunicorn \
           --workers 3 \
           --timeout 180 \
           --bind unix:/opt/docketworks/instances/__INSTANCE__/gunicorn.sock \
           docketworks.wsgi:application
 EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
+Environment=PYTHONDONTWRITEBYTECODE=1
 
 [Install]
 WantedBy=multi-user.target

@@ -8,6 +8,10 @@ import { defineConfig, loadEnv } from 'vite'
 import { routerAutoOptions } from './router-auto-options'
 
 function readBackendAppDomain(): string {
+  if (process.env.NODE_ENV === 'production') {
+    return ''
+  }
+
   const backendEnvPath = path.resolve(__dirname, '..', '.env')
   if (!fs.existsSync(backendEnvPath)) {
     throw new Error(`Backend .env not found at ${backendEnvPath}`)
@@ -21,6 +25,14 @@ function readBackendAppDomain(): string {
 }
 
 function readBuildId(): string {
+  const envBuildId = process.env.DOCKETWORKS_BUILD_SHA?.trim()
+  if (envBuildId) return envBuildId
+
+  const releaseShaPath = path.resolve(__dirname, '..', '.release-sha')
+  if (fs.existsSync(releaseShaPath)) {
+    return fs.readFileSync(releaseShaPath, 'utf8').trim()
+  }
+
   return execSync('git rev-parse HEAD', {
     cwd: path.resolve(__dirname, '..'),
   })
@@ -32,7 +44,7 @@ export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, process.cwd(), '')
   const appDomain = readBackendAppDomain()
 
-  const allowedHosts = ['localhost', appDomain]
+  const allowedHosts = appDomain ? ['localhost', appDomain] : ['localhost']
 
   // Check if we're running through localtunnel
   const tunnelHost = env.DEV_TUNNEL_HOST || ''

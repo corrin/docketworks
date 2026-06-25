@@ -1,13 +1,14 @@
 #!/bin/bash
 # Shared constants and helpers for server scripts.
+# shellcheck disable=SC2034  # constants below are consumed by scripts that source this library
 
 DOMAIN="docketworks.site"
 BASE_DIR="/opt/docketworks"
 INSTANCES_DIR="$BASE_DIR/instances"
 CONFIG_DIR="$BASE_DIR/config"
-SHARED_VENV="$BASE_DIR/.venv"
 SHARED_PLAYWRIGHT_BROWSERS="$BASE_DIR/.playwright-browsers"
 LOCAL_REPO="$BASE_DIR/repo"
+RELEASES_DIR="$BASE_DIR/releases"
 REMOTE_REPO_URL="https://github.com/corrin/docketworks.git"
 RCLONE_CONFIG_DIR="$CONFIG_DIR/rclone"
 
@@ -53,6 +54,35 @@ node_major_from_nvmrc() {
         exit 1
     fi
     printf "%s\n" "$major"
+}
+
+read_env_value() {
+    local env_file="$1"
+    local var_name="$2"
+    local line value
+
+    if [[ ! -f "$env_file" ]]; then
+        printf ""
+        return
+    fi
+    if [[ ! "$var_name" =~ ^[A-Z0-9_]+$ ]]; then
+        echo "ERROR: Invalid env var name requested: $var_name" >&2
+        exit 1
+    fi
+
+    line="$(grep -m1 -E "^${var_name}=" "$env_file" || true)"
+    if [[ -z "$line" ]]; then
+        printf ""
+        return
+    fi
+
+    value="${line#*=}"
+    if [[ "$value" == \"*\" && "$value" == *\" ]]; then
+        value="${value:1:${#value}-2}"
+    elif [[ "$value" == \'*\' && "$value" == *\' ]]; then
+        value="${value:1:${#value}-2}"
+    fi
+    printf "%s" "$value"
 }
 
 ensure_config_dir() {
