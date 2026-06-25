@@ -57,6 +57,10 @@ backup and switches the instance back to the matching release:
 sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-sha>
 ```
 
+Deploy builds the previous release before switching, so this rollback target
+always exists — including the first cutover from a legacy per-instance checkout,
+whose old SHA had never been built as a shared release.
+
 Do not switch only the `current` symlink after a migration failure; old code can
 be incompatible with the partially migrated database.
 
