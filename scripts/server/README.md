@@ -152,7 +152,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 
 ### Directory Layout
 
-```
+```text
 /opt/docketworks/
 ├── repo/                     # Local git clone/cache
 ├── releases/<sha>/           # Shared immutable app release (code, release-local .venv, frontend dist)
@@ -205,7 +205,7 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | File                                                | Description                                                                                          |
 | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
 | `common.sh`                                         | Shared constants: domain, paths, directories                                                         |
-| `server-setup.sh`                                   | Host-level convergence (packages, venv, SSL, shared config). Runs every deploy — see "Server Setup". |
+| `server-setup.sh`                                   | Host-level convergence (system packages, SSL, shared config). Runs every deploy — see "Server Setup". |
 | `instance.sh`                                       | Prepare config, create/reconfigure, destroy, or list instances                                       |
 | `deploy.sh`                                         | Pull updates and redeploy one or all instances                                                       |
 | `release-utils.sh`                                  | Build, switch, and clean up immutable release directories                                            |
