@@ -324,7 +324,22 @@ do_configure() {
     if [[ -L "$INSTANCE_DIR/current" || -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
         IS_EXISTING=true
     fi
-    if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
+    # Gate one-time bootstrap (migrate + setup_dev_logins) on an explicit
+    # completion marker written only after bootstrap succeeds — not on .env,
+    # which is created early so a failed first run would falsely skip it.
+    # setup_dev_logins resets staff passwords, so re-running bootstrap on a live
+    # instance is destructive — never guess. A brand-new instance has no marker
+    # and no prior artifacts; an existing instance without the marker is
+    # ambiguous (created before this marker existed vs a failed first run), so
+    # stop and let the operator resolve it.
+    if [[ ! -f "$INSTANCE_DIR/.bootstrap-complete" ]]; then
+        if [[ "$IS_EXISTING" == "true" ]]; then
+            echo "ERROR: $INSTANCE exists but has no $INSTANCE_DIR/.bootstrap-complete marker." >&2
+            echo "  If it is an established instance, mark it bootstrapped:" >&2
+            echo "    sudo touch $INSTANCE_DIR/.bootstrap-complete" >&2
+            echo "  If a previous creation failed partway, remove $INSTANCE_DIR and recreate." >&2
+            exit 1
+        fi
         NEEDS_APP_BOOTSTRAP=true
     fi
     if [[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]; then
@@ -516,6 +531,10 @@ EOSQL
             log "Loading demo fixtures..."
             "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
         fi
+
+        log "Marking instance bootstrap complete"
+        touch "$INSTANCE_DIR/.bootstrap-complete"
+        chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.bootstrap-complete"
     fi
 
     if [[ "$NO_START" == "true" ]]; then
