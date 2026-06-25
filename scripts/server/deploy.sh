@@ -316,6 +316,16 @@ for instance in "${TARGETS[@]}"; do
         fi
     fi
 
+    # Ensure the previous release is built so predeploy_rollback.sh has a target.
+    # No-op on a normal deploy (its release is already complete); on a first
+    # legacy->new cutover this builds the old SHA's release from the shared repo,
+    # before anything destructive, so rollback works. Fatal if it cannot build —
+    # don't cut over without a rollback target.
+    if [[ -n "$previous_sha" ]]; then
+        log "  Ensuring previous release ${previous_sha:0:12} is built (rollback target)..."
+        ensure_release "$previous_sha"
+    fi
+
     if [[ $DO_BACKUP -eq 1 ]]; then
         log "  Backing up DB for $instance (pre-deploy)..."
         "$SCRIPT_DIR/../predeploy_backup.sh" "$instance"
