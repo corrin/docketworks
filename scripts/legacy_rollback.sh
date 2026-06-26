@@ -104,6 +104,10 @@ if ! tar -tzf "$SNAPSHOT" | grep -Fx './manage.py' >/dev/null; then
     echo "ERROR: Legacy snapshot does not contain manage.py: $SNAPSHOT" >&2
     exit 1
 fi
+if ! tar -tzf "$SNAPSHOT" | grep -Fx './.venv/pyvenv.cfg' >/dev/null; then
+    echo "ERROR: Legacy snapshot does not contain .venv/pyvenv.cfg: $SNAPSHOT" >&2
+    exit 1
+fi
 if ! tar -tzf "$SNAPSHOT" | grep -Fx './.venv/bin/python' >/dev/null; then
     echo "ERROR: Legacy snapshot does not contain .venv/bin/python: $SNAPSHOT" >&2
     exit 1

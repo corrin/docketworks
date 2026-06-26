@@ -44,6 +44,16 @@ test passes, while a strict reader the data later feeds cannot parse what was
 stored. The owed test exercises that reader, not just the write, and enforces the
 shape rather than softening it ([ADR 0015](0015-fix-data-not-fallback.md)).
 
+When temporary operational code has a planned deletion point, that deletion
+point is part of the test decision. Do not add permanent regression tests for
+code whose contract is intentionally ending. Validate the rollout with
+rehearsal, dry-run, runbook, or operator evidence instead.
+
+Test any durable contract the work leaves behind. If the change alters lasting
+behaviour — data shape, deploy semantics, systemd/Celery setup, API behaviour,
+permissions, or user-facing code — test that remaining contract at the right
+boundary, even if the rollout that introduced it is one-off.
+
 When reviewing an existing test, sort it into one of four outcomes:
 
 - **Good:** it already states a plausible regression and catches that regression.

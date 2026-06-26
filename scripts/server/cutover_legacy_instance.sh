@@ -70,12 +70,14 @@ chmod 700 "$ROLLBACK_DIR"
 
 SNAPSHOT="$ROLLBACK_DIR/legacy_${OLD_SHORT}.tar.gz"
 SNAPSHOT_TMP="$SNAPSHOT.tmp.$$"
+SNAPSHOT_TAR_TMP="$SNAPSHOT.tmp.$$.tar"
 UNITS_DIR="$ROLLBACK_DIR/legacy_${OLD_SHORT}.units"
 NGINX_BACKUP="$ROLLBACK_DIR/legacy_${OLD_SHORT}.nginx.conf"
 MANIFEST="$ROLLBACK_DIR/legacy_${OLD_SHORT}.manifest"
 
 cleanup_snapshot_tmp() {
     rm -f "$SNAPSHOT_TMP"
+    rm -f "$SNAPSHOT_TAR_TMP"
 }
 trap cleanup_snapshot_tmp EXIT
 
@@ -95,12 +97,31 @@ if [[ ! -f "$NGINX_CONF" ]]; then
     exit 1
 fi
 
+VENV_REAL="$(readlink -f "$INSTANCE_DIR/.venv" || true)"
+if [[ -z "$VENV_REAL" || ! -d "$VENV_REAL" ]]; then
+    echo "ERROR: Legacy .venv does not resolve to a directory: $INSTANCE_DIR/.venv" >&2
+    exit 1
+fi
+if [[ "$VENV_REAL" != "$BASE_DIR"/* ]]; then
+    echo "ERROR: Legacy .venv must resolve under $BASE_DIR: $VENV_REAL" >&2
+    exit 1
+fi
+if [[ ! -f "$VENV_REAL/pyvenv.cfg" ]]; then
+    echo "ERROR: Legacy .venv is missing pyvenv.cfg: $VENV_REAL" >&2
+    exit 1
+fi
+if [[ ! -x "$VENV_REAL/bin/python" ]]; then
+    echo "ERROR: Legacy .venv python is missing or not executable: $VENV_REAL/bin/python" >&2
+    exit 1
+fi
+
 # Snapshot the full code tree including frontend/dist, frontend/dist-manual,
-# and .git. Exclude data dirs that are either large regenerable runtime state
-# or already backed up separately.
+# .git, and a resolved copy of .venv. Exclude data dirs that are either large
+# regenerable runtime state or already backed up separately.
 log "  Creating code snapshot: $SNAPSHOT"
-tar -czf "$SNAPSHOT_TMP" \
+tar -cf "$SNAPSHOT_TAR_TMP" \
     -C "$INSTANCE_DIR" \
+    --exclude='./.venv' \
     --exclude='./dropbox' \
     --exclude='./mediafiles' \
     --exclude='./phone-recordings' \
@@ -110,6 +131,12 @@ tar -czf "$SNAPSHOT_TMP" \
     --exclude='./.cache' \
     --exclude='./logs' \
     .
+tar -rf "$SNAPSHOT_TAR_TMP" \
+    -C "$VENV_REAL" \
+    --transform='s|^\./|./.venv/|' \
+    --transform='s|^\.$|./.venv|' \
+    .
+gzip -c "$SNAPSHOT_TAR_TMP" > "$SNAPSHOT_TMP"
 tar -tzf "$SNAPSHOT_TMP" >/dev/null
 mv "$SNAPSHOT_TMP" "$SNAPSHOT"
 chown root:root "$SNAPSHOT"
