@@ -87,6 +87,16 @@ ADJUSTMENT entries (kind='adjust'):
 
 ## Development Workflow
 
+### Git and PR policy
+
+- **Never commit directly to `main`.** Every change, including urgent hotfixes,
+  documentation edits, and operational fixes, must be committed on a branch and
+  merged via PR.
+- Relatively large PRs are acceptable, and a PR may include a few unrelated
+  fixes when that is the pragmatic path, but direct-to-main commits are banned.
+- Before committing, check the current branch. If it is `main`, create or switch
+  to a branch first.
+
 ### Code Style and Quality
 
 - **Black** (line length 88) and **isort** for Python formatting
