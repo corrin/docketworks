@@ -58,8 +58,8 @@ sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-sha>
 ```
 
 Deploy builds the previous release before switching, so this rollback target
-always exists — including the first cutover from a legacy per-instance checkout,
-whose old SHA had never been built as a shared release.
+always exists for an instance already on shared releases. For the first cutover
+from a legacy per-instance checkout, use the standalone snapshot scripts instead.
 
 Do not switch only the `current` symlink after a migration failure; old code can
 be incompatible with the partially migrated database.

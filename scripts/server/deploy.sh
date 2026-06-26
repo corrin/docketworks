@@ -72,6 +72,8 @@ fi
 validate_instance() {
     local instance="$1"
     local local_dir="$INSTANCES_DIR/$instance"
+    local creds_file="$CONFIG_DIR/$instance.credentials.env"
+    local nginx_conf="/etc/nginx/sites-available/docketworks-$instance"
 
     if [[ ! -d "$local_dir" ]]; then
         echo "ERROR: Instance directory $local_dir does not exist." >&2
@@ -83,6 +85,15 @@ validate_instance() {
     fi
     if [[ ! -L "$local_dir/current" && ! -d "$local_dir/.git" ]]; then
         echo "ERROR: $local_dir has neither current release link nor legacy git checkout." >&2
+        exit 1
+    fi
+
+    if [[ -f "$creds_file" ]]; then
+        require_root_owned_credentials_file "$creds_file"
+    fi
+
+    if [[ ! -f "$nginx_conf" ]]; then
+        echo "ERROR: nginx config not found at $nginx_conf. Run instance.sh first." >&2
         exit 1
     fi
 }
@@ -296,7 +307,7 @@ for instance in "${TARGETS[@]}"; do
     log "  Previous SHA: ${previous_sha:-none}"
     log "  Target SHA:   $TARGET_SHA"
 
-    if [[ -d "$instance_dir/.git" ]]; then
+    if [[ -d "$instance_dir/.git" && ! -L "$instance_dir/current" ]]; then
         tree_dirty=0
         if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD --; then
             tree_dirty=1
@@ -317,11 +328,10 @@ for instance in "${TARGETS[@]}"; do
     fi
 
     # Ensure the previous release is built so predeploy_rollback.sh has a target.
-    # No-op on a normal deploy (its release is already complete); on a first
-    # legacy->new cutover this builds the old SHA's release from the shared repo,
-    # before anything destructive, so rollback works. Fatal if it cannot build —
-    # don't cut over without a rollback target.
-    if [[ -n "$previous_sha" ]]; then
+    # No-op on a normal deploy (its release is already complete). Skip legacy
+    # checkouts — they can't be built as shared releases (the cutover snapshot is
+    # the rollback target for a first migration).
+    if [[ -n "$previous_sha" && ! -d "$instance_dir/.git" ]]; then
         log "  Ensuring previous release ${previous_sha:0:12} is built (rollback target)..."
         ensure_release "$previous_sha"
     fi
@@ -349,7 +359,11 @@ for instance in "${TARGETS[@]}"; do
         if [[ -n "$previous_sha" ]]; then
             if [[ $DO_BACKUP -eq 1 ]]; then
                 log "  Manual rollback, if required:"
-                log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}"
+                if [[ -d "$instance_dir/.git" ]]; then
+                    log "    sudo $SCRIPT_DIR/../legacy_rollback.sh $instance ${previous_sha:0:12}"
+                else
+                    log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}"
+                fi
             else
                 log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
             fi
