@@ -238,7 +238,7 @@ class FormEntryViewSet(
                 form_id=self.kwargs["document_pk"],
                 is_active=True,
             )
-            .select_related("job")
+            .select_related("job", "staff", "entered_by")
             .order_by("-entry_date", "-created_at")
         )
 

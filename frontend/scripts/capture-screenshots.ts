@@ -1,7 +1,7 @@
-import { chromium, type Page } from '@playwright/test'
+import { chromium, type Page, type Response } from '@playwright/test'
 import * as fs from 'fs/promises'
 import * as path from 'path'
-import { fileURLToPath } from 'url'
+import { fileURLToPath, pathToFileURL } from 'url'
 import 'dotenv/config'
 import { getBackendEnv } from '../tests/scripts/db-backup-utils'
 
@@ -17,6 +17,30 @@ interface ScreenshotDef {
   prepare?: (page: Page) => Promise<void> // Optional setup actions
   fullPage?: boolean // Capture entire scrollable page
   clip?: { x: number; y: number; width: number; height: number } // Capture specific region
+}
+
+interface CliOptions {
+  url?: string
+  output?: string
+  waitFor?: string
+  fullPage: boolean
+}
+
+interface PageDiagnostics {
+  screenshot: string
+  diagnostics: string
+  initialStatus: number | null
+  finalUrl: string
+  title: string
+  loginDetected: boolean
+  routeMismatch: boolean
+  headings: string[]
+  failedResponses: Array<{
+    method: string
+    status: number
+    url: string
+  }>
+  bodyPreview: string
 }
 
 // Define all screenshots to capture
@@ -209,6 +233,81 @@ const SCREENSHOTS: ScreenshotDef[] = [
 const OUTPUT_DIR = path.resolve(__dirname, '../manual/public/screenshots')
 const MANIFEST_PATH = path.resolve(__dirname, '../manual/screenshot-manifest.json')
 
+function readFlagValue(argv: string[], index: number, flag: string): string {
+  const value = argv[index + 1]
+  if (!value || value.startsWith('--')) {
+    throw new Error(`${flag} requires a non-empty value`)
+  }
+  return value
+}
+
+export function parseArgs(argv: string[]): CliOptions {
+  const options: CliOptions = { fullPage: false }
+
+  for (let index = 0; index < argv.length; index += 1) {
+    const arg = argv[index]
+
+    if (arg === '--url') {
+      options.url = readFlagValue(argv, index, '--url')
+      index += 1
+    } else if (arg === '--output') {
+      options.output = readFlagValue(argv, index, '--output')
+      index += 1
+    } else if (arg === '--wait-for') {
+      options.waitFor = readFlagValue(argv, index, '--wait-for')
+      index += 1
+    } else if (arg === '--full-page') {
+      options.fullPage = true
+    } else {
+      throw new Error(`Unknown argument: ${arg}`)
+    }
+  }
+
+  return options
+}
+
+function getBaseUrl(): string {
+  const backendEnv = getBackendEnv()
+  const appDomain = backendEnv.APP_DOMAIN
+  if (!appDomain) {
+    throw new Error('APP_DOMAIN must be set in backend .env')
+  }
+  return `https://${appDomain}`
+}
+
+function timestampForFilename(): string {
+  return new Date().toISOString().replace(/[:.]/g, '-')
+}
+
+function resolveTargetUrl(target: string, baseUrl: string): string {
+  return new URL(target, baseUrl).toString()
+}
+
+function isAuthBlocker(url: string, body: string): boolean {
+  const parsedUrl = new URL(url)
+  return (
+    parsedUrl.pathname === '/login' ||
+    parsedUrl.pathname === '/session-check' ||
+    /sign in|enter your password|enter your username/i.test(body)
+  )
+}
+
+function normalizePathname(pathname: string): string {
+  if (pathname === '/') {
+    return pathname
+  }
+  return pathname.replace(/\/$/, '')
+}
+
+function hasRouteMismatch(requestedUrl: string, finalUrl: string): boolean {
+  const requested = new URL(requestedUrl)
+  const actual = new URL(finalUrl)
+  return (
+    requested.origin === actual.origin &&
+    normalizePathname(requested.pathname) !== normalizePathname(actual.pathname)
+  )
+}
+
 async function authenticate(page: Page): Promise<void> {
   const username = process.env.E2E_TEST_USERNAME
   const password = process.env.E2E_TEST_PASSWORD
@@ -229,16 +328,125 @@ async function authenticate(page: Page): Promise<void> {
   console.log('Authenticated successfully')
 }
 
+async function collectDiagnostics(
+  page: Page,
+  response: Response | null,
+  outputPath: string,
+  failedResponses: PageDiagnostics['failedResponses'],
+  requestedUrl: string,
+): Promise<PageDiagnostics> {
+  const body = await page
+    .locator('body')
+    .innerText({ timeout: 5000 })
+    .catch(() => '')
+  const headings = await page
+    .locator('h1,h2,h3,[role=heading]')
+    .evaluateAll((elements) =>
+      elements
+        .map((element) => element.textContent?.trim())
+        .filter((text): text is string => Boolean(text)),
+    )
+    .catch(() => [])
+  const finalUrl = page.url()
+
+  return {
+    screenshot: outputPath,
+    diagnostics: `${outputPath}.json`,
+    initialStatus: response?.status() ?? null,
+    finalUrl,
+    title: await page.title(),
+    loginDetected: isAuthBlocker(finalUrl, body),
+    routeMismatch: hasRouteMismatch(requestedUrl, finalUrl),
+    headings,
+    failedResponses,
+    bodyPreview: body.slice(0, 800),
+  }
+}
+
+async function captureSingleScreenshot(options: CliOptions): Promise<void> {
+  if (!options.url) {
+    throw new Error('--url is required for single screenshot mode')
+  }
+
+  const baseUrl = getBaseUrl()
+  const targetUrl = resolveTargetUrl(options.url, baseUrl)
+  const outputPath =
+    options.output ?? path.join('/tmp', `docketworks-screenshot-${timestampForFilename()}.png`)
+  const diagnosticsPath = `${outputPath}.json`
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true })
+
+  console.log(`Using base URL: ${baseUrl}`)
+  console.log(`Capturing single page: ${targetUrl}`)
+
+  const browser = await chromium.launch()
+  const context = await browser.newContext({
+    viewport: { width: 1280, height: 800 },
+    baseURL: baseUrl,
+  })
+  const failedResponses: PageDiagnostics['failedResponses'] = []
+  context.on('response', (response) => {
+    if (response.status() >= 400) {
+      failedResponses.push({
+        method: response.request().method(),
+        status: response.status(),
+        url: response.url(),
+      })
+    }
+  })
+  const page = await context.newPage()
+
+  try {
+    await authenticate(page)
+    failedResponses.length = 0
+    const response = await page.goto(targetUrl, {
+      waitUntil: 'networkidle',
+      timeout: 45000,
+    })
+
+    if (options.waitFor) {
+      console.log(`Waiting for: ${options.waitFor}`)
+      await page.waitForSelector(options.waitFor, { timeout: 15000 })
+    }
+
+    await page.waitForTimeout(500)
+    await page.screenshot({
+      path: outputPath,
+      fullPage: options.fullPage,
+    })
+
+    const diagnostics = await collectDiagnostics(
+      page,
+      response,
+      outputPath,
+      failedResponses,
+      targetUrl,
+    )
+    await fs.writeFile(diagnosticsPath, JSON.stringify(diagnostics, null, 2))
+
+    console.log(`Screenshot saved to: ${outputPath}`)
+    console.log(`Diagnostics saved to: ${diagnosticsPath}`)
+
+    if (diagnostics.loginDetected) {
+      throw new Error(
+        `Target page was not reached; browser ended on an auth/login state: ${diagnostics.finalUrl}`,
+      )
+    }
+    if (diagnostics.routeMismatch) {
+      throw new Error(
+        `Target route was not reached; requested ${targetUrl} but ended on ${diagnostics.finalUrl}`,
+      )
+    }
+  } finally {
+    await browser.close()
+  }
+}
+
 async function captureScreenshots(): Promise<void> {
   // Ensure output directory exists
   await fs.mkdir(OUTPUT_DIR, { recursive: true })
 
-  const backendEnv = getBackendEnv()
-  const appDomain = backendEnv.APP_DOMAIN
-  if (!appDomain) {
-    throw new Error('APP_DOMAIN must be set in backend .env')
-  }
-  const baseUrl = `https://${appDomain}`
+  const baseUrl = getBaseUrl()
   console.log(`Using base URL: ${baseUrl}`)
 
   const browser = await chromium.launch()
@@ -319,8 +527,18 @@ async function captureScreenshots(): Promise<void> {
   console.log('\nScreenshots saved to: ' + OUTPUT_DIR)
 }
 
-// Run the script
-captureScreenshots().catch((error) => {
-  console.error('Fatal error:', error)
-  process.exit(1)
-})
+async function main(): Promise<void> {
+  const options = parseArgs(process.argv.slice(2))
+  if (options.url) {
+    await captureSingleScreenshot(options)
+  } else {
+    await captureScreenshots()
+  }
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((error) => {
+    console.error('Fatal error:', error)
+    process.exit(1)
+  })
+}

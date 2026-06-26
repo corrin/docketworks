@@ -14,6 +14,22 @@ Major architectural decisions are recorded in [`docs/adr/`](docs/adr/README.md).
 
 CLAUDE.md is the operational layer (session behaviour, code-style gotchas, architecture facts). ADRs explain *why*.
 
+## Purpose-first responses
+
+Understand the purpose behind the user's request and answer with that purpose in mind, not just the literal wording. A response that is technically true but does not help with the underlying goal is incomplete.
+
+If the intended outcome cannot be achieved because of missing access, missing context, an environment issue, or another technicality, do not stop at the technicality. State the blocker briefly, explain its impact on the goal, and take the nearest useful next step or ask for the specific missing detail needed to proceed.
+
+Examples:
+- If asked for a screenshot of an authenticated page and the browser lands on login, the useful answer is that authenticated access is needed and what can be done next, not merely that a login screenshot was captured.
+- If asked whether a bug is fixed, verify the behavior that matters to the user, not only that a unit test passed.
+- If asked to review a proposal, assess whether it solves the problem and what risks remain, not only whether the text is internally consistent.
+
+## Tokens are precious
+
+Every single line in CLAUDE.md will make agents worse at unrelated tasks.  Every single word must have significant lasting benefit or it must not be added.  Do not repeat yourself, do not add lines even if you screw up, if it is unlikely a similar screw up will happen again.  Always give the most general fix, to increase the likelihood the guidence is future-directed.
+
+
 ## Frontend
 
 The frontend is a Vue 3 + TypeScript app in `frontend/`. It lives in the same repo but has its own `CLAUDE.md` at `frontend/CLAUDE.md` with its own rules and conventions.
