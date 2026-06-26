@@ -216,6 +216,11 @@ remove_legacy_scheduler_unit() {
     fi
 }
 
+is_legacy_checkout() {
+    local instance_dir="$1"
+    [[ -d "$instance_dir/.git" && ! -L "$instance_dir/current" ]]
+}
+
 # --- Determine targets ---
 TARGETS=()
 if [[ $DEPLOY_ALL -eq 1 ]]; then
@@ -307,7 +312,7 @@ for instance in "${TARGETS[@]}"; do
     log "  Previous SHA: ${previous_sha:-none}"
     log "  Target SHA:   $TARGET_SHA"
 
-    if [[ -d "$instance_dir/.git" && ! -L "$instance_dir/current" ]]; then
+    if is_legacy_checkout "$instance_dir"; then
         tree_dirty=0
         if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD --; then
             tree_dirty=1
@@ -331,7 +336,7 @@ for instance in "${TARGETS[@]}"; do
     # No-op on a normal deploy (its release is already complete). Skip legacy
     # checkouts — they can't be built as shared releases (the cutover snapshot is
     # the rollback target for a first migration).
-    if [[ -n "$previous_sha" && ! -d "$instance_dir/.git" ]]; then
+    if [[ -n "$previous_sha" ]] && ! is_legacy_checkout "$instance_dir"; then
         log "  Ensuring previous release ${previous_sha:0:12} is built (rollback target)..."
         ensure_release "$previous_sha"
     fi
@@ -359,7 +364,7 @@ for instance in "${TARGETS[@]}"; do
         if [[ -n "$previous_sha" ]]; then
             if [[ $DO_BACKUP -eq 1 ]]; then
                 log "  Manual rollback, if required:"
-                if [[ -d "$instance_dir/.git" ]]; then
+                if is_legacy_checkout "$instance_dir"; then
                     log "    sudo $SCRIPT_DIR/../legacy_rollback.sh $instance ${previous_sha:0:12}"
                 else
                     log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}"

@@ -30,6 +30,7 @@ fi
 INSTANCE="$1"
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 BACKUP_DIR="$INSTANCE_DIR/backups"
+ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"
 INST_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -d "$INSTANCE_DIR" ]]; then
@@ -61,17 +62,44 @@ TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 log "Legacy instance $INSTANCE at $OLD_SHORT — taking cutover snapshot..."
 
 mkdir -p "$BACKUP_DIR"
+chown "$INST_USER:$INST_USER" "$BACKUP_DIR"
+chmod 700 "$BACKUP_DIR"
+mkdir -p "$ROLLBACK_DIR"
+chown root:root "$ROLLBACK_DIR"
+chmod 700 "$ROLLBACK_DIR"
 
-SNAPSHOT="$BACKUP_DIR/legacy_${OLD_SHORT}.tar.gz"
-UNITS_DIR="$BACKUP_DIR/legacy_${OLD_SHORT}.units"
-NGINX_BACKUP="$BACKUP_DIR/legacy_${OLD_SHORT}.nginx.conf"
-MANIFEST="$BACKUP_DIR/legacy_${OLD_SHORT}.manifest"
+SNAPSHOT="$ROLLBACK_DIR/legacy_${OLD_SHORT}.tar.gz"
+SNAPSHOT_TMP="$SNAPSHOT.tmp.$$"
+UNITS_DIR="$ROLLBACK_DIR/legacy_${OLD_SHORT}.units"
+NGINX_BACKUP="$ROLLBACK_DIR/legacy_${OLD_SHORT}.nginx.conf"
+MANIFEST="$ROLLBACK_DIR/legacy_${OLD_SHORT}.manifest"
+
+cleanup_snapshot_tmp() {
+    rm -f "$SNAPSHOT_TMP"
+}
+trap cleanup_snapshot_tmp EXIT
+
+for unit in gunicorn celery-worker celery-beat; do
+    unit_path="/etc/systemd/system/${unit}-${INSTANCE}.service"
+    if [[ ! -f "$unit_path" ]]; then
+        echo "ERROR: Required unit file not found: $unit_path" >&2
+        echo "Snapshot not created; run instance.sh or restore the unit before cutover." >&2
+        exit 1
+    fi
+done
+
+NGINX_CONF="/etc/nginx/sites-available/docketworks-$INSTANCE"
+if [[ ! -f "$NGINX_CONF" ]]; then
+    echo "ERROR: Required nginx config not found: $NGINX_CONF" >&2
+    echo "Snapshot not created; run instance.sh or restore the config before cutover." >&2
+    exit 1
+fi
 
 # Snapshot the full code tree including frontend/dist, frontend/dist-manual,
 # and .git. Exclude data dirs that are either large regenerable runtime state
 # or already backed up separately.
 log "  Creating code snapshot: $SNAPSHOT"
-tar -czf "$SNAPSHOT" \
+tar -czf "$SNAPSHOT_TMP" \
     -C "$INSTANCE_DIR" \
     --exclude='./dropbox' \
     --exclude='./mediafiles' \
@@ -82,31 +110,28 @@ tar -czf "$SNAPSHOT" \
     --exclude='./.cache' \
     --exclude='./logs' \
     .
-
-chown "$INST_USER:$INST_USER" "$SNAPSHOT"
+tar -tzf "$SNAPSHOT_TMP" >/dev/null
+mv "$SNAPSHOT_TMP" "$SNAPSHOT"
+chown root:root "$SNAPSHOT"
+chmod 600 "$SNAPSHOT"
 
 # Save the three systemd unit files.
 log "  Saving systemd unit files -> $UNITS_DIR"
+rm -rf "$UNITS_DIR"
 mkdir -p "$UNITS_DIR"
 for unit in gunicorn celery-worker celery-beat; do
     unit_path="/etc/systemd/system/${unit}-${INSTANCE}.service"
-    if [[ ! -f "$unit_path" ]]; then
-        echo "ERROR: Required unit file not found: $unit_path" >&2
-        echo "Snapshot is incomplete; run instance.sh or restore the unit before cutover." >&2
-        exit 1
-    fi
     cp "$unit_path" "$UNITS_DIR/"
 done
+chown -R root:root "$UNITS_DIR"
+chmod 700 "$UNITS_DIR"
+chmod 600 "$UNITS_DIR"/*
 
 # Save the nginx server config.
-NGINX_CONF="/etc/nginx/sites-available/docketworks-$INSTANCE"
-if [[ ! -f "$NGINX_CONF" ]]; then
-    echo "ERROR: Required nginx config not found: $NGINX_CONF" >&2
-    echo "Snapshot is incomplete; run instance.sh or restore the config before cutover." >&2
-    exit 1
-fi
 log "  Saving nginx config -> $NGINX_BACKUP"
 cp "$NGINX_CONF" "$NGINX_BACKUP"
+chown root:root "$NGINX_BACKUP"
+chmod 600 "$NGINX_BACKUP"
 
 # Write manifest.
 cat > "$MANIFEST" <<EOF
@@ -115,6 +140,8 @@ timestamp=${TIMESTAMP}
 instance=${INSTANCE}
 predeploy_pattern=predeploy_*_${OLD_SHORT}.sql.gz
 EOF
+chown root:root "$MANIFEST"
+chmod 600 "$MANIFEST"
 
 log "  Manifest written to $MANIFEST"
 log "Snapshot complete. Executing deploy..."

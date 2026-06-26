@@ -31,6 +31,7 @@ OLD_PREFIX="$2"
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 ENV_FILE="$INSTANCE_DIR/.env"
 BACKUP_DIR="$INSTANCE_DIR/backups"
+ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"
 INST_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -f "$ENV_FILE" ]]; then
@@ -50,9 +51,21 @@ if [[ -z "$DB_USER" ]]; then
 fi
 
 shopt -s nullglob
-SNAPSHOT_MATCHES=("$BACKUP_DIR"/legacy_"$OLD_PREFIX"*.tar.gz)
+if [[ ! -d "$ROLLBACK_DIR" ]]; then
+    echo "ERROR: Legacy rollback artifact directory missing: $ROLLBACK_DIR" >&2
+    echo "Run cutover_legacy_instance.sh first to create one." >&2
+    exit 1
+fi
+
+ROLLBACK_DIR_MODE="$(stat -c '%u:%g:%a' "$ROLLBACK_DIR")"
+if [[ "$ROLLBACK_DIR_MODE" != "0:0:700" ]]; then
+    echo "ERROR: Legacy rollback artifact directory must be root:root mode 700: $ROLLBACK_DIR" >&2
+    exit 1
+fi
+
+SNAPSHOT_MATCHES=("$ROLLBACK_DIR"/legacy_"$OLD_PREFIX"*.tar.gz)
 if (( ${#SNAPSHOT_MATCHES[@]} == 0 )); then
-    echo "ERROR: Legacy snapshot not found for prefix $OLD_PREFIX in $BACKUP_DIR" >&2
+    echo "ERROR: Legacy snapshot not found for prefix $OLD_PREFIX in $ROLLBACK_DIR" >&2
     echo "Run cutover_legacy_instance.sh first to create one." >&2
     exit 1
 elif (( ${#SNAPSHOT_MATCHES[@]} > 1 )); then
@@ -66,8 +79,8 @@ SNAPSHOT="${SNAPSHOT_MATCHES[0]}"
 OLD_SHORT="$(basename "$SNAPSHOT")"
 OLD_SHORT="${OLD_SHORT#legacy_}"
 OLD_SHORT="${OLD_SHORT%.tar.gz}"
-UNITS_DIR="$BACKUP_DIR/legacy_${OLD_SHORT}.units"
-NGINX_BACKUP="$BACKUP_DIR/legacy_${OLD_SHORT}.nginx.conf"
+UNITS_DIR="$ROLLBACK_DIR/legacy_${OLD_SHORT}.units"
+NGINX_BACKUP="$ROLLBACK_DIR/legacy_${OLD_SHORT}.nginx.conf"
 
 if [[ ! -d "$UNITS_DIR" ]]; then
     echo "ERROR: Legacy unit files not found: $UNITS_DIR" >&2
@@ -86,6 +99,14 @@ if [[ ! -f "$NGINX_BACKUP" ]]; then
 fi
 if ! tar -tzf "$SNAPSHOT" >/dev/null; then
     echo "ERROR: Legacy snapshot is not a readable gzip tarball: $SNAPSHOT" >&2
+    exit 1
+fi
+if ! tar -tzf "$SNAPSHOT" | grep -Fx './manage.py' >/dev/null; then
+    echo "ERROR: Legacy snapshot does not contain manage.py: $SNAPSHOT" >&2
+    exit 1
+fi
+if ! tar -tzf "$SNAPSHOT" | grep -Fx './.venv/bin/python' >/dev/null; then
+    echo "ERROR: Legacy snapshot does not contain .venv/bin/python: $SNAPSHOT" >&2
     exit 1
 fi
 
@@ -138,32 +159,31 @@ rm -f "$INSTANCE_DIR/current" "$INSTANCE_DIR/deploy-state.env"
 log "Extracting legacy code tree from $SNAPSHOT"
 tar -xzf "$SNAPSHOT" -C "$INSTANCE_DIR"
 
-chown -R "$INST_USER:$INST_USER" "$INSTANCE_DIR"
+chown "$INST_USER:$INST_USER" "$INSTANCE_DIR"
+for path in "$INSTANCE_DIR"/* "$INSTANCE_DIR"/.[!.]* "$INSTANCE_DIR"/..?*; do
+    [[ -e "$path" ]] || continue
+    [[ "$(basename "$path")" == "backups" ]] && continue
+    chown -R "$INST_USER:$INST_USER" "$path"
+done
 log "Legacy code tree restored"
 
 # --- Sync database sequences (needs manage.py from restored code) ---
 log "Syncing database sequences"
-SHARED_VENV=""
-for d in "$RELEASES_DIR"/*; do
-    [[ -d "$d" && -f "$d/.complete" && -f "$d/.venv/bin/python" ]] || continue
-    SHARED_VENV="$d/.venv"
-    break
-done
-if [[ -z "$SHARED_VENV" ]]; then
-    echo "ERROR: no shared release venv found for sync_sequences" >&2
+LEGACY_PYTHON="$INSTANCE_DIR/.venv/bin/python"
+if [[ ! -x "$LEGACY_PYTHON" ]]; then
+    echo "ERROR: restored legacy venv python is missing or not executable: $LEGACY_PYTHON" >&2
     exit 1
 fi
 
-sudo -u "$INST_USER" bash -c "
-    source '$SHARED_VENV/bin/activate'
+sudo -u "$INST_USER" bash -c '
     set -a
-    source '$INSTANCE_DIR/.env'
+    source "$1"
     set +a
     export DJANGO_SETTINGS_MODULE=docketworks.settings
     export PYTHONDONTWRITEBYTECODE=1
-    cd '$INSTANCE_DIR'
-    python manage.py sync_sequences
-"
+    cd "$2"
+    "$3" manage.py sync_sequences
+' _ "$ENV_FILE" "$INSTANCE_DIR" "$LEGACY_PYTHON"
 log "Sequence sync complete"
 
 # --- Restore systemd units ---
