@@ -419,7 +419,6 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             cutover_content,
         )
         self.assertIn('SNAPSHOT_TMP="$SNAPSHOT.tmp.$$"', cutover_content)
-        self.assertIn('tar -czf "$SNAPSHOT_TMP"', cutover_content)
         self.assertIn('tar -tzf "$SNAPSHOT_TMP" >/dev/null', cutover_content)
         self.assertIn('mv "$SNAPSHOT_TMP" "$SNAPSHOT"', cutover_content)
         self.assertIn('chown root:root "$SNAPSHOT"', cutover_content)
@@ -429,7 +428,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         )
         self.assertLess(
             cutover_content.index("for unit in gunicorn celery-worker celery-beat"),
-            cutover_content.index('tar -czf "$SNAPSHOT_TMP"'),
+            cutover_content.index('log "  Creating code snapshot: $SNAPSHOT"'),
         )
 
         self.assertIn(
@@ -450,6 +449,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             'NGINX_BACKUP="$ROLLBACK_DIR/legacy_${OLD_SHORT}.nginx.conf"',
             rollback_content,
         )
+        self.assertIn("grep -Fx './.venv/bin/python'", rollback_content)
         self.assertIn(
             'DB_MATCHES=("$ROLLBACK_DIR"/predeploy_*_"$OLD_SHORT".sql.gz)',
             rollback_content,
