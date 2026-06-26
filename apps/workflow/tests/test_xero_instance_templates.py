@@ -16,6 +16,7 @@ INSTANCE_SCRIPT = REPO_ROOT / "scripts" / "server" / "instance.sh"
 DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "server" / "deploy.sh"
 CUTOVER_LEGACY_SCRIPT = REPO_ROOT / "scripts" / "server" / "cutover_legacy_instance.sh"
 LEGACY_ROLLBACK_SCRIPT = REPO_ROOT / "scripts" / "legacy_rollback.sh"
+PREDEPLOY_BACKUP_SCRIPT = REPO_ROOT / "scripts" / "predeploy_backup.sh"
 COMMON_SCRIPT = REPO_ROOT / "scripts" / "server" / "common.sh"
 SERVER_SETUP_SCRIPT = REPO_ROOT / "scripts" / "server" / "server-setup.sh"
 SERVER_README = REPO_ROOT / "scripts" / "server" / "README.md"
@@ -404,6 +405,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
     def test_legacy_cutover_rollback_artifacts_are_root_trusted(self) -> None:
         cutover_content = CUTOVER_LEGACY_SCRIPT.read_text()
         rollback_content = LEGACY_ROLLBACK_SCRIPT.read_text()
+        predeploy_backup_content = PREDEPLOY_BACKUP_SCRIPT.read_text()
 
         self.assertIn(
             'ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"',
@@ -449,6 +451,16 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             rollback_content,
         )
         self.assertIn(
+            'DB_MATCHES=("$ROLLBACK_DIR"/predeploy_*_"$OLD_SHORT".sql.gz)',
+            rollback_content,
+        )
+        self.assertIn('DB_DUMP_MODE="$(stat -c', rollback_content)
+        self.assertIn(
+            "Legacy predeploy backup must be root:root mode 600",
+            rollback_content,
+        )
+        self.assertIn('gunzip -t "$DB_DUMP"', rollback_content)
+        self.assertNotIn(
             'DB_MATCHES=("$BACKUP_DIR"/predeploy_*_"$OLD_SHORT".sql.gz)',
             rollback_content,
         )
@@ -456,6 +468,19 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             'SNAPSHOT_MATCHES=("$BACKUP_DIR"/legacy_"$OLD_PREFIX"*.tar.gz)',
             rollback_content,
         )
+
+        self.assertIn(
+            'ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"',
+            predeploy_backup_content,
+        )
+        self.assertIn(
+            'LEGACY_MANIFEST="$ROLLBACK_DIR/legacy_${HASH}.manifest"',
+            predeploy_backup_content,
+        )
+        self.assertIn('if [[ -f "$LEGACY_MANIFEST" ]]; then', predeploy_backup_content)
+        self.assertIn('OUT_DIR="$ROLLBACK_DIR"', predeploy_backup_content)
+        self.assertIn('chown root:root "$OUT"', predeploy_backup_content)
+        self.assertIn('chmod 600 "$OUT"', predeploy_backup_content)
 
     def test_legacy_rollback_preserves_backups_and_uses_restored_venv(self) -> None:
         content = LEGACY_ROLLBACK_SCRIPT.read_text()

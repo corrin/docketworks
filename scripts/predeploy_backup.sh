@@ -27,6 +27,7 @@ INSTANCE="$1"
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 ENV_FILE="$INSTANCE_DIR/.env"
 BACKUP_DIR="$INSTANCE_DIR/backups"
+ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: $ENV_FILE missing" >&2
@@ -45,9 +46,21 @@ if [[ -z "$HASH" ]]; then
 fi
 HASH="${HASH:0:12}"
 TS=$(date +%Y%m%d_%H%M%S)
-OUT="$BACKUP_DIR/predeploy_${TS}_${HASH}.sql.gz"
 
 mkdir -p "$BACKUP_DIR"
+OUT_DIR="$BACKUP_DIR"
+
+LEGACY_MANIFEST="$ROLLBACK_DIR/legacy_${HASH}.manifest"
+if [[ -f "$LEGACY_MANIFEST" ]]; then
+    ROLLBACK_DIR_MODE="$(stat -c '%u:%g:%a' "$ROLLBACK_DIR")"
+    if [[ "$ROLLBACK_DIR_MODE" != "0:0:700" ]]; then
+        echo "ERROR: Legacy rollback artifact directory must be root:root mode 700: $ROLLBACK_DIR" >&2
+        exit 1
+    fi
+    OUT_DIR="$ROLLBACK_DIR"
+fi
+
+OUT="$OUT_DIR/predeploy_${TS}_${HASH}.sql.gz"
 
 # Atomic write: dump to .tmp, rename on success. A mid-dump failure then
 # leaves a .tmp file (not a finished-looking predeploy_*.sql.gz).
@@ -55,5 +68,9 @@ mkdir -p "$BACKUP_DIR"
 # would succeed on empty input.
 sudo -u postgres pg_dump "$DB_NAME" | gzip > "$OUT.tmp"
 mv "$OUT.tmp" "$OUT"
+if [[ "$OUT_DIR" == "$ROLLBACK_DIR" ]]; then
+    chown root:root "$OUT"
+    chmod 600 "$OUT"
+fi
 
 echo "Wrote $OUT"

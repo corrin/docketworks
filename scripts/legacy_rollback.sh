@@ -30,7 +30,6 @@ INSTANCE="$1"
 OLD_PREFIX="$2"
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 ENV_FILE="$INSTANCE_DIR/.env"
-BACKUP_DIR="$INSTANCE_DIR/backups"
 ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"
 INST_USER="$(instance_user "$INSTANCE")"
 
@@ -110,14 +109,23 @@ if ! tar -tzf "$SNAPSHOT" | grep -Fx './.venv/bin/python' >/dev/null; then
     exit 1
 fi
 
-# Locate the newest predeploy backup for this legacy SHA.
-DB_MATCHES=("$BACKUP_DIR"/predeploy_*_"$OLD_SHORT".sql.gz)
+# Locate the newest protected predeploy backup for this legacy SHA.
+DB_MATCHES=("$ROLLBACK_DIR"/predeploy_*_"$OLD_SHORT".sql.gz)
 if (( ${#DB_MATCHES[@]} == 0 )); then
-    echo "ERROR: No predeploy backup found for hash $OLD_SHORT in $BACKUP_DIR" >&2
+    echo "ERROR: No protected predeploy backup found for hash $OLD_SHORT in $ROLLBACK_DIR" >&2
     exit 1
 fi
 mapfile -t SORTED_DB < <(printf '%s\n' "${DB_MATCHES[@]}" | sort)
 DB_DUMP="${SORTED_DB[-1]}"
+DB_DUMP_MODE="$(stat -c '%u:%g:%a' "$DB_DUMP")"
+if [[ "$DB_DUMP_MODE" != "0:0:600" ]]; then
+    echo "ERROR: Legacy predeploy backup must be root:root mode 600: $DB_DUMP" >&2
+    exit 1
+fi
+if ! gunzip -t "$DB_DUMP"; then
+    echo "ERROR: Legacy predeploy backup is not a readable gzip file: $DB_DUMP" >&2
+    exit 1
+fi
 
 echo "=== Rolling $INSTANCE back to legacy state at $OLD_SHORT ==="
 echo "===   Code snapshot:  $SNAPSHOT"
