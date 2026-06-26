@@ -225,13 +225,13 @@ class XeroInstanceTemplateTests(SimpleTestCase):
 
         self.assertIn("RELEASES_DIR", content)
         self.assertIn("git -C '$LOCAL_REPO' archive '$sha'", content)
-        self.assertIn("printf '%s\\n' '$sha' > '$tmp_dir/.release-sha'", content)
-        self.assertIn("python3.12 -m venv '$tmp_dir/.venv'", content)
+        self.assertIn("printf '%s\\n' '$sha' > '$release_dir/.release-sha'", content)
+        self.assertIn("python3.12 -m venv '$release_dir/.venv'", content)
         self.assertIn("npm run check:typed-router", content)
         self.assertIn("npm run build", content)
         self.assertIn("npm run manual:build", content)
         self.assertIn("rm -rf node_modules", content)
-        self.assertIn("touch '$tmp_dir/.complete'", content)
+        self.assertIn("touch '$release_dir/.complete'", content)
 
     def test_runtime_templates_use_current_release(self) -> None:
         for template in [
@@ -390,7 +390,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         release_utils_content = RELEASE_UTILS.read_text()
 
         self.assertIn("--cleanup-releases", deploy_content)
-        self.assertIn("cleanup_stale_release_builds", deploy_content)
+        self.assertIn("cleanup_incomplete_releases", deploy_content)
         self.assertIn('cleanup_unreferenced_releases "$TARGET_SHA"', deploy_content)
         self.assertIn("release_is_referenced()", release_utils_content)
         self.assertIn(
