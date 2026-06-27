@@ -17,6 +17,7 @@ DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "server" / "deploy.sh"
 CUTOVER_LEGACY_SCRIPT = REPO_ROOT / "scripts" / "server" / "cutover_legacy_instance.sh"
 LEGACY_ROLLBACK_SCRIPT = REPO_ROOT / "scripts" / "legacy_rollback.sh"
 PREDEPLOY_BACKUP_SCRIPT = REPO_ROOT / "scripts" / "predeploy_backup.sh"
+BACKUP_DB_SCRIPT = REPO_ROOT / "scripts" / "backup_db.sh"
 COMMON_SCRIPT = REPO_ROOT / "scripts" / "server" / "common.sh"
 SERVER_SETUP_SCRIPT = REPO_ROOT / "scripts" / "server" / "server-setup.sh"
 SERVER_README = REPO_ROOT / "scripts" / "server" / "README.md"
@@ -367,6 +368,33 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             content,
         )
         self.assertIn('chmod 750 "$INSTANCE_DIR/mediafiles"', content)
+
+    def test_instance_backups_are_owned_for_backup_timer_writes(self) -> None:
+        instance_content = INSTANCE_SCRIPT.read_text()
+        common_content = COMMON_SCRIPT.read_text()
+        predeploy_backup_content = PREDEPLOY_BACKUP_SCRIPT.read_text()
+        cutover_content = CUTOVER_LEGACY_SCRIPT.read_text()
+        backup_content = BACKUP_DB_SCRIPT.read_text()
+
+        self.assertIn("ensure_instance_backup_dir()", common_content)
+        self.assertIn(
+            'ensure_instance_backup_dir "$INSTANCE" "$INSTANCE_USER"',
+            instance_content,
+        )
+        self.assertIn(
+            'ensure_instance_backup_dir "$INSTANCE" "$INST_USER"',
+            predeploy_backup_content,
+        )
+        self.assertIn(
+            'ensure_instance_backup_dir "$INSTANCE" "$INST_USER"',
+            cutover_content,
+        )
+        self.assertIn(
+            'chown "$instance_user:$instance_user" "$backup_dir"',
+            common_content,
+        )
+        self.assertIn('chmod 700 "$backup_dir"', common_content)
+        self.assertIn('if [[ ! -w "$BACKUP_DIR" ]]; then', backup_content)
 
     def test_xero_default_user_id_docs_match_required_create_time_workflow(
         self,

@@ -392,6 +392,7 @@ do_configure() {
 
     log "Ensuring instance directory structure..."
     mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    ensure_instance_backup_dir "$INSTANCE" "$INSTANCE_USER"
     chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
     chmod 750 "$INSTANCE_DIR"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"

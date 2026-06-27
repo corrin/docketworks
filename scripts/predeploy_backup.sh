@@ -28,6 +28,7 @@ INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 ENV_FILE="$INSTANCE_DIR/.env"
 BACKUP_DIR="$INSTANCE_DIR/backups"
 ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"
+INST_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: $ENV_FILE missing" >&2
@@ -47,7 +48,7 @@ fi
 HASH="$(short_release_sha "$HASH")"
 TS=$(date +%Y%m%d_%H%M%S)
 
-mkdir -p "$BACKUP_DIR"
+ensure_instance_backup_dir "$INSTANCE" "$INST_USER"
 OUT_DIR="$BACKUP_DIR"
 
 LEGACY_MANIFEST="$ROLLBACK_DIR/legacy_${HASH}.manifest"

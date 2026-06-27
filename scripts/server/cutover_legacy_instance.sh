@@ -29,7 +29,6 @@ fi
 
 INSTANCE="$1"
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-BACKUP_DIR="$INSTANCE_DIR/backups"
 ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"
 INST_USER="$(instance_user "$INSTANCE")"
 
@@ -61,9 +60,7 @@ OLD_SHORT="$(short_release_sha "$OLD_SHA")"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 log "Legacy instance $INSTANCE at $OLD_SHORT — taking cutover snapshot..."
 
-mkdir -p "$BACKUP_DIR"
-chown "$INST_USER:$INST_USER" "$BACKUP_DIR"
-chmod 700 "$BACKUP_DIR"
+ensure_instance_backup_dir "$INSTANCE" "$INST_USER"
 mkdir -p "$ROLLBACK_DIR"
 chown root:root "$ROLLBACK_DIR"
 chmod 700 "$ROLLBACK_DIR"
