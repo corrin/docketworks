@@ -9,7 +9,7 @@ set -euo pipefail
 #   /opt/docketworks/instances/<instance>/backups/predeploy_<ts>_<hash>.sql.gz
 #
 # The hash tags the dump with the commit that produced the data, so a
-# rollback pair is (switch current release to <hash>, restore this file).
+# rollback pair is (switch app to <hash>, restore this file).
 #
 # Must run as root (calls `sudo -u postgres pg_dump`).
 

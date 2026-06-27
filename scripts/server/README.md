@@ -115,9 +115,9 @@ What `deploy.sh` does, in order:
 1. Pull latest code from GitHub (into the shared local repo).
 2. Run `server-setup.sh` to converge host-level deps. Cheap when nothing's missing; lands new system deps automatically when a future PR adds them.
 3. Resolve the target ref to a SHA and build `/opt/docketworks/releases/<sha>` once if it does not already exist.
-4. For each instance: build the previous release if it is missing (rollback target — a no-op on a normal deploy; skipped for legacy checkouts since their cutover rollback target is the snapshot), take a pre-deploy backup (unless `--no-backup`), stop `celery-beat-<instance>`, `celery-worker-<instance>`, and `gunicorn-<instance>`, switch `current` to the release, run migrate, render backup units, restart `celery-worker-<instance>`, restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. If migrate fails, services stay stopped and rollback is explicit via `sudo ./scripts/predeploy_rollback.sh <instance> <previous-8-char-sha>` for shared-release instances, or `sudo ./scripts/legacy_rollback.sh <instance> <previous-8-char-sha>` for a first legacy checkout cutover. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
+4. For each instance: build the previous release if it is missing (rollback target — a no-op on a normal deploy; skipped for legacy checkouts since their cutover rollback target is the snapshot), take a pre-deploy backup (unless `--no-backup`), stop `celery-beat-<instance>`, `celery-worker-<instance>`, and `gunicorn-<instance>`, switch `app` to the release, run migrate, render backup units, restart `celery-worker-<instance>`, restart `celery-beat-<instance>` (the periodic-task dispatcher), restart `gunicorn-<instance>`. If migrate fails, services stay stopped and rollback is explicit via `sudo ./scripts/predeploy_rollback.sh <instance> <previous-8-char-sha>` for shared-release instances, or `sudo ./scripts/legacy_rollback.sh <instance> <previous-8-char-sha>` for a first legacy checkout cutover. Worker restarts before beat so a freshly-dispatched periodic task lands on a worker that knows the task name; gunicorn last for the same reason on webhook-dispatched tasks.
 5. Clean up complete releases that are no longer referenced by an instance
-   `current` symlink or rollback state. To run only cleanup:
+   `app` symlink or rollback state. To run only cleanup:
    `sudo ./scripts/server/deploy.sh --cleanup-releases`.
 
 ## Backups
@@ -163,7 +163,7 @@ Shows each instance's name, status (running/stopped/no service), current release
 │   └── rclone/<name>.conf        # Per-instance backup upload config
 └── instances/
     └── <name>/               # Mutable instance state
-        ├── current -> ../../releases/<sha>
+        ├── app -> ../../releases/<sha>
         ├── gcp-credentials.json  # Copied from path in credentials.env (mode 600)
         ├── .env                  # Full env (generated from template + credentials + shared.env)
         ├── mediafiles/

@@ -6,8 +6,8 @@ Requires=redis-server.service
 [Service]
 User=__INSTANCE_USER__
 Group=www-data
-WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/current
-ExecStart=/opt/docketworks/instances/__INSTANCE__/current/.venv/bin/celery -A docketworks worker --concurrency=4 --loglevel=info --hostname=celery-__INSTANCE__@%%h
+WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/celery -A docketworks worker --concurrency=4 --loglevel=info --hostname=celery-__INSTANCE__@%%h
 EnvironmentFile=/opt/docketworks/instances/__INSTANCE__/.env
 Environment=PYTHONDONTWRITEBYTECODE=1
 Restart=always

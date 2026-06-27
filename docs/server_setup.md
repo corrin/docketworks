@@ -134,7 +134,7 @@ sudo scripts/server/instance.sh create <client> <env> --seed
 
 `instance.sh create` is the supported provisioning path. It creates the OS
 user, databases, generated `.env`, per-instance data directories, service
-units, backup timer, nginx config, and `current` symlink to a shared
+units, backup timer, nginx config, and `app` symlink to a shared
 `/opt/docketworks/releases/<sha>` release. App code, Python dependencies, and
 frontend builds live in the shared release, not in the instance directory.
 

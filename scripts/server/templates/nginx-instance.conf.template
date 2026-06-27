@@ -27,7 +27,7 @@ server {
     # which 500s when dist-manual/ is missing. VitePress is built with
     # cleanUrls off, so `index` alone covers directory requests.
     location /manual/ {
-        alias /opt/docketworks/instances/__INSTANCE__/current/frontend/dist-manual/;
+        alias /opt/docketworks/instances/__INSTANCE__/app/frontend/dist-manual/;
         index index.html;
     }
 
@@ -35,13 +35,13 @@ server {
     # HTML that still references the previous build's hashed /assets/*.
     # index.html is the only pointer to a specific build.
     location = /index.html {
-        root /opt/docketworks/instances/__INSTANCE__/current/frontend/dist;
+        root /opt/docketworks/instances/__INSTANCE__/app/frontend/dist;
         add_header Cache-Control "no-store" always;
     }
 
     # Vue.js frontend — everything else (shared release build)
     location / {
-        root /opt/docketworks/instances/__INSTANCE__/current/frontend/dist;
+        root /opt/docketworks/instances/__INSTANCE__/app/frontend/dist;
         try_files $uri $uri/ /index.html;
     }
 

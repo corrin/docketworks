@@ -83,8 +83,8 @@ validate_instance() {
         echo "ERROR: No .env file found at $local_dir/.env" >&2
         exit 1
     fi
-    if [[ ! -L "$local_dir/current" && ! -d "$local_dir/.git" ]]; then
-        echo "ERROR: $local_dir has neither current release link nor legacy git checkout." >&2
+    if [[ ! -L "$local_dir/app" && ! -L "$local_dir/current" && ! -d "$local_dir/.git" ]]; then
+        echo "ERROR: $local_dir has neither app release link nor legacy git checkout." >&2
         exit 1
     fi
 
@@ -218,7 +218,7 @@ remove_legacy_scheduler_unit() {
 
 is_legacy_checkout() {
     local instance_dir="$1"
-    [[ -d "$instance_dir/.git" && ! -L "$instance_dir/current" ]]
+    [[ -d "$instance_dir/.git" && ! -L "$instance_dir/app" && ! -L "$instance_dir/current" ]]
 }
 
 # --- Determine targets ---
@@ -306,6 +306,7 @@ FAILED_INSTANCES=()
 for instance in "${TARGETS[@]}"; do
     instance_dir="$INSTANCES_DIR/$instance"
     inst_user="$(instance_user "$instance")"
+    ensure_instance_app_link "$instance"
     previous_sha="$(instance_current_sha "$instance")"
 
     log "--- Processing instance: $instance ---"
@@ -351,7 +352,7 @@ for instance in "${TARGETS[@]}"; do
     stop_instance_units "$instance"
 
     switch_instance_release "$instance" "$TARGET_SHA"
-    chown -h "$inst_user:$inst_user" "$instance_dir/current"
+    chown -h "$inst_user:$inst_user" "$instance_dir/app"
 
     log "  Running migrate..."
     if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
@@ -405,6 +406,9 @@ else
 fi
 
 if [[ ${#FAILED_INSTANCES[@]} -eq 0 ]]; then
+    for instance in "${TARGETS[@]}"; do
+        remove_legacy_current_link "$instance"
+    done
     cleanup_unreferenced_releases "$TARGET_SHA"
 else
     log "  Skipping release cleanup — failed instances may still need their previous release for rollback"

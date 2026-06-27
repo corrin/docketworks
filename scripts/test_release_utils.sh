@@ -51,6 +51,18 @@ mkdir -p "$INSTANCES_DIR/msm-uat" "$RELEASES_DIR"
 
 FULL_SHA="71f21401aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 ROLLED_FROM_SHA="f1e8535bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+OTHER_SHA="aaaaaaaa11111111111111111111111111111111"
+mkdir -p \
+    "$RELEASES_DIR/$FULL_SHA" \
+    "$RELEASES_DIR/$ROLLED_FROM_SHA" \
+    "$RELEASES_DIR/$OTHER_SHA"
+touch \
+    "$RELEASES_DIR/$FULL_SHA/.complete" \
+    "$RELEASES_DIR/$ROLLED_FROM_SHA/.complete" \
+    "$RELEASES_DIR/$OTHER_SHA/.complete"
+printf "%s\n" "$FULL_SHA" > "$RELEASES_DIR/$FULL_SHA/.release-sha"
+printf "%s\n" "$ROLLED_FROM_SHA" > "$RELEASES_DIR/$ROLLED_FROM_SHA/.release-sha"
+printf "%s\n" "$OTHER_SHA" > "$RELEASES_DIR/$OTHER_SHA/.release-sha"
 
 assert_eq "71f21401" "$(short_release_sha "$FULL_SHA")" "short_release_sha returns 8 chars"
 
@@ -107,5 +119,47 @@ assert_eq \
 assert_success \
     "release_is_referenced uses the canonical 8-char deploy-state PREVIOUS_SHA" \
     release_is_referenced "$FULL_SHA"
+
+ln -sfn "../../releases/$FULL_SHA" "$INSTANCES_DIR/msm-uat/current"
+ensure_instance_app_link "msm-uat"
+assert_eq \
+    "$(readlink -f "$INSTANCES_DIR/msm-uat/current")" \
+    "$(readlink -f "$INSTANCES_DIR/msm-uat/app")" \
+    "ensure_instance_app_link migrates current-only instances to app"
+
+ensure_instance_app_link "msm-uat"
+assert_eq \
+    "$(readlink -f "$INSTANCES_DIR/msm-uat/current")" \
+    "$(readlink -f "$INSTANCES_DIR/msm-uat/app")" \
+    "ensure_instance_app_link tolerates matching app and current links"
+
+mv "$INSTANCES_DIR/msm-uat/deploy-state.env" "$INSTANCES_DIR/msm-uat/deploy-state.env.testbak"
+assert_success \
+    "release_is_referenced uses the app symlink" \
+    release_is_referenced "$FULL_SHA"
+mv "$INSTANCES_DIR/msm-uat/deploy-state.env.testbak" "$INSTANCES_DIR/msm-uat/deploy-state.env"
+
+remove_legacy_current_link "msm-uat"
+if [[ -e "$INSTANCES_DIR/msm-uat/current" ]]; then
+    echo "FAIL: remove_legacy_current_link removes matching legacy current link" >&2
+    exit 1
+fi
+assert_eq \
+    "$(release_path "$FULL_SHA")" \
+    "$(readlink -f "$INSTANCES_DIR/msm-uat/app")" \
+    "remove_legacy_current_link leaves app link in place"
+
+ensure_instance_app_link "msm-uat"
+assert_eq \
+    "$(release_path "$FULL_SHA")" \
+    "$(readlink -f "$INSTANCES_DIR/msm-uat/app")" \
+    "ensure_instance_app_link leaves app-only instances unchanged"
+
+ln -sfn "../../releases/$OTHER_SHA" "$INSTANCES_DIR/msm-uat/current"
+if ensure_instance_app_link "msm-uat" 2>/dev/null; then
+    echo "FAIL: ensure_instance_app_link rejects divergent app and current links" >&2
+    exit 1
+fi
+rm -f "$INSTANCES_DIR/msm-uat/current"
 
 echo "release-utils tests passed"

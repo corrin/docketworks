@@ -65,7 +65,7 @@ PRE_ROLLBACK_SHA="$(instance_current_sha "$INSTANCE")"
 
 echo "=== Rolling $INSTANCE back to $HASH using:"
 echo "===   $BACKUP"
-echo "=== This will restore the backup, stop services, swap DBs, switch current to $FULL_SHA, and restart services."
+echo "=== This will restore the backup, stop services, swap DBs, switch app to $FULL_SHA, and restart services."
 read -rp "Continue? [y/N] " ans
 if [[ "$ans" != "y" && "$ans" != "Y" ]]; then
     echo "Aborted."
@@ -109,9 +109,9 @@ SELECT format('ALTER DATABASE %I RENAME TO %I', :'restore_db', :'db_name') \gexe
 EOSQL
 CLEANUP_RESTORE_DB=0
 
-echo "=== Switching current release to $FULL_SHA"
+echo "=== Switching app release to $FULL_SHA"
 switch_instance_release "$INSTANCE" "$FULL_SHA"
-chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/current"
+chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/app"
 write_deploy_state "$INSTANCE" "$PRE_ROLLBACK_SHA" "$FULL_SHA" "$INST_USER"
 
 echo "=== Dropping replaced DB $OLD_DB"

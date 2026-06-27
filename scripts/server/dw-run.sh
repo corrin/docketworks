@@ -1,7 +1,7 @@
 #!/bin/bash
 set -euo pipefail
 
-# Run a command as an instance user with the current release venv and instance
+# Run a command as an instance user with the app release venv and instance
 # .env loaded.
 #
 # Usage: dw-run <instance> <command> [args...]
@@ -22,7 +22,7 @@ fi
 INSTANCE="$1"
 shift
 INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
-CURRENT_DIR="$INSTANCE_DIR/current"
+APP_DIR="$INSTANCE_DIR/app"
 INSTANCE_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -d "$INSTANCE_DIR" ]]; then
@@ -35,20 +35,20 @@ if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
     exit 1
 fi
 
-if [[ ! -d "$CURRENT_DIR" ]]; then
-    echo "ERROR: No current release found at $CURRENT_DIR" >&2
+if [[ ! -d "$APP_DIR" ]]; then
+    echo "ERROR: No app release found at $APP_DIR" >&2
     exit 1
 fi
 
 # Build the command string with proper escaping
 # Commands run from the immutable release; mutable instance state is supplied
 # through the instance .env.
-CMD="source '$CURRENT_DIR/.venv/bin/activate'
+CMD="source '$APP_DIR/.venv/bin/activate'
 set -a
 source '$INSTANCE_DIR/.env'
 set +a
 export PYTHONDONTWRITEBYTECODE=1
-cd '$CURRENT_DIR'
+cd '$APP_DIR'
 $(printf '%q ' "$@")"
 
 exec sudo -u "$INSTANCE_USER" bash -c "$CMD"

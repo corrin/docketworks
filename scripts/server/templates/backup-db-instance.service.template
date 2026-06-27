@@ -10,4 +10,4 @@ User=__INSTANCE_USER__
 Group=__INSTANCE_USER__
 WorkingDirectory=/opt/docketworks/instances/__INSTANCE__
 Environment=RCLONE_CONFIG=__RCLONE_CONFIG__
-ExecStart=/opt/docketworks/instances/__INSTANCE__/current/scripts/backup_db.sh __INSTANCE__
+ExecStart=/opt/docketworks/instances/__INSTANCE__/app/scripts/backup_db.sh __INSTANCE__

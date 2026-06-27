@@ -43,15 +43,15 @@ if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
     exit 1
 fi
 
-# Assert this is a legacy instance: must have .git and NO current symlink.
+# Assert this is a legacy instance: must have .git and NO app symlink.
 if [[ ! -d "$INSTANCE_DIR/.git" ]]; then
     echo "ERROR: $INSTANCE_DIR is not a legacy checkout (no .git directory)." >&2
     echo "Use 'deploy.sh $INSTANCE' for instances already on shared releases." >&2
     exit 1
 fi
 
-if [[ -L "$INSTANCE_DIR/current" ]]; then
-    echo "ERROR: $INSTANCE_DIR already has a current symlink — not a legacy instance." >&2
+if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" ]]; then
+    echo "ERROR: $INSTANCE_DIR already has an app/current symlink — not a legacy instance." >&2
     echo "Use 'deploy.sh $INSTANCE' for instances already on shared releases." >&2
     exit 1
 fi

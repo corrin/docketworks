@@ -165,8 +165,8 @@ gunzip -c "$DB_DUMP" | sudo -u postgres psql -v ON_ERROR_STOP=1 "$DB_NAME" >/dev
 log "Database restore completed"
 
 # --- Restore legacy code tree ---
-log "Removing current release link"
-rm -f "$INSTANCE_DIR/current" "$INSTANCE_DIR/deploy-state.env"
+log "Removing app release link"
+rm -f "$INSTANCE_DIR/app" "$INSTANCE_DIR/current" "$INSTANCE_DIR/deploy-state.env"
 
 log "Extracting legacy code tree from $SNAPSHOT"
 tar -xzf "$SNAPSHOT" -C "$INSTANCE_DIR"
