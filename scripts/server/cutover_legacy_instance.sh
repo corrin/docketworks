@@ -57,7 +57,7 @@ if [[ -L "$INSTANCE_DIR/current" ]]; then
 fi
 
 OLD_SHA="$(sudo -u "$INST_USER" git -C "$INSTANCE_DIR" rev-parse HEAD)"
-OLD_SHORT="${OLD_SHA:0:12}"
+OLD_SHORT="$(short_release_sha "$OLD_SHA")"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 log "Legacy instance $INSTANCE at $OLD_SHORT — taking cutover snapshot..."
 

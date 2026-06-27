@@ -1,11 +1,11 @@
 #!/bin/bash
 set -euo pipefail
 
-# Usage: predeploy_rollback.sh <instance> <hash>
+# Usage: predeploy_rollback.sh <instance> <8-char-hash>
 # Example: predeploy_rollback.sh msm-prod b54eddc7
 #
 # Rolls an instance back to a specific release and its paired pre-deploy
-# DB backup. Locates the newest predeploy_*_<hash>.sql.gz in the
+# DB backup. Locates the newest predeploy_*_<8-char-hash>*.sql.gz in the
 # instance's backups dir, prompts for confirmation, restores the dump into a
 # temporary DB, stops services, swaps the DB and release, and restarts services.
 #
@@ -21,7 +21,7 @@ if [[ $EUID -ne 0 ]]; then
 fi
 
 if [[ $# -ne 2 ]]; then
-    echo "Usage: $0 <instance> <hash>"
+    echo "Usage: $0 <instance> <8-char-hash>"
     echo "Example: $0 msm-prod b54eddc7"
     exit 1
 fi
@@ -50,17 +50,10 @@ if [[ -z "$DB_USER" ]]; then
     exit 1
 fi
 
-shopt -s nullglob
-MATCHES=("$BACKUP_DIR"/predeploy_*_"$HASH".sql.gz)
-if (( ${#MATCHES[@]} == 0 )); then
+if ! BACKUP="$(newest_predeploy_backup_for_sha "$BACKUP_DIR" "$HASH")"; then
     echo "ERROR: no predeploy backup found for hash $HASH in $BACKUP_DIR" >&2
     exit 1
 fi
-
-# Filenames contain YYYYMMDD_HHMMSS so lexicographic sort == chronological;
-# last element is newest.
-mapfile -t SORTED < <(printf '%s\n' "${MATCHES[@]}" | sort)
-BACKUP="${SORTED[-1]}"
 
 FULL_SHA="$(resolve_existing_release_sha "$HASH")"
 if ! release_complete "$FULL_SHA"; then
@@ -68,6 +61,7 @@ if ! release_complete "$FULL_SHA"; then
     echo "Deploy or rebuild that release before rollback." >&2
     exit 1
 fi
+PRE_ROLLBACK_SHA="$(instance_current_sha "$INSTANCE")"
 
 echo "=== Rolling $INSTANCE back to $HASH using:"
 echo "===   $BACKUP"
@@ -118,6 +112,7 @@ CLEANUP_RESTORE_DB=0
 echo "=== Switching current release to $FULL_SHA"
 switch_instance_release "$INSTANCE" "$FULL_SHA"
 chown -h "$INST_USER:$INST_USER" "$INSTANCE_DIR/current"
+write_deploy_state "$INSTANCE" "$PRE_ROLLBACK_SHA" "$FULL_SHA" "$INST_USER"
 
 echo "=== Dropping replaced DB $OLD_DB"
 sudo -u postgres dropdb --if-exists "$OLD_DB"

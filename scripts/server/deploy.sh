@@ -269,7 +269,7 @@ fi
 
 fetch_local_repo
 TARGET_SHA="$(resolve_release_ref "$TARGET_REF")"
-TARGET_SHORT="${TARGET_SHA:0:12}"
+TARGET_SHORT="$(short_release_sha "$TARGET_SHA")"
 log "Resolved $TARGET_REF to $TARGET_SHA"
 
 # --- Converge system-level dependencies (only when inputs change) ---
@@ -337,7 +337,7 @@ for instance in "${TARGETS[@]}"; do
     # checkouts — they can't be built as shared releases (the cutover snapshot is
     # the rollback target for a first migration).
     if [[ -n "$previous_sha" ]] && ! is_legacy_checkout "$instance_dir"; then
-        log "  Ensuring previous release ${previous_sha:0:12} is built (rollback target)..."
+        log "  Ensuring previous release $(short_release_sha "$previous_sha") is built (rollback target)..."
         ensure_release "$previous_sha"
     fi
 
@@ -365,9 +365,9 @@ for instance in "${TARGETS[@]}"; do
             if [[ $DO_BACKUP -eq 1 ]]; then
                 log "  Manual rollback, if required:"
                 if is_legacy_checkout "$instance_dir"; then
-                    log "    sudo $SCRIPT_DIR/../legacy_rollback.sh $instance ${previous_sha:0:12}"
+                    log "    sudo $SCRIPT_DIR/../legacy_rollback.sh $instance $(short_release_sha "$previous_sha")"
                 else
-                    log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}"
+                    log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")"
                 fi
             else
                 log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
@@ -389,13 +389,7 @@ for instance in "${TARGETS[@]}"; do
 
     restart_instance_units "$instance"
 
-    {
-        echo "PREVIOUS_SHA=$previous_sha"
-        echo "CURRENT_SHA=$TARGET_SHA"
-        echo "DEPLOYED_AT=$(date --iso-8601=seconds)"
-    } > "$instance_dir/deploy-state.env"
-    chown "$inst_user:$inst_user" "$instance_dir/deploy-state.env"
-    chmod 600 "$instance_dir/deploy-state.env"
+    write_deploy_state "$instance" "$previous_sha" "$TARGET_SHA" "$inst_user"
 
     compact_legacy_instance_checkout "$instance"
     log "  $instance now runs $TARGET_SHORT"

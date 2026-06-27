@@ -13,6 +13,11 @@ release_complete() {
     [[ -d "$dir" && -f "$dir/.complete" && -f "$dir/.release-sha" ]]
 }
 
+short_release_sha() {
+    local sha="$1"
+    printf "%s\n" "${sha:0:8}"
+}
+
 fetch_local_repo() {
     log "Fetching latest Git refs into $LOCAL_REPO..."
     sudo -u docketworks git -C "$LOCAL_REPO" fetch --prune origin
@@ -41,6 +46,30 @@ resolve_existing_release_sha() {
     fi
 
     resolve_release_ref "$ref"
+}
+
+newest_predeploy_backup_for_sha() {
+    local backup_dir="$1"
+    local short_sha="$2"
+    local matches=()
+    local sorted=()
+
+    if [[ ! "$short_sha" =~ ^[0-9a-f]{8}$ ]]; then
+        echo "ERROR: rollback hash must be an 8-character lowercase hex SHA prefix: $short_sha" >&2
+        return 1
+    fi
+
+    shopt -s nullglob
+    matches=("$backup_dir"/predeploy_*_"$short_sha".sql.gz)
+    shopt -u nullglob
+    if (( ${#matches[@]} == 0 )); then
+        return 1
+    fi
+
+    # Filenames contain YYYYMMDD_HHMMSS so lexicographic sort == chronological;
+    # last element is newest.
+    mapfile -t sorted < <(printf '%s\n' "${matches[@]}" | sort)
+    printf "%s\n" "${sorted[-1]}"
 }
 
 instance_current_sha() {
@@ -72,6 +101,31 @@ switch_instance_release() {
 
     ln -sfn "../../releases/$sha" "$tmp_link"
     mv -Tf "$tmp_link" "$instance_dir/current"
+}
+
+write_deploy_state() {
+    local instance="$1"
+    local previous_sha="$2"
+    local current_sha="$3"
+    local inst_user="$4"
+    local instance_dir="$INSTANCES_DIR/$instance"
+
+    {
+        echo "PREVIOUS_SHA=$(short_release_sha "$previous_sha")"
+        echo "CURRENT_SHA=$(short_release_sha "$current_sha")"
+        echo "DEPLOYED_AT=$(date --iso-8601=seconds)"
+    } > "$instance_dir/deploy-state.env"
+    chown "$inst_user:$inst_user" "$instance_dir/deploy-state.env"
+    chmod 600 "$instance_dir/deploy-state.env"
+}
+
+state_sha_references_release() {
+    local state_sha="$1"
+    local release_sha="$2"
+
+    [[ -n "$state_sha" ]] || return 1
+    [[ "$state_sha" =~ ^[0-9a-f]{8}$ ]] || return 1
+    [[ "$(short_release_sha "$release_sha")" == "$state_sha" ]]
 }
 
 ensure_release() {
@@ -165,7 +219,7 @@ release_is_referenced() {
         fi
         if [[ -f "$instance_dir/deploy-state.env" ]]; then
             state_sha="$(read_env_value "$instance_dir/deploy-state.env" PREVIOUS_SHA)"
-            if [[ "$state_sha" == "$sha" ]]; then
+            if state_sha_references_release "$state_sha" "$sha"; then
                 return 0
             fi
         fi

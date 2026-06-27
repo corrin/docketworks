@@ -44,7 +44,7 @@ if [[ -z "$HASH" ]]; then
     echo "ERROR: could not determine current release SHA for $INSTANCE" >&2
     exit 1
 fi
-HASH="${HASH:0:12}"
+HASH="$(short_release_sha "$HASH")"
 TS=$(date +%Y%m%d_%H%M%S)
 
 mkdir -p "$BACKUP_DIR"

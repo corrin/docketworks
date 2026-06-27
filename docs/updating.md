@@ -54,7 +54,7 @@ rollback command printed by deploy. It restores the paired pre-deploy database
 backup and switches the instance back to the matching release:
 
 ```bash
-sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-sha>
+sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-8-char-sha>
 ```
 
 Deploy builds the previous release before switching, so this rollback target

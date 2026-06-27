@@ -773,8 +773,8 @@ do_list() {
         exit 0
     fi
 
-    printf "%-15s %-12s %-12s %-14s %-40s\n" "INSTANCE" "GUNICORN" "SCHEDULER" "SHA" "URL"
-    printf "%-15s %-12s %-12s %-14s %-40s\n" "--------" "--------" "---------" "---" "---"
+    printf "%-15s %-12s %-12s %-10s %-40s\n" "INSTANCE" "GUNICORN" "SCHEDULER" "SHA" "URL"
+    printf "%-15s %-12s %-12s %-10s %-40s\n" "--------" "--------" "---------" "---" "---"
 
     for name in "${INSTANCES[@]}"; do
         local status sched_status sha
@@ -796,12 +796,12 @@ do_list() {
 
         sha="$(instance_current_sha "$name")"
         if [[ -n "$sha" ]]; then
-            sha="${sha:0:12}"
+            sha="$(short_release_sha "$sha")"
         else
             sha="no release"
         fi
 
-        printf "%-15s %-12s %-12s %-14s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(get_fqdn "$name")"
+        printf "%-15s %-12s %-12s %-10s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(get_fqdn "$name")"
     done
 }
 
