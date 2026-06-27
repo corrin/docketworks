@@ -36,7 +36,7 @@ the suite, the plan names the test that would have failed before the fix and now
 covers the bug or why no useful automated boundary exists (see
 [ADR 0025](0025-tests-state-business-risk.md)).
 
-Because the tests are designed before the code, they pin **purpose**, not implementation:
+Because the tests are designed before the change is implemented, they pin **purpose**, not implementation:
 a test that mirrors the code just written guards nothing and must instead assert the
 business contract (see [ADR 0025](0025-tests-state-business-risk.md)). If changing the
 code's purpose wouldn't fail the test, or changing only its implementation would, the test
@@ -47,7 +47,7 @@ is wrong.
 Designing tests after the code is what produces change-detectors: with the implementation
 in front of you, the path of least resistance is to assert what it already does — green
 the day written, red the day someone improves the code, never red the day behaviour
-regresses. Deciding the tests against intent, before the code exists, is the only point at
+regresses. Deciding the tests against intent, before changing the existing system, is the only point at
 which they can be designed to catch a regression rather than describe a line. Naming the
 E2E at plan time does more than schedule a test: it is a completeness check on the work
 itself — a user-facing capability that cannot yet be driven end-to-end is not buildable as

@@ -7,7 +7,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.process.models import Form
+from apps.process.models import Form, FormEntry
 
 
 @pytest.fixture
@@ -137,6 +137,42 @@ class TestFormAPI:
         )
         assert resp.status_code == status.HTTP_201_CREATED
 
+    def test_list_entries_serializes_staff_fields(self, api_client, staff_user):
+        entered_by = Staff.objects.create_user(
+            email="entered-by@test.com",
+            password="testpass123",
+            first_name="Entry",
+            last_name="Author",
+            is_office_staff=True,
+        )
+        staff = Staff.objects.create_user(
+            email="form-staff@test.com",
+            password="testpass123",
+            first_name="Form",
+            last_name="Staff",
+            is_office_staff=True,
+        )
+        doc = Form.objects.create(
+            document_type="form",
+            title="Incident Report",
+            tags=["incident"],
+        )
+        FormEntry.objects.create(
+            form=doc,
+            entry_date="2026-03-07",
+            entered_by=entered_by,
+            staff=staff,
+            data={"note": "test"},
+        )
+
+        resp = api_client.get(f"/api/process/forms/incident/{doc.pk}/entries/")
+
+        assert resp.status_code == status.HTTP_200_OK
+        assert len(resp.data) == 1
+        assert resp.data[0]["entered_by_name"] == "Entry"
+        assert resp.data[0]["staff_name"] == "Form"
+        assert resp.data[0]["job_number"] is None
+
     @patch("apps.process.services.form_service.FormService")
     def test_create_form(self, MockService, api_client):
         doc = Form.objects.create(
@@ -187,7 +223,7 @@ class TestFormAPI:
         assert resp.status_code == status.HTTP_204_NO_CONTENT
         assert not Form.objects.filter(pk=doc.pk).exists()
 
-    def test_fill_creates_entry(self, api_client):
+    def test_fill_creates_entry(self, api_client: APIClient) -> None:
         form = Form.objects.create(
             document_type="form",
             title="Inspection Form",

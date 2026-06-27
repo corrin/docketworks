@@ -88,6 +88,8 @@ The backend (Django) is in the repo root. The frontend and backend are in the sa
 
 **State updates:** Always immutable — `jobs.value = { ...jobs.value, [id]: updated }` not `jobs.value[id] = updated`
 
+**Authenticated screenshots:** Use `npm run manual:screenshots -- --url <path-or-url> --output /tmp/name.png`. This reuses the maintained Playwright login flow; do not create one-off cookie injection helpers.
+
 ---
 
 ## When to Stop and Ask

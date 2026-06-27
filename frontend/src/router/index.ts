@@ -44,7 +44,7 @@ const manualRoutes: RouteRecordRaw[] = [
     path: '/process-documents/forms/:category/:id',
     name: 'form-entries',
     component: () => import('@/views/FormEntriesView.vue'),
-    meta: { requiresAuth: true, title: 'Form Entries - DocketWorks' },
+    meta: { requiresAuth: true, title: 'Form Entries - DocketWorks', allowScroll: true },
   },
   {
     path: '/admin',

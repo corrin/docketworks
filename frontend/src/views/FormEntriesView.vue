@@ -89,20 +89,24 @@
 
       <!-- Edit Entry Dialog -->
       <Dialog :open="editDialogOpen" @update:open="handleEditDialogChange">
-        <DialogContent class="max-w-2xl" data-automation-id="FormEntries-edit-dialog">
+        <DialogContent
+          class="max-w-2xl max-h-[calc(100vh-2rem)] grid-rows-[auto_minmax(0,1fr)_auto] overflow-hidden"
+          data-automation-id="FormEntries-edit-dialog"
+        >
           <DialogHeader>
             <DialogTitle>Edit Entry</DialogTitle>
             <DialogDescription> Update the entry details below. </DialogDescription>
           </DialogHeader>
 
-          <DynamicFormEntry
-            v-if="editingEntry && store.hasFormSchema"
-            :schema="formSchema"
-            :initial-data="editingEntryData"
-            :initial-entry-date="editingEntry.entry_date"
-            :is-submitting="store.isSaving"
-            @submit="handleUpdateEntry"
-          />
+          <div v-if="editingEntry && store.hasFormSchema" class="min-h-0 overflow-y-auto pr-1">
+            <DynamicFormEntry
+              :schema="formSchema"
+              :initial-data="editingEntryData"
+              :initial-entry-date="editingEntry.entry_date"
+              :is-submitting="store.isSaving"
+              @submit="handleUpdateEntry"
+            />
+          </div>
 
           <DialogFooter>
             <Button
