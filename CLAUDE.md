@@ -112,6 +112,10 @@ ADJUSTMENT entries (kind='adjust'):
   fixes when that is the pragmatic path, but direct-to-main commits are banned.
 - Before committing, check the current branch. If it is `main`, create or switch
   to a branch first.
+- Do not leave uncommitted changes behind at the end of a task. If the change is
+  complete and scoped, commit it on the current branch. If the scope is unclear,
+  mixed with unrelated work, or the user may not want it committed, ask before
+  committing.
 
 ### Code Style and Quality
 
