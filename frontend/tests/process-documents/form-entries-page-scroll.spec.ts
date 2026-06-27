@@ -14,10 +14,6 @@ type FormResponse = {
   title: string
 }
 
-type FormEntryResponse = {
-  id: string
-}
-
 const TALL_FORM_FIELDS: FormField[] = [
   { key: 'incident_date', label: 'Incident Date', type: 'date', required: true },
   { key: 'location', label: 'Location', type: 'text' },
@@ -48,9 +44,7 @@ function entryData(): Record<string, string> {
   )
 }
 
-test('tall form entry edit dialog stays within viewport and scrolls to actions', async ({
-  authenticatedPage: page,
-}) => {
+test('tall form entries page scrolls to saved entries', async ({ authenticatedPage: page }) => {
   await page.setViewportSize({ width: 390, height: 640 })
 
   const title = `[TEST] Tall Incident Form ${Date.now()}`
@@ -67,7 +61,7 @@ test('tall form entry edit dialog stays within viewport and scrolls to actions',
     'create tall form',
   )
 
-  const entry = await expectJsonResponse<FormEntryResponse>(
+  await expectJsonResponse(
     await page.request.post(`/api/process/forms/incident/${form.id}/entries/`, {
       headers: { Accept: 'application/json' },
       data: {
@@ -89,23 +83,19 @@ test('tall form entry edit dialog stays within viewport and scrolls to actions',
   const entries = await entriesResponse
   expect(entries.ok(), `load entries: ${entries.status()} ${await entries.text()}`).toBeTruthy()
   await expect(autoId(page, 'FormEntries-title')).toHaveText(title)
+
+  const mainScrollState = await page.locator('main').evaluate((main) => {
+    return {
+      clientHeight: main.clientHeight,
+      scrollHeight: main.scrollHeight,
+      overflowY: window.getComputedStyle(main).overflowY,
+    }
+  })
+  expect(mainScrollState.scrollHeight).toBeGreaterThan(mainScrollState.clientHeight)
+  expect(mainScrollState.overflowY).toBe('auto')
+
+  await page.locator('main').hover({ position: { x: 200, y: 400 } })
+  await page.mouse.wheel(0, 1400)
+  await expect(autoId(page, 'FormEntries-entries-count')).toBeInViewport()
   await expect(autoId(page, 'FormEntries-entries-count')).toHaveText('Entries (1)')
-
-  await autoId(page, `EntriesTable-edit-${entry.id}`).click()
-
-  const dialog = autoId(page, 'FormEntries-edit-dialog')
-  await expect(dialog).toBeVisible()
-
-  const dialogBox = await dialog.boundingBox()
-  expect(dialogBox, 'dialog should have a measurable layout box').not.toBeNull()
-  expect(dialogBox!.y, 'dialog top should remain inside the viewport').toBeGreaterThanOrEqual(0)
-  expect(
-    dialogBox!.y + dialogBox!.height,
-    'dialog bottom should remain inside the viewport',
-  ).toBeLessThanOrEqual(640)
-
-  const submitButton = dialog.locator('[data-automation-id="DynamicFormEntry-submit"]')
-  await submitButton.scrollIntoViewIfNeeded()
-  await expect(submitButton).toBeVisible()
-  await expect(dialog.locator('[data-automation-id="FormEntries-edit-cancel"]')).toBeVisible()
 })
