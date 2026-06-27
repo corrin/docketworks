@@ -2,10 +2,16 @@ import base64
 import json
 import logging
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 
 import anthropic
 import pdfplumber
+from anthropic.types import (
+    DocumentBlockParam,
+    ImageBlockParam,
+    MessageParam,
+    TextBlockParam,
+)
 from django.conf import settings
 from google import genai
 from rapidfuzz import fuzz, process
@@ -265,37 +271,52 @@ def extract_data_from_supplier_quote(
         # across every quote) so the second+ extraction within ~5 min pays ~10%
         # of the input cost.
         client = anthropic.Anthropic(api_key=api_key)
+        content_blocks: list[TextBlockParam | ImageBlockParam | DocumentBlockParam] = [
+            {
+                "type": "text",
+                "text": prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        if extracted_text:
+            content_blocks.append({"type": "text", "text": extracted_text})
+        elif api_content_type == "document":
+            content_blocks.append(
+                cast(
+                    DocumentBlockParam,
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": file_b64,
+                        },
+                    },
+                )
+            )
+        elif api_content_type == "image":
+            content_blocks.append(
+                cast(
+                    ImageBlockParam,
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": file_b64,
+                        },
+                    },
+                )
+            )
+        else:
+            content_blocks.append(
+                {"type": "text", "text": file_content.decode("utf-8", errors="replace")}
+            )
+        messages: list[MessageParam] = [{"role": "user", "content": content_blocks}]
         response = client.messages.create(
             model=default_ai_provider.model_name,
             max_tokens=4000,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": prompt,
-                            "cache_control": {"type": "ephemeral"},
-                        },
-                    ]
-                    + (
-                        # If we have extracted text, send it as text
-                        [{"type": "text", "text": extracted_text}]
-                        if extracted_text
-                        # Otherwise send the file
-                        else [
-                            {
-                                "type": api_content_type,
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": media_type,
-                                    "data": file_b64,
-                                },
-                            }
-                        ]
-                    ),
-                }
-            ],
+            messages=messages,
         )
 
         input_tokens = response.usage.input_tokens
