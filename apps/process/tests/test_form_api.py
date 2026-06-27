@@ -223,7 +223,7 @@ class TestFormAPI:
         assert resp.status_code == status.HTTP_204_NO_CONTENT
         assert not Form.objects.filter(pk=doc.pk).exists()
 
-    def test_fill_creates_entry(self, api_client):
+    def test_fill_creates_entry(self, api_client: APIClient) -> None:
         form = Form.objects.create(
             document_type="form",
             title="Inspection Form",
