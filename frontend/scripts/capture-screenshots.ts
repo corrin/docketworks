@@ -2,6 +2,7 @@ import { chromium, type Page, type Response } from '@playwright/test'
 import * as fs from 'fs/promises'
 import * as path from 'path'
 import { fileURLToPath, pathToFileURL } from 'url'
+import { parseArgs, type CliOptions } from '@/utils/captureScreenshots'
 import 'dotenv/config'
 import { getBackendEnv } from '../tests/scripts/db-backup-utils'
 
@@ -17,13 +18,6 @@ interface ScreenshotDef {
   prepare?: (page: Page) => Promise<void> // Optional setup actions
   fullPage?: boolean // Capture entire scrollable page
   clip?: { x: number; y: number; width: number; height: number } // Capture specific region
-}
-
-interface CliOptions {
-  url?: string
-  output?: string
-  waitFor?: string
-  fullPage: boolean
 }
 
 interface PageDiagnostics {
@@ -233,39 +227,6 @@ const SCREENSHOTS: ScreenshotDef[] = [
 const OUTPUT_DIR = path.resolve(__dirname, '../manual/public/screenshots')
 const MANIFEST_PATH = path.resolve(__dirname, '../manual/screenshot-manifest.json')
 
-function readFlagValue(argv: string[], index: number, flag: string): string {
-  const value = argv[index + 1]
-  if (!value || value.startsWith('--')) {
-    throw new Error(`${flag} requires a non-empty value`)
-  }
-  return value
-}
-
-export function parseArgs(argv: string[]): CliOptions {
-  const options: CliOptions = { fullPage: false }
-
-  for (let index = 0; index < argv.length; index += 1) {
-    const arg = argv[index]
-
-    if (arg === '--url') {
-      options.url = readFlagValue(argv, index, '--url')
-      index += 1
-    } else if (arg === '--output') {
-      options.output = readFlagValue(argv, index, '--output')
-      index += 1
-    } else if (arg === '--wait-for') {
-      options.waitFor = readFlagValue(argv, index, '--wait-for')
-      index += 1
-    } else if (arg === '--full-page') {
-      options.fullPage = true
-    } else {
-      throw new Error(`Unknown argument: ${arg}`)
-    }
-  }
-
-  return options
-}
-
 function getBaseUrl(): string {
   const backendEnv = getBackendEnv()
   const appDomain = backendEnv.APP_DOMAIN
@@ -283,13 +244,9 @@ function resolveTargetUrl(target: string, baseUrl: string): string {
   return new URL(target, baseUrl).toString()
 }
 
-function isAuthBlocker(url: string, body: string): boolean {
+function isAuthBlocker(url: string): boolean {
   const parsedUrl = new URL(url)
-  return (
-    parsedUrl.pathname === '/login' ||
-    parsedUrl.pathname === '/session-check' ||
-    /sign in|enter your password|enter your username/i.test(body)
-  )
+  return parsedUrl.pathname === '/login' || parsedUrl.pathname === '/session-check'
 }
 
 function normalizePathname(pathname: string): string {
@@ -332,6 +289,7 @@ async function collectDiagnostics(
   page: Page,
   response: Response | null,
   outputPath: string,
+  diagnosticsPath: string,
   failedResponses: PageDiagnostics['failedResponses'],
   requestedUrl: string,
 ): Promise<PageDiagnostics> {
@@ -351,11 +309,11 @@ async function collectDiagnostics(
 
   return {
     screenshot: outputPath,
-    diagnostics: `${outputPath}.json`,
+    diagnostics: diagnosticsPath,
     initialStatus: response?.status() ?? null,
     finalUrl,
     title: await page.title(),
-    loginDetected: isAuthBlocker(finalUrl, body),
+    loginDetected: isAuthBlocker(finalUrl),
     routeMismatch: hasRouteMismatch(requestedUrl, finalUrl),
     headings,
     failedResponses,
@@ -419,6 +377,7 @@ async function captureSingleScreenshot(options: CliOptions): Promise<void> {
       page,
       response,
       outputPath,
+      diagnosticsPath,
       failedResponses,
       targetUrl,
     )

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { parseArgs } from '../../scripts/capture-screenshots'
+import { parseArgs } from '@/utils/captureScreenshots'
 
 describe('capture-screenshots CLI parsing', () => {
   it('keeps manual screenshot mode when no URL is supplied', () => {
