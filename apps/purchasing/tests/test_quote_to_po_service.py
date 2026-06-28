@@ -231,9 +231,9 @@ def test_create_po_from_quote_saves_plain_json_payload(
 
     assert error is None
     assert result == purchase_order
-    expected_quote_path = os.path.join(
-        settings.DROPBOX_WORKFLOW_FOLDER, quote.file_path
-    )
+    dropbox_workflow_folder = settings.DROPBOX_WORKFLOW_FOLDER
+    assert dropbox_workflow_folder is not None
+    expected_quote_path = os.path.join(dropbox_workflow_folder, quote.file_path)
     mock_extract.assert_called_once_with(
         expected_quote_path, "text/plain", ai_provider=anthropic_provider
     )
