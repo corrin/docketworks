@@ -13,6 +13,21 @@ release_complete() {
     [[ -d "$dir" && -f "$dir/.complete" && -f "$dir/.release-sha" ]]
 }
 
+instance_app_link_path() {
+    local instance="$1"
+    echo "$INSTANCES_DIR/$instance/app"
+}
+
+instance_legacy_current_link_path() {
+    local instance="$1"
+    echo "$INSTANCES_DIR/$instance/current"
+}
+
+short_release_sha() {
+    local sha="$1"
+    printf "%s\n" "${sha:0:8}"
+}
+
 fetch_local_repo() {
     log "Fetching latest Git refs into $LOCAL_REPO..."
     sudo -u docketworks git -C "$LOCAL_REPO" fetch --prune origin
@@ -43,13 +58,42 @@ resolve_existing_release_sha() {
     resolve_release_ref "$ref"
 }
 
+newest_predeploy_backup_for_sha() {
+    local backup_dir="$1"
+    local short_sha="$2"
+    local matches=()
+    local sorted=()
+
+    if [[ ! "$short_sha" =~ ^[0-9a-f]{8}$ ]]; then
+        echo "ERROR: rollback hash must be an 8-character lowercase hex SHA prefix: $short_sha" >&2
+        return 1
+    fi
+
+    shopt -s nullglob
+    matches=("$backup_dir"/predeploy_*_"$short_sha".sql.gz)
+    shopt -u nullglob
+    if (( ${#matches[@]} == 0 )); then
+        return 1
+    fi
+
+    # Filenames contain YYYYMMDD_HHMMSS so lexicographic sort == chronological;
+    # last element is newest.
+    mapfile -t sorted < <(printf '%s\n' "${matches[@]}" | sort)
+    printf "%s\n" "${sorted[-1]}"
+}
+
 instance_current_sha() {
     local instance="$1"
     local instance_dir="$INSTANCES_DIR/$instance"
-    local current_target="$instance_dir/current"
+    local app_target
+    local legacy_current_target
+    app_target="$(instance_app_link_path "$instance")"
+    legacy_current_target="$(instance_legacy_current_link_path "$instance")"
 
-    if [[ -L "$current_target" && -f "$current_target/.release-sha" ]]; then
-        cat "$current_target/.release-sha"
+    if [[ -L "$app_target" && -f "$app_target/.release-sha" ]]; then
+        cat "$app_target/.release-sha"
+    elif [[ -L "$legacy_current_target" && -f "$legacy_current_target/.release-sha" ]]; then
+        cat "$legacy_current_target/.release-sha"
     elif [[ -d "$instance_dir/.git" ]]; then
         local inst_user
         inst_user="$(instance_user "$instance")"
@@ -63,7 +107,9 @@ switch_instance_release() {
     local instance="$1"
     local sha="$2"
     local instance_dir="$INSTANCES_DIR/$instance"
-    local tmp_link="$instance_dir/current.tmp"
+    local app_target
+    local tmp_link="$instance_dir/app.tmp"
+    app_target="$(instance_app_link_path "$instance")"
 
     if ! release_complete "$sha"; then
         echo "ERROR: refusing to point $instance at incomplete/missing release $sha" >&2
@@ -71,7 +117,74 @@ switch_instance_release() {
     fi
 
     ln -sfn "../../releases/$sha" "$tmp_link"
-    mv -Tf "$tmp_link" "$instance_dir/current"
+    mv -Tf "$tmp_link" "$app_target"
+}
+
+ensure_instance_app_link() {
+    local instance="$1"
+    local app_target
+    local legacy_current_target
+    app_target="$(instance_app_link_path "$instance")"
+    legacy_current_target="$(instance_legacy_current_link_path "$instance")"
+
+    if [[ -L "$app_target" && -L "$legacy_current_target" ]]; then
+        if [[ "$(readlink -f "$app_target")" != "$(readlink -f "$legacy_current_target")" ]]; then
+            echo "ERROR: $instance has divergent app and current release links." >&2
+            echo "  app -> $(readlink -f "$app_target")" >&2
+            echo "  current -> $(readlink -f "$legacy_current_target")" >&2
+            return 1
+        fi
+    elif [[ ! -L "$app_target" && -L "$legacy_current_target" ]]; then
+        ln -sfn "$(readlink "$legacy_current_target")" "$app_target"
+    else
+        :
+    fi
+}
+
+remove_legacy_current_link() {
+    local instance="$1"
+    local app_target
+    local legacy_current_target
+    app_target="$(instance_app_link_path "$instance")"
+    legacy_current_target="$(instance_legacy_current_link_path "$instance")"
+
+    if [[ ! -L "$legacy_current_target" ]]; then
+        return 0
+    fi
+    if [[ ! -L "$app_target" ]]; then
+        echo "ERROR: refusing to remove $legacy_current_target before $app_target exists." >&2
+        return 1
+    fi
+    if [[ "$(readlink -f "$app_target")" != "$(readlink -f "$legacy_current_target")" ]]; then
+        echo "ERROR: refusing to remove divergent legacy current link for $instance." >&2
+        return 1
+    fi
+    rm -f "$legacy_current_target"
+}
+
+write_deploy_state() {
+    local instance="$1"
+    local previous_sha="$2"
+    local current_sha="$3"
+    local inst_user="$4"
+    local instance_dir="$INSTANCES_DIR/$instance"
+
+    {
+        echo "PREVIOUS_SHA=$(short_release_sha "$previous_sha")"
+        echo "CURRENT_SHA=$(short_release_sha "$current_sha")"
+        echo "DEPLOYED_AT=$(date --iso-8601=seconds)"
+    } > "$instance_dir/deploy-state.env"
+    chown "$inst_user:$inst_user" "$instance_dir/deploy-state.env"
+    chmod 600 "$instance_dir/deploy-state.env"
+}
+
+state_sha_references_release() {
+    local state_sha="$1"
+    local release_sha="$2"
+
+    [[ -n "$state_sha" ]] || return 1
+    [[ "$state_sha" =~ ^[0-9a-f]{8}$ ]] || return 1
+    [[ "$(short_release_sha "$release_sha")" == "$state_sha" ]]
 }
 
 ensure_release() {
@@ -156,16 +269,18 @@ cleanup_incomplete_releases() {
 
 release_is_referenced() {
     local sha="$1"
-    local instance_dir state_sha
+    local instance_dir instance app_target state_sha
 
     for instance_dir in "$INSTANCES_DIR"/*; do
         [[ -d "$instance_dir" ]] || continue
-        if [[ -L "$instance_dir/current" && "$(readlink -f "$instance_dir/current")" == "$(release_path "$sha")" ]]; then
+        instance="$(basename "$instance_dir")"
+        app_target="$(instance_app_link_path "$instance")"
+        if [[ -L "$app_target" && "$(readlink -f "$app_target")" == "$(release_path "$sha")" ]]; then
             return 0
         fi
         if [[ -f "$instance_dir/deploy-state.env" ]]; then
             state_sha="$(read_env_value "$instance_dir/deploy-state.env" PREVIOUS_SHA)"
-            if [[ "$state_sha" == "$sha" ]]; then
+            if state_sha_references_release "$state_sha" "$sha"; then
                 return 0
             fi
         fi
@@ -175,7 +290,13 @@ release_is_referenced() {
 
 cleanup_unreferenced_releases() {
     local protected_sha="${1:-}"
+    local instance_dir
     local release_dir sha
+
+    for instance_dir in "$INSTANCES_DIR"/*; do
+        [[ -d "$instance_dir" ]] || continue
+        ensure_instance_app_link "$(basename "$instance_dir")"
+    done
 
     mkdir -p "$RELEASES_DIR"
     for release_dir in "$RELEASES_DIR"/*; do
@@ -204,7 +325,7 @@ compact_legacy_instance_checkout() {
         [[ -e "$path" ]] || continue
         name="$(basename "$path")"
         case "$name" in
-            .|..|.env|.env.tmp.*|.fqdn|.dr-mode|.bash_profile|current|deploy-state.env|gcp-credentials.json|logs|mediafiles|dropbox|phone-recordings|session-replays|backups|fixtures|.fixtures)
+            .|..|.env|.env.tmp.*|.fqdn|.dr-mode|.bash_profile|app|current|deploy-state.env|gcp-credentials.json|logs|mediafiles|dropbox|phone-recordings|session-replays|backups|fixtures|.fixtures)
                 ;;
             gunicorn.sock)
                 ;;

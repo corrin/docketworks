@@ -321,7 +321,7 @@ do_configure() {
     local TEST_DB_NAME="$TEST_DB_USER"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
-    if [[ -L "$INSTANCE_DIR/current" || -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
+    if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" || -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
         IS_EXISTING=true
     fi
     if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
@@ -392,6 +392,7 @@ do_configure() {
 
     log "Ensuring instance directory structure..."
     mkdir -p "$INSTANCE_DIR"/{logs,mediafiles,dropbox,phone-recordings,session-replays}
+    ensure_instance_backup_dir "$INSTANCE" "$INSTANCE_USER"
     chown "$INSTANCE_USER:www-data" "$INSTANCE_DIR"
     chmod 750 "$INSTANCE_DIR"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/logs" "$INSTANCE_DIR/dropbox"
@@ -417,9 +418,9 @@ do_configure() {
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
 
     cat > "$INSTANCE_DIR/.bash_profile" <<'BASH_PROFILE'
-source ~/current/.venv/bin/activate
+source ~/app/.venv/bin/activate
 set -a; source ~/.env; set +a
-cd ~/current
+cd ~/app
 BASH_PROFILE
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.bash_profile"
     chmod 644 "$INSTANCE_DIR/.bash_profile"
@@ -474,19 +475,20 @@ WHERE NOT EXISTS (SELECT FROM pg_database WHERE datname = '$TEST_DB_NAME')\gexec
 GRANT ALL PRIVILEGES ON DATABASE "$TEST_DB_NAME" TO "$TEST_DB_USER";
 EOSQL
 
-    if [[ ! -L "$INSTANCE_DIR/current" ]]; then
+    ensure_instance_app_link "$INSTANCE"
+    if [[ ! -L "$INSTANCE_DIR/app" ]]; then
         local TARGET_SHA
         fetch_local_repo
         if [[ -d "$INSTANCE_DIR/.git" ]]; then
             TARGET_SHA="$(instance_current_sha "$INSTANCE")"
-            log "Creating current release link from legacy checkout SHA $TARGET_SHA"
+            log "Creating app release link from legacy checkout SHA $TARGET_SHA"
         else
             TARGET_SHA="$(resolve_release_ref origin/main)"
-            log "Creating current release link from origin/main SHA $TARGET_SHA"
+            log "Creating app release link from origin/main SHA $TARGET_SHA"
         fi
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
-        chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/current"
+        chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"
     fi
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
@@ -773,8 +775,8 @@ do_list() {
         exit 0
     fi
 
-    printf "%-15s %-12s %-12s %-14s %-40s\n" "INSTANCE" "GUNICORN" "SCHEDULER" "SHA" "URL"
-    printf "%-15s %-12s %-12s %-14s %-40s\n" "--------" "--------" "---------" "---" "---"
+    printf "%-15s %-12s %-12s %-10s %-40s\n" "INSTANCE" "GUNICORN" "SCHEDULER" "SHA" "URL"
+    printf "%-15s %-12s %-12s %-10s %-40s\n" "--------" "--------" "---------" "---" "---"
 
     for name in "${INSTANCES[@]}"; do
         local status sched_status sha
@@ -796,12 +798,12 @@ do_list() {
 
         sha="$(instance_current_sha "$name")"
         if [[ -n "$sha" ]]; then
-            sha="${sha:0:12}"
+            sha="$(short_release_sha "$sha")"
         else
             sha="no release"
         fi
 
-        printf "%-15s %-12s %-12s %-14s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(get_fqdn "$name")"
+        printf "%-15s %-12s %-12s %-10s %-40s\n" "$name" "$status" "$sched_status" "$sha" "https://$(get_fqdn "$name")"
     done
 }
 

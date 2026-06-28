@@ -17,6 +17,7 @@ DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "server" / "deploy.sh"
 CUTOVER_LEGACY_SCRIPT = REPO_ROOT / "scripts" / "server" / "cutover_legacy_instance.sh"
 LEGACY_ROLLBACK_SCRIPT = REPO_ROOT / "scripts" / "legacy_rollback.sh"
 PREDEPLOY_BACKUP_SCRIPT = REPO_ROOT / "scripts" / "predeploy_backup.sh"
+BACKUP_DB_SCRIPT = REPO_ROOT / "scripts" / "backup_db.sh"
 COMMON_SCRIPT = REPO_ROOT / "scripts" / "server" / "common.sh"
 SERVER_SETUP_SCRIPT = REPO_ROOT / "scripts" / "server" / "server-setup.sh"
 SERVER_README = REPO_ROOT / "scripts" / "server" / "README.md"
@@ -236,7 +237,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn("rm -rf node_modules", content)
         self.assertIn("touch '$release_dir/.complete'", content)
 
-    def test_runtime_templates_use_current_release(self) -> None:
+    def test_runtime_templates_use_app_release(self) -> None:
         for template in [
             GUNICORN_TEMPLATE,
             CELERY_WORKER_TEMPLATE,
@@ -244,34 +245,34 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         ]:
             content = template.read_text()
             self.assertIn(
-                "WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/current",
+                "WorkingDirectory=/opt/docketworks/instances/__INSTANCE__/app",
                 content,
             )
             self.assertIn(
-                "/opt/docketworks/instances/__INSTANCE__/current/.venv/bin/", content
+                "/opt/docketworks/instances/__INSTANCE__/app/.venv/bin/", content
             )
             self.assertIn("Environment=PYTHONDONTWRITEBYTECODE=1", content)
             self.assertNotIn("/opt/docketworks/.venv/bin/", content)
 
         nginx = NGINX_TEMPLATE.read_text()
         self.assertIn(
-            "/opt/docketworks/instances/__INSTANCE__/current/frontend/dist", nginx
+            "/opt/docketworks/instances/__INSTANCE__/app/frontend/dist", nginx
         )
         self.assertIn("/opt/docketworks/instances/__INSTANCE__/mediafiles/", nginx)
 
         backup = BACKUP_TEMPLATE.read_text()
         self.assertIn(
-            "ExecStart=/opt/docketworks/instances/__INSTANCE__/current/scripts/backup_db.sh __INSTANCE__",
+            "ExecStart=/opt/docketworks/instances/__INSTANCE__/app/scripts/backup_db.sh __INSTANCE__",
             backup,
         )
 
-    def test_dw_run_uses_current_release_and_instance_env(self) -> None:
+    def test_dw_run_uses_app_release_and_instance_env(self) -> None:
         content = DW_RUN_SCRIPT.read_text()
 
-        self.assertIn('CURRENT_DIR="$INSTANCE_DIR/current"', content)
-        self.assertIn("source '$CURRENT_DIR/.venv/bin/activate'", content)
+        self.assertIn('APP_DIR="$INSTANCE_DIR/app"', content)
+        self.assertIn("source '$APP_DIR/.venv/bin/activate'", content)
         self.assertIn("source '$INSTANCE_DIR/.env'", content)
-        self.assertIn("cd '$CURRENT_DIR'", content)
+        self.assertIn("cd '$APP_DIR'", content)
         self.assertIn("PYTHONDONTWRITEBYTECODE=1", content)
 
     def test_build_id_reads_release_sha_before_git(self) -> None:
@@ -367,6 +368,33 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             content,
         )
         self.assertIn('chmod 750 "$INSTANCE_DIR/mediafiles"', content)
+
+    def test_instance_backups_are_owned_for_backup_timer_writes(self) -> None:
+        instance_content = INSTANCE_SCRIPT.read_text()
+        common_content = COMMON_SCRIPT.read_text()
+        predeploy_backup_content = PREDEPLOY_BACKUP_SCRIPT.read_text()
+        cutover_content = CUTOVER_LEGACY_SCRIPT.read_text()
+        backup_content = BACKUP_DB_SCRIPT.read_text()
+
+        self.assertIn("ensure_instance_backup_dir()", common_content)
+        self.assertIn(
+            'ensure_instance_backup_dir "$INSTANCE" "$INSTANCE_USER"',
+            instance_content,
+        )
+        self.assertIn(
+            'ensure_instance_backup_dir "$INSTANCE" "$INST_USER"',
+            predeploy_backup_content,
+        )
+        self.assertIn(
+            'ensure_instance_backup_dir "$INSTANCE" "$INST_USER"',
+            cutover_content,
+        )
+        self.assertIn(
+            'chown "$instance_user:$instance_user" "$backup_dir"',
+            common_content,
+        )
+        self.assertIn('chmod 700 "$backup_dir"', common_content)
+        self.assertIn('if [[ ! -w "$BACKUP_DIR" ]]; then', backup_content)
 
     def test_xero_default_user_id_docs_match_required_create_time_workflow(
         self,
@@ -498,7 +526,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
 
         self.assertIn("is_legacy_checkout()", content)
         self.assertIn(
-            '[[ -d "$instance_dir/.git" && ! -L "$instance_dir/current" ]]',
+            '[[ -d "$instance_dir/.git" && ! -L "$instance_dir/app" && ! -L "$instance_dir/current" ]]',
             content,
         )
         self.assertIn('if is_legacy_checkout "$instance_dir"; then', content)
@@ -507,11 +535,11 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             content,
         )
         self.assertIn(
-            "sudo $SCRIPT_DIR/../legacy_rollback.sh $instance ${previous_sha:0:12}",
+            'sudo $SCRIPT_DIR/../legacy_rollback.sh $instance $(short_release_sha "$previous_sha")',
             content,
         )
         self.assertIn(
-            "sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}",
+            'sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")',
             content,
         )
         self.assertNotIn(

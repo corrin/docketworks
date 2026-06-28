@@ -45,7 +45,16 @@ for var in DB_NAME DB_USER DB_PASSWORD; do
 done
 
 umask 077
-mkdir -p "$BACKUP_DIR"
+if ! mkdir -p "$BACKUP_DIR"; then
+    echo "Error: backup directory cannot be created by $(id -un): $BACKUP_DIR" >&2
+    echo "Run instance.sh reconfigure or fix ownership to $EXPECTED_USER:$EXPECTED_USER mode 700." >&2
+    exit 1
+fi
+if [[ ! -w "$BACKUP_DIR" ]]; then
+    echo "Error: backup directory is not writable by $(id -un): $BACKUP_DIR" >&2
+    echo "Run instance.sh reconfigure or fix ownership to $EXPECTED_USER:$EXPECTED_USER mode 700." >&2
+    exit 1
+fi
 TODAY=$(date +%Y%m%d)
 MONTH=$(date +%Y%m)
 DAILY="$BACKUP_DIR/daily_$TODAY.sql.gz"

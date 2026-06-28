@@ -83,8 +83,8 @@ validate_instance() {
         echo "ERROR: No .env file found at $local_dir/.env" >&2
         exit 1
     fi
-    if [[ ! -L "$local_dir/current" && ! -d "$local_dir/.git" ]]; then
-        echo "ERROR: $local_dir has neither current release link nor legacy git checkout." >&2
+    if [[ ! -L "$local_dir/app" && ! -L "$local_dir/current" && ! -d "$local_dir/.git" ]]; then
+        echo "ERROR: $local_dir has neither app release link nor legacy git checkout." >&2
         exit 1
     fi
 
@@ -218,7 +218,7 @@ remove_legacy_scheduler_unit() {
 
 is_legacy_checkout() {
     local instance_dir="$1"
-    [[ -d "$instance_dir/.git" && ! -L "$instance_dir/current" ]]
+    [[ -d "$instance_dir/.git" && ! -L "$instance_dir/app" && ! -L "$instance_dir/current" ]]
 }
 
 # --- Determine targets ---
@@ -269,7 +269,7 @@ fi
 
 fetch_local_repo
 TARGET_SHA="$(resolve_release_ref "$TARGET_REF")"
-TARGET_SHORT="${TARGET_SHA:0:12}"
+TARGET_SHORT="$(short_release_sha "$TARGET_SHA")"
 log "Resolved $TARGET_REF to $TARGET_SHA"
 
 # --- Converge system-level dependencies (only when inputs change) ---
@@ -306,7 +306,9 @@ FAILED_INSTANCES=()
 for instance in "${TARGETS[@]}"; do
     instance_dir="$INSTANCES_DIR/$instance"
     inst_user="$(instance_user "$instance")"
+    ensure_instance_app_link "$instance"
     previous_sha="$(instance_current_sha "$instance")"
+    remove_legacy_current_link "$instance"
 
     log "--- Processing instance: $instance ---"
     log "  Previous SHA: ${previous_sha:-none}"
@@ -337,7 +339,7 @@ for instance in "${TARGETS[@]}"; do
     # checkouts — they can't be built as shared releases (the cutover snapshot is
     # the rollback target for a first migration).
     if [[ -n "$previous_sha" ]] && ! is_legacy_checkout "$instance_dir"; then
-        log "  Ensuring previous release ${previous_sha:0:12} is built (rollback target)..."
+        log "  Ensuring previous release $(short_release_sha "$previous_sha") is built (rollback target)..."
         ensure_release "$previous_sha"
     fi
 
@@ -351,7 +353,7 @@ for instance in "${TARGETS[@]}"; do
     stop_instance_units "$instance"
 
     switch_instance_release "$instance" "$TARGET_SHA"
-    chown -h "$inst_user:$inst_user" "$instance_dir/current"
+    chown -h "$inst_user:$inst_user" "$instance_dir/app"
 
     log "  Running migrate..."
     if "$SCRIPT_DIR/dw-run.sh" "$instance" python manage.py migrate --no-input; then
@@ -365,9 +367,9 @@ for instance in "${TARGETS[@]}"; do
             if [[ $DO_BACKUP -eq 1 ]]; then
                 log "  Manual rollback, if required:"
                 if is_legacy_checkout "$instance_dir"; then
-                    log "    sudo $SCRIPT_DIR/../legacy_rollback.sh $instance ${previous_sha:0:12}"
+                    log "    sudo $SCRIPT_DIR/../legacy_rollback.sh $instance $(short_release_sha "$previous_sha")"
                 else
-                    log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance ${previous_sha:0:12}"
+                    log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")"
                 fi
             else
                 log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
@@ -389,13 +391,7 @@ for instance in "${TARGETS[@]}"; do
 
     restart_instance_units "$instance"
 
-    {
-        echo "PREVIOUS_SHA=$previous_sha"
-        echo "CURRENT_SHA=$TARGET_SHA"
-        echo "DEPLOYED_AT=$(date --iso-8601=seconds)"
-    } > "$instance_dir/deploy-state.env"
-    chown "$inst_user:$inst_user" "$instance_dir/deploy-state.env"
-    chmod 600 "$instance_dir/deploy-state.env"
+    write_deploy_state "$instance" "$previous_sha" "$TARGET_SHA" "$inst_user"
 
     compact_legacy_instance_checkout "$instance"
     log "  $instance now runs $TARGET_SHORT"

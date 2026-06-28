@@ -9,7 +9,7 @@ set -euo pipefail
 #   /opt/docketworks/instances/<instance>/backups/predeploy_<ts>_<hash>.sql.gz
 #
 # The hash tags the dump with the commit that produced the data, so a
-# rollback pair is (switch current release to <hash>, restore this file).
+# rollback pair is (switch app to <hash>, restore this file).
 #
 # Must run as root (calls `sudo -u postgres pg_dump`).
 
@@ -28,6 +28,7 @@ INSTANCE_DIR="$INSTANCES_DIR/$INSTANCE"
 ENV_FILE="$INSTANCE_DIR/.env"
 BACKUP_DIR="$INSTANCE_DIR/backups"
 ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"
+INST_USER="$(instance_user "$INSTANCE")"
 
 if [[ ! -f "$ENV_FILE" ]]; then
     echo "ERROR: $ENV_FILE missing" >&2
@@ -44,10 +45,10 @@ if [[ -z "$HASH" ]]; then
     echo "ERROR: could not determine current release SHA for $INSTANCE" >&2
     exit 1
 fi
-HASH="${HASH:0:12}"
+HASH="$(short_release_sha "$HASH")"
 TS=$(date +%Y%m%d_%H%M%S)
 
-mkdir -p "$BACKUP_DIR"
+ensure_instance_backup_dir "$INSTANCE" "$INST_USER"
 OUT_DIR="$BACKUP_DIR"
 
 LEGACY_MANIFEST="$ROLLBACK_DIR/legacy_${HASH}.manifest"

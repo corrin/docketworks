@@ -38,7 +38,7 @@ sudo ./scripts/server/deploy.sh <client>-<env>
 sudo ./scripts/server/deploy.sh --all
 ```
 
-That's it for a normal code release. `deploy.sh` pulls `main` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, stops runtime services, switches `current` to that release, runs migrations, and restarts its services — you don't run anything per service.
+That's it for a normal code release. `deploy.sh` pulls `main` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, stops runtime services, switches `app` to that release, runs migrations, and restarts its services — you don't run anything per service.
 
 If migrations fail, deploy leaves that instance's services stopped and does not
 perform an automatic rollback. Django records successful migrations in the
@@ -54,19 +54,19 @@ rollback command printed by deploy. It restores the paired pre-deploy database
 backup and switches the instance back to the matching release:
 
 ```bash
-sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-sha>
+sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-8-char-sha>
 ```
 
 Deploy builds the previous release before switching, so this rollback target
 always exists for an instance already on shared releases. For the first cutover
 from a legacy per-instance checkout, use the standalone snapshot scripts instead.
 
-Do not switch only the `current` symlink after a migration failure; old code can
+Do not switch only the `app` symlink after a migration failure; old code can
 be incompatible with the partially migrated database.
 
 Release cleanup is part of deploy. The script removes stale incomplete
 `.building-*` directories at the start and removes complete releases that are no
-longer referenced by any instance `current` symlink or rollback state at the end.
+longer referenced by any instance `app` symlink or rollback state at the end.
 To run only the cleanup pass:
 
 ```bash

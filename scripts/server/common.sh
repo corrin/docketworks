@@ -45,6 +45,22 @@ instance_rclone_config() {
     echo "$RCLONE_CONFIG_DIR/$instance.conf"
 }
 
+instance_backup_dir() {
+    local instance="$1"
+    echo "$INSTANCES_DIR/$instance/backups"
+}
+
+ensure_instance_backup_dir() {
+    local instance="$1"
+    local instance_user="$2"
+    local backup_dir
+
+    backup_dir="$(instance_backup_dir "$instance")"
+    mkdir -p "$backup_dir"
+    chown "$instance_user:$instance_user" "$backup_dir"
+    chmod 700 "$backup_dir"
+}
+
 node_major_from_nvmrc() {
     local nvmrc_file="$1"
     local major
