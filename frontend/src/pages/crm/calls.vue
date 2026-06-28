@@ -109,7 +109,12 @@
           <div v-if="isLoadingCalls" class="flex items-center justify-center py-8">
             <Loader2 class="h-6 w-6 animate-spin text-indigo-600" />
           </div>
-          <PhoneCallTable v-else :calls="phoneCalls" empty-text="No calls found" />
+          <PhoneCallTable
+            v-else
+            :calls="phoneCalls"
+            empty-text="No calls found"
+            @call-updated="replacePhoneCall"
+          />
         </CardContent>
       </Card>
     </div>
@@ -158,7 +163,9 @@ async function loadCalls(): Promise<void> {
   isLoadingCalls.value = true
   error.value = null
   try {
-    phoneCalls.value = await api.crm_phone_calls_list({})
+    phoneCalls.value = await api.crm_phone_calls_list({
+      queries: { limit: 50 },
+    })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load calls'
     error.value = message
@@ -172,7 +179,7 @@ async function loadCalls(): Promise<void> {
 async function loadPhoneMethods(): Promise<void> {
   try {
     phoneMethods.value = await api.clients_contact_methods_list({
-      queries: { method_type: 'phone' },
+      queries: { method_type: 'phone', limit: 50 },
     })
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load phone numbers'
@@ -180,6 +187,10 @@ async function loadPhoneMethods(): Promise<void> {
     console.error('Failed to load phone numbers:', err)
     toast.error(message)
   }
+}
+
+function replacePhoneCall(updated: PhoneCallRecord): void {
+  phoneCalls.value = phoneCalls.value.map((call) => (call.id === updated.id ? updated : call))
 }
 
 async function searchClients(): Promise<void> {

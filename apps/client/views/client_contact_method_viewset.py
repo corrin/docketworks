@@ -3,6 +3,7 @@
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
+from rest_framework.exceptions import ValidationError
 
 from apps.client.models import ClientContactMethod
 from apps.client.serializers import ClientContactMethodSerializer
@@ -34,6 +35,12 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
                 location=OpenApiParameter.QUERY,
                 required=False,
             ),
+            OpenApiParameter(
+                name="limit",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+            ),
         ]
     )
     def list(self, request, *args, **kwargs):
@@ -59,4 +66,18 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
         if method_type:
             queryset = queryset.filter(method_type=method_type)
 
-        return queryset.distinct().order_by("method_type", "-is_primary", "value")
+        queryset = queryset.distinct().order_by("method_type", "-is_primary", "value")
+
+        limit = self.request.query_params.get("limit")
+        if not limit:
+            return queryset
+
+        try:
+            parsed_limit = int(limit)
+        except ValueError as exc:
+            raise ValidationError({"limit": "Limit must be an integer"}) from exc
+
+        if parsed_limit < 1 or parsed_limit > 100:
+            raise ValidationError({"limit": "Limit must be between 1 and 100"})
+
+        return queryset[:parsed_limit]

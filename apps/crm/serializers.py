@@ -1,3 +1,6 @@
+from typing import Any
+
+from drf_spectacular.utils import extend_schema_field
 from rest_framework import serializers
 
 from apps.crm.models import (
@@ -47,12 +50,15 @@ class PhoneCallRecordingSerializer(serializers.ModelSerializer):
 
 
 class PhoneCallRecordSerializer(serializers.ModelSerializer):
-    recording = PhoneCallRecordingSerializer(read_only=True, allow_null=True)
+    recording = serializers.SerializerMethodField()
     client_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
     direction = serializers.SerializerMethodField()
     our_number = serializers.SerializerMethodField()
     external_number = serializers.SerializerMethodField()
+    job_number = serializers.SerializerMethodField()
+    job_name = serializers.SerializerMethodField()
+    job_status = serializers.SerializerMethodField()
 
     class Meta:
         model = PhoneCallRecord
@@ -77,6 +83,12 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer):
             "client_name",
             "contact",
             "contact_name",
+            "job",
+            "job_number",
+            "job_name",
+            "job_status",
+            "job_linked_at",
+            "job_linked_by",
             "recording",
             "imported_at",
             "updated_at",
@@ -112,6 +124,52 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer):
 
     def get_contact_name(self, obj: PhoneCallRecord) -> str:
         return obj.contact.name if obj.contact else ""
+
+    @extend_schema_field(PhoneCallRecordingSerializer(allow_null=True))
+    def get_recording(self, obj: PhoneCallRecord) -> dict[str, Any] | None:
+        recordings_by_call_id = self.context.get("phone_recordings_by_call_id")
+        if isinstance(recordings_by_call_id, dict):
+            recording = recordings_by_call_id.get(obj.id)
+            if recording is None:
+                return None
+            return dict(
+                PhoneCallRecordingSerializer(
+                    recording,
+                    context=self.context,
+                ).data
+            )
+
+        prefetched = getattr(obj, "_prefetched_recording", None)
+        if isinstance(prefetched, list):
+            recording = prefetched[0] if prefetched else None
+        else:
+            recording = prefetched
+        if recording is None:
+            if getattr(obj, "_has_recording", True) is False:
+                return None
+            try:
+                recording = obj.recording
+            except PhoneCallRecording.DoesNotExist:
+                return None
+        return dict(
+            PhoneCallRecordingSerializer(
+                recording,
+                context=self.context,
+            ).data
+        )
+
+    def get_job_number(self, obj: PhoneCallRecord) -> int | None:
+        return obj.job.job_number if obj.job else None
+
+    def get_job_name(self, obj: PhoneCallRecord) -> str:
+        return obj.job.name if obj.job else ""
+
+    def get_job_status(self, obj: PhoneCallRecord) -> str:
+        return obj.job.status if obj.job else ""
+
+
+class PhoneCallJobLinkSerializer(serializers.Serializer):
+    job = serializers.UUIDField()
 
 
 class PhoneNumberAssignmentSerializer(serializers.Serializer):

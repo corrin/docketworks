@@ -8,12 +8,13 @@
           <th class="p-3 text-left font-semibold text-gray-700">Our Number</th>
           <th class="p-3 text-left font-semibold text-gray-700">Direction</th>
           <th class="p-3 text-left font-semibold text-gray-700">Duration</th>
+          <th class="p-3 text-left font-semibold text-gray-700">Job</th>
           <th class="p-3 text-left font-semibold text-gray-700">Recording</th>
         </tr>
       </thead>
       <tbody>
         <tr v-if="calls.length === 0">
-          <td colspan="6" class="p-6 text-center text-gray-500">{{ emptyText }}</td>
+          <td colspan="7" class="p-6 text-center text-gray-500">{{ emptyText }}</td>
         </tr>
         <tr v-for="call in calls" :key="call.id" class="border-b last:border-b-0">
           <td class="p-3 whitespace-nowrap text-gray-700">
@@ -34,10 +35,50 @@
           <td class="p-3 whitespace-nowrap text-gray-700">
             {{ formatDuration(call.duration_seconds) }}
           </td>
+          <td class="p-3 min-w-48">
+            <div v-if="call.job" class="flex flex-wrap items-center gap-2">
+              <Badge data-automation-id="PhoneCallTable-linked-job" variant="secondary">
+                Job #{{ call.job_number }}
+              </Badge>
+              <Button
+                v-if="allowJobLinking"
+                :data-automation-id="`PhoneCallTable-change-job-${call.id}`"
+                variant="ghost"
+                size="sm"
+                class="h-7 px-2"
+                @click="openJobDialog(call)"
+              >
+                Change
+              </Button>
+              <Button
+                v-if="allowJobLinking"
+                :data-automation-id="`PhoneCallTable-unlink-job-${call.id}`"
+                variant="ghost"
+                size="sm"
+                class="h-7 px-2 text-red-700 hover:text-red-800"
+                :disabled="savingCallId === call.id"
+                @click="unlinkJob(call)"
+              >
+                Unlink
+              </Button>
+              <div class="basis-full text-xs text-gray-500">{{ call.job_name }}</div>
+            </div>
+            <Button
+              v-else-if="allowJobLinking && call.client"
+              :data-automation-id="`PhoneCallTable-link-job-${call.id}`"
+              variant="outline"
+              size="sm"
+              class="h-8"
+              @click="openJobDialog(call)"
+            >
+              Link job
+            </Button>
+            <span v-else class="text-xs text-gray-500">Assign client first</span>
+          </td>
           <td class="p-3 min-w-64">
             <audio
-              v-if="call.recording?.download_url"
-              :src="call.recording.download_url"
+              v-if="recordingDownloadUrl(call)"
+              :src="recordingDownloadUrl(call) || undefined"
               controls
               preload="none"
               class="h-9 w-full max-w-sm"
@@ -47,21 +88,181 @@
         </tr>
       </tbody>
     </table>
+
+    <Dialog :open="isDialogOpen" @update:open="handleDialogOpenChange">
+      <DialogContent class="max-w-lg">
+        <DialogHeader>
+          <DialogTitle>Link Phone Call To Job</DialogTitle>
+        </DialogHeader>
+        <div class="space-y-4">
+          <Input
+            v-model="jobSearch"
+            data-automation-id="PhoneCallTable-job-search"
+            placeholder="Search job number or name"
+          />
+          <select
+            v-model="selectedJobId"
+            data-automation-id="PhoneCallTable-job-select"
+            class="w-full rounded-md border border-gray-300 p-2 text-sm"
+            :disabled="isLoadingJobs"
+          >
+            <option value="">Select job</option>
+            <option v-for="job in filteredJobs" :key="job.job_id" :value="job.job_id">
+              #{{ job.job_number }} - {{ job.name }}
+            </option>
+          </select>
+          <div v-if="isLoadingJobs" class="text-sm text-gray-500">Loading jobs...</div>
+          <div v-else-if="filteredJobs.length === 0" class="text-sm text-gray-500">
+            No jobs found for this client
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" type="button" @click="closeJobDialog">Cancel</Button>
+          <Button
+            type="button"
+            data-automation-id="PhoneCallTable-save-job-link"
+            :disabled="!selectedCall || !selectedJobId || savingCallId === selectedCall.id"
+            @click="saveJobLink"
+          >
+            Save
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>
 </template>
 
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
+import { Button } from '@/components/ui/button'
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
+type ClientJobHeader = z.infer<typeof schemas.ClientJobHeader>
 
-defineProps<{
-  calls: PhoneCallRecord[]
-  emptyText: string
+withDefaults(
+  defineProps<{
+    calls: PhoneCallRecord[]
+    emptyText: string
+    allowJobLinking?: boolean
+  }>(),
+  {
+    allowJobLinking: true,
+  },
+)
+
+const emit = defineEmits<{
+  'call-updated': [call: PhoneCallRecord]
 }>()
+
+const isDialogOpen = ref(false)
+const selectedCall = ref<PhoneCallRecord | null>(null)
+const selectedJobId = ref('')
+const jobSearch = ref('')
+const clientJobs = ref<ClientJobHeader[]>([])
+const isLoadingJobs = ref(false)
+const savingCallId = ref<string | null>(null)
+
+const filteredJobs = computed(() => {
+  const search = jobSearch.value.trim().toLowerCase()
+  if (!search) return clientJobs.value
+  return clientJobs.value.filter((job) => {
+    return (
+      job.name.toLowerCase().includes(search) ||
+      String(job.job_number).includes(search) ||
+      job.status.toLowerCase().includes(search)
+    )
+  })
+})
+
+async function openJobDialog(call: PhoneCallRecord): Promise<void> {
+  if (!call.client) {
+    toast.error('Assign the call to a client before linking a job')
+    return
+  }
+  selectedCall.value = call
+  selectedJobId.value = call.job || ''
+  jobSearch.value = ''
+  isDialogOpen.value = true
+  isLoadingJobs.value = true
+  try {
+    const response = await api.clients_jobs_retrieve({
+      params: { client_id: call.client },
+    })
+    clientJobs.value = response.results
+  } catch (error) {
+    toast.error('Failed to load client jobs')
+    console.error('Failed to load client jobs:', error)
+    clientJobs.value = []
+  } finally {
+    isLoadingJobs.value = false
+  }
+}
+
+function closeJobDialog(): void {
+  isDialogOpen.value = false
+  selectedCall.value = null
+  selectedJobId.value = ''
+  jobSearch.value = ''
+  clientJobs.value = []
+}
+
+function handleDialogOpenChange(open: boolean): void {
+  if (!open) {
+    closeJobDialog()
+  } else {
+    isDialogOpen.value = true
+  }
+}
+
+async function saveJobLink(): Promise<void> {
+  if (!selectedCall.value || !selectedJobId.value) return
+  const call = selectedCall.value
+  savingCallId.value = call.id
+  try {
+    const updated = await api.linkPhoneCallJob(
+      { job: selectedJobId.value },
+      { params: { id: call.id } },
+    )
+    emit('call-updated', updated)
+    toast.success('Phone call linked to job')
+    closeJobDialog()
+  } catch (error) {
+    toast.error('Failed to link phone call')
+    console.error('Failed to link phone call:', error)
+  } finally {
+    savingCallId.value = null
+  }
+}
+
+async function unlinkJob(call: PhoneCallRecord): Promise<void> {
+  savingCallId.value = call.id
+  try {
+    const updated = await api.unlinkPhoneCallJob(undefined, {
+      params: { id: call.id },
+    })
+    emit('call-updated', updated)
+    toast.success('Phone call unlinked from job')
+  } catch (error) {
+    toast.error('Failed to unlink phone call')
+    console.error('Failed to unlink phone call:', error)
+  } finally {
+    savingCallId.value = null
+  }
+}
 
 function formatDirection(value: string): string {
   if (value === 'inbound') return 'Inbound'
@@ -75,5 +276,10 @@ function formatDuration(seconds: number): string {
   const remainder = seconds % 60
   if (minutes === 0) return `${remainder}s`
   return `${minutes}m ${remainder.toString().padStart(2, '0')}s`
+}
+
+function recordingDownloadUrl(call: PhoneCallRecord): string | null {
+  const downloadUrl = call.recording?.download_url
+  return typeof downloadUrl === 'string' ? downloadUrl : null
 }
 </script>

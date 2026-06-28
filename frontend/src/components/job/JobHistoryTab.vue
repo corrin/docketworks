@@ -21,6 +21,29 @@
       </div>
 
       <div class="space-y-6">
+        <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <h3 class="text-lg font-medium text-gray-900">Linked Phone Calls</h3>
+            <button
+              type="button"
+              class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+              @click="loadLinkedPhoneCalls"
+            >
+              Refresh
+            </button>
+          </div>
+          <div v-if="isLoadingPhoneCalls" class="text-sm text-gray-500">Loading phone calls...</div>
+          <div v-else-if="phoneCallError" class="text-sm text-red-600">
+            {{ phoneCallError }}
+          </div>
+          <PhoneCallTable
+            v-else
+            :calls="phoneCalls"
+            empty-text="No linked phone calls"
+            @call-updated="handlePhoneCallUpdated"
+          />
+        </div>
+
         <!-- Collapsible Add Event Form -->
         <Collapsible v-model:open="isAddEventOpen">
           <CollapsibleContent>
@@ -264,6 +287,7 @@
 import { ref, watch, computed } from 'vue'
 import { ChevronDown } from 'lucide-vue-next'
 import { Collapsible, CollapsibleContent } from '../ui/collapsible'
+import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
 import { formatDateTime, formatEventType } from '@/utils/string-formatting'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
@@ -273,6 +297,7 @@ import { toast } from 'vue-sonner'
 type JobEventCreateRequest = z.infer<typeof schemas.JobEventCreateRequest>
 type JobEventCreateResponse = z.infer<typeof schemas.JobEventCreateResponse>
 type JobUndoRequest = z.infer<typeof schemas.JobUndoRequest>
+type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
 
 // Timeline entry from the unified backend endpoint
 type TimelineEntry = z.infer<typeof schemas.TimelineEntry>
@@ -292,10 +317,13 @@ const isAddEventOpen = ref(false)
 const newEventDescription = ref('')
 const isAdding = ref(false)
 const isLoading = ref(false)
+const isLoadingPhoneCalls = ref(false)
 const isUndoing = ref(false)
+const phoneCallError = ref<string | null>(null)
 const expandedItems = ref<Set<string>>(new Set())
 
 const timelineEntries = ref<TimelineEntry[]>([])
+const phoneCalls = ref<PhoneCallRecord[]>([])
 
 // Transform timeline entries to camelCase format for template
 const timelineItems = computed(() => {
@@ -336,6 +364,32 @@ async function loadTimeline() {
   } finally {
     isLoading.value = false
   }
+}
+
+async function loadLinkedPhoneCalls() {
+  if (!props.jobId) return
+  isLoadingPhoneCalls.value = true
+  phoneCallError.value = null
+  try {
+    phoneCalls.value = await api.crm_phone_calls_list({
+      queries: { job: props.jobId },
+    })
+  } catch (e) {
+    phoneCallError.value = 'Failed to load linked phone calls'
+    toast.error(phoneCallError.value)
+    console.error('Failed to load linked phone calls:', e)
+    phoneCalls.value = []
+  } finally {
+    isLoadingPhoneCalls.value = false
+  }
+}
+
+function handlePhoneCallUpdated(updated: PhoneCallRecord): void {
+  if (updated.job !== props.jobId) {
+    phoneCalls.value = phoneCalls.value.filter((call) => call.id !== updated.id)
+    return
+  }
+  phoneCalls.value = phoneCalls.value.map((call) => (call.id === updated.id ? updated : call))
 }
 
 // Add a new manual event via REST
@@ -445,6 +499,7 @@ watch(
   () => props.jobId,
   () => {
     void loadTimeline()
+    void loadLinkedPhoneCalls()
   },
   { immediate: true },
 )

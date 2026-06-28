@@ -9,6 +9,7 @@ try:
     if apps.ready:
         from .models import PhoneCallRecord, PhoneCallRecording
         from .serializers import (
+            PhoneCallJobLinkSerializer,
             PhoneCallRecordSerializer,
             PhoneCallRecordingSerializer,
             PhoneNumberAssignmentSerializer,
@@ -20,6 +21,7 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "CrmConfig",
+    "PhoneCallJobLinkSerializer",
     "PhoneCallRecord",
     "PhoneCallRecordSerializer",
     "PhoneCallRecording",

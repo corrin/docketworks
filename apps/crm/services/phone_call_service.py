@@ -7,7 +7,7 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from time import sleep
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
 
 import requests
@@ -23,6 +23,9 @@ from apps.crm.models import (
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
+
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
 
 logger = logging.getLogger("apps.crm.phone_calls")
 
@@ -225,6 +228,52 @@ def recording_file_path(recording: PhoneCallRecording) -> Path:
     if not recording.storage_path:
         raise ValueError("Recording has no archived file")
     return _full_storage_path(recording.storage_path)
+
+
+def link_phone_call_to_job(
+    *,
+    call_id: str,
+    job_id: str,
+    linked_by: "Staff",
+) -> PhoneCallRecord:
+    from apps.job.models import Job
+
+    call = PhoneCallRecord.objects.select_related("client").get(id=call_id)
+    if not call.client_id:
+        raise ValueError("Phone call must be assigned to a client before linking a job")
+
+    job = Job.objects.select_related("client").get(id=job_id)
+    if job.client_id != call.client_id:
+        raise ValueError("Phone call can only be linked to a job for the same client")
+
+    call.job = job
+    call.job_linked_by = linked_by
+    call.job_linked_at = timezone.now()
+    call.save(
+        update_fields=[
+            "job",
+            "job_linked_by",
+            "job_linked_at",
+            "updated_at",
+        ]
+    )
+    return call
+
+
+def unlink_phone_call_job(*, call_id: str) -> PhoneCallRecord:
+    call = PhoneCallRecord.objects.get(id=call_id)
+    call.job = None
+    call.job_linked_by = None
+    call.job_linked_at = None
+    call.save(
+        update_fields=[
+            "job",
+            "job_linked_by",
+            "job_linked_at",
+            "updated_at",
+        ]
+    )
+    return call
 
 
 class PhoneProviderPortalClient:

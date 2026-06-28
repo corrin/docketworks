@@ -1475,6 +1475,10 @@ paths:
             type: string
             format: uuid
         - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
           name: method_type
           schema:
             type: string
@@ -2577,6 +2581,15 @@ paths:
           schema:
             type: string
             format: uuid
+        - in: query
+          name: job
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: limit
+          schema:
+            type: integer
       tags:
         - CRM
       security:
@@ -2603,6 +2616,61 @@ paths:
           required: true
       tags:
         - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
+  /api/crm/phone-calls/{id}/job-link/:
+    post:
+      operationId: linkPhoneCallJob
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call record.
+          required: true
+      tags:
+        - CRM
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneCallJobLinkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneCallJobLinkRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneCallJobLinkRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
+    delete:
+      operationId: unlinkPhoneCallJob
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call record.
+          required: true
+      tags:
+        - CRM
       security:
         - cookieAuth: []
       responses:
@@ -17122,6 +17190,14 @@ components:
         - jm_hours
         - xero_gross
         - xero_hours
+    PhoneCallJobLinkRequest:
+      type: object
+      properties:
+        job:
+          type: string
+          format: uuid
+      required:
+        - job
     PhoneCallRecord:
       type: object
       properties:
@@ -17199,11 +17275,36 @@ components:
         contact_name:
           type: string
           readOnly: true
+        job:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        job_number:
+          type: integer
+          nullable: true
+          readOnly: true
+        job_name:
+          type: string
+          readOnly: true
+        job_status:
+          type: string
+          readOnly: true
+        job_linked_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        job_linked_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
         recording:
           allOf:
             - $ref: '#/components/schemas/PhoneCallRecording'
-          readOnly: true
           nullable: true
+          readOnly: true
         imported_at:
           type: string
           format: date-time
@@ -17230,6 +17331,12 @@ components:
         - external_number
         - id
         - imported_at
+        - job
+        - job_linked_at
+        - job_linked_by
+        - job_name
+        - job_number
+        - job_status
         - origin
         - our_number
         - provider_call_id

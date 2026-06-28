@@ -371,6 +371,7 @@
                 v-else
                 :calls="phoneCalls"
                 empty-text="No phone interactions found for this client"
+                @call-updated="replacePhoneCall"
               />
             </CardContent>
           </Card>
@@ -573,6 +574,10 @@ async function loadPhoneCalls() {
   } finally {
     isLoadingPhoneCalls.value = false
   }
+}
+
+function replacePhoneCall(updated: PhoneCallRecord) {
+  phoneCalls.value = phoneCalls.value.map((call) => (call.id === updated.id ? updated : call))
 }
 
 // Methods
