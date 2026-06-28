@@ -41,7 +41,7 @@ class SupplierPayload(TypedDict, total=False):
 class MatchedSupplierPayload(TypedDict):
     id: str
     name: str
-    xero_id: str | None
+    xero_contact_id: str | None
 
 
 class QuoteItemPayload(TypedDict, total=False):
@@ -376,19 +376,13 @@ def extract_data_from_supplier_quote(
         json_text = json_text.strip()
 
         # Parse JSON
-        raw_quote_data: object = json.loads(json_text)
-        if not isinstance(raw_quote_data, dict):
-            raise TypeError("Supplier quote response must be a JSON object")
-        quote_data = cast(SupplierQuotePayload, raw_quote_data)
+        quote_data = parse_supplier_quote_payload(json.loads(json_text))
 
-        # Process supplier data if it exists in the expected format
-        try:
-            supplier_name_from_quote = extract_supplier_name(quote_data)
+        supplier_name_from_quote = extract_supplier_name(quote_data)
+        if supplier_name_from_quote:
             matched_supplier, original_name = fuzzy_find_supplier(
                 supplier_name_from_quote
             )
-
-            # Add original and matched supplier info
             quote_data["supplier"]["original_name"] = original_name
             quote_data["matched_supplier"] = None
 
@@ -396,9 +390,9 @@ def extract_data_from_supplier_quote(
                 quote_data["matched_supplier"] = {
                     "id": str(matched_supplier.id),
                     "name": matched_supplier.name,
-                    "xero_id": getattr(matched_supplier, "xero_id", None),
+                    "xero_contact_id": matched_supplier.xero_contact_id,
                 }
-        except (KeyError, TypeError, ValueError):
+        else:
             logging.warning("Supplier name not found in quote JSON")
 
         # Return the extracted data
@@ -468,23 +462,42 @@ def clean_json_response(text: str) -> str:
     return text.strip()
 
 
-def extract_supplier_name(quote_data: SupplierQuotePayload) -> str:
-    """Return the extracted supplier name when it has the expected shape."""
-    supplier = quote_data["supplier"]
+def parse_supplier_quote_payload(raw_quote_data: object) -> SupplierQuotePayload:
+    """Validate untrusted quote JSON before treating it as a quote payload."""
+    if not isinstance(raw_quote_data, dict):
+        raise TypeError("Supplier quote response must be a JSON object")
+
+    supplier = raw_quote_data.get("supplier")
     if not isinstance(supplier, dict):
-        raise TypeError("Supplier must be an object")
-    supplier_name = supplier["name"]
-    if not isinstance(supplier_name, str):
-        raise TypeError("Supplier name must be a string")
-    if not supplier_name.strip():
-        raise ValueError("Supplier name must be a non-empty string")
+        raise TypeError("Supplier quote response supplier must be an object")
+
+    supplier_name = supplier.get("name")
+    if supplier_name is not None and not isinstance(supplier_name, str):
+        raise TypeError("Supplier quote response supplier name must be a string")
+
+    items = raw_quote_data.get("items")
+    if not isinstance(items, list):
+        raise TypeError("Supplier quote response items must be a list")
+
+    if not all(isinstance(item, dict) for item in items):
+        raise TypeError("Supplier quote response items must be objects")
+
+    return cast(SupplierQuotePayload, raw_quote_data)
+
+
+def extract_supplier_name(quote_data: SupplierQuotePayload) -> str | None:
+    """Return the extracted supplier name when one is available for matching."""
+    supplier = quote_data["supplier"]
+    supplier_name = supplier.get("name")
+    if supplier_name is None or not supplier_name.strip():
+        return None
     return supplier_name
 
 
 def process_supplier_data(quote_data: SupplierQuotePayload) -> SupplierQuotePayload:
     """Process supplier matching from quote data."""
-    try:
-        supplier_name = extract_supplier_name(quote_data)
+    supplier_name = extract_supplier_name(quote_data)
+    if supplier_name:
         matched_supplier, original_name = fuzzy_find_supplier(supplier_name)
 
         quote_data["supplier"]["original_name"] = original_name
@@ -494,9 +507,9 @@ def process_supplier_data(quote_data: SupplierQuotePayload) -> SupplierQuotePayl
             quote_data["matched_supplier"] = {
                 "id": str(matched_supplier.id),
                 "name": matched_supplier.name,
-                "xero_id": getattr(matched_supplier, "xero_id", None),
+                "xero_contact_id": matched_supplier.xero_contact_id,
             }
-    except (KeyError, TypeError, ValueError):
+    else:
         logging.warning("Supplier name not found in quote JSON")
 
     return quote_data
@@ -677,10 +690,9 @@ def extract_data_from_supplier_quote_gemini(
             log_token_usage(response.usage, "Gemini")
 
         result_text = clean_json_response(response.text)
-        raw_quote_data: object = json.loads(result_text)
-        if not isinstance(raw_quote_data, dict):
-            raise TypeError("Supplier quote response must be a JSON object")
-        quote_data = process_supplier_data(cast(SupplierQuotePayload, raw_quote_data))
+        quote_data = process_supplier_data(
+            parse_supplier_quote_payload(json.loads(result_text))
+        )
 
         return quote_data, None
 

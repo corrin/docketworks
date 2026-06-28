@@ -6,7 +6,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.utils import timezone
 
+from apps.client.models import Client
 from apps.purchasing.services.quote_to_po_service import (
     extract_data_from_supplier_quote,
 )
@@ -29,6 +31,12 @@ def test_extract_uses_sdk_and_parses_response(
     anthropic_provider: AIProvider, tmp_path: Path
 ) -> None:
     """SDK path: prompt + file go through messages.create, JSON response parses."""
+    Client.objects.create(
+        name="Acme Metals",
+        xero_contact_id="xero-contact-1",
+        xero_last_modified=timezone.now(),
+        is_supplier=True,
+    )
     quote_text = "Quote QX-1: 2x 100mm SHS @ $50.00"
     quote_path = tmp_path / "quote.txt"
     quote_path.write_text(quote_text)
@@ -68,6 +76,8 @@ def test_extract_uses_sdk_and_parses_response(
     assert quote_data["quote_reference"] == "QX-1"
     assert len(quote_data["items"]) == 1
     assert quote_data["items"][0]["description"] == "100mm SHS"
+    assert quote_data["matched_supplier"] is not None
+    assert quote_data["matched_supplier"]["xero_contact_id"] == "xero-contact-1"
 
     mock_ctor.assert_called_once_with(api_key="test-key")
     call_kwargs = mock_client.messages.create.call_args.kwargs
@@ -125,3 +135,52 @@ def test_extract_pdf_parser_empty_text_falls_back_to_document(
     assert document_block["type"] == "document"
     assert document_block["source"]["type"] == "base64"
     assert document_block["source"]["media_type"] == "application/pdf"
+
+
+@pytest.mark.parametrize(
+    ("payload", "error_text"),
+    [
+        (
+            {"supplier": "Acme Metals", "items": []},
+            "supplier must be an object",
+        ),
+        (
+            {"supplier": {"name": "Acme Metals"}, "items": {"description": "SHS"}},
+            "items must be a list",
+        ),
+        (
+            {"supplier": {"name": "Acme Metals"}, "items": ["SHS"]},
+            "items must be objects",
+        ),
+        (
+            {"supplier": {"name": 123}, "items": []},
+            "supplier name must be a string",
+        ),
+    ],
+)
+def test_extract_rejects_malformed_quote_payload_shape(
+    anthropic_provider: AIProvider,
+    tmp_path: Path,
+    payload: object,
+    error_text: str,
+) -> None:
+    quote_path = tmp_path / "quote.txt"
+    quote_path.write_text("Quote text")
+    mock_response = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=json.dumps(payload))],
+        usage=SimpleNamespace(input_tokens=123, output_tokens=45),
+    )
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+
+    with patch(
+        "apps.purchasing.services.quote_to_po_service.anthropic.Anthropic",
+        return_value=mock_client,
+    ):
+        quote_data, error = extract_data_from_supplier_quote(
+            str(quote_path), content_type="text/plain"
+        )
+
+    assert quote_data is None
+    assert error is not None
+    assert error_text in error
