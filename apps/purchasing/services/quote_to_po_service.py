@@ -184,11 +184,14 @@ def extract_data_from_supplier_quote(
     quote_path: str,
     content_type: str | None = None,
     use_pdf_parser: bool = USE_PDF_PARSER,
+    ai_provider: AIProvider | None = None,
 ) -> tuple[SupplierQuotePayloadModel | None, str | None]:
     """Extract data from a supplier quote file using Claude."""
     try:
         # Get the active AI provider and its API key
-        default_ai_provider = AIProvider.objects.filter(default=True).first()
+        default_ai_provider = (
+            ai_provider or AIProvider.objects.filter(default=True).first()
+        )
 
         if not default_ai_provider:
             return (
@@ -710,9 +713,7 @@ def extract_data_from_supplier_quote_gemini(
         raise
     except json.JSONDecodeError as exc:
         logger.exception(f"Error decoding JSON from Gemini response: {exc}")
-        invalid_json_error = ValueError(
-            f"Invalid JSON response from Gemini: {str(exc)}"
-        )
+        invalid_json_error = ValueError(f"Invalid JSON response from Gemini: {exc!s}")
         err = persist_app_error(invalid_json_error)
         raise AlreadyLoggedException(invalid_json_error, err.id) from exc
     except Exception as exc:
@@ -754,7 +755,7 @@ def create_po_from_quote(
             case AIProviderTypes.ANTHROPIC:
                 logger.info(f"Using Claude for quote extraction: {quote.filename}")
                 quote_data, error = extract_data_from_supplier_quote(
-                    quote_path, quote.mime_type
+                    quote_path, quote.mime_type, ai_provider=ai_provider
                 )
             case _:
                 err_msg = f"Invalid AI provider received: {ai_provider}."

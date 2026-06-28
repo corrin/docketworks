@@ -1,11 +1,13 @@
 """Quote-to-PO extraction coverage (Trello #325 — anthropic SDK transition)."""
 
 import json
+import os
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.conf import settings
 from django.utils import timezone
 
 from apps.client.models import Client
@@ -220,7 +222,7 @@ def test_create_po_from_quote_saves_plain_json_payload(
     with patch(
         "apps.purchasing.services.quote_to_po_service.extract_data_from_supplier_quote",
         return_value=(quote_payload, None),
-    ):
+    ) as mock_extract:
         result, error = create_po_from_quote(
             purchase_order,
             quote,
@@ -229,6 +231,12 @@ def test_create_po_from_quote_saves_plain_json_payload(
 
     assert error is None
     assert result == purchase_order
+    expected_quote_path = os.path.join(
+        settings.DROPBOX_WORKFLOW_FOLDER, quote.file_path
+    )
+    mock_extract.assert_called_once_with(
+        expected_quote_path, "text/plain", ai_provider=anthropic_provider
+    )
     quote.refresh_from_db()
     assert quote.extracted_data == {
         "supplier": {"name": "Acme Metals"},

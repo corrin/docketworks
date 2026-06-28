@@ -116,7 +116,7 @@ ADJUSTMENT entries (kind='adjust'):
   complete and scoped, commit it on the current branch. If the scope is unclear,
   mixed with unrelated work, or the user may not want it committed, ask before
   committing.
-- Use `git commit`/`git push` to run repository hooks. Run focused checks only for fast signal or failure diagnosis; do not duplicate broad hook suites manually. If hooks reformat/regenerate files, inspect, stage the relevant output, and retry the same command.
+- Run focused tests for touched code when useful. Do not manually run expensive hook commands like `bash scripts/check_mypy.sh`, `npm run test:unit`, `npm run lint`, `npm run type-check`, or frontend builds unless diagnosing a hook failure; they run automatically during `git commit`/`git push`.
 
 ### Code Style and Quality
 
