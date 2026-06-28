@@ -1,20 +1,32 @@
 """Quote-to-PO extraction coverage (Trello #325 — anthropic SDK transition)."""
 
 import json
+import os
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import pytest
+from django.conf import settings
+from django.utils import timezone
 
+from apps.client.models import Client
+from apps.job.enums import MetalType
+from apps.purchasing.models import PurchaseOrder, PurchaseOrderSupplierQuote
 from apps.purchasing.services.quote_to_po_service import (
+    SupplierQuoteItemModel,
+    SupplierQuotePayloadModel,
+    SupplierQuoteSupplierModel,
+    create_po_from_quote,
     extract_data_from_supplier_quote,
 )
 from apps.workflow.enums import AIProviderTypes
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AIProvider
 
 
 @pytest.fixture
-def anthropic_provider(db):
+def anthropic_provider(db: object) -> AIProvider:
     return AIProvider.objects.create(
         name="Test Claude",
         provider_type=AIProviderTypes.ANTHROPIC,
@@ -24,8 +36,16 @@ def anthropic_provider(db):
     )
 
 
-def test_extract_uses_sdk_and_parses_response(anthropic_provider, tmp_path):
+def test_extract_uses_sdk_and_parses_response(
+    anthropic_provider: AIProvider, tmp_path: Path
+) -> None:
     """SDK path: prompt + file go through messages.create, JSON response parses."""
+    Client.objects.create(
+        name="Acme Metals",
+        xero_contact_id="xero-contact-1",
+        xero_last_modified=timezone.now(),
+        is_supplier=True,
+    )
     quote_text = "Quote QX-1: 2x 100mm SHS @ $50.00"
     quote_path = tmp_path / "quote.txt"
     quote_path.write_text(quote_text)
@@ -60,10 +80,13 @@ def test_extract_uses_sdk_and_parses_response(anthropic_provider, tmp_path):
         )
 
     assert error is None
-    assert quote_data["supplier"]["name"] == "Acme Metals"
-    assert quote_data["quote_reference"] == "QX-1"
-    assert len(quote_data["items"]) == 1
-    assert quote_data["items"][0]["description"] == "100mm SHS"
+    assert quote_data is not None
+    assert quote_data.supplier.name == "Acme Metals"
+    assert quote_data.quote_reference == "QX-1"
+    assert len(quote_data.line_items) == 1
+    assert quote_data.line_items[0].description == "100mm SHS"
+    assert quote_data.matched_supplier is not None
+    assert quote_data.matched_supplier.xero_contact_id == "xero-contact-1"
 
     mock_ctor.assert_called_once_with(api_key="test-key")
     call_kwargs = mock_client.messages.create.call_args.kwargs
@@ -72,3 +95,240 @@ def test_extract_uses_sdk_and_parses_response(anthropic_provider, tmp_path):
     prompt_block = call_kwargs["messages"][0]["content"][0]
     assert prompt_block["type"] == "text"
     assert prompt_block["cache_control"] == {"type": "ephemeral"}
+
+
+def test_extract_pdf_parser_empty_text_falls_back_to_document(
+    anthropic_provider: AIProvider, tmp_path: Path
+) -> None:
+    """Empty PDF text extraction preserves the original PDF document payload."""
+    quote_path = tmp_path / "quote.pdf"
+    quote_path.write_bytes(b"%PDF-1.7 fake pdf bytes")
+
+    payload = {
+        "supplier": {"name": "Acme Metals"},
+        "quote_reference": "PDF-1",
+        "items": [],
+    }
+    mock_response = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=json.dumps(payload))],
+        usage=SimpleNamespace(input_tokens=123, output_tokens=45),
+    )
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = ""
+    mock_pdf = MagicMock()
+    mock_pdf.__enter__.return_value.pages = [mock_page]
+
+    with (
+        patch(
+            "apps.purchasing.services.quote_to_po_service.anthropic.Anthropic",
+            return_value=mock_client,
+        ),
+        patch(
+            "apps.purchasing.services.quote_to_po_service.pdfplumber.open",
+            return_value=mock_pdf,
+        ),
+    ):
+        quote_data, error = extract_data_from_supplier_quote(
+            str(quote_path), content_type="application/pdf", use_pdf_parser=True
+        )
+
+    assert error is None
+    assert quote_data is not None
+    assert quote_data.quote_reference == "PDF-1"
+    content_blocks = mock_client.messages.create.call_args.kwargs["messages"][0][
+        "content"
+    ]
+    document_block = content_blocks[1]
+    assert document_block["type"] == "document"
+    assert document_block["source"]["type"] == "base64"
+    assert document_block["source"]["media_type"] == "application/pdf"
+
+
+@pytest.mark.parametrize(
+    ("payload", "error_text"),
+    [
+        (
+            {"supplier": "Acme Metals", "items": []},
+            "supplier",
+        ),
+        (
+            {"supplier": {"name": "Acme Metals"}, "items": {"description": "SHS"}},
+            "items",
+        ),
+        (
+            {"supplier": {"name": "Acme Metals"}, "items": ["SHS"]},
+            "items.0",
+        ),
+        (
+            {"supplier": {"name": 123}, "items": []},
+            "supplier.name",
+        ),
+    ],
+)
+def test_extract_rejects_malformed_quote_payload_shape(
+    anthropic_provider: AIProvider,
+    tmp_path: Path,
+    payload: object,
+    error_text: str,
+) -> None:
+    quote_path = tmp_path / "quote.txt"
+    quote_path.write_text("Quote text")
+    mock_response = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=json.dumps(payload))],
+        usage=SimpleNamespace(input_tokens=123, output_tokens=45),
+    )
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+
+    with patch(
+        "apps.purchasing.services.quote_to_po_service.anthropic.Anthropic",
+        return_value=mock_client,
+    ):
+        with pytest.raises(AlreadyLoggedException) as exc_info:
+            extract_data_from_supplier_quote(str(quote_path), content_type="text/plain")
+
+    assert error_text in str(exc_info.value)
+
+
+def test_create_po_from_quote_saves_plain_json_payload(
+    anthropic_provider: AIProvider,
+) -> None:
+    purchase_order = PurchaseOrder.objects.create(po_number="PO-QTP-1")
+    quote = PurchaseOrderSupplierQuote.objects.create(
+        purchase_order=purchase_order,
+        filename="quote.txt",
+        file_path="quote.txt",
+        mime_type="text/plain",
+    )
+    quote_payload = SupplierQuotePayloadModel(
+        supplier=SupplierQuoteSupplierModel(name="Acme Metals"),
+        quote_reference="QX-1",
+        items=[
+            SupplierQuoteItemModel.model_validate(
+                {
+                    "description": "100mm SHS",
+                    "quantity": 2,
+                    "line_total": 100.00,
+                    "unit_price": "50.00",
+                    "supplier_item_code": "SHS-100",
+                    "metal_type": "mild_steel",
+                }
+            )
+        ],
+    )
+
+    with patch(
+        "apps.purchasing.services.quote_to_po_service.extract_data_from_supplier_quote",
+        return_value=(quote_payload, None),
+    ) as mock_extract:
+        result, error = create_po_from_quote(
+            purchase_order,
+            quote,
+            anthropic_provider,
+        )
+
+    assert error is None
+    assert result == purchase_order
+    dropbox_workflow_folder = settings.DROPBOX_WORKFLOW_FOLDER
+    assert dropbox_workflow_folder is not None
+    expected_quote_path = os.path.join(dropbox_workflow_folder, quote.file_path)
+    mock_extract.assert_called_once_with(
+        expected_quote_path, "text/plain", ai_provider=anthropic_provider
+    )
+    quote.refresh_from_db()
+    assert quote.extracted_data == {
+        "supplier": {"name": "Acme Metals"},
+        "quote_reference": "QX-1",
+        "items": [
+            {
+                "description": "100mm SHS",
+                "quantity": 2,
+                "unit_price": "50.00",
+                "line_total": 100.0,
+                "supplier_item_code": "SHS-100",
+                "metal_type": "mild_steel",
+            }
+        ],
+    }
+    line = purchase_order.po_lines.get()
+    assert line.raw_line_data == {
+        "description": "100mm SHS",
+        "quantity": 2,
+        "unit_price": "50.00",
+        "line_total": 100.0,
+        "supplier_item_code": "SHS-100",
+        "metal_type": "mild_steel",
+    }
+
+
+def test_create_po_from_quote_normalizes_invalid_metal_type(
+    anthropic_provider: AIProvider,
+) -> None:
+    purchase_order = PurchaseOrder.objects.create(po_number="PO-QTP-2")
+    quote = PurchaseOrderSupplierQuote.objects.create(
+        purchase_order=purchase_order,
+        filename="quote.txt",
+        file_path="quote.txt",
+        mime_type="text/plain",
+    )
+    quote_payload = SupplierQuotePayloadModel(
+        supplier=SupplierQuoteSupplierModel(name="Acme Metals"),
+        items=[
+            SupplierQuoteItemModel.model_validate(
+                {
+                    "description": "100mm SHS",
+                    "quantity": 2,
+                    "line_total": 100.00,
+                    "metal_type": "carbonium",
+                }
+            )
+        ],
+    )
+
+    with patch(
+        "apps.purchasing.services.quote_to_po_service.extract_data_from_supplier_quote",
+        return_value=(quote_payload, None),
+    ):
+        result, error = create_po_from_quote(
+            purchase_order,
+            quote,
+            anthropic_provider,
+        )
+
+    assert error is None
+    assert result == purchase_order
+    quote.refresh_from_db()
+    saved_quote_data = SupplierQuotePayloadModel.model_validate(quote.extracted_data)
+    assert saved_quote_data.line_items[0].metal_type == MetalType.UNSPECIFIED
+    line = purchase_order.po_lines.get()
+    assert line.metal_type == MetalType.UNSPECIFIED
+    saved_line_data = SupplierQuoteItemModel.model_validate(line.raw_line_data)
+    assert saved_line_data.metal_type == MetalType.UNSPECIFIED
+
+
+def test_create_po_from_quote_returns_already_logged_extraction_error(
+    anthropic_provider: AIProvider,
+) -> None:
+    purchase_order = PurchaseOrder.objects.create(po_number="PO-QTP-3")
+    quote = PurchaseOrderSupplierQuote.objects.create(
+        purchase_order=purchase_order,
+        filename="quote.txt",
+        file_path="quote.txt",
+        mime_type="text/plain",
+    )
+    logged_error = AlreadyLoggedException(ValueError("Invalid quote payload"), "err-1")
+
+    with patch(
+        "apps.purchasing.services.quote_to_po_service.extract_data_from_supplier_quote",
+        side_effect=logged_error,
+    ):
+        result, error = create_po_from_quote(
+            purchase_order,
+            quote,
+            anthropic_provider,
+        )
+
+    assert result is None
+    assert error == "Invalid quote payload"

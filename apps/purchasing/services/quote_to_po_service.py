@@ -2,12 +2,19 @@ import base64
 import json
 import logging
 import os
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast, overload
 
 import anthropic
 import pdfplumber
+from anthropic.types import (
+    DocumentBlockParam,
+    ImageBlockParam,
+    MessageParam,
+    TextBlockParam,
+)
 from django.conf import settings
 from google import genai
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from rapidfuzz import fuzz, process
 
 from apps.client.models import Client
@@ -18,7 +25,9 @@ from apps.purchasing.models import (
     PurchaseOrderSupplierQuote,
 )
 from apps.workflow.enums import AIProviderTypes
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AIProvider
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +35,65 @@ logger = logging.getLogger(__name__)
 USE_PDF_PARSER = False
 
 
-def normalize(s):
+QuoteScalar = str | int | float
+
+
+def normalize_quote_metal_type(value: object) -> MetalType | None:
+    """Return a valid MetalType for AI-extracted quote data."""
+    if value is None:
+        return None
+    if isinstance(value, MetalType):
+        return value
+    if isinstance(value, str) and not value.strip():
+        return None
+    if isinstance(value, str) and value in MetalType.values:
+        return MetalType(value)
+
+    logger.warning("Invalid quote metal_type %r; using unspecified", value)
+    return MetalType.UNSPECIFIED
+
+
+class SupplierQuoteBaseModel(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+
+class SupplierQuoteSupplierModel(SupplierQuoteBaseModel):
+    name: str | None = None
+    address: str | None = None
+    original_name: str | None = None
+
+
+class MatchedSupplierModel(SupplierQuoteBaseModel):
+    id: str
+    name: str
+    xero_contact_id: str | None
+
+
+class SupplierQuoteItemModel(SupplierQuoteBaseModel):
+    description: str | None = None
+    quantity: QuoteScalar | None = None
+    dimensions: str | None = None
+    unit_price: QuoteScalar | None = None
+    line_total: QuoteScalar | None = None
+    supplier_item_code: str | None = None
+    metal_type: MetalType | None = None
+    alloy: str | None = None
+    specifics: str | None = None
+
+    @field_validator("metal_type", mode="before")
+    @classmethod
+    def validate_metal_type(cls, value: object) -> MetalType | None:
+        return normalize_quote_metal_type(value)
+
+
+class SupplierQuotePayloadModel(SupplierQuoteBaseModel):
+    supplier: SupplierQuoteSupplierModel
+    quote_reference: str | None = None
+    line_items: list[SupplierQuoteItemModel] = Field(alias="items")
+    matched_supplier: MatchedSupplierModel | None = None
+
+
+def normalize(s: str) -> str:
     """Normalize a string for comparison."""
     if not s:
         return ""
@@ -35,7 +102,7 @@ def normalize(s):
     )  # lower, remove extra whitespace, preserve everything else
 
 
-def fuzzy_find_supplier(supplier_name):
+def fuzzy_find_supplier(supplier_name: str) -> tuple[Client | None, str]:
     """
     Find a supplier in the database using fuzzy matching.
 
@@ -45,8 +112,8 @@ def fuzzy_find_supplier(supplier_name):
     Returns:
         tuple: (matched_supplier, original_name) - The matched supplier object and the original name
     """
-    if not supplier_name:
-        return None, supplier_name
+    if not supplier_name.strip():
+        raise ValueError("Supplier name must be a non-empty string")
 
     # Get all suppliers
     suppliers = Client.objects.all()
@@ -114,12 +181,17 @@ def save_quote_file(purchase_order, file_obj):
 
 
 def extract_data_from_supplier_quote(
-    quote_path, content_type=None, use_pdf_parser=USE_PDF_PARSER
-):
+    quote_path: str,
+    content_type: str | None = None,
+    use_pdf_parser: bool = USE_PDF_PARSER,
+    ai_provider: AIProvider | None = None,
+) -> tuple[SupplierQuotePayloadModel | None, str | None]:
     """Extract data from a supplier quote file using Claude."""
     try:
         # Get the active AI provider and its API key
-        default_ai_provider = AIProvider.objects.filter(default=True).first()
+        default_ai_provider = (
+            ai_provider or AIProvider.objects.filter(default=True).first()
+        )
 
         if not default_ai_provider:
             return (
@@ -265,37 +337,52 @@ def extract_data_from_supplier_quote(
         # across every quote) so the second+ extraction within ~5 min pays ~10%
         # of the input cost.
         client = anthropic.Anthropic(api_key=api_key)
+        content_blocks: list[TextBlockParam | ImageBlockParam | DocumentBlockParam] = [
+            {
+                "type": "text",
+                "text": prompt,
+                "cache_control": {"type": "ephemeral"},
+            }
+        ]
+        if extracted_text is not None and extracted_text.strip():
+            content_blocks.append({"type": "text", "text": extracted_text})
+        elif is_pdf:
+            content_blocks.append(
+                cast(
+                    DocumentBlockParam,
+                    {
+                        "type": "document",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "application/pdf",
+                            "data": file_b64,
+                        },
+                    },
+                )
+            )
+        elif api_content_type == "image":
+            content_blocks.append(
+                cast(
+                    ImageBlockParam,
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media_type,
+                            "data": file_b64,
+                        },
+                    },
+                )
+            )
+        else:
+            content_blocks.append(
+                {"type": "text", "text": file_content.decode("utf-8", errors="replace")}
+            )
+        messages: list[MessageParam] = [{"role": "user", "content": content_blocks}]
         response = client.messages.create(
             model=default_ai_provider.model_name,
             max_tokens=4000,
-            messages=[
-                {
-                    "role": "user",
-                    "content": [
-                        {
-                            "type": "text",
-                            "text": prompt,
-                            "cache_control": {"type": "ephemeral"},
-                        },
-                    ]
-                    + (
-                        # If we have extracted text, send it as text
-                        [{"type": "text", "text": extracted_text}]
-                        if extracted_text
-                        # Otherwise send the file
-                        else [
-                            {
-                                "type": api_content_type,
-                                "source": {
-                                    "type": "base64",
-                                    "media_type": media_type,
-                                    "data": file_b64,
-                                },
-                            }
-                        ]
-                    ),
-                }
-            ],
+            messages=messages,
         )
 
         input_tokens = response.usage.input_tokens
@@ -321,35 +408,19 @@ def extract_data_from_supplier_quote(
 
         json_text = json_text.strip()
 
-        # Parse JSON
-        quote_data = json.loads(json_text)
-
-        # Process supplier data if it exists in the expected format
-        try:
-            supplier_name_from_quote = quote_data["supplier"]["name"]
-            matched_supplier, original_name = fuzzy_find_supplier(
-                supplier_name_from_quote
-            )
-
-            # Add original and matched supplier info
-            quote_data["supplier"]["original_name"] = original_name
-            quote_data["matched_supplier"] = None
-
-            if matched_supplier:
-                quote_data["matched_supplier"] = {
-                    "id": str(matched_supplier.id),
-                    "name": matched_supplier.name,
-                    "xero_id": getattr(matched_supplier, "xero_id", None),
-                }
-        except (KeyError, TypeError):
-            logging.warning("Supplier name not found in quote JSON")
+        quote_data = process_supplier_data(
+            SupplierQuotePayloadModel.model_validate(json.loads(json_text))
+        )
 
         # Return the extracted data
         return quote_data, None
 
-    except Exception as e:
-        logger.exception(f"Error extracting data from supplier quote: {e}")
-        return None, str(e)
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        logger.exception(f"Error extracting data from supplier quote: {exc}")
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
 
 def read_file_content(file_path: str) -> Optional[bytes]:
@@ -411,39 +482,56 @@ def clean_json_response(text: str) -> str:
     return text.strip()
 
 
-def process_supplier_data(quote_data: dict) -> dict:
+def extract_supplier_name(quote_data: SupplierQuotePayloadModel) -> str | None:
+    """Return the extracted supplier name when one is available for matching."""
+    supplier_name = quote_data.supplier.name
+    if supplier_name is None or not supplier_name.strip():
+        return None
+    return supplier_name
+
+
+def process_supplier_data(
+    quote_data: SupplierQuotePayloadModel,
+) -> SupplierQuotePayloadModel:
     """Process supplier matching from quote data."""
-    try:
-        supplier_name = quote_data["supplier"]["name"]
+    supplier_name = extract_supplier_name(quote_data)
+    if supplier_name:
         matched_supplier, original_name = fuzzy_find_supplier(supplier_name)
 
-        quote_data["supplier"]["original_name"] = original_name
-        quote_data["matched_supplier"] = None
-
+        supplier = quote_data.supplier.model_copy(
+            update={"original_name": original_name}
+        )
+        matched_supplier_data = None
         if matched_supplier:
-            quote_data["matched_supplier"] = {
-                "id": str(matched_supplier.id),
-                "name": matched_supplier.name,
-                "xero_id": getattr(matched_supplier, "xero_id", None),
+            matched_supplier_data = MatchedSupplierModel(
+                id=str(matched_supplier.id),
+                name=matched_supplier.name,
+                xero_contact_id=matched_supplier.xero_contact_id,
+            )
+        quote_data = quote_data.model_copy(
+            update={
+                "supplier": supplier,
+                "matched_supplier": matched_supplier_data,
             }
-    except (KeyError, TypeError):
+        )
+    else:
         logging.warning("Supplier name not found in quote JSON")
 
     return quote_data
 
 
 def create_po_line_from_quote_item(
-    purchase_order: PurchaseOrder, line_data: dict
+    purchase_order: PurchaseOrder, line_data: SupplierQuoteItemModel
 ) -> Optional[PurchaseOrderLine]:
     """Create a PO line from quote item data."""
-    description = line_data.get("description", "")
+    description = line_data.description or ""
     if not description:
         logger.warning("Skipping line item with no description")
         return None
 
-    quantity = safe_float(line_data.get("quantity", 1), 1)
-    line_total = safe_float(line_data.get("line_total", 0), 0)
-    unit_price = safe_float(line_data.get("unit_price"))
+    quantity = safe_float(line_data.quantity, 1)
+    line_total = safe_float(line_data.line_total, 0)
+    unit_price = safe_float(line_data.unit_price)
 
     unit_cost = calculate_unit_cost(quantity, line_total, unit_price, description)
 
@@ -453,16 +541,24 @@ def create_po_line_from_quote_item(
         quantity=quantity,
         unit_cost=unit_cost,
         price_tbc=unit_cost is None,
-        supplier_item_code=line_data.get("supplier_item_code", ""),
-        metal_type=line_data.get("metal_type", "unspecified"),
-        alloy=line_data.get("alloy", ""),
-        specifics=line_data.get("specifics", ""),
-        dimensions=line_data.get("dimensions", ""),
-        raw_line_data=json.loads(json.dumps(line_data)),
+        supplier_item_code=line_data.supplier_item_code or "",
+        metal_type=line_data.metal_type or MetalType.UNSPECIFIED,
+        alloy=line_data.alloy or "",
+        specifics=line_data.specifics or "",
+        dimensions=line_data.dimensions or "",
+        raw_line_data=line_data.model_dump(mode="json", exclude_none=True),
     )
 
 
-def safe_float(value, default=None):
+@overload
+def safe_float(value: QuoteScalar | None, default: float) -> float: ...
+
+
+@overload
+def safe_float(value: QuoteScalar | None, default: None = None) -> float | None: ...
+
+
+def safe_float(value: QuoteScalar | None, default: float | None = None) -> float | None:
     """Safely convert value to float with a default."""
     if value is None:
         return default
@@ -516,7 +612,7 @@ def extract_data_from_supplier_quote_gemini(
     quote_path: str,
     content_type: Optional[str] = None,
     ai_provider: Optional[AIProvider] = None,
-) -> Tuple[Optional[dict], Optional[str]]:
+) -> Tuple[Optional[SupplierQuotePayloadModel], Optional[str]]:
     """
     Extract data from a supplier quote file using Gemini,
 
@@ -607,17 +703,25 @@ def extract_data_from_supplier_quote_gemini(
             log_token_usage(response.usage, "Gemini")
 
         result_text = clean_json_response(response.text)
-        quote_data = json.loads(result_text)
-        quote_data = process_supplier_data(quote_data)
+        quote_data = process_supplier_data(
+            SupplierQuotePayloadModel.model_validate(json.loads(result_text))
+        )
 
         return quote_data, None
 
-    except json.JSONDecodeError as e:
-        logger.exception(f"Error decoding JSON from Gemini response: {e}")
-        return None, f"Invalid JSON response from Gemini: {str(e)}"
-    except Exception as e:
-        logger.exception(f"Error extracting data from supplier quote with Gemini: {e}")
-        return None, str(e)
+    except AlreadyLoggedException:
+        raise
+    except json.JSONDecodeError as exc:
+        logger.exception(f"Error decoding JSON from Gemini response: {exc}")
+        invalid_json_error = ValueError(f"Invalid JSON response from Gemini: {exc!s}")
+        err = persist_app_error(invalid_json_error)
+        raise AlreadyLoggedException(invalid_json_error, err.id) from exc
+    except Exception as exc:
+        logger.exception(
+            f"Error extracting data from supplier quote with Gemini: {exc}"
+        )
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
 
 def create_po_from_quote(
@@ -641,29 +745,39 @@ def create_po_from_quote(
 
     quote_path = os.path.join(settings.DROPBOX_WORKFLOW_FOLDER, quote.file_path)
 
-    match ai_provider.provider_type:
-        case AIProviderTypes.GOOGLE:
-            logger.info(f"Using Gemini for quote extraction: {quote.filename}")
-            quote_data, error = extract_data_from_supplier_quote_gemini(
-                quote_path, quote.mime_type, ai_provider=ai_provider
-            )
-        case AIProviderTypes.ANTHROPIC:
-            logger.info(f"Using Claude for quote extraction: {quote.filename}")
-            quote_data, error = extract_data_from_supplier_quote(
-                quote_path, quote.mime_type
-            )
-        case _:
-            err_msg = f"Invalid AI provider received: {ai_provider}."
-            logger.error(err_msg)
-            error = err_msg
+    try:
+        match ai_provider.provider_type:
+            case AIProviderTypes.GOOGLE:
+                logger.info(f"Using Gemini for quote extraction: {quote.filename}")
+                quote_data, error = extract_data_from_supplier_quote_gemini(
+                    quote_path, quote.mime_type, ai_provider=ai_provider
+                )
+            case AIProviderTypes.ANTHROPIC:
+                logger.info(f"Using Claude for quote extraction: {quote.filename}")
+                quote_data, error = extract_data_from_supplier_quote(
+                    quote_path, quote.mime_type, ai_provider=ai_provider
+                )
+            case _:
+                err_msg = f"Invalid AI provider received: {ai_provider}."
+                logger.error(err_msg)
+                error = err_msg
+    except AlreadyLoggedException as exc:
+        logger.exception(f"Quote extraction failed for {quote.filename}")
+        return None, str(exc)
 
     if error:
         return None, error
+    if quote_data is None:
+        return None, "No quote data was extracted"
 
-    quote.extracted_data = quote_data
+    quote.extracted_data = quote_data.model_dump(
+        mode="json",
+        by_alias=True,
+        exclude_none=True,
+    )
     quote.save()
 
-    items = quote_data.get("items", [])
+    items = quote_data.line_items
     if not items:
         return purchase_order, "No items found in quote"
 
