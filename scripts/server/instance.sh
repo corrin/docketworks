@@ -327,6 +327,11 @@ do_configure() {
     if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
         NEEDS_APP_BOOTSTRAP=true
     fi
+    if [[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]; then
+        echo "ERROR: $INSTANCE_DIR has config but no app/current release link." >&2
+        echo "  Restore or recreate the instance instead of reconfiguring partial state." >&2
+        exit 1
+    fi
     if [[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]; then
         echo "ERROR: --seed is only valid when creating a new instance." >&2
         echo "  Existing instance: $INSTANCE_DIR" >&2

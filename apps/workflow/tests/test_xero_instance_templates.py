@@ -180,6 +180,20 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn('[[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]', content)
         self.assertIn("--seed is only valid when creating a new instance", content)
 
+    def test_instance_script_rejects_config_without_release_link(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn(
+            '[[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]',
+            content,
+        )
+        self.assertIn("has config but no app/current release link", content)
+        self.assertIn("Restore or recreate the instance", content)
+        self.assertLess(
+            content.index("has config but no app/current release link"),
+            content.index('TARGET_SHA="$(resolve_release_ref origin/main)"'),
+        )
+
     def test_instance_script_uses_shared_releases_not_instance_checkouts(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
 
@@ -431,6 +445,17 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             'sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")',
             content,
         )
+        self.assertIn("if [[ $DO_BACKUP -eq 1 ]]; then", content)
+        self.assertLess(
+            content.index("if [[ $DO_BACKUP -eq 1 ]]; then"),
+            content.index(
+                'sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")'
+            ),
+        )
+        self.assertIn(
+            "--no-backup was used; no pre-deploy rollback backup was created",
+            content,
+        )
         self.assertIn(
             'if [[ ! -L "$local_dir/app" && ! -L "$local_dir/current" ]]; then',
             content,
@@ -457,6 +482,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             "predeploy_rollback.sh",
             content,
         )
+        self.assertIn("unless `--no-backup` was used", content)
         self.assertNotIn("legacy_" + "rollback.sh", content)
         self.assertNotIn("first legacy checkout " + "cutover", content)
 
