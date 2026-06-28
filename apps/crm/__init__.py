@@ -9,10 +9,12 @@ try:
     if apps.ready:
         from .models import PhoneCallRecord, PhoneCallRecording
         from .serializers import (
-            PhoneCallJobLinkSerializer,
+            PhoneCallJobLinkPayload,
+            PhoneCallPayloadModel,
             PhoneCallRecordSerializer,
+            PhoneCallRecordingResponse,
             PhoneCallRecordingSerializer,
-            PhoneNumberAssignmentSerializer,
+            PhoneNumberAssignmentPayload,
         )
         from .tasks import delete_archived_phone_recordings_task, sync_phone_calls_task
 except (ImportError, RuntimeError):
@@ -21,12 +23,14 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "CrmConfig",
-    "PhoneCallJobLinkSerializer",
+    "PhoneCallJobLinkPayload",
+    "PhoneCallPayloadModel",
     "PhoneCallRecord",
     "PhoneCallRecordSerializer",
     "PhoneCallRecording",
+    "PhoneCallRecordingResponse",
     "PhoneCallRecordingSerializer",
-    "PhoneNumberAssignmentSerializer",
+    "PhoneNumberAssignmentPayload",
     "delete_archived_phone_recordings_task",
     "sync_phone_calls_task",
 ]

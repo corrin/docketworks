@@ -70,7 +70,7 @@ class ClientContactMethodApiTests(BaseAPITestCase):
     def _client(self, name: str = "Acme Ltd") -> Client:
         return Client.objects.create(name=name, xero_last_modified=timezone.now())
 
-    def test_list_limit_bounds_phone_contact_methods(self) -> None:
+    def test_list_paginates_phone_contact_methods(self) -> None:
         """Catches CRM calls page regressions that fetch every phone method."""
         self.client.force_authenticate(user=self.test_staff)
         client = self._client("Acme Ltd")
@@ -83,19 +83,35 @@ class ClientContactMethodApiTests(BaseAPITestCase):
 
         response = self.client.get(
             "/api/clients/contact-methods/",
-            {"method_type": "phone", "limit": "2"},
+            {"method_type": "phone", "page_size": "2"},
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.json()), 2)
+        payload = response.json()
+        self.assertEqual(payload["count"], 3)
+        self.assertEqual(payload["page"], 1)
+        self.assertEqual(payload["page_size"], 2)
+        self.assertEqual(payload["total_pages"], 2)
+        self.assertEqual(len(payload["results"]), 2)
 
-    def test_list_limit_rejects_unbounded_values(self) -> None:
+    def test_list_page_size_is_capped(self) -> None:
         """Catches accidental oversized contact-method responses."""
         self.client.force_authenticate(user=self.test_staff)
+        client = self._client("Acme Ltd")
+        for index in range(101):
+            ClientContactMethod.objects.create(
+                client=client,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                value=f"021 555 {index:03d}",
+            )
 
         response = self.client.get(
             "/api/clients/contact-methods/",
-            {"method_type": "phone", "limit": "250"},
+            {"method_type": "phone", "page_size": "250"},
         )
 
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["count"], 101)
+        self.assertEqual(payload["page_size"], 100)
+        self.assertEqual(len(payload["results"]), 100)

@@ -21,16 +21,21 @@
       </div>
 
       <div class="space-y-6">
-        <div class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
+        <div v-if="isOfficeStaff" class="bg-white rounded-lg border border-gray-200 p-6 shadow-sm">
           <div class="mb-4 flex items-center justify-between gap-3">
             <h3 class="text-lg font-medium text-gray-900">Linked Phone Calls</h3>
-            <button
-              type="button"
-              class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-              @click="loadLinkedPhoneCalls"
-            >
-              Refresh
-            </button>
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-gray-500"
+                >Showing {{ phoneCalls.length }} of {{ phoneCallCount }}</span
+              >
+              <button
+                type="button"
+                class="px-3 py-1.5 text-xs font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                @click="loadLinkedPhoneCalls"
+              >
+                Refresh
+              </button>
+            </div>
           </div>
           <div v-if="isLoadingPhoneCalls" class="text-sm text-gray-500">Loading phone calls...</div>
           <div v-else-if="phoneCallError" class="text-sm text-red-600">
@@ -293,6 +298,7 @@ import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
 import { toast } from 'vue-sonner'
+import { useAuthStore } from '@/stores/auth'
 
 type JobEventCreateRequest = z.infer<typeof schemas.JobEventCreateRequest>
 type JobEventCreateResponse = z.infer<typeof schemas.JobEventCreateResponse>
@@ -307,6 +313,7 @@ interface Props {
 }
 
 const props = defineProps<Props>()
+const authStore = useAuthStore()
 const emit = defineEmits<{
   'event-added': [event: JobEventCreateResponse['event']]
   'job-updated': []
@@ -324,6 +331,8 @@ const expandedItems = ref<Set<string>>(new Set())
 
 const timelineEntries = ref<TimelineEntry[]>([])
 const phoneCalls = ref<PhoneCallRecord[]>([])
+const phoneCallCount = ref(0)
+const isOfficeStaff = computed(() => Boolean(authStore.user?.is_office_staff))
 
 // Transform timeline entries to camelCase format for template
 const timelineItems = computed(() => {
@@ -367,18 +376,25 @@ async function loadTimeline() {
 }
 
 async function loadLinkedPhoneCalls() {
-  if (!props.jobId) return
+  if (!props.jobId || !isOfficeStaff.value) {
+    phoneCalls.value = []
+    phoneCallCount.value = 0
+    return
+  }
   isLoadingPhoneCalls.value = true
   phoneCallError.value = null
   try {
-    phoneCalls.value = await api.crm_phone_calls_list({
-      queries: { job: props.jobId },
+    const response = await api.crm_phone_calls_list({
+      queries: { job: props.jobId, page: 1, page_size: 50 },
     })
+    phoneCalls.value = response.results
+    phoneCallCount.value = response.count
   } catch (e) {
     phoneCallError.value = 'Failed to load linked phone calls'
     toast.error(phoneCallError.value)
     console.error('Failed to load linked phone calls:', e)
     phoneCalls.value = []
+    phoneCallCount.value = 0
   } finally {
     isLoadingPhoneCalls.value = false
   }

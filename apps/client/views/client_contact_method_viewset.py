@@ -3,10 +3,10 @@
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
-from rest_framework.exceptions import ValidationError
 
 from apps.client.models import ClientContactMethod
 from apps.client.serializers import ClientContactMethodSerializer
+from apps.workflow.api.pagination import PageSizePagination
 
 
 class ClientContactMethodViewSet(viewsets.ModelViewSet):
@@ -14,6 +14,7 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
 
     serializer_class = ClientContactMethodSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = PageSizePagination
 
     @extend_schema(
         parameters=[
@@ -36,7 +37,13 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
                 required=False,
             ),
             OpenApiParameter(
-                name="limit",
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page_size",
                 type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
                 required=False,
@@ -66,18 +73,4 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
         if method_type:
             queryset = queryset.filter(method_type=method_type)
 
-        queryset = queryset.distinct().order_by("method_type", "-is_primary", "value")
-
-        limit = self.request.query_params.get("limit")
-        if not limit:
-            return queryset
-
-        try:
-            parsed_limit = int(limit)
-        except ValueError as exc:
-            raise ValidationError({"limit": "Limit must be an integer"}) from exc
-
-        if parsed_limit < 1 or parsed_limit > 100:
-            raise ValidationError({"limit": "Limit must be between 1 and 100"})
-
-        return queryset[:parsed_limit]
+        return queryset.distinct().order_by("method_type", "-is_primary", "value")

@@ -238,11 +238,19 @@ def link_phone_call_to_job(
 ) -> PhoneCallRecord:
     from apps.job.models import Job
 
-    call = PhoneCallRecord.objects.select_related("client").get(id=call_id)
+    try:
+        call = PhoneCallRecord.objects.select_related("client").get(id=call_id)
+    except PhoneCallRecord.DoesNotExist as exc:
+        raise ValueError("Phone call not found") from exc
+
     if not call.client_id:
         raise ValueError("Phone call must be assigned to a client before linking a job")
 
-    job = Job.objects.select_related("client").get(id=job_id)
+    try:
+        job = Job.objects.select_related("client").get(id=job_id)
+    except Job.DoesNotExist as exc:
+        raise ValueError("Job not found") from exc
+
     if job.client_id != call.client_id:
         raise ValueError("Phone call can only be linked to a job for the same client")
 
@@ -261,7 +269,11 @@ def link_phone_call_to_job(
 
 
 def unlink_phone_call_job(*, call_id: str) -> PhoneCallRecord:
-    call = PhoneCallRecord.objects.get(id=call_id)
+    try:
+        call = PhoneCallRecord.objects.get(id=call_id)
+    except PhoneCallRecord.DoesNotExist as exc:
+        raise ValueError("Phone call not found") from exc
+
     call.job = None
     call.job_linked_by = None
     call.job_linked_at = None

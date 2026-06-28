@@ -357,7 +357,12 @@
             <CardHeader>
               <div class="flex items-center justify-between gap-3">
                 <CardTitle>Interactions</CardTitle>
-                <Button variant="outline" size="sm" @click="loadPhoneCalls">Refresh</Button>
+                <div class="flex items-center gap-2">
+                  <Badge variant="outline"
+                    >Showing {{ phoneCalls.length }} of {{ phoneCallCount }}</Badge
+                  >
+                  <Button variant="outline" size="sm" @click="loadPhoneCalls">Refresh</Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -439,6 +444,7 @@ const isSavingAlias = ref(false)
 const newAlias = ref('')
 const supplierAliases = ref<SupplierSearchAlias[]>([])
 const phoneCalls = ref<PhoneCallRecord[]>([])
+const phoneCallCount = ref(0)
 const isLoadingPhoneCalls = ref(false)
 const phoneCallError = ref<string | null>(null)
 
@@ -563,14 +569,17 @@ async function loadPhoneCalls() {
   isLoadingPhoneCalls.value = true
   phoneCallError.value = null
   try {
-    phoneCalls.value = await api.crm_phone_calls_list({
-      queries: { client: props.id },
+    const response = await api.crm_phone_calls_list({
+      queries: { client: props.id, page: 1, page_size: 50 },
     })
+    phoneCalls.value = response.results
+    phoneCallCount.value = response.count
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load phone interactions'
     phoneCallError.value = message
     console.error('Failed to load phone interactions:', err)
     toast.error(message)
+    phoneCallCount.value = 0
   } finally {
     isLoadingPhoneCalls.value = false
   }

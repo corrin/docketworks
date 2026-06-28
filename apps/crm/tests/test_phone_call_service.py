@@ -1,4 +1,5 @@
 import tempfile
+import uuid
 from pathlib import Path
 from unittest.mock import patch
 
@@ -264,13 +265,11 @@ class PhoneCallSyncTests(BaseTestCase):
         company_defaults.phone_provider_username = "user"
         company_defaults.phone_provider_password = "secret"
         company_defaults.phone_provider_account_code = "account"
-        company_defaults.save(
-            update_fields=[
-                "phone_provider_base_url",
-                "phone_provider_username",
-                "phone_provider_password",
-                "phone_provider_account_code",
-            ]
+        CompanyDefaults.objects.filter(pk=company_defaults.pk).update(
+            phone_provider_base_url=company_defaults.phone_provider_base_url,
+            phone_provider_username=company_defaults.phone_provider_username,
+            phone_provider_password=company_defaults.phone_provider_password,
+            phone_provider_account_code=company_defaults.phone_provider_account_code,
         )
 
     def tearDown(self) -> None:
@@ -425,24 +424,73 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         filtered = self.api.get("/api/crm/phone-calls/", {"job": str(self.job.id)})
 
         self.assertEqual(filtered.status_code, 200)
-        self.assertEqual(len(filtered.data), 1)
-        self.assertEqual(filtered.data[0]["id"], str(self.call.id))
+        self.assertEqual(filtered.data["count"], 1)
+        self.assertEqual(len(filtered.data["results"]), 1)
+        self.assertEqual(filtered.data["results"][0]["id"], str(self.call.id))
 
-    def test_list_limit_bounds_recent_calls(self) -> None:
+    def test_list_paginates_recent_calls(self) -> None:
         """Catches CRM calls page regressions that fetch the full call archive."""
         self._call("call-2", client=self.client_obj)
         self._call("call-3", client=self.client_obj)
 
-        response = self.api.get("/api/crm/phone-calls/", {"limit": "2"})
+        response = self.api.get("/api/crm/phone-calls/", {"page_size": "2"})
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(len(response.data), 2)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(response.data["page"], 1)
+        self.assertEqual(response.data["page_size"], 2)
+        self.assertEqual(response.data["total_pages"], 2)
+        self.assertEqual(len(response.data["results"]), 2)
 
-    def test_list_limit_rejects_unbounded_values(self) -> None:
+    def test_list_page_size_is_capped(self) -> None:
         """Catches accidental oversized phone-call responses."""
-        response = self.api.get("/api/crm/phone-calls/", {"limit": "250"})
+        for index in range(101):
+            self._call(f"call-{index + 2}", client=self.client_obj)
+
+        response = self.api.get("/api/crm/phone-calls/", {"page_size": "250"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 102)
+        self.assertEqual(response.data["page_size"], 100)
+        self.assertEqual(len(response.data["results"]), 100)
+
+    def test_bad_call_id_does_not_persist_app_error(self) -> None:
+        """Catches client typos being treated as server errors."""
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            f"/api/crm/phone-calls/{uuid.uuid4()}/job-link/",
+            {"job": str(self.job.id)},
+            format="json",
+        )
 
         self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_bad_job_id_does_not_persist_app_error(self) -> None:
+        """Catches client typos being treated as server errors."""
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            f"/api/crm/phone-calls/{self.call.id}/job-link/",
+            {"job": str(uuid.uuid4())},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Job not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_bad_call_id_on_unlink_does_not_persist_app_error(self) -> None:
+        """Catches client typos being treated as server errors."""
+        before = AppError.objects.count()
+
+        response = self.api.delete(f"/api/crm/phone-calls/{uuid.uuid4()}/job-link/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
 
     def test_link_rejects_unmatched_call(self) -> None:
         unmatched = self._call("unmatched", client=None)

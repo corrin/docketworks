@@ -725,6 +725,13 @@ const ClientContactMethod = z.object({
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
+const PaginatedClientContactMethodList = z.object({
+  results: z.array(ClientContactMethod),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
+})
 const ClientContactMethodRequest = z.object({
   client: z.string().uuid().nullish(),
   contact: z.string().uuid().nullish(),
@@ -1165,6 +1172,13 @@ const PhoneCallRecord = z.object({
   recording: PhoneCallRecording.nullable(),
   imported_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
+})
+const PaginatedPhoneCallRecordList = z.object({
+  results: z.array(PhoneCallRecord),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
 })
 const PhoneCallJobLinkRequest = z.object({ job: z.string().uuid() })
 const PhoneNumberAssignmentRequest = z.object({
@@ -3536,6 +3550,7 @@ export const schemas = {
   MethodTypeEnum,
   ClientContactMethodSourceEnum,
   ClientContactMethod,
+  PaginatedClientContactMethodList,
   ClientContactMethodRequest,
   PatchedClientContactMethodRequest,
   ClientContact,
@@ -3559,6 +3574,7 @@ export const schemas = {
   CompanyDefaultsSchema,
   PhoneCallRecording,
   PhoneCallRecord,
+  PaginatedPhoneCallRecordList,
   PhoneCallJobLinkRequest,
   PhoneNumberAssignmentRequest,
   PhoneNumberAssignment,
@@ -4925,17 +4941,22 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         schema: z.string().uuid().optional(),
       },
       {
-        name: 'limit',
-        type: 'Query',
-        schema: z.number().int().optional(),
-      },
-      {
         name: 'method_type',
         type: 'Query',
         schema: z.string().optional(),
       },
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
     ],
-    response: z.array(ClientContactMethod),
+    response: PaginatedClientContactMethodList,
   },
   {
     method: 'post',
@@ -5692,12 +5713,17 @@ DELETE: Clear a logo field and remove the file from disk.`,
         schema: z.string().uuid().optional(),
       },
       {
-        name: 'limit',
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
         type: 'Query',
         schema: z.number().int().optional(),
       },
     ],
-    response: z.array(PhoneCallRecord),
+    response: PaginatedPhoneCallRecordList,
   },
   {
     method: 'get',

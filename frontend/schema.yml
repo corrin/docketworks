@@ -1475,13 +1475,17 @@ paths:
             type: string
             format: uuid
         - in: query
-          name: limit
-          schema:
-            type: integer
-        - in: query
           name: method_type
           schema:
             type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: page_size
+          schema:
+            type: integer
       tags:
         - clients
       security:
@@ -1491,9 +1495,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ClientContactMethod'
+                $ref: '#/components/schemas/PaginatedClientContactMethodList'
           description: ''
     post:
       operationId: clients_contact_methods_create
@@ -2587,7 +2589,11 @@ paths:
             type: string
             format: uuid
         - in: query
-          name: limit
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: page_size
           schema:
             type: integer
       tags:
@@ -2599,9 +2605,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PhoneCallRecord'
+                $ref: '#/components/schemas/PaginatedPhoneCallRecordList'
           description: ''
   /api/crm/phone-calls/{id}/:
     get:
@@ -15674,6 +15678,31 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AppError'
+    PaginatedClientContactMethodList:
+      type: object
+      required:
+        - results
+        - count
+        - page
+        - page_size
+        - total_pages
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientContactMethod'
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_pages:
+          type: integer
+          example: 3
     PaginatedCompleteJobList:
       type: object
       required:
@@ -15697,6 +15726,31 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CompleteJob'
+    PaginatedPhoneCallRecordList:
+      type: object
+      required:
+        - results
+        - count
+        - page
+        - page_size
+        - total_pages
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhoneCallRecord'
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_pages:
+          type: integer
+          example: 3
     PaginatedScheduledTaskExecutionList:
       type: object
       required:
