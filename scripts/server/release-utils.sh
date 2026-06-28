@@ -84,7 +84,6 @@ newest_predeploy_backup_for_sha() {
 
 instance_current_sha() {
     local instance="$1"
-    local instance_dir="$INSTANCES_DIR/$instance"
     local app_target
     local legacy_current_target
     app_target="$(instance_app_link_path "$instance")"
@@ -94,10 +93,6 @@ instance_current_sha() {
         cat "$app_target/.release-sha"
     elif [[ -L "$legacy_current_target" && -f "$legacy_current_target/.release-sha" ]]; then
         cat "$legacy_current_target/.release-sha"
-    elif [[ -d "$instance_dir/.git" ]]; then
-        local inst_user
-        inst_user="$(instance_user "$instance")"
-        sudo -u "$inst_user" git -C "$instance_dir" rev-parse HEAD
     else
         echo ""
     fi
@@ -311,28 +306,4 @@ cleanup_unreferenced_releases() {
         log "Removing unreferenced release $sha"
         rm -rf "$release_dir"
     done
-}
-
-compact_legacy_instance_checkout() {
-    local instance="$1"
-    local instance_dir="$INSTANCES_DIR/$instance"
-
-    [[ -d "$instance_dir/.git" ]] || return 0
-
-    log "  Compacting legacy checkout payload for $instance..."
-    local name path
-    for path in "$instance_dir"/* "$instance_dir"/.[!.]* "$instance_dir"/..?*; do
-        [[ -e "$path" ]] || continue
-        name="$(basename "$path")"
-        case "$name" in
-            .|..|.env|.env.tmp.*|.fqdn|.dr-mode|.bash_profile|app|current|deploy-state.env|gcp-credentials.json|logs|mediafiles|dropbox|phone-recordings|session-replays|backups|fixtures|.fixtures)
-                ;;
-            gunicorn.sock)
-                ;;
-            *)
-                rm -rf "$path"
-                ;;
-        esac
-    done
-    log "  Legacy checkout payload compacted for $instance"
 }

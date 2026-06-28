@@ -321,7 +321,7 @@ do_configure() {
     local TEST_DB_NAME="$TEST_DB_USER"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
-    if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" || -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
+    if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" || -f "$INSTANCE_DIR/.env" ]]; then
         IS_EXISTING=true
     fi
     if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
@@ -479,13 +479,8 @@ EOSQL
     if [[ ! -L "$INSTANCE_DIR/app" ]]; then
         local TARGET_SHA
         fetch_local_repo
-        if [[ -d "$INSTANCE_DIR/.git" ]]; then
-            TARGET_SHA="$(instance_current_sha "$INSTANCE")"
-            log "Creating app release link from legacy checkout SHA $TARGET_SHA"
-        else
-            TARGET_SHA="$(resolve_release_ref origin/main)"
-            log "Creating app release link from origin/main SHA $TARGET_SHA"
-        fi
+        TARGET_SHA="$(resolve_release_ref origin/main)"
+        log "Creating app release link from origin/main SHA $TARGET_SHA"
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"
