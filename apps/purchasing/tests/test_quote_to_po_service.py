@@ -9,6 +9,7 @@ import pytest
 from django.utils import timezone
 
 from apps.client.models import Client
+from apps.job.enums import MetalType
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderSupplierQuote
 from apps.purchasing.services.quote_to_po_service import (
     SupplierQuoteItemModel,
@@ -18,6 +19,7 @@ from apps.purchasing.services.quote_to_po_service import (
     extract_data_from_supplier_quote,
 )
 from apps.workflow.enums import AIProviderTypes
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AIProvider
 
 
@@ -182,13 +184,10 @@ def test_extract_rejects_malformed_quote_payload_shape(
         "apps.purchasing.services.quote_to_po_service.anthropic.Anthropic",
         return_value=mock_client,
     ):
-        quote_data, error = extract_data_from_supplier_quote(
-            str(quote_path), content_type="text/plain"
-        )
+        with pytest.raises(AlreadyLoggedException) as exc_info:
+            extract_data_from_supplier_quote(str(quote_path), content_type="text/plain")
 
-    assert quote_data is None
-    assert error is not None
-    assert error_text in error
+    assert error_text in str(exc_info.value)
 
 
 def test_create_po_from_quote_saves_plain_json_payload(
@@ -205,13 +204,15 @@ def test_create_po_from_quote_saves_plain_json_payload(
         supplier=SupplierQuoteSupplierModel(name="Acme Metals"),
         quote_reference="QX-1",
         items=[
-            SupplierQuoteItemModel(
-                description="100mm SHS",
-                quantity=2,
-                line_total=100.00,
-                unit_price="50.00",
-                supplier_item_code="SHS-100",
-                metal_type="mild_steel",
+            SupplierQuoteItemModel.model_validate(
+                {
+                    "description": "100mm SHS",
+                    "quantity": 2,
+                    "line_total": 100.00,
+                    "unit_price": "50.00",
+                    "supplier_item_code": "SHS-100",
+                    "metal_type": "mild_steel",
+                }
             )
         ],
     )
@@ -252,3 +253,74 @@ def test_create_po_from_quote_saves_plain_json_payload(
         "supplier_item_code": "SHS-100",
         "metal_type": "mild_steel",
     }
+
+
+def test_create_po_from_quote_normalizes_invalid_metal_type(
+    anthropic_provider: AIProvider,
+) -> None:
+    purchase_order = PurchaseOrder.objects.create(po_number="PO-QTP-2")
+    quote = PurchaseOrderSupplierQuote.objects.create(
+        purchase_order=purchase_order,
+        filename="quote.txt",
+        file_path="quote.txt",
+        mime_type="text/plain",
+    )
+    quote_payload = SupplierQuotePayloadModel(
+        supplier=SupplierQuoteSupplierModel(name="Acme Metals"),
+        items=[
+            SupplierQuoteItemModel.model_validate(
+                {
+                    "description": "100mm SHS",
+                    "quantity": 2,
+                    "line_total": 100.00,
+                    "metal_type": "carbonium",
+                }
+            )
+        ],
+    )
+
+    with patch(
+        "apps.purchasing.services.quote_to_po_service.extract_data_from_supplier_quote",
+        return_value=(quote_payload, None),
+    ):
+        result, error = create_po_from_quote(
+            purchase_order,
+            quote,
+            anthropic_provider,
+        )
+
+    assert error is None
+    assert result == purchase_order
+    quote.refresh_from_db()
+    saved_quote_data = SupplierQuotePayloadModel.model_validate(quote.extracted_data)
+    assert saved_quote_data.line_items[0].metal_type == MetalType.UNSPECIFIED
+    line = purchase_order.po_lines.get()
+    assert line.metal_type == MetalType.UNSPECIFIED
+    saved_line_data = SupplierQuoteItemModel.model_validate(line.raw_line_data)
+    assert saved_line_data.metal_type == MetalType.UNSPECIFIED
+
+
+def test_create_po_from_quote_returns_already_logged_extraction_error(
+    anthropic_provider: AIProvider,
+) -> None:
+    purchase_order = PurchaseOrder.objects.create(po_number="PO-QTP-3")
+    quote = PurchaseOrderSupplierQuote.objects.create(
+        purchase_order=purchase_order,
+        filename="quote.txt",
+        file_path="quote.txt",
+        mime_type="text/plain",
+    )
+    logged_error = AlreadyLoggedException(ValueError("Invalid quote payload"), "err-1")
+
+    with patch(
+        "apps.purchasing.services.quote_to_po_service.extract_data_from_supplier_quote",
+        side_effect=logged_error,
+    ):
+        result, error = create_po_from_quote(
+            purchase_order,
+            quote,
+            anthropic_provider,
+        )
+
+    assert result is None
+    assert error == "Invalid quote payload"

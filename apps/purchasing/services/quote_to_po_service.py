@@ -14,7 +14,7 @@ from anthropic.types import (
 )
 from django.conf import settings
 from google import genai
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from rapidfuzz import fuzz, process
 
 from apps.client.models import Client
@@ -25,7 +25,9 @@ from apps.purchasing.models import (
     PurchaseOrderSupplierQuote,
 )
 from apps.workflow.enums import AIProviderTypes
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AIProvider
+from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +36,21 @@ USE_PDF_PARSER = False
 
 
 QuoteScalar = str | int | float
+
+
+def normalize_quote_metal_type(value: object) -> MetalType | None:
+    """Return a valid MetalType for AI-extracted quote data."""
+    if value is None:
+        return None
+    if isinstance(value, MetalType):
+        return value
+    if isinstance(value, str) and not value.strip():
+        return None
+    if isinstance(value, str) and value in MetalType.values:
+        return MetalType(value)
+
+    logger.warning("Invalid quote metal_type %r; using unspecified", value)
+    return MetalType.UNSPECIFIED
 
 
 class SupplierQuoteBaseModel(BaseModel):
@@ -59,9 +76,14 @@ class SupplierQuoteItemModel(SupplierQuoteBaseModel):
     unit_price: QuoteScalar | None = None
     line_total: QuoteScalar | None = None
     supplier_item_code: str | None = None
-    metal_type: str | None = None
+    metal_type: MetalType | None = None
     alloy: str | None = None
     specifics: str | None = None
+
+    @field_validator("metal_type", mode="before")
+    @classmethod
+    def validate_metal_type(cls, value: object) -> MetalType | None:
+        return normalize_quote_metal_type(value)
 
 
 class SupplierQuotePayloadModel(SupplierQuoteBaseModel):
@@ -383,39 +405,19 @@ def extract_data_from_supplier_quote(
 
         json_text = json_text.strip()
 
-        # Parse and validate untrusted model output at the AI boundary.
-        quote_data = SupplierQuotePayloadModel.model_validate(json.loads(json_text))
-
-        supplier_name_from_quote = extract_supplier_name(quote_data)
-        if supplier_name_from_quote:
-            matched_supplier, original_name = fuzzy_find_supplier(
-                supplier_name_from_quote
-            )
-            supplier = quote_data.supplier.model_copy(
-                update={"original_name": original_name}
-            )
-            matched_supplier_data = None
-            if matched_supplier:
-                matched_supplier_data = MatchedSupplierModel(
-                    id=str(matched_supplier.id),
-                    name=matched_supplier.name,
-                    xero_contact_id=matched_supplier.xero_contact_id,
-                )
-            quote_data = quote_data.model_copy(
-                update={
-                    "supplier": supplier,
-                    "matched_supplier": matched_supplier_data,
-                }
-            )
-        else:
-            logging.warning("Supplier name not found in quote JSON")
+        quote_data = process_supplier_data(
+            SupplierQuotePayloadModel.model_validate(json.loads(json_text))
+        )
 
         # Return the extracted data
         return quote_data, None
 
-    except Exception as e:
-        logger.exception(f"Error extracting data from supplier quote: {e}")
-        return None, str(e)
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        logger.exception(f"Error extracting data from supplier quote: {exc}")
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
 
 def read_file_content(file_path: str) -> Optional[bytes]:
@@ -537,7 +539,7 @@ def create_po_line_from_quote_item(
         unit_cost=unit_cost,
         price_tbc=unit_cost is None,
         supplier_item_code=line_data.supplier_item_code or "",
-        metal_type=line_data.metal_type or "unspecified",
+        metal_type=line_data.metal_type or MetalType.UNSPECIFIED,
         alloy=line_data.alloy or "",
         specifics=line_data.specifics or "",
         dimensions=line_data.dimensions or "",
@@ -704,12 +706,21 @@ def extract_data_from_supplier_quote_gemini(
 
         return quote_data, None
 
-    except json.JSONDecodeError as e:
-        logger.exception(f"Error decoding JSON from Gemini response: {e}")
-        return None, f"Invalid JSON response from Gemini: {str(e)}"
-    except Exception as e:
-        logger.exception(f"Error extracting data from supplier quote with Gemini: {e}")
-        return None, str(e)
+    except AlreadyLoggedException:
+        raise
+    except json.JSONDecodeError as exc:
+        logger.exception(f"Error decoding JSON from Gemini response: {exc}")
+        invalid_json_error = ValueError(
+            f"Invalid JSON response from Gemini: {str(exc)}"
+        )
+        err = persist_app_error(invalid_json_error)
+        raise AlreadyLoggedException(invalid_json_error, err.id) from exc
+    except Exception as exc:
+        logger.exception(
+            f"Error extracting data from supplier quote with Gemini: {exc}"
+        )
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
 
 
 def create_po_from_quote(
@@ -733,21 +744,25 @@ def create_po_from_quote(
 
     quote_path = os.path.join(settings.DROPBOX_WORKFLOW_FOLDER, quote.file_path)
 
-    match ai_provider.provider_type:
-        case AIProviderTypes.GOOGLE:
-            logger.info(f"Using Gemini for quote extraction: {quote.filename}")
-            quote_data, error = extract_data_from_supplier_quote_gemini(
-                quote_path, quote.mime_type, ai_provider=ai_provider
-            )
-        case AIProviderTypes.ANTHROPIC:
-            logger.info(f"Using Claude for quote extraction: {quote.filename}")
-            quote_data, error = extract_data_from_supplier_quote(
-                quote_path, quote.mime_type
-            )
-        case _:
-            err_msg = f"Invalid AI provider received: {ai_provider}."
-            logger.error(err_msg)
-            error = err_msg
+    try:
+        match ai_provider.provider_type:
+            case AIProviderTypes.GOOGLE:
+                logger.info(f"Using Gemini for quote extraction: {quote.filename}")
+                quote_data, error = extract_data_from_supplier_quote_gemini(
+                    quote_path, quote.mime_type, ai_provider=ai_provider
+                )
+            case AIProviderTypes.ANTHROPIC:
+                logger.info(f"Using Claude for quote extraction: {quote.filename}")
+                quote_data, error = extract_data_from_supplier_quote(
+                    quote_path, quote.mime_type
+                )
+            case _:
+                err_msg = f"Invalid AI provider received: {ai_provider}."
+                logger.error(err_msg)
+                error = err_msg
+    except AlreadyLoggedException as exc:
+        logger.exception(f"Quote extraction failed for {quote.filename}")
+        return None, str(exc)
 
     if error:
         return None, error
