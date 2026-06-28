@@ -40,6 +40,11 @@ if [[ ! -d "$APP_DIR" ]]; then
     exit 1
 fi
 
+if [[ ! -r "$APP_DIR/.venv/bin/activate" ]]; then
+    echo "ERROR: No readable app virtualenv found at $APP_DIR/.venv/bin/activate" >&2
+    exit 1
+fi
+
 # Build the command string with proper escaping
 # Commands run from the immutable release; mutable instance state is supplied
 # through the instance .env.

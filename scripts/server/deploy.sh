@@ -308,6 +308,7 @@ for instance in "${TARGETS[@]}"; do
     inst_user="$(instance_user "$instance")"
     ensure_instance_app_link "$instance"
     previous_sha="$(instance_current_sha "$instance")"
+    remove_legacy_current_link "$instance"
 
     log "--- Processing instance: $instance ---"
     log "  Previous SHA: ${previous_sha:-none}"
@@ -406,9 +407,6 @@ else
 fi
 
 if [[ ${#FAILED_INSTANCES[@]} -eq 0 ]]; then
-    for instance in "${TARGETS[@]}"; do
-        remove_legacy_current_link "$instance"
-    done
     cleanup_unreferenced_releases "$TARGET_SHA"
 else
     log "  Skipping release cleanup — failed instances may still need their previous release for rollback"

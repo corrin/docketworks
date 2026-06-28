@@ -104,7 +104,12 @@ assert_failure \
     "state_sha_references_release rejects old full-SHA deploy-state values" \
     state_sha_references_release "$FULL_SHA" "$FULL_SHA"
 
-write_deploy_state "msm-uat" "$FULL_SHA" "$ROLLED_FROM_SHA" "$(id -un)"
+CHOWN_STUB_DIR="$TMP_DIR/stub-bin"
+mkdir -p "$CHOWN_STUB_DIR"
+printf '#!/bin/sh\nexit 0\n' > "$CHOWN_STUB_DIR/chown"
+chmod +x "$CHOWN_STUB_DIR/chown"
+
+PATH="$CHOWN_STUB_DIR:$PATH" write_deploy_state "msm-uat" "$FULL_SHA" "$ROLLED_FROM_SHA" "$(id -un)"
 
 assert_eq \
     "PREVIOUS_SHA=71f21401" \
