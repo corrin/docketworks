@@ -1,6 +1,7 @@
 """Quote-to-PO extraction coverage (Trello #325 — anthropic SDK transition)."""
 
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -14,7 +15,7 @@ from apps.workflow.models import AIProvider
 
 
 @pytest.fixture
-def anthropic_provider(db):
+def anthropic_provider(db: object) -> AIProvider:
     return AIProvider.objects.create(
         name="Test Claude",
         provider_type=AIProviderTypes.ANTHROPIC,
@@ -24,7 +25,9 @@ def anthropic_provider(db):
     )
 
 
-def test_extract_uses_sdk_and_parses_response(anthropic_provider, tmp_path):
+def test_extract_uses_sdk_and_parses_response(
+    anthropic_provider: AIProvider, tmp_path: Path
+) -> None:
     """SDK path: prompt + file go through messages.create, JSON response parses."""
     quote_text = "Quote QX-1: 2x 100mm SHS @ $50.00"
     quote_path = tmp_path / "quote.txt"
@@ -60,6 +63,7 @@ def test_extract_uses_sdk_and_parses_response(anthropic_provider, tmp_path):
         )
 
     assert error is None
+    assert quote_data is not None
     assert quote_data["supplier"]["name"] == "Acme Metals"
     assert quote_data["quote_reference"] == "QX-1"
     assert len(quote_data["items"]) == 1
@@ -72,3 +76,52 @@ def test_extract_uses_sdk_and_parses_response(anthropic_provider, tmp_path):
     prompt_block = call_kwargs["messages"][0]["content"][0]
     assert prompt_block["type"] == "text"
     assert prompt_block["cache_control"] == {"type": "ephemeral"}
+
+
+def test_extract_pdf_parser_empty_text_falls_back_to_document(
+    anthropic_provider: AIProvider, tmp_path: Path
+) -> None:
+    """Empty PDF text extraction preserves the original PDF document payload."""
+    quote_path = tmp_path / "quote.pdf"
+    quote_path.write_bytes(b"%PDF-1.7 fake pdf bytes")
+
+    payload = {
+        "supplier": {"name": "Acme Metals"},
+        "quote_reference": "PDF-1",
+        "items": [],
+    }
+    mock_response = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=json.dumps(payload))],
+        usage=SimpleNamespace(input_tokens=123, output_tokens=45),
+    )
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = mock_response
+    mock_page = MagicMock()
+    mock_page.extract_text.return_value = ""
+    mock_pdf = MagicMock()
+    mock_pdf.__enter__.return_value.pages = [mock_page]
+
+    with (
+        patch(
+            "apps.purchasing.services.quote_to_po_service.anthropic.Anthropic",
+            return_value=mock_client,
+        ),
+        patch(
+            "apps.purchasing.services.quote_to_po_service.pdfplumber.open",
+            return_value=mock_pdf,
+        ),
+    ):
+        quote_data, error = extract_data_from_supplier_quote(
+            str(quote_path), content_type="application/pdf", use_pdf_parser=True
+        )
+
+    assert error is None
+    assert quote_data is not None
+    assert quote_data["quote_reference"] == "PDF-1"
+    content_blocks = mock_client.messages.create.call_args.kwargs["messages"][0][
+        "content"
+    ]
+    document_block = content_blocks[1]
+    assert document_block["type"] == "document"
+    assert document_block["source"]["type"] == "base64"
+    assert document_block["source"]["media_type"] == "application/pdf"

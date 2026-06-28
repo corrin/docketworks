@@ -2,7 +2,7 @@ import base64
 import json
 import logging
 import os
-from typing import Optional, Tuple, cast
+from typing import Optional, Tuple, TypedDict, cast
 
 import anthropic
 import pdfplumber
@@ -32,7 +32,38 @@ logger = logging.getLogger(__name__)
 USE_PDF_PARSER = False
 
 
-def normalize(s):
+class SupplierPayload(TypedDict, total=False):
+    name: str
+    address: str
+    original_name: str
+
+
+class MatchedSupplierPayload(TypedDict):
+    id: str
+    name: str
+    xero_id: str | None
+
+
+class QuoteItemPayload(TypedDict, total=False):
+    description: str
+    quantity: str | int | float
+    dimensions: str
+    unit_price: str | int | float
+    line_total: str | int | float
+    supplier_item_code: str
+    metal_type: str
+    alloy: str
+    specifics: str
+
+
+class SupplierQuotePayload(TypedDict, total=False):
+    supplier: SupplierPayload
+    quote_reference: str
+    items: list[QuoteItemPayload]
+    matched_supplier: MatchedSupplierPayload | None
+
+
+def normalize(s: str) -> str:
     """Normalize a string for comparison."""
     if not s:
         return ""
@@ -41,7 +72,7 @@ def normalize(s):
     )  # lower, remove extra whitespace, preserve everything else
 
 
-def fuzzy_find_supplier(supplier_name):
+def fuzzy_find_supplier(supplier_name: str) -> tuple[Client | None, str]:
     """
     Find a supplier in the database using fuzzy matching.
 
@@ -51,8 +82,8 @@ def fuzzy_find_supplier(supplier_name):
     Returns:
         tuple: (matched_supplier, original_name) - The matched supplier object and the original name
     """
-    if not supplier_name:
-        return None, supplier_name
+    if not supplier_name.strip():
+        raise ValueError("Supplier name must be a non-empty string")
 
     # Get all suppliers
     suppliers = Client.objects.all()
@@ -120,8 +151,10 @@ def save_quote_file(purchase_order, file_obj):
 
 
 def extract_data_from_supplier_quote(
-    quote_path, content_type=None, use_pdf_parser=USE_PDF_PARSER
-):
+    quote_path: str,
+    content_type: str | None = None,
+    use_pdf_parser: bool = USE_PDF_PARSER,
+) -> tuple[SupplierQuotePayload | None, str | None]:
     """Extract data from a supplier quote file using Claude."""
     try:
         # Get the active AI provider and its API key
@@ -278,9 +311,9 @@ def extract_data_from_supplier_quote(
                 "cache_control": {"type": "ephemeral"},
             }
         ]
-        if extracted_text:
+        if extracted_text is not None and extracted_text.strip():
             content_blocks.append({"type": "text", "text": extracted_text})
-        elif api_content_type == "document":
+        elif is_pdf:
             content_blocks.append(
                 cast(
                     DocumentBlockParam,
@@ -288,7 +321,7 @@ def extract_data_from_supplier_quote(
                         "type": "document",
                         "source": {
                             "type": "base64",
-                            "media_type": media_type,
+                            "media_type": "application/pdf",
                             "data": file_b64,
                         },
                     },
@@ -343,11 +376,14 @@ def extract_data_from_supplier_quote(
         json_text = json_text.strip()
 
         # Parse JSON
-        quote_data = json.loads(json_text)
+        raw_quote_data: object = json.loads(json_text)
+        if not isinstance(raw_quote_data, dict):
+            raise TypeError("Supplier quote response must be a JSON object")
+        quote_data = cast(SupplierQuotePayload, raw_quote_data)
 
         # Process supplier data if it exists in the expected format
         try:
-            supplier_name_from_quote = quote_data["supplier"]["name"]
+            supplier_name_from_quote = extract_supplier_name(quote_data)
             matched_supplier, original_name = fuzzy_find_supplier(
                 supplier_name_from_quote
             )
@@ -362,7 +398,7 @@ def extract_data_from_supplier_quote(
                     "name": matched_supplier.name,
                     "xero_id": getattr(matched_supplier, "xero_id", None),
                 }
-        except (KeyError, TypeError):
+        except (KeyError, TypeError, ValueError):
             logging.warning("Supplier name not found in quote JSON")
 
         # Return the extracted data
@@ -432,10 +468,23 @@ def clean_json_response(text: str) -> str:
     return text.strip()
 
 
-def process_supplier_data(quote_data: dict) -> dict:
+def extract_supplier_name(quote_data: SupplierQuotePayload) -> str:
+    """Return the extracted supplier name when it has the expected shape."""
+    supplier = quote_data["supplier"]
+    if not isinstance(supplier, dict):
+        raise TypeError("Supplier must be an object")
+    supplier_name = supplier["name"]
+    if not isinstance(supplier_name, str):
+        raise TypeError("Supplier name must be a string")
+    if not supplier_name.strip():
+        raise ValueError("Supplier name must be a non-empty string")
+    return supplier_name
+
+
+def process_supplier_data(quote_data: SupplierQuotePayload) -> SupplierQuotePayload:
     """Process supplier matching from quote data."""
     try:
-        supplier_name = quote_data["supplier"]["name"]
+        supplier_name = extract_supplier_name(quote_data)
         matched_supplier, original_name = fuzzy_find_supplier(supplier_name)
 
         quote_data["supplier"]["original_name"] = original_name
@@ -447,14 +496,14 @@ def process_supplier_data(quote_data: dict) -> dict:
                 "name": matched_supplier.name,
                 "xero_id": getattr(matched_supplier, "xero_id", None),
             }
-    except (KeyError, TypeError):
+    except (KeyError, TypeError, ValueError):
         logging.warning("Supplier name not found in quote JSON")
 
     return quote_data
 
 
 def create_po_line_from_quote_item(
-    purchase_order: PurchaseOrder, line_data: dict
+    purchase_order: PurchaseOrder, line_data: QuoteItemPayload
 ) -> Optional[PurchaseOrderLine]:
     """Create a PO line from quote item data."""
     description = line_data.get("description", "")
@@ -537,7 +586,7 @@ def extract_data_from_supplier_quote_gemini(
     quote_path: str,
     content_type: Optional[str] = None,
     ai_provider: Optional[AIProvider] = None,
-) -> Tuple[Optional[dict], Optional[str]]:
+) -> Tuple[Optional[SupplierQuotePayload], Optional[str]]:
     """
     Extract data from a supplier quote file using Gemini,
 
@@ -628,8 +677,10 @@ def extract_data_from_supplier_quote_gemini(
             log_token_usage(response.usage, "Gemini")
 
         result_text = clean_json_response(response.text)
-        quote_data = json.loads(result_text)
-        quote_data = process_supplier_data(quote_data)
+        raw_quote_data: object = json.loads(result_text)
+        if not isinstance(raw_quote_data, dict):
+            raise TypeError("Supplier quote response must be a JSON object")
+        quote_data = process_supplier_data(cast(SupplierQuotePayload, raw_quote_data))
 
         return quote_data, None
 
@@ -680,6 +731,8 @@ def create_po_from_quote(
 
     if error:
         return None, error
+    if quote_data is None:
+        return None, "No quote data was extracted"
 
     quote.extracted_data = quote_data
     quote.save()
