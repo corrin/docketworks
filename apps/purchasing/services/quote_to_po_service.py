@@ -2,7 +2,7 @@ import base64
 import json
 import logging
 import os
-from typing import Optional, Tuple, TypedDict, cast
+from typing import Optional, Tuple, cast, overload
 
 import anthropic
 import pdfplumber
@@ -14,6 +14,7 @@ from anthropic.types import (
 )
 from django.conf import settings
 from google import genai
+from pydantic import BaseModel, ConfigDict, Field
 from rapidfuzz import fuzz, process
 
 from apps.client.models import Client
@@ -32,35 +33,42 @@ logger = logging.getLogger(__name__)
 USE_PDF_PARSER = False
 
 
-class SupplierPayload(TypedDict, total=False):
-    name: str
-    address: str
-    original_name: str
+QuoteScalar = str | int | float
 
 
-class MatchedSupplierPayload(TypedDict):
+class SupplierQuoteBaseModel(BaseModel):
+    model_config = ConfigDict(extra="ignore", frozen=True, populate_by_name=True)
+
+
+class SupplierQuoteSupplierModel(SupplierQuoteBaseModel):
+    name: str | None = None
+    address: str | None = None
+    original_name: str | None = None
+
+
+class MatchedSupplierModel(SupplierQuoteBaseModel):
     id: str
     name: str
     xero_contact_id: str | None
 
 
-class QuoteItemPayload(TypedDict, total=False):
-    description: str
-    quantity: str | int | float
-    dimensions: str
-    unit_price: str | int | float
-    line_total: str | int | float
-    supplier_item_code: str
-    metal_type: str
-    alloy: str
-    specifics: str
+class SupplierQuoteItemModel(SupplierQuoteBaseModel):
+    description: str | None = None
+    quantity: QuoteScalar | None = None
+    dimensions: str | None = None
+    unit_price: QuoteScalar | None = None
+    line_total: QuoteScalar | None = None
+    supplier_item_code: str | None = None
+    metal_type: str | None = None
+    alloy: str | None = None
+    specifics: str | None = None
 
 
-class SupplierQuotePayload(TypedDict, total=False):
-    supplier: SupplierPayload
-    quote_reference: str
-    items: list[QuoteItemPayload]
-    matched_supplier: MatchedSupplierPayload | None
+class SupplierQuotePayloadModel(SupplierQuoteBaseModel):
+    supplier: SupplierQuoteSupplierModel
+    quote_reference: str | None = None
+    line_items: list[SupplierQuoteItemModel] = Field(alias="items")
+    matched_supplier: MatchedSupplierModel | None = None
 
 
 def normalize(s: str) -> str:
@@ -154,7 +162,7 @@ def extract_data_from_supplier_quote(
     quote_path: str,
     content_type: str | None = None,
     use_pdf_parser: bool = USE_PDF_PARSER,
-) -> tuple[SupplierQuotePayload | None, str | None]:
+) -> tuple[SupplierQuotePayloadModel | None, str | None]:
     """Extract data from a supplier quote file using Claude."""
     try:
         # Get the active AI provider and its API key
@@ -375,23 +383,30 @@ def extract_data_from_supplier_quote(
 
         json_text = json_text.strip()
 
-        # Parse JSON
-        quote_data = parse_supplier_quote_payload(json.loads(json_text))
+        # Parse and validate untrusted model output at the AI boundary.
+        quote_data = SupplierQuotePayloadModel.model_validate(json.loads(json_text))
 
         supplier_name_from_quote = extract_supplier_name(quote_data)
         if supplier_name_from_quote:
             matched_supplier, original_name = fuzzy_find_supplier(
                 supplier_name_from_quote
             )
-            quote_data["supplier"]["original_name"] = original_name
-            quote_data["matched_supplier"] = None
-
+            supplier = quote_data.supplier.model_copy(
+                update={"original_name": original_name}
+            )
+            matched_supplier_data = None
             if matched_supplier:
-                quote_data["matched_supplier"] = {
-                    "id": str(matched_supplier.id),
-                    "name": matched_supplier.name,
-                    "xero_contact_id": matched_supplier.xero_contact_id,
+                matched_supplier_data = MatchedSupplierModel(
+                    id=str(matched_supplier.id),
+                    name=matched_supplier.name,
+                    xero_contact_id=matched_supplier.xero_contact_id,
+                )
+            quote_data = quote_data.model_copy(
+                update={
+                    "supplier": supplier,
+                    "matched_supplier": matched_supplier_data,
                 }
+            )
         else:
             logging.warning("Supplier name not found in quote JSON")
 
@@ -462,53 +477,38 @@ def clean_json_response(text: str) -> str:
     return text.strip()
 
 
-def parse_supplier_quote_payload(raw_quote_data: object) -> SupplierQuotePayload:
-    """Validate untrusted quote JSON before treating it as a quote payload."""
-    if not isinstance(raw_quote_data, dict):
-        raise TypeError("Supplier quote response must be a JSON object")
-
-    supplier = raw_quote_data.get("supplier")
-    if not isinstance(supplier, dict):
-        raise TypeError("Supplier quote response supplier must be an object")
-
-    supplier_name = supplier.get("name")
-    if supplier_name is not None and not isinstance(supplier_name, str):
-        raise TypeError("Supplier quote response supplier name must be a string")
-
-    items = raw_quote_data.get("items")
-    if not isinstance(items, list):
-        raise TypeError("Supplier quote response items must be a list")
-
-    if not all(isinstance(item, dict) for item in items):
-        raise TypeError("Supplier quote response items must be objects")
-
-    return cast(SupplierQuotePayload, raw_quote_data)
-
-
-def extract_supplier_name(quote_data: SupplierQuotePayload) -> str | None:
+def extract_supplier_name(quote_data: SupplierQuotePayloadModel) -> str | None:
     """Return the extracted supplier name when one is available for matching."""
-    supplier = quote_data["supplier"]
-    supplier_name = supplier.get("name")
+    supplier_name = quote_data.supplier.name
     if supplier_name is None or not supplier_name.strip():
         return None
     return supplier_name
 
 
-def process_supplier_data(quote_data: SupplierQuotePayload) -> SupplierQuotePayload:
+def process_supplier_data(
+    quote_data: SupplierQuotePayloadModel,
+) -> SupplierQuotePayloadModel:
     """Process supplier matching from quote data."""
     supplier_name = extract_supplier_name(quote_data)
     if supplier_name:
         matched_supplier, original_name = fuzzy_find_supplier(supplier_name)
 
-        quote_data["supplier"]["original_name"] = original_name
-        quote_data["matched_supplier"] = None
-
+        supplier = quote_data.supplier.model_copy(
+            update={"original_name": original_name}
+        )
+        matched_supplier_data = None
         if matched_supplier:
-            quote_data["matched_supplier"] = {
-                "id": str(matched_supplier.id),
-                "name": matched_supplier.name,
-                "xero_contact_id": matched_supplier.xero_contact_id,
+            matched_supplier_data = MatchedSupplierModel(
+                id=str(matched_supplier.id),
+                name=matched_supplier.name,
+                xero_contact_id=matched_supplier.xero_contact_id,
+            )
+        quote_data = quote_data.model_copy(
+            update={
+                "supplier": supplier,
+                "matched_supplier": matched_supplier_data,
             }
+        )
     else:
         logging.warning("Supplier name not found in quote JSON")
 
@@ -516,17 +516,17 @@ def process_supplier_data(quote_data: SupplierQuotePayload) -> SupplierQuotePayl
 
 
 def create_po_line_from_quote_item(
-    purchase_order: PurchaseOrder, line_data: QuoteItemPayload
+    purchase_order: PurchaseOrder, line_data: SupplierQuoteItemModel
 ) -> Optional[PurchaseOrderLine]:
     """Create a PO line from quote item data."""
-    description = line_data.get("description", "")
+    description = line_data.description or ""
     if not description:
         logger.warning("Skipping line item with no description")
         return None
 
-    quantity = safe_float(line_data.get("quantity", 1), 1)
-    line_total = safe_float(line_data.get("line_total", 0), 0)
-    unit_price = safe_float(line_data.get("unit_price"))
+    quantity = safe_float(line_data.quantity, 1)
+    line_total = safe_float(line_data.line_total, 0)
+    unit_price = safe_float(line_data.unit_price)
 
     unit_cost = calculate_unit_cost(quantity, line_total, unit_price, description)
 
@@ -536,16 +536,24 @@ def create_po_line_from_quote_item(
         quantity=quantity,
         unit_cost=unit_cost,
         price_tbc=unit_cost is None,
-        supplier_item_code=line_data.get("supplier_item_code", ""),
-        metal_type=line_data.get("metal_type", "unspecified"),
-        alloy=line_data.get("alloy", ""),
-        specifics=line_data.get("specifics", ""),
-        dimensions=line_data.get("dimensions", ""),
-        raw_line_data=json.loads(json.dumps(line_data)),
+        supplier_item_code=line_data.supplier_item_code or "",
+        metal_type=line_data.metal_type or "unspecified",
+        alloy=line_data.alloy or "",
+        specifics=line_data.specifics or "",
+        dimensions=line_data.dimensions or "",
+        raw_line_data=line_data.model_dump(mode="json", exclude_none=True),
     )
 
 
-def safe_float(value, default=None):
+@overload
+def safe_float(value: QuoteScalar | None, default: float) -> float: ...
+
+
+@overload
+def safe_float(value: QuoteScalar | None, default: None = None) -> float | None: ...
+
+
+def safe_float(value: QuoteScalar | None, default: float | None = None) -> float | None:
     """Safely convert value to float with a default."""
     if value is None:
         return default
@@ -599,7 +607,7 @@ def extract_data_from_supplier_quote_gemini(
     quote_path: str,
     content_type: Optional[str] = None,
     ai_provider: Optional[AIProvider] = None,
-) -> Tuple[Optional[SupplierQuotePayload], Optional[str]]:
+) -> Tuple[Optional[SupplierQuotePayloadModel], Optional[str]]:
     """
     Extract data from a supplier quote file using Gemini,
 
@@ -691,7 +699,7 @@ def extract_data_from_supplier_quote_gemini(
 
         result_text = clean_json_response(response.text)
         quote_data = process_supplier_data(
-            parse_supplier_quote_payload(json.loads(result_text))
+            SupplierQuotePayloadModel.model_validate(json.loads(result_text))
         )
 
         return quote_data, None
@@ -746,10 +754,14 @@ def create_po_from_quote(
     if quote_data is None:
         return None, "No quote data was extracted"
 
-    quote.extracted_data = quote_data
+    quote.extracted_data = quote_data.model_dump(
+        mode="json",
+        by_alias=True,
+        exclude_none=True,
+    )
     quote.save()
 
-    items = quote_data.get("items", [])
+    items = quote_data.line_items
     if not items:
         return purchase_order, "No items found in quote"
 
