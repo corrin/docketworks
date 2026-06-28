@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
+import { api } from '@/api/client'
+import { useAuthStore } from '@/stores/auth'
+import router from '@/router'
 
 vi.mock('@/api/client', () => ({
   api: {
@@ -17,6 +20,14 @@ vi.mock('vue-sonner', () => ({
     error: vi.fn(),
   },
 }))
+
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    createWebHistory: actual.createMemoryHistory,
+  }
+})
 
 vi.mock('vue-router/auto-routes', () => ({
   routes: [
@@ -39,25 +50,20 @@ const user = {
   is_superuser: false,
 }
 
-async function setupRouter() {
-  vi.resetModules()
+function setupRouter() {
   setActivePinia(createPinia())
-  const [{ api }, { useAuthStore }, { default: router }] = await Promise.all([
-    import('@/api/client'),
-    import('@/stores/auth'),
-    import('@/router'),
-  ])
   return { api, authStore: useAuthStore(), router }
 }
 
 describe('router auth guard', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
+    setActivePinia(createPinia())
+    await router.replace('/session-check')
     vi.clearAllMocks()
-    window.history.replaceState({}, '', '/')
   })
 
   it('redirects to login when the session check confirms unauthenticated', async () => {
-    const { api, router } = await setupRouter()
+    const { api, router } = setupRouter()
     vi.mocked(api.accounts_me_retrieve).mockRejectedValue({ response: { status: 401 } })
 
     await router.push('/kanban')
@@ -69,7 +75,7 @@ describe('router auth guard', () => {
   })
 
   it('uses the session-check route instead of login when cold-start auth is unknown', async () => {
-    const { api, router } = await setupRouter()
+    const { api, router } = setupRouter()
     vi.mocked(api.accounts_me_retrieve).mockRejectedValue(
       Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }),
     )
@@ -83,7 +89,7 @@ describe('router auth guard', () => {
   })
 
   it('keeps an already loaded user on the protected route when auth is unknown', async () => {
-    const { api, authStore, router } = await setupRouter()
+    const { api, authStore, router } = setupRouter()
     authStore.user = user
     vi.mocked(api.accounts_me_retrieve).mockRejectedValue(
       Object.assign(new Error('Network Error'), { code: 'ERR_NETWORK' }),

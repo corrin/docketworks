@@ -116,6 +116,7 @@ ADJUSTMENT entries (kind='adjust'):
   complete and scoped, commit it on the current branch. If the scope is unclear,
   mixed with unrelated work, or the user may not want it committed, ask before
   committing.
+- Run focused tests for touched code when useful. Do not manually run expensive hook commands like `bash scripts/check_mypy.sh`, `npm run test:unit`, `npm run lint`, `npm run type-check`, or frontend builds unless diagnosing a hook failure; they run automatically during `git commit`/`git push`.
 
 ### Code Style and Quality
 
@@ -134,6 +135,8 @@ Ratchet rules:
 
 - CI blocks any mypy error not in `mypy-baseline.txt` — new code must be fully type-clean under strict mode.
 - **Never hand-add entries to `mypy-baseline.txt`.** The baseline only shrinks.
+- ADR 0028: type annotations are data contracts. Touched code must improve mypy by preserving or tightening the real contract; no `Any`, fake `| None`, broad unions, casts, or ignores as checker shortcuts.
+- If a touched type becomes hard to read, introduce a named type (`dataclass`, `TypedDict`, protocol, or alias) instead of repeating a complex inline annotation.
 - After fixing baselined errors, run `poetry run mypy apps/ docketworks/ | poetry run mypy-baseline sync` and commit the shrunken baseline in the same PR.
 - `# type: ignore[code]` requires the specific error code and a justification comment on the same line.
 
