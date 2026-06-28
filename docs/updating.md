@@ -50,16 +50,18 @@ sudo ./scripts/server/dw-run.sh <client>-<env> python manage.py showmigrations
 ```
 
 If the right response is rollback rather than fix-forward, run the explicit
-rollback command printed by deploy. It restores the paired pre-deploy database
-backup and switches the instance back to the matching release:
+rollback command printed by deploy. It is printed only when deploy created a
+fresh pre-deploy backup, and restores that paired database backup before
+switching the instance back to the matching release:
 
 ```bash
 sudo ./scripts/predeploy_rollback.sh <client>-<env> <previous-8-char-sha>
 ```
 
-Deploy builds the previous release before switching, so this rollback target
-always exists for an instance already on shared releases. For the first cutover
-from a legacy per-instance checkout, use the standalone snapshot scripts instead.
+Deploy builds the previous release before switching, so the code rollback target
+always exists for an instance already on shared releases. If deploy was run with
+`--no-backup`, no fresh paired database dump exists and deploy will warn instead
+of printing a rollback command.
 
 Do not switch only the `app` symlink after a migration failure; old code can
 be incompatible with the partially migrated database.

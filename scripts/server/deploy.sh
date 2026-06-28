@@ -2,8 +2,8 @@
 set -euo pipefail
 
 # Deploy one or all instances through a shared immutable release directory.
-# Usage: deploy.sh <name> [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
-#        deploy.sh --all  [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+# Usage: deploy.sh <name> [--ref <branch|tag|sha>] [--no-backup]
+#        deploy.sh --all  [--ref <branch|tag|sha>] [--no-backup]
 #        deploy.sh --cleanup-releases
 #
 # Normal operator path after a PR is merged:
@@ -26,25 +26,23 @@ fi
 
 cd /
 
-USAGE="Usage: $0 <instance-name> [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
-       $0 --all          [--ref <branch|tag|sha>] [--no-backup] [--allow-dirty]
+USAGE="Usage: $0 <instance-name> [--ref <branch|tag|sha>] [--no-backup]
+       $0 --all          [--ref <branch|tag|sha>] [--no-backup]
        $0 --cleanup-releases"
 
-if ! parsed=$(getopt -o '' --long all,no-backup,allow-dirty,cleanup-releases,ref: -n "$(basename "$0")" -- "$@"); then
+if ! parsed=$(getopt -o '' --long all,no-backup,cleanup-releases,ref: -n "$(basename "$0")" -- "$@"); then
     echo "$USAGE" >&2
     exit 1
 fi
 eval set -- "$parsed"
 
 DO_BACKUP=1
-ALLOW_DIRTY=0
 DEPLOY_ALL=0
 DO_CLEANUP_RELEASES=0
 TARGET_REF="origin/main"
 while true; do
     case "$1" in
         --no-backup)   DO_BACKUP=0;      shift ;;
-        --allow-dirty) ALLOW_DIRTY=1;    shift ;;
         --cleanup-releases) DO_CLEANUP_RELEASES=1; shift ;;
         --all)         DEPLOY_ALL=1;     shift ;;
         --ref)         TARGET_REF="$2";  shift 2 ;;
@@ -59,7 +57,7 @@ if ! flock -n 9; then
 fi
 
 if [[ $DO_CLEANUP_RELEASES -eq 1 ]]; then
-    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || $ALLOW_DIRTY -eq 1 || "$TARGET_REF" != "origin/main" ]]; then
+    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || "$TARGET_REF" != "origin/main" ]]; then
         echo "ERROR: --cleanup-releases cannot be combined with deploy targets or deploy flags." >&2
         echo "$USAGE" >&2
         exit 1
@@ -83,8 +81,8 @@ validate_instance() {
         echo "ERROR: No .env file found at $local_dir/.env" >&2
         exit 1
     fi
-    if [[ ! -L "$local_dir/app" && ! -L "$local_dir/current" && ! -d "$local_dir/.git" ]]; then
-        echo "ERROR: $local_dir has neither app release link nor legacy git checkout." >&2
+    if [[ ! -L "$local_dir/app" && ! -L "$local_dir/current" ]]; then
+        echo "ERROR: $local_dir has neither app nor current release link." >&2
         exit 1
     fi
 
@@ -216,11 +214,6 @@ remove_legacy_scheduler_unit() {
     fi
 }
 
-is_legacy_checkout() {
-    local instance_dir="$1"
-    [[ -d "$instance_dir/.git" && ! -L "$instance_dir/app" && ! -L "$instance_dir/current" ]]
-}
-
 # --- Determine targets ---
 TARGETS=()
 if [[ $DEPLOY_ALL -eq 1 ]]; then
@@ -314,31 +307,9 @@ for instance in "${TARGETS[@]}"; do
     log "  Previous SHA: ${previous_sha:-none}"
     log "  Target SHA:   $TARGET_SHA"
 
-    if is_legacy_checkout "$instance_dir"; then
-        tree_dirty=0
-        if ! sudo -u "$inst_user" git -C "$instance_dir" diff --quiet --ignore-submodules HEAD --; then
-            tree_dirty=1
-        elif [[ -n "$(sudo -u "$inst_user" git -C "$instance_dir" status --porcelain)" ]]; then
-            tree_dirty=1
-        fi
-        if [[ $tree_dirty -eq 1 ]]; then
-            if [[ $ALLOW_DIRTY -eq 1 ]]; then
-                log "  WARNING: $instance has a dirty legacy working tree (--allow-dirty set, proceeding)"
-            else
-                log "  ERROR: $instance has a dirty legacy working tree. Refusing to deploy."
-                log "    Investigate with: sudo -u $inst_user git -C $instance_dir status"
-                log "    To override: re-run with --allow-dirty"
-                FAILED_INSTANCES+=("$instance")
-                continue
-            fi
-        fi
-    fi
-
     # Ensure the previous release is built so predeploy_rollback.sh has a target.
-    # No-op on a normal deploy (its release is already complete). Skip legacy
-    # checkouts — they can't be built as shared releases (the cutover snapshot is
-    # the rollback target for a first migration).
-    if [[ -n "$previous_sha" ]] && ! is_legacy_checkout "$instance_dir"; then
+    # No-op on a normal deploy when its release is already complete.
+    if [[ -n "$previous_sha" ]]; then
         log "  Ensuring previous release $(short_release_sha "$previous_sha") is built (rollback target)..."
         ensure_release "$previous_sha"
     fi
@@ -366,11 +337,7 @@ for instance in "${TARGETS[@]}"; do
         if [[ -n "$previous_sha" ]]; then
             if [[ $DO_BACKUP -eq 1 ]]; then
                 log "  Manual rollback, if required:"
-                if is_legacy_checkout "$instance_dir"; then
-                    log "    sudo $SCRIPT_DIR/../legacy_rollback.sh $instance $(short_release_sha "$previous_sha")"
-                else
-                    log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")"
-                fi
+                log "    sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")"
             else
                 log "  WARNING: --no-backup was used; no pre-deploy rollback backup was created"
             fi
@@ -393,7 +360,6 @@ for instance in "${TARGETS[@]}"; do
 
     write_deploy_state "$instance" "$previous_sha" "$TARGET_SHA" "$inst_user"
 
-    compact_legacy_instance_checkout "$instance"
     log "  $instance now runs $TARGET_SHORT"
 done
 

@@ -321,11 +321,16 @@ do_configure() {
     local TEST_DB_NAME="$TEST_DB_USER"
     local IS_EXISTING=false
     local NEEDS_APP_BOOTSTRAP=false
-    if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" || -d "$INSTANCE_DIR/.git" || -f "$INSTANCE_DIR/.env" ]]; then
+    if [[ -L "$INSTANCE_DIR/app" || -L "$INSTANCE_DIR/current" || -f "$INSTANCE_DIR/.env" ]]; then
         IS_EXISTING=true
     fi
     if [[ ! -f "$INSTANCE_DIR/.env" ]]; then
         NEEDS_APP_BOOTSTRAP=true
+    fi
+    if [[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]; then
+        echo "ERROR: $INSTANCE_DIR has config but no app/current release link." >&2
+        echo "  Restore or recreate the instance instead of reconfiguring partial state." >&2
+        exit 1
     fi
     if [[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]; then
         echo "ERROR: --seed is only valid when creating a new instance." >&2
@@ -479,13 +484,8 @@ EOSQL
     if [[ ! -L "$INSTANCE_DIR/app" ]]; then
         local TARGET_SHA
         fetch_local_repo
-        if [[ -d "$INSTANCE_DIR/.git" ]]; then
-            TARGET_SHA="$(instance_current_sha "$INSTANCE")"
-            log "Creating app release link from legacy checkout SHA $TARGET_SHA"
-        else
-            TARGET_SHA="$(resolve_release_ref origin/main)"
-            log "Creating app release link from origin/main SHA $TARGET_SHA"
-        fi
+        TARGET_SHA="$(resolve_release_ref origin/main)"
+        log "Creating app release link from origin/main SHA $TARGET_SHA"
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"

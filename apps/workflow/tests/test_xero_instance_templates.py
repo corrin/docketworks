@@ -14,8 +14,6 @@ XERO_APPS_TEMPLATE = (
 )
 INSTANCE_SCRIPT = REPO_ROOT / "scripts" / "server" / "instance.sh"
 DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "server" / "deploy.sh"
-CUTOVER_LEGACY_SCRIPT = REPO_ROOT / "scripts" / "server" / "cutover_legacy_instance.sh"
-LEGACY_ROLLBACK_SCRIPT = REPO_ROOT / "scripts" / "legacy_rollback.sh"
 PREDEPLOY_BACKUP_SCRIPT = REPO_ROOT / "scripts" / "predeploy_backup.sh"
 BACKUP_DB_SCRIPT = REPO_ROOT / "scripts" / "backup_db.sh"
 COMMON_SCRIPT = REPO_ROOT / "scripts" / "server" / "common.sh"
@@ -181,6 +179,20 @@ class XeroInstanceTemplateTests(SimpleTestCase):
 
         self.assertIn('[[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]', content)
         self.assertIn("--seed is only valid when creating a new instance", content)
+
+    def test_instance_script_rejects_config_without_release_link(self) -> None:
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn(
+            '[[ -f "$INSTANCE_DIR/.env" && ! -L "$INSTANCE_DIR/app" && ! -L "$INSTANCE_DIR/current" ]]',
+            content,
+        )
+        self.assertIn("has config but no app/current release link", content)
+        self.assertIn("Restore or recreate the instance", content)
+        self.assertLess(
+            content.index("has config but no app/current release link"),
+            content.index('TARGET_SHA="$(resolve_release_ref origin/main)"'),
+        )
 
     def test_instance_script_uses_shared_releases_not_instance_checkouts(self) -> None:
         content = INSTANCE_SCRIPT.read_text()
@@ -373,7 +385,6 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         instance_content = INSTANCE_SCRIPT.read_text()
         common_content = COMMON_SCRIPT.read_text()
         predeploy_backup_content = PREDEPLOY_BACKUP_SCRIPT.read_text()
-        cutover_content = CUTOVER_LEGACY_SCRIPT.read_text()
         backup_content = BACKUP_DB_SCRIPT.read_text()
 
         self.assertIn("ensure_instance_backup_dir()", common_content)
@@ -384,10 +395,6 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn(
             'ensure_instance_backup_dir "$INSTANCE" "$INST_USER"',
             predeploy_backup_content,
-        )
-        self.assertIn(
-            'ensure_instance_backup_dir "$INSTANCE" "$INST_USER"',
-            cutover_content,
         )
         self.assertIn(
             'chown "$instance_user:$instance_user" "$backup_dir"',
@@ -430,129 +437,54 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         )
         self.assertIn("Removing unreferenced release", release_utils_content)
 
-    def test_legacy_cutover_rollback_artifacts_are_root_trusted(self) -> None:
-        cutover_content = CUTOVER_LEGACY_SCRIPT.read_text()
-        rollback_content = LEGACY_ROLLBACK_SCRIPT.read_text()
-        predeploy_backup_content = PREDEPLOY_BACKUP_SCRIPT.read_text()
-
-        self.assertIn(
-            'ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"',
-            cutover_content,
-        )
-        self.assertIn('mkdir -p "$ROLLBACK_DIR"', cutover_content)
-        self.assertIn('chown root:root "$ROLLBACK_DIR"', cutover_content)
-        self.assertIn('chmod 700 "$ROLLBACK_DIR"', cutover_content)
-        self.assertIn(
-            'SNAPSHOT="$ROLLBACK_DIR/legacy_${OLD_SHORT}.tar.gz"',
-            cutover_content,
-        )
-        self.assertIn('SNAPSHOT_TMP="$SNAPSHOT.tmp.$$"', cutover_content)
-        self.assertIn('tar -tzf "$SNAPSHOT_TMP" >/dev/null', cutover_content)
-        self.assertIn('mv "$SNAPSHOT_TMP" "$SNAPSHOT"', cutover_content)
-        self.assertIn('chown root:root "$SNAPSHOT"', cutover_content)
-        self.assertNotIn(
-            'chown "$INST_USER:$INST_USER" "$SNAPSHOT"',
-            cutover_content,
-        )
-        self.assertLess(
-            cutover_content.index("for unit in gunicorn celery-worker celery-beat"),
-            cutover_content.index('log "  Creating code snapshot: $SNAPSHOT"'),
-        )
-
-        self.assertIn(
-            'ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"',
-            rollback_content,
-        )
-        self.assertIn('ROLLBACK_DIR_MODE="$(stat -c', rollback_content)
-        self.assertIn('"0:0:700"', rollback_content)
-        self.assertIn(
-            'SNAPSHOT_MATCHES=("$ROLLBACK_DIR"/legacy_"$OLD_PREFIX"*.tar.gz)',
-            rollback_content,
-        )
-        self.assertIn(
-            'UNITS_DIR="$ROLLBACK_DIR/legacy_${OLD_SHORT}.units"',
-            rollback_content,
-        )
-        self.assertIn(
-            'NGINX_BACKUP="$ROLLBACK_DIR/legacy_${OLD_SHORT}.nginx.conf"',
-            rollback_content,
-        )
-        self.assertIn("grep -Fx './.venv/bin/python'", rollback_content)
-        self.assertIn(
-            'DB_MATCHES=("$ROLLBACK_DIR"/predeploy_*_"$OLD_SHORT".sql.gz)',
-            rollback_content,
-        )
-        self.assertIn('DB_DUMP_MODE="$(stat -c', rollback_content)
-        self.assertIn(
-            "Legacy predeploy backup must be root:root mode 600",
-            rollback_content,
-        )
-        self.assertIn('gunzip -t "$DB_DUMP"', rollback_content)
-        self.assertNotIn(
-            'DB_MATCHES=("$BACKUP_DIR"/predeploy_*_"$OLD_SHORT".sql.gz)',
-            rollback_content,
-        )
-        self.assertNotIn(
-            'SNAPSHOT_MATCHES=("$BACKUP_DIR"/legacy_"$OLD_PREFIX"*.tar.gz)',
-            rollback_content,
-        )
-
-        self.assertIn(
-            'ROLLBACK_DIR="$CONFIG_DIR/legacy-rollbacks/$INSTANCE"',
-            predeploy_backup_content,
-        )
-        self.assertIn(
-            'LEGACY_MANIFEST="$ROLLBACK_DIR/legacy_${HASH}.manifest"',
-            predeploy_backup_content,
-        )
-        self.assertIn('if [[ -f "$LEGACY_MANIFEST" ]]; then', predeploy_backup_content)
-        self.assertIn('OUT_DIR="$ROLLBACK_DIR"', predeploy_backup_content)
-        self.assertIn('chown root:root "$OUT"', predeploy_backup_content)
-        self.assertIn('chmod 600 "$OUT"', predeploy_backup_content)
-
-    def test_legacy_rollback_preserves_backups_and_uses_restored_venv(self) -> None:
-        content = LEGACY_ROLLBACK_SCRIPT.read_text()
-
-        self.assertNotIn('chown -R "$INST_USER:$INST_USER" "$INSTANCE_DIR"', content)
-        self.assertIn('[[ "$(basename "$path")" == "backups" ]] && continue', content)
-        self.assertIn("grep -Fx './manage.py'", content)
-        self.assertIn("grep -Fx './.venv/bin/python'", content)
-        self.assertIn('LEGACY_PYTHON="$INSTANCE_DIR/.venv/bin/python"', content)
-        self.assertIn('"$3" manage.py sync_sequences', content)
-        self.assertNotIn("SHARED_VENV", content)
-
-    def test_deploy_uses_single_legacy_checkout_predicate(self) -> None:
+    def test_deploy_uses_only_shared_release_rollback(self) -> None:
         content = DEPLOY_SCRIPT.read_text()
 
-        self.assertIn("is_legacy_checkout()", content)
-        self.assertIn(
-            '[[ -d "$instance_dir/.git" && ! -L "$instance_dir/app" && ! -L "$instance_dir/current" ]]',
-            content,
-        )
-        self.assertIn('if is_legacy_checkout "$instance_dir"; then', content)
-        self.assertIn(
-            'if [[ -n "$previous_sha" ]] && ! is_legacy_checkout "$instance_dir"; then',
-            content,
-        )
-        self.assertIn(
-            'sudo $SCRIPT_DIR/../legacy_rollback.sh $instance $(short_release_sha "$previous_sha")',
-            content,
-        )
+        self.assertIn('if [[ -n "$previous_sha" ]]; then', content)
         self.assertIn(
             'sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")',
             content,
         )
-        self.assertNotIn(
-            'if [[ -n "$previous_sha" && ! -d "$instance_dir/.git" ]]',
+        self.assertIn("if [[ $DO_BACKUP -eq 1 ]]; then", content)
+        self.assertLess(
+            content.index("if [[ $DO_BACKUP -eq 1 ]]; then"),
+            content.index(
+                'sudo $SCRIPT_DIR/../predeploy_rollback.sh $instance $(short_release_sha "$previous_sha")'
+            ),
+        )
+        self.assertIn(
+            "--no-backup was used; no pre-deploy rollback backup was created",
             content,
         )
+        self.assertIn(
+            'if [[ ! -L "$local_dir/app" && ! -L "$local_dir/current" ]]; then',
+            content,
+        )
+        self.assertNotIn("is_legacy_" + "checkout", content)
+        self.assertNotIn("legacy_" + "rollback.sh", content)
+        self.assertNotIn("--allow-" + "dirty", content)
+        self.assertNotIn("dirty legacy working " + "tree", content)
+        self.assertNotIn(".git", content)
 
-    def test_server_readme_documents_both_rollback_paths(self) -> None:
+    def test_predeploy_backups_use_instance_backup_dir_only(self) -> None:
+        content = PREDEPLOY_BACKUP_SCRIPT.read_text()
+
+        self.assertIn('BACKUP_DIR="$INSTANCE_DIR/backups"', content)
+        self.assertIn('OUT="$BACKUP_DIR/predeploy_${TS}_${HASH}.sql.gz"', content)
+        self.assertNotIn("legacy-" + "rollbacks", content)
+        self.assertNotIn("LEGACY_MANIFEST", content)
+        self.assertNotIn('OUT_DIR="$ROLLBACK_DIR"', content)
+
+    def test_server_readme_documents_shared_release_rollback_only(self) -> None:
         content = SERVER_README.read_text()
 
-        self.assertIn("predeploy_rollback.sh", content)
-        self.assertIn("legacy_rollback.sh", content)
-        self.assertIn("first legacy checkout cutover", content)
+        self.assertIn(
+            "predeploy_rollback.sh",
+            content,
+        )
+        self.assertIn("unless `--no-backup` was used", content)
+        self.assertNotIn("legacy_" + "rollback.sh", content)
+        self.assertNotIn("first legacy checkout " + "cutover", content)
 
     def test_typed_router_drift_is_checked_in_release_build(self) -> None:
         deploy_content = DEPLOY_SCRIPT.read_text()
