@@ -18,6 +18,14 @@ vi.mock('vue-sonner', () => ({
   },
 }))
 
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    createWebHistory: actual.createMemoryHistory,
+  }
+})
+
 vi.mock('vue-router/auto-routes', () => ({
   routes: [
     { path: '/kanban', name: '/kanban', meta: { requiresAuth: true, allowWorkshopStaff: true } },
