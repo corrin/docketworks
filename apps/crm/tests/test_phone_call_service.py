@@ -18,6 +18,7 @@ from apps.crm.services.phone_call_service import (
     delete_archived_provider_recordings,
     link_phone_call_to_job,
     normalize_phone,
+    rematch_calls_for_numbers,
     sync_call_history,
 )
 from apps.job.models import Job
@@ -158,6 +159,56 @@ class PhoneMatcherDatabaseTests(TestCase):
         self.assertIsNone(matched_client)
         self.assertIsNone(matched_contact)
 
+    def test_rematch_clears_job_link_when_number_moves_to_other_client(
+        self,
+    ) -> None:
+        first = self._client("Acme Ltd")
+        second = self._client("Beta Ltd")
+        CompanyDefaults.objects.create(
+            company_name="Test Company",
+            shop_client=first,
+        )
+        staff = Staff.objects.create_user(
+            email="rematch-link@example.com",
+            password="testpass",
+            is_office_staff=True,
+        )
+        job = Job.objects.create(client=first, name="Linked Job", staff=staff)
+        ClientContactMethod.objects.create(
+            client=second,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="+6421555123",
+            normalized_value="+6421555123",
+        )
+        call_datetime = timezone.now()
+        call = PhoneCallRecord.objects.create(
+            provider_call_id="account:rematch-linked",
+            account_code="account",
+            call_datetime=call_datetime,
+            call_date=timezone.localdate(),
+            call_time=call_datetime.time(),
+            origin="+6421555123",
+            destination="+6490000000",
+            client=first,
+            job=job,
+            job_linked_by=staff,
+            job_linked_at=call_datetime,
+            raw_json={
+                "id": "rematch-linked",
+                "calldate": timezone.localdate().isoformat(),
+                "calltime": call_datetime.time().isoformat(timespec="seconds"),
+            },
+        )
+
+        rematch_calls_for_numbers(["+6421555123"])
+
+        call.refresh_from_db()
+        self.assertEqual(call.client, second)
+        self.assertIsNone(call.contact)
+        self.assertIsNone(call.job)
+        self.assertIsNone(call.job_linked_by)
+        self.assertIsNone(call.job_linked_at)
+
 
 class ProviderRecordingDeletionTests(TestCase):
     """Business case: provider recordings may be deleted only after DocketWorks
@@ -219,13 +270,13 @@ class ProviderRecordingDeletionTests(TestCase):
             provider_call_id=f"account:{provider_id}",
             account_code="account",
             call_datetime=call_datetime,
-            call_date=call_datetime.date(),
+            call_date=timezone.localdate(call_datetime),
             call_time=call_datetime.time(),
             origin="+6496365131",
             destination="+6421467784",
             raw_json={
                 "id": provider_id,
-                "calldate": call_datetime.date().isoformat(),
+                "calldate": timezone.localdate(call_datetime).isoformat(),
                 "calltime": call_datetime.time().isoformat(timespec="seconds"),
             },
         )

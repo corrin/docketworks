@@ -76,6 +76,7 @@ describe('CRM calls pagination', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('1 calls')
+    expect(wrapper.text()).toContain('Showing 1 of 7')
     vi.mocked(api.crm_phone_calls_list).mockRejectedValue(new Error('Call load failed'))
     vi.mocked(api.clients_contact_methods_list).mockRejectedValue(
       new Error('Phone number load failed'),
@@ -85,6 +86,7 @@ describe('CRM calls pagination', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('0 calls')
-    expect(wrapper.text()).toContain('Showing 0 of 0')
+    expect(wrapper.text()).not.toContain('Showing 1 of 7')
+    expect(wrapper.text().match(/Showing 0 of 0/g)).toHaveLength(2)
   })
 })

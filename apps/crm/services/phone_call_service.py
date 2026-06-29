@@ -634,13 +634,29 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
     )
     for call in calls:
         client, contact = matcher.match(call.origin, call.destination)
-        if call.client_id == getattr(client, "id", None) and call.contact_id == getattr(
-            contact, "id", None
+        matched_client_id = client.id if client else None
+        matched_contact_id = contact.id if contact else None
+        if (
+            call.client_id == matched_client_id
+            and call.contact_id == matched_contact_id
         ):
             continue
+        update_fields = ["client", "contact", "updated_at"]
+        linked_job = call.job
+        if linked_job is None:
+            should_clear_job_link = False
+        else:
+            should_clear_job_link = linked_job.client_id != matched_client_id
+        if should_clear_job_link:
+            call.job = None
+            call.job_linked_by = None
+            call.job_linked_at = None
+            update_fields.extend(["job", "job_linked_by", "job_linked_at"])
+        else:
+            pass  # No linked job, or the existing job is still on the matched client.
         call.client = client
         call.contact = contact
-        call.save(update_fields=["client", "contact", "updated_at"])
+        call.save(update_fields=update_fields)
 
 
 def assign_phone_number(
