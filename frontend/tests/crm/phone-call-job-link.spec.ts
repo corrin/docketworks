@@ -51,7 +51,13 @@ print(call.id)
   const result = spawnSync('python', [managePy, 'shell', '-c', code], {
     cwd: repoRoot,
     encoding: 'utf8',
+    timeout: 30_000,
   })
+  if (result.error) {
+    throw new Error(
+      `Failed to seed phone call: ${result.error.message}\n${result.stderr}\n${result.stdout}`,
+    )
+  }
   if (result.status !== 0) {
     throw new Error(`Failed to seed phone call:\n${result.stderr}\n${result.stdout}`)
   }

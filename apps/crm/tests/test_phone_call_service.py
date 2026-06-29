@@ -16,6 +16,7 @@ from apps.crm.services.phone_call_service import (
     PhoneProviderPortalClient,
     assign_phone_number,
     delete_archived_provider_recordings,
+    link_phone_call_to_job,
     normalize_phone,
     sync_call_history,
 )
@@ -442,6 +443,17 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(response.data["total_pages"], 2)
         self.assertEqual(len(response.data["results"]), 2)
 
+    def test_empty_list_uses_paginator_total_pages(self) -> None:
+        response = self.api.get(
+            "/api/crm/phone-calls/", {"job": str(self.other_job.id)}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["page"], 1)
+        self.assertEqual(response.data["total_pages"], 1)
+        self.assertEqual(response.data["results"], [])
+
     def test_list_page_size_is_capped(self) -> None:
         """Catches accidental oversized phone-call responses."""
         for index in range(101):
@@ -468,6 +480,19 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertIn("Phone call not found", response.data["message"])
         self.assertEqual(AppError.objects.count(), before)
 
+    def test_malformed_call_id_does_not_persist_app_error(self) -> None:
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            "/api/crm/phone-calls/not-a-uuid/job-link/",
+            {"job": str(self.job.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
     def test_bad_job_id_does_not_persist_app_error(self) -> None:
         """Catches client typos being treated as server errors."""
         before = AppError.objects.count()
@@ -482,6 +507,14 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertIn("Job not found", response.data["message"])
         self.assertEqual(AppError.objects.count(), before)
 
+    def test_service_rejects_malformed_job_id_as_client_error(self) -> None:
+        with self.assertRaisesMessage(ValueError, "Job not found"):
+            link_phone_call_to_job(
+                call_id=str(self.call.id),
+                job_id="not-a-uuid",
+                linked_by=self.office_staff,
+            )
+
     def test_bad_call_id_on_unlink_does_not_persist_app_error(self) -> None:
         """Catches client typos being treated as server errors."""
         before = AppError.objects.count()
@@ -490,6 +523,54 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
 
         self.assertEqual(response.status_code, 400)
         self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_malformed_call_id_on_unlink_does_not_persist_app_error(self) -> None:
+        before = AppError.objects.count()
+
+        response = self.api.delete("/api/crm/phone-calls/not-a-uuid/job-link/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_assign_number_bad_client_id_does_not_persist_app_error(self) -> None:
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            "/api/crm/phone-calls/assign-number/",
+            {
+                "phone_number": "+6421555000",
+                "client": str(uuid.uuid4()),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Client not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_assign_number_cross_client_contact_does_not_persist_app_error(
+        self,
+    ) -> None:
+        contact = ClientContact.objects.create(
+            client=self.other_client,
+            name="Other Contact",
+        )
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            "/api/crm/phone-calls/assign-number/",
+            {
+                "phone_number": "+6421555001",
+                "client": str(self.client_obj.id),
+                "contact": str(contact.id),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Contact not found", response.data["message"])
         self.assertEqual(AppError.objects.count(), before)
 
     def test_link_rejects_unmatched_call(self) -> None:

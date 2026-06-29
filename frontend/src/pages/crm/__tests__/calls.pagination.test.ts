@@ -70,4 +70,21 @@ describe('CRM calls pagination', () => {
     expect(wrapper.text()).toContain('Showing 1 of 12')
     expect(wrapper.text()).toContain('Showing 1 of 7')
   })
+
+  it('clears stale calls and phone methods after refresh failures', async () => {
+    const wrapper = mount(CallsPage)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('1 calls')
+    vi.mocked(api.crm_phone_calls_list).mockRejectedValue(new Error('Call load failed'))
+    vi.mocked(api.clients_contact_methods_list).mockRejectedValue(
+      new Error('Phone number load failed'),
+    )
+
+    await wrapper.get('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('0 calls')
+    expect(wrapper.text()).toContain('Showing 0 of 0')
+  })
 })

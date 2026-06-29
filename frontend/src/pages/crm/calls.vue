@@ -180,6 +180,7 @@ async function loadCalls(): Promise<void> {
     error.value = message
     console.error('Failed to load calls:', err)
     toast.error(message)
+    phoneCalls.value = []
     phoneCallCount.value = 0
   } finally {
     isLoadingCalls.value = false
@@ -198,6 +199,7 @@ async function loadPhoneMethods(): Promise<void> {
     error.value = message
     console.error('Failed to load phone numbers:', err)
     toast.error(message)
+    phoneMethods.value = []
     phoneMethodCount.value = 0
   }
 }

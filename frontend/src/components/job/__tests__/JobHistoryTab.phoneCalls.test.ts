@@ -12,7 +12,19 @@ vi.mock('@/api/client', () => ({
 vi.mock('@/components/crm/PhoneCallTable.vue', () => ({
   default: {
     props: ['calls', 'emptyText'],
-    template: '<div data-test="phone-call-table">{{ calls.length }} calls</div>',
+    emits: ['call-updated'],
+    template: `
+      <div data-test="phone-call-table">
+        {{ calls.length }} calls
+        <button
+          v-if="calls.length"
+          data-test="detach-call"
+          @click="$emit('call-updated', { ...calls[0], job: '33333333-3333-4333-8333-333333333333' })"
+        >
+          detach
+        </button>
+      </div>
+    `,
   },
 }))
 
@@ -93,5 +105,31 @@ describe('JobHistoryTab linked phone calls', () => {
       },
     })
     expect(wrapper.text()).toContain('Showing 1 of 3')
+  })
+
+  it('keeps linked call count aligned when a call is detached', async () => {
+    const authStore = useAuthStore()
+    authStore.user = officeUser
+    vi.mocked(api.crm_phone_calls_list).mockResolvedValue({
+      results: [
+        {
+          id: 'call-1',
+          job: '22222222-2222-4222-8222-222222222222',
+        },
+      ],
+      count: 3,
+      page: 1,
+      page_size: 50,
+      total_pages: 1,
+    })
+
+    const wrapper = mount(JobHistoryTab, {
+      props: { jobId: '22222222-2222-4222-8222-222222222222' },
+    })
+    await flushPromises()
+
+    await wrapper.find('[data-test="detach-call"]').trigger('click')
+
+    expect(wrapper.text()).toContain('Showing 0 of 2')
   })
 })

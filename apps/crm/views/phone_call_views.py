@@ -247,6 +247,11 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
                 },
                 status=status.HTTP_200_OK,
             )
+        except ValueError as exc:
+            return Response(
+                {"status": "error", "message": str(exc)},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
         except AlreadyLoggedException:
             raise
         except Exception as exc:

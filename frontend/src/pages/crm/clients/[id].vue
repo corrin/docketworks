@@ -579,6 +579,7 @@ async function loadPhoneCalls() {
     phoneCallError.value = message
     console.error('Failed to load phone interactions:', err)
     toast.error(message)
+    phoneCalls.value = []
     phoneCallCount.value = 0
   } finally {
     isLoadingPhoneCalls.value = false

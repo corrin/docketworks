@@ -9,6 +9,7 @@ from pathlib import Path
 from time import sleep
 from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
+from uuid import UUID
 
 import requests
 from django.conf import settings
@@ -32,6 +33,13 @@ logger = logging.getLogger("apps.crm.phone_calls")
 CDR_ENDPOINT = "/json/account/getCdr"
 RECORDING_ENDPOINT = "/account/dlrecording"
 DELETE_MEDIA_ENDPOINT = "/json/account/deleteMedia"
+
+
+def _uuid_or_client_error(value: str, message: str) -> UUID:
+    try:
+        return UUID(value)
+    except ValueError as exc:
+        raise ValueError(message) from exc
 
 
 @dataclass(frozen=True)
@@ -238,39 +246,48 @@ def link_phone_call_to_job(
 ) -> PhoneCallRecord:
     from apps.job.models import Job
 
-    try:
-        call = PhoneCallRecord.objects.select_related("client").get(id=call_id)
-    except PhoneCallRecord.DoesNotExist as exc:
-        raise ValueError("Phone call not found") from exc
+    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
+    job_uuid = _uuid_or_client_error(job_id, "Job not found")
 
-    if not call.client_id:
-        raise ValueError("Phone call must be assigned to a client before linking a job")
+    with transaction.atomic():
+        try:
+            call = PhoneCallRecord.objects.select_for_update().get(id=call_uuid)
+        except PhoneCallRecord.DoesNotExist as exc:
+            raise ValueError("Phone call not found") from exc
 
-    try:
-        job = Job.objects.select_related("client").get(id=job_id)
-    except Job.DoesNotExist as exc:
-        raise ValueError("Job not found") from exc
+        if not call.client_id:
+            raise ValueError(
+                "Phone call must be assigned to a client before linking a job"
+            )
 
-    if job.client_id != call.client_id:
-        raise ValueError("Phone call can only be linked to a job for the same client")
+        try:
+            job = Job.objects.select_for_update().get(id=job_uuid)
+        except Job.DoesNotExist as exc:
+            raise ValueError("Job not found") from exc
 
-    call.job = job
-    call.job_linked_by = linked_by
-    call.job_linked_at = timezone.now()
-    call.save(
-        update_fields=[
-            "job",
-            "job_linked_by",
-            "job_linked_at",
-            "updated_at",
-        ]
-    )
-    return call
+        if job.client_id != call.client_id:
+            raise ValueError(
+                "Phone call can only be linked to a job for the same client"
+            )
+
+        call.job = job
+        call.job_linked_by = linked_by
+        call.job_linked_at = timezone.now()
+        call.save(
+            update_fields=[
+                "job",
+                "job_linked_by",
+                "job_linked_at",
+                "updated_at",
+            ]
+        )
+        return call
 
 
 def unlink_phone_call_job(*, call_id: str) -> PhoneCallRecord:
+    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
     try:
-        call = PhoneCallRecord.objects.get(id=call_id)
+        call = PhoneCallRecord.objects.get(id=call_uuid)
     except PhoneCallRecord.DoesNotExist as exc:
         raise ValueError("Phone call not found") from exc
 
@@ -638,12 +655,17 @@ def assign_phone_number(
     if not normalized:
         raise ValueError("phone number is required")
 
+    client_uuid = _uuid_or_client_error(client_id, "Client not found")
     if contact_id:
-        contact = ClientContact.objects.select_related("client").get(
-            id=contact_id,
-            client_id=client_id,
-            is_active=True,
-        )
+        contact_uuid = _uuid_or_client_error(contact_id, "Contact not found")
+        try:
+            contact = ClientContact.objects.select_related("client").get(
+                id=contact_uuid,
+                client_id=client_uuid,
+                is_active=True,
+            )
+        except ClientContact.DoesNotExist as exc:
+            raise ValueError("Contact not found") from exc
         owner_filter = {"contact": contact, "client": None}
         existing_primary = ClientContactMethod.objects.filter(
             contact=contact,
@@ -651,7 +673,10 @@ def assign_phone_number(
             is_primary=True,
         ).exists()
     else:
-        client = Client.objects.get(id=client_id)
+        try:
+            client = Client.objects.get(id=client_uuid)
+        except Client.DoesNotExist as exc:
+            raise ValueError("Client not found") from exc
         owner_filter = {"client": client, "contact": None}
         existing_primary = ClientContactMethod.objects.filter(
             client=client,

@@ -28,14 +28,13 @@ class PageSizePagination(PageNumberPagination):
 
         page_size = self.get_page_size(request) or self.page_size
         count = page.paginator.count
-        total_pages = (count + page_size - 1) // page_size if count else 0
         return Response(
             {
                 "results": data,
                 "count": count,
                 "page": page.number,
                 "page_size": page_size,
-                "total_pages": total_pages,
+                "total_pages": page.paginator.num_pages,
             }
         )
 

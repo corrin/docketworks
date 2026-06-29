@@ -402,7 +402,10 @@ async function loadLinkedPhoneCalls() {
 
 function handlePhoneCallUpdated(updated: PhoneCallRecord): void {
   if (updated.job !== props.jobId) {
-    phoneCalls.value = phoneCalls.value.filter((call) => call.id !== updated.id)
+    const nextCalls = phoneCalls.value.filter((call) => call.id !== updated.id)
+    const removedCount = phoneCalls.value.length - nextCalls.length
+    phoneCalls.value = nextCalls
+    phoneCallCount.value = Math.max(0, phoneCallCount.value - removedCount)
     return
   }
   phoneCalls.value = phoneCalls.value.map((call) => (call.id === updated.id ? updated : call))
