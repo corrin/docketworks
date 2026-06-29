@@ -14,6 +14,6 @@ Then visit your ngrok URL (e.g. `https://docketworks-<name>-dev.ngrok-free.app`)
 Defined in `.vscode/tasks.json`:
 
 - **Frontend Dev Server** — `npm run dev` in `frontend/`. Vite on :5173, proxies `/api` to Django on :8000.
-- **Ngrok Tunnels** — `ngrok start --config ngrok.yml --all`. Single tunnel points at Vite, not Django.
+- **Ngrok Tunnels** — `ngrok start dev --config ngrok.yml`. Single tunnel points at Vite, not Django.
 - **Celery Worker** — executes async tasks.
 - **Celery Beat** — dispatches periodic tasks (Xero heartbeat, hourly sync, nightly housekeeping). Both worker and Beat are required.
