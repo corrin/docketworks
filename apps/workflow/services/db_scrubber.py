@@ -29,7 +29,7 @@ from apps.accounting.models import (
 )
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.staff_anonymization import create_staff_profile
-from apps.client.models import Client, ClientContact
+from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -106,14 +106,13 @@ def _scrub_clients() -> None:
     """Mirror legacy PII_CONFIG entries for client.client and client.clientcontact.
 
     Top-level fields touched: name (with allow-list), primary_contact_name,
-    primary_contact_email, email, phone.
+    primary_contact_email, email.
     raw_json paths touched: _name, _email_address, _bank_account_details,
     _phones[]._phone_number, _batch_payments._bank_account_number,
     _batch_payments._bank_account_name.
 
-    Anything else (address, all_phones, additional_contact_persons,
-    supplierpickupaddress, other raw_json keys) is left untouched — matches
-    today's behaviour exactly.
+    Anything else (address, additional_contact_persons, supplierpickupaddress,
+    other raw_json keys) is left untouched — matches today's behaviour exactly.
     """
     fake = Faker()
     preserved = _preserved_client_names()
@@ -133,7 +132,6 @@ def _scrub_clients() -> None:
         client.primary_contact_name = fake.name()
         client.primary_contact_email = fake.email()
         client.email = fake.email()
-        client.phone = fake.phone_number()
 
         rj = client.raw_json or {}
         if "_name" in rj:
@@ -158,11 +156,19 @@ def _scrub_clients() -> None:
     for contact in ClientContact.objects.using(SCRUB_ALIAS).all():
         contact.name = fake.name()
         contact.email = fake.email()
-        contact.phone = fake.phone_number()
         contact.save(
             using=SCRUB_ALIAS,
-            update_fields=["name", "email", "phone"],
+            update_fields=["name", "email"],
         )
+
+    for method in ClientContactMethod.objects.using(SCRUB_ALIAS).all():
+        if method.method_type == ClientContactMethod.MethodType.PHONE:
+            method.value = fake.phone_number()
+        elif method.method_type == ClientContactMethod.MethodType.EMAIL:
+            method.value = fake.email()
+        else:
+            continue
+        method.save(using=SCRUB_ALIAS, update_fields=["value", "normalized_value"])
 
 
 def _scrub_accounting_contacts() -> None:

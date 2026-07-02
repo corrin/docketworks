@@ -57,11 +57,7 @@ export class ClientService {
         'email' in client && typeof client.email === 'string'
           ? client.email.toLowerCase().includes(term)
           : false
-      const phoneMatch =
-        'phone' in client && typeof client.phone === 'string'
-          ? client.phone.toLowerCase().includes(term)
-          : false
-      return nameMatch || emailMatch || phoneMatch
+      return nameMatch || emailMatch
     })
   }
 }

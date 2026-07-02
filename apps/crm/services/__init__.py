@@ -6,6 +6,7 @@ try:
 
     if apps.ready:
         from .phone_call_service import (
+            CallClassification,
             PhoneCallDeleteResult,
             PhoneCallSyncResult,
             PhoneMatcher,
@@ -34,6 +35,7 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "CallClassification",
     "PhoneCallDeleteResult",
     "PhoneCallSyncResult",
     "PhoneMatcher",

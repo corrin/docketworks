@@ -102,12 +102,12 @@ def test_s_and_t_prefers_s_t_supplier_after_broad_single_letter_matches():
 
 @pytest.mark.django_db
 def test_s_and_t_ranks_s_t_before_t_s():
-    _make_client("T&S Stainless Limited")
-    _make_client("S&T Stainless Limited")
+    _make_client("T&S Stainless Ranking Test")
+    _make_client("S&T Stainless Ranking Test")
 
-    assert _names("S&T")[:2] == [
-        "S&T Stainless Limited",
-        "T&S Stainless Limited",
+    assert _names("S&T Stainless Ranking Test")[:2] == [
+        "S&T Stainless Ranking Test",
+        "T&S Stainless Ranking Test",
     ]
 
 
@@ -138,11 +138,11 @@ def test_is_supplier_false_can_outrank_is_supplier_true_with_purchase_history():
 
 @pytest.mark.django_db
 def test_archived_and_merged_clients_are_excluded():
-    active = _make_client("S&T Stainless Limited")
-    _make_client("S&T Archived Limited", xero_archived=True)
-    _make_client("S&T Merged Limited", merged_into=active)
+    active = _make_client("S&T Exclusion Active")
+    _make_client("S&T Exclusion Archived", xero_archived=True)
+    _make_client("S&T Exclusion Merged", merged_into=active)
 
-    assert _names("S&T") == ["S&T Stainless Limited"]
+    assert _names("S&T Exclusion") == ["S&T Exclusion Active"]
 
 
 @pytest.mark.django_db

@@ -12,7 +12,7 @@ from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
 from xero_python.api_client.serializer import serialize
 
-from apps.client.models import Client
+from apps.client.models import Client, ClientContactMethod
 
 
 class GetClientForXeroTests(TestCase):
@@ -23,8 +23,17 @@ class GetClientForXeroTests(TestCase):
             "name": "Acme Ltd",
             "xero_last_modified": timezone.now(),
         }
+        phone = overrides.pop("phone", None)
         defaults.update(overrides)
-        return Client.objects.create(**defaults)
+        client = Client.objects.create(**defaults)
+        if phone is not None:
+            ClientContactMethod.objects.create(
+                client=client,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                value=phone,
+                is_primary=True,
+            )
+        return client
 
     def test_returns_sdk_contact_instance(self):
         """The payload must be a xero_python Contact, not a dict.

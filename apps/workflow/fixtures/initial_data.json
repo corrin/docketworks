@@ -6,7 +6,6 @@
       "xero_contact_id": null,
       "name": "Demo Company Shop",
       "email": "demo@example.com",
-      "phone": null,
       "address": null,
       "is_account_customer": false,
       "raw_json": {},

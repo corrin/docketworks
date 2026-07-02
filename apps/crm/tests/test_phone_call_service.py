@@ -9,7 +9,12 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
 from apps.client.models import Client, ClientContact, ClientContactMethod
-from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.crm.models import (
+    PhoneCallRecord,
+    PhoneCallRecording,
+    PhoneEndpoint,
+    PhoneProviderSettings,
+)
 from apps.crm.services.phone_call_service import (
     PhoneMatcher,
     PhoneProviderCallPage,
@@ -92,7 +97,7 @@ class PhoneMatcherDatabaseTests(TestCase):
             client_id=str(client.id),
             label="Reception",
         )
-        matched_client, matched_contact = PhoneMatcher().match(
+        matched_client, matched_contact = PhoneMatcher().match_customer(
             "+6496365131",
             "+6490000000",
         )
@@ -112,7 +117,7 @@ class PhoneMatcherDatabaseTests(TestCase):
             is_primary=True,
         )
 
-        matched_client, matched_contact = PhoneMatcher().match(
+        matched_client, matched_contact = PhoneMatcher().match_customer(
             "+6490000000",
             "+6421555123",
         )
@@ -133,7 +138,7 @@ class PhoneMatcherDatabaseTests(TestCase):
                 value="021 555 123",
             )
 
-        matched_client, matched_contact = PhoneMatcher().match(
+        matched_client, matched_contact = PhoneMatcher().match_customer(
             "+6490000000",
             "+6421555123",
         )
@@ -151,7 +156,7 @@ class PhoneMatcherDatabaseTests(TestCase):
                 value="021 555 123",
             )
 
-        matched_client, matched_contact = PhoneMatcher().match(
+        matched_client, matched_contact = PhoneMatcher().match_customer(
             "+6490000000",
             "+6421555123",
         )
@@ -224,10 +229,15 @@ class ProviderRecordingDeletionTests(TestCase):
         CompanyDefaults.objects.create(
             company_name="Test Company",
             shop_client=shop_client,
-            phone_provider_base_url="https://phone.example.test",
-            phone_provider_username="user",
-            phone_provider_password="secret",
-            phone_provider_account_code="account",
+        )
+        PhoneProviderSettings.objects.update_or_create(
+            pk=1,
+            defaults={
+                "base_url": "https://phone.example.test",
+                "username": "user",
+                "password": "secret",
+                "account_code": "account",
+            },
         )
 
     def test_deletes_only_downloaded_calls_more_than_one_month_old(self) -> None:
@@ -312,16 +322,14 @@ class PhoneCallSyncTests(BaseTestCase):
             PHONE_RECORDING_STORAGE_ROOT=self.storage_root.name
         )
         self.settings_override.enable()
-        company_defaults = CompanyDefaults.get_solo()
-        company_defaults.phone_provider_base_url = "https://phone.example.test"
-        company_defaults.phone_provider_username = "user"
-        company_defaults.phone_provider_password = "secret"
-        company_defaults.phone_provider_account_code = "account"
-        CompanyDefaults.objects.filter(pk=company_defaults.pk).update(
-            phone_provider_base_url=company_defaults.phone_provider_base_url,
-            phone_provider_username=company_defaults.phone_provider_username,
-            phone_provider_password=company_defaults.phone_provider_password,
-            phone_provider_account_code=company_defaults.phone_provider_account_code,
+        PhoneProviderSettings.objects.update_or_create(
+            pk=1,
+            defaults={
+                "base_url": "https://phone.example.test",
+                "username": "user",
+                "password": "secret",
+                "account_code": "account",
+            },
         )
 
     def tearDown(self) -> None:
@@ -547,21 +555,49 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
 
     def test_list_filters_by_direction_recording_date_and_search(self) -> None:
         """Catches recent-call filters drifting from provider call fields."""
-        company_defaults = CompanyDefaults.get_solo()
-        company_defaults.phone_own_numbers = ["+6496365131"]
-        company_defaults.save(update_fields=["phone_own_numbers"])
+        PhoneEndpoint.objects.update_or_create(
+            normalized_number="+6496365131",
+            defaults={
+                "number": "+6496365131",
+                "label": "Main line",
+                "endpoint_type": PhoneEndpoint.EndpointType.MAIN_LINE,
+                "is_active": True,
+            },
+        )
         recorded_call = self.call
+        recorded_call.direction = PhoneCallRecord.Direction.INBOUND
+        recorded_call.our_number = "+6496365131"
+        recorded_call.external_number = recorded_call.origin
+        recorded_call.save(
+            update_fields=[
+                "direction",
+                "our_number",
+                "external_number",
+                "updated_at",
+            ]
+        )
         PhoneCallRecording.objects.create(
             call=recorded_call,
             provider_recording_id="recording-filter",
             account_code="account",
             storage_path="recording-filter.mp3",
         )
-        self._call(
+        outbound = self._call(
             "outbound",
             client=self.client_obj,
             origin="+6496365131",
             destination="+6421555999",
+        )
+        outbound.direction = PhoneCallRecord.Direction.OUTBOUND
+        outbound.our_number = outbound.origin
+        outbound.external_number = outbound.destination
+        outbound.save(
+            update_fields=[
+                "direction",
+                "our_number",
+                "external_number",
+                "updated_at",
+            ]
         )
 
         response = self.api.get(

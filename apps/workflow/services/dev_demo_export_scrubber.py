@@ -14,7 +14,12 @@ from dataclasses import dataclass
 from django.contrib.sessions.models import Session
 from django.db import connections, transaction
 
-from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.crm.models import (
+    PhoneCallRecord,
+    PhoneCallRecording,
+    PhoneEndpoint,
+    PhoneProviderSettings,
+)
 from apps.job.models import JobQuoteChat
 from apps.workflow.models import (
     AIProvider,
@@ -89,16 +94,36 @@ def _redact_service_api_keys(using: str) -> ScrubResult:
 
 
 def _redact_company_defaults(using: str) -> ScrubResult:
-    rows = CompanyDefaults.objects.using(using).update(
-        phone_call_downloads_enabled=False,
-        phone_provider_recording_deletion_enabled=False,
-        phone_provider_base_url=None,
-        phone_provider_username="",
-        phone_provider_password="",
-        phone_provider_account_code="",
-        phone_own_numbers=[],
+    rows = CompanyDefaults.objects.using(using).count()
+    return ScrubResult("workflow_companydefaults", rows)
+
+
+def _redact_phone_provider_settings(using: str) -> ScrubResult:
+    rows = PhoneProviderSettings.objects.using(using).update(
+        downloads_enabled=False,
+        recording_deletion_enabled=False,
+        base_url=None,
+        username="",
+        password="",
+        account_code="",
     )
-    return ScrubResult("workflow_companydefaults_phone_provider", rows)
+    return ScrubResult("crm_phoneprovidersettings", rows)
+
+
+def _redact_phone_endpoints(using: str) -> ScrubResult:
+    rows = 0
+    for endpoint in PhoneEndpoint.objects.using(using).order_by("id").iterator():
+        PhoneEndpoint.objects.using(using).filter(pk=endpoint.pk).update(
+            number=_stable_label(endpoint.number, "demo-endpoint"),
+            normalized_number=_stable_label(
+                endpoint.normalized_number,
+                "demo-endpoint",
+            ),
+            provider_account_code="",
+            provider_metadata={},
+        )
+        rows += 1
+    return ScrubResult("crm_phoneendpoint", rows)
 
 
 def _redact_phone_calls(using: str) -> ScrubResult:
@@ -109,6 +134,8 @@ def _redact_phone_calls(using: str) -> ScrubResult:
         call.description = ""
         call.origin = _stable_label(call.origin, "demo-number")
         call.destination = _stable_label(call.destination, "demo-number")
+        call.our_number = _stable_label(call.our_number, "demo-number")
+        call.external_number = _stable_label(call.external_number, "demo-number")
         call.raw_json = {}
         call.save(
             using=using,
@@ -118,6 +145,8 @@ def _redact_phone_calls(using: str) -> ScrubResult:
                 "description",
                 "origin",
                 "destination",
+                "our_number",
+                "external_number",
                 "raw_json",
             ],
         )
@@ -219,6 +248,8 @@ def scrub_dev_demo_export(using: str = SCRUB_ALIAS) -> list[ScrubResult]:
             )
             results.append(_redact_service_api_keys(using))
             results.append(_redact_company_defaults(using))
+            results.append(_redact_phone_provider_settings(using))
+            results.append(_redact_phone_endpoints(using))
             results.append(_delete_phone_recordings(using))
             results.append(_redact_phone_calls(using))
             results.append(_redact_app_errors(using))

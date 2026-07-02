@@ -13,11 +13,50 @@ from apps.accounting.models import (
     Invoice,
     InvoiceLineItem,
 )
-from apps.client.models import Client, ClientContact, SupplierPickupAddress
+from apps.client.models import (
+    Client,
+    ClientContact,
+    ClientContactMethod,
+    SupplierPickupAddress,
+)
 from apps.workflow.models import XeroAccount
 from apps.workflow.services.error_persistence import persist_and_raise
 
 logger = logging.getLogger("xero")
+
+
+def _xero_phone_value(phone_entry: dict) -> str:
+    number = phone_entry.get("_phone_number", "")
+    area_code = phone_entry.get("_phone_area_code", "")
+    country_code = phone_entry.get("_phone_country_code", "")
+    return f"{country_code} {area_code} {number}".strip()
+
+
+def sync_xero_phone_methods(client: Client) -> None:
+    phones = client.raw_json.get("_phones", []) if client.raw_json else []
+    if not isinstance(phones, list):
+        return
+
+    for phone_entry in phones:
+        if not isinstance(phone_entry, dict):
+            continue
+        value = _xero_phone_value(phone_entry)
+        normalized = ClientContactMethod.normalize_phone(value)
+        if not normalized:
+            continue
+        phone_type = phone_entry.get("_phone_type") or ""
+        ClientContactMethod.objects.update_or_create(
+            client=client,
+            contact=None,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            normalized_value=normalized,
+            defaults={
+                "value": value,
+                "label": phone_type,
+                "is_primary": phone_type == "DEFAULT",
+                "source": ClientContactMethod.Source.IMPORTED,
+            },
+        )
 
 
 def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
@@ -178,7 +217,6 @@ def set_client_fields(client, new_from_xero=False):
     tracked_fields = [
         "name",
         "email",
-        "phone",
         "address",
         "is_account_customer",
         "primary_contact_name",
@@ -218,23 +256,6 @@ def set_client_fields(client, new_from_xero=False):
     merged_to_contact_id = raw_json.get("_merged_to_contact_id")
     if merged_to_contact_id:
         client.xero_merged_into_id = merged_to_contact_id
-
-    # Attempt to get phone number from the 'DEFAULT' phone entry if available
-    default_phone = ""
-    if isinstance(raw_json.get("_phones"), list):
-        for phone_entry in raw_json.get("_phones", []):
-            if (
-                isinstance(phone_entry, dict)
-                and phone_entry.get("_phone_type") == "DEFAULT"
-            ):
-                number = phone_entry.get("_phone_number", "")
-                area_code = phone_entry.get("_phone_area_code", "")
-                country_code = phone_entry.get("_phone_country_code", "")
-                default_phone = f"{country_code} {area_code} {number}".strip()
-                break  # Found default, no need to check further
-    client.phone = (
-        default_phone or client.phone
-    )  # Use default_phone if found, else keep existing or empty
 
     # Attempt to get address from the 'STREET' address entry if available
     street_address = ""
@@ -366,19 +387,6 @@ def set_client_fields(client, new_from_xero=False):
                         },
                     )
 
-    phones = raw_json.get("_phones", [])
-    if phones:
-        client.all_phones = [
-            {
-                "type": phone.get("_phone_type"),
-                "number": phone.get("_phone_number"),
-                "_phone_area_code": phone.get("_phone_area_code"),
-                "_phone_country_code": phone.get("_phone_country_code"),
-            }
-            for phone in phones
-            if isinstance(phone, dict) and phone.get("_phone_number")
-        ]
-
     # Handle xero_last_modified
     updated_date_utc_str = raw_json.get("_updated_date_utc")
     if updated_date_utc_str:
@@ -395,6 +403,7 @@ def set_client_fields(client, new_from_xero=False):
 
     client.xero_last_synced = timezone.now()
     client.save()
+    sync_xero_phone_methods(client)
 
     if new_from_xero:
         logger.info(

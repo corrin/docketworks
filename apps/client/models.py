@@ -59,7 +59,6 @@ class Client(models.Model):
     CLIENT_DIRECT_FIELDS = [
         "name",
         "email",
-        "phone",
         "address",
         "is_account_customer",
         "is_supplier",
@@ -69,7 +68,6 @@ class Client(models.Model):
         "primary_contact_name",
         "primary_contact_email",
         "additional_contact_persons",
-        "all_phones",
         "xero_last_modified",
         "xero_last_synced",
         "xero_archived",
@@ -88,7 +86,6 @@ class Client(models.Model):
     # Optional because not all prospects are synced to Xero
     name = models.CharField(max_length=255, db_index=True)
     email = models.EmailField(null=True, blank=True)
-    phone = models.CharField(max_length=50, null=True, blank=True)
     address = models.TextField(null=True, blank=True)
     is_account_customer = models.BooleanField(
         default=False
@@ -117,9 +114,6 @@ class Client(models.Model):
 
     # Store all contact persons from the Xero ContactPersons list
     additional_contact_persons = models.JSONField(null=True, blank=True, default=list)
-
-    # Store all phone numbers from the Xero Phones list
-    all_phones = models.JSONField(null=True, blank=True, default=list)
 
     django_created_at = models.DateTimeField(auto_now_add=True)
     django_updated_at = models.DateTimeField(auto_now=True)
@@ -215,11 +209,24 @@ class Client(models.Model):
                 f"Client {self.id} is missing a name, which is required for Xero."
             )
 
+        primary_phone = (
+            self.contact_methods.filter(
+                method_type=ClientContactMethod.MethodType.PHONE
+            )
+            .order_by("-is_primary", "label", "value")
+            .first()
+        )
+
         return Contact(
             contact_id=self.xero_contact_id,
             name=self.name,
             email_address=self.email,
-            phones=[Phone(phone_type="DEFAULT", phone_number=self.phone)],
+            phones=[
+                Phone(
+                    phone_type="DEFAULT",
+                    phone_number=primary_phone.value if primary_phone else None,
+                )
+            ],
             addresses=[
                 Address(
                     address_type="STREET",
@@ -272,7 +279,6 @@ class ClientContact(models.Model):
         "client",
         "name",
         "email",
-        "phone",
         "position",
         "is_primary",
         "notes",
@@ -297,9 +303,6 @@ class ClientContact(models.Model):
     name = models.CharField(max_length=255, help_text="Full name of the contact person")
     email = models.EmailField(
         null=True, blank=True, help_text="Email address of the contact"
-    )
-    phone = models.CharField(
-        max_length=150, null=True, blank=True, help_text="Phone number of the contact"
     )
     position = models.CharField(
         max_length=255,
@@ -437,6 +440,16 @@ class ClientContactMethod(models.Model):
         self.normalized_value = self.normalize_value(self.method_type, self.value)
         if not self.normalized_value:
             raise ValueError("contact method requires a value")
+        if self.method_type == self.MethodType.PHONE:
+            from apps.crm.models import PhoneEndpoint
+
+            if PhoneEndpoint.objects.filter(
+                normalized_number=self.normalized_value,
+                is_active=True,
+            ).exists():
+                raise ValueError(
+                    "internal phone endpoint cannot be saved as a client contact method"
+                )
 
         if self.is_primary:
             queryset = ClientContactMethod.objects.filter(

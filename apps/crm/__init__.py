@@ -7,14 +7,21 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .models import PhoneCallRecord, PhoneCallRecording
+        from .models import (
+            PhoneCallRecord,
+            PhoneCallRecording,
+            PhoneEndpoint,
+            PhoneProviderSettings,
+        )
         from .serializers import (
             PhoneCallJobLinkPayload,
             PhoneCallPayloadModel,
             PhoneCallRecordSerializer,
             PhoneCallRecordingResponse,
             PhoneCallRecordingSerializer,
+            PhoneEndpointSerializer,
             PhoneNumberAssignmentPayload,
+            PhoneProviderSettingsSerializer,
         )
         from .tasks import delete_archived_phone_recordings_task, sync_phone_calls_task
 except (ImportError, RuntimeError):
@@ -30,7 +37,11 @@ __all__ = [
     "PhoneCallRecording",
     "PhoneCallRecordingResponse",
     "PhoneCallRecordingSerializer",
+    "PhoneEndpoint",
+    "PhoneEndpointSerializer",
     "PhoneNumberAssignmentPayload",
+    "PhoneProviderSettings",
+    "PhoneProviderSettingsSerializer",
     "delete_archived_phone_recordings_task",
     "sync_phone_calls_task",
 ]

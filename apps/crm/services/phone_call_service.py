@@ -20,9 +20,10 @@ from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
+    PhoneEndpoint,
+    PhoneProviderSettings,
 )
 from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
 if TYPE_CHECKING:
@@ -439,14 +440,14 @@ class PhoneProviderConfig:
 
 
 def _config() -> PhoneProviderConfig:
-    company_defaults = CompanyDefaults.get_solo()
-    if not company_defaults.phone_provider_base_url:
+    phone_settings = PhoneProviderSettings.get_solo()
+    if not phone_settings.base_url:
         raise ValueError("phone provider base URL is not configured")
     return PhoneProviderConfig(
-        base_url=company_defaults.phone_provider_base_url.rstrip("/"),
-        username=company_defaults.phone_provider_username,
-        password=company_defaults.phone_provider_password,
-        account_code=company_defaults.phone_provider_account_code,
+        base_url=phone_settings.base_url.rstrip("/"),
+        username=phone_settings.username,
+        password=phone_settings.password,
+        account_code=phone_settings.account_code,
         storage_root=Path(settings.PHONE_RECORDING_STORAGE_ROOT).resolve(),
     )
 
@@ -462,7 +463,7 @@ def upsert_call_record(
     call_datetime = _call_datetime(payload)
     origin = normalize_phone(payload.get("origin"))
     destination = normalize_phone(payload.get("destination"))
-    client, contact = matcher.match(origin, destination)
+    classification = matcher.classify(origin, destination)
     defaults = {
         "account_code": account_code,
         "call_datetime": call_datetime,
@@ -473,10 +474,15 @@ def upsert_call_record(
         "description": str(payload.get("description") or ""),
         "origin": origin,
         "destination": destination,
+        "direction": classification.direction,
+        "our_number": classification.our_number,
+        "external_number": classification.external_number,
+        "origin_endpoint": classification.origin_endpoint,
+        "destination_endpoint": classification.destination_endpoint,
         "duration_seconds": _positive_int(payload.get("seconds")),
         "charge": _decimal_or_none(payload.get("charge")),
-        "client": client,
-        "contact": contact,
+        "client": classification.client,
+        "contact": classification.contact,
         "raw_json": payload,
     }
     call = PhoneCallRecord.objects.filter(provider_call_id=provider_call_id).first()
@@ -539,15 +545,30 @@ def archive_recording(
     return True
 
 
+@dataclass(frozen=True)
+class CallClassification:
+    direction: str
+    our_number: str
+    external_number: str
+    origin_endpoint: PhoneEndpoint | None
+    destination_endpoint: PhoneEndpoint | None
+    client: Client | None
+    contact: ClientContact | None
+
+
 class PhoneMatcher:
     def __init__(self):
         self.phone_matches = _build_contact_method_phone_index()
+        self.endpoints = {
+            endpoint.normalized_number: endpoint
+            for endpoint in PhoneEndpoint.objects.filter(is_active=True)
+        }
 
-    def match(
-        self, origin: Any, destination: Any
+    def match_customer(
+        self, *values: Any
     ) -> tuple[Client | None, ClientContact | None]:
         matches: set[tuple[str, str, str]] = set()
-        for value in [origin, destination]:
+        for value in values:
             normalized = normalize_phone(value)
             if not normalized:
                 continue
@@ -571,6 +592,58 @@ class PhoneMatcher:
         client = Client.objects.get(id=object_id)
         return client, None
 
+    def classify(self, origin: Any, destination: Any) -> CallClassification:
+        normalized_origin = normalize_phone(origin)
+        normalized_destination = normalize_phone(destination)
+        origin_endpoint = self.endpoints.get(normalized_origin)
+        destination_endpoint = self.endpoints.get(normalized_destination)
+
+        if origin_endpoint and destination_endpoint:
+            return CallClassification(
+                direction=PhoneCallRecord.Direction.INTERNAL,
+                our_number=normalized_origin,
+                external_number="",
+                origin_endpoint=origin_endpoint,
+                destination_endpoint=destination_endpoint,
+                client=None,
+                contact=None,
+            )
+
+        if origin_endpoint:
+            client, contact = self.match_customer(normalized_destination)
+            return CallClassification(
+                direction=PhoneCallRecord.Direction.OUTBOUND,
+                our_number=normalized_origin,
+                external_number=normalized_destination,
+                origin_endpoint=origin_endpoint,
+                destination_endpoint=None,
+                client=client,
+                contact=contact,
+            )
+
+        if destination_endpoint:
+            client, contact = self.match_customer(normalized_origin)
+            return CallClassification(
+                direction=PhoneCallRecord.Direction.INBOUND,
+                our_number=normalized_destination,
+                external_number=normalized_origin,
+                origin_endpoint=None,
+                destination_endpoint=destination_endpoint,
+                client=client,
+                contact=contact,
+            )
+
+        client, contact = self.match_customer(normalized_origin, normalized_destination)
+        return CallClassification(
+            direction=PhoneCallRecord.Direction.UNKNOWN,
+            our_number="",
+            external_number=normalized_origin or normalized_destination,
+            origin_endpoint=None,
+            destination_endpoint=None,
+            client=client,
+            contact=contact,
+        )
+
 
 def is_call_payload(payload: dict[str, Any]) -> bool:
     if not payload.get("calldate") or not payload.get("calltime"):
@@ -585,39 +658,20 @@ def normalize_phone(value: Any) -> str:
 
 
 def configured_own_numbers() -> set[str]:
-    company_defaults = CompanyDefaults.get_solo()
-    return set(company_defaults.phone_own_numbers)
+    return set(
+        PhoneEndpoint.objects.filter(is_active=True).values_list(
+            "normalized_number", flat=True
+        )
+    )
 
 
 def call_parties(
     call: PhoneCallRecord, own_numbers: set[str] | None = None
 ) -> dict[str, str]:
-    if own_numbers is None:
-        own_numbers = configured_own_numbers()
-    origin_is_ours = call.origin in own_numbers
-    destination_is_ours = call.destination in own_numbers
-    if origin_is_ours and destination_is_ours:
-        return {
-            "direction": "internal",
-            "our_number": call.origin,
-            "external_number": call.destination,
-        }
-    if origin_is_ours:
-        return {
-            "direction": "outbound",
-            "our_number": call.origin,
-            "external_number": call.destination,
-        }
-    if destination_is_ours:
-        return {
-            "direction": "inbound",
-            "our_number": call.destination,
-            "external_number": call.origin,
-        }
     return {
-        "direction": "unknown",
-        "our_number": "",
-        "external_number": call.origin or call.destination,
+        "direction": call.direction,
+        "our_number": call.our_number,
+        "external_number": call.external_number,
     }
 
 
@@ -633,15 +687,41 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
         | models.Q(destination__in=normalized_numbers)
     )
     for call in calls:
-        client, contact = matcher.match(call.origin, call.destination)
+        classification = matcher.classify(call.origin, call.destination)
+        client = classification.client
+        contact = classification.contact
         matched_client_id = client.id if client else None
         matched_contact_id = contact.id if contact else None
         if (
             call.client_id == matched_client_id
             and call.contact_id == matched_contact_id
+            and call.origin_endpoint_id
+            == (
+                classification.origin_endpoint.id
+                if classification.origin_endpoint
+                else None
+            )
+            and call.destination_endpoint_id
+            == (
+                classification.destination_endpoint.id
+                if classification.destination_endpoint
+                else None
+            )
+            and call.direction == classification.direction
+            and call.our_number == classification.our_number
+            and call.external_number == classification.external_number
         ):
             continue
-        update_fields = ["client", "contact", "updated_at"]
+        update_fields = [
+            "client",
+            "contact",
+            "direction",
+            "our_number",
+            "external_number",
+            "origin_endpoint",
+            "destination_endpoint",
+            "updated_at",
+        ]
         linked_job = call.job
         if linked_job is None:
             should_clear_job_link = False
@@ -656,6 +736,11 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
             pass  # No linked job, or the existing job is still on the matched client.
         call.client = client
         call.contact = contact
+        call.direction = classification.direction
+        call.our_number = classification.our_number
+        call.external_number = classification.external_number
+        call.origin_endpoint = classification.origin_endpoint
+        call.destination_endpoint = classification.destination_endpoint
         call.save(update_fields=update_fields)
 
 
@@ -670,6 +755,8 @@ def assign_phone_number(
     normalized = normalize_phone(phone_number)
     if not normalized:
         raise ValueError("phone number is required")
+    if normalized in configured_own_numbers():
+        raise ValueError("internal phone endpoint cannot be assigned to a client")
 
     client_uuid = _uuid_or_client_error(client_id, "Client not found")
     if contact_id:
@@ -728,6 +815,7 @@ def assign_phone_number(
 
 def _build_contact_method_phone_index() -> dict[str, set[tuple[str, str, str]]]:
     index: dict[str, set[tuple[str, str, str]]] = {}
+    internal_numbers = configured_own_numbers()
     methods = ClientContactMethod.objects.select_related(
         "client",
         "contact",
@@ -735,7 +823,7 @@ def _build_contact_method_phone_index() -> dict[str, set[tuple[str, str, str]]]:
     ).filter(method_type=ClientContactMethod.MethodType.PHONE)
     for method in methods:
         normalized = method.normalized_value or normalize_phone(method.value)
-        if not normalized:
+        if not normalized or normalized in internal_numbers:
             continue
         if method.contact_id:
             if not method.contact.is_active:

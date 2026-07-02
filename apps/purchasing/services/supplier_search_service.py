@@ -9,10 +9,10 @@ from datetime import timedelta
 from difflib import SequenceMatcher
 from typing import Any
 
-from django.db.models import Count, Q
+from django.db.models import Count, OuterRef, Q, Subquery
 from django.utils import timezone
 
-from apps.client.models import Client, SupplierSearchAlias
+from apps.client.models import Client, ClientContactMethod, SupplierSearchAlias
 
 MAX_PAGE_SIZE = 100
 MAX_SEARCH_QUERY_LENGTH = 255
@@ -125,7 +125,7 @@ def _format_supplier(client: Client, score: _CandidateScore) -> dict[str, Any]:
         "id": str(client.id),
         "name": client.name,
         "email": client.email or "",
-        "phone": client.phone or "",
+        "phone": getattr(client, "primary_phone", "") or "",
         "address": client.address or "",
         "is_account_customer": client.is_account_customer,
         "is_supplier": client.is_supplier,
@@ -161,14 +161,21 @@ def list_suppliers(
                 filter=Q(purchase_orders__order_date__gte=cutoff)
                 & ~Q(purchase_orders__status="deleted"),
                 distinct=True,
-            )
+            ),
+            primary_phone=Subquery(
+                ClientContactMethod.objects.filter(
+                    client=OuterRef("pk"),
+                    method_type=ClientContactMethod.MethodType.PHONE,
+                )
+                .order_by("-is_primary", "label", "value")
+                .values("value")[:1]
+            ),
         )
         .defer("raw_json")
         .only(
             "id",
             "name",
             "email",
-            "phone",
             "address",
             "is_account_customer",
             "is_supplier",

@@ -14,7 +14,7 @@ from django.test import TestCase
 from django.utils import timezone
 from xero_python.accounting.models import Contact, Contacts
 
-from apps.client.models import Client
+from apps.client.models import Client, ClientContactMethod
 from apps.workflow.tests.fixtures.xero_responses import make_create_contacts_response
 
 
@@ -22,12 +22,20 @@ def _make_client(**overrides):
     defaults = {
         "name": "Acme Ltd",
         "email": "info@acme.test",
-        "phone": "027 351 8326",
         "address": "123 Test Street",
         "xero_last_modified": timezone.now(),
     }
+    phone = overrides.pop("phone", "027 351 8326")
     defaults.update(overrides)
-    return Client.objects.create(**defaults)
+    client = Client.objects.create(**defaults)
+    if phone is not None:
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=phone,
+            is_primary=True,
+        )
+    return client
 
 
 def _create_response(contact_id, name):

@@ -92,7 +92,6 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "post_code": "company",
     "country": "company",
     "company_email": "company",
-    "company_phone": "company",
     "company_url": "company",
     "logo": "company",
     "logo_wide": "company",
@@ -149,14 +148,6 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "xero_payroll_start_date": "xero",
     "last_xero_sync": "xero",
     "last_xero_deep_sync": "xero",
-    # CRM / phone integration
-    "phone_call_downloads_enabled": "crm",
-    "phone_provider_recording_deletion_enabled": "crm",
-    "phone_provider_base_url": "crm",
-    "phone_provider_username": "crm",
-    "phone_provider_password": "crm",
-    "phone_provider_account_code": "crm",
-    "phone_own_numbers": "crm",
     # Job update controls
     "job_delta_soft_fail": "setup",
     # Internal - auto-managed fields, not shown in UI
@@ -202,11 +193,6 @@ def get_field_metadata(
         label = field_name.replace("_", " ").title()
 
     ui_type = get_ui_type_for_field(field)
-    if field_name == "phone_provider_password":
-        ui_type = "password"
-    elif field_name == "phone_own_numbers":
-        ui_type = "textarea"
-
     return {
         "key": field_name,
         "label": label,

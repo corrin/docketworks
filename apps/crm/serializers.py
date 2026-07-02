@@ -10,10 +10,10 @@ from rest_framework.request import Request
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
+    PhoneEndpoint,
+    PhoneProviderSettings,
 )
 from apps.crm.services.phone_call_service import (
-    call_parties,
-    configured_own_numbers,
     normalize_phone,
 )
 
@@ -135,16 +135,89 @@ class PhoneCallRecordingSerializer(serializers.ModelSerializer[PhoneCallRecordin
         return _recording_download_url(obj, None)
 
 
+class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
+    staff_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PhoneEndpoint
+        fields = (
+            "id",
+            "number",
+            "normalized_number",
+            "label",
+            "endpoint_type",
+            "staff",
+            "staff_name",
+            "provider_account_code",
+            "provider_metadata",
+            "is_active",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = (
+            "id",
+            "normalized_number",
+            "staff_name",
+            "created_at",
+            "updated_at",
+        )
+
+    def get_staff_name(self, obj: PhoneEndpoint) -> str:
+        if not obj.staff:
+            return ""
+        return obj.staff.get_display_name()
+
+    def validate_number(self, value: str) -> str:
+        normalized = normalize_phone(value)
+        if not normalized:
+            raise serializers.ValidationError("Phone endpoint requires a number.")
+        return value.strip()
+
+
+class PhoneProviderSettingsSerializer(
+    serializers.ModelSerializer[PhoneProviderSettings]
+):
+    password = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
+
+    class Meta:
+        model = PhoneProviderSettings
+        fields = (
+            "id",
+            "downloads_enabled",
+            "recording_deletion_enabled",
+            "base_url",
+            "username",
+            "password",
+            "account_code",
+            "created_at",
+            "updated_at",
+        )
+        read_only_fields = ("id", "created_at", "updated_at")
+
+    def validate(self, attrs: dict) -> dict:
+        downloads_enabled = attrs.get(
+            "downloads_enabled",
+            getattr(self.instance, "downloads_enabled", False),
+        )
+        base_url = attrs.get("base_url", getattr(self.instance, "base_url", None))
+        if downloads_enabled and not base_url:
+            raise serializers.ValidationError(
+                {"base_url": "Base URL is required when phone downloads are enabled."}
+            )
+        return attrs
+
+
 class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
-    _phone_own_numbers_cache: set[str] | None = None
-    _phone_call_parties_cache: dict[UUID, dict[str, str]] | None = None
 
     recording = serializers.SerializerMethodField()
     client_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
-    direction = serializers.SerializerMethodField()
-    our_number = serializers.SerializerMethodField()
-    external_number = serializers.SerializerMethodField()
+    origin_endpoint_label = serializers.SerializerMethodField()
+    destination_endpoint_label = serializers.SerializerMethodField()
     job_number = serializers.SerializerMethodField()
     job_name = serializers.SerializerMethodField()
     job_status = serializers.SerializerMethodField()
@@ -166,6 +239,10 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
             "direction",
             "our_number",
             "external_number",
+            "origin_endpoint",
+            "origin_endpoint_label",
+            "destination_endpoint",
+            "destination_endpoint_label",
             "duration_seconds",
             "charge",
             "client",
@@ -184,43 +261,17 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
         )
         read_only_fields = fields
 
-    def _own_numbers(self) -> set[str]:
-        cached_numbers = self._phone_own_numbers_cache
-        if cached_numbers is not None:
-            return cached_numbers
-
-        own_numbers = configured_own_numbers()
-        self._phone_own_numbers_cache = own_numbers
-        return own_numbers
-
-    def _call_parties(self, obj: PhoneCallRecord) -> dict[str, str]:
-        cached_parties = self._phone_call_parties_cache
-        if cached_parties is None:
-            cached_parties = {}
-            self._phone_call_parties_cache = cached_parties
-
-        cached_party = cached_parties.get(obj.id)
-        if cached_party is not None:
-            return cached_party
-
-        party = call_parties(obj, self._own_numbers())
-        cached_parties[obj.id] = party
-        return party
-
-    def get_direction(self, obj: PhoneCallRecord) -> str:
-        return self._call_parties(obj)["direction"]
-
-    def get_our_number(self, obj: PhoneCallRecord) -> str:
-        return self._call_parties(obj)["our_number"]
-
-    def get_external_number(self, obj: PhoneCallRecord) -> str:
-        return self._call_parties(obj)["external_number"]
-
     def get_client_name(self, obj: PhoneCallRecord) -> str:
         return obj.client.name if obj.client else ""
 
     def get_contact_name(self, obj: PhoneCallRecord) -> str:
         return obj.contact.name if obj.contact else ""
+
+    def get_origin_endpoint_label(self, obj: PhoneCallRecord) -> str:
+        return obj.origin_endpoint.label if obj.origin_endpoint else ""
+
+    def get_destination_endpoint_label(self, obj: PhoneCallRecord) -> str:
+        return obj.destination_endpoint.label if obj.destination_endpoint else ""
 
     @extend_schema_field(PhoneCallRecordingSerializer(allow_null=True))
     def get_recording(self, obj: PhoneCallRecord) -> PhoneCallRecordingResponse | None:

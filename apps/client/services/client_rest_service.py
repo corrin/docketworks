@@ -124,7 +124,6 @@ class ClientRestService:
             allowed_sort_fields = {
                 "name": "name",
                 "email": "email",
-                "phone": "phone",
                 "is_account_customer": "is_account_customer",
                 "last_invoice_date": "last_invoice_date",
                 "total_spend": "total_spend",
@@ -367,7 +366,6 @@ class ClientRestService:
                     "id": str(contact.id),
                     "name": contact.name,
                     "email": contact.email,
-                    "phone": contact.phone,
                     "position": contact.position,
                     "is_primary": contact.is_primary,
                 }
@@ -427,7 +425,6 @@ class ClientRestService:
                 "id": str(contact.id),
                 "name": contact.name,
                 "email": contact.email,
-                "phone": contact.phone,
                 "position": contact.position,
                 "is_primary": contact.is_primary,
                 "notes": contact.notes,
@@ -502,7 +499,6 @@ class ClientRestService:
                 "id": str(contact.id),
                 "name": contact.name,
                 "email": contact.email,
-                "phone": contact.phone,
                 "position": contact.position,
                 "is_primary": contact.is_primary,
                 "notes": contact.notes,
@@ -549,7 +545,6 @@ class ClientRestService:
                 "id",
                 "name",
                 "email",
-                "phone",
                 "address",
                 "is_account_customer",
                 "is_supplier",
@@ -802,7 +797,6 @@ class ClientRestService:
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
-            "phone": client.phone or "",
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
@@ -828,7 +822,6 @@ class ClientRestService:
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
-            "phone": client.phone or "",
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
@@ -838,7 +831,6 @@ class ClientRestService:
             "primary_contact_name": client.primary_contact_name or "",
             "primary_contact_email": client.primary_contact_email or "",
             "additional_contact_persons": client.additional_contact_persons or [],
-            "all_phones": client.all_phones or [],
             "xero_last_modified": client.xero_last_modified,
             "xero_last_synced": client.xero_last_synced,
             "xero_archived": client.xero_archived,
@@ -871,7 +863,6 @@ class ClientRestService:
             client = Client.objects.create(
                 name=name,
                 email=client_data.get("email") or "",
-                phone=client_data.get("phone") or "",
                 address=client_data.get("address") or "",
                 is_account_customer=client_data.get("is_account_customer", True),
                 xero_last_modified=timezone.now(),
@@ -922,7 +913,6 @@ class ClientRestService:
         with transaction.atomic():
             client.name = data.get("name", client.name)
             client.email = data.get("email", client.email)
-            client.phone = data.get("phone", client.phone)
             client.address = data.get("address", client.address)
             client.is_account_customer = data.get(
                 "is_account_customer", client.is_account_customer

@@ -20,6 +20,8 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Flowable, Paragraph, Table, TableStyle
 
+from apps.client.models import ClientContactMethod
+from apps.crm.models import PhoneEndpoint
 from apps.job.enums import SpeedQualityTradeoff
 from apps.job.models import CostLine, CostSet, Job, JobFile
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -31,6 +33,33 @@ logger = logging.getLogger(__name__)
 JOB_SUMMARY_PDF_FILENAME = "JobSummary.pdf"
 WORKSHOP_PDF_COST_LINES_ATTR = "_workshop_pdf_cost_lines"
 WORKSHOP_PDF_FILES_ATTR = "_workshop_pdf_files_to_print"
+
+
+def _primary_phone_for_job(job: Job) -> str:
+    owner_filter = {"contact": job.contact} if job.contact else {"client": job.client}
+    if not owner_filter.get("contact") and not owner_filter.get("client"):
+        return ""
+    method = (
+        ClientContactMethod.objects.filter(
+            method_type=ClientContactMethod.MethodType.PHONE,
+            **owner_filter,
+        )
+        .order_by("-is_primary", "label", "value")
+        .first()
+    )
+    return method.value if method else ""
+
+
+def _primary_company_endpoint_number() -> str:
+    endpoint = (
+        PhoneEndpoint.objects.filter(
+            is_active=True,
+            endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
+        )
+        .order_by("label", "normalized_number")
+        .first()
+    )
+    return endpoint.number if endpoint else ""
 
 
 def get_job_for_workshop_pdf(job_id: object) -> Job:
@@ -818,7 +847,9 @@ def add_letterhead_banner(pdf, y_position):
     pdf.drawString(MARGIN, contact_y, ", ".join(address_parts))
 
     # Right side: phone and email
-    right_parts = [p for p in [company.company_phone, company.company_email] if p]
+    right_parts = [
+        p for p in [_primary_company_endpoint_number(), company.company_email] if p
+    ]
     if right_parts:
         pdf.drawRightString(PAGE_WIDTH - MARGIN, contact_y, "    ".join(right_parts))
 
@@ -1095,11 +1126,7 @@ def add_workshop_details_table(
     """Render a full-page workshop brief: identity, constraints, labour budget, and specs."""
     client_name = job.client.name if job.client else "N/A"
     contact_name = job.contact.name if job.contact else ""
-    contact_phone = (
-        (job.contact.phone if job.contact and job.contact.phone else None)
-        or (job.client.phone if job.client else None)
-        or ""
-    )
+    contact_phone = _primary_phone_for_job(job)
     contact_info = (
         f"{escape(contact_name)}<br/>{escape(contact_phone)}"
         if contact_phone
@@ -1249,11 +1276,7 @@ def add_delivery_docket_details_table(
     client_name = job.client.name if job.client else "N/A"
     contact_name = job.contact.name if job.contact else ""
 
-    contact_phone = (
-        (job.contact.phone if job.contact and job.contact.phone else None)
-        or (job.client.phone if job.client else None)
-        or ""
-    )
+    contact_phone = _primary_phone_for_job(job)
     contact_info = (
         f"{contact_name}<br/>{contact_phone}" if contact_phone else contact_name
     )

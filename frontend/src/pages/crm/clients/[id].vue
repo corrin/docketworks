@@ -82,10 +82,6 @@
                 <p class="text-gray-900">{{ client.email || '-' }}</p>
               </div>
               <div>
-                <label class="text-sm font-medium text-gray-500">Phone</label>
-                <p class="text-gray-900">{{ client.phone || '-' }}</p>
-              </div>
-              <div>
                 <label class="text-sm font-medium text-gray-500">Address</label>
                 <p class="text-gray-900">{{ client.address || '-' }}</p>
               </div>
@@ -197,7 +193,6 @@
                     </p>
                     <div class="flex flex-col gap-1 mt-1 text-sm text-gray-600">
                       <span v-if="contact.email">{{ contact.email }}</span>
-                      <span v-if="contact.phone">{{ contact.phone }}</span>
                     </div>
                   </div>
                 </div>

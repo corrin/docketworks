@@ -384,7 +384,7 @@ import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 import { requiredNumber } from '@/utils/requiredNumber'
 
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type ClientContact = Omit<z.infer<typeof schemas.ClientContact>, 'phone'>
 
 // Use the existing JobHeaderResponse schema from generated API
 type Job = z.infer<typeof schemas.JobHeaderResponse>
@@ -645,7 +645,6 @@ const TYPING_TIMEOUT_MS = 1000 // Consider user stopped typing after 1 second
 const currentClientData = ref({
   name: '',
   email: '',
-  phone: '',
   address: '',
   is_account_customer: true,
   allow_jobs: true,
@@ -1111,7 +1110,6 @@ const editCurrentClient = async () => {
     currentClientData.value = {
       name: clientDetail.name,
       email: clientDetail.email,
-      phone: clientDetail.phone,
       address: clientDetail.address,
       is_account_customer: clientDetail.is_account_customer,
       allow_jobs: clientDetail.allow_jobs,
@@ -1160,17 +1158,19 @@ const handleContactSelected = async (contact: ClientContact | null) => {
       id: contact.id,
       name: contact.name,
       email: contact.email ?? null,
-      phone: contact.phone ?? null,
       position: contact.position ?? null,
       notes: contact.notes ?? null,
       is_primary: contact.is_primary ?? false,
-    }
+    } satisfies Omit<z.input<typeof schemas.JobContactUpdateRequest>, 'phone'>
 
     // Save contact directly (not through header autosave)
     try {
-      await api.clients_jobs_contact_update(contactToSend, {
-        params: { job_id: props.jobId },
-      })
+      await api.clients_jobs_contact_update(
+        contactToSend as z.input<typeof schemas.JobContactUpdateRequest>,
+        {
+          params: { job_id: props.jobId },
+        },
+      )
       toast.success('Contact updated successfully')
     } catch (error) {
       toast.error('Failed to update contact')

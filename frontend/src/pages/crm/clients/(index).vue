@@ -19,7 +19,7 @@
         <input
           v-model="searchInput"
           type="text"
-          placeholder="Search clients by name, email, or phone..."
+          placeholder="Search clients by name or email..."
           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           @input="onSearchInput"
         />
@@ -81,7 +81,6 @@
                   </button>
                 </th>
                 <th class="p-3 text-left font-semibold text-gray-700">Email</th>
-                <th class="p-3 text-left font-semibold text-gray-700">Phone</th>
                 <th class="p-3 text-left">
                   <button
                     @click="toggleSort('total_spend')"
@@ -128,9 +127,6 @@
                 </td>
                 <td class="p-3 text-gray-600">
                   {{ client.email || '-' }}
-                </td>
-                <td class="p-3 text-gray-600">
-                  {{ client.phone || '-' }}
                 </td>
                 <td class="p-3 text-gray-900 font-medium">
                   {{ client.total_spend || '$0.00' }}

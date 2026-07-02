@@ -26,16 +26,19 @@ from apps.client.models import ClientContactMethod
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
+    PhoneEndpoint,
+    PhoneProviderSettings,
 )
 from apps.crm.serializers import (
     PhoneCallJobLinkPayload,
     PhoneCallRecordingSerializer,
     PhoneCallRecordSerializer,
+    PhoneEndpointSerializer,
     PhoneNumberAssignmentPayload,
+    PhoneProviderSettingsSerializer,
 )
 from apps.crm.services.phone_call_service import (
     assign_phone_number,
-    configured_own_numbers,
     delete_local_recording,
     link_phone_call_to_job,
     normalize_phone,
@@ -92,6 +95,17 @@ def _phone_call_filter_kwargs(request: Request) -> dict[str, UUID]:
         ("client_id", _query_uuid(request.query_params.get("client"), "client")),
         ("contact_id", _query_uuid(request.query_params.get("contact"), "contact")),
         ("job_id", _query_uuid(request.query_params.get("job"), "job")),
+        (
+            "origin_endpoint_id",
+            _query_uuid(request.query_params.get("origin_endpoint"), "origin_endpoint"),
+        ),
+        (
+            "destination_endpoint_id",
+            _query_uuid(
+                request.query_params.get("destination_endpoint"),
+                "destination_endpoint",
+            ),
+        ),
     )
     filter_kwargs: dict[str, UUID] = {}
     for lookup, value in query_filters:
@@ -158,23 +172,8 @@ def _apply_direction_filter(
 ) -> QuerySet[PhoneCallRecord]:
     if direction == "all":
         return queryset
-
-    own_numbers = configured_own_numbers()
-    if not own_numbers:
-        if direction == "unknown":
-            return queryset
-        return queryset.none()
-
-    origin_is_ours = Q(origin__in=own_numbers)
-    destination_is_ours = Q(destination__in=own_numbers)
-    if direction == "inbound":
-        return queryset.filter(destination_is_ours).exclude(origin_is_ours)
-    if direction == "outbound":
-        return queryset.filter(origin_is_ours).exclude(destination_is_ours)
-    if direction == "internal":
-        return queryset.filter(origin_is_ours, destination_is_ours)
-    if direction == "unknown":
-        return queryset.exclude(origin_is_ours | destination_is_ours)
+    if direction in {"inbound", "outbound", "internal", "unknown"}:
+        return queryset.filter(direction=direction)
     raise RuntimeError(f"Unhandled phone call direction filter: {direction}")
 
 
@@ -214,6 +213,8 @@ def _apply_search_filter(
     filters = (
         Q(client__name__icontains=search)
         | Q(contact__name__icontains=search)
+        | Q(origin_endpoint__label__icontains=search)
+        | Q(destination_endpoint__label__icontains=search)
         | Q(job__name__icontains=search)
         | Q(origin__icontains=search)
         | Q(destination__icontains=search)
@@ -278,6 +279,12 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
             OpenApiParameter("client", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("contact", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("job", OpenApiTypes.UUID, OpenApiParameter.QUERY),
+            OpenApiParameter(
+                "origin_endpoint", OpenApiTypes.UUID, OpenApiParameter.QUERY
+            ),
+            OpenApiParameter(
+                "destination_endpoint", OpenApiTypes.UUID, OpenApiParameter.QUERY
+            ),
             OpenApiParameter("client_match", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("job_link", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("direction", OpenApiTypes.STR, OpenApiParameter.QUERY),
@@ -315,6 +322,8 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
                 "contact",
                 "job",
                 "job_linked_by",
+                "origin_endpoint",
+                "destination_endpoint",
             )
             .filter(Q(origin__gt="") | Q(destination__gt=""))
             .order_by("-call_datetime")
@@ -517,3 +526,54 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
         except Exception as exc:
             app_error = persist_app_error(exc)
             raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+class PhoneEndpointViewSet(viewsets.ModelViewSet[PhoneEndpoint]):
+    serializer_class = PhoneEndpointSerializer
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+
+    @extend_schema(
+        parameters=[
+            OpenApiParameter("is_active", OpenApiTypes.BOOL, OpenApiParameter.QUERY),
+        ],
+        tags=["CRM"],
+    )
+    def list(self, request: Request, *args: str, **kwargs: str) -> Response:
+        return super().list(request, *args, **kwargs)
+
+    def get_queryset(self) -> QuerySet[PhoneEndpoint]:
+        queryset = PhoneEndpoint.objects.select_related("staff").order_by(
+            "endpoint_type",
+            "label",
+        )
+        is_active = _query_bool(self.request.query_params.get("is_active"), "is_active")
+        if is_active is None:
+            return queryset
+        return queryset.filter(is_active=is_active)
+
+
+class PhoneProviderSettingsViewSet(viewsets.GenericViewSet[PhoneProviderSettings]):
+    queryset = PhoneProviderSettings.objects.all()
+    serializer_class = PhoneProviderSettingsSerializer
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+
+    @extend_schema(responses={200: PhoneProviderSettingsSerializer}, tags=["CRM"])
+    def list(self, request: Request) -> Response:
+        phone_settings = PhoneProviderSettings.get_solo()
+        return Response(PhoneProviderSettingsSerializer(phone_settings).data)
+
+    @extend_schema(
+        request=PhoneProviderSettingsSerializer,
+        responses={200: PhoneProviderSettingsSerializer},
+        tags=["CRM"],
+    )
+    def partial_update(self, request: Request, pk: str | None = None) -> Response:
+        phone_settings = PhoneProviderSettings.get_solo()
+        serializer = PhoneProviderSettingsSerializer(
+            phone_settings,
+            data=request.data,
+            partial=True,
+        )
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return Response(serializer.data)

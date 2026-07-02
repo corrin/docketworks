@@ -76,6 +76,7 @@ try:
             reprocess_invoices,
             set_client_fields,
             set_invoice_or_bill_fields,
+            sync_xero_phone_methods,
         )
         from .seed import (
             fetch_xero_entity_lookup,
@@ -237,6 +238,7 @@ __all__ = [
     "sync_time_entries_bulk",
     "sync_xero_data",
     "sync_xero_pay_items",
+    "sync_xero_phone_methods",
     "synchronise_xero_data",
     "transform_bill",
     "transform_credit_note",
