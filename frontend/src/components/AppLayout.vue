@@ -17,7 +17,7 @@ import { computed, watch, onMounted, onBeforeUnmount } from 'vue'
 
 const route = useRoute()
 
-const allowVerticalScroll = computed(() => route.meta.allowScroll === true)
+const allowVerticalScroll = computed(() => route.meta.allowScroll !== false)
 
 const mainClasses = computed(() => [
   'flex-1 pt-12 md:pt-8 lg:pt-14 flex flex-col min-h-0',
