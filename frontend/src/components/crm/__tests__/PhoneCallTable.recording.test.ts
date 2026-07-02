@@ -9,12 +9,6 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
-vi.mock('@/plugins/axios', () => ({
-  default: {
-    get: vi.fn(),
-  },
-}))
-
 vi.mock('vue-sonner', () => ({
   toast: {
     error: vi.fn(),
@@ -22,11 +16,7 @@ vi.mock('vue-sonner', () => ({
   },
 }))
 
-import axios from '@/plugins/axios'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
-
-const createObjectURL = vi.fn(() => 'blob:recording-audio')
-const revokeObjectURL = vi.fn()
 
 function callWithRecording() {
   return {
@@ -49,17 +39,6 @@ function callWithRecording() {
 
 beforeEach(() => {
   vi.clearAllMocks()
-  Object.defineProperty(window.URL, 'createObjectURL', {
-    configurable: true,
-    value: createObjectURL,
-  })
-  Object.defineProperty(window.URL, 'revokeObjectURL', {
-    configurable: true,
-    value: revokeObjectURL,
-  })
-  vi.mocked(axios.get).mockResolvedValue({
-    data: new Blob(['recorded audio'], { type: 'audio/mpeg' }),
-  })
 })
 
 describe('PhoneCallTable recording playback', () => {
@@ -72,17 +51,13 @@ describe('PhoneCallTable recording playback', () => {
       },
     })
 
-    expect(axios.get).not.toHaveBeenCalled()
     const audio = wrapper.find('audio')
     expect(audio.exists()).toBe(true)
     expect(audio.attributes('src')).toBe(protectedUrl)
     expect(audio.attributes('preload')).toBe('metadata')
   })
 
-  it('downloads recordings through authenticated axios when requested', async () => {
-    vi.useFakeTimers()
-    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
-    const protectedUrl = '/api/crm/phone-call-recordings/recording-1/download/'
+  it('does not promote a separate recording download action', () => {
     const wrapper = mount(PhoneCallTable, {
       props: {
         calls: [callWithRecording()],
@@ -90,20 +65,6 @@ describe('PhoneCallTable recording playback', () => {
       },
     })
 
-    await wrapper.get('button[aria-label="Download recording"]').trigger('click')
-
-    expect(axios.get).toHaveBeenCalledWith(protectedUrl, {
-      responseType: 'blob',
-      withCredentials: true,
-    })
-    expect(createObjectURL).toHaveBeenCalledOnce()
-    const link = document.querySelector('a[download]')
-    expect(link).toBeNull()
-
-    await vi.advanceTimersByTimeAsync(30000)
-
-    expect(revokeObjectURL).toHaveBeenCalledWith('blob:recording-audio')
-    click.mockRestore()
-    vi.useRealTimers()
+    expect(wrapper.find('button[aria-label="Download recording"]').exists()).toBe(false)
   })
 })

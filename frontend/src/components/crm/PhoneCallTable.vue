@@ -85,25 +85,13 @@
             <span v-else class="text-xs text-gray-500">Assign client first</span>
           </td>
           <td class="p-3 min-w-64">
-            <div v-if="recordingDownloadUrl(call)" class="flex items-center gap-2">
-              <audio
-                :src="recordingDownloadUrl(call) || undefined"
-                controls
-                preload="metadata"
-                class="h-9 w-full max-w-sm"
-              />
-              <Button
-                variant="ghost"
-                size="sm"
-                class="h-8 w-8 shrink-0 p-0"
-                title="Download recording"
-                aria-label="Download recording"
-                :disabled="downloadingRecordingIds.has(call.id)"
-                @click="downloadRecording(call)"
-              >
-                <Download class="h-4 w-4" />
-              </Button>
-            </div>
+            <audio
+              v-if="recordingDownloadUrl(call)"
+              :src="recordingDownloadUrl(call) || undefined"
+              controls
+              preload="metadata"
+              class="h-9 w-full max-w-sm"
+            />
             <span v-else class="text-xs text-gray-500">No recording</span>
           </td>
         </tr>
@@ -156,7 +144,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { toast } from 'vue-sonner'
-import { Download } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -169,7 +156,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import axios from '@/plugins/axios'
 import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
@@ -201,7 +187,6 @@ const jobSearch = ref('')
 const clientJobs = ref<ClientJobHeader[]>([])
 const isLoadingJobs = ref(false)
 const savingCallId = ref<string | null>(null)
-const downloadingRecordingIds = ref<Set<string>>(new Set())
 
 const filteredJobs = computed(() => {
   const search = jobSearch.value.trim().toLowerCase()
@@ -308,37 +293,5 @@ function formatDuration(seconds: number): string {
 function recordingDownloadUrl(call: PhoneCallRecord): string | null {
   const downloadUrl = call.recording?.download_url
   return typeof downloadUrl === 'string' ? downloadUrl : null
-}
-
-async function downloadRecording(call: PhoneCallRecord): Promise<void> {
-  const downloadUrl = recordingDownloadUrl(call)
-  if (!downloadUrl || downloadingRecordingIds.value.has(call.id)) {
-    return
-  }
-
-  downloadingRecordingIds.value = new Set(downloadingRecordingIds.value).add(call.id)
-  try {
-    const response = await axios.get(downloadUrl, {
-      responseType: 'blob',
-      withCredentials: true,
-    })
-    const blob = response.data as Blob
-    const objectUrl = window.URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = objectUrl
-    link.download = call.recording?.filename || 'call-recording'
-    link.style.display = 'none'
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 30000)
-  } catch (error) {
-    toast.error('Failed to download call recording')
-    console.error('Failed to download call recording:', error)
-  } finally {
-    const nextDownloadingIds = new Set(downloadingRecordingIds.value)
-    nextDownloadingIds.delete(call.id)
-    downloadingRecordingIds.value = nextDownloadingIds
-  }
 }
 </script>
