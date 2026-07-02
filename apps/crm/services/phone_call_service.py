@@ -7,8 +7,9 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from time import sleep
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import unquote
+from uuid import UUID
 
 import requests
 from django.conf import settings
@@ -24,11 +25,21 @@ from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
+
 logger = logging.getLogger("apps.crm.phone_calls")
 
 CDR_ENDPOINT = "/json/account/getCdr"
 RECORDING_ENDPOINT = "/account/dlrecording"
 DELETE_MEDIA_ENDPOINT = "/json/account/deleteMedia"
+
+
+def _uuid_or_client_error(value: str, message: str) -> UUID:
+    try:
+        return UUID(value)
+    except ValueError as exc:
+        raise ValueError(message) from exc
 
 
 @dataclass(frozen=True)
@@ -225,6 +236,73 @@ def recording_file_path(recording: PhoneCallRecording) -> Path:
     if not recording.storage_path:
         raise ValueError("Recording has no archived file")
     return _full_storage_path(recording.storage_path)
+
+
+def link_phone_call_to_job(
+    *,
+    call_id: str,
+    job_id: str,
+    linked_by: "Staff",
+) -> PhoneCallRecord:
+    from apps.job.models import Job
+
+    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
+    job_uuid = _uuid_or_client_error(job_id, "Job not found")
+
+    with transaction.atomic():
+        try:
+            call = PhoneCallRecord.objects.select_for_update().get(id=call_uuid)
+        except PhoneCallRecord.DoesNotExist as exc:
+            raise ValueError("Phone call not found") from exc
+
+        if not call.client_id:
+            raise ValueError(
+                "Phone call must be assigned to a client before linking a job"
+            )
+
+        try:
+            job = Job.objects.select_for_update().get(id=job_uuid)
+        except Job.DoesNotExist as exc:
+            raise ValueError("Job not found") from exc
+
+        if job.client_id != call.client_id:
+            raise ValueError(
+                "Phone call can only be linked to a job for the same client"
+            )
+
+        call.job = job
+        call.job_linked_by = linked_by
+        call.job_linked_at = timezone.now()
+        call.save(
+            update_fields=[
+                "job",
+                "job_linked_by",
+                "job_linked_at",
+                "updated_at",
+            ]
+        )
+        return call
+
+
+def unlink_phone_call_job(*, call_id: str) -> PhoneCallRecord:
+    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
+    try:
+        call = PhoneCallRecord.objects.get(id=call_uuid)
+    except PhoneCallRecord.DoesNotExist as exc:
+        raise ValueError("Phone call not found") from exc
+
+    call.job = None
+    call.job_linked_by = None
+    call.job_linked_at = None
+    call.save(
+        update_fields=[
+            "job",
+            "job_linked_by",
+            "job_linked_at",
+            "updated_at",
+        ]
+    )
+    return call
 
 
 class PhoneProviderPortalClient:
@@ -556,13 +634,29 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
     )
     for call in calls:
         client, contact = matcher.match(call.origin, call.destination)
-        if call.client_id == getattr(client, "id", None) and call.contact_id == getattr(
-            contact, "id", None
+        matched_client_id = client.id if client else None
+        matched_contact_id = contact.id if contact else None
+        if (
+            call.client_id == matched_client_id
+            and call.contact_id == matched_contact_id
         ):
             continue
+        update_fields = ["client", "contact", "updated_at"]
+        linked_job = call.job
+        if linked_job is None:
+            should_clear_job_link = False
+        else:
+            should_clear_job_link = linked_job.client_id != matched_client_id
+        if should_clear_job_link:
+            call.job = None
+            call.job_linked_by = None
+            call.job_linked_at = None
+            update_fields.extend(["job", "job_linked_by", "job_linked_at"])
+        else:
+            pass  # No linked job, or the existing job is still on the matched client.
         call.client = client
         call.contact = contact
-        call.save(update_fields=["client", "contact", "updated_at"])
+        call.save(update_fields=update_fields)
 
 
 def assign_phone_number(
@@ -577,12 +671,17 @@ def assign_phone_number(
     if not normalized:
         raise ValueError("phone number is required")
 
+    client_uuid = _uuid_or_client_error(client_id, "Client not found")
     if contact_id:
-        contact = ClientContact.objects.select_related("client").get(
-            id=contact_id,
-            client_id=client_id,
-            is_active=True,
-        )
+        contact_uuid = _uuid_or_client_error(contact_id, "Contact not found")
+        try:
+            contact = ClientContact.objects.select_related("client").get(
+                id=contact_uuid,
+                client_id=client_uuid,
+                is_active=True,
+            )
+        except ClientContact.DoesNotExist as exc:
+            raise ValueError("Contact not found") from exc
         owner_filter = {"contact": contact, "client": None}
         existing_primary = ClientContactMethod.objects.filter(
             contact=contact,
@@ -590,7 +689,10 @@ def assign_phone_number(
             is_primary=True,
         ).exists()
     else:
-        client = Client.objects.get(id=client_id)
+        try:
+            client = Client.objects.get(id=client_uuid)
+        except Client.DoesNotExist as exc:
+            raise ValueError("Client not found") from exc
         owner_filter = {"client": client, "contact": None}
         existing_primary = ClientContactMethod.objects.filter(
             client=client,

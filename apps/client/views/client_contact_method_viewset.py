@@ -6,6 +6,7 @@ from rest_framework import permissions, viewsets
 
 from apps.client.models import ClientContactMethod
 from apps.client.serializers import ClientContactMethodSerializer
+from apps.workflow.api.pagination import PageSizePagination
 
 
 class ClientContactMethodViewSet(viewsets.ModelViewSet):
@@ -13,6 +14,7 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
 
     serializer_class = ClientContactMethodSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = PageSizePagination
 
     @extend_schema(
         parameters=[
@@ -31,6 +33,18 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
             OpenApiParameter(
                 name="method_type",
                 type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
                 required=False,
             ),

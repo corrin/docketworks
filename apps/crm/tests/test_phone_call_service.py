@@ -1,8 +1,13 @@
+import tempfile
+import uuid
+from pathlib import Path
 from unittest.mock import patch
 
-from django.test import SimpleTestCase, TestCase
+from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
+from rest_framework.test import APIClient
 
+from apps.accounts.models import Staff
 from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.crm.services.phone_call_service import (
@@ -11,9 +16,14 @@ from apps.crm.services.phone_call_service import (
     PhoneProviderPortalClient,
     assign_phone_number,
     delete_archived_provider_recordings,
+    link_phone_call_to_job,
     normalize_phone,
+    rematch_calls_for_numbers,
+    sync_call_history,
 )
-from apps.workflow.models import CompanyDefaults
+from apps.job.models import Job
+from apps.testing import BaseAPITestCase, BaseTestCase
+from apps.workflow.models import AppError, CompanyDefaults
 
 
 class PhoneProviderPortalClientTests(SimpleTestCase):
@@ -149,6 +159,56 @@ class PhoneMatcherDatabaseTests(TestCase):
         self.assertIsNone(matched_client)
         self.assertIsNone(matched_contact)
 
+    def test_rematch_clears_job_link_when_number_moves_to_other_client(
+        self,
+    ) -> None:
+        first = self._client("Acme Ltd")
+        second = self._client("Beta Ltd")
+        CompanyDefaults.objects.create(
+            company_name="Test Company",
+            shop_client=first,
+        )
+        staff = Staff.objects.create_user(
+            email="rematch-link@example.com",
+            password="testpass",
+            is_office_staff=True,
+        )
+        job = Job.objects.create(client=first, name="Linked Job", staff=staff)
+        ClientContactMethod.objects.create(
+            client=second,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="+6421555123",
+            normalized_value="+6421555123",
+        )
+        call_datetime = timezone.now()
+        call = PhoneCallRecord.objects.create(
+            provider_call_id="account:rematch-linked",
+            account_code="account",
+            call_datetime=call_datetime,
+            call_date=timezone.localdate(),
+            call_time=call_datetime.time(),
+            origin="+6421555123",
+            destination="+6490000000",
+            client=first,
+            job=job,
+            job_linked_by=staff,
+            job_linked_at=call_datetime,
+            raw_json={
+                "id": "rematch-linked",
+                "calldate": timezone.localdate().isoformat(),
+                "calltime": call_datetime.time().isoformat(timespec="seconds"),
+            },
+        )
+
+        rematch_calls_for_numbers(["+6421555123"])
+
+        call.refresh_from_db()
+        self.assertEqual(call.client, second)
+        self.assertIsNone(call.contact)
+        self.assertIsNone(call.job)
+        self.assertIsNone(call.job_linked_by)
+        self.assertIsNone(call.job_linked_at)
+
 
 class ProviderRecordingDeletionTests(TestCase):
     """Business case: provider recordings may be deleted only after DocketWorks
@@ -210,13 +270,13 @@ class ProviderRecordingDeletionTests(TestCase):
             provider_call_id=f"account:{provider_id}",
             account_code="account",
             call_datetime=call_datetime,
-            call_date=call_datetime.date(),
+            call_date=timezone.localdate(call_datetime),
             call_time=call_datetime.time(),
             origin="+6496365131",
             destination="+6421467784",
             raw_json={
                 "id": provider_id,
-                "calldate": call_datetime.date().isoformat(),
+                "calldate": timezone.localdate(call_datetime).isoformat(),
                 "calltime": call_datetime.time().isoformat(timespec="seconds"),
             },
         )
@@ -236,4 +296,393 @@ class ProviderRecordingDeletionTests(TestCase):
             storage_path=storage_path,
             archived_at=timezone.now(),
             provider_deleted_at=provider_deleted_at,
+        )
+
+
+class PhoneCallSyncTests(BaseTestCase):
+    """Business case: call imports are the source of CRM customer touchpoints.
+    The supported provider path must be idempotent and preserve recording
+    evidence without relying on the old standalone scraper.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.storage_root = tempfile.TemporaryDirectory()
+        self.settings_override = override_settings(
+            PHONE_RECORDING_STORAGE_ROOT=self.storage_root.name
+        )
+        self.settings_override.enable()
+        company_defaults = CompanyDefaults.get_solo()
+        company_defaults.phone_provider_base_url = "https://phone.example.test"
+        company_defaults.phone_provider_username = "user"
+        company_defaults.phone_provider_password = "secret"
+        company_defaults.phone_provider_account_code = "account"
+        CompanyDefaults.objects.filter(pk=company_defaults.pk).update(
+            phone_provider_base_url=company_defaults.phone_provider_base_url,
+            phone_provider_username=company_defaults.phone_provider_username,
+            phone_provider_password=company_defaults.phone_provider_password,
+            phone_provider_account_code=company_defaults.phone_provider_account_code,
+        )
+
+    def tearDown(self) -> None:
+        self.settings_override.disable()
+        self.storage_root.cleanup()
+        super().tearDown()
+
+    def test_sync_archives_recording_and_is_idempotent(self) -> None:
+        client = Client.objects.create(
+            name="Sync Client",
+            xero_last_modified=timezone.now(),
+        )
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+        payload = self._payload()
+
+        with patch(
+            "apps.crm.services.phone_call_service.PhoneProviderPortalClient"
+        ) as client_class:
+            portal = client_class.return_value
+            portal.iter_call_pages.return_value = [
+                PhoneProviderCallPage(page=1, calls=[payload])
+            ]
+            portal.download_recording.return_value = (
+                b"recorded audio",
+                "call.mp3",
+                "audio/mpeg",
+            )
+
+            first = sync_call_history()
+            second = sync_call_history()
+
+        self.assertEqual(first.calls_seen, 1)
+        self.assertEqual(first.calls_saved, 1)
+        self.assertEqual(first.recordings_seen, 1)
+        self.assertEqual(first.recordings_archived, 1)
+        self.assertEqual(second.calls_seen, 1)
+        self.assertEqual(second.calls_saved, 0)
+        self.assertEqual(second.recordings_archived, 0)
+        self.assertEqual(PhoneCallRecord.objects.count(), 1)
+        self.assertEqual(PhoneCallRecording.objects.count(), 1)
+
+        call = PhoneCallRecord.objects.get()
+        self.assertEqual(call.client, client)
+        recording = call.recording
+        self.assertEqual(recording.filename, "call.mp3")
+        self.assertEqual(recording.byte_size, len(b"recorded audio"))
+        self.assertTrue(recording.sha256)
+        self.assertTrue(
+            (Path(self.storage_root.name) / recording.storage_path).exists()
+        )
+
+    def test_recording_download_failure_persists_app_error(self) -> None:
+        payload = self._payload(recording_id="broken-recording")
+
+        with patch(
+            "apps.crm.services.phone_call_service.PhoneProviderPortalClient"
+        ) as client_class:
+            portal = client_class.return_value
+            portal.iter_call_pages.return_value = [
+                PhoneProviderCallPage(page=1, calls=[payload])
+            ]
+            portal.download_recording.side_effect = ValueError("download failed")
+
+            before = AppError.objects.count()
+            result = sync_call_history()
+
+        self.assertEqual(result.calls_seen, 1)
+        self.assertEqual(result.recordings_seen, 1)
+        self.assertEqual(result.recordings_archived, 0)
+        self.assertEqual(AppError.objects.count(), before + 1)
+        recording = PhoneCallRecording.objects.get()
+        self.assertEqual(recording.archive_error, "download failed")
+        self.assertFalse(recording.storage_path)
+
+    def _payload(self, *, recording_id: str = "recording-1") -> dict[str, str]:
+        return {
+            "id": "provider-call-1",
+            "calldate": "2026-06-01",
+            "calltime": "10:11:12",
+            "origin": "021 555 123",
+            "destination": "09 636 5131",
+            "seconds": "42",
+            "charge": "0.1200",
+            "type": "Inbound",
+            "status": "Answered",
+            "description": "Customer call",
+            "RecordingId": recording_id,
+        }
+
+
+class PhoneCallJobLinkApiTests(BaseAPITestCase):
+    """Business case: office staff must be able to connect an imported phone
+    call to the job it was about, while preventing cross-client history leaks.
+    """
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.office_staff = Staff.objects.create_user(
+            email="crm-link-office@example.com",
+            password="testpass",
+            is_office_staff=True,
+        )
+        self.workshop_staff = Staff.objects.create_user(
+            email="crm-link-workshop@example.com",
+            password="testpass",
+            is_office_staff=False,
+            is_workshop_staff=True,
+        )
+        self.api = APIClient()
+        self.api.force_authenticate(user=self.office_staff)
+        self.client_obj = Client.objects.create(
+            name="Phone Link Client",
+            xero_last_modified=timezone.now(),
+        )
+        self.other_client = Client.objects.create(
+            name="Other Phone Link Client",
+            xero_last_modified=timezone.now(),
+        )
+        self.job = Job.objects.create(
+            client=self.client_obj,
+            name="Phone Link Job",
+            staff=self.test_staff,
+        )
+        self.other_job = Job.objects.create(
+            client=self.other_client,
+            name="Other Phone Link Job",
+            staff=self.test_staff,
+        )
+        self.call = self._call("call-1", client=self.client_obj)
+
+    def test_link_call_to_same_client_job_and_filter_by_job(self) -> None:
+        response = self.api.post(
+            f"/api/crm/phone-calls/{self.call.id}/job-link/",
+            {"job": str(self.job.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["job"], self.job.id)
+        self.assertEqual(response.data["job_number"], self.job.job_number)
+        self.assertEqual(response.data["job_name"], self.job.name)
+
+        self.call.refresh_from_db()
+        self.assertEqual(self.call.job, self.job)
+        self.assertEqual(self.call.job_linked_by, self.office_staff)
+        self.assertIsNotNone(self.call.job_linked_at)
+
+        filtered = self.api.get("/api/crm/phone-calls/", {"job": str(self.job.id)})
+
+        self.assertEqual(filtered.status_code, 200)
+        self.assertEqual(filtered.data["count"], 1)
+        self.assertEqual(len(filtered.data["results"]), 1)
+        self.assertEqual(filtered.data["results"][0]["id"], str(self.call.id))
+
+    def test_list_paginates_recent_calls(self) -> None:
+        """Catches CRM calls page regressions that fetch the full call archive."""
+        self._call("call-2", client=self.client_obj)
+        self._call("call-3", client=self.client_obj)
+
+        response = self.api.get("/api/crm/phone-calls/", {"page_size": "2"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 3)
+        self.assertEqual(response.data["page"], 1)
+        self.assertEqual(response.data["page_size"], 2)
+        self.assertEqual(response.data["total_pages"], 2)
+        self.assertEqual(len(response.data["results"]), 2)
+
+    def test_empty_list_uses_paginator_total_pages(self) -> None:
+        response = self.api.get(
+            "/api/crm/phone-calls/", {"job": str(self.other_job.id)}
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 0)
+        self.assertEqual(response.data["page"], 1)
+        self.assertEqual(response.data["total_pages"], 1)
+        self.assertEqual(response.data["results"], [])
+
+    def test_list_page_size_is_capped(self) -> None:
+        """Catches accidental oversized phone-call responses."""
+        for index in range(101):
+            self._call(f"call-{index + 2}", client=self.client_obj)
+
+        response = self.api.get("/api/crm/phone-calls/", {"page_size": "250"})
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 102)
+        self.assertEqual(response.data["page_size"], 100)
+        self.assertEqual(len(response.data["results"]), 100)
+
+    def test_bad_call_id_does_not_persist_app_error(self) -> None:
+        """Catches client typos being treated as server errors."""
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            f"/api/crm/phone-calls/{uuid.uuid4()}/job-link/",
+            {"job": str(self.job.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_malformed_call_id_does_not_persist_app_error(self) -> None:
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            "/api/crm/phone-calls/not-a-uuid/job-link/",
+            {"job": str(self.job.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_bad_job_id_does_not_persist_app_error(self) -> None:
+        """Catches client typos being treated as server errors."""
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            f"/api/crm/phone-calls/{self.call.id}/job-link/",
+            {"job": str(uuid.uuid4())},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Job not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_service_rejects_malformed_job_id_as_client_error(self) -> None:
+        with self.assertRaisesMessage(ValueError, "Job not found"):
+            link_phone_call_to_job(
+                call_id=str(self.call.id),
+                job_id="not-a-uuid",
+                linked_by=self.office_staff,
+            )
+
+    def test_bad_call_id_on_unlink_does_not_persist_app_error(self) -> None:
+        """Catches client typos being treated as server errors."""
+        before = AppError.objects.count()
+
+        response = self.api.delete(f"/api/crm/phone-calls/{uuid.uuid4()}/job-link/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_malformed_call_id_on_unlink_does_not_persist_app_error(self) -> None:
+        before = AppError.objects.count()
+
+        response = self.api.delete("/api/crm/phone-calls/not-a-uuid/job-link/")
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Phone call not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_assign_number_bad_client_id_does_not_persist_app_error(self) -> None:
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            "/api/crm/phone-calls/assign-number/",
+            {
+                "phone_number": "+6421555000",
+                "client": str(uuid.uuid4()),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Client not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_assign_number_cross_client_contact_does_not_persist_app_error(
+        self,
+    ) -> None:
+        contact = ClientContact.objects.create(
+            client=self.other_client,
+            name="Other Contact",
+        )
+        before = AppError.objects.count()
+
+        response = self.api.post(
+            "/api/crm/phone-calls/assign-number/",
+            {
+                "phone_number": "+6421555001",
+                "client": str(self.client_obj.id),
+                "contact": str(contact.id),
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("Contact not found", response.data["message"])
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_link_rejects_unmatched_call(self) -> None:
+        unmatched = self._call("unmatched", client=None)
+
+        response = self.api.post(
+            f"/api/crm/phone-calls/{unmatched.id}/job-link/",
+            {"job": str(self.job.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("assigned to a client", response.data["message"])
+
+    def test_link_rejects_cross_client_job(self) -> None:
+        response = self.api.post(
+            f"/api/crm/phone-calls/{self.call.id}/job-link/",
+            {"job": str(self.other_job.id)},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("same client", response.data["message"])
+
+    def test_unlink_clears_job_metadata(self) -> None:
+        self.call.job = self.job
+        self.call.job_linked_by = self.office_staff
+        self.call.job_linked_at = timezone.now()
+        self.call.save(update_fields=["job", "job_linked_by", "job_linked_at"])
+
+        response = self.api.delete(f"/api/crm/phone-calls/{self.call.id}/job-link/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIsNone(response.data["job"])
+        self.call.refresh_from_db()
+        self.assertIsNone(self.call.job)
+        self.assertIsNone(self.call.job_linked_by)
+        self.assertIsNone(self.call.job_linked_at)
+
+    def test_only_office_staff_can_read_recording_downloads(self) -> None:
+        self.api.force_authenticate(user=self.workshop_staff)
+
+        response = self.api.get("/api/crm/phone-calls/")
+
+        self.assertEqual(response.status_code, 403)
+
+    def _call(self, provider_id: str, *, client: Client | None) -> PhoneCallRecord:
+        call_datetime = timezone.now()
+        call_date = timezone.localdate()
+        return PhoneCallRecord.objects.create(
+            provider_call_id=f"account:{provider_id}",
+            account_code="account",
+            call_datetime=call_datetime,
+            call_date=call_date,
+            call_time=call_datetime.time(),
+            origin="+6421555123",
+            destination="+6496365131",
+            client=client,
+            raw_json={
+                "id": provider_id,
+                "calldate": call_date.isoformat(),
+                "calltime": call_datetime.time().isoformat(timespec="seconds"),
+            },
         )

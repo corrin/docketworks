@@ -12,7 +12,12 @@
 
       <Card>
         <CardHeader>
-          <CardTitle>Assign Phone Number</CardTitle>
+          <div class="flex items-center justify-between gap-3">
+            <CardTitle>Assign Phone Number</CardTitle>
+            <Badge variant="outline"
+              >Showing {{ phoneMethods.length }} of {{ phoneMethodCount }}</Badge
+            >
+          </div>
         </CardHeader>
         <CardContent class="space-y-4">
           <div class="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_auto_auto]">
@@ -102,14 +107,19 @@
         <CardHeader>
           <div class="flex items-center justify-between gap-3">
             <CardTitle>All Calls</CardTitle>
-            <Badge variant="outline">{{ phoneCalls.length }} calls</Badge>
+            <Badge variant="outline">Showing {{ phoneCalls.length }} of {{ phoneCallCount }}</Badge>
           </div>
         </CardHeader>
         <CardContent>
           <div v-if="isLoadingCalls" class="flex items-center justify-center py-8">
             <Loader2 class="h-6 w-6 animate-spin text-indigo-600" />
           </div>
-          <PhoneCallTable v-else :calls="phoneCalls" empty-text="No calls found" />
+          <PhoneCallTable
+            v-else
+            :calls="phoneCalls"
+            empty-text="No calls found"
+            @call-updated="replacePhoneCall"
+          />
         </CardContent>
       </Card>
     </div>
@@ -138,6 +148,8 @@ type ClientContact = z.infer<typeof schemas.ClientContact>
 
 const phoneCalls = ref<PhoneCallRecord[]>([])
 const phoneMethods = ref<ClientContactMethod[]>([])
+const phoneCallCount = ref(0)
+const phoneMethodCount = ref(0)
 const clientOptions = ref<ClientSearchResult[]>([])
 const contactOptions = ref<ClientContact[]>([])
 const isLoadingCalls = ref(false)
@@ -158,12 +170,18 @@ async function loadCalls(): Promise<void> {
   isLoadingCalls.value = true
   error.value = null
   try {
-    phoneCalls.value = await api.crm_phone_calls_list({})
+    const response = await api.crm_phone_calls_list({
+      queries: { page: 1, page_size: 50 },
+    })
+    phoneCalls.value = response.results
+    phoneCallCount.value = response.count
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load calls'
     error.value = message
     console.error('Failed to load calls:', err)
     toast.error(message)
+    phoneCalls.value = []
+    phoneCallCount.value = 0
   } finally {
     isLoadingCalls.value = false
   }
@@ -171,15 +189,23 @@ async function loadCalls(): Promise<void> {
 
 async function loadPhoneMethods(): Promise<void> {
   try {
-    phoneMethods.value = await api.clients_contact_methods_list({
-      queries: { method_type: 'phone' },
+    const response = await api.clients_contact_methods_list({
+      queries: { method_type: 'phone', page: 1, page_size: 50 },
     })
+    phoneMethods.value = response.results
+    phoneMethodCount.value = response.count
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load phone numbers'
     error.value = message
     console.error('Failed to load phone numbers:', err)
     toast.error(message)
+    phoneMethods.value = []
+    phoneMethodCount.value = 0
   }
+}
+
+function replacePhoneCall(updated: PhoneCallRecord): void {
+  phoneCalls.value = phoneCalls.value.map((call) => (call.id === updated.id ? updated : call))
 }
 
 async function searchClients(): Promise<void> {

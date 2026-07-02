@@ -725,6 +725,13 @@ const ClientContactMethod = z.object({
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
+const PaginatedClientContactMethodList = z.object({
+  results: z.array(ClientContactMethod),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
+})
 const ClientContactMethodRequest = z.object({
   client: z.string().uuid().nullish(),
   contact: z.string().uuid().nullish(),
@@ -1156,10 +1163,24 @@ const PhoneCallRecord = z.object({
   client_name: z.string(),
   contact: z.string().uuid().nullable(),
   contact_name: z.string(),
+  job: z.string().uuid().nullable(),
+  job_number: z.number().int().nullable(),
+  job_name: z.string(),
+  job_status: z.string(),
+  job_linked_at: z.string().datetime({ offset: true }).nullable(),
+  job_linked_by: z.string().uuid().nullable(),
   recording: PhoneCallRecording.nullable(),
   imported_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
+const PaginatedPhoneCallRecordList = z.object({
+  results: z.array(PhoneCallRecord),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
+})
+const PhoneCallJobLinkRequest = z.object({ job: z.string().uuid() })
 const PhoneNumberAssignmentRequest = z.object({
   phone_number: z.string().min(1).max(150),
   client: z.string().uuid(),
@@ -3529,6 +3550,7 @@ export const schemas = {
   MethodTypeEnum,
   ClientContactMethodSourceEnum,
   ClientContactMethod,
+  PaginatedClientContactMethodList,
   ClientContactMethodRequest,
   PatchedClientContactMethodRequest,
   ClientContact,
@@ -3552,6 +3574,8 @@ export const schemas = {
   CompanyDefaultsSchema,
   PhoneCallRecording,
   PhoneCallRecord,
+  PaginatedPhoneCallRecordList,
+  PhoneCallJobLinkRequest,
   PhoneNumberAssignmentRequest,
   PhoneNumberAssignment,
   DataVersions,
@@ -4921,8 +4945,18 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         type: 'Query',
         schema: z.string().optional(),
       },
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
     ],
-    response: z.array(ClientContactMethod),
+    response: PaginatedClientContactMethodList,
   },
   {
     method: 'post',
@@ -5673,13 +5707,61 @@ DELETE: Clear a logo field and remove the file from disk.`,
         type: 'Query',
         schema: z.string().uuid().optional(),
       },
+      {
+        name: 'job',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
     ],
-    response: z.array(PhoneCallRecord),
+    response: PaginatedPhoneCallRecordList,
   },
   {
     method: 'get',
     path: '/api/crm/phone-calls/:id/',
     alias: 'crm_phone_calls_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'post',
+    path: '/api/crm/phone-calls/:id/job-link/',
+    alias: 'linkPhoneCallJob',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ job: z.string().uuid() }),
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-calls/:id/job-link/',
+    alias: 'unlinkPhoneCallJob',
     requestFormat: 'json',
     parameters: [
       {

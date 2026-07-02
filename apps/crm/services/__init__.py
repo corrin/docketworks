@@ -19,12 +19,14 @@ try:
             delete_archived_provider_recordings,
             delete_local_recording,
             is_call_payload,
+            link_phone_call_to_job,
             normalize_phone,
             provider_delete_recording,
             recording_file_path,
             rematch_calls_for_numbers,
             sync_call_history,
             sync_recent_calls,
+            unlink_phone_call_job,
             upsert_call_record,
         )
 except (ImportError, RuntimeError):
@@ -45,11 +47,13 @@ __all__ = [
     "delete_archived_provider_recordings",
     "delete_local_recording",
     "is_call_payload",
+    "link_phone_call_to_job",
     "normalize_phone",
     "provider_delete_recording",
     "recording_file_path",
     "rematch_calls_for_numbers",
     "sync_call_history",
     "sync_recent_calls",
+    "unlink_phone_call_job",
     "upsert_call_record",
 ]

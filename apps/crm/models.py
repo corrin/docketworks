@@ -33,6 +33,21 @@ class PhoneCallRecord(models.Model):
         blank=True,
         related_name="phone_calls",
     )
+    job = models.ForeignKey(
+        "job.Job",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="phone_calls",
+    )
+    job_linked_at = models.DateTimeField(null=True, blank=True)
+    job_linked_by = models.ForeignKey(
+        "accounts.Staff",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="linked_phone_calls",
+    )
     raw_json = models.JSONField()
     imported_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -51,6 +66,10 @@ class PhoneCallRecord(models.Model):
             models.Index(
                 fields=["contact", "-call_datetime"],
                 name="crm_phone_contact_call_idx",
+            ),
+            models.Index(
+                fields=["job", "-call_datetime"],
+                name="crm_phone_job_call_idx",
             ),
         ]
 
