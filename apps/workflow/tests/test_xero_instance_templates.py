@@ -54,6 +54,13 @@ BACKUP_TEMPLATE = (
     / "templates"
     / "backup-db-instance.service.template"
 )
+BACKUP_FILES_TEMPLATE = (
+    REPO_ROOT
+    / "scripts"
+    / "server"
+    / "templates"
+    / "backup-files-instance.service.template"
+)
 SETTINGS_FILE = REPO_ROOT / "docketworks" / "settings.py"
 
 
@@ -277,6 +284,11 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             "ExecStart=/opt/docketworks/instances/__INSTANCE__/app/scripts/backup_db.sh __INSTANCE__",
             backup,
         )
+        backup_files = BACKUP_FILES_TEMPLATE.read_text()
+        self.assertIn(
+            "ExecStart=/opt/docketworks/instances/__INSTANCE__/app/scripts/backup_instance_files.sh __INSTANCE__",
+            backup_files,
+        )
 
     def test_dw_run_uses_app_release_and_instance_env(self) -> None:
         content = DW_RUN_SCRIPT.read_text()
@@ -402,6 +414,37 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         )
         self.assertIn('chmod 700 "$backup_dir"', common_content)
         self.assertIn('if [[ ! -w "$BACKUP_DIR" ]]; then', backup_content)
+
+    def test_backup_rclone_config_supports_shared_drive(self) -> None:
+        credentials_content = CREDENTIALS_TEMPLATE.read_text()
+        common_content = COMMON_SCRIPT.read_text()
+        deploy_content = DEPLOY_SCRIPT.read_text()
+        instance_content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn("BACKUP_GDRIVE_TEAM_DRIVE_ID=", credentials_content)
+        self.assertIn('local team_drive_id="${4:-}"', common_content)
+        self.assertIn("team_drive = $team_drive_id", common_content)
+        self.assertIn(
+            'backup_team_drive_id="$(read_env_value "$creds_file" '
+            'BACKUP_GDRIVE_TEAM_DRIVE_ID)"',
+            deploy_content,
+        )
+        self.assertIn('"${BACKUP_GDRIVE_TEAM_DRIVE_ID:-}"', instance_content)
+
+    def test_instance_file_backup_timer_is_rendered_and_enabled(self) -> None:
+        common_content = COMMON_SCRIPT.read_text()
+        deploy_content = DEPLOY_SCRIPT.read_text()
+        instance_content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn("backup-files-instance.service.template", common_content)
+        self.assertIn("backup-files-instance.timer.template", common_content)
+        self.assertIn(
+            'systemctl enable --now "backup-files-$instance.timer"', deploy_content
+        )
+        self.assertIn(
+            'systemctl enable --now "backup-files-$INSTANCE.timer"', instance_content
+        )
+        self.assertIn("backup_instance_files.sh", BACKUP_FILES_TEMPLATE.read_text())
 
     def test_xero_default_user_id_docs_match_required_create_time_workflow(
         self,

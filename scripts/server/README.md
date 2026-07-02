@@ -21,7 +21,7 @@ These scripts provision and manage multiple isolated DocketWorks instances on a 
 | ---------------------------- | -------------------------------------------------------------------------------------------------------- | ------------------------------- |
 | Gmail address + app password | Google Account → Security → App passwords                                                                | Password resets, notifications  |
 | GCP service account JSON key | Create service account, enable Sheets + Drive APIs, download JSON key, copy to server                    | Google Sheets/Drive integration |
-| Google Drive backup folder   | Share a Drive folder with the service account; optional folder ID goes in `BACKUP_GDRIVE_ROOT_FOLDER_ID` | Nightly DB backups              |
+| Google Drive backup folder   | Share a Shared Drive with the service account; optional Shared Drive/folder IDs go in `BACKUP_GDRIVE_TEAM_DRIVE_ID` / `BACKUP_GDRIVE_ROOT_FOLDER_ID` | Nightly DB and file backups     |
 
 ## Server Setup
 
@@ -103,7 +103,7 @@ How to get them:
 3. **Copy Client ID, Client Secret, and webhook signing key** into the instance credentials file.
 4. **XERO_DEFAULT_USER_ID:** Use the existing Xero login/user ID that will own time entries. This value is required before `instance.sh create`; do not leave it blank for a first create.
 5. **GCP_CREDENTIALS:** Path to a GCP service account JSON key file. Each instance needs its own service account to isolate tenant data. The key file is copied into the instance directory during creation.
-6. **BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Google Drive folder ID for the backup parent. Share that folder with the service account. Backups upload under `dw_backups/<instance>/` from that root.
+6. **BACKUP_GDRIVE_TEAM_DRIVE_ID / BACKUP_GDRIVE_ROOT_FOLDER_ID:** Optional Shared Drive ID and parent folder ID for backup storage. Service-account backups should target a Shared Drive the service account can write to. Backups upload under `dw_backups/<instance>/` from the configured root.
 7. **EMAIL_HOST_USER + EMAIL_HOST_PASSWORD:** Gmail address and app password for this instance's outgoing email (password resets, notifications). Generate an app password at Google Account → Security → App passwords.
 
 ## Deploying Updates
@@ -130,7 +130,9 @@ sudo systemctl start backup-db-<instance>.service
 sudo journalctl -u backup-db-<instance>.service -n 100
 ```
 
-Backups run as `dw_<instance>` and use `/opt/docketworks/config/rclone/<instance>.conf`, which points at the instance's copied `gcp-credentials.json`. Local dumps live in `/opt/docketworks/instances/<instance>/backups`; remote files live under `gdrive:dw_backups/<instance>/`.
+DB backups run as `dw_<instance>` and use `/opt/docketworks/config/rclone/<instance>.conf`, which points at the instance's copied `gcp-credentials.json`. Local dumps live in `/opt/docketworks/instances/<instance>/backups`; remote dumps live under `gdrive:dw_backups/<instance>/`. Cleanup copies local dumps before pruning and purges only the same expired backup names remotely, so unrelated remote-only history is not mirrored away.
+
+Mutable instance file backups run separately via `backup-files-<instance>.timer`. They incrementally sync `phone-recordings`, `session-replays`, and `mediafiles` to `gdrive:dw_backups/<instance>/files/current/`, with replaced/deleted remote files moved into `files/archive/<timestamp>/` for 30 days. `dropbox`, `adhoc`, `backups`, `app`, logs, sockets, env files, and credentials are not included.
 
 ## Destroying an Instance
 
@@ -219,4 +221,6 @@ gunicorn systemd service loads .env via EnvironmentFile=
 | `templates/celery-beat-instance.service.template`   | Systemd unit template (Celery Beat — periodic task dispatcher)                                       |
 | `templates/backup-db-instance.service.template`     | Systemd unit template (database backup)                                                              |
 | `templates/backup-db-instance.timer.template`       | Systemd timer template (nightly database backup)                                                     |
+| `templates/backup-files-instance.service.template`  | Systemd unit template (mutable instance file backup)                                                  |
+| `templates/backup-files-instance.timer.template`    | Systemd timer template (nightly mutable instance file backup)                                         |
 | `templates/nginx-instance.conf.template`            | Nginx server block template                                                                          |

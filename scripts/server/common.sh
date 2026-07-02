@@ -151,6 +151,7 @@ write_instance_rclone_config() {
     local instance="$1"
     local instance_user="$2"
     local root_folder_id="${3:-}"
+    local team_drive_id="${4:-}"
     local config_path
 
     config_path="$(instance_rclone_config "$instance")"
@@ -161,6 +162,9 @@ write_instance_rclone_config() {
         echo "type = drive"
         echo "scope = drive"
         echo "service_account_file = $INSTANCES_DIR/$instance/gcp-credentials.json"
+        if [[ -n "$team_drive_id" ]]; then
+            echo "team_drive = $team_drive_id"
+        fi
         if [[ -n "$root_folder_id" ]]; then
             echo "root_folder_id = $root_folder_id"
         fi
@@ -185,4 +189,16 @@ render_backup_units() {
         -e "s|__INSTANCE__|$instance|g" \
         "$template_dir/backup-db-instance.timer.template" \
         > "/etc/systemd/system/backup-db-$instance.timer"
+
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        -e "s|__INSTANCE_USER__|$instance_user|g" \
+        -e "s|__RCLONE_CONFIG__|$(instance_rclone_config "$instance")|g" \
+        "$template_dir/backup-files-instance.service.template" \
+        > "/etc/systemd/system/backup-files-$instance.service"
+
+    sed \
+        -e "s|__INSTANCE__|$instance|g" \
+        "$template_dir/backup-files-instance.timer.template" \
+        > "/etc/systemd/system/backup-files-$instance.timer"
 }

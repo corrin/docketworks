@@ -237,11 +237,19 @@ See [updating.md](updating.md) — the deploy runbook (the `deploy.sh` command, 
 Each instance has nightly database backups via `backup-db-<name>.timer`.
 The job runs as the instance user (`dw_<name>`), writes local dumps under
 `/opt/docketworks/instances/<name>/backups`, applies retention, and syncs to
-Google Drive under `gdrive:dw_backups/<name>/`.
+Google Drive under `gdrive:dw_backups/<name>/`. Cleanup copies local dumps
+before pruning and purges only the same expired backup names remotely, so
+unrelated remote-only history is not mirrored away.
 
-Before enabling backups for a new instance, share the backup parent Drive folder
-with the instance service account. If you want rclone anchored to that folder,
-put the folder ID in `BACKUP_GDRIVE_ROOT_FOLDER_ID` in
+Mutable instance file backups run separately via `backup-files-<name>.timer`.
+They incrementally sync `phone-recordings`, `session-replays`, and `mediafiles`
+to `gdrive:dw_backups/<name>/files/current/`, preserving replaced/deleted
+remote files under `files/archive/<timestamp>/` for 30 days.
+
+Before enabling backups for a new instance, share a backup Shared Drive with
+the instance service account. Put its ID in `BACKUP_GDRIVE_TEAM_DRIVE_ID`. If
+you want rclone anchored to a folder inside that Shared Drive, put the folder ID
+in `BACKUP_GDRIVE_ROOT_FOLDER_ID` in
 `/opt/docketworks/config/<name>.credentials.env`; create/deploy writes
 `/opt/docketworks/config/rclone/<name>.conf`.
 
@@ -255,6 +263,9 @@ Smoke test:
 sudo systemctl status backup-db-<name>.timer
 sudo systemctl start backup-db-<name>.service
 sudo journalctl -u backup-db-<name>.service -n 100
+sudo systemctl status backup-files-<name>.timer
+sudo systemctl start backup-files-<name>.service
+sudo journalctl -u backup-files-<name>.service -n 100
 sudo -u dw_<name> RCLONE_CONFIG=/opt/docketworks/config/rclone/<name>.conf \
   rclone lsf gdrive:dw_backups/<name>/
 ```

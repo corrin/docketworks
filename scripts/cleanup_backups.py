@@ -12,7 +12,7 @@ from datetime import datetime, timedelta
 REMOTE_BASE = "gdrive:dw_backups"
 
 # Backup styles in the per-instance backups dir:
-#   ts_dir:    nested <YYYYMMDD_HHMMSS>/ trees (rollback_release.sh); 24h+daily+monthly.
+#   ts_dir:    legacy nested <YYYYMMDD_HHMMSS>/ trees; 24h+daily+monthly.
 #   predeploy: predeploy_<ts>_<hash>.sql.gz (predeploy_backup.sh); 30 days.
 #   daily:     daily_<YYYYMMDD>.sql.gz (backup_db.sh); keep most recent N.
 #   monthly:   monthly_<YYYYMM>.sql.gz (backup_db.sh); keep most recent N.
@@ -132,24 +132,38 @@ def remove_entry(root, name):
         os.remove(path)
 
 
-def delete_and_purge(root, to_delete, dry_run, remote):
-    print("To delete locally and purge from remote:", sorted(to_delete))
-    for name in to_delete:
+def remote_delete_commands(root, names):
+    commands = []
+    for name in names:
         local_path = os.path.join(root, name)
+        remote_delete_command = "purge" if os.path.isdir(local_path) else "deletefile"
+        commands.append((name, remote_delete_command))
+    return commands
+
+
+def purge_remote_entries(commands, dry_run, remote):
+    print("To purge from remote:", [name for name, _ in commands])
+    for name, remote_delete_command in commands:
         remote_path = f"{remote}/{name}"
-        is_dir = os.path.isdir(local_path)
-        remote_delete_command = "purge" if is_dir else "deletefile"
         if dry_run:
-            print(f"[DRY] Would remove local: {local_path}")
             print(f"[DRY] Would {remote_delete_command} remote: {remote_path}")
         else:
-            print(f"Removing local: {local_path}")
-            remove_entry(root, name)
             print(f"Deleting remote with rclone {remote_delete_command}: {remote_path}")
             subprocess.run(["rclone", remote_delete_command, remote_path], check=True)
 
 
-def sync_remote(root, dry_run, remote):
+def delete_local_entries(root, to_delete, dry_run):
+    print("To delete locally:", sorted(to_delete))
+    for name in to_delete:
+        local_path = os.path.join(root, name)
+        if dry_run:
+            print(f"[DRY] Would remove local: {local_path}")
+        else:
+            print(f"Removing local: {local_path}")
+            remove_entry(root, name)
+
+
+def copy_remote(root, dry_run, remote):
     if not dry_run:
         subprocess.run(["rclone", "mkdir", remote], check=True)
     try:
@@ -176,8 +190,8 @@ def sync_remote(root, dry_run, remote):
     if dry_run:
         return
 
-    print(f"Syncing {root} → {remote} --delete-excluded")
-    subprocess.run(["rclone", "sync", root, remote, "--delete-excluded"], check=True)
+    print(f"Copying {root} → {remote}")
+    subprocess.run(["rclone", "copy", root, remote], check=True)
 
 
 def main():
@@ -241,8 +255,11 @@ def main():
     if other_entries:
         print("Leaving untouched (unmanaged pattern):", sorted(other_entries))
 
-    delete_and_purge(backup_dir, to_delete, dry_run, remote)
-    sync_remote(backup_dir, dry_run, remote)
+    remote_delete_plan = remote_delete_commands(backup_dir, to_delete)
+
+    copy_remote(backup_dir, dry_run, remote)
+    purge_remote_entries(remote_delete_plan, dry_run, remote)
+    delete_local_entries(backup_dir, to_delete, dry_run)
 
 
 if __name__ == "__main__":

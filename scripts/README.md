@@ -37,10 +37,11 @@ Run manually for one-off or periodic data tasks:
 
 ## Production infrastructure
 
-- **`backup_db.sh`** — Instance-user database backup. Writes daily/monthly dumps, then runs retention and Google Drive sync through `cleanup_backups.py`. Runs via `backup-db-<instance>.timer`.
+- **`backup_db.sh`** — Instance-user database backup. Writes daily/monthly dumps, then runs retention and Google Drive upload through `cleanup_backups.py`. Runs via `backup-db-<instance>.timer`.
+- **`backup_instance_files.sh`** — Instance-user mutable file backup. Incrementally syncs instance-owned files (`phone-recordings`, `session-replays`, `mediafiles`) to Google Drive with 30-day dated remote archive folders for replaced/deleted files. Runs via `backup-files-<instance>.timer`.
 - **`predeploy_backup.sh`** — Called by `scripts/server/deploy.sh` before each instance is switched to a new release. Stamps the dump with the current release hash so rollback is a (switch release, psql restore) pair. Runnable by hand: `sudo predeploy_backup.sh <instance>`
 - **`predeploy_rollback.sh`** — Restore an instance to the release + data that paired with a given commit hash. Usage: `sudo predeploy_rollback.sh <instance> <8-char-hash>` (interactive confirm; restores the dump into a temporary DB before stopping services and swapping DBs)
-- **`cleanup_backups.py`** — Backup retention and remote sync. `ts_dir` style: keep 24h + daily for a week + monthly beyond. `predeploy_*.sql.gz`: keep 30 days. `daily_*.sql.gz`: keep 14. `monthly_*.sql.gz`: keep 12. Other filenames left alone.
+- **`cleanup_backups.py`** — DB backup retention and remote upload. Copies local dumps before pruning, then purges only the matching expired remote names. Legacy `ts_dir` style: keep 24h + daily for a week + monthly beyond. `predeploy_*.sql.gz`: keep 30 days. `daily_*.sql.gz`: keep 14. `monthly_*.sql.gz`: keep 12. Other filenames left alone.
 - **`cleanup_backups.sh`** — Wrapper that activates venv and runs `cleanup_backups.py`
 
 ## Archive
