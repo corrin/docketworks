@@ -442,11 +442,7 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
     permission_classes = [IsAuthenticated, IsOfficeStaff]
 
     def get_queryset(self) -> QuerySet[PhoneCallRecording]:
-        return PhoneCallRecording.objects.select_related(
-            "call",
-            "call__client",
-            "call__contact",
-        ).order_by("-call__call_datetime")
+        return PhoneCallRecording.objects.order_by("-call__call_datetime")
 
     @extend_schema(
         operation_id="downloadPhoneCallRecording",

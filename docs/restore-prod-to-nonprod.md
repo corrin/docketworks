@@ -137,29 +137,23 @@ python manage.py showmigrations | grep '\[ \]'
 
 #### Load Company Defaults Fixture
 
-This replaces your real company name and logos with the shipped DocketWorks
-demo values. The fixture references logos at `app_images/...` under
-`MEDIA_ROOT`; the PNGs are committed in `mediafiles/app_images/` and resolve
-directly, no copy step.
+For demo restores only, this replaces your real company name and logos with the
+shipped DocketWorks demo values. Tenant installs should load their
+instance-owned `/opt/docketworks/instances/<name>/company_defaults.json` copy
+instead of the shared repo fixture.
 
 ```bash
 python manage.py loaddata apps/workflow/fixtures/company_defaults.json
 ```
 
-#### Reload AI Providers
+#### Reload Private Instance Config
 
-The DB reset wiped the AI provider rows. Reload from the fixture generated during instance creation:
-
-```bash
-python manage.py loaddata apps/workflow/fixtures/ai_providers.json
-```
-
-#### Reload Xero App Credentials
-
-Prod's Xero app credentials are scrubbed from the dump (`db_scrubber._EXCLUDED_TABLES` truncates `workflow_xeroapp` before pg_dump). Load this install's own credentials from the per-install fixture:
+The DB reset wiped private DB-backed config. Re-run instance reconfiguration to
+regenerate and load the per-instance private fixtures for AI providers, Xero app
+credentials, and phone-provider settings from the root-owned credentials file:
 
 ```bash
-python manage.py loaddata apps/workflow/fixtures/xero_apps.json
+sudo scripts/server/instance.sh reconfigure <client> <env>
 ```
 
 #### Set Up Development Logins

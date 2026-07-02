@@ -86,12 +86,15 @@
           </td>
           <td class="p-3 min-w-64">
             <audio
-              v-if="recordingDownloadUrl(call)"
-              :src="recordingDownloadUrl(call) || undefined"
+              v-if="recordingAudioUrl(call)"
+              :src="recordingAudioUrl(call) || undefined"
               controls
               preload="none"
               class="h-9 w-full max-w-sm"
             />
+            <span v-else-if="recordingDownloadUrl(call)" class="text-xs text-gray-500">
+              {{ recordingAudioError(call) || 'Loading recording...' }}
+            </span>
             <span v-else class="text-xs text-gray-500">No recording</span>
           </td>
         </tr>
@@ -142,7 +145,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { toast } from 'vue-sonner'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
@@ -156,13 +159,14 @@ import {
 import { Input } from '@/components/ui/input'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
+import axios from '@/plugins/axios'
 import { formatDateTime } from '@/utils/string-formatting'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
 type ClientJobHeader = z.infer<typeof schemas.ClientJobHeader>
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     calls: PhoneCallRecord[]
     emptyText: string
@@ -187,6 +191,8 @@ const jobSearch = ref('')
 const clientJobs = ref<ClientJobHeader[]>([])
 const isLoadingJobs = ref(false)
 const savingCallId = ref<string | null>(null)
+const recordingAudioUrls = ref<Record<string, string>>({})
+const recordingAudioErrors = ref<Record<string, string>>({})
 
 const filteredJobs = computed(() => {
   const search = jobSearch.value.trim().toLowerCase()
@@ -294,4 +300,72 @@ function recordingDownloadUrl(call: PhoneCallRecord): string | null {
   const downloadUrl = call.recording?.download_url
   return typeof downloadUrl === 'string' ? downloadUrl : null
 }
+
+function recordingAudioUrl(call: PhoneCallRecord): string | null {
+  return recordingAudioUrls.value[call.id] || null
+}
+
+function recordingAudioError(call: PhoneCallRecord): string {
+  return recordingAudioErrors.value[call.id] || ''
+}
+
+async function loadRecordingAudio(call: PhoneCallRecord): Promise<void> {
+  const downloadUrl = recordingDownloadUrl(call)
+  if (!downloadUrl || recordingAudioUrls.value[call.id] || recordingAudioErrors.value[call.id]) {
+    return
+  }
+
+  try {
+    const response = await axios.get(downloadUrl, {
+      responseType: 'blob',
+      withCredentials: true,
+    })
+    const blob = response.data as Blob
+    const objectUrl = window.URL.createObjectURL(blob)
+    if (!props.calls.some((currentCall) => currentCall.id === call.id)) {
+      window.URL.revokeObjectURL(objectUrl)
+      return
+    }
+    recordingAudioUrls.value = {
+      ...recordingAudioUrls.value,
+      [call.id]: objectUrl,
+    }
+  } catch (error) {
+    recordingAudioErrors.value = {
+      ...recordingAudioErrors.value,
+      [call.id]: 'Recording unavailable',
+    }
+    toast.error('Failed to load call recording')
+    console.error('Failed to load call recording:', error)
+  }
+}
+
+function syncRecordingAudio(): void {
+  const visibleCallIds = new Set(props.calls.map((call) => call.id))
+  const nextUrls: Record<string, string> = {}
+  for (const [callId, objectUrl] of Object.entries(recordingAudioUrls.value)) {
+    if (visibleCallIds.has(callId)) {
+      nextUrls[callId] = objectUrl
+    } else {
+      window.URL.revokeObjectURL(objectUrl)
+    }
+  }
+  recordingAudioUrls.value = nextUrls
+  recordingAudioErrors.value = Object.fromEntries(
+    Object.entries(recordingAudioErrors.value).filter(([callId]) => visibleCallIds.has(callId)),
+  )
+  for (const call of props.calls) {
+    if (recordingDownloadUrl(call)) {
+      void loadRecordingAudio(call)
+    }
+  }
+}
+
+watch(() => props.calls, syncRecordingAudio, { immediate: true })
+
+onBeforeUnmount(() => {
+  for (const objectUrl of Object.values(recordingAudioUrls.value)) {
+    window.URL.revokeObjectURL(objectUrl)
+  }
+})
 </script>

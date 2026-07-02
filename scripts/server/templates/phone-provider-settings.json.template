@@ -1,0 +1,16 @@
+[
+  {
+    "model": "crm.phoneprovidersettings",
+    "pk": 1,
+    "fields": {
+      "downloads_enabled": __PHONE_PROVIDER_DOWNLOADS_ENABLED__,
+      "recording_deletion_enabled": __PHONE_PROVIDER_RECORDING_DELETION_ENABLED__,
+      "base_url": __PHONE_PROVIDER_BASE_URL_JSON__,
+      "username": "__PHONE_PROVIDER_USERNAME__",
+      "password": "__PHONE_PROVIDER_PASSWORD__",
+      "account_code": "__PHONE_PROVIDER_ACCOUNT_CODE__",
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
+    }
+  }
+]

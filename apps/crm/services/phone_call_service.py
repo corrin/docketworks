@@ -436,7 +436,6 @@ class PhoneProviderConfig:
     username: str
     password: str
     account_code: str
-    storage_root: Path
 
 
 def _config() -> PhoneProviderConfig:
@@ -448,7 +447,6 @@ def _config() -> PhoneProviderConfig:
         username=phone_settings.username,
         password=phone_settings.password,
         account_code=phone_settings.account_code,
-        storage_root=Path(settings.PHONE_RECORDING_STORAGE_ROOT).resolve(),
     )
 
 
@@ -872,7 +870,10 @@ def _decimal_or_none(value: Any) -> Decimal | None:
 
 
 def _storage_root() -> Path:
-    return _config().storage_root
+    storage_root = settings.PHONE_RECORDING_STORAGE_ROOT
+    if not storage_root:
+        raise ValueError("phone recording storage root is not configured")
+    return Path(storage_root).resolve()
 
 
 def _full_storage_path(storage_path: str) -> Path:
