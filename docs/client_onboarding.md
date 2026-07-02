@@ -141,7 +141,7 @@ For backups, share a Shared Drive with the service account as Content Manager.
 Put that Shared Drive ID in `BACKUP_GDRIVE_TEAM_DRIVE_ID`. If backups should be
 anchored to a specific folder inside that Shared Drive, put that folder's ID in
 `BACKUP_GDRIVE_ROOT_FOLDER_ID`. Nightly backups upload under
-`dw_backups/<instance>/`.
+`dw_backups/`.
 
 ### 3d. Google Shared Drive Setup (if client has SOPs/documents)
 

@@ -36,7 +36,7 @@ if [[ -z "${RCLONE_CONFIG:-}" ]]; then
 fi
 
 INSTANCE_DIR_REAL="$(readlink -f "$INSTANCE_DIR")"
-REMOTE_BASE="gdrive:dw_backups/$INSTANCE/files"
+REMOTE_BASE="gdrive:dw_backups/files"
 TIMESTAMP="$(date +%Y%m%d_%H%M%S)"
 ARCHIVE_RETENTION_DAYS=30
 

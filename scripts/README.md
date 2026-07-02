@@ -37,7 +37,7 @@ Run manually for one-off or periodic data tasks:
 
 ## Production infrastructure
 
-- **`backup_db.sh`** — Instance-user database backup. Writes daily/monthly dumps, then runs retention and Google Drive upload through `cleanup_backups.py`. Runs via `backup-db-<instance>.timer`.
+- **`backup_db.sh`** — Instance-user database backup. Writes daily/monthly dumps plus sibling `.sha` release markers, then runs retention and Google Drive upload through `cleanup_backups.py`. Runs via `backup-db-<instance>.timer`.
 - **`backup_instance_files.sh`** — Instance-user mutable file backup. Incrementally syncs instance-owned files (`phone-recordings`, `session-replays`, `mediafiles`) to Google Drive with 30-day dated remote archive folders for replaced/deleted files. Runs via `backup-files-<instance>.timer`.
 - **`predeploy_backup.sh`** — Called by `scripts/server/deploy.sh` before each instance is switched to a new release. Stamps the dump with the current release hash so rollback is a (switch release, psql restore) pair. Runnable by hand: `sudo predeploy_backup.sh <instance>`
 - **`predeploy_rollback.sh`** — Restore an instance to the release + data that paired with a given commit hash. Usage: `sudo predeploy_rollback.sh <instance> <8-char-hash>` (interactive confirm; restores the dump into a temporary DB before stopping services and swapping DBs)

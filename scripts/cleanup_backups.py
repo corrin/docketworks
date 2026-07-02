@@ -7,8 +7,8 @@ import subprocess
 import sys
 from datetime import datetime, timedelta
 
-# Remote base; the per-instance remote is REMOTE_BASE/<instance>, matching the
-# upload path used by backup_db.sh (gdrive:dw_backups/<instance>/).
+# Remote base. Each instance uses a per-client Drive target, so backups are
+# uploaded flat under gdrive:dw_backups rather than nested by instance name.
 REMOTE_BASE = "gdrive:dw_backups"
 
 # Backup styles in the per-instance backups dir:
@@ -20,7 +20,9 @@ REMOTE_BASE = "gdrive:dw_backups"
 TS_DIR_RE = re.compile(r"^\d{8}_\d{6}$")
 PREDEPLOY_RE = re.compile(r"^predeploy_(\d{8}_\d{6})_[0-9a-f]+\.sql\.gz$")
 DAILY_RE = re.compile(r"^daily_(\d{8})\.sql\.gz$")
+DAILY_SHA_RE = re.compile(r"^daily_(\d{8})\.sha$")
 MONTHLY_RE = re.compile(r"^monthly_(\d{6})\.sql\.gz$")
+MONTHLY_SHA_RE = re.compile(r"^monthly_(\d{6})\.sha$")
 
 PREDEPLOY_RETENTION_DAYS = 30
 DAILY_RETENTION_COUNT = 14
@@ -57,8 +59,12 @@ def classify(name):
         return "predeploy"
     if DAILY_RE.match(name):
         return "daily"
+    if DAILY_SHA_RE.match(name):
+        return "daily_sha"
     if MONTHLY_RE.match(name):
         return "monthly"
+    if MONTHLY_SHA_RE.match(name):
+        return "monthly_sha"
     return "other"
 
 
@@ -109,6 +115,10 @@ def compute_predeploy_keep(entries, now):
         if ts >= cutoff:
             keep.add(name)
     return keep
+
+
+def paired_sha_name(name):
+    return name.replace(".sql.gz", ".sha")
 
 
 def compute_recent_keep(entries, pattern, fmt, count):
@@ -199,20 +209,19 @@ def main():
     backup_dir = args.backup_dir
     dry_run = not args.delete
 
-    # Per-instance remote, matching backup_db.sh's upload path. backup_dir is
-    # .../instances/<instance>/backups, so the instance is its parent dir name.
     backup_dir_abs = os.path.abspath(backup_dir)
     if os.path.basename(backup_dir_abs) != "backups":
         sys.exit(f"ERROR: expected backup_dir to end with '/backups': {backup_dir}")
-    instance = os.path.basename(os.path.dirname(backup_dir_abs))
-    remote = f"{REMOTE_BASE}/{instance}"
+    remote = REMOTE_BASE
 
     entries = list_backup_dirs(backup_dir)
 
     ts_dir_entries = []
     predeploy_entries = []
     daily_entries = []
+    daily_sha_entries = []
     monthly_entries = []
+    monthly_sha_entries = []
     other_entries = []
     for name in entries:
         kind = classify(name)
@@ -222,8 +231,12 @@ def main():
             predeploy_entries.append(name)
         elif kind == "daily":
             daily_entries.append(name)
+        elif kind == "daily_sha":
+            daily_sha_entries.append(name)
         elif kind == "monthly":
             monthly_entries.append(name)
+        elif kind == "monthly_sha":
+            monthly_sha_entries.append(name)
         else:
             other_entries.append(name)
 
@@ -238,20 +251,33 @@ def main():
     monthly_keep = compute_recent_keep(
         monthly_entries, MONTHLY_RE, "%Y%m", MONTHLY_RETENTION_COUNT
     )
+    daily_sha_keep = {paired_sha_name(name) for name in daily_keep}
+    monthly_sha_keep = {paired_sha_name(name) for name in monthly_keep}
 
     managed = (
         set(ts_dir_entries)
         | set(predeploy_entries)
         | set(daily_entries)
+        | set(daily_sha_entries)
         | set(monthly_entries)
+        | set(monthly_sha_entries)
     )
-    keep = ts_dir_keep | predeploy_keep | daily_keep | monthly_keep
+    keep = (
+        ts_dir_keep
+        | predeploy_keep
+        | daily_keep
+        | daily_sha_keep
+        | monthly_keep
+        | monthly_sha_keep
+    )
     to_delete = sorted(managed - keep)
 
     print("Keeping (ts_dir):", sorted(ts_dir_keep))
     print("Keeping (predeploy):", sorted(predeploy_keep))
     print("Keeping (daily):", sorted(daily_keep))
+    print("Keeping (daily sha):", sorted(daily_sha_keep))
     print("Keeping (monthly):", sorted(monthly_keep))
+    print("Keeping (monthly sha):", sorted(monthly_sha_keep))
     if other_entries:
         print("Leaving untouched (unmanaged pattern):", sorted(other_entries))
 

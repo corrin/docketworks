@@ -61,19 +61,38 @@ DAILY="$BACKUP_DIR/daily_$TODAY.sql.gz"
 DAILY_TMP="$DAILY.tmp"
 MONTHLY="$BACKUP_DIR/monthly_$MONTH.sql.gz"
 MONTHLY_TMP="$MONTHLY.tmp"
+DAILY_SHA="$BACKUP_DIR/daily_$TODAY.sha"
+DAILY_SHA_TMP="$DAILY_SHA.tmp"
+MONTHLY_SHA="$BACKUP_DIR/monthly_$MONTH.sha"
+MONTHLY_SHA_TMP="$MONTHLY_SHA.tmp"
+RELEASE_SHA_FILE="$INSTANCE_DIR/app/.release-sha"
+
+if [[ ! -f "$RELEASE_SHA_FILE" ]]; then
+    echo "Error: release SHA file not found at $RELEASE_SHA_FILE" >&2
+    exit 1
+fi
+RELEASE_SHA="$(tr -d '[:space:]' < "$RELEASE_SHA_FILE")"
+if [[ ! "$RELEASE_SHA" =~ ^[0-9a-f]{40}$ ]]; then
+    echo "Error: invalid release SHA in $RELEASE_SHA_FILE: $RELEASE_SHA" >&2
+    exit 1
+fi
 
 export PGPASSWORD="$DB_PASSWORD"
 
 echo "Backing up $DB_NAME to $DAILY"
 pg_dump -h "${DB_HOST:-/var/run/postgresql}" -p "${DB_PORT:-5432}" \
     -U "$DB_USER" "$DB_NAME" | gzip > "$DAILY_TMP"
+printf '%s\n' "$RELEASE_SHA" > "$DAILY_SHA_TMP"
 mv "$DAILY_TMP" "$DAILY"
+mv "$DAILY_SHA_TMP" "$DAILY_SHA"
 
 # Monthly backup on 1st
 if [ "$(date +%d)" = "01" ]; then
     echo "Writing monthly copy $MONTHLY"
     cp "$DAILY" "$MONTHLY_TMP"
+    printf '%s\n' "$RELEASE_SHA" > "$MONTHLY_SHA_TMP"
     mv "$MONTHLY_TMP" "$MONTHLY"
+    mv "$MONTHLY_SHA_TMP" "$MONTHLY_SHA"
 fi
 
 echo "Applying retention and syncing to Google Drive"

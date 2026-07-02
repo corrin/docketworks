@@ -414,6 +414,9 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         )
         self.assertIn('chmod 700 "$backup_dir"', common_content)
         self.assertIn('if [[ ! -w "$BACKUP_DIR" ]]; then', backup_content)
+        self.assertIn('RELEASE_SHA_FILE="$INSTANCE_DIR/app/.release-sha"', backup_content)
+        self.assertIn('DAILY_SHA="$BACKUP_DIR/daily_$TODAY.sha"', backup_content)
+        self.assertIn('MONTHLY_SHA="$BACKUP_DIR/monthly_$MONTH.sha"', backup_content)
 
     def test_backup_rclone_config_supports_shared_drive(self) -> None:
         credentials_content = CREDENTIALS_TEMPLATE.read_text()

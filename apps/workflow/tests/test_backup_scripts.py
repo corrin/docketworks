@@ -59,6 +59,7 @@ class BackupScriptTests(SimpleTestCase):
             self.assertEqual(events[0][0], "copy")
             self.assertIn("daily_20260601.sql.gz", events[0][1])
             self.assertEqual(events[1], ("purge", ["daily_20260601.sql.gz"]))
+            self.assertEqual(cleanup.REMOTE_BASE, "gdrive:dw_backups")
             self.assertFalse((backup_dir / "daily_20260601.sql.gz").exists())
 
     def test_cleanup_copy_failure_prevents_local_retention_delete(self) -> None:
@@ -116,6 +117,31 @@ class BackupScriptTests(SimpleTestCase):
 
             self.assertTrue((backup_dir / "daily_20260601.sql.gz").exists())
 
+    def test_cleanup_prunes_daily_sha_with_expired_dump(self) -> None:
+        cleanup = load_cleanup_module()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            backup_dir = Path(tmp) / "msm-prod" / "backups"
+            backup_dir.mkdir(parents=True)
+            for day in range(1, 16):
+                (backup_dir / f"daily_202606{day:02d}.sql.gz").write_text("dump")
+                (backup_dir / f"daily_202606{day:02d}.sha").write_text("0" * 40)
+
+            with (
+                mock.patch.object(
+                    sys,
+                    "argv",
+                    ["cleanup_backups.py", str(backup_dir), "--delete"],
+                ),
+                mock.patch.object(cleanup, "copy_remote"),
+                mock.patch.object(cleanup, "purge_remote_entries"),
+            ):
+                cleanup.main()
+
+            self.assertFalse((backup_dir / "daily_20260601.sql.gz").exists())
+            self.assertFalse((backup_dir / "daily_20260601.sha").exists())
+            self.assertTrue((backup_dir / "daily_20260615.sha").exists())
+
     def test_file_backup_script_is_incremental_and_scoped(self) -> None:
         content = BACKUP_INSTANCE_FILES.read_text()
 
@@ -127,6 +153,7 @@ class BackupScriptTests(SimpleTestCase):
         self.assertNotIn("tar ", content)
         self.assertIn("rclone sync", content)
         self.assertIn("--backup-dir", content)
+        self.assertIn('REMOTE_BASE="gdrive:dw_backups/files"', content)
         self.assertIn("ARCHIVE_RETENTION_DAYS=30", content)
         self.assertIn("rclone purge", content)
         self.assertIn("refusing to back up symlinked directory", content)
