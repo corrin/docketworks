@@ -104,6 +104,7 @@ import { Input } from '@/components/ui/input'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
+import { dataFreshness } from '@/composables/useDataFreshness'
 import { Loader2, RefreshCw, Search } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { z } from 'zod'
@@ -122,8 +123,6 @@ type PhoneCallQuery = {
   q?: string
 }
 
-const AUTO_REFRESH_MS = 30_000
-
 const phoneCalls = ref<PhoneCallRecord[]>([])
 const phoneCallCount = ref(0)
 const isLoadingCalls = ref(false)
@@ -133,7 +132,7 @@ const searchQuery = ref('')
 const directionFilter = ref<DirectionFilter>('all')
 const recordingsOnly = ref(false)
 const selectedPhoneNumber = ref('')
-let refreshTimer: ReturnType<typeof setInterval> | null = null
+let unsubscribeCrmCallsFreshness: (() => void) | null = null
 
 const queueDescription = computed(() => {
   if (activeTab.value === 'unmatched') return 'Unmatched numbers need client/contact ownership.'
@@ -229,11 +228,8 @@ function handlePhoneNumbersChanged(): void {
   void loadCalls()
 }
 
-function startAutoRefresh(): void {
-  if (refreshTimer) window.clearInterval(refreshTimer)
-  refreshTimer = window.setInterval(() => {
-    if (!isLoadingCalls.value) void loadCalls()
-  }, AUTO_REFRESH_MS)
+function handleCrmCallsStale(): void {
+  if (!isLoadingCalls.value) void loadCalls()
 }
 
 watch([activeTab, directionFilter, recordingsOnly], () => {
@@ -242,10 +238,11 @@ watch([activeTab, directionFilter, recordingsOnly], () => {
 
 onMounted(() => {
   void loadCalls()
-  startAutoRefresh()
+  unsubscribeCrmCallsFreshness = dataFreshness.subscribe('crm_calls', handleCrmCallsStale)
 })
 
 onUnmounted(() => {
-  if (refreshTimer) window.clearInterval(refreshTimer)
+  unsubscribeCrmCallsFreshness?.()
+  unsubscribeCrmCallsFreshness = null
 })
 </script>

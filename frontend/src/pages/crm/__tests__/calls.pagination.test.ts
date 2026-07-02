@@ -8,6 +8,16 @@ vi.mock('@/api/client', () => ({
   },
 }))
 
+const { dataFreshnessSubscribe } = vi.hoisted(() => ({
+  dataFreshnessSubscribe: vi.fn(() => vi.fn()),
+}))
+
+vi.mock('@/composables/useDataFreshness', () => ({
+  dataFreshness: {
+    subscribe: dataFreshnessSubscribe,
+  },
+}))
+
 vi.mock('@/components/AppLayout.vue', () => ({
   default: { template: '<div><slot /></div>' },
 }))
@@ -34,11 +44,13 @@ vi.mock('vue-sonner', () => ({
 }))
 
 import { api } from '@/api/client'
+import { dataFreshness } from '@/composables/useDataFreshness'
 import CallsPage from '@/pages/crm/calls.vue'
 
 beforeEach(() => {
   vi.clearAllMocks()
   setActivePinia(createPinia())
+  dataFreshnessSubscribe.mockReturnValue(vi.fn())
   vi.mocked(api.crm_phone_calls_list).mockResolvedValue({
     results: [{ id: 'call-1' }],
     count: 12,
@@ -91,5 +103,46 @@ describe('CRM calls pagination', () => {
 
     expect(wrapper.text()).toContain('0 calls')
     expect(wrapper.text()).toContain('Showing 0 of 0')
+  })
+
+  it('does not self-refresh on a timer', async () => {
+    vi.useFakeTimers()
+    const setIntervalSpy = vi.spyOn(window, 'setInterval')
+    const clearIntervalSpy = vi.spyOn(window, 'clearInterval')
+
+    mount(CallsPage)
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(60_000)
+
+    expect(setIntervalSpy).not.toHaveBeenCalled()
+    expect(clearIntervalSpy).not.toHaveBeenCalled()
+    expect(api.crm_phone_calls_list).toHaveBeenCalledTimes(1)
+
+    setIntervalSpy.mockRestore()
+    clearIntervalSpy.mockRestore()
+    vi.useRealTimers()
+  })
+
+  it('reloads when crm_calls data freshness marks the dataset stale', async () => {
+    let staleCallback: (() => void | Promise<void>) | null = null
+    const unsubscribe = vi.fn()
+    vi.mocked(dataFreshness.subscribe).mockImplementation((key, callback) => {
+      if (key === 'crm_calls') staleCallback = callback
+      return unsubscribe
+    })
+
+    const wrapper = mount(CallsPage)
+    await flushPromises()
+
+    expect(dataFreshness.subscribe).toHaveBeenCalledWith('crm_calls', expect.any(Function))
+    expect(api.crm_phone_calls_list).toHaveBeenCalledTimes(1)
+
+    staleCallback?.()
+    await flushPromises()
+
+    expect(api.crm_phone_calls_list).toHaveBeenCalledTimes(2)
+
+    wrapper.unmount()
+    expect(unsubscribe).toHaveBeenCalledOnce()
   })
 })

@@ -1222,7 +1222,11 @@ const PatchedPhoneProviderSettingsRequest = z
     account_code: z.string().max(100),
   })
   .partial()
-const DataVersions = z.object({ stock: z.string(), kanban: z.string() })
+const DataVersions = z.object({
+  stock: z.string(),
+  kanban: z.string(),
+  crm_calls: z.string(),
+})
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),

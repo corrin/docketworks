@@ -11976,7 +11976,10 @@ components:
           type: string
         kanban:
           type: string
+        crm_calls:
+          type: string
       required:
+        - crm_calls
         - kanban
         - stock
     Day:

@@ -11,6 +11,7 @@ from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
 from apps.client.models import Client, ClientContact
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 from apps.job.services.job_service import JobStaffService
 from apps.purchasing.models import Stock
@@ -79,16 +80,36 @@ def _job(staff, **overrides):
     return Job.objects.create(**defaults)
 
 
+def _phone_call(**overrides):
+    now = timezone.now()
+    defaults = dict(
+        provider_call_id="version-test-call",
+        account_code="version-test",
+        call_datetime=now,
+        call_date=timezone.localdate(),
+        call_time=now.time(),
+        origin="+6421555123",
+        destination="+6496365131",
+        duration_seconds=60,
+        raw_json={"id": "version-test-call"},
+    )
+    defaults.update(overrides)
+    return PhoneCallRecord.objects.create(**defaults)
+
+
 def test_get_returns_dict_with_dataset_keys(auth_client, db):
     resp = auth_client.get("/api/data-versions/")
     assert resp.status_code == 200
     body = resp.json()
     assert "stock" in body
     assert "kanban" in body
+    assert "crm_calls" in body
     assert isinstance(body["stock"], str)
     assert isinstance(body["kanban"], str)
+    assert isinstance(body["crm_calls"], str)
     assert body["stock"]
     assert body["kanban"]
+    assert body["crm_calls"]
 
 
 def test_response_has_no_store_cache_header(auth_client, db):
@@ -201,4 +222,34 @@ def test_client_partial_save_changes_kanban_version(
     client.name = "Updated Client"
     client.save(update_fields=["name"])
     after = auth_client.get("/api/data-versions/").json()["kanban"]
+    assert before != after
+
+
+def test_creating_phone_call_changes_crm_calls_version(auth_client, db):
+    before = auth_client.get("/api/data-versions/").json()["crm_calls"]
+    _phone_call()
+    after = auth_client.get("/api/data-versions/").json()["crm_calls"]
+    assert before != after
+
+
+def test_saving_phone_call_changes_crm_calls_version(auth_client, db):
+    call = _phone_call()
+    before = auth_client.get("/api/data-versions/").json()["crm_calls"]
+    call.duration_seconds = 120
+    call.save(update_fields=["duration_seconds", "updated_at"])
+    after = auth_client.get("/api/data-versions/").json()["crm_calls"]
+    assert before != after
+
+
+def test_recording_changes_crm_calls_version(auth_client, db):
+    call = _phone_call()
+    before = auth_client.get("/api/data-versions/").json()["crm_calls"]
+    PhoneCallRecording.objects.create(
+        call=call,
+        provider_recording_id="version-test-recording",
+        account_code="version-test",
+        filename="version-test-recording.mp3",
+        storage_path="2026/07/02/version-test-recording.mp3",
+    )
+    after = auth_client.get("/api/data-versions/").json()["crm_calls"]
     assert before != after

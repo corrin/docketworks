@@ -24,6 +24,7 @@ from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
 from apps.client.models import Client, ClientContact
+from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 from apps.purchasing.models import Stock
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -54,9 +55,24 @@ def _kanban_version() -> str:
     )
 
 
+def _crm_calls_version() -> str:
+    # Tracks the CRM calls table payload: call rows, recording availability,
+    # and related display labels used by PhoneCallRecordSerializer.
+    return "|".join(
+        [
+            _model_version(PhoneCallRecord, "updated_at"),
+            _model_version(PhoneCallRecording, "updated_at"),
+            _model_version(Client, "django_updated_at"),
+            _model_version(ClientContact, "updated_at"),
+            _model_version(Job, "updated_at"),
+        ]
+    )
+
+
 DATASET_VERSION_PROVIDERS: Dict[str, Callable[[], str]] = {
     "stock": _stock_version,
     "kanban": _kanban_version,
+    "crm_calls": _crm_calls_version,
 }
 
 
