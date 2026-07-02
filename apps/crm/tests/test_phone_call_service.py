@@ -517,6 +517,68 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(response.data["page_size"], 100)
         self.assertEqual(len(response.data["results"]), 100)
 
+    def test_list_filters_unmatched_and_unlinked_calls(self) -> None:
+        """Catches CRM queue regressions where triage tabs show the wrong work."""
+        linked = self.call
+        linked.job = self.job
+        linked.save(update_fields=["job", "updated_at"])
+        unlinked = self._call("unlinked", client=self.client_obj)
+        unmatched = self._call("unmatched", client=None)
+
+        unmatched_response = self.api.get(
+            "/api/crm/phone-calls/",
+            {"client_match": "unmatched"},
+        )
+        unlinked_response = self.api.get(
+            "/api/crm/phone-calls/",
+            {"client_match": "matched", "job_link": "unlinked"},
+        )
+
+        self.assertEqual(unmatched_response.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in unmatched_response.data["results"]],
+            [str(unmatched.id)],
+        )
+        self.assertEqual(unlinked_response.status_code, 200)
+        self.assertEqual(
+            [row["id"] for row in unlinked_response.data["results"]],
+            [str(unlinked.id)],
+        )
+
+    def test_list_filters_by_direction_recording_date_and_search(self) -> None:
+        """Catches recent-call filters drifting from provider call fields."""
+        company_defaults = CompanyDefaults.get_solo()
+        company_defaults.phone_own_numbers = ["+6496365131"]
+        company_defaults.save(update_fields=["phone_own_numbers"])
+        recorded_call = self.call
+        PhoneCallRecording.objects.create(
+            call=recorded_call,
+            provider_recording_id="recording-filter",
+            account_code="account",
+            storage_path="recording-filter.mp3",
+        )
+        self._call(
+            "outbound",
+            client=self.client_obj,
+            origin="+6496365131",
+            destination="+6421555999",
+        )
+
+        response = self.api.get(
+            "/api/crm/phone-calls/",
+            {
+                "direction": "inbound",
+                "has_recording": "true",
+                "from_date": timezone.localdate().isoformat(),
+                "to_date": timezone.localdate().isoformat(),
+                "q": "Phone Link Client",
+            },
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["count"], 1)
+        self.assertEqual(response.data["results"][0]["id"], str(recorded_call.id))
+
     def test_bad_call_id_does_not_persist_app_error(self) -> None:
         """Catches client typos being treated as server errors."""
         before = AppError.objects.count()
@@ -668,7 +730,14 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
 
         self.assertEqual(response.status_code, 403)
 
-    def _call(self, provider_id: str, *, client: Client | None) -> PhoneCallRecord:
+    def _call(
+        self,
+        provider_id: str,
+        *,
+        client: Client | None,
+        origin: str = "+6421555123",
+        destination: str = "+6496365131",
+    ) -> PhoneCallRecord:
         call_datetime = timezone.now()
         call_date = timezone.localdate()
         return PhoneCallRecord.objects.create(
@@ -677,8 +746,8 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
             call_datetime=call_datetime,
             call_date=call_date,
             call_time=call_datetime.time(),
-            origin="+6421555123",
-            destination="+6496365131",
+            origin=origin,
+            destination=destination,
             client=client,
             raw_json={
                 "id": provider_id,

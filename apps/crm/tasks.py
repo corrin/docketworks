@@ -12,7 +12,7 @@ scheduler_logger = logging.getLogger("apps.crm.tasks")
 
 @shared_task(name="apps.crm.tasks.sync_phone_calls_task")
 def sync_phone_calls_task() -> None:
-    """Beat-scheduled daily phone call and recording archive."""
+    """Beat-scheduled recent phone call and recording archive."""
     scheduler_logger.info("Running sync_phone_calls_task.")
     try:
         close_old_connections()

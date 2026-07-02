@@ -32,6 +32,7 @@ class ClientContactSerializer(serializers.ModelSerializer):
 class ClientContactMethodSerializer(serializers.ModelSerializer):
     """Serializer for canonical client/contact phone and email methods."""
 
+    owner_client = serializers.SerializerMethodField()
     client_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
 
@@ -40,6 +41,7 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "client",
+            "owner_client",
             "client_name",
             "contact",
             "contact_name",
@@ -54,12 +56,18 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "owner_client",
             "client_name",
             "contact_name",
             "normalized_value",
             "created_at",
             "updated_at",
         ]
+
+    def get_owner_client(self, obj: ClientContactMethod) -> str:
+        if obj.client_id:
+            return str(obj.client_id)
+        return str(obj.contact.client_id) if obj.contact else ""
 
     def get_client_name(self, obj: ClientContactMethod) -> str:
         if obj.client:

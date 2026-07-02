@@ -2579,15 +2579,36 @@ paths:
             type: string
             format: uuid
         - in: query
+          name: client_match
+          schema:
+            type: string
+        - in: query
           name: contact
           schema:
             type: string
             format: uuid
         - in: query
+          name: direction
+          schema:
+            type: string
+        - in: query
+          name: from_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: has_recording
+          schema:
+            type: boolean
+        - in: query
           name: job
           schema:
             type: string
             format: uuid
+        - in: query
+          name: job_link
+          schema:
+            type: string
         - in: query
           name: page
           schema:
@@ -2596,6 +2617,15 @@ paths:
           name: page_size
           schema:
             type: integer
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: to_date
+          schema:
+            type: string
+            format: date
       tags:
         - CRM
       security:
@@ -9990,6 +10020,9 @@ components:
           type: string
           format: uuid
           nullable: true
+        owner_client:
+          type: string
+          readOnly: true
         client_name:
           type: string
           readOnly: true
@@ -10031,6 +10064,7 @@ components:
         - id
         - method_type
         - normalized_value
+        - owner_client
         - updated_at
         - value
     ClientContactMethodRequest:

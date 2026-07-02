@@ -5,10 +5,6 @@ import { createPinia, setActivePinia } from 'pinia'
 vi.mock('@/api/client', () => ({
   api: {
     crm_phone_calls_list: vi.fn(),
-    clients_contact_methods_list: vi.fn(),
-    clients_search_retrieve: vi.fn(),
-    clients_contacts_list: vi.fn(),
-    assignPhoneCallNumber: vi.fn(),
   },
 }))
 
@@ -23,13 +19,16 @@ vi.mock('@/components/crm/PhoneCallTable.vue', () => ({
   },
 }))
 
-vi.mock('@/composables/useClientLookup', () => ({
-  logClientSearchClick: vi.fn(),
+vi.mock('@/components/crm/PhoneNumberManager.vue', () => ({
+  default: {
+    template: '<div data-test="phone-number-manager">phone numbers</div>',
+  },
 }))
 
 vi.mock('vue-sonner', () => ({
   toast: {
     error: vi.fn(),
+    info: vi.fn(),
     success: vi.fn(),
   },
 }))
@@ -47,50 +46,50 @@ beforeEach(() => {
     page_size: 50,
     total_pages: 1,
   } as Awaited<ReturnType<typeof api.crm_phone_calls_list>>)
-  vi.mocked(api.clients_contact_methods_list).mockResolvedValue({
-    results: [{ id: 'method-1' }],
-    count: 7,
-    page: 1,
-    page_size: 50,
-    total_pages: 1,
-  } as Awaited<ReturnType<typeof api.clients_contact_methods_list>>)
 })
 
 describe('CRM calls pagination', () => {
-  it('loads calls and phone methods through page/page_size responses', async () => {
+  it('loads recent calls through paginated workflow query', async () => {
     const wrapper = mount(CallsPage)
     await flushPromises()
 
     expect(api.crm_phone_calls_list).toHaveBeenCalledWith({
-      queries: { page: 1, page_size: 50 },
-    })
-    expect(api.clients_contact_methods_list).toHaveBeenCalledWith({
-      queries: { method_type: 'phone', page: 1, page_size: 50 },
+      queries: { page: 1, page_size: 50, client_match: 'all', job_link: 'all' },
     })
     expect(wrapper.text()).toContain('Showing 1 of 12')
-    expect(wrapper.text()).toContain('Showing 1 of 7')
+    expect(wrapper.text()).toContain('Recent Calls')
+    expect(wrapper.find('[data-test="phone-number-manager"]').exists()).toBe(true)
   })
 
-  it('clears stale calls and phone methods after refresh failures', async () => {
+  it('loads unmatched calls when the unmatched tab is selected', async () => {
+    const wrapper = mount(CallsPage)
+    await flushPromises()
+
+    const unmatchedTab = wrapper.findAll('button').find((button) => button.text() === 'Unmatched')
+    expect(unmatchedTab).toBeTruthy()
+    await unmatchedTab?.trigger('pointerdown')
+    await unmatchedTab?.trigger('click')
+    await flushPromises()
+
+    expect(api.crm_phone_calls_list).toHaveBeenLastCalledWith({
+      queries: { page: 1, page_size: 50, client_match: 'unmatched' },
+    })
+  })
+
+  it('clears stale calls after refresh failure', async () => {
     const wrapper = mount(CallsPage)
     await flushPromises()
 
     expect(wrapper.text()).toContain('1 calls')
-    expect(wrapper.text()).toContain('Showing 1 of 7')
     vi.mocked(api.crm_phone_calls_list).mockRejectedValue(new Error('Call load failed'))
-    vi.mocked(api.clients_contact_methods_list).mockRejectedValue(
-      new Error('Phone number load failed'),
-    )
-
-    await wrapper.get('button').trigger('click')
+    const refreshButton = wrapper
+      .findAll('button')
+      .find((button) => button.text().includes('Refresh'))
+    expect(refreshButton).toBeTruthy()
+    await refreshButton?.trigger('click')
     await flushPromises()
 
-    const [phoneMethodsCard] = wrapper.findAll('.app-card')
-
     expect(wrapper.text()).toContain('0 calls')
-    expect(wrapper.text()).not.toContain('Showing 1 of 7')
-    expect(phoneMethodsCard.text()).toContain('Showing 0 of 0')
-    expect(phoneMethodsCard.text()).not.toContain('Showing 1 of 7')
-    expect(wrapper.text().match(/Showing 0 of 0/g)).toHaveLength(2)
+    expect(wrapper.text()).toContain('Showing 0 of 0')
   })
 })

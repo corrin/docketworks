@@ -4,6 +4,7 @@ from uuid import UUID
 from django.db.models import Q, QuerySet
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from django.utils.dateparse import parse_date
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -34,8 +35,10 @@ from apps.crm.serializers import (
 )
 from apps.crm.services.phone_call_service import (
     assign_phone_number,
+    configured_own_numbers,
     delete_local_recording,
     link_phone_call_to_job,
+    normalize_phone,
     provider_delete_recording,
     recording_file_path,
     unlink_phone_call_job,
@@ -98,6 +101,162 @@ def _phone_call_filter_kwargs(request: Request) -> dict[str, UUID]:
     return filter_kwargs
 
 
+def _query_choice(value: str | None, field_name: str, allowed: set[str]) -> str:
+    if not value:
+        return "all"
+    if value not in allowed:
+        allowed_values = ", ".join(sorted(allowed))
+        raise ValidationError({field_name: [f"Must be one of: {allowed_values}."]})
+    return value
+
+
+def _query_bool(value: str | None, field_name: str) -> bool | None:
+    if not value:
+        return None
+    normalized = value.strip().lower()
+    if normalized in {"true", "1", "yes"}:
+        return True
+    if normalized in {"false", "0", "no"}:
+        return False
+    raise ValidationError({field_name: ["Must be true or false."]})
+
+
+def _query_date(value: str | None, field_name: str):
+    if not value:
+        return None
+    parsed = parse_date(value)
+    if parsed is None:
+        raise ValidationError({field_name: ["Must be a valid date."]})
+    return parsed
+
+
+def _apply_client_match_filter(
+    queryset: QuerySet[PhoneCallRecord],
+    client_match: str,
+) -> QuerySet[PhoneCallRecord]:
+    if client_match == "matched":
+        return queryset.filter(client_id__isnull=False)
+    if client_match == "unmatched":
+        return queryset.filter(client_id__isnull=True)
+    return queryset
+
+
+def _apply_job_link_filter(
+    queryset: QuerySet[PhoneCallRecord],
+    job_link: str,
+) -> QuerySet[PhoneCallRecord]:
+    if job_link == "linked":
+        return queryset.filter(job_id__isnull=False)
+    if job_link == "unlinked":
+        return queryset.filter(job_id__isnull=True)
+    return queryset
+
+
+def _apply_direction_filter(
+    queryset: QuerySet[PhoneCallRecord],
+    direction: str,
+) -> QuerySet[PhoneCallRecord]:
+    if direction == "all":
+        return queryset
+
+    own_numbers = configured_own_numbers()
+    if not own_numbers:
+        if direction == "unknown":
+            return queryset
+        return queryset.none()
+
+    origin_is_ours = Q(origin__in=own_numbers)
+    destination_is_ours = Q(destination__in=own_numbers)
+    if direction == "inbound":
+        return queryset.filter(destination_is_ours).exclude(origin_is_ours)
+    if direction == "outbound":
+        return queryset.filter(origin_is_ours).exclude(destination_is_ours)
+    if direction == "internal":
+        return queryset.filter(origin_is_ours, destination_is_ours)
+    if direction == "unknown":
+        return queryset.exclude(origin_is_ours | destination_is_ours)
+    raise RuntimeError(f"Unhandled phone call direction filter: {direction}")
+
+
+def _apply_recording_filter(
+    queryset: QuerySet[PhoneCallRecord],
+    has_recording: bool | None,
+) -> QuerySet[PhoneCallRecord]:
+    if has_recording is None:
+        return queryset
+    return queryset.filter(recording__isnull=not has_recording)
+
+
+def _apply_date_filters(
+    queryset: QuerySet[PhoneCallRecord],
+    request: Request,
+) -> QuerySet[PhoneCallRecord]:
+    from_date = _query_date(request.query_params.get("from_date"), "from_date")
+    to_date = _query_date(request.query_params.get("to_date"), "to_date")
+    if from_date:
+        queryset = queryset.filter(call_date__gte=from_date)
+    if to_date:
+        queryset = queryset.filter(call_date__lte=to_date)
+    return queryset
+
+
+def _apply_search_filter(
+    queryset: QuerySet[PhoneCallRecord],
+    query: str | None,
+) -> QuerySet[PhoneCallRecord]:
+    if not query:
+        return queryset
+    search = query.strip()
+    if not search:
+        return queryset
+
+    normalized_phone = normalize_phone(search)
+    filters = (
+        Q(client__name__icontains=search)
+        | Q(contact__name__icontains=search)
+        | Q(job__name__icontains=search)
+        | Q(origin__icontains=search)
+        | Q(destination__icontains=search)
+        | Q(description__icontains=search)
+    )
+    if normalized_phone:
+        filters |= Q(origin=normalized_phone) | Q(destination=normalized_phone)
+    if search.isdecimal():
+        filters |= Q(job__job_number=int(search))
+    return queryset.filter(filters)
+
+
+def _filter_phone_call_queryset(
+    queryset: QuerySet[PhoneCallRecord],
+    request: Request,
+) -> QuerySet[PhoneCallRecord]:
+    client_match = _query_choice(
+        request.query_params.get("client_match"),
+        "client_match",
+        {"all", "matched", "unmatched"},
+    )
+    job_link = _query_choice(
+        request.query_params.get("job_link"),
+        "job_link",
+        {"all", "linked", "unlinked"},
+    )
+    direction = _query_choice(
+        request.query_params.get("direction"),
+        "direction",
+        {"all", "inbound", "outbound", "internal", "unknown"},
+    )
+    has_recording = _query_bool(
+        request.query_params.get("has_recording"), "has_recording"
+    )
+
+    queryset = _apply_client_match_filter(queryset, client_match)
+    queryset = _apply_job_link_filter(queryset, job_link)
+    queryset = _apply_direction_filter(queryset, direction)
+    queryset = _apply_recording_filter(queryset, has_recording)
+    queryset = _apply_date_filters(queryset, request)
+    return _apply_search_filter(queryset, request.query_params.get("q"))
+
+
 def _assigned_phone_client_id(method: ClientContactMethod) -> UUID:
     client_id = method.client_id
     if client_id is not None:
@@ -119,6 +278,15 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
             OpenApiParameter("client", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("contact", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("job", OpenApiTypes.UUID, OpenApiParameter.QUERY),
+            OpenApiParameter("client_match", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter("job_link", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter("direction", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter(
+                "has_recording", OpenApiTypes.BOOL, OpenApiParameter.QUERY
+            ),
+            OpenApiParameter("from_date", OpenApiTypes.DATE, OpenApiParameter.QUERY),
+            OpenApiParameter("to_date", OpenApiTypes.DATE, OpenApiParameter.QUERY),
+            OpenApiParameter("q", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("page", OpenApiTypes.INT, OpenApiParameter.QUERY),
             OpenApiParameter("page_size", OpenApiTypes.INT, OpenApiParameter.QUERY),
         ],
@@ -151,7 +319,8 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
             .filter(Q(origin__gt="") | Q(destination__gt=""))
             .order_by("-call_datetime")
         )
-        return queryset.filter(**_phone_call_filter_kwargs(self.request))
+        queryset = queryset.filter(**_phone_call_filter_kwargs(self.request))
+        return _filter_phone_call_queryset(queryset, self.request)
 
     @extend_schema(
         operation_id="linkPhoneCallJob",

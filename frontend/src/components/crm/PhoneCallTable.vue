@@ -24,8 +24,17 @@
             <div class="font-medium text-gray-900">
               {{ call.client_name || call.external_number || '-' }}
             </div>
-            <div class="text-xs text-gray-500">
-              {{ call.contact_name || call.external_number || '-' }}
+            <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
+              <span>{{ call.contact_name || call.external_number || '-' }}</span>
+              <Button
+                v-if="allowNumberAssignment && !call.client && call.external_number"
+                variant="ghost"
+                size="sm"
+                class="h-6 px-2 text-xs"
+                @click="$emit('assign-number', call.external_number)"
+              >
+                Assign number
+              </Button>
             </div>
           </td>
           <td class="p-3 whitespace-nowrap text-gray-700">{{ call.our_number || '-' }}</td>
@@ -158,14 +167,17 @@ withDefaults(
     calls: PhoneCallRecord[]
     emptyText: string
     allowJobLinking?: boolean
+    allowNumberAssignment?: boolean
   }>(),
   {
     allowJobLinking: true,
+    allowNumberAssignment: false,
   },
 )
 
 const emit = defineEmits<{
   'call-updated': [call: PhoneCallRecord]
+  'assign-number': [phoneNumber: string]
 }>()
 
 const isDialogOpen = ref(false)

@@ -205,6 +205,14 @@
             </CardContent>
           </Card>
 
+          <PhoneNumberManager
+            title="Phone Numbers"
+            :fixed-client-id="props.id"
+            :fixed-client-name="client.name"
+            search-context="crm_client_detail_phone_numbers"
+            @changed="loadPhoneCalls"
+          />
+
           <!-- Xero Integration Details -->
           <Card v-if="client.xero_contact_id">
             <CardHeader>
@@ -398,6 +406,7 @@ import { useRouter } from 'vue-router'
 import { useClientStore } from '@/stores/clientStore'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
+import PhoneNumberManager from '@/components/crm/PhoneNumberManager.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
