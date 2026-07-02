@@ -85,16 +85,25 @@
             <span v-else class="text-xs text-gray-500">Assign client first</span>
           </td>
           <td class="p-3 min-w-64">
-            <audio
-              v-if="recordingAudioUrl(call)"
-              :src="recordingAudioUrl(call) || undefined"
-              controls
-              preload="none"
-              class="h-9 w-full max-w-sm"
-            />
-            <span v-else-if="recordingDownloadUrl(call)" class="text-xs text-gray-500">
-              {{ recordingAudioError(call) || 'Loading recording...' }}
-            </span>
+            <div v-if="recordingDownloadUrl(call)" class="flex items-center gap-2">
+              <audio
+                :src="recordingDownloadUrl(call) || undefined"
+                controls
+                preload="metadata"
+                class="h-9 w-full max-w-sm"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                class="h-8 w-8 shrink-0 p-0"
+                title="Download recording"
+                aria-label="Download recording"
+                :disabled="downloadingRecordingIds.has(call.id)"
+                @click="downloadRecording(call)"
+              >
+                <Download class="h-4 w-4" />
+              </Button>
+            </div>
             <span v-else class="text-xs text-gray-500">No recording</span>
           </td>
         </tr>
@@ -145,8 +154,9 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import { toast } from 'vue-sonner'
+import { Download } from 'lucide-vue-next'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import {
@@ -166,7 +176,7 @@ import type { z } from 'zod'
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
 type ClientJobHeader = z.infer<typeof schemas.ClientJobHeader>
 
-const props = withDefaults(
+withDefaults(
   defineProps<{
     calls: PhoneCallRecord[]
     emptyText: string
@@ -191,8 +201,7 @@ const jobSearch = ref('')
 const clientJobs = ref<ClientJobHeader[]>([])
 const isLoadingJobs = ref(false)
 const savingCallId = ref<string | null>(null)
-const recordingAudioUrls = ref<Record<string, string>>({})
-const recordingAudioErrors = ref<Record<string, string>>({})
+const downloadingRecordingIds = ref<Set<string>>(new Set())
 
 const filteredJobs = computed(() => {
   const search = jobSearch.value.trim().toLowerCase()
@@ -301,20 +310,13 @@ function recordingDownloadUrl(call: PhoneCallRecord): string | null {
   return typeof downloadUrl === 'string' ? downloadUrl : null
 }
 
-function recordingAudioUrl(call: PhoneCallRecord): string | null {
-  return recordingAudioUrls.value[call.id] || null
-}
-
-function recordingAudioError(call: PhoneCallRecord): string {
-  return recordingAudioErrors.value[call.id] || ''
-}
-
-async function loadRecordingAudio(call: PhoneCallRecord): Promise<void> {
+async function downloadRecording(call: PhoneCallRecord): Promise<void> {
   const downloadUrl = recordingDownloadUrl(call)
-  if (!downloadUrl || recordingAudioUrls.value[call.id] || recordingAudioErrors.value[call.id]) {
+  if (!downloadUrl || downloadingRecordingIds.value.has(call.id)) {
     return
   }
 
+  downloadingRecordingIds.value = new Set(downloadingRecordingIds.value).add(call.id)
   try {
     const response = await axios.get(downloadUrl, {
       responseType: 'blob',
@@ -322,50 +324,21 @@ async function loadRecordingAudio(call: PhoneCallRecord): Promise<void> {
     })
     const blob = response.data as Blob
     const objectUrl = window.URL.createObjectURL(blob)
-    if (!props.calls.some((currentCall) => currentCall.id === call.id)) {
-      window.URL.revokeObjectURL(objectUrl)
-      return
-    }
-    recordingAudioUrls.value = {
-      ...recordingAudioUrls.value,
-      [call.id]: objectUrl,
-    }
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = call.recording?.filename || 'call-recording'
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => window.URL.revokeObjectURL(objectUrl), 30000)
   } catch (error) {
-    recordingAudioErrors.value = {
-      ...recordingAudioErrors.value,
-      [call.id]: 'Recording unavailable',
-    }
-    toast.error('Failed to load call recording')
-    console.error('Failed to load call recording:', error)
+    toast.error('Failed to download call recording')
+    console.error('Failed to download call recording:', error)
+  } finally {
+    const nextDownloadingIds = new Set(downloadingRecordingIds.value)
+    nextDownloadingIds.delete(call.id)
+    downloadingRecordingIds.value = nextDownloadingIds
   }
 }
-
-function syncRecordingAudio(): void {
-  const visibleCallIds = new Set(props.calls.map((call) => call.id))
-  const nextUrls: Record<string, string> = {}
-  for (const [callId, objectUrl] of Object.entries(recordingAudioUrls.value)) {
-    if (visibleCallIds.has(callId)) {
-      nextUrls[callId] = objectUrl
-    } else {
-      window.URL.revokeObjectURL(objectUrl)
-    }
-  }
-  recordingAudioUrls.value = nextUrls
-  recordingAudioErrors.value = Object.fromEntries(
-    Object.entries(recordingAudioErrors.value).filter(([callId]) => visibleCallIds.has(callId)),
-  )
-  for (const call of props.calls) {
-    if (recordingDownloadUrl(call)) {
-      void loadRecordingAudio(call)
-    }
-  }
-}
-
-watch(() => props.calls, syncRecordingAudio, { immediate: true })
-
-onBeforeUnmount(() => {
-  for (const objectUrl of Object.values(recordingAudioUrls.value)) {
-    window.URL.revokeObjectURL(objectUrl)
-  }
-})
 </script>

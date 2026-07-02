@@ -5,7 +5,6 @@ from uuid import UUID
 from drf_spectacular.utils import extend_schema_field
 from pydantic import BaseModel, ConfigDict, field_validator
 from rest_framework import serializers
-from rest_framework.request import Request
 
 from apps.crm.models import (
     PhoneCallRecord,
@@ -67,22 +66,13 @@ def _datetime_value(value: datetime | None) -> str | None:
     return value.isoformat()
 
 
-def _recording_download_url(
-    recording: PhoneCallRecording,
-    request: Request | None,
-) -> str | None:
+def _recording_download_url(recording: PhoneCallRecording) -> str | None:
     if not recording.storage_path:
         return None
-    path = f"/api/crm/phone-call-recordings/{recording.id}/download/"
-    if request is not None:
-        return request.build_absolute_uri(path)
-    return path
+    return f"/api/crm/phone-call-recordings/{recording.id}/download/"
 
 
-def _recording_response(
-    recording: PhoneCallRecording,
-    request: Request | None,
-) -> PhoneCallRecordingResponse:
+def _recording_response(recording: PhoneCallRecording) -> PhoneCallRecordingResponse:
     return {
         "id": str(recording.id),
         "provider_recording_id": recording.provider_recording_id,
@@ -97,7 +87,7 @@ def _recording_response(
         "provider_deleted_at": _datetime_value(recording.provider_deleted_at),
         "provider_delete_error": recording.provider_delete_error,
         "local_deleted_at": _datetime_value(recording.local_deleted_at),
-        "download_url": _recording_download_url(recording, request),
+        "download_url": _recording_download_url(recording),
         "created_at": recording.created_at.isoformat(),
         "updated_at": recording.updated_at.isoformat(),
     }
@@ -129,10 +119,7 @@ class PhoneCallRecordingSerializer(serializers.ModelSerializer[PhoneCallRecordin
         read_only_fields = fields
 
     def get_download_url(self, obj: PhoneCallRecording) -> str | None:
-        request = self.context.get("request") if self.context else None
-        if isinstance(request, Request):
-            return _recording_download_url(obj, request)
-        return _recording_download_url(obj, None)
+        return _recording_download_url(obj)
 
 
 class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
@@ -275,8 +262,6 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
 
     @extend_schema_field(PhoneCallRecordingSerializer(allow_null=True))
     def get_recording(self, obj: PhoneCallRecord) -> PhoneCallRecordingResponse | None:
-        request = self.context.get("request") if self.context else None
-        typed_request = request if isinstance(request, Request) else None
         recordings_by_call_id = self.context.get("phone_recordings_by_call_id")
         if not isinstance(recordings_by_call_id, dict):
             try:
@@ -284,7 +269,7 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
             except PhoneCallRecording.DoesNotExist:
                 return None
 
-            return _recording_response(recording, typed_request)
+            return _recording_response(recording)
 
         cached_recording = recordings_by_call_id.get(obj.id)
         if cached_recording is None:
@@ -292,7 +277,7 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
         if not isinstance(cached_recording, PhoneCallRecording):
             raise TypeError("Recording cache contained an invalid value")
 
-        return _recording_response(cached_recording, typed_request)
+        return _recording_response(cached_recording)
 
     def get_job_number(self, obj: PhoneCallRecord) -> int | None:
         return obj.job.job_number if obj.job else None

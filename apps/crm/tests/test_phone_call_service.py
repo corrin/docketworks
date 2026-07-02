@@ -512,6 +512,24 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(response.data["total_pages"], 2)
         self.assertEqual(len(response.data["results"]), 2)
 
+    def test_recording_download_url_is_same_origin_relative_path(self) -> None:
+        """Catches proxy/ngrok auth failures from absolute localhost media links."""
+        recording = PhoneCallRecording.objects.create(
+            call=self.call,
+            provider_recording_id="recording-relative-url",
+            account_code="account",
+            filename="recording-relative-url.mp3",
+            storage_path="2026/06/02/recording-relative-url.mp3",
+        )
+
+        response = self.api.get("/api/crm/phone-calls/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(
+            response.data["results"][0]["recording"]["download_url"],
+            f"/api/crm/phone-call-recordings/{recording.id}/download/",
+        )
+
     def test_empty_list_uses_paginator_total_pages(self) -> None:
         response = self.api.get(
             "/api/crm/phone-calls/", {"job": str(self.other_job.id)}

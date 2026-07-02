@@ -1,4 +1,4 @@
-import { flushPromises, mount } from '@vue/test-utils'
+import { mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('@/api/client', () => ({
@@ -41,8 +41,8 @@ function callWithRecording() {
     duration_seconds: 120,
     job: null,
     recording: {
-      download_url:
-        'https://docketworks.example.test/api/crm/phone-call-recordings/recording-1/download/',
+      filename: '6496365131_-_64272255846_2026-06-02_-_15_13_01.mp3',
+      download_url: '/api/crm/phone-call-recordings/recording-1/download/',
     },
   }
 }
@@ -63,9 +63,8 @@ beforeEach(() => {
 })
 
 describe('PhoneCallTable recording playback', () => {
-  it('loads recordings through authenticated axios before rendering audio', async () => {
-    const protectedUrl =
-      'https://docketworks.example.test/api/crm/phone-call-recordings/recording-1/download/'
+  it('renders relative recording urls directly for same-origin audio playback', () => {
+    const protectedUrl = '/api/crm/phone-call-recordings/recording-1/download/'
     const wrapper = mount(PhoneCallTable, {
       props: {
         calls: [callWithRecording()],
@@ -73,31 +72,38 @@ describe('PhoneCallTable recording playback', () => {
       },
     })
 
-    expect(wrapper.text()).toContain('Loading recording...')
-    await flushPromises()
+    expect(axios.get).not.toHaveBeenCalled()
+    const audio = wrapper.find('audio')
+    expect(audio.exists()).toBe(true)
+    expect(audio.attributes('src')).toBe(protectedUrl)
+    expect(audio.attributes('preload')).toBe('metadata')
+  })
+
+  it('downloads recordings through authenticated axios when requested', async () => {
+    vi.useFakeTimers()
+    const click = vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {})
+    const protectedUrl = '/api/crm/phone-call-recordings/recording-1/download/'
+    const wrapper = mount(PhoneCallTable, {
+      props: {
+        calls: [callWithRecording()],
+        emptyText: 'No calls',
+      },
+    })
+
+    await wrapper.get('button[aria-label="Download recording"]').trigger('click')
 
     expect(axios.get).toHaveBeenCalledWith(protectedUrl, {
       responseType: 'blob',
       withCredentials: true,
     })
     expect(createObjectURL).toHaveBeenCalledOnce()
-    const audio = wrapper.find('audio')
-    expect(audio.exists()).toBe(true)
-    expect(audio.attributes('src')).toBe('blob:recording-audio')
-    expect(audio.attributes('src')).not.toBe(protectedUrl)
-  })
+    const link = document.querySelector('a[download]')
+    expect(link).toBeNull()
 
-  it('revokes recording object urls when unmounted', async () => {
-    const wrapper = mount(PhoneCallTable, {
-      props: {
-        calls: [callWithRecording()],
-        emptyText: 'No calls',
-      },
-    })
-    await flushPromises()
-
-    wrapper.unmount()
+    await vi.advanceTimersByTimeAsync(30000)
 
     expect(revokeObjectURL).toHaveBeenCalledWith('blob:recording-audio')
+    click.mockRestore()
+    vi.useRealTimers()
   })
 })
