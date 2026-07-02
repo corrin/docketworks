@@ -85,8 +85,12 @@ describe('CRM calls pagination', () => {
     await wrapper.get('button').trigger('click')
     await flushPromises()
 
+    const [phoneMethodsCard] = wrapper.findAll('.app-card')
+
     expect(wrapper.text()).toContain('0 calls')
     expect(wrapper.text()).not.toContain('Showing 1 of 7')
+    expect(phoneMethodsCard.text()).toContain('Showing 0 of 0')
+    expect(phoneMethodsCard.text()).not.toContain('Showing 1 of 7')
     expect(wrapper.text().match(/Showing 0 of 0/g)).toHaveLength(2)
   })
 })
