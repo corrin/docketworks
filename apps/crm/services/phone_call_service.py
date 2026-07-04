@@ -306,6 +306,34 @@ def unlink_phone_call_job(*, call_id: str) -> PhoneCallRecord:
     return call
 
 
+def assign_phone_number_from_call(
+    *,
+    call_id: str,
+    client_id: str,
+    contact_id: str | None = None,
+    label: str = "",
+    is_primary: bool = False,
+) -> PhoneCallRecord:
+    call_uuid = _uuid_or_client_error(call_id, "Phone call not found")
+    try:
+        call = PhoneCallRecord.objects.get(id=call_uuid)
+    except PhoneCallRecord.DoesNotExist as exc:
+        raise ValueError("Phone call not found") from exc
+
+    if not call.external_number:
+        raise ValueError("Phone call has no external number to assign")
+
+    assign_phone_number(
+        phone_number=call.external_number,
+        client_id=client_id,
+        contact_id=contact_id,
+        label=label,
+        is_primary=is_primary,
+    )
+    call.refresh_from_db()
+    return call
+
+
 class PhoneProviderPortalClient:
     def __init__(self, config: "PhoneProviderConfig"):
         self.config = config
@@ -444,8 +472,8 @@ def _config() -> PhoneProviderConfig:
         raise ValueError("phone provider base URL is not configured")
     return PhoneProviderConfig(
         base_url=phone_settings.base_url.rstrip("/"),
-        username=phone_settings.username,
-        password=phone_settings.password,
+        username=phone_settings.username or "",
+        password=phone_settings.password or "",
         account_code=phone_settings.account_code,
     )
 
@@ -787,6 +815,12 @@ def assign_phone_number(
         ).exists()
 
     should_be_primary = is_primary or not existing_primary
+    conflict = ClientContactMethod.conflicting_client(normalized, client_uuid)
+    if conflict:
+        raise ValueError(
+            f"phone number already belongs to {conflict.owner_display_name()}"
+        )
+
     method, created = ClientContactMethod.objects.get_or_create(
         **owner_filter,
         method_type=ClientContactMethod.MethodType.PHONE,

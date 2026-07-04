@@ -1,6 +1,9 @@
 import uuid
 
 from django.db import models
+from encrypted_model_fields.fields import (  # type: ignore[import-untyped]  # third-party package without stubs
+    EncryptedCharField,
+)
 
 
 class PhoneEndpoint(models.Model):
@@ -63,8 +66,8 @@ class PhoneProviderSettings(models.Model):
     downloads_enabled = models.BooleanField(default=False)
     recording_deletion_enabled = models.BooleanField(default=False)
     base_url = models.URLField(null=True, blank=True, default=None)
-    username = models.CharField(max_length=255, blank=True, default="")
-    password = models.CharField(max_length=255, blank=True, default="")
+    username = EncryptedCharField(max_length=255, blank=True, null=True)
+    password = EncryptedCharField(max_length=255, blank=True, null=True)
     account_code = models.CharField(max_length=100, blank=True, default="")
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)

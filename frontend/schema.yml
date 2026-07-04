@@ -2669,6 +2669,40 @@ paths:
               schema:
                 $ref: '#/components/schemas/PhoneCallRecord'
           description: ''
+  /api/crm/phone-calls/{id}/assign-number/:
+    post:
+      operationId: assignPhoneCallNumber
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call record.
+          required: true
+      tags:
+        - CRM
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
   /api/crm/phone-calls/{id}/job-link/:
     post:
       operationId: linkPhoneCallJob
@@ -2723,32 +2757,6 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/PhoneCallRecord'
-          description: ''
-  /api/crm/phone-calls/assign-number/:
-    post:
-      operationId: assignPhoneCallNumber
-      tags:
-        - CRM
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PhoneNumberAssignmentRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/PhoneNumberAssignment'
           description: ''
   /api/crm/phone-endpoints/:
     get:
@@ -2902,7 +2910,7 @@ paths:
           description: No response body
   /api/crm/phone-provider-settings/:
     get:
-      operationId: crm_phone_provider_settings_list
+      operationId: getPhoneProviderSettings
       tags:
         - CRM
       security:
@@ -2912,20 +2920,10 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PhoneProviderSettings'
+                $ref: '#/components/schemas/PhoneProviderSettings'
           description: ''
-  /api/crm/phone-provider-settings/{id}/:
     patch:
-      operationId: crm_phone_provider_settings_partial_update
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: integer
-          description: A unique value identifying this Phone Provider Settings.
-          required: true
+      operationId: updatePhoneProviderSettings
       tags:
         - CRM
       requestBody:
@@ -3138,6 +3136,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArchivedJobsComplianceResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/job/data-quality/duplicate-phones/:
+    get:
+      operationId: check_duplicate_phones
+      description: List phone numbers owned by more than one client, or client numbers
+        that are actually internal company lines.
+      summary: Check duplicate phone ownership
+      tags:
+        - Data Quality
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicatePhonesResponse'
           description: ''
         '500':
           content:
@@ -12172,6 +12194,84 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
+    DuplicatePhoneIssue:
+      type: object
+      description: One problematic phone number and its owners.
+      properties:
+        normalized_value:
+          type: string
+          description: Normalized phone number
+        issue:
+          type: string
+          description: "'cross_client' or 'internal_line'"
+        endpoint_label:
+          type: string
+          nullable: true
+          description: Internal endpoint label (internal_line only)
+        owners:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePhoneOwner'
+      required:
+        - issue
+        - normalized_value
+        - owners
+    DuplicatePhoneOwner:
+      type: object
+      description: One owner of a mis-owned phone number.
+      properties:
+        method_id:
+          type: string
+          description: Contact-method id
+        owner_kind:
+          type: string
+          description: "'client' or 'contact'"
+        owner_name:
+          type: string
+          description: Human-readable owner
+        effective_client_id:
+          type: string
+          nullable: true
+          description: Client the number resolves to
+      required:
+        - effective_client_id
+        - method_id
+        - owner_kind
+        - owner_name
+    DuplicatePhoneSummary:
+      type: object
+      description: Summary of duplicate-phone issues.
+      properties:
+        cross_client:
+          type: integer
+          description: Numbers owned by more than one client
+        internal_line:
+          type: integer
+          description: Client numbers that are actually internal company lines
+      required:
+        - cross_client
+        - internal_line
+    DuplicatePhonesResponse:
+      type: object
+      description: Response for the duplicate phones check.
+      properties:
+        duplicate_phones:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePhoneIssue'
+          description: Mis-owned phone numbers with details
+        summary:
+          allOf:
+            - $ref: '#/components/schemas/DuplicatePhoneSummary'
+          description: Summary of issues
+        checked_at:
+          type: string
+          format: date-time
+          description: When the check was performed
+      required:
+        - checked_at
+        - duplicate_phones
+        - summary
     EndpointTypeEnum:
       enum:
         - main_line
@@ -16660,7 +16760,7 @@ components:
           maxLength: 200
         username:
           type: string
-          maxLength: 255
+          writeOnly: true
         password:
           type: string
           writeOnly: true
@@ -17609,9 +17709,6 @@ components:
         filename:
           type: string
           readOnly: true
-        storage_path:
-          type: string
-          readOnly: true
         content_type:
           type: string
           readOnly: true
@@ -17670,7 +17767,6 @@ components:
         - provider_deleted_at
         - provider_recording_id
         - sha256
-        - storage_path
         - updated_at
     PhoneEndpoint:
       type: object
@@ -17747,35 +17843,9 @@ components:
         - endpoint_type
         - label
         - number
-    PhoneNumberAssignment:
-      type: object
-      properties:
-        phone_number:
-          type: string
-          maxLength: 150
-        client:
-          type: string
-          format: uuid
-        contact:
-          type: string
-          format: uuid
-          nullable: true
-        label:
-          type: string
-          maxLength: 255
-        is_primary:
-          type: boolean
-          default: false
-      required:
-        - client
-        - phone_number
     PhoneNumberAssignmentRequest:
       type: object
       properties:
-        phone_number:
-          type: string
-          minLength: 1
-          maxLength: 150
         client:
           type: string
           format: uuid
@@ -17791,7 +17861,6 @@ components:
           default: false
       required:
         - client
-        - phone_number
     PhoneProviderSettings:
       type: object
       properties:
@@ -17807,9 +17876,12 @@ components:
           format: uri
           nullable: true
           maxLength: 200
-        username:
-          type: string
-          maxLength: 255
+        has_username:
+          type: boolean
+          readOnly: true
+        has_password:
+          type: boolean
+          readOnly: true
         account_code:
           type: string
           maxLength: 100
@@ -17823,6 +17895,8 @@ components:
           readOnly: true
       required:
         - created_at
+        - has_password
+        - has_username
         - id
         - updated_at
     PlacementEnum:

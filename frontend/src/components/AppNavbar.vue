@@ -349,6 +349,12 @@
                 >
                   <AlertTriangle class="w-4 h-4 mr-2" /> Archived Jobs Validation
                 </router-link>
+                <router-link
+                  to="/reports/data-quality/duplicate-phones"
+                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                >
+                  <PhoneCall class="w-4 h-4 mr-2" /> Duplicate Phones
+                </router-link>
               </div>
             </Transition>
           </div>
@@ -872,6 +878,13 @@
                         @click="closeMobileMenu"
                       >
                         <AlertTriangle class="w-4 h-4 mr-2" /> Archived Jobs Validation
+                      </router-link>
+                      <router-link
+                        to="/reports/data-quality/duplicate-phones"
+                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                        @click="closeMobileMenu"
+                      >
+                        <PhoneCall class="w-4 h-4 mr-2" /> Duplicate Phones
                       </router-link>
                     </div>
                   </div>

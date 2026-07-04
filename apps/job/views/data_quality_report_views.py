@@ -13,9 +13,11 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.client.services.duplicate_phone_report import DuplicatePhoneReportService
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.data_quality_report_serializers import (
     ArchivedJobsComplianceResponseSerializer,
+    DuplicatePhonesResponseSerializer,
 )
 from apps.job.services.data_quality_report import ArchivedJobsComplianceService
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -66,6 +68,51 @@ class ArchivedJobsComplianceView(APIView):
                 return Response(
                     {
                         "error": f"Failed to run archived jobs compliance check: {str(exc)}",
+                        "error_id": (
+                            str(logged_exc.app_error_id)
+                            if logged_exc.app_error_id
+                            else None
+                        ),
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+
+
+class DuplicatePhonesView(APIView):
+    """API view for the duplicate phones data-quality check."""
+
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+
+    @extend_schema(
+        operation_id="check_duplicate_phones",
+        summary="Check duplicate phone ownership",
+        description=(
+            "List phone numbers owned by more than one client, or client numbers "
+            "that are actually internal company lines."
+        ),
+        responses={
+            200: DuplicatePhonesResponseSerializer,
+            500: dict,
+        },
+        tags=["Data Quality"],
+    )
+    def get(self, request) -> Response:
+        """Return phone numbers that break the one-number-one-client rule."""
+        try:
+            result = DuplicatePhoneReportService().get_report()
+
+            serializer = DuplicatePhonesResponseSerializer(data=result)
+            serializer.is_valid(raise_exception=True)
+
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except Exception as exc:
+            logger.error(f"Error running duplicate phones check: {exc}", exc_info=True)
+            try:
+                persist_and_raise(exc)
+            except AlreadyLoggedException as logged_exc:
+                return Response(
+                    {
+                        "error": f"Failed to run duplicate phones check: {str(exc)}",
                         "error_id": (
                             str(logged_exc.app_error_id)
                             if logged_exc.app_error_id

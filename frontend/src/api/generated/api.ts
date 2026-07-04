@@ -1096,7 +1096,6 @@ const PhoneCallRecording = z.object({
   provider_recording_id: z.string(),
   account_code: z.string(),
   filename: z.string(),
-  storage_path: z.string(),
   content_type: z.string(),
   byte_size: z.number().int().nullable(),
   sha256: z.string(),
@@ -1152,21 +1151,13 @@ const PaginatedPhoneCallRecordList = z.object({
   page_size: z.number().int(),
   total_pages: z.number().int(),
 })
-const PhoneCallJobLinkRequest = z.object({ job: z.string().uuid() })
 const PhoneNumberAssignmentRequest = z.object({
-  phone_number: z.string().min(1).max(150),
   client: z.string().uuid(),
   contact: z.string().uuid().nullish(),
   label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
 })
-const PhoneNumberAssignment = z.object({
-  phone_number: z.string().max(150),
-  client: z.string().uuid(),
-  contact: z.string().uuid().nullish(),
-  label: z.string().max(255).optional(),
-  is_primary: z.boolean().optional().default(false),
-})
+const PhoneCallJobLinkRequest = z.object({ job: z.string().uuid() })
 const EndpointTypeEnum = z.enum(['main_line', 'staff_mobile', 'staff_ddi', 'extension', 'shared'])
 const PhoneEndpoint = z.object({
   id: z.string().uuid(),
@@ -1207,7 +1198,8 @@ const PhoneProviderSettings = z.object({
   downloads_enabled: z.boolean().optional(),
   recording_deletion_enabled: z.boolean().optional(),
   base_url: z.string().max(200).url().nullish(),
-  username: z.string().max(255).optional(),
+  has_username: z.boolean(),
+  has_password: z.boolean(),
   account_code: z.string().max(100).optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
@@ -1217,7 +1209,7 @@ const PatchedPhoneProviderSettingsRequest = z
     downloads_enabled: z.boolean(),
     recording_deletion_enabled: z.boolean(),
     base_url: z.string().max(200).url().nullable(),
-    username: z.string().max(255),
+    username: z.string(),
     password: z.string(),
     account_code: z.string().max(100),
   })
@@ -1345,6 +1337,27 @@ const ArchivedJobsComplianceResponse = z.object({
   total_archived_jobs: z.number().int(),
   non_compliant_jobs: z.array(ArchivedJobIssue),
   summary: ComplianceSummary,
+  checked_at: z.string().datetime({ offset: true }),
+})
+const DuplicatePhoneOwner = z.object({
+  method_id: z.string(),
+  owner_kind: z.string(),
+  owner_name: z.string(),
+  effective_client_id: z.string().nullable(),
+})
+const DuplicatePhoneIssue = z.object({
+  normalized_value: z.string(),
+  issue: z.string(),
+  endpoint_label: z.string().nullish(),
+  owners: z.array(DuplicatePhoneOwner),
+})
+const DuplicatePhoneSummary = z.object({
+  cross_client: z.number().int(),
+  internal_line: z.number().int(),
+})
+const DuplicatePhonesResponse = z.object({
+  duplicate_phones: z.array(DuplicatePhoneIssue),
+  summary: DuplicatePhoneSummary,
   checked_at: z.string().datetime({ offset: true }),
 })
 const AssignJobRequest = z.object({ staff_id: z.string().uuid() })
@@ -3607,9 +3620,8 @@ export const schemas = {
   DirectionEnum,
   PhoneCallRecord,
   PaginatedPhoneCallRecordList,
-  PhoneCallJobLinkRequest,
   PhoneNumberAssignmentRequest,
-  PhoneNumberAssignment,
+  PhoneCallJobLinkRequest,
   EndpointTypeEnum,
   PhoneEndpoint,
   PhoneEndpointRequest,
@@ -3633,6 +3645,10 @@ export const schemas = {
   ArchivedJobIssue,
   ComplianceSummary,
   ArchivedJobsComplianceResponse,
+  DuplicatePhoneOwner,
+  DuplicatePhoneIssue,
+  DuplicatePhoneSummary,
+  DuplicatePhonesResponse,
   AssignJobRequest,
   AssignJobResponse,
   CompleteJob,
@@ -5824,6 +5840,25 @@ DELETE: Clear a logo field and remove the file from disk.`,
   },
   {
     method: 'post',
+    path: '/api/crm/phone-calls/:id/assign-number/',
+    alias: 'assignPhoneCallNumber',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PhoneNumberAssignmentRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'post',
     path: '/api/crm/phone-calls/:id/job-link/',
     alias: 'linkPhoneCallJob',
     requestFormat: 'json',
@@ -5854,20 +5889,6 @@ DELETE: Clear a logo field and remove the file from disk.`,
       },
     ],
     response: PhoneCallRecord,
-  },
-  {
-    method: 'post',
-    path: '/api/crm/phone-calls/assign-number/',
-    alias: 'assignPhoneCallNumber',
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PhoneNumberAssignmentRequest,
-      },
-    ],
-    response: PhoneNumberAssignment,
   },
   {
     method: 'get',
@@ -5966,25 +5987,20 @@ DELETE: Clear a logo field and remove the file from disk.`,
   {
     method: 'get',
     path: '/api/crm/phone-provider-settings/',
-    alias: 'crm_phone_provider_settings_list',
+    alias: 'getPhoneProviderSettings',
     requestFormat: 'json',
-    response: z.array(PhoneProviderSettings),
+    response: PhoneProviderSettings,
   },
   {
     method: 'patch',
-    path: '/api/crm/phone-provider-settings/:id/',
-    alias: 'crm_phone_provider_settings_partial_update',
+    path: '/api/crm/phone-provider-settings/',
+    alias: 'updatePhoneProviderSettings',
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
         schema: PatchedPhoneProviderSettingsRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.number().int(),
       },
     ],
     response: PhoneProviderSettings,
@@ -6113,6 +6129,20 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
     description: `Verify that all archived jobs are either cancelled or fully invoiced and paid.`,
     requestFormat: 'json',
     response: ArchivedJobsComplianceResponse,
+    errors: [
+      {
+        status: 500,
+        schema: z.object({}).partial().passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/api/job/data-quality/duplicate-phones/',
+    alias: 'check_duplicate_phones',
+    description: `List phone numbers owned by more than one client, or client numbers that are actually internal company lines.`,
+    requestFormat: 'json',
+    response: DuplicatePhonesResponse,
     errors: [
       {
         status: 500,

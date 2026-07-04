@@ -90,15 +90,42 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
         value = attrs.get("value", getattr(self.instance, "value", None))
         if method_type == ClientContactMethod.MethodType.PHONE:
             normalized = ClientContactMethod.normalize_phone(value)
-            from apps.crm.models import PhoneEndpoint
+            owner_client_id = client.id if client else contact.client_id
+            # Grandfather unchanged edits: only guard when the number or owner
+            # changes, mirroring ClientContactMethod._phone_association_changed().
+            unchanged = (
+                self.instance is not None
+                and self.instance.normalized_value == normalized
+                and self.instance.client_id == (client.id if client else None)
+                and self.instance.contact_id == (contact.id if contact else None)
+            )
+            if not unchanged:
+                from apps.crm.models import PhoneEndpoint
 
-            if PhoneEndpoint.objects.filter(
-                normalized_number=normalized,
-                is_active=True,
-            ).exists():
-                raise serializers.ValidationError(
-                    {"value": "Internal phone endpoint cannot be assigned to a client."}
+                if PhoneEndpoint.objects.filter(
+                    normalized_number=normalized,
+                    is_active=True,
+                ).exists():
+                    raise serializers.ValidationError(
+                        {
+                            "value": "Internal phone endpoint cannot be assigned "
+                            "to a client."
+                        }
+                    )
+                conflict = ClientContactMethod.conflicting_client(
+                    normalized,
+                    owner_client_id,
+                    exclude_id=getattr(self.instance, "id", None),
                 )
+                if conflict:
+                    raise serializers.ValidationError(
+                        {
+                            "value": (
+                                "Phone number already belongs to "
+                                f"{conflict.owner_display_name()}."
+                            )
+                        }
+                    )
         return attrs
 
 

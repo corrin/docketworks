@@ -7,6 +7,7 @@ try:
     if apps.ready:
         from .client_merge_service import reassign_client_fk_records
         from .client_rest_service import ClientRestService
+        from .duplicate_phone_report import DuplicatePhoneReportService
         from .geocoding_service import (
             GeocodingError,
             GeocodingNotConfiguredError,
@@ -20,6 +21,7 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "ClientRestService",
+    "DuplicatePhoneReportService",
     "GeocodingError",
     "GeocodingNotConfiguredError",
     "GeocodingResult",

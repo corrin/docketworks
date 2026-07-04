@@ -3,7 +3,7 @@ from typing import TypedDict
 from uuid import UUID
 
 from drf_spectacular.utils import extend_schema_field
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict
 from rest_framework import serializers
 
 from apps.crm.models import (
@@ -26,19 +26,10 @@ class PhoneCallJobLinkPayload(PhoneCallPayloadModel):
 
 
 class PhoneNumberAssignmentPayload(PhoneCallPayloadModel):
-    phone_number: str
     client: UUID
     contact: UUID | None = None
     label: str = ""
     is_primary: bool = False
-
-    @field_validator("phone_number")
-    @classmethod
-    def validate_phone_number(cls, value: str) -> str:
-        normalized = normalize_phone(value)
-        if not normalized:
-            raise ValueError("Phone number is required")
-        return value.strip()
 
 
 class PhoneCallRecordingResponse(TypedDict):
@@ -46,7 +37,6 @@ class PhoneCallRecordingResponse(TypedDict):
     provider_recording_id: str
     account_code: str
     filename: str
-    storage_path: str
     content_type: str
     byte_size: int | None
     sha256: str
@@ -78,7 +68,6 @@ def _recording_response(recording: PhoneCallRecording) -> PhoneCallRecordingResp
         "provider_recording_id": recording.provider_recording_id,
         "account_code": recording.account_code,
         "filename": recording.filename,
-        "storage_path": recording.storage_path,
         "content_type": recording.content_type,
         "byte_size": recording.byte_size,
         "sha256": recording.sha256,
@@ -103,7 +92,6 @@ class PhoneCallRecordingSerializer(serializers.ModelSerializer[PhoneCallRecordin
             "provider_recording_id",
             "account_code",
             "filename",
-            "storage_path",
             "content_type",
             "byte_size",
             "sha256",
@@ -164,6 +152,13 @@ class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
 class PhoneProviderSettingsSerializer(
     serializers.ModelSerializer[PhoneProviderSettings]
 ):
+    has_username = serializers.SerializerMethodField()
+    has_password = serializers.SerializerMethodField()
+    username = serializers.CharField(
+        write_only=True,
+        required=False,
+        allow_blank=True,
+    )
     password = serializers.CharField(
         write_only=True,
         required=False,
@@ -177,7 +172,9 @@ class PhoneProviderSettingsSerializer(
             "downloads_enabled",
             "recording_deletion_enabled",
             "base_url",
+            "has_username",
             "username",
+            "has_password",
             "password",
             "account_code",
             "created_at",
@@ -196,6 +193,18 @@ class PhoneProviderSettingsSerializer(
                 {"base_url": "Base URL is required when phone downloads are enabled."}
             )
         return attrs
+
+    def get_has_username(self, obj: PhoneProviderSettings) -> bool:
+        return bool(obj.username)
+
+    def get_has_password(self, obj: PhoneProviderSettings) -> bool:
+        return bool(obj.password)
+
+    def to_representation(self, instance: PhoneProviderSettings) -> dict:
+        data = super().to_representation(instance)
+        data["has_username"] = bool(instance.username)
+        data["has_password"] = bool(instance.password)
+        return data
 
 
 class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):

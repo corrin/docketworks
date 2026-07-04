@@ -21,3 +21,12 @@ class CanManageTimesheets(BasePermission):
 
     def has_permission(self, request: HttpRequest, view: "APIView") -> bool:
         return bool(request.user and request.user.is_superuser)
+
+
+class IsSuperuser(BasePermission):
+    """Gate for admin-only operational/configuration APIs."""
+
+    def has_permission(self, request: HttpRequest, view: "APIView") -> bool:
+        return bool(
+            request.user and request.user.is_authenticated and request.user.is_superuser
+        )

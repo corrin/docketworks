@@ -3,6 +3,35 @@ import { SettingsSchemaService } from '@/services/settings-schema.service'
 import type { ResolvedSettingsSection, ResolvedSettingsField } from '@/types/settings-schema.types'
 import { debugLog } from '@/utils/debug'
 
+/**
+ * CompanyDefaults setting keys removed from the backend (migration
+ * workflow/0237_remove_companydefaults_phone_fields). The backend no longer
+ * emits these in the settings schema, but a form object may still carry stale
+ * keys (e.g. a cached payload). Strip/hide them so the form never round-trips a
+ * setting the backend has dropped.
+ */
+export const REMOVED_SETTING_KEYS: ReadonlySet<string> = new Set<string>([
+  'company_phone',
+  'phone_call_downloads_enabled',
+  'phone_provider_recording_deletion_enabled',
+  'phone_provider_base_url',
+  'phone_provider_username',
+  'phone_provider_password',
+  'phone_provider_account_code',
+  'phone_own_numbers',
+])
+
+/**
+ * Return a shallow copy of a settings form with removed keys stripped out.
+ */
+export function omitRemovedSettings<T extends Record<string, unknown>>(form: T): T {
+  const result = { ...form }
+  for (const key of REMOVED_SETTING_KEYS) {
+    delete result[key]
+  }
+  return result
+}
+
 // Shared state across all composable instances
 const sections = ref<ResolvedSettingsSection[]>([])
 const isLoading = ref(false)

@@ -3,6 +3,7 @@ import uuid
 from pathlib import Path
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -107,6 +108,29 @@ class PhoneMatcherDatabaseTests(TestCase):
         self.assertEqual(matched_client, client)
         self.assertIsNone(matched_contact)
 
+    def test_assign_number_allowed_on_contact_of_owning_client(self) -> None:
+        """Assigning a client's number to one of its own contacts is not a conflict."""
+        client = self._client("Acme Ltd")
+        contact = ClientContact.objects.create(client=client, name="Jane Smith")
+        assign_phone_number(phone_number="021 555 900", client_id=str(client.id))
+
+        method = assign_phone_number(
+            phone_number="021 555 900",
+            client_id=str(client.id),
+            contact_id=str(contact.id),
+        )
+
+        self.assertEqual(method.contact_id, contact.id)
+
+    def test_assign_number_rejected_for_different_client(self) -> None:
+        """A number owned by one client cannot be assigned to a different client."""
+        owner = self._client("Acme Ltd")
+        other = self._client("Beta Ltd")
+        assign_phone_number(phone_number="021 555 901", client_id=str(owner.id))
+
+        with self.assertRaisesRegex(ValueError, "already belongs"):
+            assign_phone_number(phone_number="021 555 901", client_id=str(other.id))
+
     def test_single_contact_method_matches_contact(self) -> None:
         client = self._client("Acme Ltd")
         contact = ClientContact.objects.create(client=client, name="Jane Smith")
@@ -125,44 +149,45 @@ class PhoneMatcherDatabaseTests(TestCase):
         self.assertEqual(matched_client, client)
         self.assertEqual(matched_contact, contact)
 
-    def test_same_number_across_contacts_on_one_client_matches_client_only(
+    def test_same_number_across_contacts_on_one_client_is_allowed(
         self,
     ) -> None:
+        """Two contacts of one client resolve to a single effective client owner."""
         client = self._client("Acme Ltd")
         jane = ClientContact.objects.create(client=client, name="Jane Smith")
         john = ClientContact.objects.create(client=client, name="John Smith")
-        for contact in [jane, john]:
-            ClientContactMethod.objects.create(
-                contact=contact,
-                method_type=ClientContactMethod.MethodType.PHONE,
-                value="021 555 123",
-            )
-
-        matched_client, matched_contact = PhoneMatcher().match_customer(
-            "+6490000000",
-            "+6421555123",
+        ClientContactMethod.objects.create(
+            contact=jane,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+        on_john = ClientContactMethod.objects.create(
+            contact=john,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
         )
 
+        matched_client, matched_contact = PhoneMatcher().match_customer("+6421555123")
+
+        self.assertIsNotNone(on_john.pk)
         self.assertEqual(matched_client, client)
         self.assertIsNone(matched_contact)
 
-    def test_same_number_across_clients_does_not_match(self) -> None:
+    def test_same_number_across_clients_is_rejected(self) -> None:
         first = self._client("Acme Ltd")
         second = self._client("Beta Ltd")
-        for client in [first, second]:
+        ClientContactMethod.objects.create(
+            client=first,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+
+        with self.assertRaises(ValidationError):
             ClientContactMethod.objects.create(
-                client=client,
+                client=second,
                 method_type=ClientContactMethod.MethodType.PHONE,
                 value="021 555 123",
             )
-
-        matched_client, matched_contact = PhoneMatcher().match_customer(
-            "+6490000000",
-            "+6421555123",
-        )
-
-        self.assertIsNone(matched_client)
-        self.assertIsNone(matched_contact)
 
     def test_rematch_clears_job_link_when_number_moves_to_other_client(
         self,
@@ -529,6 +554,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
             response.data["results"][0]["recording"]["download_url"],
             f"/api/crm/phone-call-recordings/{recording.id}/download/",
         )
+        self.assertNotIn("storage_path", response.data["results"][0]["recording"])
 
     def test_empty_list_uses_paginator_total_pages(self) -> None:
         response = self.api.get(
@@ -712,12 +738,13 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(AppError.objects.count(), before)
 
     def test_assign_number_bad_client_id_does_not_persist_app_error(self) -> None:
+        self.call.external_number = "+6421555000"
+        self.call.save(update_fields=["external_number", "updated_at"])
         before = AppError.objects.count()
 
         response = self.api.post(
-            "/api/crm/phone-calls/assign-number/",
+            f"/api/crm/phone-calls/{self.call.id}/assign-number/",
             {
-                "phone_number": "+6421555000",
                 "client": str(uuid.uuid4()),
             },
             format="json",
@@ -730,6 +757,8 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
     def test_assign_number_cross_client_contact_does_not_persist_app_error(
         self,
     ) -> None:
+        self.call.external_number = "+6421555001"
+        self.call.save(update_fields=["external_number", "updated_at"])
         contact = ClientContact.objects.create(
             client=self.other_client,
             name="Other Contact",
@@ -737,9 +766,8 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         before = AppError.objects.count()
 
         response = self.api.post(
-            "/api/crm/phone-calls/assign-number/",
+            f"/api/crm/phone-calls/{self.call.id}/assign-number/",
             {
-                "phone_number": "+6421555001",
                 "client": str(self.client_obj.id),
                 "contact": str(contact.id),
             },

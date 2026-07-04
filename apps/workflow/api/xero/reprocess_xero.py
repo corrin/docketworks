@@ -44,6 +44,10 @@ def sync_xero_phone_methods(client: Client) -> None:
         normalized = ClientContactMethod.normalize_phone(value)
         if not normalized:
             continue
+        # The "one number, one client" rule is enforced by the grandfathered
+        # ClientContactMethod.save() guard reached via update_or_create below:
+        # re-syncing an existing number is skipped (association unchanged), while a
+        # genuinely-new cross-client number raises and hard-fails this client's sync.
         phone_type = phone_entry.get("_phone_type") or ""
         ClientContactMethod.objects.update_or_create(
             client=client,

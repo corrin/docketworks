@@ -4,12 +4,12 @@ from .phone_call_views import (
     PhoneCallRecordViewSet,
     PhoneCallRecordingViewSet,
     PhoneEndpointViewSet,
-    PhoneProviderSettingsViewSet,
+    PhoneProviderSettingsView,
 )
 
 __all__ = [
     "PhoneCallRecordViewSet",
     "PhoneCallRecordingViewSet",
     "PhoneEndpointViewSet",
-    "PhoneProviderSettingsViewSet",
+    "PhoneProviderSettingsView",
 ]

@@ -5,6 +5,7 @@ from decimal import Decimal
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
+from django.core.exceptions import ValidationError
 from django.db import models
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -440,15 +441,28 @@ class ClientContactMethod(models.Model):
         self.normalized_value = self.normalize_value(self.method_type, self.value)
         if not self.normalized_value:
             raise ValueError("contact method requires a value")
-        if self.method_type == self.MethodType.PHONE:
+        if (
+            self.method_type == self.MethodType.PHONE
+            and self._phone_association_changed()
+        ):
             from apps.crm.models import PhoneEndpoint
 
             if PhoneEndpoint.objects.filter(
                 normalized_number=self.normalized_value,
                 is_active=True,
             ).exists():
-                raise ValueError(
+                raise ValidationError(
                     "internal phone endpoint cannot be saved as a client contact method"
+                )
+            conflict = self.conflicting_client(
+                self.normalized_value,
+                self.owner_client_id(),
+                exclude_id=self.id,
+            )
+            if conflict:
+                raise ValidationError(
+                    "phone number already belongs to "
+                    f"{conflict.owner_display_name()}"
                 )
 
         if self.is_primary:
@@ -484,6 +498,72 @@ class ClientContactMethod(models.Model):
         if digits.startswith("0") and len(digits) > 1:
             return f"+64{digits[1:]}"
         return f"+{digits}"
+
+    def owner_client_id(self) -> uuid.UUID | None:
+        """The effective client that owns this method (directly or via its contact)."""
+        if self.client_id:
+            return self.client_id
+        if self.contact_id:
+            return self.contact.client_id
+        return None
+
+    @classmethod
+    def conflicting_client(
+        cls,
+        normalized_value: str,
+        effective_client_id: uuid.UUID | None,
+        exclude_id: uuid.UUID | None = None,
+    ) -> "ClientContactMethod | None":
+        """A phone method for this number owned by a *different* effective client.
+
+        The single source of truth for the "one number, one client" rule, shared by
+        the save() guard, the serializer, assign_phone_number, and the Data Quality
+        report. Phones only; emails are unaffected.
+        """
+        queryset = cls.objects.select_related("client", "contact").filter(
+            method_type=cls.MethodType.PHONE,
+            normalized_value=normalized_value,
+        )
+        if exclude_id is not None:
+            queryset = queryset.exclude(id=exclude_id)
+        return next(
+            (
+                other
+                for other in queryset
+                if other.owner_client_id() != effective_client_id
+            ),
+            None,
+        )
+
+    def _phone_association_changed(self) -> bool:
+        """True when the phone ownership (number or owner) is new or changed.
+
+        Grandfathers pre-existing rows: the conflict guard runs only when the
+        association is created or its number/owner is edited, so legacy cross-client
+        numbers can still be re-saved (label/primary edits, re-sync) without raising.
+        """
+        if self._state.adding:
+            return True
+        stored = (
+            type(self)
+            .objects.filter(pk=self.pk)
+            .values("normalized_value", "client_id", "contact_id")
+            .first()
+        )
+        if stored is None:
+            return True
+        return (
+            stored["normalized_value"] != self.normalized_value
+            or stored["client_id"] != self.client_id
+            or stored["contact_id"] != self.contact_id
+        )
+
+    def owner_display_name(self) -> str:
+        if self.contact:
+            return f"contact {self.contact.name} at {self.contact.client.name}"
+        if self.client:
+            return f"client {self.client.name}"
+        return "another CRM owner"
 
 
 class Supplier(Client):

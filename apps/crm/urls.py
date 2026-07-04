@@ -5,7 +5,7 @@ from apps.crm.views.phone_call_views import (
     PhoneCallRecordingViewSet,
     PhoneCallRecordViewSet,
     PhoneEndpointViewSet,
-    PhoneProviderSettingsViewSet,
+    PhoneProviderSettingsView,
 )
 
 app_name = "crm"
@@ -18,12 +18,12 @@ router.register(
     PhoneCallRecordingViewSet,
     basename="phone-call-recording",
 )
-router.register(
-    "phone-provider-settings",
-    PhoneProviderSettingsViewSet,
-    basename="phone-provider-settings",
-)
 
 urlpatterns = [
+    path(
+        "phone-provider-settings/",
+        PhoneProviderSettingsView.as_view(),
+        name="phone-provider-settings",
+    ),
     path("", include(router.urls)),
 ]

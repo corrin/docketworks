@@ -150,6 +150,13 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
+    '/reports/data-quality/duplicate-phones': RouteRecordInfo<
+      '/reports/data-quality/duplicate-phones',
+      '/reports/data-quality/duplicate-phones',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
     '/reports/job-aging': RouteRecordInfo<
       '/reports/job-aging',
       '/reports/job-aging',
@@ -388,6 +395,12 @@ declare module 'vue-router/auto-routes' {
     'src/pages/reports/data-quality/archived-jobs.vue': {
       routes:
         | '/reports/data-quality/archived-jobs'
+      views:
+        | never
+    }
+    'src/pages/reports/data-quality/duplicate-phones.vue': {
+      routes:
+        | '/reports/data-quality/duplicate-phones'
       views:
         | never
     }

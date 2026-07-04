@@ -30,6 +30,10 @@ try:
             ArchivedJobIssueSerializer,
             ArchivedJobsComplianceResponseSerializer,
             ComplianceSummarySerializer,
+            DuplicatePhoneIssueSerializer,
+            DuplicatePhoneOwnerSerializer,
+            DuplicatePhoneSummarySerializer,
+            DuplicatePhonesResponseSerializer,
         )
         from .job_file_serializer import (
             JobFileErrorResponseSerializer,
@@ -192,6 +196,10 @@ __all__ = [
     "DataIntegritySummarySerializer",
     "DiffPreviewSerializer",
     "DraftLineSerializer",
+    "DuplicatePhoneIssueSerializer",
+    "DuplicatePhoneOwnerSerializer",
+    "DuplicatePhoneSummarySerializer",
+    "DuplicatePhonesResponseSerializer",
     "FetchAllJobsResponseSerializer",
     "FetchJobsByColumnResponseSerializer",
     "FetchJobsResponseSerializer",

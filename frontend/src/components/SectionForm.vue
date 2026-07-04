@@ -176,7 +176,11 @@ import { z } from 'zod'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import { CalendarDateTime, parseDateTime } from '@internationalized/date'
-import { useSettingsSchema } from '@/composables/useSettingsSchema'
+import {
+  useSettingsSchema,
+  REMOVED_SETTING_KEYS,
+  omitRemovedSettings,
+} from '@/composables/useSettingsSchema'
 import { uploadLogo, deleteLogo } from '@/services/admin-company-defaults-service'
 import { toast } from 'vue-sonner'
 

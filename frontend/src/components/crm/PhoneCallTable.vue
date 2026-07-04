@@ -31,7 +31,7 @@
                 variant="ghost"
                 size="sm"
                 class="h-6 px-2 text-xs"
-                @click="$emit('assign-number', call.external_number)"
+                @click="$emit('assign-number', call)"
               >
                 Assign number
               </Button>
@@ -177,7 +177,7 @@ withDefaults(
 
 const emit = defineEmits<{
   'call-updated': [call: PhoneCallRecord]
-  'assign-number': [phoneNumber: string]
+  'assign-number': [call: PhoneCallRecord]
 }>()
 
 const isDialogOpen = ref(false)

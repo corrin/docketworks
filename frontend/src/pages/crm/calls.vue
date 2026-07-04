@@ -82,12 +82,72 @@
         </TabsContent>
       </Tabs>
 
-      <PhoneNumberManager
-        title="Phone Number Ownership"
-        :initial-phone-number="selectedPhoneNumber"
-        search-context="crm_calls_phone_number_manager"
-        @changed="handlePhoneNumbersChanged"
-      />
+      <Card v-if="selectedCall">
+        <CardContent class="space-y-4 pt-6">
+          <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 class="text-base font-semibold text-gray-900">Assign Call Number</h2>
+              <p class="text-sm text-gray-500">
+                {{ selectedCall.external_number }} from
+                {{ formatCallDate(selectedCall.call_datetime) }}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" @click="resetAssignmentForm">Cancel</Button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+            <Input
+              v-model="clientSearch"
+              placeholder="Search clients"
+              @keydown.enter.prevent="searchClients"
+            />
+            <Button variant="outline" type="button" @click="searchClients">
+              <Search class="mr-2 h-4 w-4" />
+              Search
+            </Button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
+            <select
+              v-model="selectedClientId"
+              class="rounded-md border border-gray-300 p-2 text-sm"
+            >
+              <option value="">Select client</option>
+              <option v-for="client in clientOptions" :key="client.id" :value="client.id">
+                {{ client.name }}
+              </option>
+            </select>
+            <select
+              v-model="selectedContactId"
+              class="rounded-md border border-gray-300 p-2 text-sm"
+              :disabled="!selectedClientId"
+            >
+              <option value="">No specific contact</option>
+              <option v-for="contact in contactOptions" :key="contact.id" :value="contact.id">
+                {{ contact.name }}
+              </option>
+            </select>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_auto]">
+            <Input v-model="phoneLabel" placeholder="Label" />
+            <label
+              class="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <input v-model="isPrimary" type="checkbox" class="h-4 w-4" />
+              Primary
+            </label>
+            <Button
+              type="button"
+              :disabled="isAssigningNumber || !selectedClientId"
+              @click="assignSelectedCallNumber"
+            >
+              <Loader2 v-if="isAssigningNumber" class="mr-2 h-4 w-4 animate-spin" />
+              Assign
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   </AppLayout>
 </template>
@@ -96,7 +156,6 @@
 import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
-import PhoneNumberManager from '@/components/crm/PhoneNumberManager.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
@@ -110,6 +169,8 @@ import { toast } from 'vue-sonner'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
+type ClientSearchResult = z.infer<typeof schemas.ClientSearchResult>
+type ClientContact = z.infer<typeof schemas.ClientContact>
 type CallsTab = 'recent' | 'unmatched' | 'unlinked' | 'all'
 type DirectionFilter = 'all' | 'inbound' | 'outbound' | 'internal' | 'unknown'
 
@@ -131,7 +192,15 @@ const activeTab = ref<CallsTab>('recent')
 const searchQuery = ref('')
 const directionFilter = ref<DirectionFilter>('all')
 const recordingsOnly = ref(false)
-const selectedPhoneNumber = ref('')
+const selectedCall = ref<PhoneCallRecord | null>(null)
+const clientSearch = ref('')
+const clientOptions = ref<ClientSearchResult[]>([])
+const contactOptions = ref<ClientContact[]>([])
+const selectedClientId = ref('')
+const selectedContactId = ref('')
+const phoneLabel = ref('')
+const isPrimary = ref(false)
+const isAssigningNumber = ref(false)
 let unsubscribeCrmCallsFreshness: (() => void) | null = null
 
 const queueDescription = computed(() => {
@@ -214,18 +283,88 @@ async function loadCalls(): Promise<void> {
   }
 }
 
-function handleAssignNumber(phoneNumber: string): void {
-  selectedPhoneNumber.value = phoneNumber
-  toast.info('Phone number copied into ownership form')
+function handleAssignNumber(call: PhoneCallRecord): void {
+  selectedCall.value = call
+  selectedClientId.value = ''
+  selectedContactId.value = ''
+  phoneLabel.value = ''
+  isPrimary.value = false
+  clientOptions.value = []
+  contactOptions.value = []
+  toast.info('Select a client for this call number')
 }
 
-function handleCallUpdated(): void {
+function handleCallUpdated(updatedCall?: PhoneCallRecord): void {
+  if (updatedCall) {
+    phoneCalls.value = phoneCalls.value.map((call) =>
+      call.id === updatedCall.id ? updatedCall : call,
+    )
+  }
   void loadCalls()
 }
 
-function handlePhoneNumbersChanged(): void {
-  selectedPhoneNumber.value = ''
-  void loadCalls()
+async function searchClients(): Promise<void> {
+  const response = await api.clients_search_retrieve({
+    queries: {
+      page: 1,
+      page_size: 20,
+      q: clientSearch.value || undefined,
+      sort_by: 'name',
+      sort_dir: 'asc',
+    },
+  })
+  clientOptions.value = response.results || []
+}
+
+async function loadContacts(clientId: string): Promise<void> {
+  if (!clientId) {
+    contactOptions.value = []
+    selectedContactId.value = ''
+    return
+  }
+  contactOptions.value = await api.clients_contacts_list({
+    queries: { client_id: clientId },
+  })
+}
+
+async function assignSelectedCallNumber(): Promise<void> {
+  if (!selectedCall.value || !selectedClientId.value || isAssigningNumber.value) return
+  isAssigningNumber.value = true
+  try {
+    const updatedCall = await api.assignPhoneCallNumber(
+      {
+        client: selectedClientId.value,
+        contact: selectedContactId.value || null,
+        label: phoneLabel.value,
+        is_primary: isPrimary.value,
+      },
+      { params: { id: selectedCall.value.id } },
+    )
+    handleCallUpdated(updatedCall)
+    resetAssignmentForm()
+    toast.success('Phone number assigned')
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to assign phone number'
+    console.error('Failed to assign phone number:', error)
+    toast.error(message)
+  } finally {
+    isAssigningNumber.value = false
+  }
+}
+
+function resetAssignmentForm(): void {
+  selectedCall.value = null
+  clientSearch.value = ''
+  clientOptions.value = []
+  contactOptions.value = []
+  selectedClientId.value = ''
+  selectedContactId.value = ''
+  phoneLabel.value = ''
+  isPrimary.value = false
+}
+
+function formatCallDate(value: string): string {
+  return new Date(value).toLocaleString()
 }
 
 function handleCrmCallsStale(): void {
@@ -234,6 +373,13 @@ function handleCrmCallsStale(): void {
 
 watch([activeTab, directionFilter, recordingsOnly], () => {
   void loadCalls()
+})
+
+watch(selectedClientId, (clientId) => {
+  void loadContacts(clientId).catch((error) => {
+    console.error('Failed to load client contacts:', error)
+    toast.error('Failed to load client contacts')
+  })
 })
 
 onMounted(() => {

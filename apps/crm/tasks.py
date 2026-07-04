@@ -76,3 +76,26 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
         )
         app_error = persist_app_error(exc)
         raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+@shared_task(name="apps.crm.tasks.rematch_phone_calls_task")
+def rematch_phone_calls_task(numbers: list[str]) -> None:
+    """Idempotently reclassify historical calls affected by phone-number changes."""
+    scheduler_logger.info(
+        "Running rematch_phone_calls_task for %d numbers.", len(numbers)
+    )
+    try:
+        close_old_connections()
+        from apps.crm.services.phone_call_service import rematch_calls_for_numbers
+
+        rematch_calls_for_numbers(numbers)
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        scheduler_logger.error(
+            "Error during phone call rematch: %s",
+            exc,
+            exc_info=True,
+        )
+        app_error = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, app_error.id) from exc

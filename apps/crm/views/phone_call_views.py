@@ -20,9 +20,10 @@ from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
-from apps.client.models import ClientContactMethod
+from apps.accounts.permissions import IsSuperuser
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -38,7 +39,7 @@ from apps.crm.serializers import (
     PhoneProviderSettingsSerializer,
 )
 from apps.crm.services.phone_call_service import (
-    assign_phone_number,
+    assign_phone_number_from_call,
     delete_local_recording,
     link_phone_call_to_job,
     normalize_phone,
@@ -46,6 +47,7 @@ from apps.crm.services.phone_call_service import (
     recording_file_path,
     unlink_phone_call_job,
 )
+from apps.crm.tasks import rematch_phone_calls_task
 from apps.job.permissions import IsOfficeStaff
 from apps.workflow.api.pagination import PageSizePagination
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -59,7 +61,6 @@ PHONE_CALL_JOB_LINK_SCHEMA = inline_serializer(
 PHONE_NUMBER_ASSIGNMENT_SCHEMA = inline_serializer(
     name="PhoneNumberAssignment",
     fields={
-        "phone_number": serializers.CharField(max_length=150),
         "client": serializers.UUIDField(),
         "contact": serializers.UUIDField(required=False, allow_null=True),
         "label": serializers.CharField(
@@ -258,17 +259,6 @@ def _filter_phone_call_queryset(
     return _apply_search_filter(queryset, request.query_params.get("q"))
 
 
-def _assigned_phone_client_id(method: ClientContactMethod) -> UUID:
-    client_id = method.client_id
-    if client_id is not None:
-        return client_id
-
-    contact = method.contact
-    if contact is None:
-        raise RuntimeError("Assigned phone method has no owner")
-    return contact.client_id
-
-
 class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
     serializer_class = PhoneCallRecordSerializer
     permission_classes = [IsAuthenticated, IsOfficeStaff]
@@ -398,33 +388,29 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
     @extend_schema(
         operation_id="assignPhoneCallNumber",
         request=PHONE_NUMBER_ASSIGNMENT_SCHEMA,
-        responses={200: PHONE_NUMBER_ASSIGNMENT_SCHEMA},
+        responses={200: PhoneCallRecordSerializer},
         tags=["CRM"],
     )
-    @action(detail=False, methods=["post"], url_path="assign-number")
-    def assign_number(self, request: Request) -> Response:
+    @action(detail=True, methods=["post"], url_path="assign-number")
+    def assign_number(
+        self,
+        request: Request,
+        pk: str | None = None,
+    ) -> Response:
         try:
             payload = PhoneNumberAssignmentPayload.model_validate(request.data)
         except PydanticValidationError as exc:
             raise ValidationError(_validation_error_detail(exc.errors())) from exc
         try:
-            method = assign_phone_number(
-                phone_number=payload.phone_number,
+            call = assign_phone_number_from_call(
+                call_id=str(pk),
                 client_id=str(payload.client),
                 contact_id=str(payload.contact) if payload.contact else None,
                 label=payload.label,
                 is_primary=payload.is_primary,
             )
-            return Response(
-                {
-                    "phone_number": method.value,
-                    "client": _assigned_phone_client_id(method),
-                    "contact": method.contact_id,
-                    "label": method.label,
-                    "is_primary": method.is_primary,
-                },
-                status=status.HTTP_200_OK,
-            )
+            response_serializer = self.get_serializer(call)
+            return Response(response_serializer.data, status=status.HTTP_200_OK)
         except ValueError as exc:
             return Response(
                 {"status": "error", "message": str(exc)},
@@ -440,6 +426,11 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
 class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording]):
     serializer_class = PhoneCallRecordingSerializer
     permission_classes = [IsAuthenticated, IsOfficeStaff]
+
+    def get_permissions(self):
+        if self.action in {"delete_local_file", "delete_provider_file"}:
+            return [IsAuthenticated(), IsSuperuser()]
+        return super().get_permissions()
 
     def get_queryset(self) -> QuerySet[PhoneCallRecording]:
         return PhoneCallRecording.objects.order_by("-call__call_datetime")
@@ -526,7 +517,7 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
 
 class PhoneEndpointViewSet(viewsets.ModelViewSet[PhoneEndpoint]):
     serializer_class = PhoneEndpointSerializer
-    permission_classes = [IsAuthenticated, IsOfficeStaff]
+    permission_classes = [IsAuthenticated, IsSuperuser]
 
     @extend_schema(
         parameters=[
@@ -547,23 +538,41 @@ class PhoneEndpointViewSet(viewsets.ModelViewSet[PhoneEndpoint]):
             return queryset
         return queryset.filter(is_active=is_active)
 
+    def perform_create(self, serializer: PhoneEndpointSerializer) -> None:
+        endpoint = serializer.save()
+        rematch_phone_calls_task.delay([endpoint.normalized_number])
 
-class PhoneProviderSettingsViewSet(viewsets.GenericViewSet[PhoneProviderSettings]):
-    queryset = PhoneProviderSettings.objects.all()
-    serializer_class = PhoneProviderSettingsSerializer
-    permission_classes = [IsAuthenticated, IsOfficeStaff]
+    def perform_update(self, serializer: PhoneEndpointSerializer) -> None:
+        old_endpoint = self.get_object()
+        old_number = old_endpoint.normalized_number
+        endpoint = serializer.save()
+        rematch_phone_calls_task.delay([old_number, endpoint.normalized_number])
 
-    @extend_schema(responses={200: PhoneProviderSettingsSerializer}, tags=["CRM"])
-    def list(self, request: Request) -> Response:
+    def perform_destroy(self, instance: PhoneEndpoint) -> None:
+        number = instance.normalized_number
+        instance.delete()
+        rematch_phone_calls_task.delay([number])
+
+
+class PhoneProviderSettingsView(APIView):
+    permission_classes = [IsAuthenticated, IsSuperuser]
+
+    @extend_schema(
+        operation_id="getPhoneProviderSettings",
+        responses={200: PhoneProviderSettingsSerializer},
+        tags=["CRM"],
+    )
+    def get(self, request: Request) -> Response:
         phone_settings = PhoneProviderSettings.get_solo()
         return Response(PhoneProviderSettingsSerializer(phone_settings).data)
 
     @extend_schema(
+        operation_id="updatePhoneProviderSettings",
         request=PhoneProviderSettingsSerializer,
         responses={200: PhoneProviderSettingsSerializer},
         tags=["CRM"],
     )
-    def partial_update(self, request: Request, pk: str | None = None) -> Response:
+    def patch(self, request: Request) -> Response:
         phone_settings = PhoneProviderSettings.get_solo()
         serializer = PhoneProviderSettingsSerializer(
             phone_settings,

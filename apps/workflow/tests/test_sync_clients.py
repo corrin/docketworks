@@ -3,10 +3,12 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.client.models import Client, ClientContactMethod
+from apps.workflow.api.xero.reprocess_xero import sync_xero_phone_methods
 
 
 def _make_raw_json(contact_id, name, status="ACTIVE", merged_to=None):
@@ -244,3 +246,80 @@ class SyncClientsArchivedContactTests(TestCase):
 
         self.existing_client.refresh_from_db()
         self.assertTrue(self.existing_client.xero_archived)
+
+
+class XeroPhoneMethodSyncTests(TestCase):
+    def test_duplicate_phone_owner_crashes_sync_with_clear_message(self) -> None:
+        existing = Client.objects.create(
+            name="Existing Phone Owner",
+            xero_last_modified=timezone.now(),
+        )
+        imported = Client.objects.create(
+            name="Imported Phone Owner",
+            xero_last_modified=timezone.now(),
+            raw_json={
+                "_phones": [
+                    {
+                        "_phone_type": "DEFAULT",
+                        "_phone_number": "021 555 123",
+                        "_phone_area_code": "",
+                        "_phone_country_code": "",
+                    }
+                ]
+            },
+        )
+        ClientContactMethod.objects.create(
+            client=existing,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+
+        with self.assertRaisesRegex(
+            ValidationError,
+            "already belongs to.*Existing Phone Owner",
+        ):
+            sync_xero_phone_methods(imported)
+
+    def test_resync_of_existing_number_is_grandfathered(self) -> None:
+        """Re-syncing a client's own already-stored number must not raise."""
+        owner = Client.objects.create(
+            name="Phone Owner",
+            xero_last_modified=timezone.now(),
+            raw_json={
+                "_phones": [
+                    {
+                        "_phone_type": "DEFAULT",
+                        "_phone_number": "021 555 123",
+                        "_phone_area_code": "",
+                        "_phone_country_code": "",
+                    }
+                ]
+            },
+        )
+        # A cross-client legacy row exists for the same number (grandfathered),
+        # inserted bypassing the guard as pre-guard data was.
+        other = Client.objects.create(
+            name="Legacy Other Owner", xero_last_modified=timezone.now()
+        )
+        legacy = ClientContactMethod(
+            client=other,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+        legacy.normalized_value = ClientContactMethod.normalize_phone("021 555 123")
+        ClientContactMethod.objects.bulk_create([legacy])
+        # owner already stores the number too (its own row).
+        owner_method = ClientContactMethod(
+            client=owner,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+        owner_method.normalized_value = ClientContactMethod.normalize_phone(
+            "021 555 123"
+        )
+        ClientContactMethod.objects.bulk_create([owner_method])
+
+        sync_xero_phone_methods(owner)  # re-sync updates owner's row, must not raise
+
+        owner_method.refresh_from_db()
+        self.assertEqual(owner_method.label, "DEFAULT")

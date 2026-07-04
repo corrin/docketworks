@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
@@ -42,6 +43,121 @@ class ClientContactMethodTests(TestCase):
 
         self.assertFalse(first.is_primary)
         self.assertTrue(second.is_primary)
+
+    def test_same_number_allowed_on_client_and_its_own_contact(self) -> None:
+        """A client and its own contact sharing one line must not be rejected."""
+        client = self._client()
+        contact = ClientContact.objects.create(client=client, name="Jane Smith")
+        on_client = ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+        on_contact = ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+
+        self.assertEqual(on_client.normalized_value, on_contact.normalized_value)
+        self.assertIsNotNone(on_contact.pk)
+
+    def test_same_number_allowed_on_two_contacts_of_same_client(self) -> None:
+        """Two contacts of one client can share a number (one effective client)."""
+        client = self._client()
+        first_contact = ClientContact.objects.create(client=client, name="A")
+        second_contact = ClientContact.objects.create(client=client, name="B")
+        ClientContactMethod.objects.create(
+            contact=first_contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+        on_second = ClientContactMethod.objects.create(
+            contact=second_contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+
+        self.assertIsNotNone(on_second.pk)
+
+    def test_same_number_rejected_across_different_clients(self) -> None:
+        """Two different clients cannot own one number; the matcher would be ambiguous."""
+        client_a = self._client("Acme Ltd")
+        client_b = self._client("Beta Ltd")
+        ClientContactMethod.objects.create(
+            client=client_a,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+        with self.assertRaises(ValidationError):
+            ClientContactMethod.objects.create(
+                client=client_b,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                value="021 111 111",
+            )
+
+    def test_same_number_rejected_across_contacts_of_different_clients(self) -> None:
+        """Contacts of two different clients cannot share a number."""
+        client_a = self._client("Acme Ltd")
+        client_b = self._client("Beta Ltd")
+        contact_a = ClientContact.objects.create(client=client_a, name="A")
+        contact_b = ClientContact.objects.create(client=client_b, name="B")
+        ClientContactMethod.objects.create(
+            contact=contact_a,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+        with self.assertRaises(ValidationError):
+            ClientContactMethod.objects.create(
+                contact=contact_b,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                value="021 111 111",
+            )
+
+    def test_grandfathered_cross_client_number_can_be_resaved(self) -> None:
+        """A pre-existing cross-client number (legacy data) re-saves unchanged."""
+        client_a = self._client("Acme Ltd")
+        client_b = self._client("Beta Ltd")
+        ClientContactMethod.objects.create(
+            client=client_a,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+        # Simulate legacy prod data: B already owns the same number, inserted
+        # bypassing the guard (as pre-guard rows were).
+        legacy = ClientContactMethod(
+            client=client_b,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+        legacy.normalized_value = ClientContactMethod.normalize_phone("021 111 111")
+        ClientContactMethod.objects.bulk_create([legacy])
+
+        legacy.refresh_from_db()
+        legacy.label = "Mobile"
+        legacy.save()  # association unchanged -> grandfathered, must not raise
+
+        legacy.refresh_from_db()
+        self.assertEqual(legacy.label, "Mobile")
+
+    def test_changing_number_into_another_clients_ownership_raises(self) -> None:
+        """Editing a method's number onto another client's number is blocked."""
+        client_a = self._client("Acme Ltd")
+        client_b = self._client("Beta Ltd")
+        ClientContactMethod.objects.create(
+            client=client_a,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+        moving = ClientContactMethod.objects.create(
+            client=client_b,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 222 222",
+        )
+
+        moving.value = "021 111 111"  # now collides with client A
+        with self.assertRaises(ValidationError):
+            moving.save()
 
     def test_primary_phone_is_single_per_contact_owner(self) -> None:
         """Catches multiple primary phone numbers being left on a contact record."""

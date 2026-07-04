@@ -23,7 +23,11 @@ try:
             PhoneNumberAssignmentPayload,
             PhoneProviderSettingsSerializer,
         )
-        from .tasks import delete_archived_phone_recordings_task, sync_phone_calls_task
+        from .tasks import (
+            delete_archived_phone_recordings_task,
+            rematch_phone_calls_task,
+            sync_phone_calls_task,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -43,5 +47,6 @@ __all__ = [
     "PhoneProviderSettings",
     "PhoneProviderSettingsSerializer",
     "delete_archived_phone_recordings_task",
+    "rematch_phone_calls_task",
     "sync_phone_calls_task",
 ]
