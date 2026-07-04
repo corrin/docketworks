@@ -16,7 +16,11 @@ from unittest.mock import MagicMock, patch
 from django.core.cache import caches
 from django.test import TestCase
 
-from apps.workflow.exceptions import AlreadyLoggedException, XeroQuotaFloorReached
+from apps.workflow.exceptions import (
+    AlreadyLoggedException,
+    NoValidXeroTokenError,
+    XeroQuotaFloorReached,
+)
 from apps.workflow.models import AppError
 from apps.workflow.services.xero_sync_constants import SYNC_STATUS_KEY
 from apps.workflow.services.xero_sync_service import (
@@ -178,6 +182,22 @@ class XeroSyncStartResultTests(TestCase):
         self.assertIsNone(result.task_id)
         self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
 
+    def test_start_sync_releases_lock_when_token_refresh_raises(self):
+        provider = MagicMock()
+        provider.get_valid_token.side_effect = AlreadyLoggedException(
+            RuntimeError("refresh failed"),
+            "app-error-id",
+        )
+
+        with patch(
+            "apps.workflow.services.xero_sync_service.get_provider",
+            return_value=provider,
+        ):
+            with self.assertRaises(AlreadyLoggedException):
+                XeroSyncService.start_sync()
+
+        self.assertIsNone(_shared.get(SYNC_STATUS_KEY))
+
     def test_start_sync_reports_started_task_id(self):
         provider = MagicMock()
         provider.get_valid_token.return_value = {"access_token": "token"}
@@ -197,6 +217,13 @@ class XeroSyncStartResultTests(TestCase):
         self.assertEqual(result.reason, "started")
         self.assertTrue(result.task_id)
         delay.assert_called_once_with(result.task_id)
+
+    def test_sync_all_xero_data_raises_when_token_missing(self):
+        from apps.workflow.api.xero.sync import sync_all_xero_data
+
+        with patch("apps.workflow.api.xero.sync.get_valid_token", return_value=None):
+            with self.assertRaises(NoValidXeroTokenError):
+                list(sync_all_xero_data())
 
 
 class XeroRegularSyncSkipTests(TestCase):

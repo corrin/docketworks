@@ -11,7 +11,7 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder, Stock
-from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_token
+from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.payroll import (
     get_all_pay_slips_for_sync,
@@ -53,6 +53,7 @@ from apps.workflow.api.xero.transforms import (
 from apps.workflow.api.xero.xero import get_xero_items
 from apps.workflow.exceptions import (
     AlreadyLoggedException,
+    NoValidXeroTokenError,
     XeroQuotaFloorReached,
     XeroValidationError,
 )
@@ -439,10 +440,11 @@ def sync_all_xero_data(
     use_latest_timestamps=True, days_back=30, entities=None, force=False
 ):
     """Sync Xero data - either using latest timestamps or looking back N days."""
-    token = get_token()
+    token = get_valid_token()
     if not token:
-        logger.warning("No valid Xero token found")
-        return
+        message = "No valid Xero token found"
+        logger.warning(message)
+        raise NoValidXeroTokenError(message)
 
     # Safety net: don't sync until seeding is complete (prod IDs cleared, dev IDs set).
     # Targeted syncs (e.g. --entity accounts) during setup can pass force=True.

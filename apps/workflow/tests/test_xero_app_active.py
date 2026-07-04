@@ -2,13 +2,16 @@
 wipe_tokens_and_quota."""
 
 import uuid
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import timezone as dt_timezone
 from unittest.mock import patch
 
 from django.test import TestCase
+from rest_framework.test import APIRequestFactory, force_authenticate
 
-from apps.workflow.models import XeroApp
+from apps.accounts.models import Staff
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models import AppError, XeroApp
 
 
 def _row(**overrides):
@@ -284,8 +287,6 @@ class RefreshTokenPersistenceTests(TestCase):
     """
 
     def test_successful_refresh_writes_new_tokens_to_active_row(self):
-        from datetime import timedelta
-
         from xero_python.api_client.oauth2 import TokenApi
 
         from apps.workflow.api.xero import auth
@@ -319,3 +320,128 @@ class RefreshTokenPersistenceTests(TestCase):
         self.assertEqual(row.access_token, "NEW_AT")
         self.assertEqual(row.refresh_token, "NEW_RT")
         auth._reset_api_client()
+
+
+class GetValidTokenTests(TestCase):
+    def tearDown(self):
+        from apps.workflow.api.xero import auth
+
+        auth._shared_cache.delete(auth.REFRESH_LOCK_KEY)
+        auth._reset_api_client()
+
+    def test_valid_token_returns_without_refreshing(self):
+        from apps.workflow.api.xero import auth
+
+        _row(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="AT",
+            refresh_token="RT",
+            token_type="Bearer",
+            expires_at=datetime.now(dt_timezone.utc) + timedelta(minutes=10),
+            scope="accounting.transactions",
+        )
+
+        with patch.object(auth, "refresh_token") as mock_refresh:
+            result = auth.get_valid_token()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["access_token"], "AT")
+        mock_refresh.assert_not_called()
+
+    def test_expired_token_with_refresh_token_refreshes_and_persists(self):
+        from xero_python.api_client.oauth2 import TokenApi
+
+        from apps.workflow.api.xero import auth
+
+        row = _row(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="OLD_AT",
+            refresh_token="OLD_RT",
+            token_type="Bearer",
+            expires_at=datetime.now(dt_timezone.utc) - timedelta(minutes=1),
+            scope="accounting.transactions",
+        )
+
+        new_token = {
+            "access_token": "NEW_AT",
+            "refresh_token": "NEW_RT",
+            "token_type": "Bearer",
+            "expires_in": 1800,
+            "scope": "accounting.transactions",
+        }
+        with patch.object(TokenApi, "refresh_token", return_value=dict(new_token)):
+            result = auth.get_valid_token()
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result["access_token"], "NEW_AT")
+        row.refresh_from_db()
+        self.assertEqual(row.access_token, "NEW_AT")
+        self.assertEqual(row.refresh_token, "NEW_RT")
+
+    def test_expired_token_without_refresh_token_returns_none(self):
+        from apps.workflow.api.xero import auth
+
+        _row(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="OLD_AT",
+            refresh_token=None,
+            token_type="Bearer",
+            expires_at=datetime.now(dt_timezone.utc) - timedelta(minutes=1),
+            scope="accounting.transactions",
+        )
+
+        self.assertIsNone(auth.get_valid_token())
+
+    def test_refresh_failure_is_persisted_and_propagated(self):
+        from xero_python.api_client.oauth2 import TokenApi
+
+        from apps.workflow.api.xero import auth
+
+        _row(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="OLD_AT",
+            refresh_token="OLD_RT",
+            token_type="Bearer",
+            expires_at=datetime.now(dt_timezone.utc) - timedelta(minutes=1),
+            scope="accounting.transactions",
+        )
+
+        before = AppError.objects.count()
+        with patch.object(TokenApi, "refresh_token", side_effect=RuntimeError("boom")):
+            with self.assertRaises(AlreadyLoggedException):
+                auth.get_valid_token()
+
+        self.assertEqual(AppError.objects.count(), before + 1)
+        self.assertIsNone(auth._shared_cache.get(auth.REFRESH_LOCK_KEY))
+
+
+class XeroPingTests(TestCase):
+    def test_ping_returns_500_for_prelogged_refresh_failure(self):
+        from apps.workflow.views.xero.xero_view import xero_ping
+
+        request = APIRequestFactory().get("/api/xero/ping/")
+        user = Staff.objects.create_user(
+            email="office@example.com",
+            password="password",
+            is_office_staff=True,
+        )
+        force_authenticate(request, user=user)
+        exc = AlreadyLoggedException(RuntimeError("refresh failed"), "err-123")
+
+        with patch(
+            "apps.workflow.views.xero.xero_view.get_valid_token",
+            side_effect=exc,
+        ):
+            response = xero_ping(request)
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(response.data["connected"], False)
+        self.assertEqual(response.data["error_id"], "err-123")
