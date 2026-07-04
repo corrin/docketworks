@@ -88,6 +88,49 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
     }
   }
 
+  /**
+   * Button-triggered client search: no minimum query length, first page of
+   * results sorted by name. Results land in `suggestions` (same as the
+   * typeahead search) for select-style pickers.
+   */
+  const browseClients = async () => {
+    if (options.supplierLookup?.value) {
+      throw new Error('browseClients does not support supplier lookup')
+    }
+
+    isLoading.value = true
+
+    try {
+      const response = await api.clients_search_retrieve({
+        queries: {
+          page: 1,
+          page_size: 20,
+          q: searchQuery.value || undefined,
+          sort_by: 'name',
+          sort_dir: 'asc',
+        },
+      })
+      suggestions.value = response.results || []
+    } catch (error) {
+      console.error('Error searching clients:', error)
+      suggestions.value = []
+      toast.error('Failed to search clients')
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  /**
+   * Logs search telemetry for a selection made from `suggestions` by id
+   * (select-style pickers where the user picks from a dropdown of results).
+   */
+  const logSelectedClientClick = (clientId: string, source: string) => {
+    const index = suggestions.value.findIndex((client) => client.id === clientId)
+    const client = suggestions.value[index]
+    if (!client) return
+    void logClientSearchClick(client, searchQuery.value, index + 1, source)
+  }
+
   const selectClient = async (client: Client) => {
     selectedClient.value = client
     searchQuery.value = client.name
@@ -99,6 +142,11 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
   }
 
   const loadClientContacts = async (clientId: string) => {
+    if (!clientId) {
+      contacts.value = []
+      return
+    }
+
     try {
       const response = await api.clients_contacts_list({
         queries: { client_id: clientId },
@@ -207,6 +255,8 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
     displayValue,
 
     searchClients,
+    browseClients,
+    logSelectedClientClick,
     selectClient,
     loadClientContacts,
     getPrimaryContact,

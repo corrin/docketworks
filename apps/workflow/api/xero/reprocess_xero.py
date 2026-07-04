@@ -2,6 +2,8 @@
 import logging
 import uuid
 
+from django.core.exceptions import ValidationError
+from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -19,8 +21,13 @@ from apps.client.models import (
     ClientContactMethod,
     SupplierPickupAddress,
 )
+from apps.crm.tasks import rematch_phone_calls_task
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroAccount
-from apps.workflow.services.error_persistence import persist_and_raise
+from apps.workflow.services.error_persistence import (
+    persist_and_raise,
+    persist_app_error,
+)
 
 logger = logging.getLogger("xero")
 
@@ -32,11 +39,21 @@ def _xero_phone_value(phone_entry: dict[str, str]) -> str:
     return f"{country_code} {area_code} {number}".strip()
 
 
-def sync_xero_phone_methods(client: Client) -> None:
+def sync_xero_phone_methods(client: Client) -> list[str]:
+    """Ensure the client's Xero phone numbers exist as contact methods.
+
+    Xero owns the number's existence; the CRM user owns label/is_primary.
+    Existing rows are therefore never updated here — only missing numbers are
+    created (label/is_primary/source are create-time defaults only).
+
+    Returns the normalized numbers that were newly created, so the caller can
+    dispatch a call rematch for them.
+    """
     phones = client.raw_json.get("_phones", []) if client.raw_json else []
     if not isinstance(phones, list):
-        return
+        return []
 
+    created_numbers: list[str] = []
     for phone_entry in phones:
         if not isinstance(phone_entry, dict):
             continue
@@ -45,22 +62,44 @@ def sync_xero_phone_methods(client: Client) -> None:
         if not normalized:
             continue
         # The "one number, one client" rule is enforced by the grandfathered
-        # ClientContactMethod.save() guard reached via update_or_create below:
-        # re-syncing an existing number is skipped (association unchanged), while a
-        # genuinely-new cross-client number raises and hard-fails this client's sync.
+        # ClientContactMethod.save() guard reached via get_or_create below:
+        # re-syncing an existing number never saves (nothing to update), while
+        # a genuinely-new cross-client number raises and hard-fails this
+        # client's sync (deliberate — the data must be fixed, not skipped).
         phone_type = phone_entry.get("_phone_type") or ""
-        ClientContactMethod.objects.update_or_create(
-            client=client,
-            contact=None,
-            method_type=ClientContactMethod.MethodType.PHONE,
-            normalized_value=normalized,
-            defaults={
-                "value": value,
-                "label": phone_type,
-                "is_primary": phone_type == "DEFAULT",
-                "source": ClientContactMethod.Source.IMPORTED,
-            },
-        )
+        try:
+            _, created = ClientContactMethod.objects.get_or_create(
+                client=client,
+                contact=None,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                normalized_value=normalized,
+                defaults={
+                    "value": value,
+                    "label": phone_type,
+                    "is_primary": phone_type == "DEFAULT",
+                    "source": ClientContactMethod.Source.IMPORTED,
+                },
+            )
+        except AlreadyLoggedException:
+            raise
+        except ValidationError as exc:
+            error = ValidationError(
+                f"Xero phone sync for client '{client.name}' ({client.id}) "
+                f"rejected number '{value}' ({normalized}): "
+                f"{'; '.join(exc.messages)}"
+            )
+            app_error = persist_app_error(
+                error,
+                additional_context={
+                    "operation": "sync_xero_phone_methods_duplicate_owner",
+                    "client_id": str(client.id),
+                    "normalized_number": normalized,
+                },
+            )
+            raise AlreadyLoggedException(error, app_error.id) from exc
+        if created:
+            created_numbers.append(normalized)
+    return created_numbers
 
 
 def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
@@ -203,7 +242,7 @@ def set_invoice_or_bill_fields(document, document_type, new_from_xero=False):
         #       f"Total Incl. Tax: {line_item.line_amount_incl_tax}")
 
 
-def set_client_fields(client, new_from_xero=False):
+def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
     """
     Set client fields from raw_json.
     If new_from_xero is True, it means the client was just created from Xero data.
@@ -214,7 +253,8 @@ def set_client_fields(client, new_from_xero=False):
         # Ensure essential fields are not None if raw_json is missing
         client.name = client.name or "Unnamed Client"
         client.xero_last_modified = client.xero_last_modified or timezone.now()
-        client.save()
+        # type ignore: Client.save is still untyped (apps/client/models.py).
+        client.save()  # type: ignore[no-untyped-call]
         return
 
     # Capture old values for change tracking (only for updates, not new clients)
@@ -395,7 +435,12 @@ def set_client_fields(client, new_from_xero=False):
     updated_date_utc_str = raw_json.get("_updated_date_utc")
     if updated_date_utc_str:
         try:
-            client.xero_last_modified = parse_datetime(updated_date_utc_str)
+            parsed_last_modified = parse_datetime(updated_date_utc_str)
+            if parsed_last_modified is None:
+                # parse_datetime returns None for malformed input instead of
+                # raising; normalize both failure modes into the except arm.
+                raise ValueError(f"unparseable datetime {updated_date_utc_str!r}")
+            client.xero_last_modified = parsed_last_modified
         except ValueError:
             logger.error(
                 f"Could not parse _updated_date_utc: {updated_date_utc_str} "
@@ -406,8 +451,14 @@ def set_client_fields(client, new_from_xero=False):
         client.xero_last_modified = client.xero_last_modified or timezone.now()
 
     client.xero_last_synced = timezone.now()
-    client.save()
-    sync_xero_phone_methods(client)
+    # type ignore: Client.save is still untyped (apps/client/models.py).
+    client.save()  # type: ignore[no-untyped-call]
+    created_numbers = sync_xero_phone_methods(client)
+    if created_numbers:
+        # Numbers imported from Xero must rematch historical calls just like
+        # UI-edited numbers do. Dispatch after the DB work is committed so the
+        # task sees the new rows.
+        transaction.on_commit(lambda: rematch_phone_calls_task.delay(created_numbers))
 
     if new_from_xero:
         logger.info(

@@ -116,7 +116,7 @@ import { Search } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { logClientSearchClick } from '@/composables/useClientLookup'
+import { useClientLookup } from '@/composables/useClientLookup'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -126,8 +126,6 @@ import type { z } from 'zod'
 type ClientContactMethod = z.infer<typeof schemas.ClientContactMethod>
 type ClientContactMethodRequest = z.infer<typeof schemas.ClientContactMethodRequest>
 type PatchedClientContactMethodRequest = z.infer<typeof schemas.PatchedClientContactMethodRequest>
-type ClientSearchResult = z.infer<typeof schemas.ClientSearchResult>
-type ClientContact = z.infer<typeof schemas.ClientContact>
 
 const props = withDefaults(
   defineProps<{
@@ -152,16 +150,22 @@ const emit = defineEmits<{
 
 const phoneMethods = ref<ClientContactMethod[]>([])
 const phoneMethodCount = ref(0)
-const clientOptions = ref<ClientSearchResult[]>([])
-const contactOptions = ref<ClientContact[]>([])
 const editingMethodId = ref('')
 const isSaving = ref(false)
 const phoneNumber = ref(props.initialPhoneNumber)
 const phoneLabel = ref('')
 const isPrimary = ref(false)
-const clientSearch = ref('')
 const selectedClientId = ref(props.fixedClientId)
 const selectedContactId = ref('')
+
+const {
+  searchQuery: clientSearch,
+  suggestions: clientOptions,
+  contacts: contactOptions,
+  browseClients,
+  loadClientContacts: loadContacts,
+  logSelectedClientClick,
+} = useClientLookup()
 
 async function loadPhoneMethods(): Promise<void> {
   const queries = props.fixedClientId
@@ -174,36 +178,11 @@ async function loadPhoneMethods(): Promise<void> {
 
 async function searchClients(): Promise<void> {
   if (props.fixedClientId) return
-  const response = await api.clients_search_retrieve({
-    queries: {
-      page: 1,
-      page_size: 20,
-      q: clientSearch.value || undefined,
-      sort_by: 'name',
-      sort_dir: 'asc',
-    },
-  })
-  clientOptions.value = response.results || []
+  await browseClients()
 }
 
 function logSelectedClientSearchClick(): void {
-  const selectedIndex = clientOptions.value.findIndex(
-    (client) => client.id === selectedClientId.value,
-  )
-  const selectedClient = clientOptions.value[selectedIndex]
-  if (!selectedClient) return
-  logClientSearchClick(selectedClient, clientSearch.value, selectedIndex + 1, props.searchContext)
-}
-
-async function loadContacts(clientId: string): Promise<void> {
-  if (!clientId) {
-    contactOptions.value = []
-    selectedContactId.value = ''
-    return
-  }
-  contactOptions.value = await api.clients_contacts_list({
-    queries: { client_id: clientId },
-  })
+  logSelectedClientClick(selectedClientId.value, props.searchContext)
 }
 
 function phoneMethodBody(): ClientContactMethodRequest {
@@ -313,10 +292,10 @@ watch(
 )
 
 watch(selectedClientId, (clientId) => {
-  void loadContacts(clientId).catch((error) => {
-    console.error('Failed to load client contacts:', error)
-    toast.error('Failed to load client contacts')
-  })
+  if (!clientId) {
+    selectedContactId.value = ''
+  }
+  void loadContacts(clientId)
 })
 
 onMounted(() => {

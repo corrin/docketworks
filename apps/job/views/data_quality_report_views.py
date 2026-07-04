@@ -5,8 +5,6 @@ REST views for data quality reporting.
 Each data quality check has its own endpoint and response structure.
 """
 
-import logging
-
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
@@ -22,9 +20,7 @@ from apps.job.serializers.data_quality_report_serializers import (
 )
 from apps.job.services.data_quality_report import ArchivedJobsComplianceService
 from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.services.error_persistence import persist_and_raise
-
-logger = logging.getLogger(__name__)
+from apps.workflow.services.error_persistence import persist_app_error
 
 
 class ArchivedJobsComplianceView(APIView):
@@ -59,24 +55,11 @@ class ArchivedJobsComplianceView(APIView):
 
             # Return the data directly without wrapping
             return Response(serializer.data, status=status.HTTP_200_OK)
+        except AlreadyLoggedException:
+            raise  # already persisted upstream — pass through unchanged
         except Exception as exc:
-            logger.error(
-                f"Error running archived jobs compliance check: {exc}", exc_info=True
-            )
-            try:
-                persist_and_raise(exc)
-            except AlreadyLoggedException as logged_exc:
-                return Response(
-                    {
-                        "error": f"Failed to run archived jobs compliance check: {str(exc)}",
-                        "error_id": (
-                            str(logged_exc.app_error_id)
-                            if logged_exc.app_error_id
-                            else None
-                        ),
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc
 
 
 class DuplicatePhonesView(APIView):
@@ -106,20 +89,8 @@ class DuplicatePhonesView(APIView):
             serializer.is_valid(raise_exception=True)
 
             return Response(serializer.data, status=status.HTTP_200_OK)
+        except AlreadyLoggedException:
+            raise  # already persisted upstream — pass through unchanged
         except Exception as exc:
-            logger.error(f"Error running duplicate phones check: {exc}", exc_info=True)
-            try:
-                persist_and_raise(exc)
-            except AlreadyLoggedException as logged_exc:
-                return Response(
-                    {
-                        "error": f"Failed to run duplicate phones check: {str(exc)}",
-                        "error_id": (
-                            str(logged_exc.app_error_id)
-                            if logged_exc.app_error_id
-                            else None
-                        ),
-                    },
-                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                )
-            raise  # persist_and_raise always raises; keeps the return type total
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc

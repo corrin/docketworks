@@ -21,10 +21,10 @@
 
       <Tabs v-model="activeTab" class="space-y-4">
         <TabsList class="grid w-full grid-cols-2 lg:grid-cols-4">
-          <TabsTrigger value="recent" @click="activeTab = 'recent'">Recent Calls</TabsTrigger>
-          <TabsTrigger value="unmatched" @click="activeTab = 'unmatched'">Unmatched</TabsTrigger>
-          <TabsTrigger value="unlinked" @click="activeTab = 'unlinked'">Needs Job Link</TabsTrigger>
-          <TabsTrigger value="all" @click="activeTab = 'all'">All Calls</TabsTrigger>
+          <TabsTrigger value="recent">Recent Calls</TabsTrigger>
+          <TabsTrigger value="unmatched">Unmatched</TabsTrigger>
+          <TabsTrigger value="unlinked">Needs Job Link</TabsTrigger>
+          <TabsTrigger value="all">All Calls</TabsTrigger>
         </TabsList>
 
         <Card>
@@ -59,27 +59,25 @@
           </CardContent>
         </Card>
 
-        <TabsContent value="recent" class="space-y-4">
-          <CallQueueCard
-            title="Recent Calls"
-            description="Newest imported calls. The provider sync runs about every five minutes."
-          />
-        </TabsContent>
-        <TabsContent value="unmatched" class="space-y-4">
-          <CallQueueCard
-            title="Unmatched Calls"
-            description="Assign these numbers to clients or contacts so future and historical calls land in the right CRM history."
-          />
-        </TabsContent>
-        <TabsContent value="unlinked" class="space-y-4">
-          <CallQueueCard
-            title="Matched Calls Needing Job Link"
-            description="These calls already belong to a client but have not been linked to a job."
-          />
-        </TabsContent>
-        <TabsContent value="all" class="space-y-4">
-          <CallQueueCard title="All Calls" description="Audit and search across imported calls." />
-        </TabsContent>
+        <Card>
+          <CardContent class="pt-6">
+            <div class="mb-4">
+              <h2 class="text-base font-semibold text-gray-900">{{ activeQueue.title }}</h2>
+              <p class="text-sm text-gray-500">{{ activeQueue.description }}</p>
+            </div>
+            <div v-if="isLoadingCalls" class="flex items-center justify-center py-8">
+              <Loader2 class="h-6 w-6 animate-spin text-indigo-600" />
+            </div>
+            <PhoneCallTable
+              v-else
+              :calls="phoneCalls"
+              empty-text="No calls found"
+              :allow-number-assignment="true"
+              @call-updated="handleCallUpdated"
+              @assign-number="handleAssignNumber"
+            />
+          </CardContent>
+        </Card>
       </Tabs>
 
       <Card v-if="selectedCall">
@@ -89,7 +87,7 @@
               <h2 class="text-base font-semibold text-gray-900">Assign Call Number</h2>
               <p class="text-sm text-gray-500">
                 {{ selectedCall.external_number }} from
-                {{ formatCallDate(selectedCall.call_datetime) }}
+                {{ formatDateTime(selectedCall.call_datetime) }}
               </p>
             </div>
             <Button variant="outline" size="sm" @click="resetAssignmentForm">Cancel</Button>
@@ -111,6 +109,7 @@
             <select
               v-model="selectedClientId"
               class="rounded-md border border-gray-300 p-2 text-sm"
+              @change="logAssignClientSearchClick"
             >
               <option value="">Select client</option>
               <option v-for="client in clientOptions" :key="client.id" :value="client.id">
@@ -159,7 +158,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
 import PhoneNumberManager from '@/components/crm/PhoneNumberManager.vue'
@@ -167,17 +166,17 @@ import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
+import { useClientLookup } from '@/composables/useClientLookup'
 import { dataFreshness } from '@/composables/useDataFreshness'
+import { formatDateTime } from '@/utils/string-formatting'
 import { Loader2, RefreshCw, Search } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
-type ClientSearchResult = z.infer<typeof schemas.ClientSearchResult>
-type ClientContact = z.infer<typeof schemas.ClientContact>
 type CallsTab = 'recent' | 'unmatched' | 'unlinked' | 'all'
 type DirectionFilter = 'all' | 'inbound' | 'outbound' | 'internal' | 'unknown'
 
@@ -200,9 +199,6 @@ const searchQuery = ref('')
 const directionFilter = ref<DirectionFilter>('all')
 const recordingsOnly = ref(false)
 const selectedCall = ref<PhoneCallRecord | null>(null)
-const clientSearch = ref('')
-const clientOptions = ref<ClientSearchResult[]>([])
-const contactOptions = ref<ClientContact[]>([])
 const selectedClientId = ref('')
 const selectedContactId = ref('')
 const phoneLabel = ref('')
@@ -210,46 +206,36 @@ const isPrimary = ref(false)
 const isAssigningNumber = ref(false)
 let unsubscribeCrmCallsFreshness: (() => void) | null = null
 
-const queueDescription = computed(() => {
-  if (activeTab.value === 'unmatched') return 'Unmatched numbers need client/contact ownership.'
-  if (activeTab.value === 'unlinked') return 'Matched calls can be linked to jobs when relevant.'
-  if (activeTab.value === 'all') return 'All imported call records.'
-  return 'Newest imported call records.'
-})
+const {
+  searchQuery: clientSearch,
+  suggestions: clientOptions,
+  contacts: contactOptions,
+  browseClients: searchClients,
+  loadClientContacts,
+  logSelectedClientClick,
+} = useClientLookup()
 
-const CallQueueCard = defineComponent({
-  props: {
-    title: { type: String, required: true },
-    description: { type: String, required: true },
+const QUEUE_META: Record<CallsTab, { title: string; description: string }> = {
+  recent: {
+    title: 'Recent Calls',
+    description: 'Newest imported calls. The provider sync runs about every five minutes.',
   },
-  setup(props) {
-    return () =>
-      h(Card, null, {
-        default: () =>
-          h(CardContent, { class: 'pt-6' }, () => [
-            h('div', { class: 'mb-4' }, [
-              h('h2', { class: 'text-base font-semibold text-gray-900' }, props.title),
-              h(
-                'p',
-                { class: 'text-sm text-gray-500' },
-                props.description || queueDescription.value,
-              ),
-            ]),
-            isLoadingCalls.value
-              ? h('div', { class: 'flex items-center justify-center py-8' }, [
-                  h(Loader2, { class: 'h-6 w-6 animate-spin text-indigo-600' }),
-                ])
-              : h(PhoneCallTable, {
-                  calls: phoneCalls.value,
-                  emptyText: 'No calls found',
-                  allowNumberAssignment: true,
-                  onCallUpdated: handleCallUpdated,
-                  onAssignNumber: handleAssignNumber,
-                }),
-          ]),
-      })
+  unmatched: {
+    title: 'Unmatched Calls',
+    description:
+      'Assign these numbers to clients or contacts so future and historical calls land in the right CRM history.',
   },
-})
+  unlinked: {
+    title: 'Matched Calls Needing Job Link',
+    description: 'These calls already belong to a client but have not been linked to a job.',
+  },
+  all: {
+    title: 'All Calls',
+    description: 'Audit and search across imported calls.',
+  },
+}
+
+const activeQueue = computed(() => QUEUE_META[activeTab.value])
 
 function queryForActiveTab(): PhoneCallQuery {
   const query: PhoneCallQuery = { page: 1, page_size: 50 }
@@ -302,36 +288,16 @@ function handleAssignNumber(call: PhoneCallRecord): void {
 }
 
 function handleCallUpdated(updatedCall?: PhoneCallRecord): void {
-  if (updatedCall) {
-    phoneCalls.value = phoneCalls.value.map((call) =>
-      call.id === updatedCall.id ? updatedCall : call,
-    )
+  // A rematch/assign can move OTHER calls between queue tabs, so the refetch
+  // is authoritative; only the details panel keeps the mutation response.
+  if (updatedCall && selectedCall.value?.id === updatedCall.id) {
+    selectedCall.value = updatedCall
   }
   void loadCalls()
 }
 
-async function searchClients(): Promise<void> {
-  const response = await api.clients_search_retrieve({
-    queries: {
-      page: 1,
-      page_size: 20,
-      q: clientSearch.value || undefined,
-      sort_by: 'name',
-      sort_dir: 'asc',
-    },
-  })
-  clientOptions.value = response.results || []
-}
-
-async function loadContacts(clientId: string): Promise<void> {
-  if (!clientId) {
-    contactOptions.value = []
-    selectedContactId.value = ''
-    return
-  }
-  contactOptions.value = await api.clients_contacts_list({
-    queries: { client_id: clientId },
-  })
+function logAssignClientSearchClick(): void {
+  logSelectedClientClick(selectedClientId.value, 'crm_calls_assign_number')
 }
 
 async function assignSelectedCallNumber(): Promise<void> {
@@ -370,10 +336,6 @@ function resetAssignmentForm(): void {
   isPrimary.value = false
 }
 
-function formatCallDate(value: string): string {
-  return new Date(value).toLocaleString()
-}
-
 function handleCrmCallsStale(): void {
   if (!isLoadingCalls.value) void loadCalls()
 }
@@ -383,10 +345,10 @@ watch([activeTab, directionFilter, recordingsOnly], () => {
 })
 
 watch(selectedClientId, (clientId) => {
-  void loadContacts(clientId).catch((error) => {
-    console.error('Failed to load client contacts:', error)
-    toast.error('Failed to load client contacts')
-  })
+  if (!clientId) {
+    selectedContactId.value = ''
+  }
+  void loadClientContacts(clientId)
 })
 
 onMounted(() => {

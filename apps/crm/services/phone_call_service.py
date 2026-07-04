@@ -468,12 +468,29 @@ class PhoneProviderConfig:
 
 def _config() -> PhoneProviderConfig:
     phone_settings = PhoneProviderSettings.get_solo()
-    if not phone_settings.base_url:
-        raise ValueError("phone provider base URL is not configured")
+    base_url = phone_settings.base_url
+    username = phone_settings.username
+    password = phone_settings.password
+    # All three are required to log in to the provider portal; failing here
+    # gives a clear config message instead of an opaque login failure later.
+    if not base_url or not username or not password:
+        missing = [
+            name
+            for name, value in (
+                ("base URL", base_url),
+                ("username", username),
+                ("password", password),
+            )
+            if not value
+        ]
+        raise ValueError(
+            f"phone provider settings missing {', '.join(missing)}; "
+            "all are required to log in to the provider portal"
+        )
     return PhoneProviderConfig(
-        base_url=phone_settings.base_url.rstrip("/"),
-        username=phone_settings.username or "",
-        password=phone_settings.password or "",
+        base_url=base_url.rstrip("/"),
+        username=username,
+        password=password,
         account_code=phone_settings.account_code,
     )
 
@@ -583,15 +600,23 @@ class CallClassification:
 
 
 class PhoneMatcher:
-    def __init__(self):
-        self.phone_matches = _build_contact_method_phone_index()
+    """Classifies calls against internal endpoints and client phone methods.
+
+    With ``numbers=None`` the full phone book is indexed (ingest
+    classification). Passing a set of normalized numbers restricts the index
+    to those numbers only (the rematch path, which already knows every party
+    it needs to look up).
+    """
+
+    def __init__(self, numbers: set[str] | None = None):
+        self.phone_matches = _build_contact_method_phone_index(numbers)
         self.endpoints = {
             endpoint.normalized_number: endpoint
             for endpoint in PhoneEndpoint.objects.filter(is_active=True)
         }
 
     def match_customer(
-        self, *values: Any
+        self, *values: str
     ) -> tuple[Client | None, ClientContact | None]:
         matches: set[tuple[str, str, str]] = set()
         for value in values:
@@ -618,7 +643,7 @@ class PhoneMatcher:
         client = Client.objects.get(id=object_id)
         return client, None
 
-    def classify(self, origin: Any, destination: Any) -> CallClassification:
+    def classify(self, origin: str, destination: str) -> CallClassification:
         normalized_origin = normalize_phone(origin)
         normalized_destination = normalize_phone(destination)
         origin_endpoint = self.endpoints.get(normalized_origin)
@@ -691,14 +716,17 @@ def configured_own_numbers() -> set[str]:
     )
 
 
-def call_parties(
-    call: PhoneCallRecord, own_numbers: set[str] | None = None
-) -> dict[str, str]:
-    return {
-        "direction": call.direction,
-        "our_number": call.our_number,
-        "external_number": call.external_number,
-    }
+_REMATCH_FK_FIELDS = frozenset(
+    {"client", "contact", "origin_endpoint", "destination_endpoint"}
+)
+
+
+def _call_field_unchanged(call: PhoneCallRecord, name: str, value: object) -> bool:
+    if name in _REMATCH_FK_FIELDS:
+        current = getattr(call, f"{name}_id")
+        target = value.pk if isinstance(value, models.Model) else None
+        return bool(current == target)
+    return bool(getattr(call, name) == value)
 
 
 def rematch_calls_for_numbers(numbers: list[str]) -> None:
@@ -707,47 +735,40 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
     if not normalized_numbers:
         return
 
-    matcher = PhoneMatcher()
-    calls = PhoneCallRecord.objects.filter(
-        models.Q(origin__in=normalized_numbers)
-        | models.Q(destination__in=normalized_numbers)
+    calls = list(
+        PhoneCallRecord.objects.filter(
+            models.Q(origin__in=normalized_numbers)
+            | models.Q(destination__in=normalized_numbers)
+        )
     )
+    if not calls:
+        return
+
+    # Classification looks at both parties of each affected call, so the index
+    # must cover every origin/destination seen — but nothing beyond that.
+    relevant_numbers = {call.origin for call in calls} | {
+        call.destination for call in calls
+    }
+    relevant_numbers.discard("")
+    matcher = PhoneMatcher(numbers=relevant_numbers)
     for call in calls:
         classification = matcher.classify(call.origin, call.destination)
-        client = classification.client
-        contact = classification.contact
-        matched_client_id = client.id if client else None
-        matched_contact_id = contact.id if contact else None
-        if (
-            call.client_id == matched_client_id
-            and call.contact_id == matched_contact_id
-            and call.origin_endpoint_id
-            == (
-                classification.origin_endpoint.id
-                if classification.origin_endpoint
-                else None
-            )
-            and call.destination_endpoint_id
-            == (
-                classification.destination_endpoint.id
-                if classification.destination_endpoint
-                else None
-            )
-            and call.direction == classification.direction
-            and call.our_number == classification.our_number
-            and call.external_number == classification.external_number
+        matched_client_id = classification.client.id if classification.client else None
+        new_values: dict[str, object] = {
+            "client": classification.client,
+            "contact": classification.contact,
+            "direction": classification.direction,
+            "our_number": classification.our_number,
+            "external_number": classification.external_number,
+            "origin_endpoint": classification.origin_endpoint,
+            "destination_endpoint": classification.destination_endpoint,
+        }
+        if all(
+            _call_field_unchanged(call, name, value)
+            for name, value in new_values.items()
         ):
             continue
-        update_fields = [
-            "client",
-            "contact",
-            "direction",
-            "our_number",
-            "external_number",
-            "origin_endpoint",
-            "destination_endpoint",
-            "updated_at",
-        ]
+        update_fields = [*new_values, "updated_at"]
         linked_job = call.job
         if linked_job is None:
             should_clear_job_link = False
@@ -760,13 +781,8 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
             update_fields.extend(["job", "job_linked_by", "job_linked_at"])
         else:
             pass  # No linked job, or the existing job is still on the matched client.
-        call.client = client
-        call.contact = contact
-        call.direction = classification.direction
-        call.our_number = classification.our_number
-        call.external_number = classification.external_number
-        call.origin_endpoint = classification.origin_endpoint
-        call.destination_endpoint = classification.destination_endpoint
+        for name, value in new_values.items():
+            setattr(call, name, value)
         call.save(update_fields=update_fields)
 
 
@@ -845,7 +861,14 @@ def assign_phone_number(
     return method
 
 
-def _build_contact_method_phone_index() -> dict[str, set[tuple[str, str, str]]]:
+def _build_contact_method_phone_index(
+    numbers: set[str] | None = None,
+) -> dict[str, set[tuple[str, str, str]]]:
+    """Index phone methods by normalized number.
+
+    ``numbers=None`` indexes the whole phone book; a set restricts the query
+    to those normalized numbers (rematch path).
+    """
     index: dict[str, set[tuple[str, str, str]]] = {}
     internal_numbers = configured_own_numbers()
     methods = ClientContactMethod.objects.select_related(
@@ -853,6 +876,8 @@ def _build_contact_method_phone_index() -> dict[str, set[tuple[str, str, str]]]:
         "contact",
         "contact__client",
     ).filter(method_type=ClientContactMethod.MethodType.PHONE)
+    if numbers is not None:
+        methods = methods.filter(normalized_value__in=numbers)
     for method in methods:
         normalized = method.normalized_value or normalize_phone(method.value)
         if not normalized or normalized in internal_numbers:

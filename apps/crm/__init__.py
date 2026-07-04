@@ -14,13 +14,12 @@ try:
             PhoneProviderSettings,
         )
         from .serializers import (
-            PhoneCallJobLinkPayload,
-            PhoneCallPayloadModel,
+            PhoneCallJobLinkSerializer,
             PhoneCallRecordSerializer,
-            PhoneCallRecordingResponse,
             PhoneCallRecordingSerializer,
+            PhoneEndpointAttrs,
             PhoneEndpointSerializer,
-            PhoneNumberAssignmentPayload,
+            PhoneNumberAssignmentSerializer,
             PhoneProviderSettingsAttrs,
             PhoneProviderSettingsSerializer,
         )
@@ -35,16 +34,15 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "CrmConfig",
-    "PhoneCallJobLinkPayload",
-    "PhoneCallPayloadModel",
+    "PhoneCallJobLinkSerializer",
     "PhoneCallRecord",
     "PhoneCallRecordSerializer",
     "PhoneCallRecording",
-    "PhoneCallRecordingResponse",
     "PhoneCallRecordingSerializer",
     "PhoneEndpoint",
+    "PhoneEndpointAttrs",
     "PhoneEndpointSerializer",
-    "PhoneNumberAssignmentPayload",
+    "PhoneNumberAssignmentSerializer",
     "PhoneProviderSettings",
     "PhoneProviderSettingsAttrs",
     "PhoneProviderSettingsSerializer",

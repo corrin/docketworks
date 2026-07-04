@@ -14,10 +14,11 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from pypdf import PdfReader
 
-from apps.client.models import Client
+from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.services.workshop_pdf_service import (
+    _primary_phone_for_job,
     convert_html_to_reportlab,
     create_delivery_docket_pdf,
     create_workshop_pdf,
@@ -27,6 +28,49 @@ from apps.job.services.workshop_pdf_service import (
     get_workshop_hours,
 )
 from apps.testing import BaseTestCase
+
+
+class PrimaryPhoneForJobTests(BaseTestCase):
+    """Phone preference order on workshop PDFs and delivery dockets:
+    the job contact's number first, then the client's own number."""
+
+    def setUp(self) -> None:
+        self.client_obj = Client.objects.create(
+            name="Phone Pref Client",
+            xero_last_modified=timezone.now(),
+        )
+        self.contact = ClientContact.objects.create(
+            client=self.client_obj,
+            name="Jane Doe",
+        )
+        self.job = Job.objects.create(
+            client=self.client_obj,
+            contact=self.contact,
+            name="Phone Pref Job",
+            staff=self.test_staff,
+        )
+        ClientContactMethod.objects.create(
+            client=self.client_obj,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 555 0001",
+        )
+
+    def test_contact_phone_wins_when_contact_has_one(self) -> None:
+        ClientContactMethod.objects.create(
+            contact=self.contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 100",
+        )
+
+        self.assertEqual(_primary_phone_for_job(self.job), "021 555 100")
+
+    def test_falls_back_to_client_phone_when_contact_has_none(self) -> None:
+        self.assertEqual(_primary_phone_for_job(self.job), "09 555 0001")
+
+    def test_no_contact_uses_client_phone(self) -> None:
+        self.job.contact = None
+
+        self.assertEqual(_primary_phone_for_job(self.job), "09 555 0001")
 
 
 class FormatHoursDisplayTests(SimpleTestCase):

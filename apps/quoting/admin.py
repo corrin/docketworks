@@ -105,9 +105,9 @@ class SupplierScraperConfigInline(admin.StackedInline[SupplierScraperConfig, Cli
 
 
 class ClientAdmin(admin.ModelAdmin[Client]):
-    list_display = ("name", "is_supplier", "email", "phone")
+    list_display = ("name", "is_supplier", "email")
     list_filter = ("is_supplier",)
-    search_fields = ("name", "email", "phone")
+    search_fields = ("name", "email")
     inlines = (SupplierCredentialInline, SupplierScraperConfigInline)
 
 

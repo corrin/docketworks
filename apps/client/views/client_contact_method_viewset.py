@@ -9,7 +9,7 @@ from rest_framework.serializers import BaseSerializer
 
 from apps.client.models import ClientContactMethod
 from apps.client.serializers import ClientContactMethodSerializer
-from apps.crm.services.phone_call_service import rematch_calls_for_numbers
+from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.api.pagination import PageSizePagination
 
 
@@ -94,7 +94,7 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
         method = serializer.save()
         phone_number = _phone_number_for_rematch(method)
         if phone_number:
-            rematch_calls_for_numbers([phone_number])
+            rematch_phone_calls_task.delay([phone_number])
 
     def perform_update(self, serializer: BaseSerializer[ClientContactMethod]) -> None:
         old_method = cast(ClientContactMethod, self.get_object())
@@ -105,10 +105,10 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
             number for number in [old_phone_number, new_phone_number] if number
         ]
         if phone_numbers:
-            rematch_calls_for_numbers(phone_numbers)
+            rematch_phone_calls_task.delay(phone_numbers)
 
     def perform_destroy(self, instance: ClientContactMethod) -> None:
         phone_number = _phone_number_for_rematch(instance)
         instance.delete()
         if phone_number:
-            rematch_calls_for_numbers([phone_number])
+            rematch_phone_calls_task.delay([phone_number])

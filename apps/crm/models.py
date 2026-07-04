@@ -1,6 +1,9 @@
 import uuid
+from collections.abc import Iterable
 
+from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.base import ModelBase
 from encrypted_model_fields.fields import (
     EncryptedCharField,
 )
@@ -50,13 +53,60 @@ class PhoneEndpoint(models.Model):
     def __str__(self) -> str:
         return f"{self.label} ({self.normalized_number})"
 
-    def save(self, *args, **kwargs):
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
         from apps.client.models import ClientContactMethod
 
         self.normalized_number = ClientContactMethod.normalize_phone(self.number)
         if not self.normalized_number:
             raise ValueError("phone endpoint requires a phone number")
-        super().save(*args, **kwargs)
+        if self.is_active and self._active_number_changed():
+            # Mirror of the ClientContactMethod.save() guard: a number cannot be
+            # both a client contact method and an active internal endpoint, or
+            # the client's calls would silently reclassify as INTERNAL.
+            conflict = ClientContactMethod.conflicting_client(
+                self.normalized_number, None
+            )
+            if conflict:
+                raise ValidationError(
+                    f"phone number {self.normalized_number} already belongs to "
+                    f"{conflict.owner_display_name()} and cannot be an active "
+                    "internal phone endpoint"
+                )
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
+
+    def _active_number_changed(self) -> bool:
+        """True when the endpoint is new or its number/is_active changed.
+
+        Grandfathers pre-existing rows (symmetry with the grandfathering in
+        ClientContactMethod.check_phone_assignment): re-saving an existing
+        endpoint without touching number or is_active must not start failing.
+        """
+        if self._state.adding:
+            return True
+        stored = (
+            type(self)
+            .objects.filter(pk=self.pk)
+            .values("normalized_number", "is_active")
+            .first()
+        )
+        if stored is None:
+            return True
+        return (
+            stored["normalized_number"] != self.normalized_number
+            or stored["is_active"] != self.is_active
+        )
 
 
 class PhoneProviderSettings(models.Model):
@@ -193,6 +243,8 @@ class PhoneCallRecord(models.Model):
                 fields=["destination_endpoint", "-call_datetime"],
                 name="crm_phone_dest_ep_idx",
             ),
+            models.Index(fields=["origin"], name="crm_phone_origin_num_idx"),
+            models.Index(fields=["destination"], name="crm_phone_dest_num_idx"),
         ]
 
     def __str__(self) -> str:

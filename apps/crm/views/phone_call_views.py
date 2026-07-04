@@ -1,5 +1,6 @@
 import mimetypes
 from datetime import date
+from typing import Callable
 from uuid import UUID
 
 from django.db.models import Q, QuerySet
@@ -11,11 +12,8 @@ from drf_spectacular.utils import (
     OpenApiParameter,
     OpenApiResponse,
     extend_schema,
-    inline_serializer,
 )
-from pydantic import ValidationError as PydanticValidationError
-from pydantic_core import ErrorDetails
-from rest_framework import serializers, status, viewsets
+from rest_framework import status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
 from rest_framework.permissions import BasePermission, IsAuthenticated
@@ -33,11 +31,11 @@ from apps.crm.models import (
     PhoneProviderSettings,
 )
 from apps.crm.serializers import (
-    PhoneCallJobLinkPayload,
+    PhoneCallJobLinkSerializer,
     PhoneCallRecordingSerializer,
     PhoneCallRecordSerializer,
     PhoneEndpointSerializer,
-    PhoneNumberAssignmentPayload,
+    PhoneNumberAssignmentSerializer,
     PhoneProviderSettingsSerializer,
 )
 from apps.crm.services.phone_call_service import (
@@ -54,34 +52,6 @@ from apps.job.permissions import IsOfficeStaff
 from apps.workflow.api.pagination import PageSizePagination
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
-
-PHONE_CALL_JOB_LINK_SCHEMA = inline_serializer(
-    name="PhoneCallJobLink",
-    fields={"job": serializers.UUIDField()},
-)
-
-PHONE_NUMBER_ASSIGNMENT_SCHEMA = inline_serializer(
-    name="PhoneNumberAssignment",
-    fields={
-        "client": serializers.UUIDField(),
-        "contact": serializers.UUIDField(required=False, allow_null=True),
-        "label": serializers.CharField(
-            max_length=255,
-            required=False,
-            allow_blank=True,
-        ),
-        "is_primary": serializers.BooleanField(required=False, default=False),
-    },
-)
-
-
-def _validation_error_detail(errors: list[ErrorDetails]) -> dict[str, list[str]]:
-    detail: dict[str, list[str]] = {}
-    for error in errors:
-        location = error["loc"]
-        field_name = str(location[0]) if location else "non_field_errors"
-        detail.setdefault(field_name, []).append(error["msg"])
-    return detail
 
 
 def _query_uuid(value: str | None, field_name: str) -> UUID | None:
@@ -323,33 +293,17 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
         queryset = queryset.filter(**_phone_call_filter_kwargs(self.request))
         return _filter_phone_call_queryset(queryset, self.request)
 
-    @extend_schema(
-        operation_id="linkPhoneCallJob",
-        request=PHONE_CALL_JOB_LINK_SCHEMA,
-        responses={200: PhoneCallRecordSerializer},
-        tags=["CRM"],
-    )
-    @action(detail=True, methods=["post"], url_path="job-link")
-    def link_job(
+    def _call_operation_response(
         self,
-        request: Request,
-        pk: str | None = None,
+        operation: Callable[[], PhoneCallRecord],
     ) -> Response:
+        """Run a phone-call service operation and serialize the updated call.
+
+        ValueError is the services' client-error contract (400, no AppError);
+        anything else follows the mandatory two-arm persistence pattern.
+        """
         try:
-            payload = PhoneCallJobLinkPayload.model_validate(request.data)
-        except PydanticValidationError as exc:
-            raise ValidationError(_validation_error_detail(exc.errors())) from exc
-        user = request.user
-        if not isinstance(user, Staff):
-            raise ValidationError({"user": ["Authenticated staff user is required."]})
-        try:
-            call = link_phone_call_to_job(
-                call_id=str(pk),
-                job_id=str(payload.job),
-                linked_by=user,
-            )
-            response_serializer = self.get_serializer(call)
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
+            call = operation()
         except ValueError as exc:
             return Response(
                 {"status": "error", "message": str(exc)},
@@ -360,6 +314,33 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
         except Exception as exc:
             err = persist_app_error(exc)
             raise AlreadyLoggedException(exc, err.id) from exc
+        response_serializer = self.get_serializer(call)
+        return Response(response_serializer.data, status=status.HTTP_200_OK)
+
+    @extend_schema(
+        operation_id="linkPhoneCallJob",
+        request=PhoneCallJobLinkSerializer,
+        responses={200: PhoneCallRecordSerializer},
+        tags=["CRM"],
+    )
+    @action(detail=True, methods=["post"], url_path="job-link")
+    def link_job(
+        self,
+        request: Request,
+        pk: str | None = None,
+    ) -> Response:
+        payload = PhoneCallJobLinkSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        user = request.user
+        if not isinstance(user, Staff):
+            raise ValidationError({"user": ["Authenticated staff user is required."]})
+        return self._call_operation_response(
+            lambda: link_phone_call_to_job(
+                call_id=str(pk),
+                job_id=str(payload.validated_data["job"]),
+                linked_by=user,
+            )
+        )
 
     @extend_schema(
         operation_id="unlinkPhoneCallJob",
@@ -372,24 +353,13 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
         request: Request,
         pk: str | None = None,
     ) -> Response:
-        try:
-            call = unlink_phone_call_job(call_id=str(pk))
-            response_serializer = self.get_serializer(call)
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-        except ValueError as exc:
-            return Response(
-                {"status": "error", "message": str(exc)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except AlreadyLoggedException:
-            raise
-        except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+        return self._call_operation_response(
+            lambda: unlink_phone_call_job(call_id=str(pk))
+        )
 
     @extend_schema(
         operation_id="assignPhoneCallNumber",
-        request=PHONE_NUMBER_ASSIGNMENT_SCHEMA,
+        request=PhoneNumberAssignmentSerializer,
         responses={200: PhoneCallRecordSerializer},
         tags=["CRM"],
     )
@@ -399,30 +369,18 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
         request: Request,
         pk: str | None = None,
     ) -> Response:
-        try:
-            payload = PhoneNumberAssignmentPayload.model_validate(request.data)
-        except PydanticValidationError as exc:
-            raise ValidationError(_validation_error_detail(exc.errors())) from exc
-        try:
-            call = assign_phone_number_from_call(
+        payload = PhoneNumberAssignmentSerializer(data=request.data)
+        payload.is_valid(raise_exception=True)
+        contact = payload.validated_data["contact"]
+        return self._call_operation_response(
+            lambda: assign_phone_number_from_call(
                 call_id=str(pk),
-                client_id=str(payload.client),
-                contact_id=str(payload.contact) if payload.contact else None,
-                label=payload.label,
-                is_primary=payload.is_primary,
+                client_id=str(payload.validated_data["client"]),
+                contact_id=str(contact) if contact else None,
+                label=payload.validated_data["label"],
+                is_primary=payload.validated_data["is_primary"],
             )
-            response_serializer = self.get_serializer(call)
-            return Response(response_serializer.data, status=status.HTTP_200_OK)
-        except ValueError as exc:
-            return Response(
-                {"status": "error", "message": str(exc)},
-                status=status.HTTP_400_BAD_REQUEST,
-            )
-        except AlreadyLoggedException:
-            raise
-        except Exception as exc:
-            err = persist_app_error(exc)
-            raise AlreadyLoggedException(exc, err.id) from exc
+        )
 
 
 class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording]):

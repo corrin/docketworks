@@ -36,18 +36,26 @@ WORKSHOP_PDF_FILES_ATTR = "_workshop_pdf_files_to_print"
 
 
 def _primary_phone_for_job(job: Job) -> str:
-    owner_filter = {"contact": job.contact} if job.contact else {"client": job.client}
-    if not owner_filter.get("contact") and not owner_filter.get("client"):
-        return ""
-    method = (
-        ClientContactMethod.objects.filter(
-            method_type=ClientContactMethod.MethodType.PHONE,
-            **owner_filter,
+    """Phone to print on workshop docs and delivery dockets.
+
+    Display preference order: the job contact's own number first, falling back
+    to the client's number when the contact has no phone method (the business
+    rule carried over from the pre-ClientContactMethod scalar fields).
+    """
+    if job.contact:
+        method = (
+            ClientContactMethod.objects.filter(
+                method_type=ClientContactMethod.MethodType.PHONE,
+                contact=job.contact,
+            )
+            .order_by("-is_primary", "label", "value")
+            .first()
         )
-        .order_by("-is_primary", "label", "value")
-        .first()
-    )
-    return method.value if method else ""
+        if method:
+            return method.value
+    if job.client:
+        return job.client.primary_phone_value()
+    return ""
 
 
 def _primary_company_endpoint_number() -> str:

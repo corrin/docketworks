@@ -3,12 +3,19 @@
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from django.core.exceptions import ValidationError
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.client.models import Client, ClientContactMethod
-from apps.workflow.api.xero.reprocess_xero import sync_xero_phone_methods
+from apps.crm.models import PhoneCallRecord
+from apps.workflow.api.xero.reprocess_xero import (
+    set_client_fields,
+    sync_xero_phone_methods,
+)
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models import AppError
 
 
 def _make_raw_json(contact_id, name, status="ACTIVE", merged_to=None):
@@ -249,53 +256,58 @@ class SyncClientsArchivedContactTests(TestCase):
 
 
 class XeroPhoneMethodSyncTests(TestCase):
-    def test_duplicate_phone_owner_crashes_sync_with_clear_message(self) -> None:
-        existing = Client.objects.create(
-            name="Existing Phone Owner",
-            xero_last_modified=timezone.now(),
-        )
-        imported = Client.objects.create(
-            name="Imported Phone Owner",
+    def _client_with_phone(
+        self,
+        name: str,
+        number: str = "021 555 123",
+        phone_type: str = "DEFAULT",
+    ) -> Client:
+        return Client.objects.create(
+            name=name,
             xero_last_modified=timezone.now(),
             raw_json={
                 "_phones": [
                     {
-                        "_phone_type": "DEFAULT",
-                        "_phone_number": "021 555 123",
+                        "_phone_type": phone_type,
+                        "_phone_number": number,
                         "_phone_area_code": "",
                         "_phone_country_code": "",
                     }
                 ]
             },
         )
+
+    def test_duplicate_phone_owner_crashes_sync_and_persists_app_error(self) -> None:
+        existing = Client.objects.create(
+            name="Existing Phone Owner",
+            xero_last_modified=timezone.now(),
+        )
+        imported = self._client_with_phone("Imported Phone Owner")
         ClientContactMethod.objects.create(
             client=existing,
             method_type=ClientContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
+        before = AppError.objects.count()
 
         with self.assertRaisesRegex(
-            ValidationError,
+            AlreadyLoggedException,
             "already belongs to.*Existing Phone Owner",
         ):
             sync_xero_phone_methods(imported)
 
+        self.assertEqual(AppError.objects.count(), before + 1)
+        app_error = AppError.objects.order_by("-timestamp").first()
+        assert app_error is not None
+        # The persisted message must name the syncing client, the number, and
+        # the conflicting owner so the operator can fix the data.
+        self.assertIn("Imported Phone Owner", app_error.message)
+        self.assertIn("+6421555123", app_error.message)
+        self.assertIn("Existing Phone Owner", app_error.message)
+
     def test_resync_of_existing_number_is_grandfathered(self) -> None:
         """Re-syncing a client's own already-stored number must not raise."""
-        owner = Client.objects.create(
-            name="Phone Owner",
-            xero_last_modified=timezone.now(),
-            raw_json={
-                "_phones": [
-                    {
-                        "_phone_type": "DEFAULT",
-                        "_phone_number": "021 555 123",
-                        "_phone_area_code": "",
-                        "_phone_country_code": "",
-                    }
-                ]
-            },
-        )
+        owner = self._client_with_phone("Phone Owner")
         # A cross-client legacy row exists for the same number (grandfathered),
         # inserted bypassing the guard as pre-guard data was.
         other = Client.objects.create(
@@ -319,7 +331,82 @@ class XeroPhoneMethodSyncTests(TestCase):
         )
         ClientContactMethod.objects.bulk_create([owner_method])
 
-        sync_xero_phone_methods(owner)  # re-sync updates owner's row, must not raise
+        created = sync_xero_phone_methods(owner)  # must not raise
 
+        self.assertEqual(created, [])
         owner_method.refresh_from_db()
-        self.assertEqual(owner_method.label, "DEFAULT")
+        # Xero owns the number's existence only; the existing row is untouched.
+        self.assertEqual(owner_method.label, "")
+
+    def test_user_edited_label_and_primary_survive_resync(self) -> None:
+        owner = self._client_with_phone("Phone Owner")
+        created = sync_xero_phone_methods(owner)
+        self.assertEqual(created, ["+6421555123"])
+        imported_method = ClientContactMethod.objects.get(client=owner)
+        self.assertEqual(imported_method.label, "DEFAULT")
+        self.assertTrue(imported_method.is_primary)
+
+        # CRM user relabels the imported number and picks a LOCAL primary.
+        imported_method.label = "Reception"
+        imported_method.save()
+        local_primary = ClientContactMethod.objects.create(
+            client=owner,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 555 000",
+            label="After hours",
+            is_primary=True,
+            source=ClientContactMethod.Source.LOCAL,
+        )
+
+        self.assertEqual(sync_xero_phone_methods(owner), [])
+
+        imported_method.refresh_from_db()
+        local_primary.refresh_from_db()
+        self.assertEqual(imported_method.label, "Reception")
+        self.assertFalse(imported_method.is_primary)
+        self.assertTrue(local_primary.is_primary)
+        self.assertEqual(imported_method.source, ClientContactMethod.Source.IMPORTED)
+
+    def test_unchanged_resync_does_not_write_the_method_row(self) -> None:
+        owner = self._client_with_phone("Phone Owner")
+        sync_xero_phone_methods(owner)
+        method = ClientContactMethod.objects.get(client=owner)
+        updated_at_before = method.updated_at
+
+        with CaptureQueriesContext(connection) as ctx:
+            sync_xero_phone_methods(owner)
+
+        writes = [
+            query["sql"]
+            for query in ctx.captured_queries
+            if not query["sql"].startswith("SELECT")
+        ]
+        self.assertEqual(writes, [])
+        method.refresh_from_db()
+        self.assertEqual(method.updated_at, updated_at_before)
+
+    def test_new_xero_number_dispatches_rematch_of_historical_calls(self) -> None:
+        """Numbers imported from Xero must attach existing calls, like UI edits."""
+        client = self._client_with_phone("Rematch Client")
+        call_datetime = timezone.now()
+        call = PhoneCallRecord.objects.create(
+            provider_call_id="account:xero-rematch",
+            account_code="account",
+            call_datetime=call_datetime,
+            call_date=timezone.localdate(),
+            call_time=call_datetime.time(),
+            origin="+6421555123",
+            destination="+6490000000",
+            raw_json={"id": "xero-rematch"},
+        )
+
+        with self.captureOnCommitCallbacks(execute=True):
+            set_client_fields(client)
+
+        call.refresh_from_db()
+        self.assertEqual(call.client, client)
+
+        # An unchanged re-sync creates nothing and must not dispatch a rematch.
+        with self.captureOnCommitCallbacks() as callbacks:
+            set_client_fields(client)
+        self.assertEqual(callbacks, [])

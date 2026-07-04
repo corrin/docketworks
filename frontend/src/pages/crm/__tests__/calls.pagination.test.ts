@@ -79,8 +79,8 @@ describe('CRM calls pagination', () => {
 
     const unmatchedTab = wrapper.findAll('button').find((button) => button.text() === 'Unmatched')
     expect(unmatchedTab).toBeTruthy()
-    await unmatchedTab?.trigger('pointerdown')
-    await unmatchedTab?.trigger('click')
+    // reka-ui's TabsTrigger activates on left-button mousedown, not click.
+    await unmatchedTab?.trigger('mousedown', { button: 0 })
     await flushPromises()
 
     expect(api.crm_phone_calls_list).toHaveBeenLastCalledWith({

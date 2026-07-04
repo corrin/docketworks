@@ -183,6 +183,40 @@ class ClientContactMethodTests(TestCase):
         self.assertTrue(second.is_primary)
 
 
+class ClientPrimaryPhoneValueTests(TestCase):
+    """Guards the helper PO PDFs and Xero sync use to print a supplier phone."""
+
+    def test_returns_primary_phone_first(self) -> None:
+        client = Client.objects.create(
+            name="Acme Ltd", xero_last_modified=timezone.now()
+        )
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+        )
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 222 2222",
+            is_primary=True,
+        )
+
+        self.assertEqual(client.primary_phone_value(), "09 222 2222")
+
+    def test_returns_empty_string_when_no_phone_methods(self) -> None:
+        client = Client.objects.create(
+            name="Phoneless Ltd", xero_last_modified=timezone.now()
+        )
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.EMAIL,
+            value="office@example.com",
+        )
+
+        self.assertEqual(client.primary_phone_value(), "")
+
+
 class ClientContactMethodApiTests(BaseAPITestCase):
     def _client(self, name: str = "Acme Ltd") -> Client:
         return Client.objects.create(name=name, xero_last_modified=timezone.now())

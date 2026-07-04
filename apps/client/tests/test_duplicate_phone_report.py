@@ -48,11 +48,15 @@ class DuplicatePhoneReportTests(TestCase):
         client = self._client("Acme Ltd")
         contact = ClientContact.objects.create(client=client, name="Paul Jones")
         self._phone("09 636 5131", contact=contact)
-        PhoneEndpoint.objects.create(
+        # Bypass PhoneEndpoint.save()'s collision guard (legacy-style data):
+        # the report exists precisely to surface rows that predate the guard.
+        endpoint = PhoneEndpoint(
             number="09 636 5131",
             label="Main line",
             endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
         )
+        endpoint.normalized_number = ClientContactMethod.normalize_phone("09 636 5131")
+        PhoneEndpoint.objects.bulk_create([endpoint])
 
         report = DuplicatePhoneReportService().get_report()
 

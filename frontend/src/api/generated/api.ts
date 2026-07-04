@@ -1154,8 +1154,8 @@ const PaginatedPhoneCallRecordList = z.object({
 const PhoneNumberAssignmentRequest = z.object({
   client: z.string().uuid(),
   contact: z.string().uuid().nullish(),
-  label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
+  label: z.string().max(255).optional().default(''),
 })
 const PhoneCallJobLinkRequest = z.object({ job: z.string().uuid() })
 const EndpointTypeEnum = z.enum(['main_line', 'staff_mobile', 'staff_ddi', 'extension', 'shared'])

@@ -7,12 +7,15 @@ import re
 from dataclasses import dataclass
 from datetime import timedelta
 from difflib import SequenceMatcher
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from django.db.models import Count, OuterRef, Q, Subquery
 from django.utils import timezone
 
 from apps.client.models import Client, ClientContactMethod, SupplierSearchAlias
+
+if TYPE_CHECKING:
+    from django_stubs_ext import WithAnnotations
 
 MAX_PAGE_SIZE = 100
 MAX_SEARCH_QUERY_LENGTH = 255
@@ -22,9 +25,23 @@ _TOKEN_RE = re.compile(r"[a-z0-9]+")
 _STOP_WORDS = {"and", "the", "limited", "ltd", "company", "co"}
 
 
+class _SupplierAnnotations(TypedDict):
+    """Queryset annotations list_suppliers() adds; not Client model fields."""
+
+    recent_purchase_count: int
+    primary_phone: str | None
+
+
+if TYPE_CHECKING:
+    # Only the type checker evaluates this alias (all annotations in this
+    # module are strings via __future__ annotations), so the dev-only
+    # django_stubs_ext dependency is never imported at runtime.
+    _AnnotatedSupplier = WithAnnotations[Client, _SupplierAnnotations]
+
+
 @dataclass(frozen=True)
 class _CandidateScore:
-    client: Client
+    client: _AnnotatedSupplier
     score: float
     name_score: float
     recent_purchase_count: int
@@ -120,12 +137,16 @@ def _supplier_candidate_filter(query: str, query_norm: str) -> Q:
     return name_filter | alias_filter
 
 
-def _format_supplier(client: Client, score: _CandidateScore) -> dict[str, Any]:
+def _format_supplier(
+    client: _AnnotatedSupplier, score: _CandidateScore
+) -> dict[str, Any]:
     return {
         "id": str(client.id),
         "name": client.name,
         "email": client.email or "",
-        "phone": getattr(client, "primary_phone", "") or "",
+        # The Subquery annotation yields None for suppliers with no phone
+        # method; the API contract is a plain string.
+        "phone": client.primary_phone or "",
         "address": client.address or "",
         "is_account_customer": client.is_account_customer,
         "is_supplier": client.is_supplier,

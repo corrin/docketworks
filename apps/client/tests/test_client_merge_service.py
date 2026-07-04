@@ -398,6 +398,121 @@ class ReassignCrmHistoryTests(ReassignFKBaseCase):
         self.assertEqual(counts["phone_calls"], 1)
 
 
+class ContactMethodMergeGuardTests(ReassignFKBaseCase):
+    """Merges must never trip the one-number-one-client save() guard.
+
+    Merging is the documented remedy the Duplicate Phones report points users
+    at, so it has to succeed for exactly the data shapes the guard flags.
+    """
+
+    NUMBER = "021 555 123"
+
+    def _grandfathered_method(self, client: Client) -> ClientContactMethod:
+        """Insert a cross-client duplicate bypassing the save() guard,
+        exactly as pre-guard legacy rows (and migration 0023 twins) exist."""
+        legacy = ClientContactMethod(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=self.NUMBER,
+        )
+        legacy.normalized_value = ClientContactMethod.normalize_phone(self.NUMBER)
+        ClientContactMethod.objects.bulk_create([legacy])
+        return legacy
+
+    def test_same_number_on_client_and_own_contact_both_move(self) -> None:
+        """Migration 0023 creates client-level + contact-level twins; a merge
+        must move both without the guard rejecting the not-yet-moved sibling."""
+        contact = ClientContact.objects.create(client=self.source, name="Jane Smith")
+        client_method = ClientContactMethod.objects.create(
+            client=self.source,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=self.NUMBER,
+        )
+        contact_method = ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=self.NUMBER,
+        )
+
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
+
+        client_method.refresh_from_db()
+        contact_method.refresh_from_db()
+        contact.refresh_from_db()
+        self.assertEqual(client_method.client_id, self.destination.id)
+        self.assertEqual(contact.client_id, self.destination.id)
+        self.assertEqual(contact_method.contact_id, contact.id)
+        self.assertEqual(counts["contact_methods"], 1)
+        self.assertEqual(counts["contacts"], 1)
+
+    def test_merge_succeeds_when_third_client_owns_same_number(self) -> None:
+        """A grandfathered duplicate on an unrelated client must not block
+        merging A into B."""
+        source_method = ClientContactMethod.objects.create(
+            client=self.source,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=self.NUMBER,
+        )
+        third = make_client("Third Client")
+        self._grandfathered_method(third)
+
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
+
+        source_method.refresh_from_db()
+        self.assertEqual(source_method.client_id, self.destination.id)
+        self.assertEqual(counts["contact_methods"], 1)
+
+    def test_duplicate_of_destination_number_is_dropped_not_duplicated(self) -> None:
+        destination_method = ClientContactMethod.objects.create(
+            client=self.destination,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=self.NUMBER,
+        )
+        source_method = self._grandfathered_method(self.source)
+
+        counts = reassign_client_fk_records(
+            self.source, self.destination, self.test_staff
+        )
+
+        self.assertFalse(
+            ClientContactMethod.objects.filter(id=source_method.id).exists()
+        )
+        remaining = ClientContactMethod.objects.filter(
+            normalized_value=ClientContactMethod.normalize_phone(self.NUMBER)
+        )
+        self.assertEqual(remaining.count(), 1)
+        self.assertEqual(remaining.get().id, destination_method.id)
+        self.assertEqual(counts["contact_methods"], 1)
+
+    def test_moving_primary_method_demotes_destination_primary(self) -> None:
+        """The bulk move must not violate the single-primary-per-owner
+        constraint when both sides have a primary phone."""
+        destination_primary = ClientContactMethod.objects.create(
+            client=self.destination,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 999",
+            is_primary=True,
+        )
+        source_primary = ClientContactMethod.objects.create(
+            client=self.source,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=self.NUMBER,
+            is_primary=True,
+        )
+
+        reassign_client_fk_records(self.source, self.destination, self.test_staff)
+
+        destination_primary.refresh_from_db()
+        source_primary.refresh_from_db()
+        self.assertEqual(source_primary.client_id, self.destination.id)
+        self.assertTrue(source_primary.is_primary)
+        self.assertFalse(destination_primary.is_primary)
+
+
 # ---------------------------------------------------------------------------
 # Guards and edge cases.
 # ---------------------------------------------------------------------------

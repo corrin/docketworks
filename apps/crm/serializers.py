@@ -1,11 +1,9 @@
-from datetime import datetime
-from typing import TypedDict
-from uuid import UUID
+from typing import TYPE_CHECKING, Any, TypedDict
 
 from drf_spectacular.utils import extend_schema_field
-from pydantic import BaseModel, ConfigDict
 from rest_framework import serializers
 
+from apps.client.models import ClientContactMethod
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -16,70 +14,45 @@ from apps.crm.services.phone_call_service import (
     normalize_phone,
 )
 
-
-class PhoneCallPayloadModel(BaseModel):
-    model_config = ConfigDict(extra="ignore", frozen=True)
-
-
-class PhoneCallJobLinkPayload(PhoneCallPayloadModel):
-    job: UUID
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
 
 
-class PhoneNumberAssignmentPayload(PhoneCallPayloadModel):
-    client: UUID
-    contact: UUID | None = None
-    label: str = ""
-    is_primary: bool = False
+class PhoneCallJobLinkSerializer(serializers.Serializer[None]):
+    """Request body for linking a phone call to a job."""
+
+    job = serializers.UUIDField()
 
 
-class PhoneCallRecordingResponse(TypedDict):
-    id: str
-    provider_recording_id: str
-    account_code: str
-    filename: str
-    content_type: str
-    byte_size: int | None
-    sha256: str
-    archived_at: str | None
-    archive_error: str
-    provider_deleted_at: str | None
-    provider_delete_error: str
-    local_deleted_at: str | None
-    download_url: str | None
-    created_at: str
-    updated_at: str
+class PhoneNumberAssignmentSerializer(serializers.Serializer[None]):
+    """Request body for assigning a call's external number to a client."""
 
+    client = serializers.UUIDField()
+    contact = serializers.UUIDField(required=False, allow_null=True, default=None)
+    is_primary = serializers.BooleanField(required=False, default=False)
 
-def _datetime_value(value: datetime | None) -> str | None:
-    if value is None:
-        return None
-    return value.isoformat()
+    def get_fields(self) -> dict[str, "serializers.Field[Any, Any, Any, Any]"]:
+        """Add the ``label`` body field.
+
+        Declared here rather than as a class attribute because an attribute
+        named ``label`` would shadow ``Field.label`` (the display string) on
+        the serializer class itself. The ``Any`` parameters mirror the DRF
+        stubs' own ``get_fields`` contract (a heterogeneous field mapping).
+        """
+        fields = super().get_fields()
+        fields["label"] = serializers.CharField(
+            max_length=255,
+            required=False,
+            allow_blank=True,
+            default="",
+        )
+        return fields
 
 
 def _recording_download_url(recording: PhoneCallRecording) -> str | None:
     if not recording.storage_path:
         return None
     return f"/api/crm/phone-call-recordings/{recording.id}/download/"
-
-
-def _recording_response(recording: PhoneCallRecording) -> PhoneCallRecordingResponse:
-    return {
-        "id": str(recording.id),
-        "provider_recording_id": recording.provider_recording_id,
-        "account_code": recording.account_code,
-        "filename": recording.filename,
-        "content_type": recording.content_type,
-        "byte_size": recording.byte_size,
-        "sha256": recording.sha256,
-        "archived_at": _datetime_value(recording.archived_at),
-        "archive_error": recording.archive_error,
-        "provider_deleted_at": _datetime_value(recording.provider_deleted_at),
-        "provider_delete_error": recording.provider_delete_error,
-        "local_deleted_at": _datetime_value(recording.local_deleted_at),
-        "download_url": _recording_download_url(recording),
-        "created_at": recording.created_at.isoformat(),
-        "updated_at": recording.updated_at.isoformat(),
-    }
 
 
 class PhoneCallRecordingSerializer(serializers.ModelSerializer[PhoneCallRecording]):
@@ -147,6 +120,60 @@ class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
         if not normalized:
             raise serializers.ValidationError("Phone endpoint requires a number.")
         return value.strip()
+
+    def validate(self, attrs: "PhoneEndpointAttrs") -> "PhoneEndpointAttrs":
+        """Reject an active endpoint over a number a client already owns.
+
+        Mirrors PhoneEndpoint.save() so the API returns a clean 400 instead of
+        a 500. Grandfathering symmetry: only enforced on create or when the
+        number/is_active association changes.
+        """
+        if "number" in attrs:
+            number = attrs["number"]
+        elif self.instance is not None:
+            number = self.instance.number
+        else:
+            number = ""
+        normalized = normalize_phone(number)
+
+        if "is_active" in attrs:
+            is_active = attrs["is_active"]
+        elif self.instance is not None:
+            is_active = self.instance.is_active
+        else:
+            is_active = True  # model field default
+
+        if self.instance is not None and (
+            normalized == self.instance.normalized_number
+            and is_active == self.instance.is_active
+        ):
+            return attrs  # association unchanged — grandfathered, like save()
+
+        if is_active:
+            conflict = ClientContactMethod.conflicting_client(normalized, None)
+            if conflict:
+                raise serializers.ValidationError(
+                    {
+                        "number": [
+                            f"Phone number {normalized} already belongs to "
+                            f"{conflict.owner_display_name()} and cannot be an "
+                            "active internal phone endpoint."
+                        ]
+                    }
+                )
+        return attrs
+
+
+class PhoneEndpointAttrs(TypedDict, total=False):
+    """Writable fields accepted by ``PhoneEndpointSerializer.validate``."""
+
+    number: str
+    label: str
+    endpoint_type: str
+    staff: "Staff | None"
+    provider_account_code: str
+    provider_metadata: dict[str, object]
+    is_active: bool
 
 
 class PhoneProviderSettingsAttrs(TypedDict, total=False):
@@ -275,7 +302,7 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
         return obj.destination_endpoint.label if obj.destination_endpoint else ""
 
     @extend_schema_field(PhoneCallRecordingSerializer(allow_null=True))
-    def get_recording(self, obj: PhoneCallRecord) -> PhoneCallRecordingResponse | None:
+    def get_recording(self, obj: PhoneCallRecord) -> dict[str, object] | None:
         recordings_by_call_id = self.context.get("phone_recordings_by_call_id")
         if not isinstance(recordings_by_call_id, dict):
             try:
@@ -283,7 +310,7 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
             except PhoneCallRecording.DoesNotExist:
                 return None
 
-            return _recording_response(recording)
+            return PhoneCallRecordingSerializer(recording).data
 
         cached_recording = recordings_by_call_id.get(obj.id)
         if cached_recording is None:
@@ -291,7 +318,7 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
         if not isinstance(cached_recording, PhoneCallRecording):
             raise TypeError("Recording cache contained an invalid value")
 
-        return _recording_response(cached_recording)
+        return PhoneCallRecordingSerializer(cached_recording).data
 
     def get_job_number(self, obj: PhoneCallRecord) -> int | None:
         return obj.job.job_number if obj.job else None

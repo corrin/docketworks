@@ -15,6 +15,7 @@ Callers pick the destination explicitly:
 import logging
 
 from django.db import transaction
+from django.utils import timezone
 
 from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.workflow.services.error_persistence import persist_app_error
@@ -34,31 +35,65 @@ def _move_contact_methods(
             client=source_client,
             contact__isnull=True,
         )
+        destination_queryset = ClientContactMethod.objects.filter(
+            client=destination_client,
+            contact__isnull=True,
+        )
     else:
         source_queryset = ClientContactMethod.objects.filter(contact=source_contact)
+        destination_queryset = ClientContactMethod.objects.filter(
+            contact=destination_contact
+        )
 
     affected = 0
-    for method in source_queryset.select_related("client", "contact").iterator():
-        destination_filter: dict[str, str | bool | Client | ClientContact | None] = {
-            "method_type": method.method_type,
-            "normalized_value": method.normalized_value,
-        }
-        if destination_contact is None:
-            destination_filter.update(
-                {"client": destination_client, "contact__isnull": True}
-            )
-        else:
-            destination_filter.update({"contact": destination_contact})
 
-        if ClientContactMethod.objects.filter(**destination_filter).exists():
-            method.delete()
-            affected += 1
-            continue
+    # Drop source methods the destination already owns (same method_type +
+    # normalized_value), respecting the per-owner unique constraints.
+    destination_pairs = set(
+        destination_queryset.values_list("method_type", "normalized_value")
+    )
+    duplicate_ids = [
+        method_id
+        for method_id, method_type, normalized_value in source_queryset.values_list(
+            "id", "method_type", "normalized_value"
+        )
+        if (method_type, normalized_value) in destination_pairs
+    ]
+    if duplicate_ids:
+        ClientContactMethod.objects.filter(id__in=duplicate_ids).delete()
+        affected += len(duplicate_ids)
 
-        method.client = destination_client
-        method.contact = destination_contact
-        method.save(update_fields=["client", "contact", "updated_at"])
-        affected += 1
+    # A moving primary method wins over the destination's existing primary of
+    # the same method_type (mirrors ClientContactMethod.save()'s demotion),
+    # keeping the partial unique constraints on (owner, method_type, is_primary)
+    # satisfied.
+    moving_primary_types = list(
+        source_queryset.filter(is_primary=True).values_list("method_type", flat=True)
+    )
+    if moving_primary_types:
+        destination_queryset.filter(
+            method_type__in=moving_primary_types,
+            is_primary=True,
+        ).update(is_primary=False)
+
+    # queryset.update() bypasses ClientContactMethod.save()'s
+    # one-number-one-client guard DELIBERATELY: a merge moves ALL of the
+    # source's methods to the destination, so any cross-client sharing the
+    # guard would flag (e.g. the client-level/contact-level twins migration
+    # 0023 created) already existed before the merge — the move creates no
+    # new conflicting ownership.
+    if destination_contact is None:
+        affected += source_queryset.update(
+            client=destination_client,
+            contact=None,
+            updated_at=timezone.now(),
+        )
+    else:
+        affected += source_queryset.update(
+            client=None,
+            contact=destination_contact,
+            updated_at=timezone.now(),
+        )
     return affected
 
 
@@ -82,11 +117,12 @@ def _move_client_contacts_and_methods(
         destination_client=destination,
     )
 
+    destination_contacts_by_name = {
+        existing.name: existing
+        for existing in ClientContact.objects.filter(client=destination)
+    }
     for contact in ClientContact.objects.filter(client=source).iterator():
-        destination_contact = ClientContact.objects.filter(
-            client=destination,
-            name=contact.name,
-        ).first()
+        destination_contact = destination_contacts_by_name.get(contact.name)
         if destination_contact is None:
             contact.client = destination
             contact.save(update_fields=["client", "updated_at"])

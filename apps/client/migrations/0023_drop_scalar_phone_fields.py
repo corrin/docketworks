@@ -92,7 +92,10 @@ def migrate_scalar_phones(
                     label=label_from_xero_item(item),
                 )
 
-    for contact in ClientContact.objects.filter(is_active=True).iterator():
+    # Every contact, including soft-deleted (is_active=False) ones: RemoveField
+    # drops the column for all rows, and Jobs keep FKs to inactive contacts, so
+    # skipping them would destroy their phone numbers irreversibly.
+    for contact in ClientContact.objects.all().iterator():
         add_phone_method(
             apps,
             contact=contact,

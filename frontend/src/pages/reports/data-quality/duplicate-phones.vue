@@ -166,6 +166,7 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { api } from '@/api/client'
+import { schemas } from '@/api/generated/api'
 import AppLayout from '@/components/AppLayout.vue'
 import Button from '@/components/ui/button/Button.vue'
 import {
@@ -179,29 +180,12 @@ import {
   Clock,
 } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
-import { exportToCsv } from '@/utils/string-formatting'
+import { exportToCsv, formatDateTime } from '@/utils/string-formatting'
 import { toLocalDateString } from '@/utils/dateUtils'
+import type { z } from 'zod'
 
-type DuplicateIssue = 'cross_client' | 'internal_line'
-
-interface DuplicatePhoneOwner {
-  method_id: string
-  owner_kind: 'client' | 'contact'
-  owner_name: string
-  effective_client_id: string | null
-}
-
-interface DuplicatePhone {
-  normalized_value: string
-  issue: DuplicateIssue
-  endpoint_label: string | null
-  owners: DuplicatePhoneOwner[]
-}
-
-interface DuplicatePhoneSummary {
-  cross_client: number
-  internal_line: number
-}
+type DuplicatePhone = z.infer<typeof schemas.DuplicatePhoneIssue>
+type DuplicatePhoneSummary = z.infer<typeof schemas.DuplicatePhoneSummary>
 
 const loading = ref(false)
 const error = ref<string | null>(null)
@@ -209,23 +193,29 @@ const duplicates = ref<DuplicatePhone[]>([])
 const summary = ref<DuplicatePhoneSummary>({ cross_client: 0, internal_line: 0 })
 const lastRunTime = ref<string>('Never')
 
-const issueLabel = (issue: DuplicateIssue): string =>
-  issue === 'cross_client' ? 'Cross-client' : 'Internal line'
+// Known issue/owner kinds get styled labels; unknown future kinds render the
+// raw value with neutral styling instead of being mislabeled.
+const ISSUE_LABELS: Record<string, string> = {
+  cross_client: 'Cross-client',
+  internal_line: 'Internal line',
+}
 
-const ownerKindLabel = (kind: DuplicatePhoneOwner['owner_kind']): string =>
-  kind === 'client' ? 'Client' : 'Contact'
+const ISSUE_CLASSES: Record<string, string> = {
+  cross_client: 'bg-amber-100 text-amber-800',
+  internal_line: 'bg-blue-100 text-blue-800',
+}
 
-const getIssueClass = (issue: DuplicateIssue): string =>
-  issue === 'cross_client' ? 'bg-amber-100 text-amber-800' : 'bg-blue-100 text-blue-800'
+const OWNER_KIND_LABELS: Record<string, string> = {
+  client: 'Client',
+  contact: 'Contact',
+}
 
-const formatRunTime = (value: string): string =>
-  new Date(value).toLocaleString('en-AU', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+const issueLabel = (issue: string): string => ISSUE_LABELS[issue] ?? issue
+
+const getIssueClass = (issue: string): string =>
+  ISSUE_CLASSES[issue] ?? 'bg-slate-100 text-slate-800'
+
+const ownerKindLabel = (kind: string): string => OWNER_KIND_LABELS[kind] ?? kind
 
 const refreshData = async () => {
   loading.value = true
@@ -234,22 +224,9 @@ const refreshData = async () => {
   try {
     const data = await api.check_duplicate_phones()
 
-    duplicates.value = data.duplicate_phones.map((entry) => ({
-      normalized_value: entry.normalized_value,
-      issue: entry.issue as DuplicateIssue,
-      endpoint_label: entry.endpoint_label ?? null,
-      owners: entry.owners.map((owner) => ({
-        method_id: owner.method_id,
-        owner_kind: owner.owner_kind as DuplicatePhoneOwner['owner_kind'],
-        owner_name: owner.owner_name,
-        effective_client_id: owner.effective_client_id ?? null,
-      })),
-    }))
-    summary.value = {
-      cross_client: data.summary.cross_client,
-      internal_line: data.summary.internal_line,
-    }
-    lastRunTime.value = formatRunTime(data.checked_at)
+    duplicates.value = data.duplicate_phones
+    summary.value = data.summary
+    lastRunTime.value = formatDateTime(data.checked_at)
 
     if (duplicates.value.length === 0) {
       toast.success('No duplicate phone numbers found!')

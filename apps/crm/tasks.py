@@ -86,12 +86,17 @@ class RematchPhoneCallsTask(Protocol):
 
 
 def _rematch_phone_calls_task(numbers: list[str]) -> None:
-    """Idempotently reclassify historical calls affected by phone-number changes."""
+    """Idempotently reclassify historical calls affected by phone-number changes.
+
+    Unlike the beat-only tasks above, this one is also executed eagerly inside
+    web requests (CELERY_TASK_ALWAYS_EAGER in dev/E2E/tests), so it must not
+    call close_old_connections() — that would close the caller's in-flight
+    connection. Real workers get connection hygiene from Celery's Django fixup.
+    """
     scheduler_logger.info(
         "Running rematch_phone_calls_task for %d numbers.", len(numbers)
     )
     try:
-        close_old_connections()
         from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 
         rematch_calls_for_numbers(numbers)

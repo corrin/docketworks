@@ -47,6 +47,7 @@ try:
         from .stock_service import consume_stock, merge_stock_into
         from .supplier_search_service import (
             _CandidateScore,
+            _SupplierAnnotations,
             list_suppliers,
             normalize_supplier_phrase,
         )
@@ -67,6 +68,7 @@ __all__ = [
     "SupplierQuotePayloadModel",
     "SupplierQuoteSupplierModel",
     "_CandidateScore",
+    "_SupplierAnnotations",
     "calculate_unit_cost",
     "clean_json_response",
     "consume_stock",
