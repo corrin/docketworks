@@ -33,7 +33,7 @@
   "dependencies": {
     "@apidevtools/swagger-parser": "^12.1.0",
     "@fontsource-variable/inter": "^5.2.8",
-    "@internationalized/date": "^3.8.2",
+    "@internationalized/date": "^3.12.2",
     "@kodeglot/vue-calendar": "^1.5.0",
     "@rrweb/record": "^2.0.0-alpha.20",
     "@tailwindcss/vite": "^4.3.1",
