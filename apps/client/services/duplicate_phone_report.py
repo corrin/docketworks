@@ -13,6 +13,7 @@ from typing import TypedDict
 
 from django.db.models import Count
 from django.db.models.functions import Coalesce
+from django.utils import timezone
 
 from apps.client.models import ClientContactMethod
 from apps.crm.models import PhoneEndpoint
@@ -55,7 +56,7 @@ class DuplicatePhoneReportService:
                 "cross_client": len(cross_client),
                 "internal_line": len(internal_line),
             },
-            "checked_at": datetime.now(),
+            "checked_at": timezone.now(),
         }
 
     def _cross_client_conflicts(self) -> list[DuplicatePhoneIssue]:

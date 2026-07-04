@@ -859,8 +859,20 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
 
     def test_only_office_staff_can_read_recording_downloads(self) -> None:
         self.api.force_authenticate(user=self.workshop_staff)
+        recording = PhoneCallRecording.objects.create(
+            call=self.call,
+            provider_recording_id="workshop-staff-check",
+            account_code="account",
+            filename="workshop-staff-check.mp3",
+            storage_path="workshop-staff-check.mp3",
+            content_type="audio/mpeg",
+            byte_size=1,
+            archived_at=timezone.now(),
+        )
 
-        response = self.api.get("/api/crm/phone-calls/")
+        response = self.api.get(
+            f"/api/crm/phone-call-recordings/{recording.id}/download/"
+        )
 
         self.assertEqual(response.status_code, 403)
 

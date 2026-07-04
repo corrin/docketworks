@@ -11,6 +11,7 @@ from django.utils import timezone
 from apps.client.models import Client, ClientContactMethod
 from apps.crm.models import PhoneCallRecord
 from apps.workflow.api.xero.reprocess_xero import (
+    _xero_phone_value,
     set_client_fields,
     sync_xero_phone_methods,
 )
@@ -410,3 +411,20 @@ class XeroPhoneMethodSyncTests(TestCase):
         with self.captureOnCommitCallbacks() as callbacks:
             set_client_fields(client)
         self.assertEqual(callbacks, [])
+
+
+class XeroPhoneValueTests(TestCase):
+    def test_explicit_null_fields_do_not_leak_the_string_none(self) -> None:
+        # Xero JSON often carries explicit nulls for unset optional parts. dict
+        # .get(key, "") would return None for those, so the f-string embedded
+        # the literal "None" into the stored value; the value must stay clean.
+        value = _xero_phone_value(
+            {
+                "_phone_number": "5551234",
+                "_phone_area_code": None,
+                "_phone_country_code": None,
+            }
+        )
+
+        self.assertEqual(value, "5551234")
+        self.assertNotIn("None", value)

@@ -182,6 +182,25 @@ class ClientContactMethodTests(TestCase):
         self.assertFalse(first.is_primary)
         self.assertTrue(second.is_primary)
 
+    def test_partial_update_fields_still_persists_normalized_value(self) -> None:
+        """save(update_fields=["value"]) must also persist the recomputed
+        normalized_value, or the matching/uniqueness index goes stale."""
+        client = self._client("Acme Ltd")
+        method = ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 111 111",
+        )
+
+        method.value = "021 222 222"
+        method.save(update_fields=["value"])
+
+        method.refresh_from_db()
+        self.assertEqual(
+            method.normalized_value,
+            ClientContactMethod.normalize_phone("021 222 222"),
+        )
+
 
 class ClientPrimaryPhoneValueTests(TestCase):
     """Guards the helper PO PDFs and Xero sync use to print a supplier phone."""

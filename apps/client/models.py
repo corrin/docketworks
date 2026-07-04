@@ -502,6 +502,7 @@ class ClientContactMethod(models.Model):
         # write itself (e.g. the "scrub" alias during backport_data_backup).
         db = using or self._state.db or DEFAULT_DB_ALIAS
         self.normalized_value = self.normalize_value(self.method_type, self.value)
+        update_fields = _augment_update_fields(update_fields, "normalized_value")
         if not self.normalized_value:
             raise ValueError("contact method requires a value")
         if self.method_type == self.MethodType.PHONE:

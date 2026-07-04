@@ -1,6 +1,7 @@
 # workflow/xero/reprocess_xero.py
 import logging
 import uuid
+from collections.abc import Mapping
 
 from django.core.exceptions import ValidationError
 from django.db import transaction
@@ -32,10 +33,10 @@ from apps.workflow.services.error_persistence import (
 logger = logging.getLogger("xero")
 
 
-def _xero_phone_value(phone_entry: dict[str, str]) -> str:
-    number = phone_entry.get("_phone_number", "")
-    area_code = phone_entry.get("_phone_area_code", "")
-    country_code = phone_entry.get("_phone_country_code", "")
+def _xero_phone_value(phone_entry: Mapping[str, str | None]) -> str:
+    number = phone_entry.get("_phone_number") or ""
+    area_code = phone_entry.get("_phone_area_code") or ""
+    country_code = phone_entry.get("_phone_country_code") or ""
     return f"{country_code} {area_code} {number}".strip()
 
 
@@ -451,9 +452,13 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
         client.xero_last_modified = client.xero_last_modified or timezone.now()
 
     client.xero_last_synced = timezone.now()
-    # type ignore: Client.save is still untyped (apps/client/models.py).
-    client.save()  # type: ignore[no-untyped-call]
-    created_numbers = sync_xero_phone_methods(client)
+    # Keep the client write and its phone sync atomic: a cross-client phone
+    # conflict raised by sync_xero_phone_methods must roll back this client's
+    # field update too, rather than leaving it committed without its numbers.
+    with transaction.atomic():
+        # type ignore: Client.save is still untyped (apps/client/models.py).
+        client.save()  # type: ignore[no-untyped-call]
+        created_numbers = sync_xero_phone_methods(client)
     if created_numbers:
         # Numbers imported from Xero must rematch historical calls just like
         # UI-edited numbers do. Dispatch after the DB work is committed so the

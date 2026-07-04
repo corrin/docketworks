@@ -15,6 +15,8 @@ Safety: refuses to run unless settings.DATABASES["scrub"]["NAME"] ends in
 at prod.
 """
 
+from collections.abc import Callable
+
 from django.conf import settings
 from django.db import transaction
 from faker import Faker
@@ -102,6 +104,32 @@ def _preserved_client_names() -> set[str]:
     return preserved
 
 
+def _unique_scrub_value(
+    generate: Callable[[], str],
+    method_type: str,
+    used: set[tuple[str, str]],
+) -> tuple[str, str]:
+    """Return a (value, normalized) whose normalized form is globally unique.
+
+    ``used`` accumulates every ``(method_type, normalized)`` produced so far, so
+    no two scrubbed contact methods can share a normalized value. That keeps the
+    scrub clear of the per-owner unique constraints even against a real,
+    not-yet-scrubbed number still in the table, without relying on the
+    one-number-one-client guard in ``ClientContactMethod.save()`` (which
+    ``bulk_update`` deliberately bypasses).
+    """
+    for _ in range(1000):
+        value = generate()
+        normalized = ClientContactMethod.normalize_value(method_type, value)
+        key = (method_type, normalized)
+        if normalized and key not in used:
+            used.add(key)
+            return value, normalized
+    raise RuntimeError(
+        "Failed to generate unique contact method value after 1000 attempts"
+    )
+
+
 def _scrub_clients() -> None:
     """Mirror legacy PII_CONFIG entries for client.client and client.clientcontact.
 
@@ -161,14 +189,34 @@ def _scrub_clients() -> None:
             update_fields=["name", "email"],
         )
 
-    for method in ClientContactMethod.objects.using(SCRUB_ALIAS).all():
+    # Preserved clients (shop, test, enabled scrapers) keep their real contact
+    # methods, matching the name/email exclusion above. A method is preserved
+    # whether it is owned directly by the client or via one of its contacts.
+    used_method_values: set[tuple[str, str]] = set()
+    methods_to_update: list[ClientContactMethod] = []
+    for method in (
+        ClientContactMethod.objects.using(SCRUB_ALIAS)
+        .exclude(client__name__in=preserved)
+        .exclude(contact__client__name__in=preserved)
+    ):
         if method.method_type == ClientContactMethod.MethodType.PHONE:
-            method.value = fake.phone_number()
+            generate = fake.phone_number
         elif method.method_type == ClientContactMethod.MethodType.EMAIL:
-            method.value = fake.email()
+            generate = fake.email
         else:
             continue
-        method.save(using=SCRUB_ALIAS, update_fields=["value", "normalized_value"])
+        value, normalized = _unique_scrub_value(
+            generate, method.method_type, used_method_values
+        )
+        method.value = value
+        method.normalized_value = normalized
+        methods_to_update.append(method)
+    # bulk_update bypasses ClientContactMethod.save(), so the one-number-one-client
+    # guard and primary-demotion logic (neither of which is a business operation
+    # during a scrub) never run and cannot abort the transaction on a collision.
+    ClientContactMethod.objects.using(SCRUB_ALIAS).bulk_update(
+        methods_to_update, ["value", "normalized_value"], batch_size=500
+    )
 
 
 def _scrub_accounting_contacts() -> None:

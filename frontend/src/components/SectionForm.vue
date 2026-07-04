@@ -190,7 +190,7 @@ const props = defineProps<{ section: string; modelValue: Record<string, unknown>
 const emit = defineEmits<{ (e: 'update:modelValue', value: Record<string, unknown>): void }>()
 
 const { getFieldsForSection, getSpecialHandler } = useSettingsSchema()
-const localForm = ref(props.modelValue)
+const localForm = ref({ ...props.modelValue })
 
 // Layout overrides — purely a frontend concern. The backend says *what* a
 // setting is (label, type, section, help_text); this dict says *how* the
