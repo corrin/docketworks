@@ -4,7 +4,7 @@ from typing import Any
 from django.core.exceptions import ValidationError
 from django.db import models
 from django.utils import timezone
-from encrypted_model_fields.fields import (  # type: ignore[import-untyped]  # third-party package without stubs
+from encrypted_model_fields.fields import (
     EncryptedCharField,
 )
 

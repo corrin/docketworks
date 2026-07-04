@@ -404,9 +404,6 @@ apps/client/tests/test_get_client_for_xero.py:0: error: Call to untyped function
 apps/client/tests/test_get_client_for_xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/client/tests/test_get_client_for_xero.py:0: note: Use "-> None" if function does not return a value
 apps/client/tests/test_get_client_for_xero.py:0: error: Call to untyped function "_make_client" in typed context  [no-untyped-call]
-apps/client/tests/test_contact_methods.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/client/tests/test_contact_methods.py:0: error: Call to untyped function "_client" in typed context  [no-untyped-call]
-apps/client/tests/test_contact_methods.py:0: error: Call to untyped function "_client" in typed context  [no-untyped-call]
 apps/workflow/management/commands/create_service_api_key.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/management/commands/create_service_api_key.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/management/commands/reassign_time_entries.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -494,12 +491,10 @@ apps/job/services/job_service.py:0: error: Call to untyped function "_touch_job_
 apps/crm/services/phone_call_service.py:0: error: Call to untyped function "PhoneMatcher" in typed context  [no-untyped-call]
 apps/crm/services/phone_call_service.py:0: error: Module "django.utils.timezone" does not explicitly export attribute "timedelta"  [attr-defined]
 apps/crm/services/phone_call_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/crm/services/phone_call_service.py:0: error: Argument 1 to "Path" has incompatible type "str | None"; expected "str | PathLike[str]"  [arg-type]
 apps/crm/services/phone_call_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/crm/services/phone_call_service.py:0: note: Use "-> None" if function does not return a value
 apps/crm/services/phone_call_service.py:0: error: Call to untyped function "PhoneMatcher" in typed context  [no-untyped-call]
 apps/crm/services/phone_call_service.py:0: error: Dict entry 0 has incompatible type "str": "Client"; expected "str": "ClientContact | None"  [dict-item]
-apps/crm/services/phone_call_service.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/crm/services/phone_call_service.py:0: error: Item "None" of "ClientContact | None" has no attribute "is_active"  [union-attr]
 apps/crm/services/phone_call_service.py:0: error: Item "None" of "ClientContact | None" has no attribute "client_id"  [union-attr]
 apps/crm/services/phone_call_service.py:0: error: Item "None" of "Client | None" has no attribute "allow_jobs"  [union-attr]
@@ -653,14 +648,12 @@ apps/job/services/import_quote_service.py:0: error: Function is missing a type a
 apps/job/services/import_quote_service.py:0: error: Unsupported operand types for + ("None" and "int")  [operator]
 apps/job/services/import_quote_service.py:0: note: Left operand is of type "Any | None"
 apps/workflow/services/db_scrubber.py:0: error: Argument 1 to "add" of "set" has incompatible type "str | None"; expected "str"  [arg-type]
-apps/workflow/services/db_scrubber.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/api/xero/reprocess_xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/reprocess_xero.py:0: error: Item "None" of "type[InvoiceLineItem] | type[BillLineItem] | type[CreditNoteLineItem] | None" has no attribute "objects"  [union-attr]
 apps/workflow/api/xero/reprocess_xero.py:0: error: Argument after ** must have string keys  [arg-type]
 apps/workflow/api/xero/reprocess_xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/reprocess_xero.py:0: error: Unsupported operand types for + ("str" and "None")  [operator]
 apps/workflow/api/xero/reprocess_xero.py:0: note: Right operand is of type "Any | None"
-apps/workflow/api/xero/reprocess_xero.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
 apps/workflow/api/xero/reprocess_xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/api/xero/reprocess_xero.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/api/xero/reprocess_xero.py:0: error: Call to untyped function "set_invoice_or_bill_fields" in typed context  [no-untyped-call]
@@ -733,7 +726,6 @@ apps/job/services/job_profitability_report.py:0: error: Item "int" of "Decimal |
 apps/crm/tests/test_phone_call_service.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/crm/tests/test_phone_call_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/crm/tests/test_phone_call_service.py:0: error: Cannot assign to a method  [method-assign]
-apps/crm/tests/test_phone_call_service.py:0: error: Call to untyped function "PhoneMatcher" in typed context  [no-untyped-call]
 apps/crm/tests/test_phone_call_service.py:0: error: Call to untyped function "PhoneMatcher" in typed context  [no-untyped-call]
 apps/crm/tests/test_phone_call_service.py:0: error: Call to untyped function "PhoneMatcher" in typed context  [no-untyped-call]
 apps/crm/tests/test_phone_call_service.py:0: error: Call to untyped function "PhoneMatcher" in typed context  [no-untyped-call]
@@ -1108,8 +1100,6 @@ apps/workflow/tests/test_data_versions_view.py:0: error: Call to untyped functio
 apps/workflow/tests/test_data_versions_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_data_versions_view.py:0: error: Call to untyped function "_client" in typed context  [no-untyped-call]
 apps/workflow/tests/test_data_versions_view.py:0: error: Call to untyped function "_job" in typed context  [no-untyped-call]
-apps/workflow/tests/test_data_versions_view.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
-apps/workflow/tests/test_data_versions_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_data_versions_view.py:0: error: Call to untyped function "_client" in typed context  [no-untyped-call]
 apps/workflow/tests/test_data_versions_view.py:0: error: Call to untyped function "_job" in typed context  [no-untyped-call]
 apps/workflow/tests/test_app_error_grouped_view.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -1573,10 +1563,6 @@ apps/workflow/tests/test_company_defaults_api.py:0: error: Function is missing a
 apps/workflow/tests/test_company_defaults_api.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_company_defaults_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_company_defaults_api.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIResponse" has no attribute "data"  [attr-defined]
-apps/workflow/tests/test_company_defaults_api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_company_defaults_api.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIResponse" has no attribute "data"  [attr-defined]
 apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIResponse" has no attribute "data"  [attr-defined]
 apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIResponse" has no attribute "data"  [attr-defined]
 apps/workflow/tests/test_company_defaults_api.py:0: error: "_MonkeyPatchedWSGIResponse" has no attribute "data"  [attr-defined]
@@ -4958,6 +4944,3 @@ apps/job/views/quote_sync_views.py:0: error: Incompatible types in assignment (e
 apps/job/views/quote_sync_views.py:0: error: Dict entry 0 has incompatible type "str": "bool"; expected "str": "str"  [dict-item]
 apps/job/views/quote_sync_views.py:0: error: Incompatible types in assignment (expression has type "ApplyQuoteErrorResponseSerializer", variable has type "QuoteSyncErrorResponseSerializer")  [assignment]
 apps/process/urls_rest.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/quoting/migrations/0020_suppliercredential_supplierscraperconfig_and_more.py:0: error: Skipping analyzing "encrypted_model_fields.fields": module is installed, but missing library stubs or py.typed marker  [import-untyped]
-apps/quoting/migrations/0020_suppliercredential_supplierscraperconfig_and_more.py:0: note: See https://mypy.readthedocs.io/en/stable/running_mypy.html#missing-imports
-apps/quoting/migrations/0020_suppliercredential_supplierscraperconfig_and_more.py:0: error: Skipping analyzing "encrypted_model_fields": module is installed, but missing library stubs or py.typed marker  [import-untyped]

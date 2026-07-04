@@ -1,4 +1,5 @@
 import logging
+from typing import Protocol, cast
 
 from celery import shared_task
 from django.db import close_old_connections
@@ -78,8 +79,13 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
         raise AlreadyLoggedException(exc, app_error.id) from exc
 
 
-@shared_task(name="apps.crm.tasks.rematch_phone_calls_task")
-def rematch_phone_calls_task(numbers: list[str]) -> None:
+class RematchPhoneCallsTask(Protocol):
+    def __call__(self, numbers: list[str]) -> None: ...
+
+    def delay(self, numbers: list[str]) -> object: ...
+
+
+def _rematch_phone_calls_task(numbers: list[str]) -> None:
     """Idempotently reclassify historical calls affected by phone-number changes."""
     scheduler_logger.info(
         "Running rematch_phone_calls_task for %d numbers.", len(numbers)
@@ -99,3 +105,11 @@ def rematch_phone_calls_task(numbers: list[str]) -> None:
         )
         app_error = persist_app_error(exc)
         raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+rematch_phone_calls_task = cast(
+    RematchPhoneCallsTask,
+    shared_task(name="apps.crm.tasks.rematch_phone_calls_task")(
+        _rematch_phone_calls_task
+    ),
+)

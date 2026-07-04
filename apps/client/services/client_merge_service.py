@@ -39,7 +39,7 @@ def _move_contact_methods(
 
     affected = 0
     for method in source_queryset.select_related("client", "contact").iterator():
-        destination_filter = {
+        destination_filter: dict[str, str | bool | Client | ClientContact | None] = {
             "method_type": method.method_type,
             "normalized_value": method.normalized_value,
         }

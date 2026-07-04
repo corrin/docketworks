@@ -4,6 +4,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
+from django.http import StreamingHttpResponse
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.utils import timezone
 from rest_framework.test import APIClient
@@ -852,6 +853,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response["Content-Type"], "audio/mpeg")
+        assert isinstance(response, StreamingHttpResponse)
         body = b"".join(response.streaming_content)
         self.assertEqual(body, payload)
 

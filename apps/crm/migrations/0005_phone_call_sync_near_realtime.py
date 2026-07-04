@@ -1,12 +1,16 @@
 import json
 
 from django.db import migrations
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.state import StateApps
 
 SYNC_TASK_NAME = "apps.crm.tasks.sync_phone_calls_task"
 SYNC_PERIODIC_TASK_NAME = "sync_phone_calls_daily"
 
 
-def set_near_realtime_phone_call_schedule(apps, schema_editor):
+def set_near_realtime_phone_call_schedule(
+    apps: StateApps, schema_editor: BaseDatabaseSchemaEditor
+) -> None:
     PeriodicTask = apps.get_model("django_celery_beat", "PeriodicTask")
     CrontabSchedule = apps.get_model("django_celery_beat", "CrontabSchedule")
 
@@ -31,7 +35,9 @@ def set_near_realtime_phone_call_schedule(apps, schema_editor):
     )
 
 
-def restore_daily_phone_call_schedule(apps, schema_editor):
+def restore_daily_phone_call_schedule(
+    apps: StateApps, schema_editor: BaseDatabaseSchemaEditor
+) -> None:
     PeriodicTask = apps.get_model("django_celery_beat", "PeriodicTask")
     CrontabSchedule = apps.get_model("django_celery_beat", "CrontabSchedule")
 

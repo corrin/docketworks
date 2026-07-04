@@ -10,6 +10,7 @@ import logging
 from drf_spectacular.utils import extend_schema
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
+from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
@@ -96,7 +97,7 @@ class DuplicatePhonesView(APIView):
         },
         tags=["Data Quality"],
     )
-    def get(self, request) -> Response:
+    def get(self, request: Request) -> Response:
         """Return phone numbers that break the one-number-one-client rule."""
         try:
             result = DuplicatePhoneReportService().get_report()
@@ -121,3 +122,4 @@ class DuplicatePhonesView(APIView):
                     },
                     status=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 )
+            raise  # persist_and_raise always raises; keeps the return type total

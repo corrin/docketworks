@@ -1,4 +1,5 @@
 import mimetypes
+from datetime import date
 from uuid import UUID
 
 from django.db.models import Q, QuerySet
@@ -17,9 +18,10 @@ from pydantic_core import ErrorDetails
 from rest_framework import serializers, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import ValidationError
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import BasePermission, IsAuthenticated
 from rest_framework.request import Request
 from rest_framework.response import Response
+from rest_framework.serializers import BaseSerializer
 from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
@@ -136,7 +138,7 @@ def _query_bool(value: str | None, field_name: str) -> bool | None:
     raise ValidationError({field_name: ["Must be true or false."]})
 
 
-def _query_date(value: str | None, field_name: str):
+def _query_date(value: str | None, field_name: str) -> date | None:
     if not value:
         return None
     parsed = parse_date(value)
@@ -427,10 +429,10 @@ class PhoneCallRecordingViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecording
     serializer_class = PhoneCallRecordingSerializer
     permission_classes = [IsAuthenticated, IsOfficeStaff]
 
-    def get_permissions(self):
+    def get_permissions(self) -> list[BasePermission]:
         if self.action in {"delete_local_file", "delete_provider_file"}:
             return [IsAuthenticated(), IsSuperuser()]
-        return super().get_permissions()
+        return [IsAuthenticated(), IsOfficeStaff()]
 
     def get_queryset(self) -> QuerySet[PhoneCallRecording]:
         return PhoneCallRecording.objects.order_by("-call__call_datetime")
@@ -538,11 +540,11 @@ class PhoneEndpointViewSet(viewsets.ModelViewSet[PhoneEndpoint]):
             return queryset
         return queryset.filter(is_active=is_active)
 
-    def perform_create(self, serializer: PhoneEndpointSerializer) -> None:
+    def perform_create(self, serializer: BaseSerializer[PhoneEndpoint]) -> None:
         endpoint = serializer.save()
         rematch_phone_calls_task.delay([endpoint.normalized_number])
 
-    def perform_update(self, serializer: PhoneEndpointSerializer) -> None:
+    def perform_update(self, serializer: BaseSerializer[PhoneEndpoint]) -> None:
         old_endpoint = self.get_object()
         old_number = old_endpoint.normalized_number
         endpoint = serializer.save()

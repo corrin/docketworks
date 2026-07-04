@@ -31,7 +31,6 @@ class ClearProductionXeroIdsTests(TestCase):
         client = Client.objects.create(
             name="Acme Ltd",
             email="info@acme.test",
-            phone="0211234567",
             address="123 Test Street",
             xero_last_modified=timezone.now(),
             xero_contact_id=SENTINEL_XERO_CONTACT_ID,

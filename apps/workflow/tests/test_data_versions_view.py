@@ -80,9 +80,9 @@ def _job(staff, **overrides):
     return Job.objects.create(**defaults)
 
 
-def _phone_call(**overrides):
+def _phone_call() -> PhoneCallRecord:
     now = timezone.now()
-    defaults = dict(
+    return PhoneCallRecord.objects.create(
         provider_call_id="version-test-call",
         account_code="version-test",
         call_datetime=now,
@@ -93,8 +93,6 @@ def _phone_call(**overrides):
         duration_seconds=60,
         raw_json={"id": "version-test-call"},
     )
-    defaults.update(overrides)
-    return PhoneCallRecord.objects.create(**defaults)
 
 
 def test_get_returns_dict_with_dataset_keys(auth_client, db):
@@ -214,8 +212,8 @@ def test_related_display_changes_change_kanban_version(
 
 
 def test_client_partial_save_changes_kanban_version(
-    auth_client, office_staff, kanban_prerequisites
-):
+    auth_client: APIClient, office_staff: Staff, kanban_prerequisites: None
+) -> None:
     client = _client(name="Original Client")
     _job(office_staff, client=client)
     before = auth_client.get("/api/data-versions/").json()["kanban"]
@@ -225,14 +223,18 @@ def test_client_partial_save_changes_kanban_version(
     assert before != after
 
 
-def test_creating_phone_call_changes_crm_calls_version(auth_client, db):
+def test_creating_phone_call_changes_crm_calls_version(
+    auth_client: APIClient, db: None
+) -> None:
     before = auth_client.get("/api/data-versions/").json()["crm_calls"]
     _phone_call()
     after = auth_client.get("/api/data-versions/").json()["crm_calls"]
     assert before != after
 
 
-def test_saving_phone_call_changes_crm_calls_version(auth_client, db):
+def test_saving_phone_call_changes_crm_calls_version(
+    auth_client: APIClient, db: None
+) -> None:
     call = _phone_call()
     before = auth_client.get("/api/data-versions/").json()["crm_calls"]
     call.duration_seconds = 120
@@ -241,7 +243,7 @@ def test_saving_phone_call_changes_crm_calls_version(auth_client, db):
     assert before != after
 
 
-def test_recording_changes_crm_calls_version(auth_client, db):
+def test_recording_changes_crm_calls_version(auth_client: APIClient, db: None) -> None:
     call = _phone_call()
     before = auth_client.get("/api/data-versions/").json()["crm_calls"]
     PhoneCallRecording.objects.create(

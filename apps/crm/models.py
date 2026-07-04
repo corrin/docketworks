@@ -1,7 +1,7 @@
 import uuid
 
 from django.db import models
-from encrypted_model_fields.fields import (  # type: ignore[import-untyped]  # third-party package without stubs
+from encrypted_model_fields.fields import (
     EncryptedCharField,
 )
 

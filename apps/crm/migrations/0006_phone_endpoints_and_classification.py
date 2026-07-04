@@ -3,9 +3,12 @@ import uuid
 
 import django.db.models.deletion
 from django.db import migrations, models
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.state import StateApps
+from django.db.models import Model
 
 
-def normalize_phone(value):
+def normalize_phone(value: str) -> str:
     digits = re.sub(r"\D+", "", str(value or ""))
     if not digits:
         return ""
@@ -16,7 +19,9 @@ def normalize_phone(value):
     return f"+{digits}"
 
 
-def migrate_phone_settings(apps, schema_editor):
+def migrate_phone_settings(
+    apps: StateApps, schema_editor: BaseDatabaseSchemaEditor
+) -> None:
     CompanyDefaults = apps.get_model("workflow", "CompanyDefaults")
     PhoneEndpoint = apps.get_model("crm", "PhoneEndpoint")
     PhoneProviderSettings = apps.get_model("crm", "PhoneProviderSettings")
@@ -64,7 +69,7 @@ def migrate_phone_settings(apps, schema_editor):
         )
 
 
-def customer_index(apps):
+def customer_index(apps: StateApps) -> dict[str, set[tuple[str, str, str]]]:
     ClientContactMethod = apps.get_model("client", "ClientContactMethod")
     PhoneEndpoint = apps.get_model("crm", "PhoneEndpoint")
     internal_numbers = set(
@@ -72,7 +77,7 @@ def customer_index(apps):
             "normalized_number", flat=True
         )
     )
-    index = {}
+    index: dict[str, set[tuple[str, str, str]]] = {}
     for method in ClientContactMethod.objects.filter(method_type="phone"):
         normalized = method.normalized_value or normalize_phone(method.value)
         if not normalized or normalized in internal_numbers:
@@ -89,7 +94,9 @@ def customer_index(apps):
     return index
 
 
-def resolve_customer(apps, matches):
+def resolve_customer(
+    apps: StateApps, matches: set[tuple[str, str, str]]
+) -> tuple[Model | None, Model | None]:
     Client = apps.get_model("client", "Client")
     ClientContact = apps.get_model("client", "ClientContact")
     if not matches:
@@ -106,7 +113,9 @@ def resolve_customer(apps, matches):
     return Client.objects.get(id=object_id), None
 
 
-def classify_existing_calls(apps, schema_editor):
+def classify_existing_calls(
+    apps: StateApps, schema_editor: BaseDatabaseSchemaEditor
+) -> None:
     PhoneEndpoint = apps.get_model("crm", "PhoneEndpoint")
     PhoneCallRecord = apps.get_model("crm", "PhoneCallRecord")
     endpoints = {

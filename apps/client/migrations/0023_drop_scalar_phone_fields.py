@@ -1,9 +1,12 @@
 import re
 
 from django.db import migrations
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.state import StateApps
+from django.db.models import Model
 
 
-def normalize_phone(value):
+def normalize_phone(value: str) -> str:
     digits = re.sub(r"\D+", "", str(value or ""))
     if not digits:
         return ""
@@ -14,7 +17,7 @@ def normalize_phone(value):
     return f"+{digits}"
 
 
-def phone_value_from_xero_item(item):
+def phone_value_from_xero_item(item: dict[str, str]) -> str:
     if not isinstance(item, dict):
         return ""
     return (
@@ -26,21 +29,22 @@ def phone_value_from_xero_item(item):
     )
 
 
-def label_from_xero_item(item):
+def label_from_xero_item(item: dict[str, str]) -> str:
     if not isinstance(item, dict):
         return ""
     return item.get("type") or item.get("phone_type") or item.get("PhoneType") or ""
 
 
 def add_phone_method(
-    ContactMethod,
+    apps: StateApps,
     *,
-    client=None,
-    contact=None,
-    value,
-    label="",
-    is_primary=False,
-):
+    client: Model | None = None,
+    contact: Model | None = None,
+    value: str,
+    label: str = "",
+    is_primary: bool = False,
+) -> None:
+    ContactMethod = apps.get_model("client", "ClientContactMethod")
     normalized = normalize_phone(value)
     if not normalized:
         return
@@ -65,14 +69,15 @@ def add_phone_method(
         method.save(update_fields=["is_primary", "updated_at"])
 
 
-def migrate_scalar_phones(apps, schema_editor):
+def migrate_scalar_phones(
+    apps: StateApps, schema_editor: BaseDatabaseSchemaEditor
+) -> None:
     Client = apps.get_model("client", "Client")
     ClientContact = apps.get_model("client", "ClientContact")
-    ContactMethod = apps.get_model("client", "ClientContactMethod")
 
     for client in Client.objects.all().iterator():
         add_phone_method(
-            ContactMethod,
+            apps,
             client=client,
             value=client.phone,
             label="Main",
@@ -81,7 +86,7 @@ def migrate_scalar_phones(apps, schema_editor):
         if isinstance(client.all_phones, list):
             for item in client.all_phones:
                 add_phone_method(
-                    ContactMethod,
+                    apps,
                     client=client,
                     value=phone_value_from_xero_item(item),
                     label=label_from_xero_item(item),
@@ -89,7 +94,7 @@ def migrate_scalar_phones(apps, schema_editor):
 
     for contact in ClientContact.objects.filter(is_active=True).iterator():
         add_phone_method(
-            ContactMethod,
+            apps,
             contact=contact,
             value=contact.phone,
             label="Main",

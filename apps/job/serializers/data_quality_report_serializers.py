@@ -2,6 +2,13 @@
 
 from rest_framework import serializers
 
+from apps.client.services.duplicate_phone_report import (
+    DuplicatePhoneIssue,
+    DuplicatePhoneOwner,
+    DuplicatePhonesReport,
+    DuplicatePhoneSummary,
+)
+
 
 class ComplianceSummarySerializer(serializers.Serializer):
     """Summary of compliance issues."""
@@ -60,7 +67,7 @@ class ArchivedJobsComplianceResponseSerializer(serializers.Serializer):
     checked_at = serializers.DateTimeField(help_text="When the check was performed")
 
 
-class DuplicatePhoneOwnerSerializer(serializers.Serializer):
+class DuplicatePhoneOwnerSerializer(serializers.Serializer[DuplicatePhoneOwner]):
     """One owner of a mis-owned phone number."""
 
     method_id = serializers.CharField(help_text="Contact-method id")
@@ -71,7 +78,7 @@ class DuplicatePhoneOwnerSerializer(serializers.Serializer):
     )
 
 
-class DuplicatePhoneSummarySerializer(serializers.Serializer):
+class DuplicatePhoneSummarySerializer(serializers.Serializer[DuplicatePhoneSummary]):
     """Summary of duplicate-phone issues."""
 
     cross_client = serializers.IntegerField(
@@ -82,7 +89,7 @@ class DuplicatePhoneSummarySerializer(serializers.Serializer):
     )
 
 
-class DuplicatePhoneIssueSerializer(serializers.Serializer):
+class DuplicatePhoneIssueSerializer(serializers.Serializer[DuplicatePhoneIssue]):
     """One problematic phone number and its owners."""
 
     normalized_value = serializers.CharField(help_text="Normalized phone number")
@@ -95,7 +102,7 @@ class DuplicatePhoneIssueSerializer(serializers.Serializer):
     owners = DuplicatePhoneOwnerSerializer(many=True)
 
 
-class DuplicatePhonesResponseSerializer(serializers.Serializer):
+class DuplicatePhonesResponseSerializer(serializers.Serializer[DuplicatePhonesReport]):
     """Response for the duplicate phones check."""
 
     duplicate_phones = serializers.ListField(

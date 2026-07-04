@@ -8,7 +8,7 @@ from apps.testing import BaseAPITestCase
 
 
 class ClientContactMethodTests(TestCase):
-    def _client(self, name="Acme Ltd"):
+    def _client(self, name: str = "Acme Ltd") -> Client:
         return Client.objects.create(name=name, xero_last_modified=timezone.now())
 
     def test_phone_normalization_matches_nz_variants(self) -> None:

@@ -75,14 +75,12 @@ def build_golden_job(test_staff: Staff) -> Job:
 
     client = Client.objects.create(
         name="ACME Engineering Ltd",
-        phone="+64 4 555 1234",
         xero_last_modified=FROZEN_NOW,
     )
 
     contact = ClientContact.objects.create(
         client=client,
         name="Jane Doe",
-        phone="+64 21 555 5678",
     )
 
     job = Job.objects.create(

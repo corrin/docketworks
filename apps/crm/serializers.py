@@ -149,6 +149,17 @@ class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
         return value.strip()
 
 
+class PhoneProviderSettingsAttrs(TypedDict, total=False):
+    """Writable fields accepted by ``PhoneProviderSettingsSerializer.validate``."""
+
+    downloads_enabled: bool
+    recording_deletion_enabled: bool
+    base_url: str | None
+    username: str
+    password: str
+    account_code: str
+
+
 class PhoneProviderSettingsSerializer(
     serializers.ModelSerializer[PhoneProviderSettings]
 ):
@@ -182,7 +193,7 @@ class PhoneProviderSettingsSerializer(
         )
         read_only_fields = ("id", "created_at", "updated_at")
 
-    def validate(self, attrs: dict) -> dict:
+    def validate(self, attrs: PhoneProviderSettingsAttrs) -> PhoneProviderSettingsAttrs:
         downloads_enabled = attrs.get(
             "downloads_enabled",
             getattr(self.instance, "downloads_enabled", False),
@@ -199,12 +210,6 @@ class PhoneProviderSettingsSerializer(
 
     def get_has_password(self, obj: PhoneProviderSettings) -> bool:
         return bool(obj.password)
-
-    def to_representation(self, instance: PhoneProviderSettings) -> dict:
-        data = super().to_representation(instance)
-        data["has_username"] = bool(instance.username)
-        data["has_password"] = bool(instance.password)
-        return data
 
 
 class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):

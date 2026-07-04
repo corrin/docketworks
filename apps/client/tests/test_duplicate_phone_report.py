@@ -10,7 +10,12 @@ class DuplicatePhoneReportTests(TestCase):
     def _client(self, name: str) -> Client:
         return Client.objects.create(name=name, xero_last_modified=timezone.now())
 
-    def _phone(self, value, client=None, contact=None) -> ClientContactMethod:
+    def _phone(
+        self,
+        value: str,
+        client: Client | None = None,
+        contact: ClientContact | None = None,
+    ) -> ClientContactMethod:
         """Insert a phone method bypassing the save() guard (legacy-style data)."""
         method = ClientContactMethod(
             client=client,

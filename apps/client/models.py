@@ -1,12 +1,14 @@
 import logging
 import re
 import uuid
+from collections.abc import Iterable
 from decimal import Decimal
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
 from django.core.exceptions import ValidationError
 from django.db import models
+from django.db.models.base import ModelBase
 from django.db.models.functions import Coalesce
 from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
@@ -26,6 +28,18 @@ def _include_auto_now_update_field(kwargs, field_name: str) -> None:
         return
 
     kwargs["update_fields"] = [*update_field_names, field_name]
+
+
+def _augment_update_fields(
+    update_fields: Iterable[str] | None, field_name: str
+) -> list[str] | None:
+    """Add ``field_name`` to a partial ``update_fields`` so an auto-now column is saved."""
+    if update_fields is None:
+        return None
+    names = [update_fields] if isinstance(update_fields, str) else list(update_fields)
+    if names and field_name not in names:
+        names.append(field_name)
+    return names
 
 
 class ClientQuerySet(models.QuerySet):
@@ -339,8 +353,15 @@ class ClientContact(models.Model):
     def __str__(self):
         return f"{self.name} ({self.client.name})"
 
-    def save(self, *args, **kwargs):
-        _include_auto_now_update_field(kwargs, "updated_at")
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        update_fields = _augment_update_fields(update_fields, "updated_at")
 
         # If this contact is being set as primary, ensure no other contacts
         # for this client are marked as primary
@@ -348,7 +369,12 @@ class ClientContact(models.Model):
             ClientContact.objects.filter(client=self.client, is_primary=True).exclude(
                 id=self.id
             ).update(is_primary=False)
-        super().save(*args, **kwargs)
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
 
 class ClientContactMethod(models.Model):
@@ -436,8 +462,15 @@ class ClientContactMethod(models.Model):
         owner = self.contact or self.client
         return f"{self.method_type}: {self.value} ({owner})"
 
-    def save(self, *args, **kwargs):
-        _include_auto_now_update_field(kwargs, "updated_at")
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        update_fields = _augment_update_fields(update_fields, "updated_at")
         self.normalized_value = self.normalize_value(self.method_type, self.value)
         if not self.normalized_value:
             raise ValueError("contact method requires a value")
@@ -478,7 +511,12 @@ class ClientContactMethod(models.Model):
                 )
             queryset.update(is_primary=False)
 
-        super().save(*args, **kwargs)
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
     @classmethod
     def normalize_value(cls, method_type: str, value: str | None) -> str:
@@ -503,7 +541,7 @@ class ClientContactMethod(models.Model):
         """The effective client that owns this method (directly or via its contact)."""
         if self.client_id:
             return self.client_id
-        if self.contact_id:
+        if self.contact is not None:
             return self.contact.client_id
         return None
 

@@ -21,11 +21,12 @@ try:
             PhoneCallRecordingSerializer,
             PhoneEndpointSerializer,
             PhoneNumberAssignmentPayload,
+            PhoneProviderSettingsAttrs,
             PhoneProviderSettingsSerializer,
         )
         from .tasks import (
+            RematchPhoneCallsTask,
             delete_archived_phone_recordings_task,
-            rematch_phone_calls_task,
             sync_phone_calls_task,
         )
 except (ImportError, RuntimeError):
@@ -45,8 +46,9 @@ __all__ = [
     "PhoneEndpointSerializer",
     "PhoneNumberAssignmentPayload",
     "PhoneProviderSettings",
+    "PhoneProviderSettingsAttrs",
     "PhoneProviderSettingsSerializer",
+    "RematchPhoneCallsTask",
     "delete_archived_phone_recordings_task",
-    "rematch_phone_calls_task",
     "sync_phone_calls_task",
 ]

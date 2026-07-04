@@ -2,9 +2,13 @@
 
 import encrypted_model_fields.fields
 from django.db import migrations
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
+from django.db.migrations.state import StateApps
 
 
-def encrypt_existing_provider_credentials(apps, schema_editor):
+def encrypt_existing_provider_credentials(
+    apps: StateApps, schema_editor: BaseDatabaseSchemaEditor
+) -> None:
     PhoneProviderSettings = apps.get_model("crm", "PhoneProviderSettings")
     for settings in PhoneProviderSettings.objects.all():
         settings.save(update_fields=["username", "password", "updated_at"])

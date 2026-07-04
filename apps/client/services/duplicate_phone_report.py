@@ -9,7 +9,7 @@ Surfaces the two ways a phone number can be mis-owned, for manual clean-up:
 """
 
 from datetime import datetime
-from typing import Any
+from typing import TypedDict
 
 from django.db.models import Count
 from django.db.models.functions import Coalesce
@@ -18,10 +18,35 @@ from apps.client.models import ClientContactMethod
 from apps.crm.models import PhoneEndpoint
 
 
+class DuplicatePhoneOwner(TypedDict):
+    method_id: str
+    owner_kind: str
+    owner_name: str
+    effective_client_id: str | None
+
+
+class DuplicatePhoneIssue(TypedDict):
+    normalized_value: str
+    issue: str
+    endpoint_label: str | None
+    owners: list[DuplicatePhoneOwner]
+
+
+class DuplicatePhoneSummary(TypedDict):
+    cross_client: int
+    internal_line: int
+
+
+class DuplicatePhonesReport(TypedDict):
+    duplicate_phones: list[DuplicatePhoneIssue]
+    summary: DuplicatePhoneSummary
+    checked_at: datetime
+
+
 class DuplicatePhoneReportService:
     """Builds the "Duplicate phones" data-quality report."""
 
-    def get_report(self) -> dict[str, Any]:
+    def get_report(self) -> DuplicatePhonesReport:
         cross_client = self._cross_client_conflicts()
         internal_line = self._internal_line_collisions()
         return {
@@ -33,7 +58,7 @@ class DuplicatePhoneReportService:
             "checked_at": datetime.now(),
         }
 
-    def _cross_client_conflicts(self) -> list[dict[str, Any]]:
+    def _cross_client_conflicts(self) -> list[DuplicatePhoneIssue]:
         phones = ClientContactMethod.objects.filter(
             method_type=ClientContactMethod.MethodType.PHONE
         )
@@ -49,7 +74,7 @@ class DuplicatePhoneReportService:
         ]
         if not conflict_numbers:
             return []
-        grouped: dict[str, list[dict[str, Any]]] = {}
+        grouped: dict[str, list[DuplicatePhoneOwner]] = {}
         for method in (
             phones.filter(normalized_value__in=conflict_numbers)
             .select_related("client", "contact", "contact__client")
@@ -66,7 +91,7 @@ class DuplicatePhoneReportService:
             for number, owners in grouped.items()
         ]
 
-    def _internal_line_collisions(self) -> list[dict[str, Any]]:
+    def _internal_line_collisions(self) -> list[DuplicatePhoneIssue]:
         endpoint_labels = dict(
             PhoneEndpoint.objects.filter(is_active=True).values_list(
                 "normalized_number", "label"
@@ -92,7 +117,7 @@ class DuplicatePhoneReportService:
         ]
 
     @staticmethod
-    def _owner(method: ClientContactMethod) -> dict[str, Any]:
+    def _owner(method: ClientContactMethod) -> DuplicatePhoneOwner:
         effective_client_id = method.owner_client_id()
         return {
             "method_id": str(method.id),

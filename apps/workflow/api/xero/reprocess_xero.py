@@ -25,7 +25,7 @@ from apps.workflow.services.error_persistence import persist_and_raise
 logger = logging.getLogger("xero")
 
 
-def _xero_phone_value(phone_entry: dict) -> str:
+def _xero_phone_value(phone_entry: dict[str, str]) -> str:
     number = phone_entry.get("_phone_number", "")
     area_code = phone_entry.get("_phone_area_code", "")
     country_code = phone_entry.get("_phone_country_code", "")

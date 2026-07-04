@@ -5,6 +5,7 @@ from typing import cast
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
+from rest_framework.serializers import BaseSerializer
 
 from apps.client.models import ClientContactMethod
 from apps.client.serializers import ClientContactMethodSerializer
@@ -89,16 +90,16 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
 
         return queryset.distinct().order_by("method_type", "-is_primary", "value")
 
-    def perform_create(self, serializer: ClientContactMethodSerializer) -> None:
-        method = cast(ClientContactMethod, serializer.save())
+    def perform_create(self, serializer: BaseSerializer[ClientContactMethod]) -> None:
+        method = serializer.save()
         phone_number = _phone_number_for_rematch(method)
         if phone_number:
             rematch_calls_for_numbers([phone_number])
 
-    def perform_update(self, serializer: ClientContactMethodSerializer) -> None:
+    def perform_update(self, serializer: BaseSerializer[ClientContactMethod]) -> None:
         old_method = cast(ClientContactMethod, self.get_object())
         old_phone_number = _phone_number_for_rematch(old_method)
-        method = cast(ClientContactMethod, serializer.save())
+        method = serializer.save()
         new_phone_number = _phone_number_for_rematch(method)
         phone_numbers = [
             number for number in [old_phone_number, new_phone_number] if number
