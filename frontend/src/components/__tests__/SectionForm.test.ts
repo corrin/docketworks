@@ -29,6 +29,8 @@ vi.mock('@/composables/useSettingsSchema', () => ({
     ],
     getSpecialHandler: () => undefined,
   }),
+  REMOVED_SETTING_KEYS: new Set<string>(),
+  omitRemovedSettings: <T extends Record<string, unknown>>(form: T): T => form,
 }))
 
 describe('SectionForm', () => {

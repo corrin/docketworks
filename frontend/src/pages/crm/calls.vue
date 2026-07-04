@@ -148,6 +148,12 @@
           </div>
         </CardContent>
       </Card>
+
+      <PhoneNumberManager
+        title="Phone Numbers"
+        search-context="crm_calls_phone_numbers"
+        @changed="loadCalls"
+      />
     </div>
   </AppLayout>
 </template>
@@ -156,6 +162,7 @@
 import { computed, defineComponent, h, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
+import PhoneNumberManager from '@/components/crm/PhoneNumberManager.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent } from '@/components/ui/card'
