@@ -19,7 +19,7 @@ black==26.5.1 ; python_version >= "3.12" and python_version < "4.0"
 blinker==1.9.0 ; python_version >= "3.12" and python_version < "4.0"
 cachetools==7.1.1 ; python_version >= "3.12" and python_version < "4.0"
 celery==5.6.3 ; python_version >= "3.12" and python_version < "4.0"
-certifi==2026.4.22 ; python_version >= "3.12" and python_version < "4.0"
+certifi==2026.6.17 ; python_version >= "3.12" and python_version < "4.0"
 cffi==2.0.0 ; python_version >= "3.12" and python_version < "4.0" and (platform_python_implementation != "PyPy" or os_name == "nt") and (platform_python_implementation != "PyPy" or implementation_name != "pypy")
 cfgv==3.5.0 ; python_version >= "3.12" and python_version < "4.0"
 channels-redis==4.3.0 ; python_version >= "3.12" and python_version < "4.0"
