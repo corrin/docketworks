@@ -6,10 +6,11 @@ from collections import defaultdict
 from html import escape
 from io import BytesIO
 from typing import Callable, Optional, Union, cast
+from uuid import UUID
 
 from bs4 import BeautifulSoup, NavigableString
 from django.conf import settings
-from django.db.models import Prefetch
+from django.db.models import OuterRef, Prefetch, Subquery
 from django.utils import timezone
 from PIL import Image, ImageFile
 from pypdf import PdfWriter
@@ -33,6 +34,8 @@ logger = logging.getLogger(__name__)
 JOB_SUMMARY_PDF_FILENAME = "JobSummary.pdf"
 WORKSHOP_PDF_COST_LINES_ATTR = "_workshop_pdf_cost_lines"
 WORKSHOP_PDF_FILES_ATTR = "_workshop_pdf_files_to_print"
+WORKSHOP_PDF_CONTACT_PHONE_ATTR = "_workshop_pdf_contact_phone"
+WORKSHOP_PDF_CLIENT_PHONE_ATTR = "_workshop_pdf_client_phone"
 
 
 def _primary_phone_for_job(job: Job) -> str:
@@ -42,20 +45,15 @@ def _primary_phone_for_job(job: Job) -> str:
     to the client's number when the contact has no phone method (the business
     rule carried over from the pre-ClientContactMethod scalar fields).
     """
-    if job.contact:
-        method = (
-            ClientContactMethod.objects.filter(
-                method_type=ClientContactMethod.MethodType.PHONE,
-                contact=job.contact,
-            )
-            .order_by("-is_primary", "label", "value")
-            .first()
-        )
-        if method:
-            return method.value
-    if job.client:
-        return job.client.primary_phone_value()
-    return ""
+    if not hasattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR) or not hasattr(
+        job, WORKSHOP_PDF_CLIENT_PHONE_ATTR
+    ):
+        raise ValueError("PDF phone fields must be loaded before rendering")
+
+    contact_phone = getattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR)
+    if contact_phone:
+        return str(contact_phone)
+    return str(getattr(job, WORKSHOP_PDF_CLIENT_PHONE_ATTR) or "")
 
 
 def _primary_company_endpoint_number() -> str:
@@ -70,7 +68,40 @@ def _primary_company_endpoint_number() -> str:
     return endpoint.number if endpoint else ""
 
 
-def get_job_for_workshop_pdf(job_id: object) -> Job:
+def _primary_phone_annotations() -> dict[str, Subquery]:
+    contact_phone = (
+        ClientContactMethod.objects.filter(
+            method_type=ClientContactMethod.MethodType.PHONE,
+            contact_id=OuterRef("contact_id"),
+        )
+        .order_by("-is_primary", "label", "value")
+        .values("value")[:1]
+    )
+    client_phone = (
+        ClientContactMethod.objects.filter(
+            method_type=ClientContactMethod.MethodType.PHONE,
+            client_id=OuterRef("client_id"),
+        )
+        .order_by("-is_primary", "label", "value")
+        .values("value")[:1]
+    )
+    return {
+        WORKSHOP_PDF_CONTACT_PHONE_ATTR: Subquery(contact_phone),
+        WORKSHOP_PDF_CLIENT_PHONE_ATTR: Subquery(client_phone),
+    }
+
+
+def get_job_for_delivery_docket_pdf(job_id: UUID) -> Job:
+    """Load a job with the relations required to render a delivery docket."""
+    return cast(
+        Job,
+        Job.objects.select_related("client", "contact")
+        .annotate(**_primary_phone_annotations())
+        .get(id=job_id),
+    )
+
+
+def get_job_for_workshop_pdf(job_id: UUID) -> Job:
     """Load a job with the relations required to render a workshop PDF."""
     cost_lines = CostLine.objects.select_related("staff", "labour_subtype").order_by(
         "kind", "-quantity", "-created_at", "-id"
@@ -89,6 +120,7 @@ def get_job_for_workshop_pdf(job_id: object) -> Job:
             "latest_quote",
             "latest_actual",
         )
+        .annotate(**_primary_phone_annotations())
         .prefetch_related(
             # Prefetch cost lines for all three cost sets uniformly. The quote is
             # only read on the rare zero-estimate-hours fallback, so its prefetch
@@ -126,6 +158,14 @@ def _ensure_workshop_pdf_job_loaded(job: Job) -> Job:
     ):
         return job
     return get_job_for_workshop_pdf(job.id)
+
+
+def _ensure_delivery_docket_pdf_job_loaded(job: Job) -> Job:
+    if hasattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR) and hasattr(
+        job, WORKSHOP_PDF_CLIENT_PHONE_ATTR
+    ):
+        return job
+    return get_job_for_delivery_docket_pdf(job.id)
 
 
 def _cost_lines_for_pdf(cost_set: CostSet) -> list[CostLine]:
@@ -724,6 +764,7 @@ def create_delivery_docket_pdf(job: Job) -> BytesIO:
     Does not include job attachments - delivery dockets are kept minimal.
     """
     try:
+        job = _ensure_delivery_docket_pdf_job_loaded(job)
         return create_delivery_docket_main_document(job)
     except Exception as e:
         logger.error(f"Error creating delivery docket PDF: {str(e)}")
