@@ -424,6 +424,46 @@ class GetValidTokenTests(TestCase):
         self.assertEqual(AppError.objects.count(), before + 1)
         self.assertIsNone(auth._shared_cache.get(auth.REFRESH_LOCK_KEY))
 
+    def test_refresh_does_not_delete_reacquired_lock(self) -> None:
+        from apps.workflow.api.xero import auth
+
+        row = _row(
+            client_id="a1",
+            client_secret="s",
+            is_active=True,
+            access_token="OLD_AT",
+            refresh_token="OLD_RT",
+            token_type="Bearer",
+            expires_at=datetime.now(dt_timezone.utc) - timedelta(minutes=1),
+            scope="accounting.transactions",
+        )
+        replacement_owner = f"{row.id}:replacement"
+
+        def replace_lock() -> dict[str, object]:
+            auth._shared_cache.set(
+                auth.REFRESH_LOCK_KEY,
+                replacement_owner,
+                timeout=auth.REFRESH_LOCK_TIMEOUT_SECONDS,
+            )
+            return {
+                "access_token": "NEW_AT",
+                "refresh_token": "NEW_RT",
+                "token_type": "Bearer",
+                "expires_in": 1800,
+                "scope": "accounting.transactions",
+            }
+
+        with patch.object(auth, "refresh_token", side_effect=replace_lock):
+            result = auth.get_valid_token()
+
+        if result is None:
+            self.fail("Expected a refreshed token payload")
+        self.assertEqual(result["access_token"], "NEW_AT")
+        self.assertEqual(
+            auth._shared_cache.get(auth.REFRESH_LOCK_KEY),
+            replacement_owner,
+        )
+
 
 class XeroPingTests(TestCase):
     def test_ping_returns_500_for_prelogged_refresh_failure(self) -> None:

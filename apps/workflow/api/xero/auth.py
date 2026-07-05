@@ -13,6 +13,7 @@ other worker units so their fresh processes rebuild from the new row.
 
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 from urllib.parse import quote, urlencode
@@ -257,15 +258,17 @@ def get_valid_token() -> Optional[Dict[str, Any]]:
         logger.debug("Active XeroApp row needs refresh but has no refresh_token")
         return None
 
+    lock_owner = f"{app.id}:{uuid.uuid4().hex}"
     if _shared_cache.add(
         REFRESH_LOCK_KEY,
-        str(app.id),
+        lock_owner,
         timeout=REFRESH_LOCK_TIMEOUT_SECONDS,
     ):
         try:
             return refresh_token()
         finally:
-            _shared_cache.delete(REFRESH_LOCK_KEY)
+            if _shared_cache.get(REFRESH_LOCK_KEY) == lock_owner:
+                _shared_cache.delete(REFRESH_LOCK_KEY)
 
     # Another process is refreshing the rotating Xero token. Re-read the row:
     # if it already wrote a fresh token, use it; otherwise report no valid
