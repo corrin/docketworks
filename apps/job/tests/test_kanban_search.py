@@ -3,10 +3,13 @@ import uuid
 from datetime import date
 from decimal import Decimal
 
+from django.conf import settings
 from django.db import connection
 from django.test import RequestFactory
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from nplusone.core.profiler import Profiler
+from nplusone.ext.django.patch import apply_patches
 
 from apps.accounting.models import Invoice, Quote
 from apps.client.models import Client, ClientContact
@@ -122,6 +125,33 @@ class KanbanSearchTest(BaseTestCase):
             KanbanService.serialize_job_for_api(jobs[0], context=context)
 
         self.assertEqual([query["sql"] for query in captured.captured_queries], [])
+
+    def test_search_with_results_does_not_trip_unused_eager_load_guard(self) -> None:
+        """
+        Catches _apply_kanban_search eager-loading relations that ranking and
+        serialization never read. In DEBUG environments the nplusone
+        middleware runs with NPLUSONE_RAISE=True and its unused-eager-load
+        detector turns every kanban search that returns rows into a 500, so
+        one stray select_related/prefetch_related here breaks kanban search
+        in dev and E2E while all service-level tests stay green.
+        """
+        target = self._make_job(
+            name="Stainless balustrade panels",
+            client_name="Guarded Rails Ltd",
+        )
+
+        # The middleware only installs (and patches only auto-apply) when
+        # NPLUSONE_ENABLED is truthy, which CI is not — apply unconditionally
+        # (idempotent) so this guard is exercised everywhere.
+        apply_patches()
+        with Profiler(whitelist=settings.NPLUSONE_WHITELIST):
+            jobs = list(
+                KanbanService.perform_advanced_search(
+                    {"universal_search": "balustrade"}
+                )
+            )
+
+        self.assertEqual([job.id for job in jobs], [target.id])
 
     def test_perform_advanced_search_preloads_quote_for_ranking(self):
         """Catches quote ranking that re-queries quotes per candidate job."""

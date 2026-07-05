@@ -8,7 +8,7 @@
  * ghost duplication (2+ instances from stale SortableJS DOM nodes).
  */
 import { test, expect } from '../fixtures/auth'
-import type { Page, Locator } from '@playwright/test'
+import type { Page, Locator, Response } from '@playwright/test'
 
 const getJobIdFromUrl = (url: string): string => {
   const match = url.match(/\/jobs\/([a-f0-9-]+)/i)
@@ -119,6 +119,35 @@ const dragCardWithinColumn = async (page: Page, card: Locator, column: Locator) 
   await page.waitForTimeout(500)
 }
 
+/**
+ * Performs a drag and asserts the POST /reorder/ request it triggers
+ * succeeded. The response wait matches URL + method only — never status.
+ * A status-filtered predicate can never match a real backend failure
+ * (e.g. a 503), so the failure would surface as a misleading 30s timeout
+ * instead of the actual status and body. The wait is started BEFORE the
+ * drag so a fast response cannot slip past the listener.
+ */
+const expectReorderSuccess = async (
+  page: Page,
+  jobId: string,
+  performDrag: () => Promise<void>,
+): Promise<Response> => {
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
+      response.request().method() === 'POST',
+  )
+
+  await performDrag()
+
+  const response = await responsePromise
+  if (!response.ok()) {
+    const body = await response.text()
+    throw new Error(`reorder failed: ${response.status()} ${body}`)
+  }
+  return response
+}
+
 const assertSingleVisibleInstance = async (page: Page, jobId: string, context: string) => {
   const allVisibleCards = page.locator(`[data-job-id="${jobId}"]:visible`)
   await expect(
@@ -183,17 +212,10 @@ test.describe('kanban drag vanishing', () => {
       sourceStatus,
     )
 
-    const reorderResponse = page.waitForResponse((response) => {
-      return (
-        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300
-      )
-    })
-
-    await dragCardToColumn(page, jobCard, targetColumn)
-    await reorderResponse
+    // Guards: a backend regression that fails the reorder save (non-2xx)
+    // or a frontend regression that stops emitting it must fail here with
+    // the real status and body, not as a timeout or a vanished card below.
+    await expectReorderSuccess(page, jobId, () => dragCardToColumn(page, jobCard, targetColumn))
 
     await assertSingleVisibleInstance(page, jobId, 'search then drag')
     expect(consoleIssues).toEqual([])
@@ -230,17 +252,10 @@ test.describe('kanban drag vanishing', () => {
       sourceStatus,
     )
 
-    const reorderResponse = page.waitForResponse((response) => {
-      return (
-        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300
-      )
-    })
-
-    await dragCardToColumn(page, jobCard, targetColumn)
-    await reorderResponse
+    // Guards: a cross-column drag whose reorder save fails (non-2xx) or
+    // never fires must fail here with the real status and body, not as a
+    // timeout or a vanished card below.
+    await expectReorderSuccess(page, jobId, () => dragCardToColumn(page, jobCard, targetColumn))
 
     await assertSingleVisibleInstance(page, jobId, 'cross-column drag')
     expect(consoleIssues).toEqual([])
@@ -277,17 +292,14 @@ test.describe('kanban drag vanishing', () => {
       originalStatus,
     )
 
-    const firstResponse = page.waitForResponse((response) => {
-      return (
-        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300
-      )
-    })
-
-    await dragCardToColumn(page, jobCard, firstTargetColumn)
-    await firstResponse
+    // Drag persistence is serialized: a second drag must not start until the
+    // first save has settled. Awaiting AND asserting the first reorder
+    // response before the second drag guards two regressions — overlapping
+    // in-flight reorders being allowed again, and a non-2xx first response
+    // being masked as a timeout instead of reported with status and body.
+    await expectReorderSuccess(page, jobId, () =>
+      dragCardToColumn(page, jobCard, firstTargetColumn),
+    )
 
     await assertSingleVisibleInstance(page, jobId, 'first drag')
 
@@ -311,17 +323,12 @@ test.describe('kanban drag vanishing', () => {
         }
       : await pickTargetColumn(page, intermediateStatus)
 
-    const secondResponse = page.waitForResponse((response) => {
-      return (
-        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300
-      )
-    })
-
-    await dragCardToColumn(page, movedCard, backTargetColumn)
-    await secondResponse
+    // Guards: the second (return) drag's reorder save failing or being
+    // dropped after a just-settled first save — the rapid-sequential case
+    // that historically made cards vanish — must fail with the real status.
+    await expectReorderSuccess(page, jobId, () =>
+      dragCardToColumn(page, movedCard, backTargetColumn),
+    )
 
     await assertSingleVisibleInstance(page, jobId, 'second drag back')
     expect(consoleIssues).toEqual([])
@@ -354,24 +361,11 @@ test.describe('kanban drag vanishing', () => {
     const sourceColumn = getJobColumn(page, jobId)
     const sourceStatus = await sourceColumn.getAttribute('data-status')
 
-    const reorderResponse = page.waitForResponse((response) => {
-      return (
-        response.url().includes(`/api/job/jobs/${jobId}/reorder/`) &&
-        response.request().method() === 'POST' &&
-        response.status() >= 200 &&
-        response.status() < 300
-      )
-    })
-
-    await dragCardWithinColumn(page, jobCard, sourceColumn)
-
-    try {
-      await reorderResponse
-    } catch {
-      // If the reorder API doesn't fire (e.g. drop position is the
-      // same), the card should still be visible — the assertion below
-      // is the key check.
-    }
+    // Guards: an intra-column drop that stops emitting a reorder request,
+    // or whose save fails (non-2xx), must fail loudly here with the real
+    // status and body — not be swallowed as a tolerated timeout while the
+    // visibility assertion below happens to pass.
+    await expectReorderSuccess(page, jobId, () => dragCardWithinColumn(page, jobCard, sourceColumn))
 
     await assertSingleVisibleInstance(page, jobId, 'intra-column reorder')
     expect(consoleIssues).toEqual([])

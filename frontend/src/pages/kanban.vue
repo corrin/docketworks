@@ -508,14 +508,14 @@ const handleAdvancedSearchFromDialog = async (filters: AdvancedFilters) => {
 }
 
 const { isDragging, initializeSortable, destroyAllSortables } = useOptimizedDragAndDrop(
-  (event, payload) => {
+  async (event, payload) => {
     if (event === 'job-moved') {
       const { jobId, fromStatus, toStatus, anchorJobId, placement, dragId } = payload
       if (fromStatus !== toStatus) {
         const actualStatus = KanbanCategorizationService.getDefaultStatusForColumn(toStatus)
-        reorderJob(jobId, anchorJobId, placement, actualStatus, dragId)
+        await reorderJob(jobId, anchorJobId, placement, actualStatus, dragId)
       } else {
-        reorderJob(jobId, anchorJobId, placement, toStatus, dragId)
+        await reorderJob(jobId, anchorJobId, placement, toStatus, dragId)
       }
     }
   },
