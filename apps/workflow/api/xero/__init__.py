@@ -97,6 +97,7 @@ try:
             validate_stock_for_xero,
         )
         from .sync import (
+            XeroSyncEvent,
             deep_sync_xero_data,
             get_last_modified_time,
             get_sync_cursor,
@@ -146,6 +147,7 @@ __all__ = [
     "DraftPayRunBlocksLeaveDeletion",
     "NoActiveXeroApp",
     "RateLimitedRESTClient",
+    "XeroSyncEvent",
     "_ApiClientProxy",
     "bind_token_callbacks",
     "bulk_create_contacts_in_xero",

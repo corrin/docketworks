@@ -3988,9 +3988,6 @@ apps/workflow/api/xero/sync.py:0: error: Call to untyped function "sync_xero_dat
 apps/workflow/api/xero/sync.py:0: error: Call to untyped function "sync_local_stock_to_xero" in typed context  [no-untyped-call]
 apps/workflow/api/xero/sync.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/api/xero/sync.py:0: error: Call to untyped function "sync_all_xero_data" in typed context  [no-untyped-call]
-apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/api/xero/sync.py:0: error: Call to untyped function "sync_all_xero_data" in typed context  [no-untyped-call]
 apps/workflow/api/xero/sync.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/api/xero/sync.py:0: error: Call to untyped function "deep_sync_xero_data" in typed context  [no-untyped-call]
 apps/workflow/api/xero/sync.py:0: error: Call to untyped function "save" in typed context  [no-untyped-call]
@@ -4059,63 +4056,6 @@ apps/workflow/tests/test_xero_payroll_leave.py:0: error: Function is missing a t
 apps/workflow/tests/test_xero_payroll_leave.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_leave.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_payroll_leave.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Missing type arguments for generic type "dict"  [type-arg]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_app_active.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_app_active.py:0: error: Call to untyped function "_row" in typed context  [no-untyped-call]
 apps/workflow/tests/test_xero_app_active.py:0: error: Value of type "dict[str, Any] | None" is not indexable  [index]
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
@@ -4248,7 +4188,6 @@ apps/timesheet/views/api.py:0: error: Call to untyped function "build_timesheet_
 apps/timesheet/views/api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/views/api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/views/api.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/timesheet/views/api.py:0: error: Call to untyped function "sync_all_xero_data" in typed context  [no-untyped-call]
 apps/timesheet/views/api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/views/api.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/timesheet/views/api.py:0: error: Function is missing a return type annotation  [no-untyped-def]
@@ -4566,38 +4505,6 @@ apps/workflow/tests/test_xero_quota_floor.py:0: error: Module "apps.workflow.tas
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_quota_floor.py:0: error: Call to untyped function "_gen" in typed context  [no-untyped-call]
 apps/workflow/tests/test_tasks.py:0: error: Module "apps.workflow.tasks" does not explicitly export attribute "xero_sync_task"  [attr-defined]
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: error: Call to untyped function "boom" in typed context  [no-untyped-call]
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: error: Call to untyped function "boom" in typed context  [no-untyped-call]
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: error: Call to untyped function "abort" in typed context  [no-untyped-call]
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_tasks.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_tasks.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_celery_setup.py:0: error: "Celery" has no attribute "main"  [attr-defined]
 apps/workflow/tests/test_celery_setup.py:0: error: "Celery" has no attribute "tasks"  [attr-defined]
 apps/workflow/tests/test_celery_setup.py:0: error: "Callable[[], str]" has no attribute "apply"  [attr-defined]

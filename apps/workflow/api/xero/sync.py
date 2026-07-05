@@ -1,6 +1,8 @@
 import logging
 import time
+from collections.abc import Iterator, Sequence
 from datetime import timedelta
+from typing import TypedDict
 
 from django.conf import settings
 from django.core.cache import cache
@@ -73,6 +75,15 @@ from apps.workflow.utils import get_machine_id
 logger = logging.getLogger("xero")
 
 SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
+
+
+class XeroSyncEvent(TypedDict, total=False):
+    datetime: str
+    entity: str
+    severity: str
+    message: str
+    progress: float | None
+    recordsUpdated: int
 
 
 def get_last_modified_time(model):
@@ -437,8 +448,11 @@ def _resolve_api_method(api_method):
 
 
 def sync_all_xero_data(
-    use_latest_timestamps=True, days_back=30, entities=None, force=False
-):
+    use_latest_timestamps: bool = True,
+    days_back: int = 30,
+    entities: Sequence[str] | None = None,
+    force: bool = False,
+) -> Iterator[XeroSyncEvent]:
     """Sync Xero data - either using latest timestamps or looking back N days."""
     token = get_valid_token()
     if not token:
