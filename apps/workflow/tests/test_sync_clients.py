@@ -10,6 +10,7 @@ from django.utils import timezone
 
 from apps.client.models import Client, ClientContactMethod
 from apps.crm.models import PhoneCallRecord
+from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.workflow.api.xero.reprocess_xero import (
     _xero_phone_value,
     set_client_fields,
@@ -401,9 +402,14 @@ class XeroPhoneMethodSyncTests(TestCase):
             raw_json={"id": "xero-rematch"},
         )
 
-        with self.captureOnCommitCallbacks(execute=True):
-            set_client_fields(client)
+        with patch(
+            "apps.workflow.api.xero.reprocess_xero.rematch_phone_calls_task.delay",
+            side_effect=rematch_calls_for_numbers,
+        ) as rematch:
+            with self.captureOnCommitCallbacks(execute=True):
+                set_client_fields(client)
 
+        rematch.assert_called_once_with(["+6421555123"])
         call.refresh_from_db()
         self.assertEqual(call.client, client)
 

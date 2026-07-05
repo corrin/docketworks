@@ -685,10 +685,17 @@ class PhoneMatcher:
             )
 
         client, contact = self.match_customer(normalized_origin, normalized_destination)
+        external_number = ""
+        if normalized_origin and not normalized_destination:
+            external_number = normalized_origin
+        elif normalized_destination and not normalized_origin:
+            external_number = normalized_destination
+        else:
+            pass  # zero or two candidates is not a strict assignable number.
         return CallClassification(
             direction=PhoneCallRecord.Direction.UNKNOWN,
             our_number="",
-            external_number=normalized_origin or normalized_destination,
+            external_number=external_number,
             origin_endpoint=None,
             destination_endpoint=None,
             client=client,
@@ -737,8 +744,8 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
 
     calls = list(
         PhoneCallRecord.objects.filter(
-            models.Q(origin__in=normalized_numbers)
-            | models.Q(destination__in=normalized_numbers)
+            models.Q(normalized_origin__in=normalized_numbers)
+            | models.Q(normalized_destination__in=normalized_numbers)
         )
     )
     if not calls:
@@ -746,8 +753,8 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
 
     # Classification looks at both parties of each affected call, so the index
     # must cover every origin/destination seen — but nothing beyond that.
-    relevant_numbers = {call.origin for call in calls} | {
-        call.destination for call in calls
+    relevant_numbers = {call.normalized_origin for call in calls} | {
+        call.normalized_destination for call in calls
     }
     relevant_numbers.discard("")
     matcher = PhoneMatcher(numbers=relevant_numbers)

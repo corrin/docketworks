@@ -190,6 +190,22 @@ class PhoneMatcherDatabaseTests(TestCase):
                 value="021 555 123",
             )
 
+    def test_unknown_call_with_two_parties_has_no_assignable_external_number(
+        self,
+    ) -> None:
+        classification = PhoneMatcher().classify("021 555 123", "021 555 456")
+
+        self.assertEqual(classification.direction, PhoneCallRecord.Direction.UNKNOWN)
+        self.assertEqual(classification.external_number, "")
+
+    def test_unknown_call_with_one_party_keeps_assignable_external_number(
+        self,
+    ) -> None:
+        classification = PhoneMatcher().classify("021 555 123", "")
+
+        self.assertEqual(classification.direction, PhoneCallRecord.Direction.UNKNOWN)
+        self.assertEqual(classification.external_number, "+6421555123")
+
     def test_rematch_clears_job_link_when_number_moves_to_other_client(
         self,
     ) -> None:
@@ -218,7 +234,7 @@ class PhoneMatcherDatabaseTests(TestCase):
             call_datetime=call_datetime,
             call_date=timezone.localdate(),
             call_time=call_datetime.time(),
-            origin="+6421555123",
+            origin="021 555 123",
             destination="+6490000000",
             client=first,
             job=job,

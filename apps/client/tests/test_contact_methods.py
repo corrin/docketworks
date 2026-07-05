@@ -1,9 +1,12 @@
+from unittest.mock import patch
+
 from django.core.exceptions import ValidationError
 from django.test import TestCase
 from django.utils import timezone
 
 from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import PhoneCallRecord
+from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.testing import BaseAPITestCase
 
 
@@ -295,16 +298,22 @@ class ClientContactMethodApiTests(BaseAPITestCase):
             method_type=ClientContactMethod.MethodType.PHONE,
             value="021 555 100",
         )
-        old_call = self._call("old-number", origin="+6421555100", client=client)
-        new_call = self._call("new-number", origin="+6421555200", client=None)
+        old_call = self._call("old-number", origin="021 555 100", client=client)
+        new_call = self._call("new-number", origin="021 555 200", client=None)
 
-        response = self.client.patch(
-            f"/api/clients/contact-methods/{method.id}/",
-            {"value": "021 555 200"},
-            format="json",
-        )
+        with patch(
+            "apps.client.views.client_contact_method_viewset."
+            "rematch_phone_calls_task.delay",
+            side_effect=rematch_calls_for_numbers,
+        ) as rematch:
+            response = self.client.patch(
+                f"/api/clients/contact-methods/{method.id}/",
+                {"value": "021 555 200"},
+                format="json",
+            )
 
         self.assertEqual(response.status_code, 200)
+        rematch.assert_called_once_with(["+6421555100", "+6421555200"])
         old_call.refresh_from_db()
         new_call.refresh_from_db()
         self.assertIsNone(old_call.client)
@@ -319,11 +328,17 @@ class ClientContactMethodApiTests(BaseAPITestCase):
             method_type=ClientContactMethod.MethodType.PHONE,
             value="021 555 100",
         )
-        call = self._call("deleted-number", origin="+6421555100", client=client)
+        call = self._call("deleted-number", origin="021 555 100", client=client)
 
-        response = self.client.delete(f"/api/clients/contact-methods/{method.id}/")
+        with patch(
+            "apps.client.views.client_contact_method_viewset."
+            "rematch_phone_calls_task.delay",
+            side_effect=rematch_calls_for_numbers,
+        ) as rematch:
+            response = self.client.delete(f"/api/clients/contact-methods/{method.id}/")
 
         self.assertEqual(response.status_code, 204)
+        rematch.assert_called_once_with(["+6421555100"])
         call.refresh_from_db()
         self.assertIsNone(call.client)
 

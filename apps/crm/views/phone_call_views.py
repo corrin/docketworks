@@ -194,7 +194,9 @@ def _apply_search_filter(
         | Q(description__icontains=search)
     )
     if normalized_phone:
-        filters |= Q(origin=normalized_phone) | Q(destination=normalized_phone)
+        filters |= Q(normalized_origin=normalized_phone) | Q(
+            normalized_destination=normalized_phone
+        )
     if search.isdecimal():
         filters |= Q(job__job_number=int(search))
     return queryset.filter(filters)

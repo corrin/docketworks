@@ -12,11 +12,15 @@ import json
 import socket
 import time
 import unittest
-from types import SimpleNamespace
-from unittest.mock import patch
+from contextlib import AbstractContextManager
+from types import SimpleNamespace, TracebackType
+from typing import ClassVar, Protocol, TypeAlias, cast
+from unittest.mock import MagicMock, patch
 
 import pytest
 import redis
+from django.core.handlers.wsgi import WSGIRequest
+from django.http import HttpResponse
 from django.test import RequestFactory, TestCase, TransactionTestCase, override_settings
 from django.urls import reverse
 
@@ -28,6 +32,9 @@ from docketworks.celery import app as celery_app
 
 WEBHOOK_KEY = "unit-test-webhook-key"
 TENANT_ID = "tenant-abc-123"
+
+
+XeroWebhookEvent: TypeAlias = dict[str, str]
 
 
 def _make_xero_app(*, webhook_key: str = WEBHOOK_KEY, label: str = "Test") -> XeroApp:
@@ -57,7 +64,7 @@ def _event(
     resource_id: str = "inv-1",
     tenant_id: str = TENANT_ID,
     event_id: str = "evt-1",
-):
+) -> XeroWebhookEvent:
     return {
         "eventCategory": category,
         "resourceId": resource_id,
@@ -76,7 +83,7 @@ class XeroWebhookHandlerTests(TestCase):
         self.url = reverse("xero_webhook")
         _make_xero_app()
 
-    def _post(self, body_bytes: bytes, *, signature: str | None = None):
+    def _post(self, body_bytes: bytes, *, signature: str | None = None) -> HttpResponse:
         request = self.factory.post(
             self.url,
             data=body_bytes,
@@ -85,7 +92,7 @@ class XeroWebhookHandlerTests(TestCase):
                 signature if signature is not None else _sign(body_bytes)
             ),
         )
-        return XeroWebhookView.as_view()(request)
+        return cast(HttpResponse, XeroWebhookView.as_view()(request))
 
     def test_invalid_signature_returns_401_and_does_not_dispatch(self) -> None:
         body = json.dumps({"events": [_event()]}).encode("utf-8")
@@ -209,7 +216,7 @@ class XeroWebhookRotationTests(TestCase):
             HTTP_X_XERO_SIGNATURE=_sign(body, key="not-on-any-row"),
         )
         with patch.object(process_xero_webhook_event, "delay") as mock_delay:
-            response = XeroWebhookView.as_view()(request)
+            response = cast(HttpResponse, XeroWebhookView.as_view()(request))
         self.assertEqual(response.status_code, 401)
         mock_delay.assert_not_called()
 
@@ -243,7 +250,7 @@ class XeroWebhookConfigErrorTests(TestCase):
             patch.object(process_xero_webhook_event, "delay") as mock_delay,
         ):
             mock_persist.return_value = SimpleNamespace(id="ae-test-1")
-            response = XeroWebhookView.as_view()(request)
+            response = cast(HttpResponse, XeroWebhookView.as_view()(request))
         self.assertEqual(response.status_code, 503)
         self.assertIn(b"webhook_key", response.content)
         self.assertIn(b"ae-test-1", response.content)
@@ -286,9 +293,9 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
     side effects under redelivery, and persist unexpected sync failures.
     """
 
-    def _patch_company_defaults(self, configured_tenant_id: str = TENANT_ID):
-        from types import SimpleNamespace
-
+    def _patch_company_defaults(
+        self, configured_tenant_id: str = TENANT_ID
+    ) -> AbstractContextManager[MagicMock]:
         return patch(
             "apps.workflow.tasks.CompanyDefaults.get_solo",
             return_value=SimpleNamespace(
@@ -298,7 +305,7 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
             ),
         )
 
-    def _patch_sync_service(self):
+    def _patch_sync_service(self) -> AbstractContextManager[MagicMock]:
         return patch(
             "apps.workflow.tasks.XeroSyncService",
             autospec=True,
@@ -365,7 +372,7 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
 
         before = AppError.objects.count()
 
-        def boom(*args, **kwargs):
+        def boom(sync_service: MagicMock, invoice_id: str) -> None:
             raise RuntimeError("xero blew up")
 
         with (
@@ -409,6 +416,49 @@ class ProcessXeroWebhookEventTaskTests(TestCase):
 
 TEST_BROKER_DB = 15  # unused by dev/UAT/prod — db 0 is channels, db 1 is celery
 TEST_BROKER_URL = f"redis://127.0.0.1:6379/{TEST_BROKER_DB}"
+TEST_QUEUE_NAME = "xero-webhook-broker-test"
+
+
+class _BrokerMessage(Protocol):
+    def ack(self) -> None: ...
+
+
+class _BrokerQueue(Protocol):
+    Empty: type[Exception]
+
+    def get(
+        self,
+        block: bool = True,
+        timeout: int | None = None,
+    ) -> _BrokerMessage: ...
+
+    def close(self) -> None: ...
+
+
+class _BrokerConnection(Protocol):
+    def SimpleQueue(self, name: str) -> _BrokerQueue: ...
+
+
+class _BrokerConnectionContext(Protocol):
+    def __enter__(self) -> _BrokerConnection: ...
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_value: BaseException | None,
+        traceback: TracebackType | None,
+    ) -> bool | None: ...
+
+
+class _CeleryAmqpPools(Protocol):
+    _producer_pool: None
+
+
+class _CeleryBrokerApp(Protocol):
+    _pool: None
+    amqp: _CeleryAmqpPools
+
+    def connection_for_read(self) -> _BrokerConnectionContext: ...
 
 
 def _redis_reachable() -> bool:
@@ -421,6 +471,12 @@ def _redis_reachable() -> bool:
             return True
     except OSError:
         return False
+
+
+def _reset_celery_broker_connections() -> None:
+    broker_app = cast(_CeleryBrokerApp, celery_app)
+    broker_app._pool = None
+    broker_app.amqp._producer_pool = None
 
 
 @pytest.mark.broker
@@ -456,24 +512,33 @@ class BrokerRoundtripTests(TransactionTestCase):
       the full pipeline anyway.
     """
 
+    _was_broker: ClassVar[str | None]
+    _was_eager: ClassVar[bool]
+    _was_default_queue: ClassVar[str]
+
     @classmethod
-    def setUpClass(cls):
+    def setUpClass(cls) -> None:
         super().setUpClass()
         # Django's @override_settings doesn't propagate to celery_app.conf
         # for broker_url (it's read at app-init, not live). Force it.
         cls._was_broker = celery_app.conf.broker_url
         cls._was_eager = celery_app.conf.task_always_eager
+        cls._was_default_queue = celery_app.conf.task_default_queue
         celery_app.conf.update(
             broker_url=TEST_BROKER_URL,
             task_always_eager=False,
+            task_default_queue=TEST_QUEUE_NAME,
         )
+        _reset_celery_broker_connections()
 
     @classmethod
-    def tearDownClass(cls):
+    def tearDownClass(cls) -> None:
         celery_app.conf.update(
             broker_url=cls._was_broker,
             task_always_eager=cls._was_eager,
+            task_default_queue=cls._was_default_queue,
         )
+        _reset_celery_broker_connections()
         super().tearDownClass()
 
     def setUp(self) -> None:
@@ -486,6 +551,7 @@ class BrokerRoundtripTests(TransactionTestCase):
             f"{celery_app.conf.broker_url}, must be {TEST_BROKER_URL} to "
             "avoid feeding dev's celery worker bogus tasks."
         )
+        self.assertEqual(celery_app.conf.task_default_queue, TEST_QUEUE_NAME)
         self.redis = redis.Redis.from_url(TEST_BROKER_URL)
         self.redis.flushdb()  # clean slate per test
 
@@ -493,13 +559,36 @@ class BrokerRoundtripTests(TransactionTestCase):
         self.redis.flushdb()
         self.redis.close()
 
-    def _signed_post(self, body: bytes):
+    def _signed_post(self, body: bytes) -> WSGIRequest:
         return self.factory.post(
             self.url,
             data=body,
             content_type="application/json",
             HTTP_X_XERO_SIGNATURE=_sign(body),
         )
+
+    def _assert_broker_message_count(self, expected_count: int) -> None:
+        broker_app = cast(_CeleryBrokerApp, celery_app)
+        with broker_app.connection_for_read() as connection:
+            queue = connection.SimpleQueue(TEST_QUEUE_NAME)
+            try:
+                for index in range(expected_count):
+                    try:
+                        message = queue.get(timeout=1)
+                    except queue.Empty as exc:
+                        raise AssertionError(
+                            f"Expected {expected_count} broker messages, "
+                            f"found {index}."
+                        ) from exc
+                    message.ack()
+                try:
+                    extra = queue.get(block=False)
+                except queue.Empty:
+                    return
+                extra.ack()
+                self.fail(f"Expected {expected_count} broker messages, found more.")
+            finally:
+                queue.close()
 
     def test_handler_dispatches_to_real_broker_without_blocking(self) -> None:
         """The 2026-05-01 incident: handler exceeded Xero's 5s timeout
@@ -526,15 +615,10 @@ class BrokerRoundtripTests(TransactionTestCase):
             "Synchronous regression.",
         )
 
-        # The default queue is "celery"; .delay() pushes a JSON-encoded
-        # message there. If serialization had failed, .delay() would have
-        # raised before we got here.
-        queue_len = self.redis.llen("celery")
-        self.assertEqual(
-            queue_len,
-            1,
-            f"Expected exactly one task on the broker, found {queue_len}.",
-        )
+        # If serialization had failed, .delay() would have raised before we
+        # got here. Consume from the explicit test queue through Kombu instead
+        # of reading Redis transport internals.
+        self._assert_broker_message_count(1)
 
     def test_multiple_events_all_dispatch_via_broker(self) -> None:
         """Five events come in together — the original burst pattern that
@@ -555,4 +639,4 @@ class BrokerRoundtripTests(TransactionTestCase):
             f"5-event burst handler took {elapsed:.3f}s — the original "
             "bug condition. Must stay <0.5s.",
         )
-        self.assertEqual(self.redis.llen("celery"), 5)
+        self._assert_broker_message_count(5)

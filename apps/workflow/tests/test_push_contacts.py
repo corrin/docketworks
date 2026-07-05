@@ -25,7 +25,7 @@ def _make_client(**overrides):
         "address": "123 Test Street",
         "xero_last_modified": timezone.now(),
     }
-    phone = overrides.pop("phone", "027 351 8326")
+    phone = overrides.pop("phone", None)
     defaults.update(overrides)
     client = Client.objects.create(**defaults)
     if phone is not None:
@@ -53,7 +53,7 @@ class SyncClientToXeroPushTests(TestCase):
     def test_new_client_calls_create_contacts_with_sdk_contact(
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
-        client = _make_client()
+        client = _make_client(phone="027 351 8326")
         mock_api = mock_api_class.return_value
         mock_api.create_contacts.return_value = _create_response(
             "00000000-0000-0000-0000-000000000001", client.name
@@ -75,7 +75,7 @@ class SyncClientToXeroPushTests(TestCase):
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
         xero_id = "9568adbc-aaaa-bbbb-cccc-000000000001"
-        client = _make_client(xero_contact_id=xero_id)
+        client = _make_client(xero_contact_id=xero_id, phone="027 351 8327")
         mock_api = mock_api_class.return_value
         mock_api.update_contact.return_value = _create_response(xero_id, client.name)
 
@@ -102,7 +102,7 @@ class CreateClientContactInXeroTests(TestCase):
     def test_passes_sdk_contact_and_saves_id(
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
-        client = _make_client()
+        client = _make_client(phone="027 351 8328")
         new_id = "00000000-0000-0000-0000-000000000042"
         mock_api = mock_api_class.return_value
         # Use the captured-from-Xero response fixture so the mock matches the
@@ -132,7 +132,10 @@ class BulkCreateContactsInXeroTests(TestCase):
     def test_passes_list_of_sdk_contacts(
         self, mock_api_class, _mock_tenant, _mock_sleep
     ):
-        clients = [_make_client(name=f"Bulk Client {i}") for i in range(3)]
+        clients = [
+            _make_client(name=f"Bulk Client {i}", phone=f"027 351 84{i:02d}")
+            for i in range(3)
+        ]
         mock_api = mock_api_class.return_value
         mock_api.create_contacts.return_value = Contacts(
             contacts=[
@@ -157,7 +160,7 @@ class BulkCreateContactsInXeroTests(TestCase):
 
         Anyone re-introducing the dict path "for safety" trips this immediately.
         """
-        client = _make_client()
+        client = _make_client(phone="027 351 8329")
         mock_api = mock_api_class.return_value
         mock_api.create_contacts.return_value = _create_response("id-1", client.name)
 
@@ -170,7 +173,10 @@ class BulkCreateContactsInXeroTests(TestCase):
         self.assertNotIsInstance(captured, dict)
 
     def test_batches_at_size_boundary(self, mock_api_class, _mock_tenant, _mock_sleep):
-        clients = [_make_client(name=f"Boundary {i}") for i in range(53)]
+        clients = [
+            _make_client(name=f"Boundary {i}", phone=f"027 352 {i:04d}")
+            for i in range(53)
+        ]
         mock_api = mock_api_class.return_value
 
         def respond(*args, **kwargs):
@@ -194,8 +200,16 @@ class BulkCreateContactsInXeroTests(TestCase):
         """Regression: two clients with identical names in one batch must each
         receive their own xero_contact_id. The previous name-keyed mapping
         silently overwrote the first client's mapping with the second's."""
-        client_a = _make_client(name="Same Name", email="a@example.test")
-        client_b = _make_client(name="Same Name", email="b@example.test")
+        client_a = _make_client(
+            name="Same Name",
+            email="a@example.test",
+            phone="027 353 0001",
+        )
+        client_b = _make_client(
+            name="Same Name",
+            email="b@example.test",
+            phone="027 353 0002",
+        )
         mock_api = mock_api_class.return_value
         mock_api.create_contacts.return_value = Contacts(
             contacts=[
@@ -220,8 +234,8 @@ class BulkCreateContactsInXeroTests(TestCase):
         """If Xero ever stops preserving submission order, the runtime
         name-mismatch check must fail loudly rather than silently writing
         the wrong xero_contact_id."""
-        client_a = _make_client(name="Alpha")
-        client_b = _make_client(name="Beta")
+        client_a = _make_client(name="Alpha", phone="027 353 0003")
+        client_b = _make_client(name="Beta", phone="027 353 0004")
         mock_api = mock_api_class.return_value
         mock_api.create_contacts.return_value = Contacts(
             contacts=[

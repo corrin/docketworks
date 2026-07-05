@@ -155,6 +155,8 @@ class PhoneCallRecord(models.Model):
     description = models.TextField(blank=True)
     origin = models.CharField(max_length=150, blank=True)
     destination = models.CharField(max_length=150, blank=True)
+    normalized_origin = models.CharField(max_length=150, blank=True)
+    normalized_destination = models.CharField(max_length=150, blank=True)
     direction = models.CharField(
         max_length=20,
         choices=Direction.choices,
@@ -243,9 +245,43 @@ class PhoneCallRecord(models.Model):
                 fields=["destination_endpoint", "-call_datetime"],
                 name="crm_phone_dest_ep_idx",
             ),
-            models.Index(fields=["origin"], name="crm_phone_origin_num_idx"),
-            models.Index(fields=["destination"], name="crm_phone_dest_num_idx"),
+            models.Index(
+                fields=["normalized_origin"],
+                name="crm_phone_origin_norm_idx",
+            ),
+            models.Index(
+                fields=["normalized_destination"],
+                name="crm_phone_dest_norm_idx",
+            ),
         ]
+
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        from apps.client.models import ClientContactMethod
+
+        self.normalized_origin = ClientContactMethod.normalize_phone(self.origin)
+        self.normalized_destination = ClientContactMethod.normalize_phone(
+            self.destination
+        )
+        if update_fields is not None:
+            fields = set(update_fields)
+            if "origin" in fields:
+                fields.add("normalized_origin")
+            if "destination" in fields:
+                fields.add("normalized_destination")
+            update_fields = fields
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
     def __str__(self) -> str:
         return (
