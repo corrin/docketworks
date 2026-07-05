@@ -76,6 +76,7 @@ try:
             reprocess_invoices,
             set_client_fields,
             set_invoice_or_bill_fields,
+            sync_xero_phone_methods,
         )
         from .seed import (
             fetch_xero_entity_lookup,
@@ -96,6 +97,7 @@ try:
             validate_stock_for_xero,
         )
         from .sync import (
+            XeroSyncEvent,
             deep_sync_xero_data,
             get_last_modified_time,
             get_sync_cursor,
@@ -145,6 +147,7 @@ __all__ = [
     "DraftPayRunBlocksLeaveDeletion",
     "NoActiveXeroApp",
     "RateLimitedRESTClient",
+    "XeroSyncEvent",
     "_ApiClientProxy",
     "bind_token_callbacks",
     "bulk_create_contacts_in_xero",
@@ -237,6 +240,7 @@ __all__ = [
     "sync_time_entries_bulk",
     "sync_xero_data",
     "sync_xero_pay_items",
+    "sync_xero_phone_methods",
     "synchronise_xero_data",
     "transform_bill",
     "transform_credit_note",

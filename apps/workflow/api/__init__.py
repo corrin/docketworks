@@ -7,12 +7,13 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .pagination import FiftyPerPagePagination
+        from .pagination import FiftyPerPagePagination, PageSizePagination
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
 
 __all__ = [
     "FiftyPerPagePagination",
+    "PageSizePagination",
     "get_enum_choices",
 ]

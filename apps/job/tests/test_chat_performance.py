@@ -51,7 +51,6 @@ class ChatQueryOptimizationTests(BaseTestCase):
         self.client = Client.objects.create(
             name="Test Client",
             email="client@example.com",
-            phone="0123456789",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 

@@ -94,7 +94,11 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
     _make_invoice(with_invoices, date(2024, 1, 1), Decimal("10.00"))
     _make_invoice(with_invoices, date(2024, 1, 2), Decimal("5.25"))
 
-    clients = list(Client.objects.with_invoice_summary().order_by("name"))
+    clients = list(
+        Client.objects.with_invoice_summary()
+        .filter(id__in=[with_invoices.id, without_invoices.id])
+        .order_by("name")
+    )
 
     with CaptureQueriesContext(connection) as captured:
         formatted = ClientRestService._format_client_search_results(clients)
@@ -105,7 +109,6 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
             "id": str(with_invoices.id),
             "name": "With Invoices",
             "email": "",
-            "phone": "",
             "address": "",
             "is_account_customer": False,
             "is_supplier": False,
@@ -118,7 +121,6 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
             "id": str(without_invoices.id),
             "name": "Without Invoices",
             "email": "",
-            "phone": "",
             "address": "",
             "is_account_customer": False,
             "is_supplier": False,
@@ -152,7 +154,6 @@ class ClientCreateInvoiceSummaryTests(BaseTestCase):
             {
                 "name": "New Client",
                 "email": "new@example.test",
-                "phone": "",
                 "address": "",
                 "is_account_customer": True,
             },
@@ -191,7 +192,6 @@ class ClientCreateInvoiceSummaryTests(BaseTestCase):
                     {
                         "name": "Failed Xero Client",
                         "email": "failed@example.test",
-                        "phone": "",
                         "address": "",
                         "is_account_customer": True,
                     }

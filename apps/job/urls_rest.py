@@ -1,7 +1,10 @@
 from django.urls import path
 
 from apps.job.views.data_integrity_views import DataIntegrityReportView
-from apps.job.views.data_quality_report_views import ArchivedJobsComplianceView
+from apps.job.views.data_quality_report_views import (
+    ArchivedJobsComplianceView,
+    DuplicatePhonesView,
+)
 from apps.job.views.delivery_docket_view import DeliveryDocketView
 from apps.job.views.job_costing_views import JobCostSetView, JobQuoteRevisionView
 from apps.job.views.job_costline_views import (
@@ -327,6 +330,11 @@ rest_urlpatterns = [
         "data-quality/archived-jobs-compliance/",
         ArchivedJobsComplianceView.as_view(),
         name="data_quality_archived_jobs_compliance",
+    ),
+    path(
+        "data-quality/duplicate-phones/",
+        DuplicatePhonesView.as_view(),
+        name="data_quality_duplicate_phones",
     ),
     path(
         "data-integrity/scan/",

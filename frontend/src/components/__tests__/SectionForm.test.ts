@@ -29,6 +29,8 @@ vi.mock('@/composables/useSettingsSchema', () => ({
     ],
     getSpecialHandler: () => undefined,
   }),
+  REMOVED_SETTING_KEYS: new Set<string>(),
+  omitRemovedSettings: <T extends Record<string, unknown>>(form: T): T => form,
 }))
 
 describe('SectionForm', () => {
@@ -62,5 +64,31 @@ describe('SectionForm', () => {
         shop_client: '11111111-1111-1111-1111-111111111111',
       },
     ])
+  })
+
+  it('does not mutate the object passed as modelValue when a field is edited', async () => {
+    clientsAllList.mockResolvedValue([
+      { id: '00000000-0000-0000-0000-000000000001', name: 'Demo Company Shop' },
+      { id: '11111111-1111-1111-1111-111111111111', name: 'Acme Ltd' },
+    ])
+
+    const modelValue = {
+      shop_client: '00000000-0000-0000-0000-000000000001',
+    }
+
+    const wrapper = mount(SectionForm, {
+      props: {
+        section: 'setup',
+        modelValue,
+      },
+    })
+
+    await flushPromises()
+
+    const selector = wrapper.get('[data-automation-id="SectionForm-setup-field-shop_client"]')
+    await selector.setValue('11111111-1111-1111-1111-111111111111')
+
+    // The edit must be emitted, never applied in place to the prop object.
+    expect(modelValue.shop_client).toBe('00000000-0000-0000-0000-000000000001')
   })
 })

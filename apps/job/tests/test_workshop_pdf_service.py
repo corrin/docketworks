@@ -14,19 +14,91 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from pypdf import PdfReader
 
-from apps.client.models import Client
+from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.services.workshop_pdf_service import (
+    _primary_phone_for_job,
     convert_html_to_reportlab,
     create_delivery_docket_pdf,
     create_workshop_pdf,
     format_hours_display,
+    get_job_for_delivery_docket_pdf,
     get_job_for_workshop_pdf,
     get_time_breakdown,
     get_workshop_hours,
 )
 from apps.testing import BaseTestCase
+
+
+class PrimaryPhoneForJobTests(BaseTestCase):
+    """Phone preference order on workshop PDFs and delivery dockets:
+    the job contact's number first, then the client's own number."""
+
+    def setUp(self) -> None:
+        self.client_obj = Client.objects.create(
+            name="Phone Pref Client",
+            xero_last_modified=timezone.now(),
+        )
+        self.contact = ClientContact.objects.create(
+            client=self.client_obj,
+            name="Jane Doe",
+        )
+        self.job = Job.objects.create(
+            client=self.client_obj,
+            contact=self.contact,
+            name="Phone Pref Job",
+            staff=self.test_staff,
+        )
+        ClientContactMethod.objects.create(
+            client=self.client_obj,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 555 0001",
+        )
+
+    def test_contact_phone_wins_when_contact_has_one(self) -> None:
+        ClientContactMethod.objects.create(
+            contact=self.contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 100",
+        )
+        loaded_job = get_job_for_delivery_docket_pdf(self.job.id)
+
+        self.assertEqual(_primary_phone_for_job(loaded_job), "021 555 100")
+
+    def test_falls_back_to_client_phone_when_contact_has_none(self) -> None:
+        loaded_job = get_job_for_delivery_docket_pdf(self.job.id)
+
+        self.assertEqual(_primary_phone_for_job(loaded_job), "09 555 0001")
+
+    def test_no_contact_uses_client_phone(self) -> None:
+        self.job.contact = None
+        self.job.save(staff=self.test_staff, update_fields=["contact"])
+        loaded_job = get_job_for_delivery_docket_pdf(self.job.id)
+
+        self.assertEqual(_primary_phone_for_job(loaded_job), "09 555 0001")
+
+    def test_plain_job_phone_lookup_is_rejected(self) -> None:
+        with self.assertRaisesMessage(
+            ValueError, "PDF phone fields must be loaded before rendering"
+        ):
+            _primary_phone_for_job(self.job)
+
+    def test_annotated_contact_phone_wins_when_contact_has_one(self) -> None:
+        ClientContactMethod.objects.create(
+            contact=self.contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 100",
+        )
+
+        loaded_job = get_job_for_workshop_pdf(self.job.id)
+
+        self.assertEqual(_primary_phone_for_job(loaded_job), "021 555 100")
+
+    def test_annotated_job_falls_back_to_client_phone(self) -> None:
+        loaded_job = get_job_for_workshop_pdf(self.job.id)
+
+        self.assertEqual(_primary_phone_for_job(loaded_job), "09 555 0001")
 
 
 class FormatHoursDisplayTests(SimpleTestCase):
@@ -477,10 +549,15 @@ class WorkshopHourBreakdownTests(BaseTestCase):
         self.assertNotIn("$198.00", text)
 
     def test_preloaded_workshop_pdf_render_does_not_query_cost_lines(self) -> None:
-        """Workshop PDF rendering must use the preloaded CostLine lists."""
+        """Workshop PDF rendering must use the loaded CostLine and phone data."""
         estimate = self.job.latest_estimate
         assert estimate is not None
         self._add_time(estimate, "Workshop", "4.000", "Workshop")
+        ClientContactMethod.objects.create(
+            client=self.job.client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 555 0001",
+        )
 
         actual = self.job.latest_actual
         assert actual is not None
@@ -503,7 +580,13 @@ class WorkshopHourBreakdownTests(BaseTestCase):
         cost_line_queries = [
             query["sql"] for query in captured if 'FROM "job_costline"' in query["sql"]
         ]
+        contact_method_queries = [
+            query["sql"]
+            for query in captured
+            if 'FROM "client_clientcontactmethod"' in query["sql"]
+        ]
         self.assertEqual(cost_line_queries, [])
+        self.assertEqual(contact_method_queries, [])
         self.assertGreater(len(pdf_buffer.getvalue()), 0)
 
     def test_time_used_starts_on_page_two_when_specs_fit_page_one(self) -> None:

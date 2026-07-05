@@ -2,6 +2,13 @@
 
 from rest_framework import serializers
 
+from apps.client.services.duplicate_phone_report import (
+    DuplicatePhoneIssue,
+    DuplicatePhoneOwner,
+    DuplicatePhonesReport,
+    DuplicatePhoneSummary,
+)
+
 
 class ComplianceSummarySerializer(serializers.Serializer):
     """Summary of compliance issues."""
@@ -57,4 +64,50 @@ class ArchivedJobsComplianceResponseSerializer(serializers.Serializer):
         help_text="List of non-compliant jobs with details",
     )
     summary = ComplianceSummarySerializer(help_text="Summary of compliance issues")
+    checked_at = serializers.DateTimeField(help_text="When the check was performed")
+
+
+class DuplicatePhoneOwnerSerializer(serializers.Serializer[DuplicatePhoneOwner]):
+    """One owner of a mis-owned phone number."""
+
+    method_id = serializers.CharField(help_text="Contact-method id")
+    owner_kind = serializers.CharField(help_text="'client' or 'contact'")
+    owner_name = serializers.CharField(help_text="Human-readable owner")
+    effective_client_id = serializers.CharField(
+        allow_null=True, help_text="Client the number resolves to"
+    )
+
+
+class DuplicatePhoneSummarySerializer(serializers.Serializer[DuplicatePhoneSummary]):
+    """Summary of duplicate-phone issues."""
+
+    cross_client = serializers.IntegerField(
+        help_text="Numbers owned by more than one client"
+    )
+    internal_line = serializers.IntegerField(
+        help_text="Client numbers that are actually internal company lines"
+    )
+
+
+class DuplicatePhoneIssueSerializer(serializers.Serializer[DuplicatePhoneIssue]):
+    """One problematic phone number and its owners."""
+
+    normalized_value = serializers.CharField(help_text="Normalized phone number")
+    issue = serializers.CharField(help_text="'cross_client' or 'internal_line'")
+    endpoint_label = serializers.CharField(
+        required=False,
+        allow_null=True,
+        help_text="Internal endpoint label (internal_line only)",
+    )
+    owners = DuplicatePhoneOwnerSerializer(many=True)
+
+
+class DuplicatePhonesResponseSerializer(serializers.Serializer[DuplicatePhonesReport]):
+    """Response for the duplicate phones check."""
+
+    duplicate_phones = serializers.ListField(
+        child=DuplicatePhoneIssueSerializer(),
+        help_text="Mis-owned phone numbers with details",
+    )
+    summary = DuplicatePhoneSummarySerializer(help_text="Summary of issues")
     checked_at = serializers.DateTimeField(help_text="When the check was performed")

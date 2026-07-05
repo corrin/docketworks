@@ -3,7 +3,7 @@
     <div class="p-4 md:p-8 space-y-6">
       <!-- Header with Back Button -->
       <div class="flex items-center gap-4">
-        <Button variant="outline" size="sm" @click="goBack">
+        <Button variant="outline" size="sm" data-automation-id="ClientDetail-back" @click="goBack">
           <ArrowLeft class="w-4 h-4 mr-2" />
           Back
         </Button>
@@ -80,10 +80,6 @@
               <div>
                 <label class="text-sm font-medium text-gray-500">Email</label>
                 <p class="text-gray-900">{{ client.email || '-' }}</p>
-              </div>
-              <div>
-                <label class="text-sm font-medium text-gray-500">Phone</label>
-                <p class="text-gray-900">{{ client.phone || '-' }}</p>
               </div>
               <div>
                 <label class="text-sm font-medium text-gray-500">Address</label>
@@ -197,13 +193,20 @@
                     </p>
                     <div class="flex flex-col gap-1 mt-1 text-sm text-gray-600">
                       <span v-if="contact.email">{{ contact.email }}</span>
-                      <span v-if="contact.phone">{{ contact.phone }}</span>
                     </div>
                   </div>
                 </div>
               </div>
             </CardContent>
           </Card>
+
+          <PhoneNumberManager
+            title="Phone Numbers"
+            :fixed-client-id="props.id"
+            :fixed-client-name="client.name"
+            search-context="crm_client_detail_phone_numbers"
+            @changed="loadPhoneCalls"
+          />
 
           <!-- Xero Integration Details -->
           <Card v-if="client.xero_contact_id">
@@ -242,7 +245,10 @@
             <CardContent class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="p-4 bg-indigo-50 rounded-lg">
                 <label class="text-sm font-medium text-indigo-900">Total Spend</label>
-                <p class="text-3xl font-bold text-indigo-600 mt-2">
+                <p
+                  class="text-3xl font-bold text-indigo-600 mt-2"
+                  data-automation-id="ClientDetail-total-spend"
+                >
                   {{ client.total_spend || '$0.00' }}
                 </p>
               </div>
@@ -357,7 +363,12 @@
             <CardHeader>
               <div class="flex items-center justify-between gap-3">
                 <CardTitle>Interactions</CardTitle>
-                <Button variant="outline" size="sm" @click="loadPhoneCalls">Refresh</Button>
+                <div class="flex items-center gap-2">
+                  <Badge variant="outline"
+                    >Showing {{ phoneCalls.length }} of {{ phoneCallCount }}</Badge
+                  >
+                  <Button variant="outline" size="sm" @click="loadPhoneCalls">Refresh</Button>
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -371,6 +382,7 @@
                 v-else
                 :calls="phoneCalls"
                 empty-text="No phone interactions found for this client"
+                @call-updated="replacePhoneCall"
               />
             </CardContent>
           </Card>
@@ -392,6 +404,7 @@ import { useRouter } from 'vue-router'
 import { useClientStore } from '@/stores/clientStore'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
+import PhoneNumberManager from '@/components/crm/PhoneNumberManager.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -438,6 +451,7 @@ const isSavingAlias = ref(false)
 const newAlias = ref('')
 const supplierAliases = ref<SupplierSearchAlias[]>([])
 const phoneCalls = ref<PhoneCallRecord[]>([])
+const phoneCallCount = ref(0)
 const isLoadingPhoneCalls = ref(false)
 const phoneCallError = ref<string | null>(null)
 
@@ -562,17 +576,25 @@ async function loadPhoneCalls() {
   isLoadingPhoneCalls.value = true
   phoneCallError.value = null
   try {
-    phoneCalls.value = await api.crm_phone_calls_list({
-      queries: { client: props.id },
+    const response = await api.crm_phone_calls_list({
+      queries: { client: props.id, page: 1, page_size: 50 },
     })
+    phoneCalls.value = response.results
+    phoneCallCount.value = response.count
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load phone interactions'
     phoneCallError.value = message
     console.error('Failed to load phone interactions:', err)
     toast.error(message)
+    phoneCalls.value = []
+    phoneCallCount.value = 0
   } finally {
     isLoadingPhoneCalls.value = false
   }
+}
+
+function replacePhoneCall(updated: PhoneCallRecord) {
+  phoneCalls.value = phoneCalls.value.map((call) => (call.id === updated.id ? updated : call))
 }
 
 // Methods

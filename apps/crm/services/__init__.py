@@ -6,6 +6,7 @@ try:
 
     if apps.ready:
         from .phone_call_service import (
+            CallClassification,
             PhoneCallDeleteResult,
             PhoneCallSyncResult,
             PhoneMatcher,
@@ -14,17 +15,19 @@ try:
             PhoneProviderPortalClient,
             archive_recording,
             assign_phone_number,
-            call_parties,
+            assign_phone_number_from_call,
             configured_own_numbers,
             delete_archived_provider_recordings,
             delete_local_recording,
             is_call_payload,
+            link_phone_call_to_job,
             normalize_phone,
             provider_delete_recording,
             recording_file_path,
             rematch_calls_for_numbers,
             sync_call_history,
             sync_recent_calls,
+            unlink_phone_call_job,
             upsert_call_record,
         )
 except (ImportError, RuntimeError):
@@ -32,6 +35,7 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "CallClassification",
     "PhoneCallDeleteResult",
     "PhoneCallSyncResult",
     "PhoneMatcher",
@@ -40,16 +44,18 @@ __all__ = [
     "PhoneProviderPortalClient",
     "archive_recording",
     "assign_phone_number",
-    "call_parties",
+    "assign_phone_number_from_call",
     "configured_own_numbers",
     "delete_archived_provider_recordings",
     "delete_local_recording",
     "is_call_payload",
+    "link_phone_call_to_job",
     "normalize_phone",
     "provider_delete_recording",
     "recording_file_path",
     "rematch_calls_for_numbers",
     "sync_call_history",
     "sync_recent_calls",
+    "unlink_phone_call_job",
     "upsert_call_record",
 ]

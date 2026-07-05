@@ -242,7 +242,6 @@ const createQuickClient = async (clientName: string) => {
     const clientData = {
       name: clientName,
       email: null,
-      phone: '',
       address: '',
       is_account_customer: false,
     }
@@ -257,7 +256,6 @@ const createQuickClient = async (clientName: string) => {
       const newClient: Client = {
         ...result.client,
         email: result.client.email ?? '',
-        phone: result.client.phone ?? '',
         address: result.client.address ?? '',
         xero_contact_id: result.client.xero_contact_id ?? '',
       }

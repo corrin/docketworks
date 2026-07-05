@@ -1146,9 +1146,27 @@ def xero_ping(request):
         is_connected = bool(token)
         logger.info(f"Xero ping: connected={is_connected}")
         return Response({"connected": is_connected}, status=status.HTTP_200_OK)
-    except Exception as e:
-        logger.error(f"Error in xero_ping: {str(e)}")
-        return Response({"connected": False}, status=status.HTTP_200_OK)
+    except AlreadyLoggedException as exc:
+        logger.error("Error in xero_ping: %s", exc)
+        return Response(
+            {
+                "connected": False,
+                "error": str(exc),
+                "error_id": exc.app_error_id,
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except Exception as exc:
+        logger.error("Error in xero_ping: %s", exc)
+        app_error = persist_app_error(exc)
+        return Response(
+            {
+                "connected": False,
+                "error": str(exc),
+                "error_id": str(app_error.id),
+            },
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
 
 
 class XeroErrorListAPIView(ListAPIView):

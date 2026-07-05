@@ -1,10 +1,11 @@
 import logging
+from typing import Protocol, cast
 
 from celery import shared_task
 from django.db import close_old_connections
 
+from apps.crm.models import PhoneProviderSettings
 from apps.workflow.exceptions import AlreadyLoggedException
-from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
 scheduler_logger = logging.getLogger("apps.crm.tasks")
@@ -12,13 +13,13 @@ scheduler_logger = logging.getLogger("apps.crm.tasks")
 
 @shared_task(name="apps.crm.tasks.sync_phone_calls_task")
 def sync_phone_calls_task() -> None:
-    """Beat-scheduled daily phone call and recording archive."""
+    """Beat-scheduled recent phone call and recording archive."""
     scheduler_logger.info("Running sync_phone_calls_task.")
     try:
         close_old_connections()
-        company_defaults = CompanyDefaults.get_solo()
-        if not company_defaults.phone_call_downloads_enabled:
-            scheduler_logger.info("Phone call download disabled by CompanyDefaults.")
+        phone_settings = PhoneProviderSettings.get_solo()
+        if not phone_settings.downloads_enabled:
+            scheduler_logger.info("Phone call download disabled by CRM phone settings.")
             return
 
         from apps.crm.services.phone_call_service import sync_recent_calls
@@ -47,10 +48,10 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
     scheduler_logger.info("Running delete_archived_phone_recordings_task.")
     try:
         close_old_connections()
-        company_defaults = CompanyDefaults.get_solo()
-        if not company_defaults.phone_provider_recording_deletion_enabled:
+        phone_settings = PhoneProviderSettings.get_solo()
+        if not phone_settings.recording_deletion_enabled:
             scheduler_logger.info(
-                "Phone recording provider cleanup disabled by CompanyDefaults."
+                "Phone recording provider cleanup disabled by CRM phone settings."
             )
             return
 
@@ -76,3 +77,44 @@ def delete_archived_phone_recordings_task(limit: int = 100) -> None:
         )
         app_error = persist_app_error(exc)
         raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+class RematchPhoneCallsTask(Protocol):
+    def __call__(self, numbers: list[str]) -> None: ...
+
+    def delay(self, numbers: list[str]) -> object: ...
+
+
+def _rematch_phone_calls_task(numbers: list[str]) -> None:
+    """Idempotently reclassify historical calls affected by phone-number changes.
+
+    Unlike the beat-only tasks above, this one is also executed eagerly inside
+    web requests (CELERY_TASK_ALWAYS_EAGER in dev/E2E/tests), so it must not
+    call close_old_connections() — that would close the caller's in-flight
+    connection. Real workers get connection hygiene from Celery's Django fixup.
+    """
+    scheduler_logger.info(
+        "Running rematch_phone_calls_task for %d numbers.", len(numbers)
+    )
+    try:
+        from apps.crm.services.phone_call_service import rematch_calls_for_numbers
+
+        rematch_calls_for_numbers(numbers)
+    except AlreadyLoggedException:
+        raise
+    except Exception as exc:
+        scheduler_logger.error(
+            "Error during phone call rematch: %s",
+            exc,
+            exc_info=True,
+        )
+        app_error = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, app_error.id) from exc
+
+
+rematch_phone_calls_task = cast(
+    RematchPhoneCallsTask,
+    shared_task(name="apps.crm.tasks.rematch_phone_calls_task")(
+        _rematch_phone_calls_task
+    ),
+)

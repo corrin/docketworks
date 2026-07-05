@@ -1,0 +1,168 @@
+"""One-number-one-owner symmetry: PhoneEndpoint side of the guard.
+
+ClientContactMethod.save() refuses numbers held by an active PhoneEndpoint;
+these tests cover the mirror — an active endpoint cannot claim a number a
+client already owns, or that client's calls silently become INTERNAL.
+"""
+
+from django.core.exceptions import ValidationError
+from django.test import TestCase
+from django.utils import timezone
+from rest_framework.test import APIClient
+
+from apps.accounts.models import Staff
+from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.crm.models import PhoneEndpoint
+from apps.testing import BaseAPITestCase
+
+
+def _client(name: str = "Acme Ltd") -> Client:
+    return Client.objects.create(name=name, xero_last_modified=timezone.now())
+
+
+def _client_phone(client: Client, value: str = "021 555 123") -> ClientContactMethod:
+    return ClientContactMethod.objects.create(
+        client=client,
+        method_type=ClientContactMethod.MethodType.PHONE,
+        value=value,
+    )
+
+
+def _endpoint(number: str, **overrides: object) -> PhoneEndpoint:
+    fields: dict[str, object] = {
+        "number": number,
+        "label": "Test line",
+        "endpoint_type": PhoneEndpoint.EndpointType.MAIN_LINE,
+    }
+    fields.update(overrides)
+    return PhoneEndpoint.objects.create(**fields)
+
+
+class PhoneEndpointGuardModelTests(TestCase):
+    def test_create_active_endpoint_over_client_number_raises(self) -> None:
+        _client_phone(_client("Acme Ltd"))
+
+        with self.assertRaisesRegex(
+            ValidationError, "already belongs to.*client Acme Ltd"
+        ):
+            _endpoint("021 555 123")
+
+    def test_error_names_owning_contact(self) -> None:
+        contact = ClientContact.objects.create(
+            client=_client("Acme Ltd"), name="Jane Smith"
+        )
+        ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+
+        with self.assertRaisesRegex(ValidationError, "contact Jane Smith at Acme Ltd"):
+            _endpoint("021 555 123")
+
+    def test_inactive_endpoint_over_client_number_is_allowed(self) -> None:
+        _client_phone(_client())
+
+        endpoint = _endpoint("021 555 123", is_active=False)
+
+        self.assertIsNotNone(endpoint.pk)
+
+    def test_reactivating_endpoint_over_client_number_raises(self) -> None:
+        _client_phone(_client())
+        endpoint = _endpoint("021 555 123", is_active=False)
+
+        endpoint.is_active = True
+        with self.assertRaisesRegex(ValidationError, "already belongs to"):
+            endpoint.save()
+
+    def test_changing_number_onto_client_number_raises(self) -> None:
+        _client_phone(_client())
+        endpoint = _endpoint("09 555 000")
+
+        endpoint.number = "021 555 123"
+        with self.assertRaisesRegex(ValidationError, "already belongs to"):
+            endpoint.save()
+
+    def test_existing_endpoint_resave_is_grandfathered(self) -> None:
+        """Legacy overlap: re-saving an unchanged endpoint must not start failing."""
+        endpoint = _endpoint("021 555 123")
+        # Legacy cross-owned row inserted bypassing the method-side guard,
+        # as pre-guard data was.
+        legacy = ClientContactMethod(
+            client=_client(),
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+        legacy.normalized_value = ClientContactMethod.normalize_phone("021 555 123")
+        ClientContactMethod.objects.bulk_create([legacy])
+
+        endpoint.label = "Renamed line"
+        endpoint.save()  # number/is_active unchanged -> grandfathered
+
+        endpoint.refresh_from_db()
+        self.assertEqual(endpoint.label, "Renamed line")
+
+
+class PhoneEndpointGuardApiTests(BaseAPITestCase):
+    def setUp(self) -> None:
+        super().setUp()
+        self.superuser = Staff.objects.create_user(
+            email="crm-endpoint-admin@example.com",
+            password="testpass",
+            is_superuser=True,
+            is_office_staff=True,
+        )
+        self.api = APIClient()
+        self.api.force_authenticate(user=self.superuser)
+
+    def test_create_endpoint_over_client_number_returns_400(self) -> None:
+        _client_phone(_client("Acme Ltd"))
+
+        response = self.api.post(
+            "/api/crm/phone-endpoints/",
+            {
+                "number": "021 555 123",
+                "label": "Main line",
+                "endpoint_type": "main_line",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already belongs to", response.data["number"][0])
+        self.assertFalse(
+            PhoneEndpoint.objects.filter(normalized_number="+6421555123").exists()
+        )
+
+    def test_update_unrelated_field_on_grandfathered_endpoint_succeeds(self) -> None:
+        endpoint = _endpoint("021 555 123")
+        legacy = ClientContactMethod(
+            client=_client(),
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 123",
+        )
+        legacy.normalized_value = ClientContactMethod.normalize_phone("021 555 123")
+        ClientContactMethod.objects.bulk_create([legacy])
+
+        response = self.api.patch(
+            f"/api/crm/phone-endpoints/{endpoint.id}/",
+            {"label": "Renamed line"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        endpoint.refresh_from_db()
+        self.assertEqual(endpoint.label, "Renamed line")
+
+    def test_changing_number_onto_client_number_returns_400(self) -> None:
+        _client_phone(_client("Acme Ltd"))
+        endpoint = _endpoint("09 555 000")
+
+        response = self.api.patch(
+            f"/api/crm/phone-endpoints/{endpoint.id}/",
+            {"number": "021 555 123"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("already belongs to", response.data["number"][0])

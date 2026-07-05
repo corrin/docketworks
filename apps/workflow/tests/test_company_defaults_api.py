@@ -31,12 +31,6 @@ class CompanyDefaultsAPITests(BaseTestCase):
         ]
         self.assertEqual(client_queries, [])
 
-    def test_get_returns_null_for_unconfigured_phone_provider_url(self):
-        response = self.client.get("/api/company-defaults/")
-
-        self.assertEqual(response.status_code, status.HTTP_200_OK)
-        self.assertIsNone(response.data["phone_provider_base_url"])
-
     def test_patch_canonicalizes_blank_optional_urls_to_null(self):
         response = self.client.patch(
             "/api/company-defaults/",
@@ -44,7 +38,6 @@ class CompanyDefaultsAPITests(BaseTestCase):
                 "master_quote_template_url": "",
                 "gdrive_quotes_folder_url": "",
                 "company_url": "",
-                "phone_provider_base_url": "",
             },
             format="json",
         )
@@ -53,10 +46,8 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.assertIsNone(response.data["master_quote_template_url"])
         self.assertIsNone(response.data["gdrive_quotes_folder_url"])
         self.assertIsNone(response.data["company_url"])
-        self.assertIsNone(response.data["phone_provider_base_url"])
 
         company_defaults = CompanyDefaults.get_solo()
         self.assertIsNone(company_defaults.master_quote_template_url)
         self.assertIsNone(company_defaults.gdrive_quotes_folder_url)
         self.assertIsNone(company_defaults.company_url)
-        self.assertIsNone(company_defaults.phone_provider_base_url)

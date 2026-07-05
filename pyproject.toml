@@ -150,7 +150,7 @@ disallow_untyped_defs = false
 
 # Packages without published type stubs
 [[tool.mypy.overrides]]
-module = ["mistralai.*", "anthropic.*", "simple_history.*", "xero_python.*", "mcp_server", "django_celery_beat.*", "django_celery_results.*"]
+module = ["mistralai.*", "anthropic.*", "simple_history.*", "xero_python.*", "mcp_server", "django_celery_beat.*", "django_celery_results.*", "encrypted_model_fields.*"]
 ignore_missing_imports = true
 
 [[tool.mypy.overrides]]

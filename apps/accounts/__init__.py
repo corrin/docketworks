@@ -8,7 +8,7 @@ try:
 
     if apps.ready:
         from .models import Staff, StaffManager
-        from .permissions import CanManageTimesheets, IsStaff
+        from .permissions import CanManageTimesheets, IsStaff, IsSuperuser
         from .serializers import (
             BaseStaffSerializer,
             CustomTokenObtainPairSerializer,
@@ -40,6 +40,7 @@ __all__ = [
     "EmptySerializer",
     "GenericStaffMethodsMixin",
     "IsStaff",
+    "IsSuperuser",
     "KanbanStaffSerializer",
     "Staff",
     "StaffCreateSerializer",

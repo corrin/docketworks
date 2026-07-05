@@ -8,8 +8,13 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
-from apps.crm.models import PhoneCallRecord, PhoneCallRecording
+from apps.client.models import Client, ClientContactMethod
+from apps.crm.models import (
+    PhoneCallRecord,
+    PhoneCallRecording,
+    PhoneEndpoint,
+    PhoneProviderSettings,
+)
 from apps.workflow.enums import AIProviderTypes
 from apps.workflow.models import (
     AIProvider,
@@ -40,20 +45,35 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     client = Client.objects.create(
         name="Realistic Client Ltd",
         email="client@example.test",
-        phone="+64211234567",
         xero_last_modified=timezone.now(),
         raw_json={"_name": "Realistic Client Ltd"},
+    )
+    ClientContactMethod.objects.create(
+        client=client,
+        method_type=ClientContactMethod.MethodType.PHONE,
+        value="+64211234567",
+        is_primary=True,
     )
     CompanyDefaults.objects.create(
         company_name="Demo Co",
         shop_client=client,
-        phone_call_downloads_enabled=True,
-        phone_provider_recording_deletion_enabled=True,
-        phone_provider_base_url="https://phone.example.test",
-        phone_provider_username="user",
-        phone_provider_password="secret",
-        phone_provider_account_code="acct",
-        phone_own_numbers=["+6491234567"],
+    )
+    PhoneProviderSettings.objects.update_or_create(
+        pk=1,
+        defaults={
+            "downloads_enabled": True,
+            "recording_deletion_enabled": True,
+            "base_url": "https://phone.example.test",
+            "username": "user",
+            "password": "secret",
+            "account_code": "acct",
+        },
+    )
+    PhoneEndpoint.objects.create(
+        number="+6491234567",
+        label="Main line",
+        endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
+        provider_account_code="acct",
     )
     XeroApp.objects.create(
         label="Demo Xero",
@@ -174,10 +194,13 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     service_key.refresh_from_db()
     assert service_key.key.startswith("redacted-key-")
 
-    defaults = CompanyDefaults.objects.get()
-    assert defaults.phone_call_downloads_enabled is False
-    assert defaults.phone_provider_password == ""
-    assert defaults.phone_own_numbers == []
+    phone_settings = PhoneProviderSettings.objects.get()
+    assert phone_settings.downloads_enabled is False
+    assert phone_settings.recording_deletion_enabled is False
+    assert phone_settings.password == ""
+    phone_endpoint = PhoneEndpoint.objects.get()
+    assert phone_endpoint.number.startswith("demo-endpoint-")
+    assert phone_endpoint.provider_account_code == ""
 
     call.refresh_from_db()
     assert call.duration_seconds == 180

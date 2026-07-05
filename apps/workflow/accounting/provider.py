@@ -40,11 +40,19 @@ class AccountingProvider(Protocol):
         ...
 
     def get_valid_token(self) -> dict | None:
-        """Return a valid token, refreshing if needed. None if not connected."""
+        """Return a valid token, refreshing if needed.
+
+        Returns None only when not connected or missing stored refresh material.
+        Refresh attempt failures may raise AlreadyLoggedException.
+        """
         ...
 
     def refresh_token(self) -> dict | None:
-        """Force-refresh the current token. None if refresh fails."""
+        """Force-refresh the current token.
+
+        Returns None only when no refresh can be attempted. Refresh attempt
+        failures may raise AlreadyLoggedException.
+        """
         ...
 
     def disconnect(self) -> None:

@@ -7,7 +7,6 @@
       "xero_tenant_id": null,
       "name": "Demo Company Shop",
       "email": "demo@example.com",
-      "phone": null,
       "address": null,
       "is_account_customer": false,
       "is_supplier": false,
@@ -17,7 +16,6 @@
       "primary_contact_name": null,
       "primary_contact_email": null,
       "additional_contact_persons": [],
-      "all_phones": [],
       "django_created_at": "2024-01-01T00:00:00Z",
       "django_updated_at": "2024-01-01T00:00:00Z",
       "xero_last_synced": "2024-01-01T00:00:00Z",
@@ -55,13 +53,6 @@
       "xero_payroll_calendar_id": null,
       "xero_payroll_start_date": null,
       "weekend_timesheets_enabled": false,
-      "phone_call_downloads_enabled": false,
-      "phone_provider_recording_deletion_enabled": false,
-      "phone_provider_base_url": null,
-      "phone_provider_username": "",
-      "phone_provider_password": "",
-      "phone_provider_account_code": "",
-      "phone_own_numbers": [],
       "mon_start": "07:00:00",
       "mon_end": "15:00:00",
       "tue_start": "07:00:00",
@@ -79,7 +70,6 @@
       "post_code": "6011",
       "country": "New Zealand",
       "company_email": "info@democompany.example.com",
-      "company_phone": null,
       "company_url": "https://www.democompany.example.com",
       "created_at": "2024-01-01T00:00:00Z",
       "updated_at": "2024-01-01T00:00:00Z",
@@ -100,6 +90,22 @@
       "xero_payroll_calendar_name": "Weekly Testing",
       "logo": "app_images/docketworks_logo.png",
       "logo_wide": "app_images/docketworks_logo_wide.png"
+    }
+  },
+  {
+    "model": "crm.phoneendpoint",
+    "pk": "00000000-0000-0000-0000-000000000101",
+    "fields": {
+      "number": "+6496365131",
+      "normalized_number": "+6496365131",
+      "label": "Main line",
+      "endpoint_type": "main_line",
+      "staff": null,
+      "provider_account_code": "",
+      "provider_metadata": {},
+      "is_active": true,
+      "created_at": "2024-01-01T00:00:00Z",
+      "updated_at": "2024-01-01T00:00:00Z"
     }
   }
 ]

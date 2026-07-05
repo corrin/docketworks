@@ -89,8 +89,12 @@ class XeroSyncService:
                 task_id=active_task_id,
             )
 
-        provider = get_provider()
-        token = provider.get_valid_token()
+        try:
+            provider = get_provider()
+            token = provider.get_valid_token()
+        except Exception:
+            _sync_cache.delete(SYNC_STATUS_KEY)
+            raise
         if not token:
             logger.error("No valid Xero token found")
             _sync_cache.delete(SYNC_STATUS_KEY)

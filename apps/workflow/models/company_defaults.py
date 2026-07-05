@@ -232,61 +232,10 @@ class CompanyDefaults(SingletonModel):
         blank=True,
         help_text="Company contact email address",
     )
-    company_phone = models.CharField(
-        max_length=30,
-        null=True,
-        blank=True,
-        help_text="Company phone number",
-    )
     company_url = models.URLField(
         null=True,
         blank=True,
         help_text="Company website URL",
-    )
-
-    # Phone call history / recording archive
-    phone_call_downloads_enabled = models.BooleanField(
-        default=False,
-        help_text="Enable scheduled phone call and recording downloads.",
-    )
-    phone_provider_recording_deletion_enabled = models.BooleanField(
-        default=False,
-        help_text=(
-            "Enable deletion of provider-side recordings after they have been "
-            "archived locally and aged past the retention delay."
-        ),
-    )
-    phone_provider_base_url = models.URLField(
-        null=True,
-        blank=True,
-        default=None,
-        help_text="Base URL for the configured phone provider portal.",
-    )
-    phone_provider_username = models.CharField(
-        max_length=255,
-        blank=True,
-        default="",
-        help_text="Username for the configured phone provider portal.",
-    )
-    phone_provider_password = models.CharField(
-        max_length=255,
-        blank=True,
-        default="",
-        help_text="Password for the configured phone provider portal.",
-    )
-    phone_provider_account_code = models.CharField(
-        max_length=100,
-        blank=True,
-        default="",
-        help_text="Provider account code used when fetching and deleting recordings.",
-    )
-    phone_own_numbers = models.JSONField(
-        blank=True,
-        default=list,
-        help_text=(
-            "Normalized company-owned phone numbers used to determine inbound "
-            "and outbound call direction."
-        ),
     )
     logo = models.ImageField(
         upload_to="company_logos/",

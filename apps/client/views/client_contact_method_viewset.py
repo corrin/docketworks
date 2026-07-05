@@ -1,11 +1,27 @@
 """Client/contact contact method ViewSet."""
 
+from typing import cast
+
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
+from rest_framework.serializers import BaseSerializer
 
 from apps.client.models import ClientContactMethod
 from apps.client.serializers import ClientContactMethodSerializer
+from apps.crm.tasks import rematch_phone_calls_task
+from apps.workflow.api.pagination import PageSizePagination
+
+
+def _phone_number_for_rematch(method: ClientContactMethod | None) -> str | None:
+    if method is None:
+        return None
+    if method.method_type != ClientContactMethod.MethodType.PHONE:
+        return None
+    normalized = method.normalized_value
+    if normalized:
+        return normalized
+    return ClientContactMethod.normalize_phone(method.value)
 
 
 class ClientContactMethodViewSet(viewsets.ModelViewSet):
@@ -13,6 +29,7 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
 
     serializer_class = ClientContactMethodSerializer
     permission_classes = [permissions.IsAuthenticated]
+    pagination_class = PageSizePagination
 
     @extend_schema(
         parameters=[
@@ -31,6 +48,18 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
             OpenApiParameter(
                 name="method_type",
                 type=OpenApiTypes.STR,
+                location=OpenApiParameter.QUERY,
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page",
+                type=OpenApiTypes.INT,
+                location=OpenApiParameter.QUERY,
+                required=False,
+            ),
+            OpenApiParameter(
+                name="page_size",
+                type=OpenApiTypes.INT,
                 location=OpenApiParameter.QUERY,
                 required=False,
             ),
@@ -60,3 +89,26 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(method_type=method_type)
 
         return queryset.distinct().order_by("method_type", "-is_primary", "value")
+
+    def perform_create(self, serializer: BaseSerializer[ClientContactMethod]) -> None:
+        method = serializer.save()
+        phone_number = _phone_number_for_rematch(method)
+        if phone_number:
+            rematch_phone_calls_task.delay([phone_number])
+
+    def perform_update(self, serializer: BaseSerializer[ClientContactMethod]) -> None:
+        old_method = cast(ClientContactMethod, self.get_object())
+        old_phone_number = _phone_number_for_rematch(old_method)
+        method = serializer.save()
+        new_phone_number = _phone_number_for_rematch(method)
+        phone_numbers = [
+            number for number in [old_phone_number, new_phone_number] if number
+        ]
+        if phone_numbers:
+            rematch_phone_calls_task.delay(phone_numbers)
+
+    def perform_destroy(self, instance: ClientContactMethod) -> None:
+        phone_number = _phone_number_for_rematch(instance)
+        instance.delete()
+        if phone_number:
+            rematch_phone_calls_task.delay([phone_number])

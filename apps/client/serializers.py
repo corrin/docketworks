@@ -4,6 +4,7 @@ from apps.client.models import (
     Client,
     ClientContact,
     ClientContactMethod,
+    PhoneAssignmentConflictError,
     SupplierPickupAddress,
     SupplierSearchAlias,
 )
@@ -20,7 +21,7 @@ class ClientContactSerializer(serializers.ModelSerializer):
     def to_internal_value(self, data):
         """Convert empty strings to None for nullable fields before validation."""
         # Fields that should be NULL instead of empty string
-        nullable_fields = ["email", "phone", "position", "notes"]
+        nullable_fields = ["email", "position", "notes"]
 
         for field in nullable_fields:
             if field in data and data[field] == "":
@@ -32,6 +33,7 @@ class ClientContactSerializer(serializers.ModelSerializer):
 class ClientContactMethodSerializer(serializers.ModelSerializer):
     """Serializer for canonical client/contact phone and email methods."""
 
+    owner_client = serializers.SerializerMethodField()
     client_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
 
@@ -40,6 +42,7 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
         fields = [
             "id",
             "client",
+            "owner_client",
             "client_name",
             "contact",
             "contact_name",
@@ -54,12 +57,18 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = [
             "id",
+            "owner_client",
             "client_name",
             "contact_name",
             "normalized_value",
             "created_at",
             "updated_at",
         ]
+
+    def get_owner_client(self, obj: ClientContactMethod) -> str:
+        if obj.client_id:
+            return str(obj.client_id)
+        return str(obj.contact.client_id) if obj.contact else ""
 
     def get_client_name(self, obj: ClientContactMethod) -> str:
         if obj.client:
@@ -76,6 +85,35 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError(
                 "Exactly one of client or contact is required"
             )
+        method_type = attrs.get(
+            "method_type", getattr(self.instance, "method_type", None)
+        )
+        value = attrs.get("value", getattr(self.instance, "value", None))
+        if method_type == ClientContactMethod.MethodType.PHONE:
+            normalized = ClientContactMethod.normalize_phone(value)
+            try:
+                ClientContactMethod.check_phone_assignment(
+                    normalized,
+                    client_id=client.id if client else None,
+                    contact=contact,
+                    instance=self.instance,
+                )
+            except PhoneAssignmentConflictError as exc:
+                if exc.conflict is None:
+                    raise serializers.ValidationError(
+                        {
+                            "value": "Internal phone endpoint cannot be assigned "
+                            "to a client."
+                        }
+                    ) from exc
+                raise serializers.ValidationError(
+                    {
+                        "value": (
+                            "Phone number already belongs to "
+                            f"{exc.conflict.owner_display_name()}."
+                        )
+                    }
+                ) from exc
         return attrs
 
 
@@ -162,7 +200,6 @@ class ClientSearchResultSerializer(serializers.Serializer):
     id = serializers.CharField()
     name = serializers.CharField()
     email = serializers.CharField(allow_blank=True)
-    phone = serializers.CharField(allow_blank=True)
     address = serializers.CharField(allow_blank=True)
     is_account_customer = serializers.BooleanField()
     is_supplier = serializers.BooleanField()
@@ -208,9 +245,6 @@ class ClientCreateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
-    phone = serializers.CharField(
-        max_length=50, required=False, allow_blank=True, allow_null=True
-    )
     address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     is_account_customer = serializers.BooleanField(default=True)
     allow_jobs = serializers.BooleanField(default=True)
@@ -246,7 +280,6 @@ class ClientDetailResponseSerializer(serializers.Serializer):
     id = serializers.CharField()
     name = serializers.CharField()
     email = serializers.CharField(allow_blank=True)
-    phone = serializers.CharField(allow_blank=True)
     address = serializers.CharField(allow_blank=True)
     is_account_customer = serializers.BooleanField()
     is_supplier = serializers.BooleanField()
@@ -256,7 +289,6 @@ class ClientDetailResponseSerializer(serializers.Serializer):
     primary_contact_name = serializers.CharField(allow_blank=True)
     primary_contact_email = serializers.CharField(allow_blank=True)
     additional_contact_persons = serializers.ListField(required=False)
-    all_phones = serializers.ListField(required=False)
     xero_last_modified = serializers.DateTimeField(allow_null=True)
     xero_last_synced = serializers.DateTimeField(allow_null=True)
     xero_archived = serializers.BooleanField()
@@ -273,7 +305,6 @@ class ClientUpdateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
-    phone = serializers.CharField(max_length=50, required=False, allow_blank=True)
     address = serializers.CharField(required=False, allow_blank=True)
     is_account_customer = serializers.BooleanField(required=False)
     allow_jobs = serializers.BooleanField(required=False)
@@ -293,7 +324,6 @@ class JobContactResponseSerializer(serializers.Serializer):
     id = serializers.UUIDField()
     name = serializers.CharField()
     email = serializers.CharField(allow_blank=True, allow_null=True)
-    phone = serializers.CharField(allow_blank=True, allow_null=True)
     position = serializers.CharField(allow_blank=True, allow_null=True)
     is_primary = serializers.BooleanField()
     notes = serializers.CharField(allow_blank=True, allow_null=True)

@@ -184,10 +184,10 @@ For a prospect trying DocketWorks with their own Xero:
 
 1. **Instance created** — admin user auto-created (`defaultadmin@example.com` / `Default-admin-password`)
 
-2. **Load CompanyDefaults fixture**
+2. **Load tenant CompanyDefaults fixture**
 
    ```bash
-   # Copy the template and edit with prospect's details
+   # Copy the shared template to tenant-owned config and edit it there.
    cp apps/workflow/fixtures/company_defaults_prospect.json \
       /opt/docketworks/instances/<name>/company_defaults.json
 
@@ -198,6 +198,10 @@ For a prospect trying DocketWorks with their own Xero:
    # Load it
    scripts/server/dw-run.sh <name> python manage.py loaddata /opt/docketworks/instances/<name>/company_defaults.json
    ```
+
+   Do not treat `apps/workflow/fixtures/company_defaults*.json` as tenant
+   state. They are shared starting templates; the instance-owned copy is the
+   value that survives reset/rebuild work.
 
 3. **Xero OAuth** — log into `https://<name>.docketworks.site` as admin, go to Admin > Xero Settings, click "Login with Xero" and authorize
 

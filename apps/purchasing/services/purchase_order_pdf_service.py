@@ -170,11 +170,12 @@ class PurchaseOrderPDFGenerator:
             y_position -= 20
 
         # Supplier phone
-        if supplier.phone:
+        supplier_phone = supplier.primary_phone_value()
+        if supplier_phone:
             self.pdf.setFont("Helvetica-Bold", 12)
             self.pdf.drawString(MARGIN, y_position, "Phone:")
             self.pdf.setFont("Helvetica", 12)
-            self.pdf.drawString(MARGIN + 50, y_position, supplier.phone)
+            self.pdf.drawString(MARGIN + 50, y_position, supplier_phone)
             y_position -= 20
 
         # Pickup/Delivery address

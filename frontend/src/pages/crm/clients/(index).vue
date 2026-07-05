@@ -19,7 +19,8 @@
         <input
           v-model="searchInput"
           type="text"
-          placeholder="Search clients by name, email, or phone..."
+          placeholder="Search clients by name or email..."
+          data-automation-id="ClientsTable-search"
           class="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-indigo-500 focus:border-transparent"
           @input="onSearchInput"
         />
@@ -63,12 +64,13 @@
         </div>
 
         <div class="overflow-y-auto max-h-[70vh] rounded-2xl shadow-lg border border-gray-200">
-          <table class="min-w-full text-sm">
+          <table class="min-w-full text-sm" data-automation-id="ClientsTable-table">
             <thead class="bg-slate-50 border-b sticky top-0">
               <tr>
                 <th class="p-3 text-left">
                   <button
                     @click="toggleSort('name')"
+                    data-automation-id="ClientsTable-header-name"
                     class="flex items-center gap-1 font-semibold text-gray-700 hover:text-indigo-600 transition-colors cursor-pointer"
                   >
                     Client Name
@@ -81,10 +83,10 @@
                   </button>
                 </th>
                 <th class="p-3 text-left font-semibold text-gray-700">Email</th>
-                <th class="p-3 text-left font-semibold text-gray-700">Phone</th>
                 <th class="p-3 text-left">
                   <button
                     @click="toggleSort('total_spend')"
+                    data-automation-id="ClientsTable-header-total-spend"
                     class="flex items-center gap-1 font-semibold text-gray-700 hover:text-indigo-600 transition-colors cursor-pointer"
                   >
                     Total Spend
@@ -99,6 +101,7 @@
                 <th class="p-3 text-left">
                   <button
                     @click="toggleSort('last_invoice_date')"
+                    data-automation-id="ClientsTable-header-last-invoice"
                     class="flex items-center gap-1 font-semibold text-gray-700 hover:text-indigo-600 transition-colors cursor-pointer"
                   >
                     Last Invoice
@@ -121,24 +124,35 @@
                 v-for="(client, index) in clientStore.clients"
                 :key="client.id"
                 class="border-b hover:bg-slate-50 cursor-pointer transition-colors"
+                :data-automation-id="`ClientsTable-row-${client.id}`"
+                :data-client-id="client.id"
                 @click="navigateToClient(client, index + 1)"
               >
-                <td class="p-3 font-medium text-gray-900">
+                <td
+                  class="p-3 font-medium text-gray-900"
+                  :data-automation-id="`ClientsTable-cell-${client.id}-name`"
+                >
                   {{ client.name }}
                 </td>
-                <td class="p-3 text-gray-600">
+                <td
+                  class="p-3 text-gray-600"
+                  :data-automation-id="`ClientsTable-cell-${client.id}-email`"
+                >
                   {{ client.email || '-' }}
                 </td>
-                <td class="p-3 text-gray-600">
-                  {{ client.phone || '-' }}
-                </td>
-                <td class="p-3 text-gray-900 font-medium">
+                <td
+                  class="p-3 text-gray-900 font-medium"
+                  :data-automation-id="`ClientsTable-cell-${client.id}-total-spend`"
+                >
                   {{ client.total_spend || '$0.00' }}
                 </td>
-                <td class="p-3 text-gray-600">
+                <td
+                  class="p-3 text-gray-600"
+                  :data-automation-id="`ClientsTable-cell-${client.id}-last-invoice`"
+                >
                   {{ formatDate(client.last_invoice_date) }}
                 </td>
-                <td class="p-3">
+                <td class="p-3" :data-automation-id="`ClientsTable-cell-${client.id}-type`">
                   <Badge :variant="client.is_account_customer ? 'default' : 'secondary'">
                     {{ client.is_account_customer ? 'Account' : 'Cash' }}
                   </Badge>

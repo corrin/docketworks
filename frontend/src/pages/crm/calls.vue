@@ -1,45 +1,107 @@
 <template>
   <AppLayout>
     <div class="p-4 space-y-5">
-      <div class="flex items-center justify-between gap-3">
-        <h1 class="text-xl font-semibold">Calls</h1>
-        <Button variant="outline" size="sm" @click="loadAll">Refresh</Button>
+      <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h1 class="text-xl font-semibold">Calls</h1>
+          <p class="text-sm text-gray-500">Recent phone-provider calls and CRM triage.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <Badge variant="outline">Showing {{ phoneCalls.length }} of {{ phoneCallCount }}</Badge>
+          <Button variant="outline" size="sm" :disabled="isLoadingCalls" @click="loadCalls">
+            <RefreshCw class="mr-2 h-4 w-4" :class="{ 'animate-spin': isLoadingCalls }" />
+            Refresh
+          </Button>
+        </div>
       </div>
 
       <div v-if="error" class="rounded-md border border-red-200 bg-red-50 p-3 text-sm text-red-700">
         {{ error }}
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Assign Phone Number</CardTitle>
-        </CardHeader>
-        <CardContent class="space-y-4">
-          <div class="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_auto_auto]">
-            <Input v-model="phoneNumber" placeholder="+6490000000" />
-            <div class="flex gap-2">
-              <Input
-                v-model="clientSearch"
-                placeholder="Search clients"
-                @keydown.enter.prevent="searchClients"
-              />
-              <Button variant="outline" type="button" @click="searchClients">
-                <Search class="h-4 w-4" />
-              </Button>
+      <Tabs v-model="activeTab" class="space-y-4">
+        <TabsList class="grid w-full grid-cols-2 lg:grid-cols-4">
+          <TabsTrigger value="recent">Recent Calls</TabsTrigger>
+          <TabsTrigger value="unmatched">Unmatched</TabsTrigger>
+          <TabsTrigger value="unlinked">Needs Job Link</TabsTrigger>
+          <TabsTrigger value="all">All Calls</TabsTrigger>
+        </TabsList>
+
+        <Card>
+          <CardContent class="pt-6">
+            <div class="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto_auto]">
+              <div class="relative">
+                <Search class="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" />
+                <Input
+                  v-model="searchQuery"
+                  class="pl-9"
+                  placeholder="Search number, client, contact, job, or description"
+                  @keydown.enter.prevent="loadCalls"
+                />
+              </div>
+              <select
+                v-model="directionFilter"
+                class="rounded-md border border-gray-300 p-2 text-sm"
+              >
+                <option value="all">All directions</option>
+                <option value="inbound">Inbound</option>
+                <option value="outbound">Outbound</option>
+                <option value="internal">Internal</option>
+                <option value="unknown">Unknown</option>
+              </select>
+              <label
+                class="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
+              >
+                <input v-model="recordingsOnly" type="checkbox" class="h-4 w-4" />
+                With recording
+              </label>
             </div>
-            <Input v-model="phoneLabel" placeholder="Label" />
-            <label
-              class="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
-            >
-              <input v-model="isPrimary" type="checkbox" class="h-4 w-4" />
-              Primary
-            </label>
-            <Button
-              type="button"
-              :disabled="isSavingAssignment || !phoneNumber.trim() || !selectedClientId"
-              @click="assignNumber"
-            >
-              Assign
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent class="pt-6">
+            <div class="mb-4">
+              <h2 class="text-base font-semibold text-gray-900">{{ activeQueue.title }}</h2>
+              <p class="text-sm text-gray-500">{{ activeQueue.description }}</p>
+            </div>
+            <div v-if="isLoadingCalls" class="flex items-center justify-center py-8">
+              <Loader2 class="h-6 w-6 animate-spin text-indigo-600" />
+            </div>
+            <PhoneCallTable
+              v-else
+              :calls="phoneCalls"
+              empty-text="No calls found"
+              :allow-number-assignment="true"
+              @call-updated="handleCallUpdated"
+              @assign-number="handleAssignNumber"
+            />
+          </CardContent>
+        </Card>
+      </Tabs>
+
+      <Card v-if="selectedCall">
+        <CardContent class="space-y-4 pt-6">
+          <div class="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h2 class="text-base font-semibold text-gray-900">Assign Call Number</h2>
+              <p class="text-sm text-gray-500">
+                {{ selectedCall.external_number }} from
+                {{ formatDateTime(selectedCall.call_datetime) }}
+              </p>
+            </div>
+            <Button variant="outline" size="sm" @click="resetAssignmentForm">Cancel</Button>
+          </div>
+
+          <div class="grid grid-cols-1 gap-3 lg:grid-cols-[1fr_auto]">
+            <Input
+              v-model="clientSearch"
+              placeholder="Search clients"
+              @keydown.enter.prevent="searchClients"
+            />
+            <Button variant="outline" type="button" @click="searchClients">
+              <Search class="mr-2 h-4 w-4" />
+              Search
             </Button>
           </div>
 
@@ -47,7 +109,7 @@
             <select
               v-model="selectedClientId"
               class="rounded-md border border-gray-300 p-2 text-sm"
-              @change="logSelectedClientSearchClick"
+              @change="logAssignClientSearchClick"
             >
               <option value="">Select client</option>
               <option v-for="client in clientOptions" :key="client.id" :value="client.id">
@@ -66,199 +128,236 @@
             </select>
           </div>
 
-          <div class="overflow-x-auto rounded-md border border-gray-200">
-            <table class="min-w-full text-sm">
-              <thead class="bg-slate-50 border-b">
-                <tr>
-                  <th class="p-3 text-left font-semibold text-gray-700">Phone Number</th>
-                  <th class="p-3 text-left font-semibold text-gray-700">Client</th>
-                  <th class="p-3 text-left font-semibold text-gray-700">Contact</th>
-                  <th class="p-3 text-left font-semibold text-gray-700">Label</th>
-                  <th class="p-3 text-left font-semibold text-gray-700">Primary</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-if="phoneMethods.length === 0">
-                  <td colspan="5" class="p-4 text-center text-gray-500">No phone numbers</td>
-                </tr>
-                <tr
-                  v-for="method in phoneMethods"
-                  :key="method.id"
-                  class="border-b last:border-b-0"
-                >
-                  <td class="p-3 font-medium text-gray-900">{{ method.value }}</td>
-                  <td class="p-3 text-gray-700">{{ method.client_name }}</td>
-                  <td class="p-3 text-gray-700">{{ method.contact_name || '-' }}</td>
-                  <td class="p-3 text-gray-700">{{ method.label || '-' }}</td>
-                  <td class="p-3 text-gray-700">{{ method.is_primary ? 'Yes' : '-' }}</td>
-                </tr>
-              </tbody>
-            </table>
+          <div class="grid grid-cols-1 gap-3 md:grid-cols-[1fr_auto_auto]">
+            <Input v-model="phoneLabel" placeholder="Label" />
+            <label
+              class="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm"
+            >
+              <input v-model="isPrimary" type="checkbox" class="h-4 w-4" />
+              Primary
+            </label>
+            <Button
+              type="button"
+              :disabled="isAssigningNumber || !selectedClientId"
+              @click="assignSelectedCallNumber"
+            >
+              <Loader2 v-if="isAssigningNumber" class="mr-2 h-4 w-4 animate-spin" />
+              Assign
+            </Button>
           </div>
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <div class="flex items-center justify-between gap-3">
-            <CardTitle>All Calls</CardTitle>
-            <Badge variant="outline">{{ phoneCalls.length }} calls</Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div v-if="isLoadingCalls" class="flex items-center justify-center py-8">
-            <Loader2 class="h-6 w-6 animate-spin text-indigo-600" />
-          </div>
-          <PhoneCallTable v-else :calls="phoneCalls" empty-text="No calls found" />
-        </CardContent>
-      </Card>
+      <PhoneNumberManager
+        title="Phone Numbers"
+        search-context="crm_calls_phone_numbers"
+        @changed="loadCalls"
+      />
     </div>
   </AppLayout>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
-import { logClientSearchClick } from '@/composables/useClientLookup'
+import PhoneNumberManager from '@/components/crm/PhoneNumberManager.vue'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { Loader2, Search } from 'lucide-vue-next'
+import { useClientLookup } from '@/composables/useClientLookup'
+import { dataFreshness } from '@/composables/useDataFreshness'
+import { formatDateTime } from '@/utils/string-formatting'
+import { Loader2, RefreshCw, Search } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import type { z } from 'zod'
 
 type PhoneCallRecord = z.infer<typeof schemas.PhoneCallRecord>
-type ClientContactMethod = z.infer<typeof schemas.ClientContactMethod>
-type ClientSearchResult = z.infer<typeof schemas.ClientSearchResult>
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type CallsTab = 'recent' | 'unmatched' | 'unlinked' | 'all'
+type DirectionFilter = 'all' | 'inbound' | 'outbound' | 'internal' | 'unknown'
+
+type PhoneCallQuery = {
+  page: number
+  page_size: number
+  client_match?: string
+  job_link?: string
+  direction?: string
+  has_recording?: boolean
+  q?: string
+}
 
 const phoneCalls = ref<PhoneCallRecord[]>([])
-const phoneMethods = ref<ClientContactMethod[]>([])
-const clientOptions = ref<ClientSearchResult[]>([])
-const contactOptions = ref<ClientContact[]>([])
+const phoneCallCount = ref(0)
 const isLoadingCalls = ref(false)
-const isSavingAssignment = ref(false)
 const error = ref<string | null>(null)
-const phoneNumber = ref('')
-const phoneLabel = ref('')
-const isPrimary = ref(false)
-const clientSearch = ref('')
+const activeTab = ref<CallsTab>('recent')
+const searchQuery = ref('')
+const directionFilter = ref<DirectionFilter>('all')
+const recordingsOnly = ref(false)
+const selectedCall = ref<PhoneCallRecord | null>(null)
 const selectedClientId = ref('')
 const selectedContactId = ref('')
+const phoneLabel = ref('')
+const isPrimary = ref(false)
+const isAssigningNumber = ref(false)
+let unsubscribeCrmCallsFreshness: (() => void) | null = null
 
-async function loadAll(): Promise<void> {
-  await Promise.all([loadCalls(), loadPhoneMethods()])
+const {
+  searchQuery: clientSearch,
+  suggestions: clientOptions,
+  contacts: contactOptions,
+  browseClients: searchClients,
+  loadClientContacts,
+  logSelectedClientClick,
+} = useClientLookup()
+
+const QUEUE_META: Record<CallsTab, { title: string; description: string }> = {
+  recent: {
+    title: 'Recent Calls',
+    description: 'Newest imported calls. The provider sync runs about every five minutes.',
+  },
+  unmatched: {
+    title: 'Unmatched Calls',
+    description:
+      'Assign these numbers to clients or contacts so future and historical calls land in the right CRM history.',
+  },
+  unlinked: {
+    title: 'Matched Calls Needing Job Link',
+    description: 'These calls already belong to a client but have not been linked to a job.',
+  },
+  all: {
+    title: 'All Calls',
+    description: 'Audit and search across imported calls.',
+  },
+}
+
+const activeQueue = computed(() => QUEUE_META[activeTab.value])
+
+function queryForActiveTab(): PhoneCallQuery {
+  const query: PhoneCallQuery = { page: 1, page_size: 50 }
+  if (activeTab.value === 'unmatched') {
+    query.client_match = 'unmatched'
+  } else if (activeTab.value === 'unlinked') {
+    query.client_match = 'matched'
+    query.job_link = 'unlinked'
+  } else {
+    query.client_match = 'all'
+    query.job_link = 'all'
+  }
+  if (directionFilter.value !== 'all') query.direction = directionFilter.value
+  if (recordingsOnly.value) query.has_recording = true
+  const search = searchQuery.value.trim()
+  if (search) query.q = search
+  return query
 }
 
 async function loadCalls(): Promise<void> {
   isLoadingCalls.value = true
   error.value = null
   try {
-    phoneCalls.value = await api.crm_phone_calls_list({})
+    const response = await api.crm_phone_calls_list({
+      queries: queryForActiveTab(),
+    })
+    phoneCalls.value = response.results
+    phoneCallCount.value = response.count
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to load calls'
     error.value = message
     console.error('Failed to load calls:', err)
     toast.error(message)
+    phoneCalls.value = []
+    phoneCallCount.value = 0
   } finally {
     isLoadingCalls.value = false
   }
 }
 
-async function loadPhoneMethods(): Promise<void> {
+function handleAssignNumber(call: PhoneCallRecord): void {
+  selectedCall.value = call
+  selectedClientId.value = ''
+  selectedContactId.value = ''
+  phoneLabel.value = ''
+  isPrimary.value = false
+  clientOptions.value = []
+  contactOptions.value = []
+  toast.info('Select a client for this call number')
+}
+
+function handleCallUpdated(updatedCall?: PhoneCallRecord): void {
+  // A rematch/assign can move OTHER calls between queue tabs, so the refetch
+  // is authoritative; only the details panel keeps the mutation response.
+  if (updatedCall && selectedCall.value?.id === updatedCall.id) {
+    selectedCall.value = updatedCall
+  }
+  void loadCalls()
+}
+
+function logAssignClientSearchClick(): void {
+  logSelectedClientClick(selectedClientId.value, 'crm_calls_assign_number')
+}
+
+async function assignSelectedCallNumber(): Promise<void> {
+  if (!selectedCall.value || !selectedClientId.value || isAssigningNumber.value) return
+  isAssigningNumber.value = true
   try {
-    phoneMethods.value = await api.clients_contact_methods_list({
-      queries: { method_type: 'phone' },
-    })
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to load phone numbers'
-    error.value = message
-    console.error('Failed to load phone numbers:', err)
-    toast.error(message)
-  }
-}
-
-async function searchClients(): Promise<void> {
-  const response = await api.clients_search_retrieve({
-    queries: {
-      page: 1,
-      page_size: 20,
-      q: clientSearch.value || undefined,
-      sort_by: 'name',
-      sort_dir: 'asc',
-    },
-  })
-  clientOptions.value = response.results || []
-}
-
-function logSelectedClientSearchClick(): void {
-  const selectedIndex = clientOptions.value.findIndex(
-    (client) => client.id === selectedClientId.value,
-  )
-  const selectedClient = clientOptions.value[selectedIndex]
-  if (!selectedClient) {
-    return
-  }
-
-  logClientSearchClick(
-    selectedClient,
-    clientSearch.value,
-    selectedIndex + 1,
-    'crm_calls_assign_number',
-  )
-}
-
-async function loadContacts(clientId: string): Promise<void> {
-  if (!clientId) {
-    contactOptions.value = []
-    selectedContactId.value = ''
-    return
-  }
-  contactOptions.value = await api.clients_contacts_list({
-    queries: { client_id: clientId },
-  })
-}
-
-async function assignNumber(): Promise<void> {
-  if (!selectedClientId.value) return
-  isSavingAssignment.value = true
-  try {
-    await api.assignPhoneCallNumber({
-      phone_number: phoneNumber.value,
-      client: selectedClientId.value,
-      contact: selectedContactId.value || null,
-      label: phoneLabel.value,
-      is_primary: isPrimary.value,
-    })
-    phoneNumber.value = ''
-    phoneLabel.value = ''
-    isPrimary.value = false
-    selectedContactId.value = ''
+    const updatedCall = await api.assignPhoneCallNumber(
+      {
+        client: selectedClientId.value,
+        contact: selectedContactId.value || null,
+        label: phoneLabel.value,
+        is_primary: isPrimary.value,
+      },
+      { params: { id: selectedCall.value.id } },
+    )
+    handleCallUpdated(updatedCall)
+    resetAssignmentForm()
     toast.success('Phone number assigned')
-    await loadAll()
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to assign phone number'
-    console.error('Failed to assign phone number:', err)
+  } catch (error) {
+    const message = error instanceof Error ? error.message : 'Failed to assign phone number'
+    console.error('Failed to assign phone number:', error)
     toast.error(message)
   } finally {
-    isSavingAssignment.value = false
+    isAssigningNumber.value = false
   }
 }
 
+function resetAssignmentForm(): void {
+  selectedCall.value = null
+  clientSearch.value = ''
+  clientOptions.value = []
+  contactOptions.value = []
+  selectedClientId.value = ''
+  selectedContactId.value = ''
+  phoneLabel.value = ''
+  isPrimary.value = false
+}
+
+function handleCrmCallsStale(): void {
+  if (!isLoadingCalls.value) void loadCalls()
+}
+
+watch([activeTab, directionFilter, recordingsOnly], () => {
+  void loadCalls()
+})
+
 watch(selectedClientId, (clientId) => {
-  loadContacts(clientId).catch((err) => {
-    console.error('Failed to load client contacts:', err)
-    toast.error('Failed to load client contacts')
-  })
+  if (!clientId) {
+    selectedContactId.value = ''
+  }
+  void loadClientContacts(clientId)
 })
 
 onMounted(() => {
-  loadAll().catch((err) => {
-    error.value = err instanceof Error ? err.message : 'Failed to load calls'
-  })
+  void loadCalls()
+  unsubscribeCrmCallsFreshness = dataFreshness.subscribe('crm_calls', handleCrmCallsStale)
+})
+
+onUnmounted(() => {
+  unsubscribeCrmCallsFreshness?.()
+  unsubscribeCrmCallsFreshness = null
 })
 </script>

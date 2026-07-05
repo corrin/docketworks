@@ -627,7 +627,6 @@ const ClientDetailResponse = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
-  phone: z.string(),
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),
@@ -637,7 +636,6 @@ const ClientDetailResponse = z.object({
   primary_contact_name: z.string(),
   primary_contact_email: z.string(),
   additional_contact_persons: z.array(z.unknown()).optional(),
-  all_phones: z.array(z.unknown()).optional(),
   xero_last_modified: z.string().datetime({ offset: true }).nullable(),
   xero_last_synced: z.string().datetime({ offset: true }).nullable(),
   xero_archived: z.boolean(),
@@ -686,7 +684,6 @@ const ClientUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
-    phone: z.string().max(50),
     address: z.string(),
     is_account_customer: z.boolean(),
     allow_jobs: z.boolean(),
@@ -701,7 +698,6 @@ const PatchedClientUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
-    phone: z.string().max(50),
     address: z.string(),
     is_account_customer: z.boolean(),
     allow_jobs: z.boolean(),
@@ -713,6 +709,7 @@ const ClientContactMethodSourceEnum = z.enum(['imported', 'local'])
 const ClientContactMethod = z.object({
   id: z.string().uuid(),
   client: z.string().uuid().nullish(),
+  owner_client: z.string(),
   client_name: z.string(),
   contact: z.string().uuid().nullish(),
   contact_name: z.string(),
@@ -724,6 +721,13 @@ const ClientContactMethod = z.object({
   source: ClientContactMethodSourceEnum.optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
+})
+const PaginatedClientContactMethodList = z.object({
+  results: z.array(ClientContactMethod),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
 })
 const ClientContactMethodRequest = z.object({
   client: z.string().uuid().nullish(),
@@ -750,7 +754,6 @@ const ClientContact = z.object({
   client: z.string().uuid(),
   name: z.string().max(255),
   email: z.string().max(254).email().nullish(),
-  phone: z.string().max(150).nullish(),
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
@@ -762,7 +765,6 @@ const ClientContactRequest = z.object({
   client: z.string().uuid(),
   name: z.string().min(1).max(255),
   email: z.string().max(254).email().nullish(),
-  phone: z.string().max(150).nullish(),
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
@@ -772,7 +774,6 @@ const PatchedClientContactRequest = z
     client: z.string().uuid(),
     name: z.string().min(1).max(255),
     email: z.string().max(254).email().nullable(),
-    phone: z.string().max(150).nullable(),
     position: z.string().max(255).nullable(),
     is_primary: z.boolean(),
     notes: z.string().nullable(),
@@ -781,7 +782,6 @@ const PatchedClientContactRequest = z
 const ClientCreateRequest = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email().nullish(),
-  phone: z.string().max(50).nullish(),
   address: z.string().nullish(),
   is_account_customer: z.boolean().optional().default(true),
   allow_jobs: z.boolean().optional().default(true),
@@ -790,7 +790,6 @@ const ClientSearchResult = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
-  phone: z.string(),
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),
@@ -813,7 +812,6 @@ const JobContactResponse = z.object({
   id: z.string().uuid(),
   name: z.string(),
   email: z.string().nullable(),
-  phone: z.string().nullable(),
   position: z.string().nullable(),
   is_primary: z.boolean(),
   notes: z.string().nullable(),
@@ -822,7 +820,6 @@ const JobContactUpdateRequest = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
   email: z.string().nullable(),
-  phone: z.string().nullable(),
   position: z.string().nullable(),
   is_primary: z.boolean(),
   notes: z.string().nullable(),
@@ -890,7 +887,6 @@ const CompanyDefaults = z.object({
   id: z.number().int(),
   logo_url: z.string().nullable(),
   logo_wide_url: z.string().nullable(),
-  phone_own_numbers: z.array(z.string()).optional(),
   company_name: z.string(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -941,13 +937,7 @@ const CompanyDefaults = z.object({
   post_code: z.string().max(20).nullish(),
   country: z.string().max(100).optional(),
   company_email: z.string().max(254).email().nullish(),
-  company_phone: z.string().max(30).nullish(),
   company_url: z.string().max(200).url().nullish(),
-  phone_call_downloads_enabled: z.boolean().optional(),
-  phone_provider_recording_deletion_enabled: z.boolean().optional(),
-  phone_provider_base_url: z.string().max(200).url().nullish(),
-  phone_provider_username: z.string().max(255).optional(),
-  phone_provider_account_code: z.string().max(100).optional(),
   test_client_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
@@ -962,8 +952,6 @@ const CompanyDefaults = z.object({
 const CompanyDefaultsRequest = z.object({
   logo: z.instanceof(File).nullish(),
   logo_wide: z.instanceof(File).nullish(),
-  phone_provider_password: z.string().optional(),
-  phone_own_numbers: z.array(z.string().min(1)).optional(),
   company_acronym: z.string().max(10).nullish(),
   time_markup: z.number().gt(-1000).lt(1000).optional(),
   materials_markup: z.number().gt(-1000).lt(1000).optional(),
@@ -1011,13 +999,7 @@ const CompanyDefaultsRequest = z.object({
   post_code: z.string().max(20).nullish(),
   country: z.string().min(1).max(100).optional(),
   company_email: z.string().max(254).email().nullish(),
-  company_phone: z.string().max(30).nullish(),
   company_url: z.string().max(200).url().nullish(),
-  phone_call_downloads_enabled: z.boolean().optional(),
-  phone_provider_recording_deletion_enabled: z.boolean().optional(),
-  phone_provider_base_url: z.string().max(200).url().nullish(),
-  phone_provider_username: z.string().max(255).optional(),
-  phone_provider_account_code: z.string().max(100).optional(),
   test_client_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
@@ -1033,8 +1015,6 @@ const PatchedCompanyDefaultsRequest = z
   .object({
     logo: z.instanceof(File).nullable(),
     logo_wide: z.instanceof(File).nullable(),
-    phone_provider_password: z.string(),
-    phone_own_numbers: z.array(z.string().min(1)),
     company_acronym: z.string().max(10).nullable(),
     time_markup: z.number().gt(-1000).lt(1000),
     materials_markup: z.number().gt(-1000).lt(1000),
@@ -1082,13 +1062,7 @@ const PatchedCompanyDefaultsRequest = z
     post_code: z.string().max(20).nullable(),
     country: z.string().min(1).max(100),
     company_email: z.string().max(254).email().nullable(),
-    company_phone: z.string().max(30).nullable(),
     company_url: z.string().max(200).url().nullable(),
-    phone_call_downloads_enabled: z.boolean(),
-    phone_provider_recording_deletion_enabled: z.boolean(),
-    phone_provider_base_url: z.string().max(200).url().nullable(),
-    phone_provider_username: z.string().max(255),
-    phone_provider_account_code: z.string().max(100),
     test_client_name: z.string().max(255).nullable(),
     kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000),
     kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000),
@@ -1122,7 +1096,6 @@ const PhoneCallRecording = z.object({
   provider_recording_id: z.string(),
   account_code: z.string(),
   filename: z.string(),
-  storage_path: z.string(),
   content_type: z.string(),
   byte_size: z.number().int().nullable(),
   sha256: z.string(),
@@ -1135,6 +1108,7 @@ const PhoneCallRecording = z.object({
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
+const DirectionEnum = z.enum(['inbound', 'outbound', 'internal', 'unknown'])
 const PhoneCallRecord = z.object({
   id: z.string().uuid(),
   provider_call_id: z.string(),
@@ -1147,34 +1121,104 @@ const PhoneCallRecord = z.object({
   description: z.string(),
   origin: z.string(),
   destination: z.string(),
-  direction: z.string(),
+  direction: DirectionEnum,
   our_number: z.string(),
   external_number: z.string(),
+  origin_endpoint: z.string().uuid().nullable(),
+  origin_endpoint_label: z.string(),
+  destination_endpoint: z.string().uuid().nullable(),
+  destination_endpoint_label: z.string(),
   duration_seconds: z.number().int(),
   charge: z.number().gt(-100000000).lt(100000000).nullable(),
   client: z.string().uuid().nullable(),
   client_name: z.string(),
   contact: z.string().uuid().nullable(),
   contact_name: z.string(),
+  job: z.string().uuid().nullable(),
+  job_number: z.number().int().nullable(),
+  job_name: z.string(),
+  job_status: z.string(),
+  job_linked_at: z.string().datetime({ offset: true }).nullable(),
+  job_linked_by: z.string().uuid().nullable(),
   recording: PhoneCallRecording.nullable(),
   imported_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
+const PaginatedPhoneCallRecordList = z.object({
+  results: z.array(PhoneCallRecord),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
+})
 const PhoneNumberAssignmentRequest = z.object({
-  phone_number: z.string().min(1).max(150),
   client: z.string().uuid(),
   contact: z.string().uuid().nullish(),
-  label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
+  label: z.string().max(255).optional().default(''),
 })
-const PhoneNumberAssignment = z.object({
-  phone_number: z.string().max(150),
-  client: z.string().uuid(),
-  contact: z.string().uuid().nullish(),
-  label: z.string().max(255).optional(),
-  is_primary: z.boolean().optional().default(false),
+const PhoneCallJobLinkRequest = z.object({ job: z.string().uuid() })
+const EndpointTypeEnum = z.enum(['main_line', 'staff_mobile', 'staff_ddi', 'extension', 'shared'])
+const PhoneEndpoint = z.object({
+  id: z.string().uuid(),
+  number: z.string().max(150),
+  normalized_number: z.string(),
+  label: z.string().max(255),
+  endpoint_type: EndpointTypeEnum,
+  staff: z.string().uuid().nullish(),
+  staff_name: z.string(),
+  provider_account_code: z.string().max(100).optional(),
+  provider_metadata: z.unknown().optional(),
+  is_active: z.boolean().optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
 })
-const DataVersions = z.object({ stock: z.string(), kanban: z.string() })
+const PhoneEndpointRequest = z.object({
+  number: z.string().min(1).max(150),
+  label: z.string().min(1).max(255),
+  endpoint_type: EndpointTypeEnum,
+  staff: z.string().uuid().nullish(),
+  provider_account_code: z.string().max(100).optional(),
+  provider_metadata: z.unknown().optional(),
+  is_active: z.boolean().optional(),
+})
+const PatchedPhoneEndpointRequest = z
+  .object({
+    number: z.string().min(1).max(150),
+    label: z.string().min(1).max(255),
+    endpoint_type: EndpointTypeEnum,
+    staff: z.string().uuid().nullable(),
+    provider_account_code: z.string().max(100),
+    provider_metadata: z.unknown(),
+    is_active: z.boolean(),
+  })
+  .partial()
+const PhoneProviderSettings = z.object({
+  id: z.number().int(),
+  downloads_enabled: z.boolean().optional(),
+  recording_deletion_enabled: z.boolean().optional(),
+  base_url: z.string().max(200).url().nullish(),
+  has_username: z.boolean(),
+  has_password: z.boolean(),
+  account_code: z.string().max(100).optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+})
+const PatchedPhoneProviderSettingsRequest = z
+  .object({
+    downloads_enabled: z.boolean(),
+    recording_deletion_enabled: z.boolean(),
+    base_url: z.string().max(200).url().nullable(),
+    username: z.string(),
+    password: z.string(),
+    account_code: z.string().max(100),
+  })
+  .partial()
+const DataVersions = z.object({
+  stock: z.string(),
+  kanban: z.string(),
+  crm_calls: z.string(),
+})
 const CompanyDefaultsJobDetail = z.object({
   materials_markup: z.number(),
   time_markup: z.number(),
@@ -1293,6 +1337,27 @@ const ArchivedJobsComplianceResponse = z.object({
   total_archived_jobs: z.number().int(),
   non_compliant_jobs: z.array(ArchivedJobIssue),
   summary: ComplianceSummary,
+  checked_at: z.string().datetime({ offset: true }),
+})
+const DuplicatePhoneOwner = z.object({
+  method_id: z.string(),
+  owner_kind: z.string(),
+  owner_name: z.string(),
+  effective_client_id: z.string().nullable(),
+})
+const DuplicatePhoneIssue = z.object({
+  normalized_value: z.string(),
+  issue: z.string(),
+  endpoint_label: z.string().nullish(),
+  owners: z.array(DuplicatePhoneOwner),
+})
+const DuplicatePhoneSummary = z.object({
+  cross_client: z.number().int(),
+  internal_line: z.number().int(),
+})
+const DuplicatePhonesResponse = z.object({
+  duplicate_phones: z.array(DuplicatePhoneIssue),
+  summary: DuplicatePhoneSummary,
   checked_at: z.string().datetime({ offset: true }),
 })
 const AssignJobRequest = z.object({ staff_id: z.string().uuid() })
@@ -3529,6 +3594,7 @@ export const schemas = {
   MethodTypeEnum,
   ClientContactMethodSourceEnum,
   ClientContactMethod,
+  PaginatedClientContactMethodList,
   ClientContactMethodRequest,
   PatchedClientContactMethodRequest,
   ClientContact,
@@ -3551,9 +3617,17 @@ export const schemas = {
   SettingsSection,
   CompanyDefaultsSchema,
   PhoneCallRecording,
+  DirectionEnum,
   PhoneCallRecord,
+  PaginatedPhoneCallRecordList,
   PhoneNumberAssignmentRequest,
-  PhoneNumberAssignment,
+  PhoneCallJobLinkRequest,
+  EndpointTypeEnum,
+  PhoneEndpoint,
+  PhoneEndpointRequest,
+  PatchedPhoneEndpointRequest,
+  PhoneProviderSettings,
+  PatchedPhoneProviderSettingsRequest,
   DataVersions,
   CompanyDefaultsJobDetail,
   CostLineKindEnum,
@@ -3571,6 +3645,10 @@ export const schemas = {
   ArchivedJobIssue,
   ComplianceSummary,
   ArchivedJobsComplianceResponse,
+  DuplicatePhoneOwner,
+  DuplicatePhoneIssue,
+  DuplicatePhoneSummary,
+  DuplicatePhonesResponse,
   AssignJobRequest,
   AssignJobResponse,
   CompleteJob,
@@ -4921,8 +4999,18 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         type: 'Query',
         schema: z.string().optional(),
       },
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
     ],
-    response: z.array(ClientContactMethod),
+    response: PaginatedClientContactMethodList,
   },
   {
     method: 'post',
@@ -5669,12 +5757,72 @@ DELETE: Clear a logo field and remove the file from disk.`,
         schema: z.string().uuid().optional(),
       },
       {
+        name: 'client_match',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
         name: 'contact',
         type: 'Query',
         schema: z.string().uuid().optional(),
       },
+      {
+        name: 'destination_endpoint',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'direction',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'from_date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'has_recording',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+      {
+        name: 'job',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'job_link',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'origin_endpoint',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'q',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'to_date',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
     ],
-    response: z.array(PhoneCallRecord),
+    response: PaginatedPhoneCallRecordList,
   },
   {
     method: 'get',
@@ -5692,7 +5840,7 @@ DELETE: Clear a logo field and remove the file from disk.`,
   },
   {
     method: 'post',
-    path: '/api/crm/phone-calls/assign-number/',
+    path: '/api/crm/phone-calls/:id/assign-number/',
     alias: 'assignPhoneCallNumber',
     requestFormat: 'json',
     parameters: [
@@ -5701,8 +5849,161 @@ DELETE: Clear a logo field and remove the file from disk.`,
         type: 'Body',
         schema: PhoneNumberAssignmentRequest,
       },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
     ],
-    response: PhoneNumberAssignment,
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'post',
+    path: '/api/crm/phone-calls/:id/job-link/',
+    alias: 'linkPhoneCallJob',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ job: z.string().uuid() }),
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-calls/:id/job-link/',
+    alias: 'unlinkPhoneCallJob',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneCallRecord,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-endpoints/',
+    alias: 'crm_phone_endpoints_list',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'is_active',
+        type: 'Query',
+        schema: z.boolean().optional(),
+      },
+    ],
+    response: z.array(PhoneEndpoint),
+  },
+  {
+    method: 'post',
+    path: '/api/crm/phone-endpoints/',
+    alias: 'crm_phone_endpoints_create',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PhoneEndpointRequest,
+      },
+    ],
+    response: PhoneEndpoint,
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-endpoints/:id/',
+    alias: 'crm_phone_endpoints_retrieve',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneEndpoint,
+  },
+  {
+    method: 'put',
+    path: '/api/crm/phone-endpoints/:id/',
+    alias: 'crm_phone_endpoints_update',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PhoneEndpointRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneEndpoint,
+  },
+  {
+    method: 'patch',
+    path: '/api/crm/phone-endpoints/:id/',
+    alias: 'crm_phone_endpoints_partial_update',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedPhoneEndpointRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneEndpoint,
+  },
+  {
+    method: 'delete',
+    path: '/api/crm/phone-endpoints/:id/',
+    alias: 'crm_phone_endpoints_destroy',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
+    path: '/api/crm/phone-provider-settings/',
+    alias: 'getPhoneProviderSettings',
+    requestFormat: 'json',
+    response: PhoneProviderSettings,
+  },
+  {
+    method: 'patch',
+    path: '/api/crm/phone-provider-settings/',
+    alias: 'updatePhoneProviderSettings',
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedPhoneProviderSettingsRequest,
+      },
+    ],
+    response: PhoneProviderSettings,
   },
   {
     method: 'get',
@@ -5828,6 +6129,20 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
     description: `Verify that all archived jobs are either cancelled or fully invoiced and paid.`,
     requestFormat: 'json',
     response: ArchivedJobsComplianceResponse,
+    errors: [
+      {
+        status: 500,
+        schema: z.object({}).partial().passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/api/job/data-quality/duplicate-phones/',
+    alias: 'check_duplicate_phones',
+    description: `List phone numbers owned by more than one client, or client numbers that are actually internal company lines.`,
+    requestFormat: 'json',
+    response: DuplicatePhonesResponse,
     errors: [
       {
         status: 500,

@@ -13,12 +13,13 @@ other worker units so their fresh processes rebuild from the new row.
 
 import json
 import logging
+import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any, Callable, Dict, Optional
 from urllib.parse import quote, urlencode
 
 import requests
-from django.core.cache import cache
+from django.core.cache import cache, caches
 from xero_python.api_client import ApiClient, Configuration
 from xero_python.api_client.oauth2 import OAuth2Token, TokenApi
 from xero_python.identity import IdentityApi
@@ -33,6 +34,10 @@ logger = logging.getLogger("xero")
 
 
 _api_client: Optional[ApiClient] = None
+REFRESH_LOCK_KEY = "xero_token_refresh_lock"
+REFRESH_LOCK_TIMEOUT_SECONDS = 60
+REFRESH_WINDOW = timedelta(seconds=60)
+_shared_cache = caches["shared"]
 
 
 def _build() -> ApiClient:
@@ -222,19 +227,59 @@ def refresh_token() -> Optional[Dict[str, Any]]:
         raise AlreadyLoggedException(exc, err.id) from exc
 
 
+def _payload_needs_refresh(payload: Dict[str, Any]) -> bool:
+    expires_at = payload.get("expires_at")
+    if not expires_at:
+        return False
+    expires_at_dt = datetime.fromtimestamp(expires_at, tz=timezone.utc)
+    return datetime.now(timezone.utc) > expires_at_dt - REFRESH_WINDOW
+
+
 def get_valid_token() -> Optional[Dict[str, Any]]:
-    """Return a valid token, refreshing if it expires within 5 minutes."""
-    payload = get_token()
+    """Return a valid token, refreshing if possible when near expiry.
+
+    ``None`` means the installation is not connected, or the active row lacks
+    the stored token material required to refresh. Refresh attempts that reach
+    Xero and fail propagate as ``AlreadyLoggedException`` so callers do not
+    mistake operational failures for an unconnected install.
+    """
+    try:
+        app = XeroApp.objects.get(is_active=True)
+    except XeroApp.DoesNotExist:
+        return None
+
+    payload = _payload_from_row(app)
     if not payload:
         return None
-    expires_at = payload.get("expires_at")
-    if expires_at:
-        expires_at_dt = datetime.fromtimestamp(expires_at, tz=timezone.utc)
-        if datetime.now(timezone.utc) > expires_at_dt - timedelta(minutes=5):
-            try:
-                payload = refresh_token()
-            except AlreadyLoggedException:
-                return None
+    if not _payload_needs_refresh(payload):
+        return payload
+
+    if not payload.get("refresh_token"):
+        logger.debug("Active XeroApp row needs refresh but has no refresh_token")
+        return None
+
+    lock_owner = f"{app.id}:{uuid.uuid4().hex}"
+    if _shared_cache.add(
+        REFRESH_LOCK_KEY,
+        lock_owner,
+        timeout=REFRESH_LOCK_TIMEOUT_SECONDS,
+    ):
+        try:
+            return refresh_token()
+        finally:
+            if _shared_cache.get(REFRESH_LOCK_KEY) == lock_owner:
+                _shared_cache.delete(REFRESH_LOCK_KEY)
+
+    # Another process is refreshing the rotating Xero token. Re-read the row:
+    # if it already wrote a fresh token, use it; otherwise report no valid
+    # token instead of racing the same refresh_token.
+    try:
+        app.refresh_from_db()
+    except XeroApp.DoesNotExist:
+        return None
+    payload = _payload_from_row(app)
+    if not payload or _payload_needs_refresh(payload):
+        return None
     return payload
 
 

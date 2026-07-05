@@ -1478,6 +1478,14 @@ paths:
           name: method_type
           schema:
             type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: page_size
+          schema:
+            type: integer
       tags:
         - clients
       security:
@@ -1487,9 +1495,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ClientContactMethod'
+                $ref: '#/components/schemas/PaginatedClientContactMethodList'
           description: ''
     post:
       operationId: clients_contact_methods_create
@@ -2573,10 +2579,63 @@ paths:
             type: string
             format: uuid
         - in: query
+          name: client_match
+          schema:
+            type: string
+        - in: query
           name: contact
           schema:
             type: string
             format: uuid
+        - in: query
+          name: destination_endpoint
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: direction
+          schema:
+            type: string
+        - in: query
+          name: from_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: has_recording
+          schema:
+            type: boolean
+        - in: query
+          name: job
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: job_link
+          schema:
+            type: string
+        - in: query
+          name: origin_endpoint
+          schema:
+            type: string
+            format: uuid
+        - in: query
+          name: page
+          schema:
+            type: integer
+        - in: query
+          name: page_size
+          schema:
+            type: integer
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: to_date
+          schema:
+            type: string
+            format: date
       tags:
         - CRM
       security:
@@ -2586,9 +2645,7 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/PhoneCallRecord'
+                $ref: '#/components/schemas/PaginatedPhoneCallRecordList'
           description: ''
   /api/crm/phone-calls/{id}/:
     get:
@@ -2612,9 +2669,17 @@ paths:
               schema:
                 $ref: '#/components/schemas/PhoneCallRecord'
           description: ''
-  /api/crm/phone-calls/assign-number/:
+  /api/crm/phone-calls/{id}/assign-number/:
     post:
       operationId: assignPhoneCallNumber
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call record.
+          required: true
       tags:
         - CRM
       requestBody:
@@ -2636,7 +2701,250 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PhoneNumberAssignment'
+                $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
+  /api/crm/phone-calls/{id}/job-link/:
+    post:
+      operationId: linkPhoneCallJob
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call record.
+          required: true
+      tags:
+        - CRM
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneCallJobLinkRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneCallJobLinkRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneCallJobLinkRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
+    delete:
+      operationId: unlinkPhoneCallJob
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone call record.
+          required: true
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneCallRecord'
+          description: ''
+  /api/crm/phone-endpoints/:
+    get:
+      operationId: crm_phone_endpoints_list
+      parameters:
+        - in: query
+          name: is_active
+          schema:
+            type: boolean
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PhoneEndpoint'
+          description: ''
+    post:
+      operationId: crm_phone_endpoints_create
+      tags:
+        - crm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneEndpointRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneEndpointRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneEndpointRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneEndpoint'
+          description: ''
+  /api/crm/phone-endpoints/{id}/:
+    get:
+      operationId: crm_phone_endpoints_retrieve
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone endpoint.
+          required: true
+      tags:
+        - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneEndpoint'
+          description: ''
+    put:
+      operationId: crm_phone_endpoints_update
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone endpoint.
+          required: true
+      tags:
+        - crm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneEndpointRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneEndpointRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneEndpointRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneEndpoint'
+          description: ''
+    patch:
+      operationId: crm_phone_endpoints_partial_update
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone endpoint.
+          required: true
+      tags:
+        - crm
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneEndpointRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneEndpointRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneEndpointRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneEndpoint'
+          description: ''
+    delete:
+      operationId: crm_phone_endpoints_destroy
+      parameters:
+        - in: path
+          name: id
+          schema:
+            type: string
+            format: uuid
+          description: A UUID string identifying this phone endpoint.
+          required: true
+      tags:
+        - crm
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/crm/phone-provider-settings/:
+    get:
+      operationId: getPhoneProviderSettings
+      tags:
+        - CRM
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneProviderSettings'
+          description: ''
+    patch:
+      operationId: updatePhoneProviderSettings
+      tags:
+        - CRM
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneProviderSettingsRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneProviderSettingsRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPhoneProviderSettingsRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneProviderSettings'
           description: ''
   /api/data-versions/:
     get:
@@ -2828,6 +3136,30 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ArchivedJobsComplianceResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
+  /api/job/data-quality/duplicate-phones/:
+    get:
+      operationId: check_duplicate_phones
+      description: List phone numbers owned by more than one client, or client numbers
+        that are actually internal company lines.
+      summary: Check duplicate phone ownership
+      tags:
+        - Data Quality
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicatePhonesResponse'
           description: ''
         '500':
           content:
@@ -9869,11 +10201,6 @@ components:
           nullable: true
           description: Email address of the contact
           maxLength: 254
-        phone:
-          type: string
-          nullable: true
-          description: Phone number of the contact
-          maxLength: 150
         position:
           type: string
           nullable: true
@@ -9918,6 +10245,9 @@ components:
           type: string
           format: uuid
           nullable: true
+        owner_client:
+          type: string
+          readOnly: true
         client_name:
           type: string
           readOnly: true
@@ -9959,6 +10289,7 @@ components:
         - id
         - method_type
         - normalized_value
+        - owner_client
         - updated_at
         - value
     ClientContactMethodRequest:
@@ -10017,11 +10348,6 @@ components:
           nullable: true
           description: Email address of the contact
           maxLength: 254
-        phone:
-          type: string
-          nullable: true
-          description: Phone number of the contact
-          maxLength: 150
         position:
           type: string
           nullable: true
@@ -10049,10 +10375,6 @@ components:
           type: string
           format: email
           nullable: true
-        phone:
-          type: string
-          nullable: true
-          maxLength: 50
         address:
           type: string
           nullable: true
@@ -10088,8 +10410,6 @@ components:
           type: string
         email:
           type: string
-        phone:
-          type: string
         address:
           type: string
         is_account_customer:
@@ -10107,9 +10427,6 @@ components:
         primary_contact_email:
           type: string
         additional_contact_persons:
-          type: array
-          items: {}
-        all_phones:
           type: array
           items: {}
         xero_last_modified:
@@ -10151,7 +10468,6 @@ components:
         - last_invoice_date
         - merged_into
         - name
-        - phone
         - primary_contact_email
         - primary_contact_name
         - total_spend
@@ -10300,8 +10616,6 @@ components:
           type: string
         email:
           type: string
-        phone:
-          type: string
         address:
           type: string
         is_account_customer:
@@ -10327,7 +10641,6 @@ components:
         - is_supplier
         - last_invoice_date
         - name
-        - phone
         - total_spend
         - xero_contact_id
     ClientUpdateRequest:
@@ -10341,9 +10654,6 @@ components:
         email:
           type: string
           format: email
-        phone:
-          type: string
-          maxLength: 50
         address:
           type: string
         is_account_customer:
@@ -10378,10 +10688,6 @@ components:
           type: string
           nullable: true
           readOnly: true
-        phone_own_numbers:
-          type: array
-          items:
-            type: string
         company_name:
           type: string
           readOnly: true
@@ -10627,38 +10933,12 @@ components:
           nullable: true
           description: Company contact email address
           maxLength: 254
-        company_phone:
-          type: string
-          nullable: true
-          description: Company phone number
-          maxLength: 30
         company_url:
           type: string
           format: uri
           nullable: true
           description: Company website URL
           maxLength: 200
-        phone_call_downloads_enabled:
-          type: boolean
-          description: Enable scheduled phone call and recording downloads.
-        phone_provider_recording_deletion_enabled:
-          type: boolean
-          description: Enable deletion of provider-side recordings after they have
-            been archived locally and aged past the retention delay.
-        phone_provider_base_url:
-          type: string
-          format: uri
-          nullable: true
-          description: Base URL for the configured phone provider portal.
-          maxLength: 200
-        phone_provider_username:
-          type: string
-          description: Username for the configured phone provider portal.
-          maxLength: 255
-        phone_provider_account_code:
-          type: string
-          description: Provider account code used when fetching and deleting recordings.
-          maxLength: 100
         test_client_name:
           type: string
           nullable: true
@@ -10785,14 +11065,6 @@ components:
           format: binary
           writeOnly: true
           nullable: true
-        phone_provider_password:
-          type: string
-          writeOnly: true
-        phone_own_numbers:
-          type: array
-          items:
-            type: string
-            minLength: 1
         company_acronym:
           type: string
           nullable: true
@@ -11031,38 +11303,12 @@ components:
           nullable: true
           description: Company contact email address
           maxLength: 254
-        company_phone:
-          type: string
-          nullable: true
-          description: Company phone number
-          maxLength: 30
         company_url:
           type: string
           format: uri
           nullable: true
           description: Company website URL
           maxLength: 200
-        phone_call_downloads_enabled:
-          type: boolean
-          description: Enable scheduled phone call and recording downloads.
-        phone_provider_recording_deletion_enabled:
-          type: boolean
-          description: Enable deletion of provider-side recordings after they have
-            been archived locally and aged past the retention delay.
-        phone_provider_base_url:
-          type: string
-          format: uri
-          nullable: true
-          description: Base URL for the configured phone provider portal.
-          maxLength: 200
-        phone_provider_username:
-          type: string
-          description: Username for the configured phone provider portal.
-          maxLength: 255
-        phone_provider_account_code:
-          type: string
-          description: Provider account code used when fetching and deleting recordings.
-          maxLength: 100
         test_client_name:
           type: string
           nullable: true
@@ -11752,7 +11998,10 @@ components:
           type: string
         kanban:
           type: string
+        crm_calls:
+          type: string
       required:
+        - crm_calls
         - kanban
         - stock
     Day:
@@ -11872,6 +12121,18 @@ components:
         - deletions_count
         - total_changes
         - updates_count
+    DirectionEnum:
+      enum:
+        - inbound
+        - outbound
+        - internal
+        - unknown
+      type: string
+      description: |-
+        * `inbound` - Inbound
+        * `outbound` - Outbound
+        * `internal` - Internal
+        * `unknown` - Unknown
     DomainEnum:
       enum:
         - client
@@ -11933,6 +12194,98 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
+    DuplicatePhoneIssue:
+      type: object
+      description: One problematic phone number and its owners.
+      properties:
+        normalized_value:
+          type: string
+          description: Normalized phone number
+        issue:
+          type: string
+          description: "'cross_client' or 'internal_line'"
+        endpoint_label:
+          type: string
+          nullable: true
+          description: Internal endpoint label (internal_line only)
+        owners:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePhoneOwner'
+      required:
+        - issue
+        - normalized_value
+        - owners
+    DuplicatePhoneOwner:
+      type: object
+      description: One owner of a mis-owned phone number.
+      properties:
+        method_id:
+          type: string
+          description: Contact-method id
+        owner_kind:
+          type: string
+          description: "'client' or 'contact'"
+        owner_name:
+          type: string
+          description: Human-readable owner
+        effective_client_id:
+          type: string
+          nullable: true
+          description: Client the number resolves to
+      required:
+        - effective_client_id
+        - method_id
+        - owner_kind
+        - owner_name
+    DuplicatePhoneSummary:
+      type: object
+      description: Summary of duplicate-phone issues.
+      properties:
+        cross_client:
+          type: integer
+          description: Numbers owned by more than one client
+        internal_line:
+          type: integer
+          description: Client numbers that are actually internal company lines
+      required:
+        - cross_client
+        - internal_line
+    DuplicatePhonesResponse:
+      type: object
+      description: Response for the duplicate phones check.
+      properties:
+        duplicate_phones:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePhoneIssue'
+          description: Mis-owned phone numbers with details
+        summary:
+          allOf:
+            - $ref: '#/components/schemas/DuplicatePhoneSummary'
+          description: Summary of issues
+        checked_at:
+          type: string
+          format: date-time
+          description: When the check was performed
+      required:
+        - checked_at
+        - duplicate_phones
+        - summary
+    EndpointTypeEnum:
+      enum:
+        - main_line
+        - staff_mobile
+        - staff_ddi
+        - extension
+        - shared
+      type: string
+      description: |-
+        * `main_line` - Main line
+        * `staff_mobile` - Staff mobile
+        * `staff_ddi` - Staff DDI
+        * `extension` - Extension
+        * `shared` - Shared
     FetchAllJobsResponse:
       type: object
       description: Serializer for fetch_all_jobs response.
@@ -12942,9 +13295,6 @@ components:
         email:
           type: string
           nullable: true
-        phone:
-          type: string
-          nullable: true
         position:
           type: string
           nullable: true
@@ -12959,7 +13309,6 @@ components:
         - is_primary
         - name
         - notes
-        - phone
         - position
     JobContactUpdateRequest:
       type: object
@@ -12974,9 +13323,6 @@ components:
         email:
           type: string
           nullable: true
-        phone:
-          type: string
-          nullable: true
         position:
           type: string
           nullable: true
@@ -12991,7 +13337,6 @@ components:
         - is_primary
         - name
         - notes
-        - phone
         - position
     JobCostSetSummary:
       type: object
@@ -15606,6 +15951,31 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/AppError'
+    PaginatedClientContactMethodList:
+      type: object
+      required:
+        - results
+        - count
+        - page
+        - page_size
+        - total_pages
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientContactMethod'
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_pages:
+          type: integer
+          example: 3
     PaginatedCompleteJobList:
       type: object
       required:
@@ -15629,6 +15999,31 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CompleteJob'
+    PaginatedPhoneCallRecordList:
+      type: object
+      required:
+        - results
+        - count
+        - page
+        - page_size
+        - total_pages
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhoneCallRecord'
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_pages:
+          type: integer
+          example: 3
     PaginatedScheduledTaskExecutionList:
       type: object
       required:
@@ -15776,11 +16171,6 @@ components:
           nullable: true
           description: Email address of the contact
           maxLength: 254
-        phone:
-          type: string
-          nullable: true
-          description: Phone number of the contact
-          maxLength: 150
         position:
           type: string
           nullable: true
@@ -15804,9 +16194,6 @@ components:
         email:
           type: string
           format: email
-        phone:
-          type: string
-          maxLength: 50
         address:
           type: string
         is_account_customer:
@@ -15826,14 +16213,6 @@ components:
           format: binary
           writeOnly: true
           nullable: true
-        phone_provider_password:
-          type: string
-          writeOnly: true
-        phone_own_numbers:
-          type: array
-          items:
-            type: string
-            minLength: 1
         company_acronym:
           type: string
           nullable: true
@@ -16072,38 +16451,12 @@ components:
           nullable: true
           description: Company contact email address
           maxLength: 254
-        company_phone:
-          type: string
-          nullable: true
-          description: Company phone number
-          maxLength: 30
         company_url:
           type: string
           format: uri
           nullable: true
           description: Company website URL
           maxLength: 200
-        phone_call_downloads_enabled:
-          type: boolean
-          description: Enable scheduled phone call and recording downloads.
-        phone_provider_recording_deletion_enabled:
-          type: boolean
-          description: Enable deletion of provider-side recordings after they have
-            been archived locally and aged past the retention delay.
-        phone_provider_base_url:
-          type: string
-          format: uri
-          nullable: true
-          description: Base URL for the configured phone provider portal.
-          maxLength: 200
-        phone_provider_username:
-          type: string
-          description: Username for the configured phone provider portal.
-          maxLength: 255
-        phone_provider_account_code:
-          type: string
-          description: Provider account code used when fetching and deleting recordings.
-          maxLength: 100
         test_client_name:
           type: string
           nullable: true
@@ -16370,6 +16723,50 @@ components:
           minimum: 0
           exclusiveMaximum: true
           description: Company-level rate used to seed JobLabourRate on new jobs
+    PatchedPhoneEndpointRequest:
+      type: object
+      properties:
+        number:
+          type: string
+          minLength: 1
+          maxLength: 150
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        endpoint_type:
+          $ref: '#/components/schemas/EndpointTypeEnum'
+        staff:
+          type: string
+          format: uuid
+          nullable: true
+        provider_account_code:
+          type: string
+          maxLength: 100
+        provider_metadata: {}
+        is_active:
+          type: boolean
+    PatchedPhoneProviderSettingsRequest:
+      type: object
+      properties:
+        downloads_enabled:
+          type: boolean
+        recording_deletion_enabled:
+          type: boolean
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        username:
+          type: string
+          writeOnly: true
+        password:
+          type: string
+          writeOnly: true
+        account_code:
+          type: string
+          maxLength: 100
     PatchedProcedureUpdateRequest:
       type: object
       description: Update serializer for procedures.
@@ -17122,6 +17519,15 @@ components:
         - jm_hours
         - xero_gross
         - xero_hours
+    PhoneCallJobLinkRequest:
+      type: object
+      description: Request body for linking a phone call to a job.
+      properties:
+        job:
+          type: string
+          format: uuid
+      required:
+        - job
     PhoneCallRecord:
       type: object
       properties:
@@ -17163,12 +17569,29 @@ components:
           type: string
           readOnly: true
         direction:
-          type: string
+          allOf:
+            - $ref: '#/components/schemas/DirectionEnum'
           readOnly: true
         our_number:
           type: string
           readOnly: true
         external_number:
+          type: string
+          readOnly: true
+        origin_endpoint:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        origin_endpoint_label:
+          type: string
+          readOnly: true
+        destination_endpoint:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        destination_endpoint_label:
           type: string
           readOnly: true
         duration_seconds:
@@ -17199,11 +17622,36 @@ components:
         contact_name:
           type: string
           readOnly: true
+        job:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        job_number:
+          type: integer
+          nullable: true
+          readOnly: true
+        job_name:
+          type: string
+          readOnly: true
+        job_status:
+          type: string
+          readOnly: true
+        job_linked_at:
+          type: string
+          format: date-time
+          readOnly: true
+          nullable: true
+        job_linked_by:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
         recording:
           allOf:
             - $ref: '#/components/schemas/PhoneCallRecording'
-          readOnly: true
           nullable: true
+          readOnly: true
         imported_at:
           type: string
           format: date-time
@@ -17225,12 +17673,22 @@ components:
         - contact_name
         - description
         - destination
+        - destination_endpoint
+        - destination_endpoint_label
         - direction
         - duration_seconds
         - external_number
         - id
         - imported_at
+        - job
+        - job_linked_at
+        - job_linked_by
+        - job_name
+        - job_number
+        - job_status
         - origin
+        - origin_endpoint
+        - origin_endpoint_label
         - our_number
         - provider_call_id
         - recording
@@ -17250,9 +17708,6 @@ components:
           type: string
           readOnly: true
         filename:
-          type: string
-          readOnly: true
-        storage_path:
           type: string
           readOnly: true
         content_type:
@@ -17313,37 +17768,86 @@ components:
         - provider_deleted_at
         - provider_recording_id
         - sha256
-        - storage_path
         - updated_at
-    PhoneNumberAssignment:
+    PhoneEndpoint:
       type: object
       properties:
-        phone_number:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        number:
           type: string
           maxLength: 150
-        client:
+        normalized_number:
           type: string
-          format: uuid
-        contact:
-          type: string
-          format: uuid
-          nullable: true
+          readOnly: true
         label:
           type: string
           maxLength: 255
-        is_primary:
+        endpoint_type:
+          $ref: '#/components/schemas/EndpointTypeEnum'
+        staff:
+          type: string
+          format: uuid
+          nullable: true
+        staff_name:
+          type: string
+          readOnly: true
+        provider_account_code:
+          type: string
+          maxLength: 100
+        provider_metadata: {}
+        is_active:
           type: boolean
-          default: false
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
       required:
-        - client
-        - phone_number
-    PhoneNumberAssignmentRequest:
+        - created_at
+        - endpoint_type
+        - id
+        - label
+        - normalized_number
+        - number
+        - staff_name
+        - updated_at
+    PhoneEndpointRequest:
       type: object
       properties:
-        phone_number:
+        number:
           type: string
           minLength: 1
           maxLength: 150
+        label:
+          type: string
+          minLength: 1
+          maxLength: 255
+        endpoint_type:
+          $ref: '#/components/schemas/EndpointTypeEnum'
+        staff:
+          type: string
+          format: uuid
+          nullable: true
+        provider_account_code:
+          type: string
+          maxLength: 100
+        provider_metadata: {}
+        is_active:
+          type: boolean
+      required:
+        - endpoint_type
+        - label
+        - number
+    PhoneNumberAssignmentRequest:
+      type: object
+      description: Request body for assigning a call's external number to a client.
+      properties:
         client:
           type: string
           format: uuid
@@ -17351,15 +17855,53 @@ components:
           type: string
           format: uuid
           nullable: true
-        label:
-          type: string
-          maxLength: 255
         is_primary:
           type: boolean
           default: false
+        label:
+          type: string
+          default: ''
+          maxLength: 255
       required:
         - client
-        - phone_number
+    PhoneProviderSettings:
+      type: object
+      properties:
+        id:
+          type: integer
+          readOnly: true
+        downloads_enabled:
+          type: boolean
+        recording_deletion_enabled:
+          type: boolean
+        base_url:
+          type: string
+          format: uri
+          nullable: true
+          maxLength: 200
+        has_username:
+          type: boolean
+          readOnly: true
+        has_password:
+          type: boolean
+          readOnly: true
+        account_code:
+          type: string
+          maxLength: 100
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+      required:
+        - created_at
+        - has_password
+        - has_username
+        - id
+        - updated_at
     PlacementEnum:
       enum:
         - above

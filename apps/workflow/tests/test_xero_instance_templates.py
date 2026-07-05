@@ -12,6 +12,13 @@ CREDENTIALS_TEMPLATE = (
 XERO_APPS_TEMPLATE = (
     REPO_ROOT / "scripts" / "server" / "templates" / "xero-apps.json.template"
 )
+PHONE_PROVIDER_SETTINGS_TEMPLATE = (
+    REPO_ROOT
+    / "scripts"
+    / "server"
+    / "templates"
+    / "phone-provider-settings.json.template"
+)
 INSTANCE_SCRIPT = REPO_ROOT / "scripts" / "server" / "instance.sh"
 DEPLOY_SCRIPT = REPO_ROOT / "scripts" / "server" / "deploy.sh"
 PREDEPLOY_BACKUP_SCRIPT = REPO_ROOT / "scripts" / "predeploy_backup.sh"
@@ -67,6 +74,16 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn("XERO_WEBHOOK_KEY=", content)
         self.assertIn("XERO_REDIRECT_URI=", content)
 
+    def test_credentials_template_includes_phone_provider_env_vars(self) -> None:
+        content = CREDENTIALS_TEMPLATE.read_text()
+
+        self.assertIn("PHONE_PROVIDER_DOWNLOADS_ENABLED=false", content)
+        self.assertIn("PHONE_PROVIDER_RECORDING_DELETION_ENABLED=false", content)
+        self.assertIn("PHONE_PROVIDER_BASE_URL=", content)
+        self.assertIn("PHONE_PROVIDER_USERNAME=", content)
+        self.assertIn("PHONE_PROVIDER_PASSWORD=", content)
+        self.assertIn("PHONE_PROVIDER_ACCOUNT_CODE=", content)
+
     def test_xero_apps_template_renders_to_valid_json(self):
         rendered = (
             XERO_APPS_TEMPLATE.read_text()
@@ -91,6 +108,32 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             fields["redirect_uri"],
             "https://msm-uat.docketworks.site/api/xero/oauth/callback/",
         )
+
+    def test_phone_provider_settings_template_renders_to_valid_json(self) -> None:
+        rendered = (
+            PHONE_PROVIDER_SETTINGS_TEMPLATE.read_text()
+            .replace("__PHONE_PROVIDER_DOWNLOADS_ENABLED__", "true")
+            .replace("__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__", "false")
+            .replace(
+                "__PHONE_PROVIDER_BASE_URL_JSON__",
+                '"http://phone-provider.lan"',
+            )
+            .replace("__PHONE_PROVIDER_USERNAME__", "phone-user")
+            .replace("__PHONE_PROVIDER_PASSWORD__", "phone-secret")
+            .replace("__PHONE_PROVIDER_ACCOUNT_CODE__", "15539090")
+        )
+
+        payload = json.loads(rendered)
+        self.assertEqual(len(payload), 1)
+        self.assertEqual(payload[0]["model"], "crm.phoneprovidersettings")
+        self.assertEqual(payload[0]["pk"], 1)
+        fields = payload[0]["fields"]
+        self.assertTrue(fields["downloads_enabled"])
+        self.assertFalse(fields["recording_deletion_enabled"])
+        self.assertEqual(fields["base_url"], "http://phone-provider.lan")
+        self.assertEqual(fields["username"], "phone-user")
+        self.assertEqual(fields["password"], "phone-secret")
+        self.assertEqual(fields["account_code"], "15539090")
 
     def test_instance_script_requires_and_loads_xero_app_fixture(self):
         content = INSTANCE_SCRIPT.read_text()
@@ -169,6 +212,11 @@ class XeroInstanceTemplateTests(SimpleTestCase):
             "XeroApp already configured; skipping xero_apps.json load", content
         )
         self.assertIn("if XeroApp.objects.exists()", content)
+        self.assertIn(
+            "PhoneProviderSettings already configured; skipping phone_provider_settings.json load",
+            content,
+        )
+        self.assertIn("PhoneProviderSettings.get_solo()", content)
         self.assertNotIn(
             "python manage.py loaddata apps/workflow/fixtures/ai_providers.json",
             content,
@@ -215,12 +263,20 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn(
             'local XERO_APPS_FIXTURE="$INSTANCE_DIR/.fixtures/xero_apps.json"', content
         )
+        self.assertIn(
+            'local PHONE_PROVIDER_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/phone_provider_settings.json"',
+            content,
+        )
         self.assertNotIn(
             "$instance_dir/apps/workflow/fixtures/ai_providers.json",
             content,
         )
         self.assertNotIn(
             "$instance_dir/apps/workflow/fixtures/xero_apps.json",
+            content,
+        )
+        self.assertNotIn(
+            "$instance_dir/apps/workflow/fixtures/phone_provider_settings.json",
             content,
         )
 

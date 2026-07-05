@@ -7,24 +7,46 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .models import PhoneCallRecord, PhoneCallRecording
+        from .models import (
+            PhoneCallRecord,
+            PhoneCallRecording,
+            PhoneEndpoint,
+            PhoneProviderSettings,
+        )
         from .serializers import (
+            PhoneCallJobLinkSerializer,
             PhoneCallRecordSerializer,
             PhoneCallRecordingSerializer,
+            PhoneEndpointAttrs,
+            PhoneEndpointSerializer,
             PhoneNumberAssignmentSerializer,
+            PhoneProviderSettingsAttrs,
+            PhoneProviderSettingsSerializer,
         )
-        from .tasks import delete_archived_phone_recordings_task, sync_phone_calls_task
+        from .tasks import (
+            RematchPhoneCallsTask,
+            delete_archived_phone_recordings_task,
+            sync_phone_calls_task,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
 
 __all__ = [
     "CrmConfig",
+    "PhoneCallJobLinkSerializer",
     "PhoneCallRecord",
     "PhoneCallRecordSerializer",
     "PhoneCallRecording",
     "PhoneCallRecordingSerializer",
+    "PhoneEndpoint",
+    "PhoneEndpointAttrs",
+    "PhoneEndpointSerializer",
     "PhoneNumberAssignmentSerializer",
+    "PhoneProviderSettings",
+    "PhoneProviderSettingsAttrs",
+    "PhoneProviderSettingsSerializer",
+    "RematchPhoneCallsTask",
     "delete_archived_phone_recordings_task",
     "sync_phone_calls_task",
 ]

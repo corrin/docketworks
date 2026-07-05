@@ -30,6 +30,14 @@ source "$SCRIPT_DIR/release-utils.sh"
 # Escape special chars for sed replacement strings (handles / & \ in values)
 sed_escape() { printf '%s\n' "$1" | sed 's/[&/|\\\"]/\\&/g'; }
 
+json_string_or_null() {
+    if [[ -z "$1" ]]; then
+        printf 'null'
+    else
+        python3 -c 'import json, sys; print(json.dumps(sys.argv[1]))' "$1"
+    fi
+}
+
 # Get the FQDN for an instance: custom if set, else <instance>.<domain>
 get_fqdn() {
     local instance="$1"
@@ -139,6 +147,15 @@ require_instance_credentials() {
     [[ -z "${XERO_CLIENT_SECRET:-}" ]] && MISSING+=("XERO_CLIENT_SECRET")
     [[ -z "${XERO_WEBHOOK_KEY:-}" ]] && MISSING+=("XERO_WEBHOOK_KEY")
     [[ -z "${XERO_REDIRECT_URI:-}" ]] && MISSING+=("XERO_REDIRECT_URI")
+
+    PHONE_PROVIDER_DOWNLOADS_ENABLED="${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}"
+    PHONE_PROVIDER_RECORDING_DELETION_ENABLED="${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}"
+    if [[ "$PHONE_PROVIDER_DOWNLOADS_ENABLED" == "true" || "$PHONE_PROVIDER_RECORDING_DELETION_ENABLED" == "true" ]]; then
+        [[ -z "${PHONE_PROVIDER_BASE_URL:-}" ]] && MISSING+=("PHONE_PROVIDER_BASE_URL")
+        [[ -z "${PHONE_PROVIDER_USERNAME:-}" ]] && MISSING+=("PHONE_PROVIDER_USERNAME")
+        [[ -z "${PHONE_PROVIDER_PASSWORD:-}" ]] && MISSING+=("PHONE_PROVIDER_PASSWORD")
+        [[ -z "${PHONE_PROVIDER_ACCOUNT_CODE:-}" ]] && MISSING+=("PHONE_PROVIDER_ACCOUNT_CODE")
+    fi
 
     if [[ ${#MISSING[@]} -gt 0 ]]; then
         echo "ERROR: Missing required values in $creds_file:"
@@ -265,6 +282,33 @@ render_xero_apps_fixture() {
     chown -R "$instance_user:$instance_user" "$fixture_dir"
     chmod 700 "$fixture_dir"
     chmod 600 "$fixture_dir/xero_apps.json"
+}
+
+render_phone_provider_settings_fixture() {
+    local instance_dir="$1"
+    local instance_user="$2"
+    local fixture_dir="$instance_dir/.fixtures"
+
+    log "Generating phone provider settings fixture..."
+    mkdir -p "$fixture_dir"
+    local ESC_PHONE_PROVIDER_USERNAME ESC_PHONE_PROVIDER_PASSWORD ESC_PHONE_PROVIDER_ACCOUNT_CODE
+    local PHONE_PROVIDER_BASE_URL_JSON
+    ESC_PHONE_PROVIDER_USERNAME="$(sed_escape "${PHONE_PROVIDER_USERNAME:-}")"
+    ESC_PHONE_PROVIDER_PASSWORD="$(sed_escape "${PHONE_PROVIDER_PASSWORD:-}")"
+    ESC_PHONE_PROVIDER_ACCOUNT_CODE="$(sed_escape "${PHONE_PROVIDER_ACCOUNT_CODE:-}")"
+    PHONE_PROVIDER_BASE_URL_JSON="$(sed_escape "$(json_string_or_null "${PHONE_PROVIDER_BASE_URL:-}")")"
+    sed \
+        -e "s|__PHONE_PROVIDER_DOWNLOADS_ENABLED__|${PHONE_PROVIDER_DOWNLOADS_ENABLED:-false}|g" \
+        -e "s|__PHONE_PROVIDER_RECORDING_DELETION_ENABLED__|${PHONE_PROVIDER_RECORDING_DELETION_ENABLED:-false}|g" \
+        -e "s|__PHONE_PROVIDER_BASE_URL_JSON__|$PHONE_PROVIDER_BASE_URL_JSON|g" \
+        -e "s|__PHONE_PROVIDER_USERNAME__|$ESC_PHONE_PROVIDER_USERNAME|g" \
+        -e "s|__PHONE_PROVIDER_PASSWORD__|$ESC_PHONE_PROVIDER_PASSWORD|g" \
+        -e "s|__PHONE_PROVIDER_ACCOUNT_CODE__|$ESC_PHONE_PROVIDER_ACCOUNT_CODE|g" \
+        "$TEMPLATE_DIR/phone-provider-settings.json.template" \
+        > "$fixture_dir/phone_provider_settings.json"
+    chown -R "$instance_user:$instance_user" "$fixture_dir"
+    chmod 700 "$fixture_dir"
+    chmod 600 "$fixture_dir/phone_provider_settings.json"
 }
 
 # ============================================================
@@ -509,6 +553,13 @@ EOSQL
     "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
         "from django.core.management import call_command; from apps.workflow.models import XeroApp; print('XeroApp already configured; skipping xero_apps.json load') if XeroApp.objects.exists() else call_command('loaddata', '$XERO_APPS_FIXTURE')"
     rm -f "$XERO_APPS_FIXTURE"
+
+    render_phone_provider_settings_fixture "$INSTANCE_DIR" "$INSTANCE_USER"
+    log "Loading phone provider settings..."
+    local PHONE_PROVIDER_SETTINGS_FIXTURE="$INSTANCE_DIR/.fixtures/phone_provider_settings.json"
+    "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py shell -c \
+        "from django.core.management import call_command; from apps.crm.models import PhoneProviderSettings; settings = PhoneProviderSettings.get_solo(); configured = bool(settings.base_url or settings.username or settings.account_code); print('PhoneProviderSettings already configured; skipping phone_provider_settings.json load') if configured else call_command('loaddata', '$PHONE_PROVIDER_SETTINGS_FIXTURE')"
+    rm -f "$PHONE_PROVIDER_SETTINGS_FIXTURE"
 
     if [[ "$NEEDS_APP_BOOTSTRAP" == "true" ]]; then
         log "Creating initial admin user..."

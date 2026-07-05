@@ -56,7 +56,7 @@
     {
       "label": "Ngrok Tunnels",
       "type": "shell",
-      "command": "ngrok start --config ${workspaceFolder}/ngrok.yml --all",
+      "command": "ngrok start dev --config ${workspaceFolder}/ngrok.yml",
       "hide": true,
       "isBackground": true,
       "problemMatcher": {

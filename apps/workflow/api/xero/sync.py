@@ -1,6 +1,8 @@
 import logging
 import time
+from collections.abc import Iterator, Sequence
 from datetime import timedelta
+from typing import TypedDict
 
 from django.conf import settings
 from django.core.cache import cache
@@ -11,7 +13,7 @@ from xero_python.accounting import AccountingApi
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.client.models import Client
 from apps.purchasing.models import PurchaseOrder, Stock
-from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_token
+from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
 from apps.workflow.api.xero.client import quota_floor_breached
 from apps.workflow.api.xero.payroll import (
     get_all_pay_slips_for_sync,
@@ -51,7 +53,12 @@ from apps.workflow.api.xero.transforms import (
     transform_stock,
 )
 from apps.workflow.api.xero.xero import get_xero_items
-from apps.workflow.exceptions import XeroQuotaFloorReached, XeroValidationError
+from apps.workflow.exceptions import (
+    AlreadyLoggedException,
+    NoValidXeroTokenError,
+    XeroQuotaFloorReached,
+    XeroValidationError,
+)
 from apps.workflow.models import (
     CompanyDefaults,
     XeroAccount,
@@ -59,12 +66,24 @@ from apps.workflow.models import (
     XeroPaySlip,
     XeroSyncCursor,
 )
-from apps.workflow.services.error_persistence import persist_xero_error
+from apps.workflow.services.error_persistence import (
+    persist_app_error,
+    persist_xero_error,
+)
 from apps.workflow.utils import get_machine_id
 
 logger = logging.getLogger("xero")
 
 SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
+
+
+class XeroSyncEvent(TypedDict, total=False):
+    datetime: str
+    entity: str
+    severity: str
+    message: str
+    progress: float | None
+    recordsUpdated: int
 
 
 def get_last_modified_time(model):
@@ -123,7 +142,16 @@ def process_xero_item(item, sync_function, entity_type):
             "message": str(exc),
             "progress": None,
         }
+    except AlreadyLoggedException as exc:
+        # Already persisted upstream — report the failure without re-logging.
+        return False, {
+            "datetime": timezone.now().isoformat(),
+            "severity": "error",
+            "message": str(exc),
+            "progress": None,
+        }
     except Exception as exc:
+        persist_app_error(exc)
         return False, {
             "datetime": timezone.now().isoformat(),
             "severity": "error",
@@ -251,8 +279,11 @@ def sync_xero_data(
         except XeroValidationError as exc:
             persist_xero_error(exc)
             raise
-        except Exception:
-            raise
+        except AlreadyLoggedException:
+            raise  # already persisted upstream — pass through unchanged
+        except Exception as exc:
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc
 
         # Track the max updated_date_utc across all pages for cursor update
         for item in items:
@@ -417,13 +448,17 @@ def _resolve_api_method(api_method):
 
 
 def sync_all_xero_data(
-    use_latest_timestamps=True, days_back=30, entities=None, force=False
-):
+    use_latest_timestamps: bool = True,
+    days_back: int = 30,
+    entities: Sequence[str] | None = None,
+    force: bool = False,
+) -> Iterator[XeroSyncEvent]:
     """Sync Xero data - either using latest timestamps or looking back N days."""
-    token = get_token()
+    token = get_valid_token()
     if not token:
-        logger.warning("No valid Xero token found")
-        return
+        message = "No valid Xero token found"
+        logger.warning(message)
+        raise NoValidXeroTokenError(message)
 
     # Safety net: don't sync until seeding is complete (prod IDs cleared, dev IDs set).
     # Targeted syncs (e.g. --entity accounts) during setup can pass force=True.

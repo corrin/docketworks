@@ -100,16 +100,6 @@
         </select>
 
         <Textarea
-          v-else-if="field.key === 'phone_own_numbers'"
-          :model-value="phoneOwnNumbersText(localForm[field.key])"
-          class="min-h-24 text-sm"
-          :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
-          :data-automation-id="`SectionForm-${section}-field-${field.key}`"
-          :readonly="field.readOnly"
-          @update:model-value="(value) => updatePhoneOwnNumbers(value)"
-        />
-
-        <Textarea
           v-else-if="field.type === 'textarea'"
           v-model="localForm[field.key] as string | undefined"
           class="min-h-24 text-sm"
@@ -186,7 +176,11 @@ import { z } from 'zod'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
 import { CalendarDateTime, parseDateTime } from '@internationalized/date'
-import { useSettingsSchema } from '@/composables/useSettingsSchema'
+import {
+  useSettingsSchema,
+  REMOVED_SETTING_KEYS,
+  omitRemovedSettings,
+} from '@/composables/useSettingsSchema'
 import { uploadLogo, deleteLogo } from '@/services/admin-company-defaults-service'
 import { toast } from 'vue-sonner'
 
@@ -356,8 +350,9 @@ watch(
     // here would re-fire the deep watcher below, emit again, and run the
     // cycle. While Vue's batching settles it, fast `input` events that arrive
     // mid-cycle (Playwright fill, browser paste, autofill) get dropped.
-    if (shallowEqual(newForm, localForm.value)) return
-    localForm.value = { ...newForm }
+    const sanitizedForm = omitRemovedSettings(newForm)
+    if (shallowEqual(sanitizedForm, localForm.value)) return
+    localForm.value = { ...sanitizedForm }
   },
 )
 
@@ -463,7 +458,9 @@ function toCalendarDate(
   )
 }
 
-const sectionFields = computed(() => getFieldsForSection(props.section))
+const sectionFields = computed(() =>
+  getFieldsForSection(props.section).filter((field) => !REMOVED_SETTING_KEYS.has(field.key)),
+)
 const isWorkingHours = computed(() => getSpecialHandler(props.section) === 'working_hours')
 
 async function loadClientOptions() {
@@ -498,23 +495,6 @@ function normalizeUrl(url: string): string {
   if (!url) return url
   if (/^https?:\/\//i.test(url)) return url
   return `https://${url}`
-}
-
-function phoneOwnNumbersText(value: unknown): string {
-  if (Array.isArray(value)) return value.join('\n')
-  if (typeof value === 'string') return value
-  return ''
-}
-
-function parsePhoneOwnNumbers(value: string | number): string[] {
-  return String(value)
-    .split(/[\n,]/)
-    .map((number) => number.trim())
-    .filter(Boolean)
-}
-
-function updatePhoneOwnNumbers(value: string | number): void {
-  localForm.value.phone_own_numbers = parsePhoneOwnNumbers(value)
 }
 
 watch(
