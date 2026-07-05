@@ -462,7 +462,8 @@ do_configure() {
     write_instance_rclone_config \
         "$INSTANCE" \
         "$INSTANCE_USER" \
-        "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}"
+        "${BACKUP_GDRIVE_ROOT_FOLDER_ID:-}" \
+        "${BACKUP_GDRIVE_TEAM_DRIVE_ID:-}"
     echo "$FQDN" > "$INSTANCE_DIR/.fqdn"
     chown "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/.fqdn"
 
@@ -627,11 +628,12 @@ EOSQL
         systemctl restart "celery-worker-$INSTANCE"
     fi
 
-    log "Installing backup timer backup-db-$INSTANCE..."
+    log "Installing backup timers for $INSTANCE..."
     render_backup_units "$INSTANCE" "$INSTANCE_USER" "$TEMPLATE_DIR"
     systemctl daemon-reload
     systemctl enable --now "backup-db-$INSTANCE.timer"
-    log "  Enabled nightly backup timer backup-db-$INSTANCE.timer"
+    systemctl enable --now "backup-files-$INSTANCE.timer"
+    log "  Enabled nightly backup timers backup-db-$INSTANCE.timer and backup-files-$INSTANCE.timer"
 
     log "Installing sudoers drop-in for $INSTANCE_USER..."
     local SUDOERS_TMP
@@ -715,7 +717,7 @@ do_destroy() {
     echo "    - User:      $INSTANCE_USER"
     echo "    - Service:   gunicorn-$INSTANCE"
     echo "    - Service:   celery-beat-$INSTANCE"
-    echo "    - Timer:     backup-db-$INSTANCE"
+    echo "    - Timers:    backup-db-$INSTANCE, backup-files-$INSTANCE"
     echo "    - Nginx:     docketworks-$INSTANCE"
     echo ""
     read -r -p "Are you sure? (yes/no): " CONFIRM
@@ -765,6 +767,17 @@ do_destroy() {
     if [[ -f "/etc/systemd/system/backup-db-$INSTANCE.service" ]]; then
         echo "=== Removing Backup service ==="
         rm -f "/etc/systemd/system/backup-db-$INSTANCE.service"
+        systemctl daemon-reload
+    fi
+    if [[ -f "/etc/systemd/system/backup-files-$INSTANCE.timer" ]]; then
+        echo "=== Removing File Backup timer ==="
+        systemctl disable "backup-files-$INSTANCE.timer" 2>/dev/null || true
+        rm -f "/etc/systemd/system/backup-files-$INSTANCE.timer"
+        systemctl daemon-reload
+    fi
+    if [[ -f "/etc/systemd/system/backup-files-$INSTANCE.service" ]]; then
+        echo "=== Removing File Backup service ==="
+        rm -f "/etc/systemd/system/backup-files-$INSTANCE.service"
         systemctl daemon-reload
     fi
 

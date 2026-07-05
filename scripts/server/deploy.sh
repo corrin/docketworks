@@ -128,17 +128,24 @@ render_backup_timer() {
     local instance="$1"
     local inst_user="$2"
     local backup_root_folder_id=""
+    local backup_team_drive_id=""
     local creds_file="$CONFIG_DIR/$instance.credentials.env"
 
     if [[ -f "$creds_file" ]]; then
         require_root_owned_credentials_file "$creds_file"
         backup_root_folder_id="$(read_env_value "$creds_file" BACKUP_GDRIVE_ROOT_FOLDER_ID)"
+        backup_team_drive_id="$(read_env_value "$creds_file" BACKUP_GDRIVE_TEAM_DRIVE_ID)"
     fi
-    log "  Rendering backup-db-$instance units"
-    write_instance_rclone_config "$instance" "$inst_user" "$backup_root_folder_id"
+    log "  Rendering backup units for $instance"
+    write_instance_rclone_config \
+        "$instance" \
+        "$inst_user" \
+        "$backup_root_folder_id" \
+        "$backup_team_drive_id"
     render_backup_units "$instance" "$inst_user" "$SCRIPT_DIR/templates"
     systemctl daemon-reload
     systemctl enable --now "backup-db-$instance.timer"
+    systemctl enable --now "backup-files-$instance.timer"
 }
 
 render_nginx_config() {
@@ -274,6 +281,8 @@ SERVER_SETUP_INPUTS=(
     "$SCRIPT_DIR/templates/nginx-instance.conf.template"
     "$SCRIPT_DIR/templates/backup-db-instance.service.template"
     "$SCRIPT_DIR/templates/backup-db-instance.timer.template"
+    "$SCRIPT_DIR/templates/backup-files-instance.service.template"
+    "$SCRIPT_DIR/templates/backup-files-instance.timer.template"
     "$SCRIPT_DIR/templates/gunicorn-instance.service.template"
     "$SCRIPT_DIR/templates/celery-worker-instance.service.template"
     "$SCRIPT_DIR/templates/celery-beat-instance.service.template"
