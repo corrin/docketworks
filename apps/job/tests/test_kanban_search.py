@@ -126,7 +126,7 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertEqual([query["sql"] for query in captured.captured_queries], [])
 
-    def test_search_with_results_does_not_trip_unused_eager_load_guard(self):
+    def test_search_with_results_does_not_trip_unused_eager_load_guard(self) -> None:
         """
         Catches _apply_kanban_search eager-loading relations that ranking and
         serialization never read. In DEBUG environments the nplusone
