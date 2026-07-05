@@ -54,6 +54,12 @@ behaviour — data shape, deploy semantics, systemd/Celery setup, API behaviour,
 permissions, or user-facing code — test that remaining contract at the right
 boundary, even if the rollout that introduced it is one-off.
 
+For frontend E2E, selectors are part of that boundary. Tests must not depend on
+incidental DOM position (`nth(3)`, "the next card", etc.) for values or controls
+whose meaning matters. Frontend elements that E2E drives or asserts against
+expose stable `data-automation-id` contracts so superficial layout changes do
+not break behavioural tests.
+
 When reviewing an existing test, sort it into one of four outcomes:
 
 - **Good:** it already states a plausible regression and catches that regression.

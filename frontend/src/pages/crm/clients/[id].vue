@@ -3,7 +3,7 @@
     <div class="p-4 md:p-8 space-y-6">
       <!-- Header with Back Button -->
       <div class="flex items-center gap-4">
-        <Button variant="outline" size="sm" @click="goBack">
+        <Button variant="outline" size="sm" data-automation-id="ClientDetail-back" @click="goBack">
           <ArrowLeft class="w-4 h-4 mr-2" />
           Back
         </Button>
@@ -245,7 +245,10 @@
             <CardContent class="grid grid-cols-1 md:grid-cols-2 gap-6">
               <div class="p-4 bg-indigo-50 rounded-lg">
                 <label class="text-sm font-medium text-indigo-900">Total Spend</label>
-                <p class="text-3xl font-bold text-indigo-600 mt-2">
+                <p
+                  class="text-3xl font-bold text-indigo-600 mt-2"
+                  data-automation-id="ClientDetail-total-spend"
+                >
                   {{ client.total_spend || '$0.00' }}
                 </p>
               </div>

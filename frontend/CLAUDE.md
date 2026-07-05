@@ -48,20 +48,21 @@ The backend (Django) is in the repo root. The frontend and backend are in the sa
 19. Never mutate props — emit events
 20. Use `<script setup lang="ts">` only
 21. Import with `@/` alias — never `../../`
+22. New or touched frontend elements that E2E drives or asserts against expose stable `data-automation-id` values; tests prefer those IDs over DOM position or styling selectors.
 
 ### Concurrency & Autosave
 
-22. ETag headers managed automatically
-23. Handle 412/428: reload data + notify user
-24. Respect autosave's 500ms debounce
-25. Optimistic updates must have rollback
-26. Core editor persistence uses `useSaveFeedback`: debounced field saves, blur/inline edit saves, autosave queues, drag/drop persistence, and job/PO/timesheet mutations that users experience as saving the current editor.
-27. Do not use save feedback for non-editor commands: create invoice, generate PDF, upload/delete files, submit forms, admin actions, or external sync. Those keep command-specific loading/success/error UI.
-28. Direct `useSaveStatusStore` imports are allowed only in the save feedback helper, the global indicator, and tests.
+23. ETag headers managed automatically
+24. Handle 412/428: reload data + notify user
+25. Respect autosave's 500ms debounce
+26. Optimistic updates must have rollback
+27. Core editor persistence uses `useSaveFeedback`: debounced field saves, blur/inline edit saves, autosave queues, drag/drop persistence, and job/PO/timesheet mutations that users experience as saving the current editor.
+28. Do not use save feedback for non-editor commands: create invoice, generate PDF, upload/delete files, submit forms, admin actions, or external sync. Those keep command-specific loading/success/error UI.
+29. Direct `useSaveStatusStore` imports are allowed only in the save feedback helper, the global indicator, and tests.
 
 ### Error Handling
 
-29. Every `console.error` must toast or throw — never silent failures
+30. Every `console.error` must toast or throw — never silent failures
 
 ---
 

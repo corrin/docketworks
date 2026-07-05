@@ -1,5 +1,5 @@
 import { test, expect } from '../fixtures/auth'
-import { TEST_CLIENT_NAME } from '../fixtures/helpers'
+import { autoId, TEST_CLIENT_NAME } from '../fixtures/helpers'
 
 test.describe('Clients Report', () => {
   test('sorts by spend, verifies client detail, and searches for testing client', async ({
@@ -16,11 +16,11 @@ test.describe('Clients Report', () => {
     await expect(page.getByText('Loading clients...')).toBeHidden({ timeout: 30000 })
 
     // Wait for the table to be visible
-    const table = page.locator('table')
+    const table = autoId(page, 'ClientsTable-table')
     await expect(table).toBeVisible()
 
     // Click "Total Spend" column header to sort descending (first click sorts ascending, second sorts descending)
-    const totalSpendHeader = page.getByRole('button', { name: /Total Spend/i })
+    const totalSpendHeader = autoId(page, 'ClientsTable-header-total-spend')
     await expect(totalSpendHeader).toBeVisible()
 
     // Click twice to sort descending (biggest spenders first)
@@ -34,7 +34,12 @@ test.describe('Clients Report', () => {
 
     // Get the first row's data
     const firstRow = table.locator('tbody tr').first()
-    const firstRowSpend = firstRow.locator('td').nth(3)
+    const clientId = await firstRow.getAttribute('data-client-id')
+    if (!clientId) {
+      throw new Error('Clients table row is missing data-client-id')
+    }
+
+    const firstRowSpend = autoId(page, `ClientsTable-cell-${clientId}-total-spend`)
     await expect(firstRowSpend).toBeVisible()
 
     const spendText = await firstRowSpend.textContent()
@@ -51,7 +56,7 @@ test.describe('Clients Report', () => {
     expect(amount).toBeGreaterThan(0)
 
     // Get the client name before clicking
-    const clientName = await firstRow.locator('td').first().textContent()
+    const clientName = await autoId(page, `ClientsTable-cell-${clientId}-name`).textContent()
     console.log(`Clicking on top spender: ${clientName}`)
 
     // Click on the client row to navigate to details
@@ -77,7 +82,7 @@ test.describe('Clients Report', () => {
     await expect(totalSpendLabel).toBeVisible()
 
     // Get the total spend value (it's in the sibling p element with large text)
-    const totalSpendValue = page.locator('.bg-indigo-50 p.text-3xl')
+    const totalSpendValue = autoId(page, 'ClientDetail-total-spend')
     await expect(totalSpendValue).toBeVisible()
 
     const detailSpendText = await totalSpendValue.textContent()
@@ -87,7 +92,7 @@ test.describe('Clients Report', () => {
     expect(detailSpendText).toBe(spendText)
 
     // Navigate back to clients list
-    await page.getByRole('button', { name: /Back/i }).click()
+    await autoId(page, 'ClientDetail-back').click()
     await page.waitForURL(/\/crm\/clients$/, { timeout: 10000 })
     await page.waitForLoadState('networkidle')
 
@@ -95,11 +100,11 @@ test.describe('Clients Report', () => {
     await expect(page.getByText('Loading clients...')).toBeHidden({ timeout: 30000 })
 
     // Re-get table reference after navigation
-    const clientsTable = page.locator('table')
+    const clientsTable = autoId(page, 'ClientsTable-table')
     await expect(clientsTable).toBeVisible()
 
     // Now search for the test client
-    const searchInput = page.locator('input[placeholder*="Search clients"]')
+    const searchInput = autoId(page, 'ClientsTable-search')
     await expect(searchInput).toBeVisible()
     await searchInput.clear()
     await searchInput.fill('ABC Carpet')
