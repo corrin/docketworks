@@ -2,6 +2,7 @@ import importlib.util
 import subprocess
 import sys
 import tempfile
+import types
 from pathlib import Path
 from unittest import mock
 
@@ -12,7 +13,7 @@ CLEANUP_BACKUPS = REPO_ROOT / "scripts" / "cleanup_backups.py"
 BACKUP_INSTANCE_FILES = REPO_ROOT / "scripts" / "backup_instance_files.sh"
 
 
-def load_cleanup_module():
+def load_cleanup_module() -> types.ModuleType:
     spec = importlib.util.spec_from_file_location("cleanup_backups", CLEANUP_BACKUPS)
     if spec is None or spec.loader is None:
         raise RuntimeError("Could not load cleanup_backups.py")
@@ -31,14 +32,16 @@ class BackupScriptTests(SimpleTestCase):
             for day in range(1, 16):
                 (backup_dir / f"daily_202606{day:02d}.sql.gz").write_text("dump")
 
-            events = []
+            events: list[tuple[str, list[str]]] = []
 
-            def copy_remote(root, dry_run, remote):
+            def copy_remote(root: str, dry_run: bool, remote: str) -> None:
                 events.append(
                     ("copy", sorted(path.name for path in Path(root).iterdir()))
                 )
 
-            def purge_remote_entries(commands, dry_run, remote):
+            def purge_remote_entries(
+                commands: list[tuple[str, str]], dry_run: bool, remote: str
+            ) -> None:
                 events.append(("purge", [name for name, _ in commands]))
 
             with (
