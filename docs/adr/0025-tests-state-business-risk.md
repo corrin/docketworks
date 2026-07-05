@@ -60,6 +60,14 @@ whose meaning matters. Frontend elements that E2E drives or asserts against
 expose stable `data-automation-id` contracts so superficial layout changes do
 not break behavioural tests.
 
+When an E2E test waits for a mutation's network response, the wait must
+capture the request regardless of outcome — match on URL and method only,
+never on status — and then assert success explicitly, including the actual
+status and response body in the failure message. A status-filtered wait can
+never match a real failure, so a failed mutation surfaces as a generic
+timeout instead of the diagnosis; that misreporting hides exactly the
+regression the wait exists to catch.
+
 When reviewing an existing test, sort it into one of four outcomes:
 
 - **Good:** it already states a plausible regression and catches that regression.

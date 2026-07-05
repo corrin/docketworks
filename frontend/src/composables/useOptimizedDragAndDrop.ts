@@ -12,7 +12,10 @@ export interface OptimizedDragEventPayload {
   dragId: string
 }
 
-export type OptimizedDragEventHandler = (event: string, payload: OptimizedDragEventPayload) => void
+export type OptimizedDragEventHandler = (
+  event: string,
+  payload: OptimizedDragEventPayload,
+) => Promise<void>
 
 function getVisibleJobAnchor(
   container: HTMLElement,
@@ -53,7 +56,15 @@ function getVisibleJobAnchor(
 
 export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler) {
   const isDragging = ref(false)
+  // True while a move's persistence (the onDragEvent handler promise) is pending.
+  // During that window every Sortable instance is disabled so no new drag can
+  // start and anchor itself on optimistic state that a rollback could stomp.
+  const isPersisting = ref(false)
   const sortableInstances = ref<Map<string, Sortable>>(new Map())
+
+  const setAllSortablesDisabled = (disabled: boolean) => {
+    sortableInstances.value.forEach((sortable) => sortable.option('disabled', disabled))
+  }
   let stuckDragTimer: ReturnType<typeof setTimeout> | null = null
   let activeDragId: string | null = null
 
@@ -109,6 +120,10 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
     const sortableConfig = {
       group: 'kanban-jobs',
       animation: 150,
+      // A column initialized while a previous move is still persisting must start
+      // disabled, or it would reopen the overlapping-drag window that the disable
+      // loop in onEnd closed. It is re-enabled when that persistence settles.
+      disabled: isPersisting.value,
       draggable: '.job-card',
       sort: true,
       emptyInsertThreshold: 100,
@@ -183,16 +198,26 @@ export function useOptimizedDragAndDrop(onDragEvent?: OptimizedDragEventHandler)
           })
         }
 
-        // Call the drag event handler (which should handle optimistic updates)
+        // Call the drag event handler (which applies the optimistic update
+        // synchronously, then persists). While its promise is pending, all
+        // Sortable instances are disabled so only one move is in flight at a
+        // time; the finally re-enables them on success AND rejection.
         if (jobId && fromStatus && toStatus && onDragEvent) {
-          onDragEvent('job-moved', {
-            jobId,
-            fromStatus,
-            toStatus,
-            anchorJobId,
-            placement,
-            dragId,
-          })
+          isPersisting.value = true
+          setAllSortablesDisabled(true)
+          try {
+            await onDragEvent('job-moved', {
+              jobId,
+              fromStatus,
+              toStatus,
+              anchorJobId,
+              placement,
+              dragId,
+            })
+          } finally {
+            isPersisting.value = false
+            setAllSortablesDisabled(false)
+          }
         }
 
         if (jobId) {

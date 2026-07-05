@@ -244,15 +244,8 @@ class KanbanService:
 
         candidates = list(
             jobs_query.filter(token_filter)
-            .select_related(
-                "client",
-                "contact",
-                "created_by",
-                "latest_quote",
-                "latest_actual",
-                "quote",
-            )
-            .prefetch_related("people", "invoices")
+            .select_related("client", "contact", "quote")
+            .prefetch_related("invoices")
             .order_by("-trigram_score", "-created_at")
         )
         return KanbanService._rank_kanban_search_candidates(
