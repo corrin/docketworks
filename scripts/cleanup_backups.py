@@ -117,7 +117,7 @@ def compute_predeploy_keep(entries, now):
     return keep
 
 
-def paired_sha_name(name):
+def paired_sha_name(name: str) -> str:
     return name.replace(".sql.gz", ".sha")
 
 
