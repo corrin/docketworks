@@ -35,7 +35,7 @@ logger = logging.getLogger("xero")
 _api_client: Optional[ApiClient] = None
 REFRESH_LOCK_KEY = "xero_token_refresh_lock"
 REFRESH_LOCK_TIMEOUT_SECONDS = 60
-REFRESH_WINDOW = timedelta(minutes=5)
+REFRESH_WINDOW = timedelta(seconds=60)
 _shared_cache = caches["shared"]
 
 
