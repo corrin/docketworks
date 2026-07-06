@@ -168,7 +168,7 @@ except Exception as exc:
 
 ## Environment Configuration
 
-See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`); it also runs on boot via systemd so a cold machine catches up to `main`.
+See `.env.example` for required environment variables. Key integrations: Xero API, Dropbox, PostgreSQL. Frontend tooling reads `APP_DOMAIN` from the backend `.env` at `../.env` and derives URLs from it (see ADR 0008's Consequences). Deploy uses `scripts/server/deploy.sh` (per-instance `<client>-<env>`); it also runs on boot via systemd so a cold machine catches up to `production`. Servers only ever run the `production` branch — `main` is the integration branch and is never deployed (ADR 0029).
 
 ## Migration Management
 
