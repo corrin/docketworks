@@ -135,7 +135,15 @@ class ClientRestService:
                 sort_field = f"-{sort_field}"
 
             # Annotate computed fields for sorting capability
-            queryset = Client.objects.with_invoice_summary().defer("raw_json")
+            queryset = (
+                Client.objects.with_invoice_summary()
+                .defer("raw_json")
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="pk"
+                    )
+                )
+            )
 
             # Apply search filter if query provided
             if query:
@@ -557,6 +565,11 @@ class ClientRestService:
         return list(
             Client.objects.with_invoice_summary()
             .defer("raw_json")  # Not needed for search results
+            .annotate(
+                phone=ClientContactMethod.primary_phone_annotation(
+                    owner="client", outer_ref="pk"
+                )
+            )
             .only(
                 "id",
                 "name",
@@ -813,6 +826,7 @@ class ClientRestService:
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
+            "phone": client.phone,
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,

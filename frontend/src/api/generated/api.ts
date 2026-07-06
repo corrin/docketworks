@@ -760,6 +760,7 @@ const ClientContact = z.object({
   is_active: z.boolean(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
+  phone: z.string().nullish().default(''),
 })
 const ClientContactRequest = z.object({
   client: z.string().uuid(),
@@ -768,6 +769,7 @@ const ClientContactRequest = z.object({
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
+  phone: z.string().nullish().default(''),
 })
 const PatchedClientContactRequest = z
   .object({
@@ -777,6 +779,7 @@ const PatchedClientContactRequest = z
     position: z.string().max(255).nullable(),
     is_primary: z.boolean(),
     notes: z.string().nullable(),
+    phone: z.string().nullable().default(''),
   })
   .partial()
 const ClientCreateRequest = z.object({
@@ -790,6 +793,7 @@ const ClientSearchResult = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
+  phone: z.string(),
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),

@@ -894,7 +894,8 @@ watch(
         contactDisplayValue.value = ''
         contactPhone.value = ''
       } else {
-        debugLog('Failed to load contact information:', error)
+        console.error('Failed to load contact information:', error)
+        toast.error('Failed to load contact information')
         contactDisplayValue.value = ''
         contactPhone.value = ''
       }

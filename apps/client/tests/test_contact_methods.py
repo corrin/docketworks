@@ -424,6 +424,184 @@ class GetJobContactPhoneTests(BaseTestCase):
         self.assertEqual(job.contact_id, new_contact.id)
 
 
+class ClientListPhoneTests(TestCase):
+    """Guards the Phone column of the clients list (restored after the
+    ClientContactMethod migration dropped it)."""
+
+    def _client_with_phone(self, name: str, phone: str) -> Client:
+        client = Client.objects.create(name=name, xero_last_modified=timezone.now())
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=phone,
+            is_primary=True,
+        )
+        return client
+
+    def _lazy_phone_queries(self, captured: CaptureQueriesContext) -> list[str]:
+        return [
+            q["sql"]
+            for q in captured.captured_queries
+            if q["sql"].startswith('SELECT "client_clientcontactmethod"')
+        ]
+
+    def test_list_clients_rows_include_phone(self) -> None:
+        from apps.client.services.client_rest_service import ClientRestService
+
+        self._client_with_phone("Acme Ltd", "09 111 1111")
+        Client.objects.create(name="Phoneless Ltd", xero_last_modified=timezone.now())
+
+        with CaptureQueriesContext(connection) as captured:
+            result = ClientRestService.list_clients(page=1, page_size=10)
+
+        phones = {row["name"]: row["phone"] for row in result["results"]}
+        self.assertEqual(phones["Acme Ltd"], "09 111 1111")
+        self.assertEqual(phones["Phoneless Ltd"], "")
+        self.assertEqual(self._lazy_phone_queries(captured), [])
+
+    def test_searched_clients_include_phone(self) -> None:
+        from apps.client.services.client_rest_service import ClientRestService
+
+        self._client_with_phone("Acme Ltd", "09 111 1111")
+
+        result = ClientRestService.list_clients(query="Acme", page=1, page_size=10)
+
+        self.assertEqual(result["results"][0]["phone"], "09 111 1111")
+
+
+class ClientContactApiPhoneTests(BaseAPITestCase):
+    """Guards the contact phone read/write restored on the contacts endpoint
+    (client detail Contacts card, ContactSelectionModal, contact picker)."""
+
+    URL = "/api/clients/contacts/"
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.client.force_authenticate(user=self.test_staff)
+        self.job_client = Client.objects.create(
+            name="Acme Ltd", xero_last_modified=timezone.now()
+        )
+
+    def _contact(self, name: str = "Jane Smith", phone: str | None = None):
+        contact = ClientContact.objects.create(client=self.job_client, name=name)
+        if phone is not None:
+            ClientContactMethod.objects.create(
+                contact=contact,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                value=phone,
+                is_primary=True,
+            )
+        return contact
+
+    def test_list_includes_contact_phone_without_lazy_queries(self) -> None:
+        self._contact("Jane Smith", phone="021 111 111")
+        self._contact("No Phone")
+
+        with CaptureQueriesContext(connection) as captured:
+            response = self.client.get(self.URL, {"client_id": self.job_client.id})
+
+        self.assertEqual(response.status_code, 200)
+        phones = {row["name"]: row["phone"] for row in response.json()}
+        self.assertEqual(phones["Jane Smith"], "021 111 111")
+        self.assertEqual(phones["No Phone"], "")
+        lazy = [
+            q["sql"]
+            for q in captured.captured_queries
+            if q["sql"].startswith('SELECT "client_clientcontactmethod"')
+        ]
+        self.assertEqual(lazy, [])
+
+    def test_create_contact_with_phone_creates_primary_method(self) -> None:
+        with patch("apps.client.serializers.rematch_phone_calls_task.delay") as rematch:
+            response = self.client.post(
+                self.URL,
+                {
+                    "client": str(self.job_client.id),
+                    "name": "Bob Brown",
+                    "phone": "021 222 222",
+                },
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 201)
+        self.assertEqual(response.json()["phone"], "021 222 222")
+        method = ClientContactMethod.objects.get(contact__name="Bob Brown")
+        self.assertEqual(method.method_type, ClientContactMethod.MethodType.PHONE)
+        self.assertTrue(method.is_primary)
+        rematch.assert_called_once_with(["+6421222222"])
+
+    def test_update_phone_updates_existing_primary_method(self) -> None:
+        contact = self._contact("Jane Smith", phone="021 111 111")
+        method = contact.contact_methods.get()
+
+        with patch("apps.client.serializers.rematch_phone_calls_task.delay") as rematch:
+            response = self.client.patch(
+                f"{self.URL}{contact.id}/",
+                {"phone": "021 333 333"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["phone"], "021 333 333")
+        method.refresh_from_db()
+        self.assertEqual(method.value, "021 333 333")
+        self.assertEqual(contact.contact_methods.count(), 1)
+        rematch.assert_called_once_with(["+6421111111", "+6421333333"])
+
+    def test_update_phone_matching_secondary_promotes_it(self) -> None:
+        contact = self._contact("Jane Smith", phone="021 111 111")
+        secondary = ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 444 444",
+        )
+
+        response = self.client.patch(
+            f"{self.URL}{contact.id}/",
+            {"phone": "021 444 444"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        secondary.refresh_from_db()
+        self.assertTrue(secondary.is_primary)
+        self.assertEqual(contact.contact_methods.filter(is_primary=True).count(), 1)
+
+    def test_blank_phone_leaves_methods_untouched(self) -> None:
+        contact = self._contact("Jane Smith", phone="021 111 111")
+
+        response = self.client.patch(
+            f"{self.URL}{contact.id}/",
+            {"phone": "", "position": "Manager"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["phone"], "021 111 111")
+        self.assertEqual(contact.contact_methods.count(), 1)
+
+    def test_conflicting_phone_returns_400_and_creates_nothing(self) -> None:
+        other_client = Client.objects.create(
+            name="Beta Ltd", xero_last_modified=timezone.now()
+        )
+        ClientContactMethod.objects.create(
+            client=other_client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="021 555 555",
+        )
+        contact = self._contact("Jane Smith")
+
+        response = self.client.patch(
+            f"{self.URL}{contact.id}/",
+            {"phone": "021 555 555"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("phone", response.json())
+        self.assertEqual(contact.contact_methods.count(), 0)
+
+
 class ClientContactMethodApiTests(BaseAPITestCase):
     def _client(self, name: str = "Acme Ltd") -> Client:
         return Client.objects.create(name=name, xero_last_modified=timezone.now())

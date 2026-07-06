@@ -1,3 +1,4 @@
+from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
 from apps.client.models import (
@@ -8,14 +9,61 @@ from apps.client.models import (
     SupplierPickupAddress,
     SupplierSearchAlias,
 )
+from apps.crm.tasks import rematch_phone_calls_task
+
+
+def set_primary_phone(owner: Client | ClientContact, raw_value: str) -> None:
+    """Point the owner's primary phone at ``raw_value`` (non-blank).
+
+    Reuses an existing method carrying the same normalized number (promoting
+    it) or the current primary (renumbering it) before creating a new row, so
+    the per-owner uniqueness and single-primary constraints hold. Ownership
+    conflicts raise the model's ValidationError for the caller to surface.
+    """
+    value = raw_value.strip()
+    owner_field = "client" if isinstance(owner, Client) else "contact"
+    phone_methods = ClientContactMethod.objects.filter(
+        method_type=ClientContactMethod.MethodType.PHONE, **{owner_field: owner}
+    )
+    old_primary = phone_methods.filter(is_primary=True).first()
+    old_number = old_primary.normalized_value if old_primary else ""
+    same_number = phone_methods.filter(
+        normalized_value=ClientContactMethod.normalize_phone(value)
+    ).first()
+
+    if same_number is not None:
+        same_number.value = value
+        same_number.is_primary = True  # save() demotes any other primary
+        same_number.save()
+        method = same_number
+    elif old_primary is not None:
+        old_primary.value = value
+        old_primary.save()
+        method = old_primary
+    else:
+        method = ClientContactMethod.objects.create(
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=value,
+            is_primary=True,
+            **{owner_field: owner},
+        )
+
+    numbers = [number for number in {old_number, method.normalized_value} if number]
+    rematch_phone_calls_task.delay(sorted(numbers))
 
 
 class ClientContactSerializer(serializers.ModelSerializer):
     """Serializer for ClientContact model."""
 
+    # Backed by ClientContactMethod: reads come from the viewset's
+    # primary_phone_annotation; writes upsert the contact's primary method.
+    phone = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, default=""
+    )
+
     class Meta:
         model = ClientContact
-        fields = ClientContact.CLIENTCONTACT_API_FIELDS
+        fields = ClientContact.CLIENTCONTACT_API_FIELDS + ["phone"]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
 
     def to_internal_value(self, data):
@@ -28,6 +76,29 @@ class ClientContactSerializer(serializers.ModelSerializer):
                 data[field] = None
 
         return super().to_internal_value(data)
+
+    def create(self, validated_data):
+        raw_phone = validated_data.pop("phone", None)  # not a model field
+        contact = super().create(validated_data)
+        return self._apply_phone(contact, raw_phone)
+
+    def update(self, instance, validated_data):
+        raw_phone = validated_data.pop("phone", None)  # not a model field
+        contact = super().update(instance, validated_data)
+        return self._apply_phone(contact, raw_phone)
+
+    def _apply_phone(self, contact: ClientContact, raw_phone: str | None):
+        """Upsert the primary phone; blank/omitted input is a no-op (deleting
+        numbers is PhoneNumberManager's job, not this form's)."""
+        if raw_phone and raw_phone.strip():
+            try:
+                set_primary_phone(contact, raw_phone)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError({"phone": exc.messages}) from exc
+        else:
+            pass  # blank phone: leave existing contact methods untouched
+        contact.phone = contact.primary_phone_value()
+        return contact
 
 
 class ClientContactMethodSerializer(serializers.ModelSerializer):
@@ -200,6 +271,7 @@ class ClientSearchResultSerializer(serializers.Serializer):
     id = serializers.CharField()
     name = serializers.CharField()
     email = serializers.CharField(allow_blank=True)
+    phone = serializers.CharField(allow_blank=True)
     address = serializers.CharField(allow_blank=True)
     is_account_customer = serializers.BooleanField()
     is_supplier = serializers.BooleanField()
@@ -318,8 +390,13 @@ class ClientUpdateResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-class JobContactResponseSerializer(serializers.Serializer):
-    """Serializer for job contact information response"""
+class JobContactBaseSerializer(serializers.Serializer):
+    """Fields shared by the job contact response and update serializers.
+
+    phone is response-only: phones live in ClientContactMethod; the job
+    contact update path only reassigns the contact FK and must never
+    write phones.
+    """
 
     id = serializers.UUIDField()
     name = serializers.CharField()
@@ -327,12 +404,15 @@ class JobContactResponseSerializer(serializers.Serializer):
     position = serializers.CharField(allow_blank=True, allow_null=True)
     is_primary = serializers.BooleanField()
     notes = serializers.CharField(allow_blank=True, allow_null=True)
-    # Read-only: phones live in ClientContactMethod; the job contact update
-    # path only reassigns the contact FK and must never write phones.
-    phone = serializers.CharField(read_only=True, allow_blank=True)
 
 
-class JobContactUpdateSerializer(JobContactResponseSerializer):
+class JobContactResponseSerializer(JobContactBaseSerializer):
+    """Serializer for job contact information response"""
+
+    phone = serializers.CharField(allow_blank=True)
+
+
+class JobContactUpdateSerializer(JobContactBaseSerializer):
     """Serializer for job contact update request"""
 
 
