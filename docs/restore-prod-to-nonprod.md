@@ -21,6 +21,7 @@ Sections must run in the order written. The Connect to Xero OAuth section is a h
   ```bash
   scp prod-server:/path/to/docketworks/restore/scrubbed_<DB_NAME>_<ts>.dump restore/
   ```
+- The dump must be from a prod release at or after the July 2026 migration squash (baseline `*_baseline` migrations). Older dumps carry a `django_migrations` ledger the current graph cannot migrate — restore those under a matching pre-squash checkout instead (see `docs/updating.md`).
 - Celery Beat stopped. Beat ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Celery Beat section restarts it. The worker can stay running — it has nothing to do without Beat dispatches.
   - Dev: kill the `Celery Beat` task in its VS Code terminal.
   - Server: `sudo systemctl stop celery-beat-<instance>`

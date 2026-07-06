@@ -110,61 +110,6 @@ class JobLabourRateSeedingTests(BaseTestCase):
         self.assertEqual(set(rates), {Decimal("0.00")})
 
 
-class CostLineSubtypeBackfillRuleTests(BaseTestCase):
-    """Guards the KAN-230 migration rule for classifying legacy time lines."""
-
-    def setUp(self) -> None:
-        self.client_obj = Client.objects.create(
-            name="Backfill Client",
-            email="backfill@example.com",
-            xero_last_modified="2024-01-01T00:00:00Z",
-        )
-        self.job = Job(name="Backfill Job", client=self.client_obj)
-        self.job.save(staff=self.test_staff)
-
-    def test_office_time_desc_goes_to_office_admin_rest_to_workshop(self) -> None:
-        import importlib
-
-        from django.apps import apps as live_apps
-
-        from apps.job.models import CostLine
-
-        estimate = self.job.cost_sets.get(kind="estimate")
-        workshop_subtype = LabourSubtype.objects.get(name="Workshop")
-        LabourSubtype.objects.filter(name="Admin").update(name="Office/Admin")
-        office_line = CostLine.objects.create(
-            cost_set=estimate,
-            kind="time",
-            desc="Estimated office time",
-            accounting_date=date.today(),
-            labour_subtype=workshop_subtype,
-        )
-        workshop_line = CostLine.objects.create(
-            cost_set=estimate,
-            kind="time",
-            desc="Some legacy time entry",
-            accounting_date=date.today(),
-            labour_subtype=workshop_subtype,
-        )
-        # Simulate pre-migration rows (no subtype); update() bypasses
-        # CostLine.save()'s validation, exactly like the legacy data
-        CostLine.objects.filter(id__in=[office_line.id, workshop_line.id]).update(
-            labour_subtype=None
-        )
-
-        migration = importlib.import_module(
-            "apps.job.migrations.0095_backfill_job_labour_rates_and_costline_subtypes"
-        )
-        migration.backfill_costline_subtypes(live_apps, None)
-
-        office_line.refresh_from_db()
-        workshop_line.refresh_from_db()
-        assert office_line.labour_subtype is not None
-        assert workshop_line.labour_subtype is not None
-        self.assertEqual(office_line.labour_subtype.name, "Office/Admin")
-        self.assertEqual(workshop_line.labour_subtype.name, "Workshop")
-
-
 class StaffDefaultLabourSubtypeTests(BaseTestCase):
     def test_new_workshop_staff_defaults_to_workshop(self) -> None:
         staff = Staff.objects.create_user(

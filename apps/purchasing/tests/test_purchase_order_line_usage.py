@@ -3,6 +3,7 @@
 from decimal import Decimal
 
 import pytest
+from django.core.management import call_command
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -13,7 +14,14 @@ from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
 
 @pytest.fixture
-def auth_api(db):
+def company_defaults(db: None) -> None:
+    # Job.save -> generate_job_number -> CompanyDefaults.get_solo(); the
+    # singleton cannot be lazily created (shop_client is NOT NULL).
+    call_command("loaddata", "company_defaults")
+
+
+@pytest.fixture
+def auth_api(db, company_defaults):
     staff = Staff.objects.create(
         email="po-line-usage@example.test",
         first_name="Purchase",
