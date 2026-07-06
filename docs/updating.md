@@ -66,6 +66,16 @@ of printing a rollback command.
 Do not switch only the `app` symlink after a migration failure; old code can
 be incompatible with the partially migrated database.
 
+The migration graph was squashed to a fresh baseline (`*_baseline` migrations
+with `replaces` lists) in July 2026. A database restored from a dump taken
+*before* the squash landed on `main` can only be migrated by a checkout that
+predates the squash: the old migration names are no longer addressable, and a
+ledger containing only part of the replaced set makes `migrate` abort with
+"Django tried to replace migration … but wasn't able to". Restore such dumps
+under a pre-squash checkout, migrate to its tip, then deploy forward. Dumps
+taken at or after the squash restore and migrate normally — the ledger rides
+along and the baseline migrations record themselves automatically.
+
 Release cleanup is part of deploy. The script removes stale incomplete
 `.building-*` directories at the start and removes complete releases that are no
 longer referenced by any instance `app` symlink or rollback state at the end.
