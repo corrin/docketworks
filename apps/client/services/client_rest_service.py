@@ -428,6 +428,7 @@ class ClientRestService:
                 "position": contact.position,
                 "is_primary": contact.is_primary,
                 "notes": contact.notes,
+                "phone": contact.primary_phone_value(),
             }
         except AlreadyLoggedException:
             raise
@@ -502,6 +503,7 @@ class ClientRestService:
                 "position": contact.position,
                 "is_primary": contact.is_primary,
                 "notes": contact.notes,
+                "phone": contact.primary_phone_value(),
             }
 
         except AlreadyLoggedException:

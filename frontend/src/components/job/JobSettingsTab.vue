@@ -92,6 +92,16 @@
                     class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-600"
                     readonly
                   />
+                  <div v-if="localJobData.client_phone">
+                    <label class="block text-sm font-medium text-gray-700 mb-2">Client Phone</label>
+                    <input
+                      :value="localJobData.client_phone"
+                      type="text"
+                      data-automation-id="JobSettingsTab-client-phone"
+                      class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-600"
+                      readonly
+                    />
+                  </div>
                   <div class="flex gap-2">
                     <button
                       @click="startClientChange"
@@ -169,6 +179,17 @@
                 "
                 v-model="contactDisplayValue"
                 @update:selected-contact="handleContactSelected"
+              />
+            </div>
+
+            <div v-if="contactPhone">
+              <label class="block text-sm font-medium text-gray-700 mb-2">Contact Phone</label>
+              <input
+                :value="contactPhone"
+                type="text"
+                data-automation-id="JobSettingsTab-contact-phone"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-600"
+                readonly
               />
             </div>
 
@@ -384,7 +405,7 @@ import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 import { requiredNumber } from '@/utils/requiredNumber'
 
-type ClientContact = Omit<z.infer<typeof schemas.ClientContact>, 'phone'>
+type ClientContact = z.infer<typeof schemas.ClientContact>
 
 // Use the existing JobHeaderResponse schema from generated API
 type Job = z.infer<typeof schemas.JobHeaderResponse>
@@ -572,6 +593,9 @@ const newClientName = ref('')
 const selectedNewClient = ref<Client | null>(null)
 
 const contactDisplayValue = ref('')
+// Read-only display of the current contact's phone (from ClientContactMethod, via the
+// job-contact endpoints). Empty string means "no phone".
+const contactPhone = ref('')
 const showEditClientModal = ref(false)
 
 const jobStatusChoices = ref<{ value: string; label: string }[]>([])
@@ -769,6 +793,7 @@ watch(
         name: '',
         client_id: null,
         client_name: null,
+        client_phone: '',
         contact_id: undefined,
         contact_name: undefined,
         status: '' as Job['status'],
@@ -795,6 +820,7 @@ watch(
       localJobData.value = { ...defaultJobData }
       serverBaseline.value = { ...defaultJobData }
       contactDisplayValue.value = ''
+      contactPhone.value = ''
       return
     }
     // Received valid jobData, initializing
@@ -808,6 +834,7 @@ watch(
       name: newJobData.name,
       client_id: newJobData.client_id,
       client_name: newJobData.client_name,
+      client_phone: newJobData.client_phone,
       status: newJobData.status,
       pricing_methodology: newJobData.pricing_methodology,
       speed_quality_tradeoff: newJobData.speed_quality_tradeoff ?? 'normal',
@@ -855,6 +882,7 @@ watch(
         localJobData.value.contact_id = contactResponse.id
         localJobData.value.contact_name = contactResponse.name
         contactDisplayValue.value = contactResponse.name || ''
+        contactPhone.value = contactResponse.phone || ''
       }
     } catch (error: unknown) {
       // Handle 404 when no contact is associated with the job - simply ignore
@@ -864,9 +892,11 @@ watch(
         localJobData.value.contact_id = undefined
         localJobData.value.contact_name = undefined
         contactDisplayValue.value = ''
+        contactPhone.value = ''
       } else {
         debugLog('Failed to load contact information:', error)
         contactDisplayValue.value = ''
+        contactPhone.value = ''
       }
     }
 
@@ -1018,6 +1048,7 @@ watch(
       localJobData.value.name = newHeader.name
       localJobData.value.client_id = newHeader.client_id
       localJobData.value.client_name = newHeader.client_name
+      localJobData.value.client_phone = newHeader.client_phone
       localJobData.value.status = newHeader.status
       localJobData.value.pricing_methodology = newHeader.pricing_methodology
       localJobData.value.speed_quality_tradeoff = newHeader.speed_quality_tradeoff ?? 'normal'
@@ -1077,6 +1108,8 @@ const confirmClientChange = () => {
   localJobData.value.client_name = clientName
 
   contactDisplayValue.value = ''
+  // Contact (and its phone) belongs to the old client; cleared until a new contact loads
+  contactPhone.value = ''
 
   resetClientChangeState()
 
@@ -1161,16 +1194,15 @@ const handleContactSelected = async (contact: ClientContact | null) => {
       position: contact.position ?? null,
       notes: contact.notes ?? null,
       is_primary: contact.is_primary ?? false,
-    } satisfies Omit<z.input<typeof schemas.JobContactUpdateRequest>, 'phone'>
+    } satisfies z.input<typeof schemas.JobContactUpdateRequest>
 
     // Save contact directly (not through header autosave)
     try {
-      await api.clients_jobs_contact_update(
-        contactToSend as z.input<typeof schemas.JobContactUpdateRequest>,
-        {
-          params: { job_id: props.jobId },
-        },
-      )
+      const updatedContact = await api.clients_jobs_contact_update(contactToSend, {
+        params: { job_id: props.jobId },
+      })
+      // Response includes the contact's phone (from ClientContactMethod) for display
+      contactPhone.value = updatedContact.phone || ''
       toast.success('Contact updated successfully')
     } catch (error) {
       toast.error('Failed to update contact')
@@ -1181,6 +1213,7 @@ const handleContactSelected = async (contact: ClientContact | null) => {
     localJobData.value.contact_id = undefined
     localJobData.value.contact_name = undefined
     contactDisplayValue.value = ''
+    contactPhone.value = ''
   }
 }
 
@@ -1650,6 +1683,7 @@ onMounted(() => {
           name: response.name,
           client_id: response.client_id,
           client_name: response.client_name,
+          client_phone: response.client_phone,
           status: response.status,
           pricing_methodology: response.pricing_methodology,
           speed_quality_tradeoff: response.speed_quality_tradeoff ?? 'normal',

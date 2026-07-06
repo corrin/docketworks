@@ -327,6 +327,9 @@ class JobContactResponseSerializer(serializers.Serializer):
     position = serializers.CharField(allow_blank=True, allow_null=True)
     is_primary = serializers.BooleanField()
     notes = serializers.CharField(allow_blank=True, allow_null=True)
+    # Read-only: phones live in ClientContactMethod; the job contact update
+    # path only reassigns the contact FK and must never write phones.
+    phone = serializers.CharField(read_only=True, allow_blank=True)
 
 
 class JobContactUpdateSerializer(JobContactResponseSerializer):

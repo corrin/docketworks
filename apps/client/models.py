@@ -362,6 +362,21 @@ class ClientContact(models.Model):
     def __str__(self):
         return f"{self.name} ({self.client.name})"
 
+    def primary_phone_value(self) -> str:
+        """The contact's own primary phone number, or "" when it has none.
+
+        Uses the same ordering as every other primary-phone consumer:
+        primary first, then label/value as a stable tie-break.
+        """
+        method = (
+            self.contact_methods.filter(
+                method_type=ClientContactMethod.MethodType.PHONE
+            )
+            .order_by("-is_primary", "label", "value")
+            .first()
+        )
+        return method.value if method else ""
+
     def save(
         self,
         *,

@@ -7,7 +7,7 @@ from django.utils import timezone
 from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import PhoneCallRecord
 from apps.crm.services.phone_call_service import rematch_calls_for_numbers
-from apps.testing import BaseAPITestCase
+from apps.testing import BaseAPITestCase, BaseTestCase
 
 
 class ClientContactMethodTests(TestCase):
@@ -237,6 +237,74 @@ class ClientPrimaryPhoneValueTests(TestCase):
         )
 
         self.assertEqual(client.primary_phone_value(), "")
+
+
+class ClientContactPrimaryPhoneValueTests(TestCase):
+    """Guards the helper the job-settings tab uses to show the contact's phone."""
+
+    def _contact(self) -> ClientContact:
+        client = Client.objects.create(
+            name="Acme Ltd", xero_last_modified=timezone.now()
+        )
+        return ClientContact.objects.create(client=client, name="Jane Smith")
+
+    def test_returns_primary_phone_first(self) -> None:
+        contact = self._contact()
+        ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+        )
+        ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 222 2222",
+            is_primary=True,
+        )
+
+        self.assertEqual(contact.primary_phone_value(), "09 222 2222")
+
+    def test_returns_empty_string_when_no_phone_methods(self) -> None:
+        contact = self._contact()
+        ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.EMAIL,
+            value="jane@example.com",
+        )
+
+        self.assertEqual(contact.primary_phone_value(), "")
+
+
+class GetJobContactPhoneTests(BaseTestCase):
+    """Guards the phone the job-settings tab shows for the job's contact."""
+
+    def test_get_job_contact_includes_contact_phone(self) -> None:
+        from apps.client.services.client_rest_service import ClientRestService
+        from apps.job.models import Job
+        from apps.workflow.models import XeroPayItem
+
+        client = Client.objects.create(
+            name="Acme Ltd", xero_last_modified=timezone.now()
+        )
+        contact = ClientContact.objects.create(client=client, name="Jane Smith")
+        ClientContactMethod.objects.create(
+            contact=contact,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 333 3333",
+            is_primary=True,
+        )
+        job = Job.objects.create(
+            name="Phone Display Job",
+            client=client,
+            contact=contact,
+            created_by=self.test_staff,
+            default_xero_pay_item=XeroPayItem.get_ordinary_time(),
+            staff=self.test_staff,
+        )
+
+        result = ClientRestService.get_job_contact(job.id)
+
+        self.assertEqual(result["phone"], "09 333 3333")
 
 
 class ClientContactMethodApiTests(BaseAPITestCase):

@@ -124,6 +124,7 @@ class JobSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
         source="client.name", read_only=True, allow_null=True, required=False
     )
+    client_phone = serializers.SerializerMethodField()
     contact_id = serializers.PrimaryKeyRelatedField(
         queryset=ClientContact.objects.all(),
         source="contact",
@@ -201,6 +202,11 @@ class JobSerializer(serializers.ModelSerializer):
         """Get Xero invoices information (number, status, and URL only)"""
         return XeroInvoiceSerializer(obj.invoices.all(), many=True).data
 
+    @extend_schema_field(serializers.CharField())
+    def get_client_phone(self, obj) -> str:
+        """The client's primary phone number, or "" when it has none."""
+        return obj.client.primary_phone_value() if obj.client else ""
+
     class Meta:
         model = Job
         fields = [
@@ -208,6 +214,7 @@ class JobSerializer(serializers.ModelSerializer):
             "name",
             "client_id",
             "client_name",
+            "client_phone",
             "contact_id",
             "contact_name",
             "job_number",
@@ -812,6 +819,7 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
         source="client.name", read_only=True, allow_null=True
     )
+    client_phone = serializers.SerializerMethodField()
     contact_id = serializers.UUIDField(
         source="contact.id", read_only=True, allow_null=True
     )
@@ -826,6 +834,11 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
         source="default_xero_pay_item.name", read_only=True, allow_null=True
     )
 
+    @extend_schema_field(serializers.CharField())
+    def get_client_phone(self, obj) -> str:
+        """The client's primary phone number, or "" when it has none."""
+        return obj.client.primary_phone_value() if obj.client else ""
+
     class Meta:
         model = Job
         # Derive fields from Job.JOB_DIRECT_FIELDS, plus special fields
@@ -833,6 +846,7 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
             "job_id",
             "client_id",
             "client_name",
+            "client_phone",
             "contact_id",
             "contact_name",
             "quoted",
