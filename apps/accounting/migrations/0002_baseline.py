@@ -8,10 +8,6 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("accounting", "0008_normalize_xero_raw_json_strings"),
-    ]
-
     dependencies = [
         ("accounting", "0001_baseline"),
         ("client", "0001_baseline"),

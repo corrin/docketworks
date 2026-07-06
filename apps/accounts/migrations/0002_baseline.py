@@ -9,10 +9,6 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("accounts", "0017_backfill_staff_default_labour_subtype"),
-    ]
-
     dependencies = [
         ("accounts", "0001_baseline"),
         ("auth", "0012_alter_user_first_name_max_length"),

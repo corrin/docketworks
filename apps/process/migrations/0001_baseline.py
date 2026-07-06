@@ -12,12 +12,6 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("process", "0001_initial"),
-        ("process", "0002_formentry_staff_historicalformentry_staff_and_more"),
-        ("process", "0003_alter_form_table_alter_formentry_table_and_more"),
-    ]
-
     dependencies = [
         ("job", "0001_baseline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),

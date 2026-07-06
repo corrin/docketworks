@@ -50,11 +50,6 @@ def unseed_subtypes(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) ->
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("job", "0093_seed_labour_subtypes"),
-        ("job", "0098_clean_labour_subtype_catalogue"),
-        ("job", "0099_add_onsite_quoting_and_reactivate_delivery"),
-    ]
 
     dependencies = [
         ("job", "0001_baseline"),

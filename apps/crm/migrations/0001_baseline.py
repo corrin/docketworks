@@ -12,16 +12,6 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("crm", "0001_initial"),
-        ("crm", "0003_phonecallrecording_archive_error"),
-        ("crm", "0004_phonecallrecord_job_link"),
-        ("crm", "0006_phone_endpoints_and_classification"),
-        ("crm", "0007_alter_phoneprovidersettings_password_and_more"),
-        ("crm", "0008_phone_call_number_indexes"),
-        ("crm", "0009_phone_call_normalized_numbers"),
-    ]
-
     dependencies = [
         ("client", "0001_baseline"),
         ("job", "0001_baseline"),

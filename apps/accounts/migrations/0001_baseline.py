@@ -11,24 +11,6 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("accounts", "0001_initial"),
-        ("accounts", "0002_initial"),
-        ("accounts", "0003_alter_historicalstaff_updated_at_and_more"),
-        ("accounts", "0004_add_staff_permissions_tables"),
-        ("accounts", "0005_alter_staff_groups_alter_staff_user_permissions"),
-        ("accounts", "0006_historicalstaff_date_left_staff_date_left"),
-        ("accounts", "0007_auto_20250730_2359"),
-        ("accounts", "0008_remove_historicalstaff_is_active_and_more"),
-        ("accounts", "0009_historicalstaff_xero_user_id_staff_xero_user_id"),
-        ("accounts", "0010_rename_is_staff_historicalstaff_is_office_staff_and_more"),
-        ("accounts", "0011_remove_ims_payroll_fields"),
-        ("accounts", "0012_add_base_wage_rate"),
-        ("accounts", "0013_alter_historicalstaff_table_alter_staff_table"),
-        ("accounts", "0014_add_is_workshop_staff"),
-        ("accounts", "0016_historicalstaff_default_labour_subtype_and_more"),
-    ]
-
     dependencies = []
 
     operations = [

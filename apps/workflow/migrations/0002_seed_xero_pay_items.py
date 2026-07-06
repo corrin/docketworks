@@ -76,9 +76,6 @@ def delete_seed_xero_pay_items(
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("workflow", "0187_create_xero_pay_item"),
-    ]
 
     dependencies = [
         ("workflow", "0001_baseline"),

@@ -14,32 +14,6 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("client", "0001_initial"),
-        ("client", "0002_clientcontact"),
-        ("client", "0003_add_xero_merge_tracking"),
-        ("client", "0004_populate_merge_fields"),
-        ("client", "0005_client_is_supplier"),
-        ("client", "0006_alter_client_name"),
-        ("client", "0007_delete_empty_name_contacts"),
-        ("client", "0008_merge_duplicate_contacts"),
-        ("client", "0009_clientcontact_unique_client_contact_name"),
-        ("client", "0010_add_is_active_to_clientcontact"),
-        ("client", "0011_convert_empty_strings_to_null"),
-        ("client", "0012_supplierpickupaddress"),
-        ("client", "0013_add_google_fields_to_pickup_address"),
-        ("client", "0014_add_suburb_to_pickup_address"),
-        ("client", "0015_populate_xero_addresses"),
-        ("client", "0016_alter_client_table_alter_clientcontact_table_and_more"),
-        ("client", "0017_reassign_stranded_merged_client_fks"),
-        ("client", "0018_client_allow_jobs"),
-        ("client", "0019_client_name_fts_index"),
-        ("client", "0020_suppliersearchalias_and_more"),
-        ("client", "0021_clientcontactmethod"),
-        ("client", "0022_client_name_trgm_index"),
-        ("client", "0023_drop_scalar_phone_fields"),
-    ]
-
     dependencies = []
 
     operations = [
