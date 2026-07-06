@@ -8,6 +8,7 @@ from unittest.mock import patch
 from uuid import uuid4
 
 import pytest
+from django.core.management import call_command
 from django.utils import timezone
 from rest_framework.test import APIClient
 
@@ -381,8 +382,17 @@ def test_stock_viewset_create_enqueues_metadata_parse() -> None:
     enqueue.assert_called_once_with(stock.id)
 
 
+@pytest.fixture
+def company_defaults(db: None) -> None:
+    # Job.save -> generate_job_number -> CompanyDefaults.get_solo(); the
+    # singleton cannot be lazily created (shop_client is NOT NULL).
+    call_command("loaddata", "company_defaults")
+
+
 @pytest.mark.django_db
-def test_delivery_receipt_stock_creation_enqueues_metadata_parse() -> None:
+def test_delivery_receipt_stock_creation_enqueues_metadata_parse(
+    company_defaults: None,
+) -> None:
     staff = _staff()
     client = Client.objects.create(
         name="Receipt Stock Client",
