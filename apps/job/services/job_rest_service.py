@@ -21,7 +21,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact
+from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.job.models import Job, JobDeltaRejection, JobEvent, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.serializers import JobSerializer
@@ -669,7 +669,15 @@ class JobRestService:
             ValueError: If job is not found.
         """
         try:
-            job = Job.objects.select_related("client").get(id=job_id)
+            job = (
+                Job.objects.select_related("client")
+                .annotate(
+                    client_phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="client_id"
+                    )
+                )
+                .get(id=job_id)
+            )
         except Job.DoesNotExist:
             raise ValueError(f"Job with id {job_id} not found")
 
@@ -715,7 +723,15 @@ class JobRestService:
             ValueError: If job is not found.
         """
         try:
-            job = Job.objects.select_related("client").get(id=job_id)
+            job = (
+                Job.objects.select_related("client")
+                .annotate(
+                    client_phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="client_id"
+                    )
+                )
+                .get(id=job_id)
+            )
         except Job.DoesNotExist:
             raise ValueError(f"Job with id {job_id} not found")
 

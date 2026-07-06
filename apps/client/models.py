@@ -3,6 +3,7 @@ import re
 import uuid
 from collections.abc import Iterable
 from decimal import Decimal
+from typing import Final, Literal
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
@@ -249,14 +250,14 @@ class Client(models.Model):
     def primary_phone_value(self) -> str:
         """The client's own primary phone number, or "" when it has none.
 
-        Uses the same ordering as every other primary-phone consumer:
-        primary first, then label/value as a stable tie-break.
+        Single-object flows only (Xero sync, PO PDFs). Queryset consumers must
+        use ClientContactMethod.primary_phone_annotation instead.
         """
         method = (
             self.contact_methods.filter(
                 method_type=ClientContactMethod.MethodType.PHONE
             )
-            .order_by("-is_primary", "label", "value")
+            .order_by(*PRIMARY_PHONE_ORDERING)
             .first()
         )
         return method.value if method else ""
@@ -365,14 +366,14 @@ class ClientContact(models.Model):
     def primary_phone_value(self) -> str:
         """The contact's own primary phone number, or "" when it has none.
 
-        Uses the same ordering as every other primary-phone consumer:
-        primary first, then label/value as a stable tie-break.
+        Single-object flows only. Queryset consumers must use
+        ClientContactMethod.primary_phone_annotation instead.
         """
         method = (
             self.contact_methods.filter(
                 method_type=ClientContactMethod.MethodType.PHONE
             )
-            .order_by("-is_primary", "label", "value")
+            .order_by(*PRIMARY_PHONE_ORDERING)
             .first()
         )
         return method.value if method else ""
@@ -416,6 +417,13 @@ class PhoneAssignmentConflictError(Exception):
         else:
             message = f"phone number already belongs to {conflict.owner_display_name()}"
         super().__init__(message)
+
+
+# The primary-phone ordering rule: primary first, then label/value as a
+# stable tie-break. Single source — every primary-phone consumer must use it.
+PRIMARY_PHONE_ORDERING: Final[tuple[str, str, str]] = ("-is_primary", "label", "value")
+
+PhoneOwner = Literal["client", "contact"]
 
 
 class ClientContactMethod(models.Model):
@@ -502,6 +510,26 @@ class ClientContactMethod(models.Model):
     def __str__(self) -> str:
         owner = self.contact or self.client
         return f"{self.method_type}: {self.value} ({owner})"
+
+    @classmethod
+    def primary_phone_annotation(cls, *, owner: PhoneOwner, outer_ref: str) -> Coalesce:
+        """Queryset annotation: the owner's primary phone value, "" when it has none.
+
+        ``outer_ref`` names the outer queryset's column holding the owner's id
+        (e.g. "pk" on a Client queryset, "client_id" on a Job queryset).
+        """
+        candidates = (
+            cls.objects.filter(
+                method_type=cls.MethodType.PHONE, **{owner: models.OuterRef(outer_ref)}
+            )
+            .order_by(*PRIMARY_PHONE_ORDERING)
+            .values("value")[:1]
+        )
+        return Coalesce(
+            models.Subquery(candidates),
+            models.Value(""),
+            output_field=models.CharField(),
+        )
 
     def save(
         self,

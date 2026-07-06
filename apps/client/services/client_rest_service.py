@@ -20,7 +20,7 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.client.models import Client, ClientContact
+from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.client.serializers import ClientCreateSerializer, ClientUpdateSerializer
 from apps.client.utils import date_to_datetime
 from apps.workflow.accounting.registry import get_provider
@@ -401,7 +401,15 @@ class ClientRestService:
         from apps.job.models import Job
 
         try:
-            job = Job.objects.select_related("contact").get(id=job_id)
+            job = (
+                Job.objects.select_related("contact")
+                .annotate(
+                    contact_phone=ClientContactMethod.primary_phone_annotation(
+                        owner="contact", outer_ref="contact_id"
+                    )
+                )
+                .get(id=job_id)
+            )
         except Job.DoesNotExist:
             raise ValueError(f"Job with id {job_id} not found")
         except AlreadyLoggedException:
@@ -428,7 +436,7 @@ class ClientRestService:
                 "position": contact.position,
                 "is_primary": contact.is_primary,
                 "notes": contact.notes,
-                "phone": contact.primary_phone_value(),
+                "phone": job.contact_phone,
             }
         except AlreadyLoggedException:
             raise
@@ -474,7 +482,13 @@ class ClientRestService:
                 raise ValueError("Contact ID is required")
 
             try:
-                contact = ClientContact.objects.get(id=contact_id)
+                # primary_phone rides the fetch; the job-level annotation would
+                # reflect the job's old contact, not the one being assigned.
+                contact = ClientContact.objects.annotate(
+                    primary_phone=ClientContactMethod.primary_phone_annotation(
+                        owner="contact", outer_ref="pk"
+                    )
+                ).get(id=contact_id)
             except ClientContact.DoesNotExist:
                 raise ValueError(f"Contact with id {contact_id} not found")
 
@@ -503,7 +517,7 @@ class ClientRestService:
                 "position": contact.position,
                 "is_primary": contact.is_primary,
                 "notes": contact.notes,
-                "phone": contact.primary_phone_value(),
+                "phone": contact.primary_phone,
             }
 
         except AlreadyLoggedException:

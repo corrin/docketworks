@@ -24,6 +24,23 @@ logger = logging.getLogger(__name__)
 DEBUG_SERIALIZER = False
 
 
+class AnnotatedCharField(serializers.CharField):
+    """Read-only char field backed by a queryset annotation.
+
+    DRF skips read-only fields whose attribute is missing; a forgotten
+    annotation would silently drop the key from the payload (ADR 0015 —
+    no read-side fallbacks). Raise instead so the caller fails loudly.
+    """
+
+    def get_attribute(self, instance: Any) -> Any:
+        try:
+            return super().get_attribute(instance)
+        except serializers.SkipField as exc:
+            raise AttributeError(
+                f"queryset must be annotated with '{self.field_name}'"
+            ) from exc
+
+
 class InvoiceSerializer(serializers.ModelSerializer):
     total_excl_tax = serializers.FloatField()
     total_incl_tax = serializers.FloatField()
@@ -124,7 +141,8 @@ class JobSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
         source="client.name", read_only=True, allow_null=True, required=False
     )
-    client_phone = serializers.SerializerMethodField()
+    # Backed by ClientContactMethod.primary_phone_annotation on the queryset.
+    client_phone = AnnotatedCharField(read_only=True)
     contact_id = serializers.PrimaryKeyRelatedField(
         queryset=ClientContact.objects.all(),
         source="contact",
@@ -201,11 +219,6 @@ class JobSerializer(serializers.ModelSerializer):
     def get_xero_invoices(self, obj) -> list[dict]:
         """Get Xero invoices information (number, status, and URL only)"""
         return XeroInvoiceSerializer(obj.invoices.all(), many=True).data
-
-    @extend_schema_field(serializers.CharField())
-    def get_client_phone(self, obj: Job) -> str:
-        """The client's primary phone number, or "" when it has none."""
-        return obj.client.primary_phone_value() if obj.client else ""
 
     class Meta:
         model = Job
@@ -819,7 +832,8 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
         source="client.name", read_only=True, allow_null=True
     )
-    client_phone = serializers.SerializerMethodField()
+    # Backed by ClientContactMethod.primary_phone_annotation on the queryset.
+    client_phone = AnnotatedCharField(read_only=True)
     contact_id = serializers.UUIDField(
         source="contact.id", read_only=True, allow_null=True
     )
@@ -833,11 +847,6 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
     default_xero_pay_item_name = serializers.CharField(
         source="default_xero_pay_item.name", read_only=True, allow_null=True
     )
-
-    @extend_schema_field(serializers.CharField())
-    def get_client_phone(self, obj: Job) -> str:
-        """The client's primary phone number, or "" when it has none."""
-        return obj.client.primary_phone_value() if obj.client else ""
 
     class Meta:
         model = Job

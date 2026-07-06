@@ -67,6 +67,7 @@ try:
             JobQuoteChatUpdateSerializer,
         )
         from .job_serializer import (
+            AnnotatedCharField,
             ArchiveJobsResponseSerializer,
             ArchiveJobsSerializer,
             AssignJobResponseSerializer,
@@ -170,6 +171,7 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "AdvancedSearchResponseSerializer",
+    "AnnotatedCharField",
     "ApplyQuoteErrorResponseSerializer",
     "ApplyQuoteResponseSerializer",
     "ArchiveJobsResponseSerializer",
