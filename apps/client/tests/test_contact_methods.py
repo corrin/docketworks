@@ -1,8 +1,14 @@
+from typing import TYPE_CHECKING
 from unittest.mock import patch
 
 from django.core.exceptions import ValidationError
+from django.db import connection
 from django.test import TestCase
+from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from apps.job.models import Job
 
 from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import PhoneCallRecord
@@ -348,7 +354,7 @@ class PrimaryPhoneAnnotationTests(TestCase):
 class GetJobContactPhoneTests(BaseTestCase):
     """Guards the phone the job-settings tab shows for the job's contact."""
 
-    def _job_with_contact(self):
+    def _job_with_contact(self) -> "tuple[Job, Client, ClientContact]":
         from apps.job.models import Job
         from apps.workflow.models import XeroPayItem
 
@@ -362,7 +368,7 @@ class GetJobContactPhoneTests(BaseTestCase):
             value="09 333 3333",
             is_primary=True,
         )
-        job = Job.objects.create(
+        job: Job = Job.objects.create(
             name="Phone Display Job",
             client=client,
             contact=contact,
@@ -372,7 +378,7 @@ class GetJobContactPhoneTests(BaseTestCase):
         )
         return job, client, contact
 
-    def _lazy_phone_queries(self, captured) -> list[str]:
+    def _lazy_phone_queries(self, captured: CaptureQueriesContext) -> list[str]:
         """Standalone contact_methods SELECTs — the lazy-load signature.
 
         The annotation's correlated subquery legitimately appears inside the
@@ -385,9 +391,6 @@ class GetJobContactPhoneTests(BaseTestCase):
         ]
 
     def test_get_job_contact_includes_contact_phone(self) -> None:
-        from django.db import connection
-        from django.test.utils import CaptureQueriesContext
-
         from apps.client.services.client_rest_service import ClientRestService
 
         job, _, _ = self._job_with_contact()
@@ -399,9 +402,6 @@ class GetJobContactPhoneTests(BaseTestCase):
         self.assertEqual(self._lazy_phone_queries(captured), [])
 
     def test_update_job_contact_returns_new_contacts_phone(self) -> None:
-        from django.db import connection
-        from django.test.utils import CaptureQueriesContext
-
         from apps.client.services.client_rest_service import ClientRestService
 
         job, client, _ = self._job_with_contact()

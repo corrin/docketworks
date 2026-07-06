@@ -91,13 +91,14 @@ class JobRestServiceClientPhoneTests(BaseTestCase):
             value="09 222 2222",
             is_primary=True,
         )
-        return Job.objects.create(
+        job: Job = Job.objects.create(
             name="Phone Job",
             client=client,
             created_by=self.test_staff,
             default_xero_pay_item=XeroPayItem.get_ordinary_time(),
             staff=self.test_staff,
         )
+        return job
 
     def test_get_job_for_edit_includes_client_phone(self) -> None:
         job = self._job_with_client_phone()

@@ -5,10 +5,15 @@ query shape of the header fetch (the phone must come from a queryset
 annotation, never a lazy contact_methods query — KAN-281 nplusone 500).
 """
 
+from typing import TYPE_CHECKING
+
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.urls import reverse
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from rest_framework.response import _MonkeyPatchedResponse
 
 from apps.client.models import Client, ClientContactMethod
 from apps.job.models import Job
@@ -23,13 +28,14 @@ class JobHeaderViewTests(BaseAPITestCase):
         self.client.force_authenticate(user=self.test_staff)
 
     def _job(self, *, job_client: Client | None) -> Job:
-        return Job.objects.create(
+        job: Job = Job.objects.create(
             name="Header Job",
             client=job_client,
             created_by=self.test_staff,
             default_xero_pay_item=XeroPayItem.get_ordinary_time(),
             staff=self.test_staff,
         )
+        return job
 
     def _client_with_phones(self) -> Client:
         job_client = Client.objects.create(
@@ -56,9 +62,13 @@ class JobHeaderViewTests(BaseAPITestCase):
         )
         return job_client
 
-    def _get_header(self, job: Job, **extra):
+    def _get_header(
+        self, job: Job, if_none_match: str | None = None
+    ) -> "_MonkeyPatchedResponse":
         url = reverse("jobs:job_header_rest", kwargs={"job_id": job.id})
-        return self.client.get(url, **extra)
+        if if_none_match is not None:
+            return self.client.get(url, HTTP_IF_NONE_MATCH=if_none_match)
+        return self.client.get(url)
 
     def test_returns_primary_client_phone(self) -> None:
         job = self._job(job_client=self._client_with_phones())
@@ -107,7 +117,7 @@ class JobHeaderViewTests(BaseAPITestCase):
 
         first = self._get_header(job)
         etag = first.headers["ETag"]
-        second = self._get_header(job, HTTP_IF_NONE_MATCH=etag)
+        second = self._get_header(job, if_none_match=etag)
 
         self.assertEqual(first.status_code, 200)
         self.assertEqual(second.status_code, 304)
