@@ -87,15 +87,15 @@
         </div>
 
         <select
-          v-else-if="field.type === 'client'"
+          v-else-if="field.type === 'company'"
           v-model="localForm[field.key] as string"
           class="h-9 text-sm rounded-md border border-input bg-background px-3 py-1"
           :class="{ 'bg-gray-100 cursor-not-allowed': field.readOnly }"
           :data-automation-id="`SectionForm-${section}-field-${field.key}`"
-          :disabled="field.readOnly || clientOptionsLoading"
+          :disabled="field.readOnly || companyOptionsLoading"
         >
-          <option v-for="client in clientOptions" :key="client.id" :value="client.id">
-            {{ client.name }}
+          <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+            {{ company.name }}
           </option>
         </select>
 
@@ -184,7 +184,7 @@ import {
 import { uploadLogo, deleteLogo } from '@/services/admin-company-defaults-service'
 import { toast } from 'vue-sonner'
 
-type ClientOption = z.infer<typeof schemas.ClientNameOnly>
+type CompanyOption = z.infer<typeof schemas.CompanyNameOnly>
 
 const props = defineProps<{ section: string; modelValue: Record<string, unknown> }>()
 const emit = defineEmits<{ (e: 'update:modelValue', value: Record<string, unknown>): void }>()
@@ -216,8 +216,8 @@ const FIELD_COL_SPAN_OVERRIDES: Record<string, 2> = {
 }
 
 const logoErrors = ref<Record<string, string>>({})
-const clientOptions = ref<ClientOption[]>([])
-const clientOptionsLoading = ref(false)
+const companyOptions = ref<CompanyOption[]>([])
+const companyOptionsLoading = ref(false)
 
 const LOGO_ASPECT_RULES: Record<
   string,
@@ -463,30 +463,30 @@ const sectionFields = computed(() =>
 )
 const isWorkingHours = computed(() => getSpecialHandler(props.section) === 'working_hours')
 
-async function loadClientOptions() {
-  clientOptionsLoading.value = true
+async function loadCompanyOptions() {
+  companyOptionsLoading.value = true
   try {
-    clientOptions.value = await api.clients_all_list()
+    companyOptions.value = await api.companies_all_list()
   } catch (e) {
-    console.error('Client options load failed:', e)
-    toast.error('Failed to load clients')
+    console.error('Company options load failed:', e)
+    toast.error('Failed to load companies')
   } finally {
-    clientOptionsLoading.value = false
+    companyOptionsLoading.value = false
   }
 }
 
 watch(
   sectionFields,
   (fields) => {
-    if (!fields.some((field) => field.type === 'client')) {
+    if (!fields.some((field) => field.type === 'company')) {
       return
     }
 
-    if (clientOptions.value.length > 0) {
+    if (companyOptions.value.length > 0) {
       return
     }
 
-    void loadClientOptions()
+    void loadCompanyOptions()
   },
   { immediate: true },
 )

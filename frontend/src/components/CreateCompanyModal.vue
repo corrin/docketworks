@@ -2,12 +2,12 @@
   <Dialog :open="isOpen" @update:open="handleDialogChange">
     <DialogContent class="sm:max-w-md">
       <DialogHeader>
-        <DialogTitle>{{ editMode ? 'Edit Client' : 'Add New Client' }}</DialogTitle>
+        <DialogTitle>{{ editMode ? 'Edit Company' : 'Add New Company' }}</DialogTitle>
         <DialogDescription>
           {{
             editMode
-              ? 'Update client information. All fields except name are optional.'
-              : 'Create a new client. All fields except name are optional.'
+              ? 'Update company information. All fields except name are optional.'
+              : 'Create a new company. All fields except name are optional.'
           }}
         </DialogDescription>
       </DialogHeader>
@@ -18,12 +18,12 @@
             <XCircle class="h-5 w-5 text-red-400" />
           </div>
           <div class="ml-3">
-            <p class="text-sm font-medium text-red-800">Error creating client</p>
+            <p class="text-sm font-medium text-red-800">Error creating company</p>
             <p class="mt-1 text-sm text-red-700">{{ errorMessage }}</p>
-            <div v-if="duplicateClientInfo" class="mt-2 text-xs text-gray-700">
-              Existing client in Xero: <b>{{ duplicateClientInfo.name }}</b>
+            <div v-if="duplicateCompanyInfo" class="mt-2 text-xs text-gray-700">
+              Existing company in Xero: <b>{{ duplicateCompanyInfo.name }}</b>
               <span
-                v-if="duplicateClientInfo.xero_contact_id"
+                v-if="duplicateCompanyInfo.xero_contact_id"
                 class="ml-2 px-2 py-0.5 bg-blue-100 text-blue-800 rounded"
                 >Xero</span
               >
@@ -33,22 +33,22 @@
       </div>
 
       <form
-        v-if="!blockedNoXeroId && !duplicateClientInfo"
+        v-if="!blockedNoXeroId && !duplicateCompanyInfo"
         @submit.prevent="handleSubmit"
         class="space-y-4"
       >
         <div>
-          <label for="clientName" class="block text-sm font-medium text-gray-700 mb-1">
-            Client Name <span class="text-red-500">*</span>
+          <label for="companyName" class="block text-sm font-medium text-gray-700 mb-1">
+            Company Name <span class="text-red-500">*</span>
           </label>
           <input
-            id="clientName"
+            id="companyName"
             v-model="formData.name"
             type="text"
             required
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             :class="{ 'border-red-300': fieldErrors.name }"
-            placeholder="Enter client name"
+            placeholder="Enter company name"
           />
           <p v-if="fieldErrors.name" class="mt-1 text-sm text-red-600">
             {{ fieldErrors.name }}
@@ -56,16 +56,16 @@
         </div>
 
         <div>
-          <label for="clientEmail" class="block text-sm font-medium text-gray-700 mb-1">
+          <label for="companyEmail" class="block text-sm font-medium text-gray-700 mb-1">
             Email
           </label>
           <input
-            id="clientEmail"
+            id="companyEmail"
             v-model="formData.email"
             type="email"
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             :class="{ 'border-red-300': fieldErrors.email }"
-            placeholder="client@example.com"
+            placeholder="company@example.com"
           />
           <p v-if="fieldErrors.email" class="mt-1 text-sm text-red-600">
             {{ fieldErrors.email }}
@@ -73,16 +73,16 @@
         </div>
 
         <div>
-          <label for="clientAddress" class="block text-sm font-medium text-gray-700 mb-1">
+          <label for="companyAddress" class="block text-sm font-medium text-gray-700 mb-1">
             Address
           </label>
           <textarea
-            id="clientAddress"
+            id="companyAddress"
             v-model="formData.address"
             rows="2"
             class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             :class="{ 'border-red-300': fieldErrors.address }"
-            placeholder="Client address"
+            placeholder="Company address"
           />
           <p v-if="fieldErrors.address" class="mt-1 text-sm text-red-600">
             {{ fieldErrors.address }}
@@ -126,8 +126,8 @@
                   ? 'Updating...'
                   : 'Creating...'
                 : editMode
-                  ? 'Update Client'
-                  : 'Create Client'
+                  ? 'Update Company'
+                  : 'Create Company'
             }}
           </Button>
         </DialogFooter>
@@ -135,11 +135,11 @@
 
       <div v-else class="flex flex-col items-center gap-4 py-6">
         <p class="text-sm text-gray-700" v-if="blockedNoXeroId">
-          The client was created but does not have a Xero ID. This client cannot be used until it is
-          synced with Xero.
+          The company was created but does not have a Xero ID. This company cannot be used until it
+          is synced with Xero.
         </p>
-        <p class="text-sm text-gray-700" v-if="duplicateClientInfo">
-          This client already exists in Xero and cannot be created again.
+        <p class="text-sm text-gray-700" v-if="duplicateCompanyInfo">
+          This company already exists in Xero and cannot be created again.
         </p>
         <div class="flex gap-2">
           <Button type="button" variant="outline" @click="handleAddOther">Add other</Button>
@@ -165,33 +165,33 @@ import {
 import { Button } from '@/components/ui/button'
 import { api } from '@/api/client'
 import { z } from 'zod'
-import type { Client } from '@/composables/useClientLookup'
+import type { Company } from '@/composables/useCompanyLookup'
 import { schemas } from '@/api/generated/api'
 import { isAxiosError } from 'axios'
 import { normalizeOptionalString } from '@/utils/sanitize'
 
 // Use generated types from Zodios API
-type ClientCreateRequestSchema = typeof schemas.ClientCreateRequest
-type ClientUpdateRequest = z.input<typeof schemas.ClientUpdateRequest>
-type ClientCreateInput = z.input<typeof schemas.ClientCreateRequest>
-type ClientUpdateInput = z.input<typeof schemas.ClientUpdateRequest>
-type ClientCreateResponse = z.infer<typeof schemas.ClientCreateResponse>
-type ClientUpdateResponse = z.infer<typeof schemas.ClientUpdateResponse>
-const clientSchema: ClientCreateRequestSchema = schemas.ClientCreateRequest
-type ClientFormPayload = {
-  name: ClientCreateInput['name']
-  email?: ClientUpdateInput['email']
-  address?: ClientUpdateInput['address']
-  is_account_customer: NonNullable<ClientCreateInput['is_account_customer']>
-  allow_jobs: NonNullable<ClientCreateInput['allow_jobs']>
+type CompanyCreateRequestSchema = typeof schemas.CompanyCreateRequest
+type CompanyUpdateRequest = z.input<typeof schemas.CompanyUpdateRequest>
+type CompanyCreateInput = z.input<typeof schemas.CompanyCreateRequest>
+type CompanyUpdateInput = z.input<typeof schemas.CompanyUpdateRequest>
+type CompanyCreateResponse = z.infer<typeof schemas.CompanyCreateResponse>
+type CompanyUpdateResponse = z.infer<typeof schemas.CompanyUpdateResponse>
+const companySchema: CompanyCreateRequestSchema = schemas.CompanyCreateRequest
+type CompanyFormPayload = {
+  name: CompanyCreateInput['name']
+  email?: CompanyUpdateInput['email']
+  address?: CompanyUpdateInput['address']
+  is_account_customer: NonNullable<CompanyCreateInput['is_account_customer']>
+  allow_jobs: NonNullable<CompanyCreateInput['allow_jobs']>
 }
 
 interface Props {
   isOpen: boolean
   initialName?: string
   editMode?: boolean
-  clientId?: string
-  clientData?: {
+  companyId?: string
+  companyData?: {
     name: string
     email: string
     address: string
@@ -203,8 +203,8 @@ interface Props {
 const props = withDefaults(defineProps<Props>(), {
   initialName: '',
   editMode: false,
-  clientId: '',
-  clientData: () => ({
+  companyId: '',
+  companyData: () => ({
     name: '',
     email: '',
     address: '',
@@ -215,10 +215,10 @@ const props = withDefaults(defineProps<Props>(), {
 
 const emit = defineEmits<{
   'update:isOpen': [value: boolean]
-  'client-created': [client: Client]
+  'company-created': [company: Company]
 }>()
 
-const formData = reactive<ClientFormPayload>({
+const formData = reactive<CompanyFormPayload>({
   name: '',
   email: '',
   address: '',
@@ -230,7 +230,7 @@ const isLoading = ref(false)
 const errorMessage = ref('')
 const fieldErrors = ref<Record<string, string>>({})
 const blockedNoXeroId = ref(false)
-const duplicateClientInfo = ref<{ name: string; xero_contact_id: string } | null>(null)
+const duplicateCompanyInfo = ref<{ name: string; xero_contact_id: string } | null>(null)
 
 const isFormValid = computed(() => {
   if (!formData.name.trim()) return false
@@ -256,7 +256,7 @@ const validateForm = (): boolean => {
     const cleanedData = cleanOptionalFields(plainFormData)
     console.log('🧹 Cleaned data for validation:', cleanedData)
 
-    clientSchema.parse(cleanedData)
+    companySchema.parse(cleanedData)
     console.log('✅ Schema validation passed')
     return true
   } catch (error: unknown) {
@@ -291,7 +291,7 @@ const handleSubmit = async () => {
   isLoading.value = true
   errorMessage.value = ''
   blockedNoXeroId.value = false
-  duplicateClientInfo.value = null
+  duplicateCompanyInfo.value = null
 
   try {
     // Convert reactive object to plain object for Zodios
@@ -306,28 +306,28 @@ const handleSubmit = async () => {
 
     // Validate the cleaned data manually first
     try {
-      clientSchema.parse(cleanedData)
+      companySchema.parse(cleanedData)
       console.log('Manual validation passed')
     } catch (validationError) {
       console.log('Manual validation failed:', validationError)
       throw validationError
     }
 
-    if (props.editMode && props.clientId) {
-      // Update existing client
-      const updatePayload: ClientUpdateRequest = { ...cleanedData }
-      const result = await api.clients_update_update(updatePayload, {
-        params: { client_id: props.clientId },
+    if (props.editMode && props.companyId) {
+      // Update existing company
+      const updatePayload: CompanyUpdateRequest = { ...cleanedData }
+      const result = await api.companies_update_update(updatePayload, {
+        params: { company_id: props.companyId },
       })
-      handleClientResponse(result, true)
+      handleCompanyResponse(result, true)
     } else {
-      // Create new client
-      const result = await api.clients_create_create(cleanedData)
-      handleClientResponse(result, false)
+      // Create new company
+      const result = await api.companies_create_create(cleanedData)
+      handleCompanyResponse(result, false)
     }
   } catch (error) {
-    console.error('Error creating client:', error)
-    if (handleDuplicateClientError(error)) {
+    console.error('Error creating company:', error)
+    if (handleDuplicateCompanyError(error)) {
       return
     }
     errorMessage.value = error instanceof Error ? error.message : 'An unexpected error occurred'
@@ -339,14 +339,14 @@ const handleSubmit = async () => {
 const handleAddOther = () => {
   resetForm()
   blockedNoXeroId.value = false
-  duplicateClientInfo.value = null
+  duplicateCompanyInfo.value = null
 }
 
 const handleCancel = () => {
   emit('update:isOpen', false)
 }
 
-const cleanOptionalFields = (data: ClientFormPayload): ClientFormPayload => {
+const cleanOptionalFields = (data: CompanyFormPayload): CompanyFormPayload => {
   return {
     ...data,
     name: data.name.trim(),
@@ -354,66 +354,68 @@ const cleanOptionalFields = (data: ClientFormPayload): ClientFormPayload => {
     address: normalizeOptionalString(data.address),
   }
 }
-const handleClientResponse = (
-  result: ClientCreateResponse | ClientUpdateResponse,
+const handleCompanyResponse = (
+  result: CompanyCreateResponse | CompanyUpdateResponse,
   isEditMode: boolean,
 ) => {
   console.log('?Y"? API response:', result)
 
   if (!result.success) {
-    throw new Error(result.message || `Failed to ${isEditMode ? 'update' : 'create'} client`)
+    throw new Error(result.message || `Failed to ${isEditMode ? 'update' : 'create'} company`)
   }
 
-  if (!result.client) {
-    throw new Error('Missing client in response')
+  if (!result.company) {
+    throw new Error('Missing company in response')
   }
 
-  if (!isEditMode && !result.client.xero_contact_id) {
+  if (!isEditMode && !result.company.xero_contact_id) {
     blockedNoXeroId.value = true
     errorMessage.value =
-      'Client was created but does not have a Xero ID. Please try again or contact support.'
+      'Company was created but does not have a Xero ID. Please try again or contact support.'
     return
   }
 
-  const clientData = normalizeClientResult(result.client)
-  emit('client-created', clientData)
+  const companyData = normalizeCompanyResult(result.company)
+  emit('company-created', companyData)
   emit('update:isOpen', false)
 }
 
-const normalizeClientResult = (
-  clientPayload: ClientCreateResponse['client'] | ClientUpdateResponse['client'],
-): Client => {
-  return schemas.ClientSearchResult.parse({
-    ...clientPayload,
-    email: clientPayload.email ?? '',
-    address: clientPayload.address ?? '',
-    xero_contact_id: clientPayload.xero_contact_id ?? '',
+const normalizeCompanyResult = (
+  companyPayload: CompanyCreateResponse['company'] | CompanyUpdateResponse['company'],
+): Company => {
+  return schemas.CompanySearchResult.parse({
+    ...companyPayload,
+    email: companyPayload.email ?? '',
+    address: companyPayload.address ?? '',
+    xero_contact_id: companyPayload.xero_contact_id ?? '',
   })
 }
 
-const handleDuplicateClientError = (error: unknown): boolean => {
+const handleDuplicateCompanyError = (error: unknown): boolean => {
   if (!isAxiosError(error)) {
     return false
   }
 
   const payload = error.response?.data
-  const parsedDuplicate = schemas.ClientDuplicateErrorResponse.safeParse(payload)
+  const parsedDuplicate = schemas.CompanyDuplicateErrorResponse.safeParse(payload)
 
   if (!parsedDuplicate.success) {
     return false
   }
 
-  const existingClient = parsedDuplicate.data.existing_client as Record<string, unknown> | undefined
+  const existingCompany = parsedDuplicate.data.existing_company as
+    | Record<string, unknown>
+    | undefined
   const nameValue =
-    typeof existingClient?.name === 'string' ? existingClient.name : 'Existing client'
+    typeof existingCompany?.name === 'string' ? existingCompany.name : 'Existing company'
   const xeroIdValue =
-    typeof existingClient?.xero_contact_id === 'string' ? existingClient.xero_contact_id : ''
+    typeof existingCompany?.xero_contact_id === 'string' ? existingCompany.xero_contact_id : ''
 
-  duplicateClientInfo.value = {
+  duplicateCompanyInfo.value = {
     name: nameValue,
     xero_contact_id: xeroIdValue,
   }
-  errorMessage.value = parsedDuplicate.data.error || 'Client already exists in Xero.'
+  errorMessage.value = parsedDuplicate.data.error || 'Company already exists in Xero.'
 
   return true
 }
@@ -442,7 +444,7 @@ watch(
     console.log('👁️ Modal isOpen changed:', isOpen)
     console.log('🏷️ props.initialName:', props.initialName)
     console.log('🔧 props.editMode:', props.editMode)
-    console.log('📋 props.clientData:', props.clientData)
+    console.log('📋 props.companyData:', props.companyData)
 
     if (isOpen) {
       console.log('🔄 Resetting form...')
@@ -450,15 +452,15 @@ watch(
       resetForm()
       console.log('📋 Form after reset:', formData)
 
-      if (props.editMode && props.clientData) {
-        // Pre-populate with existing client data
-        console.log('✏️ Edit mode: Pre-populating with client data')
+      if (props.editMode && props.companyData) {
+        // Pre-populate with existing company data
+        console.log('✏️ Edit mode: Pre-populating with company data')
         Object.assign(formData, {
-          name: props.clientData.name,
-          email: props.clientData.email,
-          address: props.clientData.address,
-          is_account_customer: props.clientData.is_account_customer,
-          allow_jobs: props.clientData.allow_jobs,
+          name: props.companyData.name,
+          email: props.companyData.email,
+          address: props.companyData.address,
+          is_account_customer: props.companyData.is_account_customer,
+          allow_jobs: props.companyData.allow_jobs,
         })
         console.log('📋 Form after pre-population:', formData)
       } else if (props.initialName) {

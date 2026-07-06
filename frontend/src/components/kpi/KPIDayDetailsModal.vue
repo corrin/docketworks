@@ -124,7 +124,7 @@
                 <td class="py-1.5 px-2">
                   <button
                     @click="handleJobClick(job.job_id)"
-                    :title="`${job.job_name} — ${job.client_name}`"
+                    :title="`${job.job_name} — ${job.company_name}`"
                     class="text-blue-600 hover:text-blue-800 hover:underline cursor-pointer"
                   >
                     {{ job.job_number }}

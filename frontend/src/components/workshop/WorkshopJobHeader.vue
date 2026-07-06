@@ -76,8 +76,8 @@ const emit = defineEmits<{
               >
                 <span class="inline-flex items-center gap-1">
                   <Building2 class="h-4 w-4" />
-                  <span class="font-medium text-foreground">Client:</span>
-                  {{ job.client_name || '-' }}
+                  <span class="font-medium text-foreground">Company:</span>
+                  {{ job.company_name || '-' }}
                 </span>
                 <span class="inline-flex items-center gap-1">
                   <UserRound class="h-4 w-4" />

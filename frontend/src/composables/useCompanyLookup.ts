@@ -7,15 +7,15 @@ import { debugLog } from '@/utils/debug'
 import { logSearchResultClick } from '@/services/searchTelemetry.service'
 
 // Use generated schemas, excluding scalar phone fields now owned by contact methods.
-export type Client = Omit<z.infer<typeof schemas.ClientSearchResult>, 'phone'>
+export type Company = Omit<z.infer<typeof schemas.CompanySearchResult>, 'phone'>
 export type ClientContact = Omit<z.infer<typeof schemas.ClientContact>, 'phone'>
 
-type UseClientLookupOptions = {
+type UseCompanyLookupOptions = {
   supplierLookup?: { value: boolean }
 }
 
-export async function logClientSearchClick(
-  client: Client,
+export async function logCompanySearchClick(
+  company: Company,
   query: string,
   rank: number | null,
   source = 'client_lookup',
@@ -29,36 +29,36 @@ export async function logClientSearchClick(
     await logSearchResultClick({
       domain: 'client',
       query: trimmedQuery,
-      selectedResultId: client.id,
-      selectedLabel: client.name,
+      selectedResultId: company.id,
+      selectedLabel: company.name,
       selectedRank: rank,
       source,
     })
   } catch (error) {
-    debugLog('Failed to log client search click:', error)
+    debugLog('Failed to log company search click:', error)
   }
 }
 
-export function useClientLookup(options: UseClientLookupOptions = {}) {
+export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
   const searchQuery = ref('')
-  const suggestions = ref<Client[]>([])
+  const suggestions = ref<Company[]>([])
   const isLoading = ref(false)
   const showSuggestions = ref(false)
-  const selectedClient = ref<Client | null>(null)
+  const selectedCompany = ref<Company | null>(null)
   const contacts = ref<ClientContact[]>([])
 
   const hasValidXeroId = computed(() => {
-    debugLog('Selected client value: ', selectedClient.value)
+    debugLog('Selected company value: ', selectedCompany.value)
     return (
-      selectedClient.value?.xero_contact_id != null && selectedClient.value.xero_contact_id !== ''
+      selectedCompany.value?.xero_contact_id != null && selectedCompany.value.xero_contact_id !== ''
     )
   })
 
   const displayValue = computed(() => {
-    return selectedClient.value?.name || searchQuery.value
+    return selectedCompany.value?.name || searchQuery.value
   })
 
-  const searchClients = async (query: string) => {
+  const searchCompanies = async (query: string) => {
     if (query.length < 3) {
       suggestions.value = []
       showSuggestions.value = false
@@ -72,36 +72,36 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
         ? await api.purchasing_suppliers_search_retrieve({
             queries: { q: query },
           })
-        : await api.clients_search_retrieve({
+        : await api.companies_search_retrieve({
             queries: { q: query },
           })
 
       suggestions.value = response.results
       showSuggestions.value = true
     } catch (error) {
-      console.error('Error searching clients:', error)
+      console.error('Error searching companies:', error)
       suggestions.value = []
       showSuggestions.value = false
-      toast.error('Failed to search clients')
+      toast.error('Failed to search companies')
     } finally {
       isLoading.value = false
     }
   }
 
   /**
-   * Button-triggered client search: no minimum query length, first page of
+   * Button-triggered company search: no minimum query length, first page of
    * results sorted by name. Results land in `suggestions` (same as the
    * typeahead search) for select-style pickers.
    */
-  const browseClients = async () => {
+  const browseCompanies = async () => {
     if (options.supplierLookup?.value) {
-      throw new Error('browseClients does not support supplier lookup')
+      throw new Error('browseCompanies does not support supplier lookup')
     }
 
     isLoading.value = true
 
     try {
-      const response = await api.clients_search_retrieve({
+      const response = await api.companies_search_retrieve({
         queries: {
           page: 1,
           page_size: 20,
@@ -112,9 +112,9 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
       })
       suggestions.value = response.results || []
     } catch (error) {
-      console.error('Error searching clients:', error)
+      console.error('Error searching companies:', error)
       suggestions.value = []
-      toast.error('Failed to search clients')
+      toast.error('Failed to search companies')
     } finally {
       isLoading.value = false
     }
@@ -124,38 +124,38 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
    * Logs search telemetry for a selection made from `suggestions` by id
    * (select-style pickers where the user picks from a dropdown of results).
    */
-  const logSelectedClientClick = (clientId: string, source: string) => {
-    const index = suggestions.value.findIndex((client) => client.id === clientId)
-    const client = suggestions.value[index]
-    if (!client) return
-    void logClientSearchClick(client, searchQuery.value, index + 1, source)
+  const logSelectedCompanyClick = (companyId: string, source: string) => {
+    const index = suggestions.value.findIndex((company) => company.id === companyId)
+    const company = suggestions.value[index]
+    if (!company) return
+    void logCompanySearchClick(company, searchQuery.value, index + 1, source)
   }
 
-  const selectClient = async (client: Client) => {
-    selectedClient.value = client
-    searchQuery.value = client.name
+  const selectCompany = async (company: Company) => {
+    selectedCompany.value = company
+    searchQuery.value = company.name
     showSuggestions.value = false
 
     contacts.value = []
 
-    await loadClientContacts(client.id)
+    await loadClientContacts(company.id)
   }
 
-  const loadClientContacts = async (clientId: string) => {
-    if (!clientId) {
+  const loadClientContacts = async (companyId: string) => {
+    if (!companyId) {
       contacts.value = []
       return
     }
 
     try {
-      const response = await api.clients_contacts_list({
-        queries: { client_id: clientId },
+      const response = await api.companies_contacts_list({
+        queries: { company_id: companyId },
       })
       contacts.value = response || []
     } catch (error) {
-      console.error('Error loading client contacts:', error)
+      console.error('Error loading company contacts:', error)
       contacts.value = []
-      toast.error('Failed to load client contacts')
+      toast.error('Failed to load company contacts')
     }
   }
 
@@ -170,7 +170,7 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
   }
 
   const clearSelection = () => {
-    selectedClient.value = null
+    selectedCompany.value = null
     searchQuery.value = ''
     suggestions.value = []
     showSuggestions.value = false
@@ -178,8 +178,8 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
   }
 
   const resetToInitialState = () => {
-    // Only clear if no client is actually selected
-    if (!selectedClient.value) {
+    // Only clear if no company is actually selected
+    if (!selectedCompany.value) {
       searchQuery.value = ''
       suggestions.value = []
       showSuggestions.value = false
@@ -187,14 +187,14 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
     }
   }
 
-  const preserveSelectedClient = (modelValue?: string) => {
-    debugLog('Preserving selected client from modelValue:', modelValue)
-    // Preserve the selected client when dialog reopens
-    if (selectedClient.value && !searchQuery.value) {
-      searchQuery.value = selectedClient.value.name
-      handleInputChange(selectedClient.value.name)
+  const preserveSelectedCompany = (modelValue?: string) => {
+    debugLog('Preserving selected company from modelValue:', modelValue)
+    // Preserve the selected company when dialog reopens
+    if (selectedCompany.value && !searchQuery.value) {
+      searchQuery.value = selectedCompany.value.name
+      handleInputChange(selectedCompany.value.name)
     }
-    if (modelValue && !selectedClient.value) {
+    if (modelValue && !selectedCompany.value) {
       searchQuery.value = modelValue
       handleInputChange(modelValue, true)
     }
@@ -203,30 +203,30 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
   const handleInputChange = (value: string, fromReload = false) => {
     searchQuery.value = value
 
-    if (selectedClient.value && selectedClient.value.name !== value) {
-      selectedClient.value = null
+    if (selectedCompany.value && selectedCompany.value.name !== value) {
+      selectedCompany.value = null
       contacts.value = []
     }
 
     if (value.length >= 3) {
-      const searchPromise = searchClients(value)
+      const searchPromise = searchCompanies(value)
       if (fromReload) {
         searchPromise
           .then(() => {
-            if (!selectedClient.value && suggestions.value.length > 0) {
+            if (!selectedCompany.value && suggestions.value.length > 0) {
               const normalizedValue = value.trim().toLowerCase()
-              const matchedClient = suggestions.value.find(
-                (client) => client.name.trim().toLowerCase() === normalizedValue,
+              const matchedCompany = suggestions.value.find(
+                (company) => company.name.trim().toLowerCase() === normalizedValue,
               )
 
-              const clientToSelect = matchedClient ?? suggestions.value[0]
-              if (clientToSelect) {
-                selectClient(clientToSelect)
+              const companyToSelect = matchedCompany ?? suggestions.value[0]
+              if (companyToSelect) {
+                selectCompany(companyToSelect)
               }
             }
           })
           .catch((error) => {
-            console.error('Error restoring client selection:', error)
+            console.error('Error restoring company selection:', error)
           })
       }
     } else {
@@ -235,8 +235,8 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
     }
   }
 
-  const createNewClient = (clientName: string) => {
-    return clientName.trim()
+  const createNewCompany = (companyName: string) => {
+    return companyName.trim()
   }
 
   const hideSuggestions = () => {
@@ -248,23 +248,23 @@ export function useClientLookup(options: UseClientLookupOptions = {}) {
     suggestions,
     isLoading,
     showSuggestions,
-    selectedClient,
+    selectedCompany,
     contacts,
 
     hasValidXeroId,
     displayValue,
 
-    searchClients,
-    browseClients,
-    logSelectedClientClick,
-    selectClient,
+    searchCompanies,
+    browseCompanies,
+    logSelectedCompanyClick,
+    selectCompany,
     loadClientContacts,
     getPrimaryContact,
     clearSelection,
     handleInputChange,
-    createNewClient,
+    createNewCompany,
     hideSuggestions,
     resetToInitialState,
-    preserveSelectedClient,
+    preserveSelectedCompany,
   }
 }

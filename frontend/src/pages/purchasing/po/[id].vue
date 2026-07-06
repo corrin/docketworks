@@ -811,8 +811,8 @@ async function resolveSupplierEmail(): Promise<string | null> {
   }
 
   try {
-    const contacts = await api.clients_contacts_list({
-      queries: { client_id: supplierId },
+    const contacts = await api.companies_contacts_list({
+      queries: { company_id: supplierId },
     })
 
     const contactsArray: ClientContact[] = Array.isArray(contacts) ? contacts : []

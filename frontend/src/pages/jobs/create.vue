@@ -13,17 +13,17 @@
             <div class="grid grid-cols-1 md:grid-cols-2 gap-8 items-start">
               <div class="space-y-6">
                 <div>
-                  <ClientLookup
-                    id="client"
-                    v-model="clientDisplayName"
-                    @update:selected-id="formData.client_id = $event"
-                    @update:selected-client="handleClientSelection"
-                    label="Client"
+                  <CompanyLookup
+                    id="company"
+                    v-model="companyDisplayName"
+                    @update:selected-id="formData.company_id = $event"
+                    @update:selected-company="handleCompanySelection"
+                    label="Company"
                     :required="true"
-                    placeholder="Search for a client..."
+                    placeholder="Search for a company..."
                   />
-                  <p v-if="errors.client_id" class="mt-1 text-sm text-red-600">
-                    {{ errors.client_id }}
+                  <p v-if="errors.company_id" class="mt-1 text-sm text-red-600">
+                    {{ errors.company_id }}
                   </p>
                 </div>
 
@@ -61,8 +61,8 @@
                     ref="contactSelectorRef"
                     id="contact"
                     v-model="contactDisplayName"
-                    :client-id="formData.client_id as string"
-                    :client-name="clientDisplayName"
+                    :company-id="formData.company_id as string"
+                    :company-name="companyDisplayName"
                     label="Contact"
                     placeholder="Search or add contact person"
                     :optional="true"
@@ -243,7 +243,7 @@
 import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
-import ClientLookup from '@/components/ClientLookup.vue'
+import CompanyLookup from '@/components/CompanyLookup.vue'
 import ContactSelector from '@/components/ContactSelector.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import { jobService, type JobCreateData } from '@/services/job.service'
@@ -251,7 +251,7 @@ import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
 import { debugLog } from '@/utils/debug'
 
-type ClientSearchResult = z.infer<typeof schemas.ClientSearchResult>
+type CompanySearchResult = z.infer<typeof schemas.CompanySearchResult>
 type ClientContact = z.infer<typeof schemas.ClientContact>
 import { toast } from 'vue-sonner'
 
@@ -297,7 +297,7 @@ const router = useRouter()
 
 const formData = ref<JobCreateData>({
   name: '',
-  client_id: '',
+  company_id: '',
   description: '',
   order_number: '',
   notes: '',
@@ -308,9 +308,9 @@ const formData = ref<JobCreateData>({
   pricing_methodology: 'time_materials',
 })
 
-const clientDisplayName = ref('')
+const companyDisplayName = ref('')
 
-const selectedClient = ref<ClientSearchResult | null>(null)
+const selectedCompany = ref<CompanySearchResult | null>(null)
 const selectedContact = ref<ClientContact | null>(null)
 const contactDisplayName = ref('')
 
@@ -318,16 +318,16 @@ const errors = ref<Record<string, string>>({})
 const isSubmitting = ref(false)
 const hasCreationError = ref(false)
 
-const handleClientSelection = async (client: ClientSearchResult | null) => {
-  debugLog('JobCreateView - handleClientSelection:', {
-    client,
-    previousClientId: formData.value.client_id,
+const handleCompanySelection = async (company: CompanySearchResult | null) => {
+  debugLog('JobCreateView - handleCompanySelection:', {
+    company,
+    previousCompanyId: formData.value.company_id,
     previousContactId: formData.value.contact_id,
   })
 
-  selectedClient.value = client
+  selectedCompany.value = company
 
-  // Always clear contact person when client changes (even if same client selected)
+  // Always clear contact person when company changes (even if same company selected)
   formData.value.contact_id = null
   selectedContact.value = null
   contactDisplayName.value = ''
@@ -337,17 +337,17 @@ const handleClientSelection = async (client: ClientSearchResult | null) => {
     contactSelectorRef.value.clearSelection()
   }
 
-  if (client) {
-    clientDisplayName.value = client.name
-    formData.value.client_id = client.id
+  if (company) {
+    companyDisplayName.value = company.name
+    formData.value.company_id = company.id
 
-    debugLog('JobCreateView - Client selected, waiting for ContactSelector to update')
+    debugLog('JobCreateView - Company selected, waiting for ContactSelector to update')
 
     // Wait for the next DOM update cycle to ensure the ref is ready
-    // and the new client ID has propagated to the ContactSelector.
+    // and the new company ID has propagated to the ContactSelector.
     await nextTick()
 
-    // Give the ContactSelector's watcher time to process the clientId change
+    // Give the ContactSelector's watcher time to process the companyId change
     await new Promise((resolve) => setTimeout(resolve, 100))
 
     if (contactSelectorRef.value) {
@@ -357,10 +357,10 @@ const handleClientSelection = async (client: ClientSearchResult | null) => {
       await contactSelectorRef.value.selectPrimaryContact()
     }
   } else {
-    // Clear client fields if client is deselected
-    clientDisplayName.value = ''
-    formData.value.client_id = ''
-    debugLog('JobCreateView - Client cleared')
+    // Clear company fields if company is deselected
+    companyDisplayName.value = ''
+    formData.value.company_id = ''
+    debugLog('JobCreateView - Company cleared')
   }
 }
 
@@ -377,11 +377,11 @@ const updateSelectedContact = (contact: ClientContact | null) => {
 }
 
 // Requirements validation computed properties
-const hasValidXeroClient = computed(() => {
+const hasValidXeroCompany = computed(() => {
   return (
-    formData.value.client_id !== '' &&
-    selectedClient.value?.xero_contact_id != null &&
-    selectedClient.value.xero_contact_id !== ''
+    formData.value.company_id !== '' &&
+    selectedCompany.value?.xero_contact_id != null &&
+    selectedCompany.value.xero_contact_id !== ''
   )
 })
 
@@ -395,7 +395,7 @@ const hasValidMaterialsEstimate = computed(() => {
 
 const canSubmit = computed(() => {
   const nameCheck = formData.value.name.trim() !== ''
-  const xeroCheck = hasValidXeroClient.value
+  const xeroCheck = hasValidXeroCompany.value
   const timeCheck = hasValidTimeEstimate.value
   const materialsCheck = hasValidMaterialsEstimate.value
 
@@ -405,9 +405,9 @@ const canSubmit = computed(() => {
     timeCheck,
     materialsCheck,
     name: formData.value.name,
-    clientId: formData.value.client_id,
-    selectedClient: selectedClient.value,
-    xeroContactId: selectedClient.value?.xero_contact_id,
+    companyId: formData.value.company_id,
+    selectedCompany: selectedCompany.value,
+    xeroContactId: selectedCompany.value?.xero_contact_id,
     estimated_time: formData.value.estimated_time,
     estimated_materials: formData.value.estimated_materials,
   })
@@ -427,13 +427,13 @@ const validateForm = (): boolean => {
     return false
   }
 
-  if (!formData.value.client_id) {
-    errors.value.client_id = 'Client selection is required'
+  if (!formData.value.company_id) {
+    errors.value.company_id = 'Company selection is required'
     return false
   }
 
-  if (!selectedClient.value?.xero_contact_id) {
-    errors.value.client_id = 'Client must have a valid Xero ID - maybe add them'
+  if (!selectedCompany.value?.xero_contact_id) {
+    errors.value.company_id = 'Company must have a valid Xero ID - maybe add them'
     return false
   }
 
@@ -483,7 +483,7 @@ const handleSubmit = async () => {
     localStorage.setItem('jobCreationFormData', JSON.stringify(formData.value))
     localStorage.setItem('hasJobCreationError', 'true')
     localStorage.setItem('jobCreationErrorMessage', errorMessage)
-    localStorage.setItem('selectedClient', JSON.stringify(selectedClient.value))
+    localStorage.setItem('selectedCompany', JSON.stringify(selectedCompany.value))
 
     window.location.reload()
     debugLog('Job creation error:', error)
@@ -505,23 +505,23 @@ onMounted(() => {
 
   if (hasError) {
     formData.value = storedFormData ? JSON.parse(storedFormData) : formData.value
-    selectedClient.value = localStorage.getItem('selectedClient')
-      ? JSON.parse(localStorage.getItem('selectedClient') as string)
+    selectedCompany.value = localStorage.getItem('selectedCompany')
+      ? JSON.parse(localStorage.getItem('selectedCompany') as string)
       : null
-    handleClientSelection(selectedClient.value)
+    handleCompanySelection(selectedCompany.value)
     localStorage.removeItem('jobCreationFormData')
     localStorage.removeItem('hasJobCreationError')
-    localStorage.removeItem('selectedClient')
+    localStorage.removeItem('selectedCompany')
     toast.error('Previous job creation failed', {
       description: `Page reloaded and state saved. Original error: ${errorMessage}`,
       dismissible: true,
     })
     debugLog('Restored form data after error:', formData.value)
-    debugLog('Restored selected client after error:', selectedClient.value)
+    debugLog('Restored selected company after error:', selectedCompany.value)
   } else {
     formData.value.name = ''
-    formData.value.client_id = ''
-    clientDisplayName.value = ''
+    formData.value.company_id = ''
+    companyDisplayName.value = ''
     formData.value.description = ''
     formData.value.order_number = ''
     formData.value.notes = ''

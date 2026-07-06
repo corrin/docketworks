@@ -9,18 +9,18 @@
     <CardContent class="space-y-4">
       <div class="grid grid-cols-1 gap-3 xl:grid-cols-[1fr_1fr_1fr_auto_auto]">
         <Input v-model="phoneNumber" placeholder="+6490000000" />
-        <div v-if="!fixedClientId" class="flex gap-2">
+        <div v-if="!fixedCompanyId" class="flex gap-2">
           <Input
-            v-model="clientSearch"
-            placeholder="Search clients"
-            @keydown.enter.prevent="searchClients"
+            v-model="companySearch"
+            placeholder="Search companies"
+            @keydown.enter.prevent="searchCompanies"
           />
-          <Button variant="outline" type="button" @click="searchClients">
+          <Button variant="outline" type="button" @click="searchCompanies">
             <Search class="h-4 w-4" />
           </Button>
         </div>
         <div v-else class="rounded-md border border-gray-200 bg-gray-50 px-3 py-2 text-sm">
-          {{ fixedClientName || 'This client' }}
+          {{ fixedCompanyName || 'This company' }}
         </div>
         <Input v-model="phoneLabel" placeholder="Label" />
         <label class="flex items-center gap-2 rounded-md border border-gray-300 px-3 py-2 text-sm">
@@ -30,7 +30,7 @@
         <div class="flex gap-2">
           <Button
             type="button"
-            :disabled="isSaving || !phoneNumber.trim() || !selectedClientId"
+            :disabled="isSaving || !phoneNumber.trim() || !selectedCompanyId"
             @click="savePhoneMethod"
           >
             {{ editingMethodId ? 'Update' : 'Add' }}
@@ -43,20 +43,20 @@
 
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
         <select
-          v-if="!fixedClientId"
-          v-model="selectedClientId"
+          v-if="!fixedCompanyId"
+          v-model="selectedCompanyId"
           class="rounded-md border border-gray-300 p-2 text-sm"
-          @change="logSelectedClientSearchClick"
+          @change="logSelectedCompanySearchClick"
         >
-          <option value="">Select client</option>
-          <option v-for="client in clientOptions" :key="client.id" :value="client.id">
-            {{ client.name }}
+          <option value="">Select company</option>
+          <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+            {{ company.name }}
           </option>
         </select>
         <select
           v-model="selectedContactId"
           class="rounded-md border border-gray-300 p-2 text-sm"
-          :disabled="!selectedClientId"
+          :disabled="!selectedCompanyId"
         >
           <option value="">No specific contact</option>
           <option v-for="contact in contactOptions" :key="contact.id" :value="contact.id">
@@ -70,7 +70,7 @@
           <thead class="border-b bg-slate-50">
             <tr>
               <th class="p-3 text-left font-semibold text-gray-700">Phone Number</th>
-              <th class="p-3 text-left font-semibold text-gray-700">Client</th>
+              <th class="p-3 text-left font-semibold text-gray-700">Company</th>
               <th class="p-3 text-left font-semibold text-gray-700">Contact</th>
               <th class="p-3 text-left font-semibold text-gray-700">Label</th>
               <th class="p-3 text-left font-semibold text-gray-700">Primary</th>
@@ -83,7 +83,7 @@
             </tr>
             <tr v-for="method in phoneMethods" :key="method.id" class="border-b last:border-b-0">
               <td class="p-3 font-medium text-gray-900">{{ method.value }}</td>
-              <td class="p-3 text-gray-700">{{ method.client_name }}</td>
+              <td class="p-3 text-gray-700">{{ method.company_name }}</td>
               <td class="p-3 text-gray-700">{{ method.contact_name || '-' }}</td>
               <td class="p-3 text-gray-700">{{ method.label || '-' }}</td>
               <td class="p-3 text-gray-700">{{ method.is_primary ? 'Yes' : '-' }}</td>
@@ -116,7 +116,7 @@ import { Search } from 'lucide-vue-next'
 import { toast } from 'vue-sonner'
 import { api } from '@/api/client'
 import { schemas } from '@/api/generated/api'
-import { useClientLookup } from '@/composables/useClientLookup'
+import { useCompanyLookup } from '@/composables/useCompanyLookup'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -130,15 +130,15 @@ type PatchedClientContactMethodRequest = z.infer<typeof schemas.PatchedClientCon
 const props = withDefaults(
   defineProps<{
     title?: string
-    fixedClientId?: string
-    fixedClientName?: string
+    fixedCompanyId?: string
+    fixedCompanyName?: string
     initialPhoneNumber?: string
     searchContext?: string
   }>(),
   {
     title: 'Phone Numbers',
-    fixedClientId: '',
-    fixedClientName: '',
+    fixedCompanyId: '',
+    fixedCompanyName: '',
     initialPhoneNumber: '',
     searchContext: 'crm_phone_numbers',
   },
@@ -155,40 +155,40 @@ const isSaving = ref(false)
 const phoneNumber = ref(props.initialPhoneNumber)
 const phoneLabel = ref('')
 const isPrimary = ref(false)
-const selectedClientId = ref(props.fixedClientId)
+const selectedCompanyId = ref(props.fixedCompanyId)
 const selectedContactId = ref('')
 
 const {
-  searchQuery: clientSearch,
-  suggestions: clientOptions,
+  searchQuery: companySearch,
+  suggestions: companyOptions,
   contacts: contactOptions,
-  browseClients,
+  browseCompanies,
   loadClientContacts: loadContacts,
-  logSelectedClientClick,
-} = useClientLookup()
+  logSelectedCompanyClick,
+} = useCompanyLookup()
 
 async function loadPhoneMethods(): Promise<void> {
-  const queries = props.fixedClientId
-    ? { method_type: 'phone', client_id: props.fixedClientId, page: 1, page_size: 50 }
+  const queries = props.fixedCompanyId
+    ? { method_type: 'phone', company_id: props.fixedCompanyId, page: 1, page_size: 50 }
     : { method_type: 'phone', page: 1, page_size: 50 }
-  const response = await api.clients_contact_methods_list({ queries })
+  const response = await api.companies_contact_methods_list({ queries })
   phoneMethods.value = response.results
   phoneMethodCount.value = response.count
 }
 
-async function searchClients(): Promise<void> {
-  if (props.fixedClientId) return
-  await browseClients()
+async function searchCompanies(): Promise<void> {
+  if (props.fixedCompanyId) return
+  await browseCompanies()
 }
 
-function logSelectedClientSearchClick(): void {
-  logSelectedClientClick(selectedClientId.value, props.searchContext)
+function logSelectedCompanySearchClick(): void {
+  logSelectedCompanyClick(selectedCompanyId.value, props.searchContext)
 }
 
 function phoneMethodBody(): ClientContactMethodRequest {
   if (selectedContactId.value) {
     return {
-      client: null,
+      company: null,
       contact: selectedContactId.value,
       method_type: 'phone',
       value: phoneNumber.value,
@@ -198,7 +198,7 @@ function phoneMethodBody(): ClientContactMethodRequest {
     }
   }
   return {
-    client: selectedClientId.value,
+    company: selectedCompanyId.value,
     contact: null,
     method_type: 'phone',
     value: phoneNumber.value,
@@ -209,17 +209,17 @@ function phoneMethodBody(): ClientContactMethodRequest {
 }
 
 async function savePhoneMethod(): Promise<void> {
-  if (!selectedClientId.value || isSaving.value) return
+  if (!selectedCompanyId.value || isSaving.value) return
   isSaving.value = true
   try {
     if (editingMethodId.value) {
       const body: PatchedClientContactMethodRequest = phoneMethodBody()
-      await api.clients_contact_methods_partial_update(body, {
+      await api.companies_contact_methods_partial_update(body, {
         params: { id: editingMethodId.value },
       })
       toast.success('Phone number updated')
     } else {
-      await api.clients_contact_methods_create(phoneMethodBody())
+      await api.companies_contact_methods_create(phoneMethodBody())
       toast.success('Phone number added')
     }
     resetForm()
@@ -239,15 +239,15 @@ async function editMethod(method: ClientContactMethod): Promise<void> {
   phoneNumber.value = method.value
   phoneLabel.value = method.label || ''
   isPrimary.value = Boolean(method.is_primary)
-  selectedClientId.value = method.owner_client
+  selectedCompanyId.value = method.owner_company
   selectedContactId.value = method.contact || ''
-  await loadContacts(method.owner_client)
+  await loadContacts(method.owner_company)
 }
 
 async function deleteMethod(method: ClientContactMethod): Promise<void> {
   if (!window.confirm(`Remove phone number ${method.value}?`)) return
   try {
-    await api.clients_contact_methods_destroy(undefined, { params: { id: method.id } })
+    await api.companies_contact_methods_destroy(undefined, { params: { id: method.id } })
     toast.success('Phone number removed')
     if (editingMethodId.value === method.id) resetForm()
     await loadPhoneMethods()
@@ -264,11 +264,11 @@ function resetForm(): void {
   phoneNumber.value = props.initialPhoneNumber
   phoneLabel.value = ''
   isPrimary.value = false
-  selectedClientId.value = props.fixedClientId
+  selectedCompanyId.value = props.fixedCompanyId
   selectedContactId.value = ''
-  if (!props.fixedClientId) {
-    clientSearch.value = ''
-    clientOptions.value = []
+  if (!props.fixedCompanyId) {
+    companySearch.value = ''
+    companyOptions.value = []
   }
 }
 
@@ -280,10 +280,10 @@ watch(
 )
 
 watch(
-  () => props.fixedClientId,
-  (clientId) => {
-    selectedClientId.value = clientId
-    void loadContacts(clientId)
+  () => props.fixedCompanyId,
+  (companyId) => {
+    selectedCompanyId.value = companyId
+    void loadContacts(companyId)
     void loadPhoneMethods().catch((error) => {
       console.error('Failed to reload phone numbers:', error)
       toast.error('Failed to load phone numbers')
@@ -291,15 +291,15 @@ watch(
   },
 )
 
-watch(selectedClientId, (clientId) => {
-  if (!clientId) {
+watch(selectedCompanyId, (companyId) => {
+  if (!companyId) {
     selectedContactId.value = ''
   }
-  void loadContacts(clientId)
+  void loadContacts(companyId)
 })
 
 onMounted(() => {
-  void loadContacts(selectedClientId.value)
+  void loadContacts(selectedCompanyId.value)
   void loadPhoneMethods().catch((error) => {
     console.error('Failed to load phone numbers:', error)
     toast.error('Failed to load phone numbers')

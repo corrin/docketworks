@@ -74,40 +74,40 @@
           </CardContent>
         </Card>
 
-        <!-- Client Information Card -->
+        <!-- Company Information Card -->
         <Card class="lg:col-span-1">
           <CardHeader>
-            <CardTitle>Client Information</CardTitle>
-            <CardDescription>Client details and contact information</CardDescription>
+            <CardTitle>Company Information</CardTitle>
+            <CardDescription>Company details and contact information</CardDescription>
           </CardHeader>
           <CardContent class="space-y-4">
             <div>
-              <label class="block text-sm font-medium text-gray-700 mb-2">Client</label>
+              <label class="block text-sm font-medium text-gray-700 mb-2">Company</label>
               <div class="space-y-3">
-                <div v-if="!isChangingClient" class="space-y-2">
+                <div v-if="!isChangingCompany" class="space-y-2">
                   <input
-                    :value="localJobData.client_name"
+                    :value="localJobData.company_name"
                     type="text"
-                    data-automation-id="JobSettingsTab-client-name"
+                    data-automation-id="JobSettingsTab-company-name"
                     class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm bg-gray-50 text-gray-600"
                     readonly
                   />
                   <div class="flex gap-2">
                     <button
-                      @click="startClientChange"
+                      @click="startCompanyChange"
                       type="button"
-                      data-automation-id="JobSettingsTab-change-client-btn"
+                      data-automation-id="JobSettingsTab-change-company-btn"
                       class="flex-1 px-3 py-2 border border-blue-300 rounded-md text-sm bg-blue-50 hover:bg-blue-100 text-blue-700 transition-colors"
                     >
-                      Change Client
+                      Change Company
                     </button>
                     <button
-                      @click="editCurrentClient"
+                      @click="editCurrentCompany"
                       type="button"
-                      data-automation-id="JobSettingsTab-edit-client-btn"
+                      data-automation-id="JobSettingsTab-edit-company-btn"
                       class="flex-1 px-3 py-2 border border-green-300 rounded-md text-sm bg-green-50 hover:bg-green-100 text-green-700 transition-colors"
                     >
-                      Edit Client
+                      Edit Company
                     </button>
                   </div>
                 </div>
@@ -115,31 +115,31 @@
                 <div
                   v-else
                   class="space-y-3"
-                  data-automation-id="JobSettingsTab-client-change-panel"
+                  data-automation-id="JobSettingsTab-company-change-panel"
                 >
-                  <ClientLookup
-                    id="clientChange"
+                  <CompanyLookup
+                    id="companyChange"
                     label=""
-                    placeholder="Search for a new client..."
+                    placeholder="Search for a new company..."
                     :required="false"
-                    v-model="newClientName"
-                    @update:selected-id="handleNewClientSelected"
-                    @update:selected-client="handleClientLookupSelected"
+                    v-model="newCompanyName"
+                    @update:selected-id="handleNewCompanySelected"
+                    @update:selected-company="handleCompanyLookupSelected"
                   />
                   <div class="flex gap-2">
                     <button
-                      @click="confirmClientChange"
+                      @click="confirmCompanyChange"
                       type="button"
-                      data-automation-id="JobSettingsTab-confirm-client-btn"
+                      data-automation-id="JobSettingsTab-confirm-company-btn"
                       class="px-4 py-2 bg-green-600 text-white rounded-md text-sm hover:bg-green-700 transition-colors"
-                      :disabled="!newClientId"
+                      :disabled="!newCompanyId"
                     >
                       Confirm
                     </button>
                     <button
-                      @click="cancelClientChange"
+                      @click="cancelCompanyChange"
                       type="button"
-                      data-automation-id="JobSettingsTab-cancel-client-btn"
+                      data-automation-id="JobSettingsTab-cancel-company-btn"
                       class="px-4 py-2 border border-gray-300 text-gray-700 rounded-md text-sm hover:bg-gray-50 transition-colors"
                     >
                       Cancel
@@ -149,9 +149,9 @@
 
                 <p class="text-xs text-gray-500">
                   {{
-                    isChangingClient
-                      ? 'Select a new client for this job'
-                      : 'Change or edit client information'
+                    isChangingCompany
+                      ? 'Select a new company for this job'
+                      : 'Change or edit company information'
                   }}
                 </p>
               </div>
@@ -162,8 +162,8 @@
                 id="contact"
                 label="Contact Person"
                 :optional="true"
-                :client-id="localJobData.client_id || ''"
-                :client-name="localJobData.client_name || ''"
+                :company-id="localJobData.company_id || ''"
+                :company-name="localJobData.company_name || ''"
                 :initial-contact-id="
                   typeof localJobData.contact_id === 'string' ? localJobData.contact_id : undefined
                 "
@@ -351,14 +351,14 @@
       </div>
     </div>
 
-    <!-- Client Edit Modal -->
-    <CreateClientModal
-      :is-open="showEditClientModal"
+    <!-- Company Edit Modal -->
+    <CreateCompanyModal
+      :is-open="showEditCompanyModal"
       :edit-mode="true"
-      :client-id="jobData?.client_id || ''"
-      :client-data="currentClientData"
-      @update:is-open="showEditClientModal = $event"
-      @client-created="handleClientUpdated"
+      :company-id="jobData?.company_id || ''"
+      :company-data="currentCompanyData"
+      @update:is-open="showEditCompanyModal = $event"
+      @company-created="handleCompanyUpdated"
     />
   </div>
 </template>
@@ -372,10 +372,10 @@ import { jobService } from '../../services/job.service'
 import { useJobsStore } from '../../stores/jobs'
 import { createJobAutosave } from '../../composables/useJobAutosave'
 import RichTextEditor from '../RichTextEditor.vue'
-import ClientLookup from '../ClientLookup.vue'
+import CompanyLookup from '../CompanyLookup.vue'
 import ContactSelector from '../ContactSelector.vue'
-import CreateClientModal from '../CreateClientModal.vue'
-import type { Client } from '../../composables/useClientLookup'
+import CreateCompanyModal from '../CreateCompanyModal.vue'
+import type { Company } from '../../composables/useCompanyLookup'
 import { debugLog } from '../../utils/debug'
 import { toast } from 'vue-sonner'
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card'
@@ -566,13 +566,13 @@ const basicInfo = computed(() => {
 })
 const basicInfoLoading = ref(false)
 
-const isChangingClient = ref(false)
-const newClientId = ref('')
-const newClientName = ref('')
-const selectedNewClient = ref<Client | null>(null)
+const isChangingCompany = ref(false)
+const newCompanyId = ref('')
+const newCompanyName = ref('')
+const selectedNewCompany = ref<Company | null>(null)
 
 const contactDisplayValue = ref('')
-const showEditClientModal = ref(false)
+const showEditCompanyModal = ref(false)
 
 const jobStatusChoices = ref<{ value: string; label: string }[]>([])
 const isInitializing = ref(true)
@@ -632,17 +632,17 @@ const TYPING_TIMEOUT_MS = 1000 // Consider user stopped typing after 1 second
 
 // Status choices are now loaded in the combined onMounted hook above
 
-// FIXME: `allow_jobs` is threaded through here so the edit-client modal
+// FIXME: `allow_jobs` is threaded through here so the edit-company modal
 // can surface/change it, but the job settings tab itself does NOT warn
-// the user when the currently-attached client has `allow_jobs=false`
-// (e.g. the client was archived or merged in Xero after the job was
+// the user when the currently-attached company has `allow_jobs=false`
+// (e.g. the company was archived or merged in Xero after the job was
 // created). The user only discovers the block when trying to create a
-// NEW job for the same client. Fix: add an amber banner near the top
-// of the tab when `currentClientData.allow_jobs === false`, explaining
-// that new jobs cannot be created against this client but the existing
-// job remains editable. Existing jobs on now-blocked clients are a
+// NEW job for the same company. Fix: add an amber banner near the top
+// of the tab when `currentCompanyData.allow_jobs === false`, explaining
+// that new jobs cannot be created against this company but the existing
+// job remains editable. Existing jobs on now-blocked companies are a
 // known backlog -- see the prod snapshot from the merge-reassign PR.
-const currentClientData = ref({
+const currentCompanyData = ref({
   name: '',
   email: '',
   address: '',
@@ -657,11 +657,11 @@ const normalizeNullable = (v: unknown): string | null => {
   return t ? t : null
 }
 
-const resetClientChangeState = () => {
-  isChangingClient.value = false
-  newClientId.value = ''
-  newClientName.value = ''
-  selectedNewClient.value = null
+const resetCompanyChangeState = () => {
+  isChangingCompany.value = false
+  newCompanyId.value = ''
+  newCompanyName.value = ''
+  selectedNewCompany.value = null
 }
 
 // Handle field input changes
@@ -767,8 +767,8 @@ watch(
         job_id: props.jobId || '',
         job_number: props.jobNumber ? Number(props.jobNumber) : 0,
         name: '',
-        client_id: null,
-        client_name: null,
+        company_id: null,
+        company_name: null,
         contact_id: undefined,
         contact_name: undefined,
         status: '' as Job['status'],
@@ -806,8 +806,8 @@ watch(
       job_id: newJobData.job_id,
       job_number: Number(newJobData.job_number),
       name: newJobData.name,
-      client_id: newJobData.client_id,
-      client_name: newJobData.client_name,
+      company_id: newJobData.company_id,
+      company_name: newJobData.company_name,
       status: newJobData.status,
       pricing_methodology: newJobData.pricing_methodology,
       speed_quality_tradeoff: newJobData.speed_quality_tradeoff ?? 'normal',
@@ -831,7 +831,7 @@ watch(
       notes: localJobData.value?.notes ?? '',
     }
 
-    // Keep original snapshot with current state (including separated client/contact fields for delta)
+    // Keep original snapshot with current state (including separated company/contact fields for delta)
     serverBaseline.value = {
       ...localJobData.value,
       description: normalizeNullable(localJobData.value.description),
@@ -847,7 +847,7 @@ watch(
     // Load contact information using the job contacts endpoint
     // IMPORTANT: Do NOT trigger autosave here - this is just loading initial data
     try {
-      const contactResponse = await api.clients_jobs_contact_retrieve({
+      const contactResponse = await api.companies_jobs_contact_retrieve({
         params: { job_id: newJobData.job_id },
       })
       if (contactResponse) {
@@ -1016,8 +1016,8 @@ watch(
       // Update local data when header changes (e.g., from inline edits)
       // IMPORTANT: Don't update basic info fields as they're managed separately
       localJobData.value.name = newHeader.name
-      localJobData.value.client_id = newHeader.client_id
-      localJobData.value.client_name = newHeader.client_name
+      localJobData.value.company_id = newHeader.company_id
+      localJobData.value.company_name = newHeader.company_name
       localJobData.value.status = newHeader.status
       localJobData.value.pricing_methodology = newHeader.pricing_methodology
       localJobData.value.speed_quality_tradeoff = newHeader.speed_quality_tradeoff ?? 'normal'
@@ -1043,104 +1043,104 @@ watch(
   { immediate: true, deep: true },
 )
 
-const startClientChange = () => {
-  isChangingClient.value = true
+const startCompanyChange = () => {
+  isChangingCompany.value = true
 }
 
-const cancelClientChange = () => {
-  resetClientChangeState()
+const cancelCompanyChange = () => {
+  resetCompanyChangeState()
 }
 
-const handleNewClientSelected = (clientId: string) => {
-  newClientId.value = clientId
+const handleNewCompanySelected = (companyId: string) => {
+  newCompanyId.value = companyId
 }
 
-const handleClientLookupSelected = (client: Client | null) => {
-  selectedNewClient.value = client
+const handleCompanyLookupSelected = (company: Company | null) => {
+  selectedNewCompany.value = company
 
-  if (client) {
-    newClientName.value = client.name
+  if (company) {
+    newCompanyName.value = company.name
   }
 }
 
-const confirmClientChange = () => {
-  if (!newClientId.value || !selectedNewClient.value) {
-    debugLog('No new client selected')
+const confirmCompanyChange = () => {
+  if (!newCompanyId.value || !selectedNewCompany.value) {
+    debugLog('No new company selected')
     return
   }
 
   // Capture values before reset
-  const clientId = newClientId.value
-  const clientName = selectedNewClient.value.name
+  const companyId = newCompanyId.value
+  const companyName = selectedNewCompany.value.name
 
-  localJobData.value.client_id = clientId
-  localJobData.value.client_name = clientName
+  localJobData.value.company_id = companyId
+  localJobData.value.company_name = companyName
 
   contactDisplayValue.value = ''
 
-  resetClientChangeState()
+  resetCompanyChangeState()
 
-  // Queue autosave for client change (use captured clientId, not the now-reset ref)
+  // Queue autosave for company change (use captured companyId, not the now-reset ref)
   if (!isInitializing.value && !isHydratingBasicInfo.value && !isSyncingFromStore.value) {
-    autosave.queueChange('client_id', clientId)
+    autosave.queueChange('company_id', companyId)
   }
 
   // Update header immediately for instant reactivity
   if (jobHeader.value) {
     jobsStore.patchHeader(jobHeader.value.job_id, {
-      client_id: clientId,
-      client_name: clientName,
+      company_id: companyId,
+      company_name: companyName,
     })
   }
 }
 
-const editCurrentClient = async () => {
-  if (!jobData.value?.client_id) {
-    debugLog('No current client to edit')
+const editCurrentCompany = async () => {
+  if (!jobData.value?.company_id) {
+    debugLog('No current company to edit')
     return
   }
 
   try {
-    // Fetch current client data from API
-    const clientDetail = await api.clients_retrieve({
-      params: { client_id: jobData.value.client_id },
+    // Fetch current company data from API
+    const companyDetail = await api.companies_retrieve({
+      params: { company_id: jobData.value.company_id },
     })
 
-    // Update currentClientData with fetched data
-    currentClientData.value = {
-      name: clientDetail.name,
-      email: clientDetail.email,
-      address: clientDetail.address,
-      is_account_customer: clientDetail.is_account_customer,
-      allow_jobs: clientDetail.allow_jobs,
+    // Update currentCompanyData with fetched data
+    currentCompanyData.value = {
+      name: companyDetail.name,
+      email: companyDetail.email,
+      address: companyDetail.address,
+      is_account_customer: companyDetail.is_account_customer,
+      allow_jobs: companyDetail.allow_jobs,
     }
 
-    showEditClientModal.value = true
+    showEditCompanyModal.value = true
   } catch (error) {
-    console.error('Error fetching client data:', error)
-    toast.error('Failed to load client data for editing')
+    console.error('Error fetching company data:', error)
+    toast.error('Failed to load company data for editing')
   }
 }
 
-const handleClientUpdated = (updatedClient: Client) => {
-  // Update local job data with new client information
-  localJobData.value.client_name = updatedClient.name
+const handleCompanyUpdated = (updatedCompany: Company) => {
+  // Update local job data with new company information
+  localJobData.value.company_name = updatedCompany.name
 
-  // Reflect name in header immediately (no API call; backend derives client_name)
+  // Reflect name in header immediately (no API call; backend derives company_name)
   if (jobHeader.value) {
     jobsStore.patchHeader(jobHeader.value.job_id, {
-      client_name: updatedClient.name,
+      company_name: updatedCompany.name,
     })
   }
 
-  toast.success('Client updated successfully')
+  toast.success('Company updated successfully')
 }
 
 const handleContactSelected = async (contact: ClientContact | null) => {
   if (contact) {
     // Skip API call if contact is already set to this value
     // This handles:
-    // - Scenario 4: Client change - backend sets contact in response, no duplicate API call needed
+    // - Scenario 4: Company change - backend sets contact in response, no duplicate API call needed
     // - User re-selecting the same contact
     if (localJobData.value.contact_id === contact.id) {
       // Still update display value in case it's stale
@@ -1165,7 +1165,7 @@ const handleContactSelected = async (contact: ClientContact | null) => {
 
     // Save contact directly (not through header autosave)
     try {
-      await api.clients_jobs_contact_update(
+      await api.companies_jobs_contact_update(
         contactToSend as z.input<typeof schemas.JobContactUpdateRequest>,
         {
           params: { job_id: props.jobId },
@@ -1206,7 +1206,7 @@ const autosave = createJobAutosave({
       job_id: data.job_id,
       job_number: data.job_number,
       name: data.name,
-      client_id: data.client_id ?? null,
+      company_id: data.company_id ?? null,
       contact_id: data.contact_id,
       contact_name: data.contact_name,
       job_status: data.status,
@@ -1228,13 +1228,13 @@ const autosave = createJobAutosave({
   },
   applyOptimistic: (patch) => {
     Object.entries(patch).forEach(([k, v]) => {
-      // Apply all fields including separated client/contact fields
+      // Apply all fields including separated company/contact fields
       ;(localJobData.value as Record<string, unknown>)[k] = v as unknown
     })
   },
   rollbackOptimistic: (previous) => {
     Object.entries(previous).forEach(([k, v]) => {
-      // Rollback all fields including separated client/contact fields
+      // Rollback all fields including separated company/contact fields
       ;(localJobData.value as Record<string, unknown>)[k] = v as unknown
     })
   },
@@ -1270,7 +1270,7 @@ const autosave = createJobAutosave({
         }
       }
 
-      // Use the partial update method with client snapshot for before values
+      // Use the partial update method with company snapshot for before values
       const result = await jobService.updateJobHeaderPartial(
         props.jobId,
         partialPayload,
@@ -1314,8 +1314,8 @@ const autosave = createJobAutosave({
         if ('quote_acceptance_date' in payload) {
           next.quote_acceptance_date = (payload.quote_acceptance_date as string | null) ?? undefined
         }
-        if ('client_id' in payload) next.client_id = payload.client_id as string | null
-        if ('client_name' in payload) next.client_name = payload.client_name as string | null
+        if ('company_id' in payload) next.company_id = payload.company_id as string | null
+        if ('company_name' in payload) next.company_name = payload.company_name as string | null
         if ('description' in payload)
           next.description = (payload.description as string | null) ?? null
         if ('delivery_date' in payload)
@@ -1430,15 +1430,15 @@ const autosave = createJobAutosave({
           headerPatch.default_xero_pay_item_name =
             serverJobDetail.default_xero_pay_item_name ?? null
         }
-        if (touchedKeys.includes('client_id') || touchedKeys.includes('client_name')) {
-          nextBaseline.client_id = serverJobDetail.client_id ?? null
-          nextBaseline.client_name = serverJobDetail.client_name ?? null
-          localJobData.value.client_id = serverJobDetail.client_id ?? null
-          localJobData.value.client_name = serverJobDetail.client_name ?? null
-          headerPatch.client_id = serverJobDetail.client_id ?? null
-          headerPatch.client_name = serverJobDetail.client_name ?? null
+        if (touchedKeys.includes('company_id') || touchedKeys.includes('company_name')) {
+          nextBaseline.company_id = serverJobDetail.company_id ?? null
+          nextBaseline.company_name = serverJobDetail.company_name ?? null
+          localJobData.value.company_id = serverJobDetail.company_id ?? null
+          localJobData.value.company_name = serverJobDetail.company_name ?? null
+          headerPatch.company_id = serverJobDetail.company_id ?? null
+          headerPatch.company_name = serverJobDetail.company_name ?? null
 
-          // Backend auto-sets contact when client changes - update from response
+          // Backend auto-sets contact when company changes - update from response
           // This prevents a redundant API call when ContactSelector emits
           if (serverJobDetail.contact_id !== undefined) {
             nextBaseline.contact_id = serverJobDetail.contact_id ?? null
@@ -1554,18 +1554,18 @@ const autosave = createJobAutosave({
           headerPatch.default_xero_pay_item_id = payItemId
           headerPatch.default_xero_pay_item_name = payItemName
         }
-        if (touchedKeys.includes('client_id') || touchedKeys.includes('client_name')) {
-          const clientId = coerceNullableString(partialPayload.client_id) ?? ''
-          const clientName = coerceNullableString(partialPayload.client_name) ?? ''
-          nextBaseline.client_id = clientId
-          nextBaseline.client_name = clientName
-          localJobData.value.client_id = clientId
-          localJobData.value.client_name = clientName
-          headerPatch.client_id = clientId
-          headerPatch.client_name = clientName
+        if (touchedKeys.includes('company_id') || touchedKeys.includes('company_name')) {
+          const companyId = coerceNullableString(partialPayload.company_id) ?? ''
+          const companyName = coerceNullableString(partialPayload.company_name) ?? ''
+          nextBaseline.company_id = companyId
+          nextBaseline.company_name = companyName
+          localJobData.value.company_id = companyId
+          localJobData.value.company_name = companyName
+          headerPatch.company_id = companyId
+          headerPatch.company_name = companyName
 
           // Note: When no serverJobDetail, we can't get the auto-set contact
-          // The ContactSelector will re-fetch contacts for the new client
+          // The ContactSelector will re-fetch contacts for the new company
         }
         if (touchedKeys.includes('contact_id')) {
           const contactId = coerceNullableString(partialPayload.contact_id)
@@ -1648,8 +1648,8 @@ onMounted(() => {
           job_id: response.job_id,
           job_number: Number(response.job_number),
           name: response.name,
-          client_id: response.client_id,
-          client_name: response.client_name,
+          company_id: response.company_id,
+          company_name: response.company_name,
           status: response.status,
           pricing_methodology: response.pricing_methodology,
           speed_quality_tradeoff: response.speed_quality_tradeoff ?? 'normal',
@@ -1724,7 +1724,7 @@ watch(
   },
 )
 // pricing_methodology and speed_quality_tradeoff: handlers queue via @change, no watcher queuing needed
-// client: confirmClientChange queues, no watcher queuing needed
+// company: confirmCompanyChange queues, no watcher queuing needed
 
 // Watchers for basic info fields
 watch(

@@ -11,10 +11,10 @@
         class="w-full p-2 border border-gray-200 rounded-md appearance-none bg-white text-gray-900 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 disabled:bg-gray-50 disabled:cursor-not-allowed transition-colors"
         @change="handleChange"
       >
-        <option v-if="isLoading" value="">Loading clients...</option>
+        <option v-if="isLoading" value="">Loading companies...</option>
         <option v-else value="">{{ placeholder }}</option>
-        <option v-for="client in clientOptions" :key="client.id" :value="client.id">
-          {{ client.name }}
+        <option v-for="company in companyOptions" :key="company.id" :value="company.id">
+          {{ company.name }}
         </option>
       </select>
 
@@ -36,44 +36,44 @@ import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { z } from 'zod'
 
-type Client = z.infer<typeof schemas.ClientNameOnly>
+type Company = z.infer<typeof schemas.CompanyNameOnly>
 
 interface Props {
   id: string
   label: string
   placeholder?: string
   modelValue?: string
-  createdClient?: Client | null
+  createdCompany?: Company | null
 }
 
 interface Emits {
   (e: 'update:modelValue', value: string): void
-  (e: 'selected-client', client: Client | null): void
+  (e: 'selected-company', company: Company | null): void
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  placeholder: 'Any Client',
-  createdClient: null,
+  placeholder: 'Any Company',
+  createdCompany: null,
 })
 
 const emit = defineEmits<Emits>()
 
-const clientOptions = ref<Client[]>([])
+const companyOptions = ref<Company[]>([])
 const selectedValue = ref<string>(props.modelValue || '')
 const isLoading = ref(false)
 const error = ref<string | null>(null)
 const selectEl = ref<HTMLSelectElement | null>(null)
 
-const loadClientOptions = async (): Promise<void> => {
+const loadCompanyOptions = async (): Promise<void> => {
   try {
     isLoading.value = true
     error.value = null
-    const data = await api.clients_all_list()
-    clientOptions.value = data
+    const data = await api.companies_all_list()
+    companyOptions.value = data
   } catch (err) {
-    error.value = err instanceof Error ? err.message : 'Failed to load client options'
-    console.error('Error loading client options:', err)
-    toast.error('Failed to load clients')
+    error.value = err instanceof Error ? err.message : 'Failed to load company options'
+    console.error('Error loading company options:', err)
+    toast.error('Failed to load companies')
   } finally {
     isLoading.value = false
   }
@@ -81,29 +81,29 @@ const loadClientOptions = async (): Promise<void> => {
 
 const handleChange = (): void => {
   emit('update:modelValue', selectedValue.value)
-  const client = clientOptions.value.find((c: Client) => c.id === selectedValue.value) || null
-  emit('selected-client', client)
+  const company = companyOptions.value.find((c: Company) => c.id === selectedValue.value) || null
+  emit('selected-company', company)
 }
 
-function upsertClientInOptions(c: Client) {
-  const idx = clientOptions.value.findIndex((x: Client) => x.id === c.id)
+function upsertCompanyInOptions(c: Company) {
+  const idx = companyOptions.value.findIndex((x: Company) => x.id === c.id)
   if (idx === -1) {
-    clientOptions.value = [c, ...clientOptions.value]
+    companyOptions.value = [c, ...companyOptions.value]
   } else {
-    clientOptions.value[idx] = c
+    companyOptions.value[idx] = c
   }
 }
 
-async function closeAndSelect(client: Client) {
-  upsertClientInOptions(client)
-  selectedValue.value = client.id
+async function closeAndSelect(company: Company) {
+  upsertCompanyInOptions(company)
+  selectedValue.value = company.id
   handleChange()
   await nextTick()
   selectEl.value?.blur()
 }
 
 watch(
-  () => props.createdClient,
+  () => props.createdCompany,
   (c) => {
     if (!c) return
     closeAndSelect(c)
@@ -119,12 +119,12 @@ watch(
 )
 
 defineExpose({
-  reload: loadClientOptions,
+  reload: loadCompanyOptions,
   focus: () => selectEl.value?.focus(),
   blur: () => selectEl.value?.blur(),
 })
 
 onMounted(() => {
-  loadClientOptions()
+  loadCompanyOptions()
 })
 </script>

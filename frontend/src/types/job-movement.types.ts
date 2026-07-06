@@ -91,7 +91,7 @@ export interface JobMovementJobDetail {
   id: string
   job_number: string
   name: string
-  client_name: string
+  company_name: string
   status: string
   created_at: string
 }

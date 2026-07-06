@@ -2,7 +2,7 @@ export interface JobAgingData {
   id: string
   job_number: number
   name: string
-  client_name: string
+  company_name: string
   status: string
   status_display: string
   financial_data: {

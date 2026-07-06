@@ -2,45 +2,45 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { ref } from 'vue'
 import { mount } from '@vue/test-utils'
 
-vi.mock('@/composables/useClientLookup', () => ({
-  useClientLookup: vi.fn(),
+vi.mock('@/composables/useCompanyLookup', () => ({
+  useCompanyLookup: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
-  api: { clients_create_create: vi.fn() },
+  api: { companies_create_create: vi.fn() },
 }))
 
-vi.mock('@/components/CreateClientModal.vue', () => ({
+vi.mock('@/components/CreateCompanyModal.vue', () => ({
   default: { template: '<div />' },
 }))
 
-import ClientLookup from '../ClientLookup.vue'
-import { useClientLookup, type Client } from '@/composables/useClientLookup'
+import CompanyLookup from '../CompanyLookup.vue'
+import { useCompanyLookup, type Company } from '@/composables/useCompanyLookup'
 
-function buildComposableStub(suggestions: Client[]) {
+function buildComposableStub(suggestions: Company[]) {
   return {
     searchQuery: ref('msm'),
     suggestions: ref(suggestions),
     isLoading: ref(false),
     showSuggestions: ref(true),
-    selectedClient: ref(null),
+    selectedCompany: ref(null),
     contacts: ref([]),
     hasValidXeroId: ref(false),
     displayValue: ref(''),
-    searchClients: vi.fn(),
-    selectClient: vi.fn(),
+    searchCompanies: vi.fn(),
+    selectCompany: vi.fn(),
     loadClientContacts: vi.fn(),
     getPrimaryContact: vi.fn(),
     clearSelection: vi.fn(),
     handleInputChange: vi.fn(),
-    createNewClient: vi.fn(),
+    createNewCompany: vi.fn(),
     hideSuggestions: vi.fn(),
     resetToInitialState: vi.fn(),
-    preserveSelectedClient: vi.fn(),
-  } as unknown as ReturnType<typeof useClientLookup>
+    preserveSelectedCompany: vi.fn(),
+  } as unknown as ReturnType<typeof useCompanyLookup>
 }
 
-const sampleClient: Client = {
+const sampleCompany: Company = {
   id: 'c1',
   name: 'MSM (Shop)',
   email: 'lakeland@gmail.com',
@@ -53,14 +53,14 @@ const sampleClient: Client = {
   total_spend: '0',
 }
 
-describe('ClientLookup option rendering', () => {
+describe('CompanyLookup option rendering', () => {
   beforeEach(() => {
-    vi.mocked(useClientLookup).mockReturnValue(buildComposableStub([sampleClient]))
+    vi.mocked(useCompanyLookup).mockReturnValue(buildComposableStub([sampleCompany]))
   })
 
-  it('renders the client name as the only text inside role="option"', () => {
-    const wrapper = mount(ClientLookup, {
-      props: { id: 'lookup', label: 'Client' },
+  it('renders the company name as the only text inside role="option"', () => {
+    const wrapper = mount(CompanyLookup, {
+      props: { id: 'lookup', label: 'Company' },
     })
 
     const option = wrapper.find('[role="option"]')

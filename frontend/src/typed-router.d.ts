@@ -38,16 +38,16 @@ declare module 'vue-router/auto-routes' {
       Record<never, never>,
       | never
     >,
-    '/crm/clients/(index)': RouteRecordInfo<
-      '/crm/clients/(index)',
-      '/crm/clients',
+    '/crm/companies/(index)': RouteRecordInfo<
+      '/crm/companies/(index)',
+      '/crm/companies',
       Record<never, never>,
       Record<never, never>,
       | never
     >,
-    '/crm/clients/[id]': RouteRecordInfo<
-      '/crm/clients/[id]',
-      '/crm/clients/:id',
+    '/crm/companies/[id]': RouteRecordInfo<
+      '/crm/companies/[id]',
+      '/crm/companies/:id',
       { id: ParamValue<true> },
       { id: ParamValue<false> },
       | never
@@ -302,15 +302,15 @@ declare module 'vue-router/auto-routes' {
       views:
         | never
     }
-    'src/pages/crm/clients/(index).vue': {
+    'src/pages/crm/companies/(index).vue': {
       routes:
-        | '/crm/clients/(index)'
+        | '/crm/companies/(index)'
       views:
         | never
     }
-    'src/pages/crm/clients/[id].vue': {
+    'src/pages/crm/companies/[id].vue': {
       routes:
-        | '/crm/clients/[id]'
+        | '/crm/companies/[id]'
       views:
         | never
     }

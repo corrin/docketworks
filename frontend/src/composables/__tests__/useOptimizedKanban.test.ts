@@ -184,7 +184,7 @@ function buildKanbanJob(overrides: Partial<Record<string, unknown>> = {}) {
     name: overrides.name ?? '2 X 1.2MM S/S KICK PLATES 910MM (W) X 300MM (H)',
     description: overrides.description ?? '',
     job_number: overrides.job_number ?? 9001,
-    client_name: overrides.client_name ?? 'Weaver, Decker and Schultz',
+    company_name: overrides.company_name ?? 'Weaver, Decker and Schultz',
     contact_person: overrides.contact_person ?? 'Molly Wainwright',
     people: overrides.people ?? [],
     status: overrides.status ?? 'in_progress',
@@ -316,7 +316,7 @@ describe('useOptimizedKanban search reconciliation', () => {
         buildKanbanJob({
           id: 'job-2',
           name: 'Kick plate revision',
-          client_name: 'Different Client',
+          company_name: 'Different Company',
         }),
       ],
     })
@@ -338,7 +338,7 @@ describe('useOptimizedKanban search reconciliation', () => {
       job_number: '',
       name: '',
       description: '',
-      client_name: '',
+      company_name: '',
       contact_person: '',
       created_by: '',
       created_after: '',
@@ -450,7 +450,7 @@ describe('useOptimizedKanban search reconciliation', () => {
     await flushPromises()
 
     second.resolve({
-      jobs: [buildKanbanJob({ id: 'job-2', client_name: 'Weaver, Decker and Schultz' })],
+      jobs: [buildKanbanJob({ id: 'job-2', company_name: 'Weaver, Decker and Schultz' })],
     })
     await flushPromises()
 
@@ -485,7 +485,7 @@ describe('useOptimizedKanban search reconciliation', () => {
 
   it('uses backend reconciliation for multi-token queries the local substring pass cannot match', async () => {
     performAdvancedSearch.mockResolvedValue({
-      jobs: [buildKanbanJob({ id: 'job-2', client_name: 'Weaver, Decker and Schultz' })],
+      jobs: [buildKanbanJob({ id: 'job-2', company_name: 'Weaver, Decker and Schultz' })],
     })
 
     const kanban = await mountHarness()
@@ -504,7 +504,7 @@ describe('useOptimizedKanban search reconciliation', () => {
       job_number: '',
       name: '',
       description: '',
-      client_name: '',
+      company_name: '',
       contact_person: '',
       created_by: '',
       created_after: '',
@@ -518,7 +518,7 @@ describe('useOptimizedKanban search reconciliation', () => {
 
   it('reconciles typo queries from empty local results to backend matches', async () => {
     performAdvancedSearch.mockResolvedValue({
-      jobs: [buildKanbanJob({ id: 'job-3', client_name: 'Weaver, Decker and Schultz' })],
+      jobs: [buildKanbanJob({ id: 'job-3', company_name: 'Weaver, Decker and Schultz' })],
     })
 
     const kanban = await mountHarness()
@@ -537,7 +537,7 @@ describe('useOptimizedKanban search reconciliation', () => {
       job_number: '',
       name: '',
       description: '',
-      client_name: '',
+      company_name: '',
       contact_person: '',
       created_by: '',
       created_after: '',

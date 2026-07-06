@@ -40,13 +40,13 @@
             <div class="flex items-center gap-2 text-sm text-gray-500 flex-wrap">
               <span>•</span>
               <div class="group">
-                <InlineEditClient
+                <InlineEditCompany
                   v-if="jobDataWithPaid"
-                  :key="localClientId"
-                  :client-name="localClientName"
-                  :client-id="localClientId"
-                  @update:client="handleClientUpdate"
-                  placeholder="Select client"
+                  :key="localCompanyId"
+                  :company-name="localCompanyName"
+                  :company-id="localCompanyId"
+                  @update:company="handleCompanyUpdate"
+                  placeholder="Select company"
                 />
               </div>
               <span>•</span>
@@ -161,13 +161,13 @@
               </div>
               <div class="flex items-center gap-2 text-xs text-gray-500">
                 <div class="group">
-                  <InlineEditClient
+                  <InlineEditCompany
                     v-if="jobDataWithPaid"
-                    :key="localClientId"
-                    :client-name="localClientName"
-                    :client-id="localClientId"
-                    @update:client="handleClientUpdate"
-                    placeholder="Select client"
+                    :key="localCompanyId"
+                    :company-name="localCompanyName"
+                    :company-id="localCompanyId"
+                    @update:company="handleCompanyUpdate"
+                    placeholder="Select company"
                   />
                 </div>
                 <span>•</span>
@@ -305,7 +305,7 @@ import AppLayout from '@/components/AppLayout.vue'
 import JobViewTabs from '@/components/job/JobViewTabs.vue'
 import JobPdfDialog from '@/components/job/JobPdfDialog.vue'
 import InlineEditText from '@/components/shared/InlineEditText.vue'
-import InlineEditClient from '@/components/shared/InlineEditClient.vue'
+import InlineEditCompany from '@/components/shared/InlineEditCompany.vue'
 import InlineEditSelect from '@/components/shared/InlineEditSelect.vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useJobsStore } from '@/stores/jobs'
@@ -377,8 +377,8 @@ const { activeTab, setTab } = useJobTabs(defaultTab)
 debugLog('[JobView] tabs init', { activeTab: activeTab.value, defaultTab })
 
 const localJobName = ref('')
-const localClientName = ref('')
-const localClientId = ref('')
+const localCompanyName = ref('')
+const localCompanyId = ref('')
 const localJobStatus = ref<JobStatusKey | ''>('')
 type PricingMethodology = 'time_materials' | 'fixed_price'
 const localPricingMethodology = ref<PricingMethodology | ''>('')
@@ -419,10 +419,10 @@ const handleNameUpdate = (newName: string) => {
   headerAutosave.handleNameUpdate(newName)
 }
 
-const handleClientUpdate = (client: { id: string; name: string }) => {
-  localClientName.value = client.name
-  localClientId.value = client.id
-  headerAutosave.handleClientUpdate(client)
+const handleCompanyUpdate = (company: { id: string; name: string }) => {
+  localCompanyName.value = company.name
+  localCompanyId.value = company.id
+  headerAutosave.handleCompanyUpdate(company)
 }
 
 const isValidStatus = (value: string): value is JobStatusKey =>
@@ -528,8 +528,8 @@ const jobDataWithPaid = computed(() => {
     id: h.job_id,
     job_number: h.job_number,
     name: h.name,
-    client_name: h.client_name ?? '',
-    client_id: h.client_id ?? '',
+    company_name: h.company_name ?? '',
+    company_id: h.company_id ?? '',
     job_status: h.status ?? '',
     pricing_methodology: h.pricing_methodology ?? '',
     quoted: h.quoted,
@@ -545,8 +545,8 @@ watch(
   (h) => {
     if (!h) return
     localJobName.value = h.name
-    localClientName.value = h.client_name ?? ''
-    localClientId.value = h.client_id ?? ''
+    localCompanyName.value = h.company_name ?? ''
+    localCompanyId.value = h.company_id ?? ''
     localJobStatus.value = h.status ?? ''
     localPricingMethodology.value = h.pricing_methodology ?? ''
     localQuoted.value = Boolean(h.quoted)

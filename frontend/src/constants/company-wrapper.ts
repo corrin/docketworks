@@ -7,11 +7,11 @@
 import { z } from 'zod'
 import { schemas } from '@/api/generated/api'
 
-export const CreateClientResponseSchema = z.object({
+export const CreateCompanyResponseSchema = z.object({
   success: z.boolean(),
-  client: schemas.ClientSearchResult.optional(),
+  company: schemas.CompanySearchResult.optional(),
   error: z.string().optional(),
   message: z.string().optional(),
 })
 
-export type CreateClientResponse = z.infer<typeof CreateClientResponseSchema>
+export type CreateCompanyResponse = z.infer<typeof CreateCompanyResponseSchema>

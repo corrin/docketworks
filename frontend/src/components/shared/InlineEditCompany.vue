@@ -1,5 +1,5 @@
 <template>
-  <div class="inline-edit-client group">
+  <div class="inline-edit-company group">
     <div
       v-if="!isEditing"
       @click="startEdit"
@@ -12,14 +12,14 @@
 
     <div v-else class="flex items-center gap-2">
       <div class="relative flex-1">
-        <ClientLookup
-          id="inline-client-lookup"
+        <CompanyLookup
+          id="inline-company-lookup"
           label=""
           v-model="searchQuery"
           :placeholder="placeholder"
           :search-mode="true"
           :edit-mode="true"
-          @update:selected-client="handleClientSelected"
+          @update:selected-company="handleCompanySelected"
           class="min-w-48"
         />
       </div>
@@ -40,24 +40,24 @@
 <script setup lang="ts">
 import { ref, computed, watch } from 'vue'
 import { PencilIcon, CheckIcon, XIcon } from 'lucide-vue-next'
-import ClientLookup from '../ClientLookup.vue'
-import type { Client } from '../../composables/useClientLookup'
+import CompanyLookup from '../CompanyLookup.vue'
+import type { Company } from '../../composables/useCompanyLookup'
 
 interface Props {
-  clientName?: string | null
-  clientId?: string | null
+  companyName?: string | null
+  companyId?: string | null
   placeholder?: string
   displayClass?: string
 }
 
 interface Emits {
-  'update:client': [client: { id: string; name: string }]
+  'update:company': [company: { id: string; name: string }]
 }
 
 const props = withDefaults(defineProps<Props>(), {
-  clientName: '',
-  clientId: '',
-  placeholder: 'Click to select client',
+  companyName: '',
+  companyId: '',
+  placeholder: 'Click to select company',
   displayClass: '',
 })
 
@@ -65,40 +65,40 @@ const emit = defineEmits<Emits>()
 
 const isEditing = ref(false)
 const searchQuery = ref('')
-const selectedClient = ref<Client | null>(null)
+const selectedCompany = ref<Company | null>(null)
 
 const displayValue = computed(() => {
-  return props.clientName || (isEditing.value ? '' : props.placeholder)
+  return props.companyName || (isEditing.value ? '' : props.placeholder)
 })
 
 const canConfirm = computed(() => {
-  return selectedClient.value !== null
+  return selectedCompany.value !== null
 })
 
 const startEdit = () => {
-  searchQuery.value = props.clientName || ''
-  selectedClient.value = null
+  searchQuery.value = props.companyName || ''
+  selectedCompany.value = null
   isEditing.value = true
 }
 
-const handleClientSelected = (client: Client | null) => {
-  selectedClient.value = client
-  if (client) {
-    searchQuery.value = client.name
+const handleCompanySelected = (company: Company | null) => {
+  selectedCompany.value = company
+  if (company) {
+    searchQuery.value = company.name
   }
 }
 
 const confirm = () => {
-  if (!canConfirm.value || !selectedClient.value) return
+  if (!canConfirm.value || !selectedCompany.value) return
 
-  // Only emit if client actually changed
+  // Only emit if company actually changed
   if (
-    selectedClient.value.id !== props.clientId ||
-    selectedClient.value.name !== props.clientName
+    selectedCompany.value.id !== props.companyId ||
+    selectedCompany.value.name !== props.companyName
   ) {
-    emit('update:client', {
-      id: selectedClient.value.id,
-      name: selectedClient.value.name,
+    emit('update:company', {
+      id: selectedCompany.value.id,
+      name: selectedCompany.value.name,
     })
   }
 
@@ -106,14 +106,14 @@ const confirm = () => {
 }
 
 const cancel = () => {
-  searchQuery.value = props.clientName || ''
-  selectedClient.value = null
+  searchQuery.value = props.companyName || ''
+  selectedCompany.value = null
   isEditing.value = false
 }
 
 // Watch for external value changes
 watch(
-  () => props.clientName,
+  () => props.companyName,
   (newValue) => {
     if (!isEditing.value) {
       searchQuery.value = newValue || ''
@@ -123,21 +123,21 @@ watch(
 </script>
 
 <style scoped>
-.inline-edit-client :deep(.client-lookup) {
+.inline-edit-company :deep(.company-lookup) {
   margin-bottom: 0;
 }
 
-.inline-edit-client :deep(.client-lookup label) {
+.inline-edit-company :deep(.company-lookup label) {
   display: none;
 }
 
-/* Hide the blue confirmation element from ClientLookup */
-.inline-edit-client :deep(.client-lookup .bg-blue-50) {
+/* Hide the blue confirmation element from CompanyLookup */
+.inline-edit-company :deep(.company-lookup .bg-blue-50) {
   display: none;
 }
 
 @media (max-width: 768px) {
-  .inline-edit-client .min-w-48 {
+  .inline-edit-company .min-w-48 {
     min-width: 12rem;
   }
 }

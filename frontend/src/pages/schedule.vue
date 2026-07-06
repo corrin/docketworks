@@ -142,11 +142,11 @@
                           class="absolute top-1 bottom-1 rounded px-2 text-left text-white text-xs font-medium overflow-hidden hover:ring-2 hover:ring-offset-1 hover:ring-indigo-300 transition-all"
                           @click="selectJob(job)"
                           @dblclick.prevent="goToJob(job)"
-                          :title="`#${job.job_number} ${job.name} — ${job.client_name}`"
+                          :title="`#${job.job_number} ${job.name} — ${job.company_name}`"
                         >
                           <div class="truncate">#{{ job.job_number }} · {{ job.name }}</div>
                           <div class="truncate text-[10px] opacity-90">
-                            {{ job.client_name }} · {{ job.remaining_hours.toFixed(1) }}h
+                            {{ job.company_name }} · {{ job.remaining_hours.toFixed(1) }}h
                             <span v-if="job.is_late">· LATE</span>
                           </div>
                         </button>
@@ -195,7 +195,7 @@
                       <div class="font-semibold text-slate-800">
                         #{{ selectedJob.job_number }} · {{ selectedJob.name }}
                       </div>
-                      <div class="text-slate-500">{{ selectedJob.client_name }}</div>
+                      <div class="text-slate-500">{{ selectedJob.company_name }}</div>
                       <div class="mt-1 text-xs text-slate-600">
                         Remaining: {{ selectedJob.remaining_hours.toFixed(1) }}h
                       </div>
@@ -385,7 +385,7 @@
                         >
                           #{{ job.job_number }} {{ job.name }}
                         </button>
-                        <span class="text-slate-500"> · {{ job.client_name }}</span>
+                        <span class="text-slate-500"> · {{ job.company_name }}</span>
                         <div v-if="job.anticipated_staff.length" class="text-[11px] text-slate-600">
                           Workers:
                           {{ job.anticipated_staff.map((s) => s.name).join(', ') }}
@@ -434,7 +434,7 @@
                       #{{ job.job_number }} {{ job.name }}
                     </router-link>
                     <div class="text-xs text-slate-500 truncate">
-                      {{ job.client_name }} · delivery {{ job.delivery_date || '—' }} ·
+                      {{ job.company_name }} · delivery {{ job.delivery_date || '—' }} ·
                       {{ job.remaining_hours.toFixed(1) }}h remaining
                     </div>
                   </div>

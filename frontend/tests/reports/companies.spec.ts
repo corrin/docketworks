@@ -1,26 +1,26 @@
 import { test, expect } from '../fixtures/auth'
-import { autoId, TEST_CLIENT_NAME } from '../fixtures/helpers'
+import { autoId, TEST_COMPANY_NAME } from '../fixtures/helpers'
 
-test.describe('Clients Report', () => {
-  test('sorts by spend, verifies client detail, and searches for testing client', async ({
+test.describe('Companies Report', () => {
+  test('sorts by spend, verifies company detail, and searches for testing company', async ({
     authenticatedPage: page,
   }) => {
-    // Navigate to the Clients page
-    await page.goto('/crm/clients')
+    // Navigate to the Companies page
+    await page.goto('/crm/companies')
     await page.waitForLoadState('networkidle')
 
     // Verify we're on the right page
-    await expect(page.getByRole('heading', { name: 'Clients' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Companies' })).toBeVisible()
 
     // Wait for loading to complete
-    await expect(page.getByText('Loading clients...')).toBeHidden({ timeout: 30000 })
+    await expect(page.getByText('Loading companies...')).toBeHidden({ timeout: 30000 })
 
     // Wait for the table to be visible
-    const table = autoId(page, 'ClientsTable-table')
+    const table = autoId(page, 'CompaniesTable-table')
     await expect(table).toBeVisible()
 
     // Click "Total Spend" column header to sort descending (first click sorts ascending, second sorts descending)
-    const totalSpendHeader = autoId(page, 'ClientsTable-header-total-spend')
+    const totalSpendHeader = autoId(page, 'CompaniesTable-header-total-spend')
     await expect(totalSpendHeader).toBeVisible()
 
     // Click twice to sort descending (biggest spenders first)
@@ -34,12 +34,12 @@ test.describe('Clients Report', () => {
 
     // Get the first row's data
     const firstRow = table.locator('tbody tr').first()
-    const clientId = await firstRow.getAttribute('data-client-id')
-    if (!clientId) {
-      throw new Error('Clients table row is missing data-client-id')
+    const companyId = await firstRow.getAttribute('data-company-id')
+    if (!companyId) {
+      throw new Error('Companies table row is missing data-company-id')
     }
 
-    const firstRowSpend = autoId(page, `ClientsTable-cell-${clientId}-total-spend`)
+    const firstRowSpend = autoId(page, `CompaniesTable-cell-${companyId}-total-spend`)
     await expect(firstRowSpend).toBeVisible()
 
     const spendText = await firstRowSpend.textContent()
@@ -55,19 +55,19 @@ test.describe('Clients Report', () => {
     const amount = parseFloat(spendText!.replace(/[$,]/g, ''))
     expect(amount).toBeGreaterThan(0)
 
-    // Get the client name before clicking
-    const clientName = await autoId(page, `ClientsTable-cell-${clientId}-name`).textContent()
-    console.log(`Clicking on top spender: ${clientName}`)
+    // Get the company name before clicking
+    const companyName = await autoId(page, `CompaniesTable-cell-${companyId}-name`).textContent()
+    console.log(`Clicking on top spender: ${companyName}`)
 
-    // Click on the client row to navigate to details
+    // Click on the company row to navigate to details
     await firstRow.click()
 
-    // Wait for navigation to client detail page
-    await page.waitForURL(/\/crm\/clients\/[a-f0-9-]+$/, { timeout: 15000 })
+    // Wait for navigation to company detail page
+    await page.waitForURL(/\/crm\/companies\/[a-f0-9-]+$/, { timeout: 15000 })
     await page.waitForLoadState('networkidle')
 
-    // Wait for client detail to load
-    await expect(page.getByText('Loading client...')).toBeHidden({ timeout: 30000 })
+    // Wait for company detail to load
+    await expect(page.getByText('Loading company...')).toBeHidden({ timeout: 30000 })
 
     // Click on Financial Summary tab
     const financialTab = page.getByRole('tab', { name: /Financial Summary/i })
@@ -82,29 +82,29 @@ test.describe('Clients Report', () => {
     await expect(totalSpendLabel).toBeVisible()
 
     // Get the total spend value (it's in the sibling p element with large text)
-    const totalSpendValue = autoId(page, 'ClientDetail-total-spend')
+    const totalSpendValue = autoId(page, 'CompanyDetail-total-spend')
     await expect(totalSpendValue).toBeVisible()
 
     const detailSpendText = await totalSpendValue.textContent()
-    console.log(`Client detail Total Spend: ${detailSpendText}`)
+    console.log(`Company detail Total Spend: ${detailSpendText}`)
 
     // Verify the spend amount matches what we saw in the table
     expect(detailSpendText).toBe(spendText)
 
-    // Navigate back to clients list
-    await autoId(page, 'ClientDetail-back').click()
-    await page.waitForURL(/\/crm\/clients$/, { timeout: 10000 })
+    // Navigate back to companies list
+    await autoId(page, 'CompanyDetail-back').click()
+    await page.waitForURL(/\/crm\/companies$/, { timeout: 10000 })
     await page.waitForLoadState('networkidle')
 
     // Wait for loading to complete
-    await expect(page.getByText('Loading clients...')).toBeHidden({ timeout: 30000 })
+    await expect(page.getByText('Loading companies...')).toBeHidden({ timeout: 30000 })
 
     // Re-get table reference after navigation
-    const clientsTable = autoId(page, 'ClientsTable-table')
-    await expect(clientsTable).toBeVisible()
+    const companiesTable = autoId(page, 'CompaniesTable-table')
+    await expect(companiesTable).toBeVisible()
 
-    // Now search for the test client
-    const searchInput = autoId(page, 'ClientsTable-search')
+    // Now search for the test company
+    const searchInput = autoId(page, 'CompaniesTable-search')
     await expect(searchInput).toBeVisible()
     await searchInput.clear()
     await searchInput.fill('ABC Carpet')
@@ -112,26 +112,26 @@ test.describe('Clients Report', () => {
     // Wait for debounced search to trigger and complete
     await page.waitForResponse(
       (response) =>
-        response.url().includes('/clients/search') &&
+        response.url().includes('/companies/search') &&
         response.request().method() === 'GET' &&
         response.status() === 200,
       { timeout: 10000 },
     )
     await page.waitForLoadState('networkidle')
 
-    // Validate that a row with the test client appears in results
-    const testClientRow = clientsTable.locator('tbody tr', {
-      hasText: new RegExp(TEST_CLIENT_NAME, 'i'),
+    // Validate that a row with the test company appears in results
+    const testCompanyRow = companiesTable.locator('tbody tr', {
+      hasText: new RegExp(TEST_COMPANY_NAME, 'i'),
     })
-    await expect(testClientRow.first()).toBeVisible({ timeout: 10000 })
+    await expect(testCompanyRow.first()).toBeVisible({ timeout: 10000 })
 
-    // Verify results are filtered (should be much fewer than all clients)
-    const resultText = page.locator('text=/Found \\d+ client/')
+    // Verify results are filtered (should be much fewer than all companies)
+    const resultText = page.locator('text=/Found \\d+ company/')
     const resultCount = await resultText.textContent()
     console.log(`Search results: ${resultCount}`)
 
     console.log(
-      'Clients report test passed: sorted by spend, validated client detail, found test client',
+      'Companies report test passed: sorted by spend, validated company detail, found test company',
     )
   })
 })

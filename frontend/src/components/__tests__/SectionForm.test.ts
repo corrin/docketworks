@@ -3,13 +3,13 @@ import { describe, expect, it, vi } from 'vitest'
 
 import SectionForm from '@/components/SectionForm.vue'
 
-const { clientsAllList } = vi.hoisted(() => ({
-  clientsAllList: vi.fn(),
+const { companiesAllList } = vi.hoisted(() => ({
+  companiesAllList: vi.fn(),
 }))
 
 vi.mock('@/api/client', () => ({
   api: {
-    clients_all_list: clientsAllList,
+    companies_all_list: companiesAllList,
   },
 }))
 
@@ -17,11 +17,11 @@ vi.mock('@/composables/useSettingsSchema', () => ({
   useSettingsSchema: () => ({
     getFieldsForSection: () => [
       {
-        key: 'shop_client',
-        label: 'Shop Client',
-        type: 'client',
+        key: 'shop_company',
+        label: 'Shop Company',
+        type: 'company',
         required: true,
-        help_text: 'Internal client used for tracking shop work.',
+        help_text: 'Internal company used for tracking shop work.',
         section: 'setup',
         icon: 'span',
         readOnly: false,
@@ -34,8 +34,8 @@ vi.mock('@/composables/useSettingsSchema', () => ({
 }))
 
 describe('SectionForm', () => {
-  it('renders client fields as a selector backed by generated client data', async () => {
-    clientsAllList.mockResolvedValue([
+  it('renders company fields as a selector backed by generated company data', async () => {
+    companiesAllList.mockResolvedValue([
       { id: '00000000-0000-0000-0000-000000000001', name: 'Demo Company Shop' },
       { id: '11111111-1111-1111-1111-111111111111', name: 'Acme Ltd' },
     ])
@@ -44,14 +44,14 @@ describe('SectionForm', () => {
       props: {
         section: 'setup',
         modelValue: {
-          shop_client: '00000000-0000-0000-0000-000000000001',
+          shop_company: '00000000-0000-0000-0000-000000000001',
         },
       },
     })
 
     await flushPromises()
 
-    const selector = wrapper.get('[data-automation-id="SectionForm-setup-field-shop_client"]')
+    const selector = wrapper.get('[data-automation-id="SectionForm-setup-field-shop_company"]')
     expect(selector.element.tagName).toBe('SELECT')
     expect(selector.text()).toContain('Demo Company Shop')
     expect(selector.text()).toContain('Acme Ltd')
@@ -61,19 +61,19 @@ describe('SectionForm', () => {
     const updates = wrapper.emitted('update:modelValue')
     expect(updates?.at(-1)).toEqual([
       {
-        shop_client: '11111111-1111-1111-1111-111111111111',
+        shop_company: '11111111-1111-1111-1111-111111111111',
       },
     ])
   })
 
   it('does not mutate the object passed as modelValue when a field is edited', async () => {
-    clientsAllList.mockResolvedValue([
+    companiesAllList.mockResolvedValue([
       { id: '00000000-0000-0000-0000-000000000001', name: 'Demo Company Shop' },
       { id: '11111111-1111-1111-1111-111111111111', name: 'Acme Ltd' },
     ])
 
     const modelValue = {
-      shop_client: '00000000-0000-0000-0000-000000000001',
+      shop_company: '00000000-0000-0000-0000-000000000001',
     }
 
     const wrapper = mount(SectionForm, {
@@ -85,10 +85,10 @@ describe('SectionForm', () => {
 
     await flushPromises()
 
-    const selector = wrapper.get('[data-automation-id="SectionForm-setup-field-shop_client"]')
+    const selector = wrapper.get('[data-automation-id="SectionForm-setup-field-shop_company"]')
     await selector.setValue('11111111-1111-1111-1111-111111111111')
 
     // The edit must be emitted, never applied in place to the prop object.
-    expect(modelValue.shop_client).toBe('00000000-0000-0000-0000-000000000001')
+    expect(modelValue.shop_company).toBe('00000000-0000-0000-0000-000000000001')
   })
 })

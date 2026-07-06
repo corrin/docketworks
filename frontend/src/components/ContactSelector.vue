@@ -25,7 +25,7 @@
         data-automation-id="ContactSelector-modal-button"
         class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
         @click="handleOpenModal"
-        :disabled="!clientId"
+        :disabled="!companyId"
       >
         <Users class="w-4 h-4" />
       </button>
@@ -42,13 +42,13 @@
       </button>
     </div>
 
-    <p v-if="!clientId" class="mt-1 text-xs text-gray-500">Please select a client first</p>
+    <p v-if="!companyId" class="mt-1 text-xs text-gray-500">Please select a company first</p>
   </div>
 
   <ContactSelectionModal
     :is-open="isModalOpen"
-    :client-id="clientId"
-    :client-name="clientName"
+    :company-id="companyId"
+    :company-name="companyName"
     :contacts="activeContacts"
     :selected-contact="selectedContact"
     :is-loading="isLoading"
@@ -83,8 +83,8 @@ const props = withDefaults(
     label: string
     placeholder?: string
     optional?: boolean
-    clientId: string
-    clientName: string
+    companyId: string
+    companyName: string
     modelValue?: string
     initialContactId?: string
   }>(),
@@ -132,20 +132,20 @@ let loadToken = 0
 
 const handleOpenModal = async () => {
   debugLog('ContactSelector - handleOpenModal called:', {
-    clientId: props.clientId,
-    clientName: props.clientName,
+    companyId: props.companyId,
+    companyName: props.companyName,
     initialContactId: props.initialContactId,
     contacts: contacts.value,
     selectedContact: selectedContact.value,
     newContactForm: newContactForm.value,
   })
 
-  if (!props.clientId) {
-    debugLog('Cannot open contact modal without client')
+  if (!props.companyId) {
+    debugLog('Cannot open contact modal without company')
     return
   }
 
-  await openModal(props.clientId, props.clientName)
+  await openModal(props.companyId, props.companyName)
   debugLog('ContactSelector - after openModal:', {
     isModalOpen: isModalOpen.value,
     contacts: contacts.value,
@@ -237,22 +237,22 @@ const clearSelection = () => {
 
 const selectPrimaryContact = async () => {
   debugLog('ContactSelector - selectPrimaryContact called', {
-    clientId: props.clientId,
+    companyId: props.companyId,
     contactsLength: contacts.value.length,
   })
 
-  if (!props.clientId) {
-    debugLog('Cannot select primary contact without client', {
-      clientId: props.clientId,
-      propsClientId: props.clientId,
+  if (!props.companyId) {
+    debugLog('Cannot select primary contact without company', {
+      companyId: props.companyId,
+      propsCompanyId: props.companyId,
     })
     return
   }
 
   // Load contacts if not already loaded
   if (contacts.value.length === 0) {
-    debugLog('Loading contacts for client:', props.clientId)
-    await loadContactsOnly(props.clientId)
+    debugLog('Loading contacts for company:', props.companyId)
+    await loadContactsOnly(props.companyId)
   }
 
   // Find and select the primary contact (without closing modal)
@@ -307,9 +307,9 @@ watch(
 )
 
 watch(
-  () => [props.clientId, props.initialContactId],
-  async ([clientId, initialId]) => {
-    debugLog('ContactSelector - unified watch:', { clientId, initialId })
+  () => [props.companyId, props.initialContactId],
+  async ([companyId, initialId]) => {
+    debugLog('ContactSelector - unified watch:', { companyId, initialId })
 
     // Quando mudar o cliente: limpe estado local (sem emitir)
     suppressEmit.value = true
@@ -318,8 +318,8 @@ watch(
     contacts.value = []
     suppressEmit.value = false
 
-    if (!clientId) {
-      debugLog('Client ID vazio; nada a carregar.')
+    if (!companyId) {
+      debugLog('Company ID vazio; nada a carregar.')
       return
     }
 
@@ -327,14 +327,14 @@ watch(
     const token = ++loadToken
 
     // Carrega contatos do cliente atual
-    await loadContactsOnly(clientId)
+    await loadContactsOnly(companyId)
     if (token !== loadToken) return // request antigo, ignora
 
     // Selection priority:
     // 1) If initialId provided → select that contact
     // 2) Else if primary contact exists → select primary
     // 3) Else → clear selection
-    // NOTE: suppressEmit=true prevents API calls during initialization/client change
+    // NOTE: suppressEmit=true prevents API calls during initialization/company change
     // (auto-selection should not trigger saves - only user actions should)
     const decideAndSelect = () => {
       const choose =

@@ -154,7 +154,7 @@
                     {{ job.name }}
                   </td>
                   <td class="px-4 py-3">
-                    {{ job.client_name }}
+                    {{ job.company_name }}
                   </td>
                   <td class="px-4 py-3">
                     <span
@@ -226,8 +226,8 @@
 
                 <div class="grid grid-cols-2 gap-4 text-sm">
                   <div>
-                    <div class="font-medium text-gray-700">Client</div>
-                    <div class="text-gray-600">{{ job.client_name }}</div>
+                    <div class="font-medium text-gray-700">Company</div>
+                    <div class="text-gray-600">{{ job.company_name }}</div>
                   </div>
                   <div>
                     <div class="font-medium text-gray-700">Job Age</div>
@@ -327,7 +327,7 @@ const filters = ref<JobAgingFilters>({
 const tableColumns: JobAgingTableColumn[] = [
   { key: 'job_number', label: 'Job #', sortable: true },
   { key: 'name', label: 'Job Name', sortable: true },
-  { key: 'client_name', label: 'Client', sortable: true },
+  { key: 'company_name', label: 'Company', sortable: true },
   { key: 'status_display', label: 'Status', sortable: true },
   {
     key: 'timing_data.days_in_current_status',

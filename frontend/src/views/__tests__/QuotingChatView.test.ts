@@ -53,7 +53,7 @@ const { mockRouter, mockRoute, mockServiceInstance } = vi.hoisted(() => {
         jobId: 'test-job-id',
         jobName: 'Test Job',
         jobNumber: '2024-001',
-        clientName: 'Test Client',
+        companyName: 'Test Company',
       },
     },
     mockServiceInstance: {
@@ -107,7 +107,7 @@ vi.mock('@/api/generated/api', () => ({
   endpoints: [],
 }))
 
-// Mock the API client to avoid initialization issues
+// Mock the API company to avoid initialization issues
 vi.mock('@/api/client', () => ({
   api: {},
   getApi: () => ({}),

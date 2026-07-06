@@ -4,16 +4,16 @@ import {
   dismissToasts,
   expectStepUnder,
   submitJobAndWaitForCreatedJob,
-  TEST_CLIENT_NAME,
+  TEST_COMPANY_NAME,
   waitForSettingsInitialized,
 } from '../fixtures/helpers'
 
 /**
  * Sequential test cases for job creation.
  * These tests MUST run in order as each builds on the previous state:
- * - Test 1: Client has 0 contacts → creates first contact (becomes primary)
- * - Test 2: Client has 1 contact → creates second contact
- * - Test 3: Client has 2 contacts → selects non-primary contact
+ * - Test 1: Company has 0 contacts → creates first contact (becomes primary)
+ * - Test 2: Company has 1 contact → creates second contact
+ * - Test 3: Company has 2 contacts → selects non-primary contact
  */
 const jobTestCases = [
   {
@@ -47,7 +47,7 @@ const jobTestCases = [
 
 const CREATE_JOB_BUDGET_MS = {
   navigateToCreatePage: 2500,
-  searchAndSelectClient: 1500,
+  searchAndSelectCompany: 1500,
   contactSelection: 2500,
   submitAndRedirect: 3500,
   defaultPayItemCreateJob: 4500,
@@ -57,7 +57,7 @@ const CREATE_JOB_BUDGET_MS = {
 // Use describe.serial to ensure tests run in order (they depend on each other)
 test.describe.serial('create job', () => {
   for (const tc of jobTestCases) {
-    test(`create ${tc.name} job with client and contact`, async ({ authenticatedPage: page }) => {
+    test(`create ${tc.name} job with company and contact`, async ({ authenticatedPage: page }) => {
       // Generate unique job name to avoid conflicts
       const timestamp = Date.now()
       const jobName = `[TEST] Job ${tc.name} ${timestamp}`
@@ -73,22 +73,22 @@ test.describe.serial('create job', () => {
       )
 
       await expectStepUnder(
-        'search and select client',
-        CREATE_JOB_BUDGET_MS.searchAndSelectClient,
+        'search and select company',
+        CREATE_JOB_BUDGET_MS.searchAndSelectCompany,
         async () => {
-          console.log('Searching for client ABC...')
-          const clientInput = autoId(page, 'ClientLookup-input')
-          await clientInput.fill('ABC')
+          console.log('Searching for company ABC...')
+          const companyInput = autoId(page, 'CompanyLookup-input')
+          await companyInput.fill('ABC')
 
           // Wait for results dropdown
-          await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
+          await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
 
-          // Click on the test client using role
-          console.log(`Selecting ${TEST_CLIENT_NAME}...`)
-          await page.getByRole('option', { name: new RegExp(TEST_CLIENT_NAME) }).click()
+          // Click on the test company using role
+          console.log(`Selecting ${TEST_COMPANY_NAME}...`)
+          await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
 
           // Verify selection
-          await expect(clientInput).toHaveValue(TEST_CLIENT_NAME)
+          await expect(companyInput).toHaveValue(TEST_COMPANY_NAME)
         },
       )
 
@@ -215,11 +215,11 @@ test.describe('new job default pay item', () => {
         await autoId(page, 'AppNavbar-create-job').click()
         await page.waitForURL('**/jobs/create')
 
-        // Select client
-        const clientInput = autoId(page, 'ClientLookup-input')
-        await clientInput.fill('ABC')
-        await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
-        await page.getByRole('option', { name: new RegExp(TEST_CLIENT_NAME) }).click()
+        // Select company
+        const companyInput = autoId(page, 'CompanyLookup-input')
+        await companyInput.fill('ABC')
+        await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+        await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
 
         // Enter job name
         await autoId(page, 'JobCreateView-name-input').fill(jobName)

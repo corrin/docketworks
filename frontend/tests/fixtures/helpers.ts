@@ -4,7 +4,7 @@ import { appendFileSync, existsSync, mkdirSync } from 'fs'
 import path from 'path'
 
 // Test data constants
-export const TEST_CLIENT_NAME = 'ABC Carpet Cleaning TEST IGNORE'
+export const TEST_COMPANY_NAME = 'ABC Carpet Cleaning TEST IGNORE'
 
 // Network logging state
 let networkRunId: string | null = null
@@ -20,7 +20,7 @@ export const INFINITE_TIMEOUT = 120000
 
 type JsonObject = Record<string, unknown>
 
-type CreatedClientSummary = {
+type CreatedCompanySummary = {
   name: string
   xeroContactId: string
 }
@@ -29,51 +29,51 @@ function isJsonObject(value: unknown): value is JsonObject {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
 }
 
-async function parseClientCreateResponse(response: Response): Promise<CreatedClientSummary> {
+async function parseCompanyCreateResponse(response: Response): Promise<CreatedCompanySummary> {
   const responseText = await response.text()
   let body: unknown
 
   try {
     body = JSON.parse(responseText)
   } catch {
-    throw new Error(`Client create returned non-JSON response: ${responseText}`)
+    throw new Error(`Company create returned non-JSON response: ${responseText}`)
   }
 
   if (!response.ok()) {
-    throw new Error(`Client create failed with HTTP ${response.status()}: ${responseText}`)
+    throw new Error(`Company create failed with HTTP ${response.status()}: ${responseText}`)
   }
 
-  if (!isJsonObject(body) || body.success !== true || !isJsonObject(body.client)) {
-    throw new Error(`Client create returned unsuccessful payload: ${responseText}`)
+  if (!isJsonObject(body) || body.success !== true || !isJsonObject(body.company)) {
+    throw new Error(`Company create returned unsuccessful payload: ${responseText}`)
   }
 
-  const name = body.client.name
-  const xeroContactId = body.client.xero_contact_id
+  const name = body.company.name
+  const xeroContactId = body.company.xero_contact_id
   if (typeof name !== 'string' || name.length === 0) {
-    throw new Error(`Client create returned missing client name: ${responseText}`)
+    throw new Error(`Company create returned missing company name: ${responseText}`)
   }
   if (typeof xeroContactId !== 'string' || xeroContactId.length === 0) {
-    throw new Error(`Client create returned client without Xero ID: ${responseText}`)
+    throw new Error(`Company create returned company without Xero ID: ${responseText}`)
   }
 
   return { name, xeroContactId }
 }
 
-export async function waitForClientCreateResponse(
+export async function waitForCompanyCreateResponse(
   page: Page,
   action: () => Promise<void>,
-): Promise<CreatedClientSummary> {
+): Promise<CreatedCompanySummary> {
   const responsePromise = page.waitForResponse(
     (candidate) => {
       const url = new URL(candidate.url())
-      return url.pathname === '/api/clients/create/' && candidate.request().method() === 'POST'
+      return url.pathname === '/api/companies/create/' && candidate.request().method() === 'POST'
     },
     { timeout: 30000 },
   )
 
   await action()
   const response = await responsePromise
-  return await parseClientCreateResponse(response)
+  return await parseCompanyCreateResponse(response)
 }
 
 /**
@@ -118,7 +118,7 @@ export function enableNetworkLogging(
     }
 
     // Only log API calls, skip static assets
-    if (!url.includes('/api/') && !url.includes('/clients/') && !url.includes('/jobs/')) {
+    if (!url.includes('/api/') && !url.includes('/companies/') && !url.includes('/jobs/')) {
       return
     }
 
@@ -375,18 +375,18 @@ export async function createTestPurchaseOrder(page: Page): Promise<string> {
   await page.waitForLoadState('networkidle')
 
   // Create a new supplier using Ctrl+Enter
-  const supplierInput = autoId(page, 'ClientLookup-input')
+  const supplierInput = autoId(page, 'CompanyLookup-input')
   await supplierInput.click()
   await supplierInput.fill(supplierName)
   await page.waitForTimeout(500)
-  await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
-  await autoId(page, 'ClientLookup-create-new').waitFor({ timeout: 5000 })
-  await waitForClientCreateResponse(page, async () => {
+  await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+  await autoId(page, 'CompanyLookup-create-new').waitFor({ timeout: 5000 })
+  await waitForCompanyCreateResponse(page, async () => {
     await supplierInput.press('Control+Enter')
   })
 
   // Verify Xero badge is green
-  const xeroIndicator = autoId(page, 'ClientLookup-xero-valid')
+  const xeroIndicator = autoId(page, 'CompanyLookup-xero-valid')
   await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
 
   // Add reference
@@ -426,15 +426,15 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
     await page.waitForLoadState('networkidle')
   })
 
-  await expectStepUnder('createTestJob: search and select client', 1500, async () => {
-    const clientInput = autoId(page, 'ClientLookup-input')
-    await clientInput.click()
-    await clientInput.fill('ABC')
+  await expectStepUnder('createTestJob: search and select company', 1500, async () => {
+    const companyInput = autoId(page, 'CompanyLookup-input')
+    await companyInput.click()
+    await companyInput.fill('ABC')
     await page.waitForTimeout(500) // Give search time to trigger
-    await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
+    await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
 
-    await page.getByRole('option', { name: new RegExp(TEST_CLIENT_NAME) }).click()
-    await expect(clientInput).toHaveValue(TEST_CLIENT_NAME)
+    await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
+    await expect(companyInput).toHaveValue(TEST_COMPANY_NAME)
   })
 
   await expectStepUnder('createTestJob: fill job details', 1000, async () => {

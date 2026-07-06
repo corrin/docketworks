@@ -3,55 +3,55 @@ import {
   autoId,
   dismissToasts,
   submitJobAndWaitForCreatedJob,
-  waitForClientCreateResponse,
+  waitForCompanyCreateResponse,
 } from '../fixtures/helpers'
 
 /**
- * Tests for creating a job with a new client in Xero.
- * Creates a new client during job creation, verifies Xero sync.
+ * Tests for creating a job with a new company in Xero.
+ * Creates a new company during job creation, verifies Xero sync.
  */
 
 // ============================================================================
-// Test Suite: Create Job with New Xero Client
+// Test Suite: Create Job with New Xero Company
 // ============================================================================
 
-test.describe('create job with new xero client', () => {
-  test('create new client via Ctrl+Enter and complete job creation', async ({
+test.describe('create job with new xero company', () => {
+  test('create new company via Ctrl+Enter and complete job creation', async ({
     authenticatedPage: page,
   }) => {
-    // Generate a unique client name with random number
+    // Generate a unique company name with random number
     const randomSuffix = Math.floor(Math.random() * 100000)
-    const newClientName = `[TEST] Client ${randomSuffix}`
-    const jobName = `[TEST] Job for ${newClientName}`
+    const newCompanyName = `[TEST] Company ${randomSuffix}`
+    const jobName = `[TEST] Job for ${newCompanyName}`
 
-    console.log(`Testing with new client: ${newClientName}`)
+    console.log(`Testing with new company: ${newCompanyName}`)
 
     // Navigate to create job page
     await autoId(page, 'AppNavbar-create-job').click()
     await page.waitForURL('**/jobs/create')
     await expect(autoId(page, 'JobCreateView-title')).toContainText('Create New Job')
 
-    // Type the new client name in the client lookup
-    const clientInput = autoId(page, 'ClientLookup-input')
-    await clientInput.fill(newClientName)
+    // Type the new company name in the company lookup
+    const companyInput = autoId(page, 'CompanyLookup-input')
+    await companyInput.fill(newCompanyName)
 
-    // Wait for the dropdown to appear with "Add new client" option
-    await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
-    await autoId(page, 'ClientLookup-create-new').waitFor({ timeout: 5000 })
+    // Wait for the dropdown to appear with "Add new company" option
+    await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+    await autoId(page, 'CompanyLookup-create-new').waitFor({ timeout: 5000 })
 
-    // Press Ctrl+Enter to quick-create the client (bypasses modal)
-    await waitForClientCreateResponse(page, async () => {
-      await clientInput.press('Control+Enter')
+    // Press Ctrl+Enter to quick-create the company (bypasses modal)
+    await waitForCompanyCreateResponse(page, async () => {
+      await companyInput.press('Control+Enter')
     })
 
-    // Verify client was created - input should still have the client name
-    await expect(clientInput).toHaveValue(newClientName)
+    // Verify company was created - input should still have the company name
+    await expect(companyInput).toHaveValue(newCompanyName)
 
-    // Verify the Xero badge shows green (client has Xero ID)
-    const xeroIndicator = autoId(page, 'ClientLookup-xero-valid')
+    // Verify the Xero badge shows green (company has Xero ID)
+    const xeroIndicator = autoId(page, 'CompanyLookup-xero-valid')
     await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
 
-    console.log(`Client "${newClientName}" created with Xero ID`)
+    console.log(`Company "${newCompanyName}" created with Xero ID`)
 
     // Fill in the rest of the job form
     await autoId(page, 'JobCreateView-name-input').fill(jobName)
@@ -62,8 +62,8 @@ test.describe('create job with new xero client', () => {
     await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
     await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
 
-    // For a new client, there won't be existing contacts - fill in the create form
-    // The form fields are always visible for new clients
+    // For a new company, there won't be existing contacts - fill in the create form
+    // The form fields are always visible for new companies
     await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${randomSuffix}`)
     await page.waitForTimeout(200)
     await autoId(page, 'ContactSelectionModal-email-input').fill(`test${randomSuffix}@example.com`)
@@ -98,52 +98,52 @@ test.describe('create job with new xero client', () => {
     await expect(jobNumberElement).toContainText(/#\d+/, { timeout: 10000 })
     const jobNumberText = await jobNumberElement.innerText()
 
-    console.log(`Created job ${jobNumberText} with new client "${newClientName}"`)
+    console.log(`Created job ${jobNumberText} with new company "${newCompanyName}"`)
   })
 
-  test('create new client via modal and complete job creation', async ({
+  test('create new company via modal and complete job creation', async ({
     authenticatedPage: page,
   }) => {
-    // Generate a unique client name with random number
+    // Generate a unique company name with random number
     const randomSuffix = Math.floor(Math.random() * 100000)
-    const newClientName = `[TEST] Modal Client ${randomSuffix}`
+    const newCompanyName = `[TEST] Modal Company ${randomSuffix}`
     const jobName = `[TEST] Modal Job ${randomSuffix}`
 
-    console.log(`Testing with new client (modal method): ${newClientName}`)
+    console.log(`Testing with new company (modal method): ${newCompanyName}`)
 
     // Navigate to create job page
     await autoId(page, 'AppNavbar-create-job').click()
     await page.waitForURL('**/jobs/create')
 
-    // Type the new client name
-    const clientInput = autoId(page, 'ClientLookup-input')
-    await clientInput.fill(newClientName)
+    // Type the new company name
+    const companyInput = autoId(page, 'CompanyLookup-input')
+    await companyInput.fill(newCompanyName)
 
-    // Wait for dropdown and click "Add new client" - this opens a modal
-    await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
-    await autoId(page, 'ClientLookup-create-new').click()
+    // Wait for dropdown and click "Add new company" - this opens a modal
+    await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+    await autoId(page, 'CompanyLookup-create-new').click()
 
-    // Wait for the CreateClientModal to appear
-    const createClientModal = page.locator('div[role="dialog"]:has-text("Add New Client")')
-    await createClientModal.waitFor({ timeout: 5000 })
+    // Wait for the CreateCompanyModal to appear
+    const createCompanyModal = page.locator('div[role="dialog"]:has-text("Add New Company")')
+    await createCompanyModal.waitFor({ timeout: 5000 })
 
-    console.log('CreateClientModal opened')
+    console.log('CreateCompanyModal opened')
 
-    // The client name should already be filled in the modal
-    // Click "Create Client" button to create the client
-    const createClientButton = page.getByRole('button', { name: 'Create Client' })
-    await waitForClientCreateResponse(page, async () => {
-      await createClientButton.click()
+    // The company name should already be filled in the modal
+    // Click "Create Company" button to create the company
+    const createCompanyButton = page.getByRole('button', { name: 'Create Company' })
+    await waitForCompanyCreateResponse(page, async () => {
+      await createCompanyButton.click()
     })
 
-    // Wait for modal to close and client to be created
-    await createClientModal.waitFor({ state: 'hidden', timeout: 10000 })
+    // Wait for modal to close and company to be created
+    await createCompanyModal.waitFor({ state: 'hidden', timeout: 10000 })
 
     // Verify the Xero badge shows green
-    const xeroIndicator = autoId(page, 'ClientLookup-xero-valid')
+    const xeroIndicator = autoId(page, 'CompanyLookup-xero-valid')
     await expect(xeroIndicator).toBeVisible({ timeout: 10000 })
 
-    console.log(`Client "${newClientName}" created with Xero ID via modal`)
+    console.log(`Company "${newCompanyName}" created with Xero ID via modal`)
 
     // Fill in job details
     await autoId(page, 'JobCreateView-name-input').fill(jobName)

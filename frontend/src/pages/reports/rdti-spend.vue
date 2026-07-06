@@ -153,11 +153,11 @@
                       </th>
                       <th
                         class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                        @click="handleSort('client_name')"
+                        @click="handleSort('company_name')"
                       >
                         <div class="flex items-center gap-1">
-                          Client
-                          <span v-if="sortColumn === 'client_name'" class="text-slate-500">
+                          Company
+                          <span v-if="sortColumn === 'company_name'" class="text-slate-500">
                             {{ sortDirection === 'asc' ? '↑' : '↓' }}
                           </span>
                         </div>
@@ -226,9 +226,9 @@
                       </td>
                       <td
                         class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 max-w-[150px] truncate"
-                        :title="job.client_name"
+                        :title="job.company_name"
                       >
-                        {{ job.client_name }}
+                        {{ job.company_name }}
                       </td>
                       <td class="px-4 py-4 whitespace-nowrap text-sm">
                         <span
@@ -308,7 +308,7 @@ const supportingSummary = computed(() => summary.value.find((s) => s.rdti_type =
 type SortableColumn =
   | 'job_number'
   | 'job_name'
-  | 'client_name'
+  | 'company_name'
   | 'rdti_type'
   | 'hours'
   | 'cost'
@@ -416,12 +416,12 @@ const loadData = async () => {
 const exportReport = () => {
   if (!jobs.value.length) return
 
-  const headers = ['Job Number', 'Job Name', 'Client', 'RDTI Type', 'Hours', 'Cost', 'Revenue']
+  const headers = ['Job Number', 'Job Name', 'Company', 'RDTI Type', 'Hours', 'Cost', 'Revenue']
 
   const rows = jobs.value.map((job) => [
     job.job_number,
     job.job_name,
-    job.client_name,
+    job.company_name,
     job.rdti_type,
     job.hours,
     job.cost,

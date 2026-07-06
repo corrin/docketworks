@@ -230,11 +230,11 @@
                       </th>
                       <th
                         class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-slate-100"
-                        @click="handleSort('client_name')"
+                        @click="handleSort('company_name')"
                       >
                         <div class="flex items-center gap-1">
-                          Client
-                          <span v-if="sortColumn === 'client_name'" class="text-slate-500">
+                          Company
+                          <span v-if="sortColumn === 'company_name'" class="text-slate-500">
                             {{ sortDirection === 'asc' ? '↑' : '↓' }}
                           </span>
                         </div>
@@ -381,9 +381,9 @@
                       </td>
                       <td
                         class="px-4 py-4 whitespace-nowrap text-sm text-gray-900 max-w-[120px] truncate"
-                        :title="job.client_name"
+                        :title="job.company_name"
                       >
-                        {{ job.client_name }}
+                        {{ job.company_name }}
                       </td>
                       <td class="px-4 py-4 whitespace-nowrap text-sm">
                         <span
@@ -505,7 +505,7 @@ interface JobProfitability {
   job_id: string
   job_number: number
   job_name: string
-  client_name: string
+  company_name: string
   pricing_type: string
   pricing_type_display: string
   completion_date: string
@@ -547,7 +547,7 @@ const filters = ref({
 
 type SortableColumn =
   | 'job_number'
-  | 'client_name'
+  | 'company_name'
   | 'pricing_type'
   | 'completion_date'
   | 'revenue'
@@ -698,7 +698,7 @@ const exportReport = () => {
   const headers = [
     'Job Number',
     'Job Name',
-    'Client',
+    'Company',
     'Pricing Type',
     'Completion Date',
     'Revenue',
@@ -724,7 +724,7 @@ const exportReport = () => {
   const rows = jobs.value.map((job) => [
     job.job_number,
     job.job_name,
-    job.client_name,
+    job.company_name,
     job.pricing_type_display,
     job.completion_date,
     job.revenue,

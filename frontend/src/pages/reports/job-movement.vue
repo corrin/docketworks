@@ -513,7 +513,7 @@ const JobDetailTable = {
             <tr>
               <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Job #</th>
               <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Name</th>
-              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Client</th>
+              <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Company</th>
               <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Status</th>
               <th class="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase">Created</th>
             </tr>
@@ -522,7 +522,7 @@ const JobDetailTable = {
             <tr v-for="job in jobs" :key="job.id" class="hover:bg-gray-50">
               <td class="px-4 py-2 whitespace-nowrap font-medium text-indigo-600">{{ job.job_number }}</td>
               <td class="px-4 py-2 whitespace-nowrap">{{ job.name }}</td>
-              <td class="px-4 py-2 whitespace-nowrap">{{ job.client_name }}</td>
+              <td class="px-4 py-2 whitespace-nowrap">{{ job.company_name }}</td>
               <td class="px-4 py-2 whitespace-nowrap">{{ job.status }}</td>
               <td class="px-4 py-2 whitespace-nowrap text-gray-500">{{ job.created_at }}</td>
             </tr>

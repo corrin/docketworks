@@ -113,7 +113,7 @@ function makeEmptyLine(): PurchaseOrderLine {
     location: undefined,
     job_id: null,
     job_number: null,
-    client_name: null,
+    company_name: null,
     job_name: null,
     times_used: 0,
   }
@@ -312,7 +312,7 @@ const columns = computed<ColumnDef<PurchaseOrderLine>[]>(() => {
                       job_id: job.id,
                       job_number: job.job_number,
                       job_name: job.name,
-                      client_name: job.client_name,
+                      company_name: job.company_name,
                     })
                   }
                 },

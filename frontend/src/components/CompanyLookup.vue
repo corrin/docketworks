@@ -14,7 +14,7 @@
           type="text"
           :placeholder="placeholder"
           :required="required"
-          data-automation-id="ClientLookup-input"
+          data-automation-id="CompanyLookup-input"
           class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           @input="handleInput"
           @focus="handleFocus"
@@ -24,7 +24,7 @@
         />
 
         <div
-          v-if="isLoading || isCreatingQuickClient"
+          v-if="isLoading || isCreatingQuickCompany"
           class="absolute right-3 top-1/2 transform -translate-y-1/2"
         >
           <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
@@ -32,30 +32,30 @@
 
         <div
           v-if="showSuggestions && (suggestions.length > 0 || searchQuery.length >= 3)"
-          data-automation-id="ClientLookup-results"
+          data-automation-id="CompanyLookup-results"
           class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-y-auto"
         >
           <div
-            v-for="(client, index) in suggestions"
-            :key="client.id"
+            v-for="(company, index) in suggestions"
+            :key="company.id"
             role="option"
-            :data-automation-id="`ClientLookup-option-${client.id}`"
+            :data-automation-id="`CompanyLookup-option-${company.id}`"
             class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
-            @mousedown.prevent="selectClient(client, index + 1)"
+            @mousedown.prevent="selectCompany(company, index + 1)"
           >
-            <div class="font-medium text-gray-900">{{ client.name }}</div>
+            <div class="font-medium text-gray-900">{{ company.name }}</div>
           </div>
 
           <div
             v-if="searchQuery.length >= 3"
             class="px-4 py-2 hover:bg-green-50 cursor-pointer border-t border-gray-200 text-green-700 font-medium"
-            data-automation-id="ClientLookup-create-new"
+            data-automation-id="CompanyLookup-create-new"
             @mousedown.prevent="handleCreateNew"
           >
             <div class="flex items-center justify-between">
               <div class="flex items-center">
                 <Plus class="w-4 h-4 mr-2" />
-                Add new {{ supplierLookup.value ? 'supplier' : 'client' }} "{{ searchQuery }}"
+                Add new {{ supplierLookup.value ? 'supplier' : 'company' }} "{{ searchQuery }}"
               </div>
               <div class="text-xs text-gray-500">or press Ctrl+Enter</div>
             </div>
@@ -65,7 +65,7 @@
             v-if="suggestions.length === 0 && searchQuery.length >= 3 && !isLoading"
             class="px-4 py-2 text-gray-500 text-center"
           >
-            No clients found
+            No companies found
           </div>
         </div>
       </div>
@@ -78,8 +78,10 @@
               ? 'bg-green-100 text-green-800 border border-green-200'
               : 'bg-red-100 text-red-800 border border-red-200',
           ]"
-          :title="hasValidXeroId ? 'Client has Xero ID' : 'Client missing Xero ID'"
-          :data-automation-id="xeroValid ? 'ClientLookup-xero-valid' : 'ClientLookup-xero-invalid'"
+          :title="hasValidXeroId ? 'Company has Xero ID' : 'Company missing Xero ID'"
+          :data-automation-id="
+            xeroValid ? 'CompanyLookup-xero-valid' : 'CompanyLookup-xero-invalid'
+          "
           v-if="!searchMode"
         >
           <component :is="xeroValid ? CheckCircle : XCircle" class="w-3 h-3" />
@@ -88,18 +90,18 @@
       </div>
     </div>
 
-    <div v-if="selectedClient && !editMode" class="mt-2 p-2 bg-blue-50 rounded border">
-      <div class="text-sm font-medium text-blue-900">{{ selectedClient.name }}</div>
-      <div v-if="selectedClient.email" class="text-xs text-blue-700">
-        {{ selectedClient.email }}
+    <div v-if="selectedCompany && !editMode" class="mt-2 p-2 bg-blue-50 rounded border">
+      <div class="text-sm font-medium text-blue-900">{{ selectedCompany.name }}</div>
+      <div v-if="selectedCompany.email" class="text-xs text-blue-700">
+        {{ selectedCompany.email }}
       </div>
     </div>
 
-    <CreateClientModal
+    <CreateCompanyModal
       :is-open="showCreateModal"
       :initial-name="searchQuery"
       @update:is-open="showCreateModal = $event"
-      @client-created="handleClientCreated"
+      @company-created="handleCompanyCreated"
     />
   </div>
 </template>
@@ -107,9 +109,9 @@
 <script setup lang="ts">
 import { ref, watch, onMounted, computed } from 'vue'
 import { Plus, CheckCircle, XCircle } from 'lucide-vue-next'
-import { logClientSearchClick, useClientLookup } from '@/composables/useClientLookup'
-import CreateClientModal from '@/components/CreateClientModal.vue'
-import type { Client } from '@/composables/useClientLookup'
+import { logCompanySearchClick, useCompanyLookup } from '@/composables/useCompanyLookup'
+import CreateCompanyModal from '@/components/CreateCompanyModal.vue'
+import type { Company } from '@/composables/useCompanyLookup'
 import { api } from '@/api/client'
 import { toast } from 'vue-sonner'
 import { debugLog } from '../utils/debug'
@@ -126,7 +128,7 @@ const props = withDefaults(
     editMode?: boolean
   }>(),
   {
-    placeholder: 'Search for a client...',
+    placeholder: 'Search for a company...',
     required: false,
     modelValue: '',
     supplierLookup: () => ({ value: false }),
@@ -136,7 +138,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
-  'update:selectedClient': [client: Client | null]
+  'update:selectedCompany': [company: Company | null]
   'update:selectedId': [id: string]
 }>()
 
@@ -145,20 +147,20 @@ const {
   suggestions,
   isLoading,
   showSuggestions,
-  selectedClient,
+  selectedCompany,
   hasValidXeroId,
   handleInputChange,
-  selectClient: selectClientFromComposable,
+  selectCompany: selectCompanyFromComposable,
   hideSuggestions,
-  preserveSelectedClient,
-} = useClientLookup({ supplierLookup: props.supplierLookup })
+  preserveSelectedCompany,
+} = useCompanyLookup({ supplierLookup: props.supplierLookup })
 
-// Simple check: does the selected client have a Xero ID?
+// Simple check: does the selected company have a Xero ID?
 const xeroValid = computed(() => hasValidXeroId.value)
 
 const showCreateModal = ref(false)
 const inputEl = ref<HTMLInputElement | null>(null) // Template ref for the input element
-const isCreatingQuickClient = ref(false)
+const isCreatingQuickCompany = ref(false)
 
 const blurTimeout = ref<ReturnType<typeof setTimeout> | null>(null)
 
@@ -206,14 +208,14 @@ const handleBlur = () => {
   }, 200)
 }
 
-const selectClient = (client: Client, rank: number | null = null) => {
+const selectCompany = (company: Company, rank: number | null = null) => {
   const query = searchQuery.value
-  preserveSelectedClient()
-  selectClientFromComposable(client)
-  logClientSearchClick(client, query, rank, 'client_lookup')
-  emit('update:modelValue', client.name)
-  emit('update:selectedClient', client)
-  emit('update:selectedId', client.id)
+  preserveSelectedCompany()
+  selectCompanyFromComposable(company)
+  logCompanySearchClick(company, query, rank, 'client_lookup')
+  emit('update:modelValue', company.name)
+  emit('update:selectedCompany', company)
+  emit('update:selectedId', company.id)
   showSuggestions.value = false
 }
 
@@ -226,65 +228,65 @@ const handleKeydown = async (event: KeyboardEvent) => {
   if (event.ctrlKey && event.key === 'Enter') {
     event.preventDefault()
 
-    const clientName = searchQuery.value.trim()
-    if (clientName.length >= 3) {
-      await createQuickClient(clientName)
+    const companyName = searchQuery.value.trim()
+    if (companyName.length >= 3) {
+      await createQuickCompany(companyName)
     }
   }
 }
 
-const createQuickClient = async (clientName: string) => {
-  if (isCreatingQuickClient.value) return
+const createQuickCompany = async (companyName: string) => {
+  if (isCreatingQuickCompany.value) return
 
-  isCreatingQuickClient.value = true
+  isCreatingQuickCompany.value = true
 
   try {
-    const clientData = {
-      name: clientName,
+    const companyData = {
+      name: companyName,
       email: null,
       address: '',
       is_account_customer: false,
     }
 
-    const result = await api.clients_create_create(clientData)
+    const result = await api.companies_create_create(companyData)
 
-    if (result.success && result.client) {
-      if (!result.client.xero_contact_id) {
-        throw new Error('Client was created but does not have a Xero ID')
+    if (result.success && result.company) {
+      if (!result.company.xero_contact_id) {
+        throw new Error('Company was created but does not have a Xero ID')
       }
 
-      const newClient: Client = {
-        ...result.client,
-        email: result.client.email ?? '',
-        address: result.client.address ?? '',
-        xero_contact_id: result.client.xero_contact_id ?? '',
+      const newCompany: Company = {
+        ...result.company,
+        email: result.company.email ?? '',
+        address: result.company.address ?? '',
+        xero_contact_id: result.company.xero_contact_id ?? '',
       }
 
-      selectClient(newClient)
-      searchQuery.value = newClient.name
-      emit('update:modelValue', newClient.name)
+      selectCompany(newCompany)
+      searchQuery.value = newCompany.name
+      emit('update:modelValue', newCompany.name)
 
-      toast.success(`Client "${clientName}" created successfully!`, {
+      toast.success(`Company "${companyName}" created successfully!`, {
         position: 'bottom-left',
       })
     } else {
-      throw new Error(result.message || 'Failed to create client')
+      throw new Error(result.message || 'Failed to create company')
     }
   } catch (error) {
-    toast.error(`Failed to create client: ${error instanceof Error ? error.message : error}`, {
+    toast.error(`Failed to create company: ${error instanceof Error ? error.message : error}`, {
       position: 'bottom-left',
     })
-    console.error('Quick client creation error:', error)
+    console.error('Quick company creation error:', error)
   } finally {
-    isCreatingQuickClient.value = false
+    isCreatingQuickCompany.value = false
   }
 }
 
-const handleClientCreated = (client: Client) => {
-  selectClient(client)
+const handleCompanyCreated = (company: Company) => {
+  selectCompany(company)
 
-  searchQuery.value = client.name
-  emit('update:modelValue', client.name)
+  searchQuery.value = company.name
+  emit('update:modelValue', company.name)
 
   closeLookup()
 }
@@ -294,29 +296,29 @@ watch(
   (newValue) => {
     if (newValue !== searchQuery.value) {
       searchQuery.value = newValue
-      // Preserve selected client when dialog reopens
-      preserveSelectedClient()
+      // Preserve selected company when dialog reopens
+      preserveSelectedCompany()
     }
   },
   { immediate: true },
 )
 
-watch(selectedClient, (newClient, oldClient) => {
+watch(selectedCompany, (newCompany, oldCompany) => {
   // Only emit if this is a real change, not during initial loading
-  if (newClient?.id !== oldClient?.id) {
-    if (newClient) {
-      emit('update:selectedClient', newClient)
-      emit('update:selectedId', newClient.id)
+  if (newCompany?.id !== oldCompany?.id) {
+    if (newCompany) {
+      emit('update:selectedCompany', newCompany)
+      emit('update:selectedId', newCompany.id)
     } else {
-      emit('update:selectedClient', null)
+      emit('update:selectedCompany', null)
       emit('update:selectedId', '')
     }
   }
 })
 
-// Preserve client selection when component mounts
+// Preserve company selection when component mounts
 onMounted(() => {
   debugLog('Props value: ', props)
-  preserveSelectedClient(props.modelValue || '')
+  preserveSelectedCompany(props.modelValue || '')
 })
 </script>

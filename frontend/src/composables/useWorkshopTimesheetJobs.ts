@@ -16,8 +16,8 @@ export function useWorkshopTimesheetJobs() {
     return jobs.value.filter((job) => {
       const number = String(job.job_number).toLowerCase()
       const name = (job.name || '').toLowerCase()
-      const client = (job.client_name || '').toLowerCase()
-      return number.includes(term) || name.includes(term) || client.includes(term)
+      const company = (job.company_name || '').toLowerCase()
+      return number.includes(term) || name.includes(term) || company.includes(term)
     })
   })
 

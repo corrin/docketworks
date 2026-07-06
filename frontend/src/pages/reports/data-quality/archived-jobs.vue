@@ -175,11 +175,11 @@
                     </th>
                     <th
                       class="text-left px-4 py-3 text-sm font-semibold text-slate-700 cursor-pointer hover:bg-slate-100 select-none"
-                      @click="handleSort('clientName')"
+                      @click="handleSort('companyName')"
                     >
                       <div class="flex items-center gap-1">
-                        Client
-                        <span v-if="sortColumn === 'clientName'" class="text-slate-500">
+                        Company
+                        <span v-if="sortColumn === 'companyName'" class="text-slate-500">
                           {{ sortDirection === 'asc' ? '↑' : '↓' }}
                         </span>
                       </div>
@@ -228,7 +228,7 @@
                       {{ issue.jobNumber }}
                     </td>
                     <td class="px-4 py-3 text-sm text-slate-700">
-                      {{ issue.clientName }}
+                      {{ issue.companyName }}
                     </td>
                     <td class="px-4 py-3">
                       <span
@@ -285,7 +285,7 @@ interface ValidationIssue {
   id: string
   jobId: string
   jobNumber: string
-  clientName: string
+  companyName: string
   type:
     | 'open_timesheets'
     | 'incomplete_costs'
@@ -392,7 +392,7 @@ const refreshData = async () => {
         (job: {
           job_id: string
           job_number: string
-          client_name: string
+          company_name: string
           issue?: string
           archived_date: string
           job_value: number
@@ -400,7 +400,7 @@ const refreshData = async () => {
           id: job.job_id,
           jobId: job.job_id,
           jobNumber: job.job_number,
-          clientName: job.client_name,
+          companyName: job.company_name,
           type: mapIssueLabelToType(job.issue),
           details: job.issue || 'Issue details unavailable',
           archivedDate: job.archived_date,
@@ -460,10 +460,10 @@ const refreshData = async () => {
 const exportReport = () => {
   if (!issues.value.length) return
 
-  const headers = ['Job Number', 'Client', 'Issue', 'Archived Date', 'Job Value']
+  const headers = ['Job Number', 'Company', 'Issue', 'Archived Date', 'Job Value']
   const rows = issues.value.map((issue) => [
     issue.jobNumber,
-    issue.clientName,
+    issue.companyName,
     issue.details,
     formatDate(issue.archivedDate),
     formatCurrency(issue.jobValue),

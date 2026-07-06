@@ -51,8 +51,8 @@ vi.mock('@/api/client', () => ({
       job_id: 'job-1',
       job_number: 101,
       name: 'Urgent Job',
-      client_id: null,
-      client_name: null,
+      company_id: null,
+      company_name: null,
       status: 'in_progress',
       pricing_methodology: 'time_materials',
       speed_quality_tradeoff: 'normal',
@@ -67,7 +67,7 @@ vi.mock('@/api/client', () => ({
       is_urgent: true,
     }),
     workflow_xero_pay_items_list: vi.fn().mockResolvedValue([]),
-    clients_jobs_contact_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
+    companies_jobs_contact_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
   },
 }))
 
@@ -146,9 +146,9 @@ describe('JobSettingsTab urgent autosave', () => {
           CardDescription: passthrough,
           CardContent: passthrough,
           RichTextEditor: { template: '<div />' },
-          ClientLookup: { template: '<div />' },
+          CompanyLookup: { template: '<div />' },
           ContactSelector: { template: '<div />' },
-          CreateClientModal: { template: '<div />' },
+          CreateCompanyModal: { template: '<div />' },
         },
       },
     })

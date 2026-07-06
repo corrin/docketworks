@@ -221,10 +221,10 @@
                 class="absolute top-full left-0 mt-1 w-56 bg-white rounded-md shadow-lg border border-gray-200 z-[60]"
               >
                 <router-link
-                  to="/crm/clients"
+                  to="/crm/companies"
                   class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
                 >
-                  <Users class="w-4 h-4 mr-2" /> Clients
+                  <Users class="w-4 h-4 mr-2" /> Companies
                 </router-link>
                 <router-link
                   v-if="userInfo.is_superuser"
@@ -730,11 +730,11 @@
                   <div v-if="mobileSections.crm" class="overflow-hidden">
                     <div class="px-3 pb-2 space-y-1">
                       <router-link
-                        to="/crm/clients"
+                        to="/crm/companies"
                         class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
                         @click="closeMobileMenu"
                       >
-                        <Users class="w-4 h-4 mr-2" /> Clients
+                        <Users class="w-4 h-4 mr-2" /> Companies
                       </router-link>
                       <router-link
                         v-if="userInfo.is_superuser"

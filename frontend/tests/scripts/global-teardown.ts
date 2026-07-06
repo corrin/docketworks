@@ -117,7 +117,7 @@ function restoreDatabase(lockContents: string) {
 
   // Let in-flight Celery/Xero work finish against the dirty test DB before
   // restoring the backup. If we restore immediately, a webhook/full-sync task
-  // that was already queued can recreate [TEST] clients in the clean DB a few
+  // that was already queued can recreate [TEST] companies in the clean DB a few
   // seconds later. Waiting here makes those writes part of the state we wipe.
   console.log(
     `[db] Waiting ${PRE_RESTORE_XERO_SETTLE_MS / 1000}s for in-flight Xero/Celery work before restore...`,

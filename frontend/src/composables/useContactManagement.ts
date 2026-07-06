@@ -18,9 +18,9 @@ type ContactFormFields = {
 export type ContactFormData = ContactFormFields
 
 /**
- * Composable for managing client contacts
+ * Composable for managing company contacts
  *
- * Provides functionality for loading, creating, selecting, and managing client contacts.
+ * Provides functionality for loading, creating, selecting, and managing company contacts.
  * Handles modal state, form validation, and API interactions for contact management.
  *
  * @returns Object containing reactive state and methods for contact management
@@ -30,8 +30,8 @@ export function useContactManagement() {
   const contacts = ref<ClientContact[]>([])
   const selectedContact = ref<ClientContact | null>(null)
   const isLoading = ref(false)
-  const currentClientId = ref<string>('')
-  const currentClientName = ref<string>('')
+  const currentCompanyId = ref<string>('')
+  const currentCompanyName = ref<string>('')
 
   const newContactForm = ref<ContactFormData>({
     name: '',
@@ -80,24 +80,24 @@ export function useContactManagement() {
   }
 
   /**
-   * Opens the contact selection modal for a specific client
+   * Opens the contact selection modal for a specific company
    *
-   * @param clientId - The ID of the client to load contacts for
-   * @param clientName - The name of the client (for display purposes)
+   * @param companyId - The ID of the company to load contacts for
+   * @param companyName - The name of the company (for display purposes)
    */
-  const openModal = async (clientId: string, clientName: string) => {
-    if (!clientId) {
-      debugLog('Cannot open contact modal without client ID')
+  const openModal = async (companyId: string, companyName: string) => {
+    if (!companyId) {
+      debugLog('Cannot open contact modal without company ID')
       return
     }
 
-    currentClientId.value = clientId
-    currentClientName.value = clientName
+    currentCompanyId.value = companyId
+    currentCompanyName.value = companyName
     isModalOpen.value = true
 
     resetNewContactForm()
 
-    await loadContacts(clientId)
+    await loadContacts(companyId)
   }
 
   /**
@@ -110,12 +110,12 @@ export function useContactManagement() {
   }
 
   /**
-   * Loads contacts for a specific client from the API
+   * Loads contacts for a specific company from the API
    *
-   * @param clientId - The ID of the client to load contacts for
+   * @param companyId - The ID of the company to load contacts for
    */
-  const loadContacts = async (clientId: string) => {
-    if (!clientId) {
+  const loadContacts = async (companyId: string) => {
+    if (!companyId) {
       contacts.value = []
       newContactForm.value.is_primary = true
       return
@@ -123,8 +123,8 @@ export function useContactManagement() {
 
     isLoading.value = true
     try {
-      const response = await api.clients_contacts_list({
-        queries: { client_id: clientId },
+      const response = await api.companies_contacts_list({
+        queries: { company_id: companyId },
       })
       contacts.value = response || []
       newContactForm.value.is_primary = contacts.value.length === 0
@@ -138,12 +138,12 @@ export function useContactManagement() {
   }
 
   /**
-   * Loads contacts for a client without opening the modal
+   * Loads contacts for a company without opening the modal
    *
-   * @param clientId - The ID of the client to load contacts for
+   * @param companyId - The ID of the company to load contacts for
    */
-  const loadContactsOnly = async (clientId: string) => {
-    await loadContacts(clientId)
+  const loadContactsOnly = async (companyId: string) => {
+    await loadContacts(companyId)
   }
 
   /**
@@ -168,16 +168,16 @@ export function useContactManagement() {
   }
 
   /**
-   * Creates a new contact for the current client
+   * Creates a new contact for the current company
    *
-   * Automatically sets the contact as primary if it's the first contact for the client.
+   * Automatically sets the contact as primary if it's the first contact for the company.
    * After creation, reloads the contacts list and selects the newly created contact.
    *
    * @returns Promise<boolean> - True if contact was created successfully, false otherwise
    */
   const createNewContact = async (): Promise<boolean> => {
-    if (!currentClientId.value) {
-      debugLog('Cannot create contact without client ID')
+    if (!currentCompanyId.value) {
+      debugLog('Cannot create contact without company ID')
       return false
     }
 
@@ -189,7 +189,7 @@ export function useContactManagement() {
     isLoading.value = true
 
     try {
-      // If this is the first contact for the client, automatically make it primary
+      // If this is the first contact for the company, automatically make it primary
       const shouldBePrimary = newContactForm.value.is_primary || contacts.value.length === 0
 
       const trimmedPosition = newContactForm.value.position?.trim()
@@ -197,7 +197,7 @@ export function useContactManagement() {
       const trimmedNotes = newContactForm.value.notes?.trim()
 
       const contactData: ContactCreateRequest = {
-        client: currentClientId.value,
+        company: currentCompanyId.value,
         name: newContactForm.value.name.trim(),
         is_primary: shouldBePrimary,
         position: trimmedPosition || undefined,
@@ -207,7 +207,7 @@ export function useContactManagement() {
 
       debugLog('Creating new contact:', contactData)
 
-      const response = await api.clients_contacts_create(contactData)
+      const response = await api.companies_contacts_create(contactData)
 
       if (!response || !response.id) {
         throw new Error('Invalid response from server')
@@ -218,7 +218,7 @@ export function useContactManagement() {
       debugLog('Contact created successfully:', newContact)
 
       // Reload contacts first to get the updated list
-      await loadContacts(currentClientId.value)
+      await loadContacts(currentCompanyId.value)
 
       // Then find and select the newly created contact
       const createdContact = contacts.value.find((contact) => contact.id === newContact.id)
@@ -307,14 +307,14 @@ export function useContactManagement() {
 
       debugLog('Updating contact:', editingContact.value.id, contactData)
 
-      await api.clients_contacts_partial_update(contactData, {
+      await api.companies_contacts_partial_update(contactData, {
         params: { id: editingContact.value.id },
       })
 
       debugLog('Contact updated successfully')
 
       // Reload contacts to get updated list
-      await loadContacts(currentClientId.value)
+      await loadContacts(currentCompanyId.value)
 
       // If the updated contact was selected, update the selection
       if (selectedContact.value?.id === editingContact.value.id) {
@@ -352,14 +352,14 @@ export function useContactManagement() {
     try {
       debugLog('Deleting contact:', contactId)
 
-      await api.clients_contacts_destroy(undefined, {
+      await api.companies_contacts_destroy(undefined, {
         params: { id: contactId },
       })
 
       debugLog('Contact deleted successfully')
 
       // Reload contacts to get updated list (inactive contacts filtered out)
-      await loadContacts(currentClientId.value)
+      await loadContacts(currentCompanyId.value)
 
       // Clear selection if deleted contact was selected
       if (selectedContact.value?.id === contactId) {
@@ -439,7 +439,7 @@ export function useContactManagement() {
     contacts,
     selectedContact,
     isLoading,
-    currentClientName,
+    currentCompanyName,
     newContactForm,
 
     // Edit mode state

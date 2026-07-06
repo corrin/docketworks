@@ -26,7 +26,7 @@
                 {{ formatHours(monthlyData.billable_hours) }}
               </div>
               <div class="text-sm text-blue-600">Billable Hours</div>
-              <div class="text-xs text-gray-500 mt-1">Client chargeable time</div>
+              <div class="text-xs text-gray-500 mt-1">Company chargeable time</div>
             </div>
             <div class="text-center">
               <div class="text-3xl font-bold text-blue-700">{{ formatHours(totalShopHours) }}</div>
