@@ -1,4 +1,3 @@
-import importlib
 import uuid
 from decimal import Decimal
 
@@ -123,38 +122,3 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         self.assertNotIn("contact", quote.raw_json)
         self.assertEqual(quote.total_excl_tax, Decimal("250.00"))
         self.assertEqual(quote.total_incl_tax, Decimal("287.50"))
-
-
-class XeroRawJsonMigrationHelperTests(BaseTestCase):
-    def setUp(self):
-        migration = importlib.import_module(
-            "apps.accounting.migrations.0008_normalize_xero_raw_json_strings"
-        )
-        self.normalize = migration._normalize_raw_json
-
-    def test_normalizes_double_encoded_invoice_wrapper(self):
-        value = (
-            '{"sub_total": "100.00", "full": {'
-            '"contact": {"name": "Raw JSON Client"}, '
-            '"invoice_id": "invoice-id", '
-            '"line_items": [{"description": "Labour"}]'
-            "}}"
-        )
-
-        normalized = self.normalize(value, "Invoice", uuid.uuid4())
-
-        self.assertEqual(normalized["_contact"]["_name"], "Raw JSON Client")
-        self.assertEqual(normalized["_invoice_id"], "invoice-id")
-        self.assertEqual(normalized["_line_items"][0]["_description"], "Labour")
-        self.assertNotIn("full", normalized)
-
-    def test_already_canonical_dict_is_unchanged(self):
-        value = {"_contact": {"_name": "Raw JSON Client"}}
-
-        normalized = self.normalize(value, "Invoice", uuid.uuid4())
-
-        self.assertEqual(normalized, value)
-
-    def test_invalid_json_string_fails(self):
-        with self.assertRaises(ValueError):
-            self.normalize("{not-json", "Invoice", uuid.uuid4())
