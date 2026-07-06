@@ -203,7 +203,7 @@ class JobSerializer(serializers.ModelSerializer):
         return XeroInvoiceSerializer(obj.invoices.all(), many=True).data
 
     @extend_schema_field(serializers.CharField())
-    def get_client_phone(self, obj) -> str:
+    def get_client_phone(self, obj: Job) -> str:
         """The client's primary phone number, or "" when it has none."""
         return obj.client.primary_phone_value() if obj.client else ""
 
@@ -835,7 +835,7 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
     )
 
     @extend_schema_field(serializers.CharField())
-    def get_client_phone(self, obj) -> str:
+    def get_client_phone(self, obj: Job) -> str:
         """The client's primary phone number, or "" when it has none."""
         return obj.client.primary_phone_value() if obj.client else ""
 
