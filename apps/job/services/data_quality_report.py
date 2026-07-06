@@ -33,7 +33,7 @@ class ArchivedJobsComplianceService:
         not_cancelled_count = 0
         has_open_tasks_count = 0
 
-        for job in archived_jobs.select_related("client"):
+        for job in archived_jobs.select_related("company"):
             issues = []
 
             # Job should either be cancelled/rejected OR (fully invoiced AND paid)
@@ -63,8 +63,8 @@ class ArchivedJobsComplianceService:
                             {
                                 "job_id": str(job.id),
                                 "job_number": job.job_number,
-                                "client_name": (
-                                    job.client.name if job.client else "Shop Job"
+                                "company_name": (
+                                    job.company.name if job.company else "Shop Job"
                                 ),
                                 "archived_date": (
                                     timezone.localtime(job.updated_at).date()

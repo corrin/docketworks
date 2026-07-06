@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -1018,7 +1018,7 @@ class Migration(migrations.Migration):
                         help_text="Internal client used for tracking shop work.",
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="+",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],

@@ -2,7 +2,7 @@
 
 from django.db.models import RestrictedError
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.models.costing import CostSet
 from apps.testing import BaseTestCase
@@ -10,8 +10,8 @@ from apps.testing import BaseTestCase
 
 class JobLatestCostSetCreationTests(BaseTestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Latest CostSet Client",
+        self.client_obj = Company.objects.create(
+            name="Latest CostSet Company",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -36,7 +36,7 @@ class JobLatestCostSetCreationTests(BaseTestCase):
 
     def test_manager_create_seeds_required_latest_cost_sets(self):
         job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Manager create job",
             staff=self.test_staff,
         )
@@ -44,7 +44,7 @@ class JobLatestCostSetCreationTests(BaseTestCase):
         self._assert_initial_cost_sets(job)
 
     def test_model_save_seeds_required_latest_cost_sets(self):
-        job = Job(client=self.client_obj, name="Model save job")
+        job = Job(company=self.client_obj, name="Model save job")
         job.save(staff=self.test_staff)
 
         self._assert_initial_cost_sets(job)
@@ -52,12 +52,12 @@ class JobLatestCostSetCreationTests(BaseTestCase):
 
 class JobLatestCostSetDeletionTests(BaseTestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Latest CostSet Deletion Client",
+        self.client_obj = Company.objects.create(
+            name="Latest CostSet Deletion Company",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Deletion behavior job",
             staff=self.test_staff,
         )

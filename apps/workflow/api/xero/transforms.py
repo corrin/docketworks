@@ -9,7 +9,7 @@ from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.tasks import (
     enqueue_stock_metadata_parse,
@@ -17,7 +17,7 @@ from apps.purchasing.tasks import (
 )
 from apps.workflow.api.xero.auth import api_client, get_tenant_id
 from apps.workflow.api.xero.reprocess_xero import (
-    set_client_fields,
+    set_company_fields,
     set_invoice_or_bill_fields,
 )
 from apps.workflow.exceptions import XeroValidationError
@@ -119,11 +119,11 @@ def process_xero_data(xero_obj):
     return clean_json(serialize_xero_object(xero_obj))
 
 
-def get_or_fetch_client(contact_id, reference=None):
-    """Get client by Xero contact_id, fetching from API if needed"""
-    client = Client.objects.filter(xero_contact_id=contact_id).first()
-    if client:
-        return client.get_final_client()
+def get_or_fetch_company(contact_id, reference=None):
+    """Get company by Xero contact_id, fetching from API if needed"""
+    company = Company.objects.filter(xero_contact_id=contact_id).first()
+    if company:
+        return company.get_final_company()
 
     response = AccountingApi(api_client).get_contacts(
         get_tenant_id(), i_ds=[contact_id], include_archived=True
@@ -131,17 +131,17 @@ def get_or_fetch_client(contact_id, reference=None):
     time.sleep(SLEEP_TIME)
 
     if not response.contacts:
-        raise ValueError(f"Client not found for {reference or contact_id}")
+        raise ValueError(f"Company not found for {reference or contact_id}")
 
-    synced = sync_clients([response.contacts[0]])
+    synced = sync_companies([response.contacts[0]])
     if not synced:
-        raise ValueError(f"Failed to sync client for {reference or contact_id}")
+        raise ValueError(f"Failed to sync company for {reference or contact_id}")
 
-    return synced[0].get_final_client()
+    return synced[0].get_final_company()
 
 
-def sync_client_from_xero_contact(contact, reference=None):
-    """Resolve a local client from embedded Xero contact data.
+def sync_company_from_xero_contact(contact, reference=None):
+    """Resolve a local company from embedded Xero contact data.
 
     Use embedded contact payloads from parent Xero documents first. Only the
     caller decides when the payload is too incomplete and a separate API fetch
@@ -149,33 +149,33 @@ def sync_client_from_xero_contact(contact, reference=None):
     """
     contact_id = getattr(contact, "contact_id", None)
     if not contact_id:
-        raise ValueError(f"Client not found for {reference or 'missing contact'}")
+        raise ValueError(f"Company not found for {reference or 'missing contact'}")
 
-    client = Client.objects.filter(xero_contact_id=contact_id).first()
-    if client:
-        return client.get_final_client()
+    company = Company.objects.filter(xero_contact_id=contact_id).first()
+    if company:
+        return company.get_final_company()
 
-    synced = sync_clients([contact])
+    synced = sync_companies([contact])
     if not synced:
-        raise ValueError(f"Failed to sync client for {reference or contact_id}")
+        raise ValueError(f"Failed to sync company for {reference or contact_id}")
 
-    return synced[0].get_final_client()
+    return synced[0].get_final_company()
 
 
-def resolve_client_from_xero_contact(contact, reference=None):
-    """Resolve a client from embedded contact data, falling back to GET only if absent."""
+def resolve_company_from_xero_contact(contact, reference=None):
+    """Resolve a company from embedded contact data, falling back to GET only if absent."""
     if contact is None:
-        raise ValueError(f"Client not found for {reference or 'missing contact'}")
+        raise ValueError(f"Company not found for {reference or 'missing contact'}")
 
     contact_id = getattr(contact, "contact_id", None)
     if contact_id is None:
-        raise ValueError(f"Client not found for {reference or 'missing contact id'}")
+        raise ValueError(f"Company not found for {reference or 'missing contact id'}")
 
     contact_attrs = getattr(contact, "__dict__", None) or {}
     if len(contact_attrs) > 1:
-        return sync_client_from_xero_contact(contact, reference)
+        return sync_company_from_xero_contact(contact, reference)
 
-    return get_or_fetch_client(contact_id, reference)
+    return get_or_fetch_company(contact_id, reference)
 
 
 def sync_entities(
@@ -259,7 +259,7 @@ def _extract_required_fields_xero(doc_type, xero_obj, xero_id):
         Mapping of required field names to values.
     """
     number = _resolve_document_number(doc_type, xero_obj, xero_id)
-    client = resolve_client_from_xero_contact(
+    company = resolve_company_from_xero_contact(
         getattr(xero_obj, "contact", None), number
     )
     date = getattr(xero_obj, "date", None)
@@ -275,7 +275,7 @@ def _extract_required_fields_xero(doc_type, xero_obj, xero_id):
     raw_json = process_xero_data(xero_obj)
 
     required_fields = {
-        "client": client,
+        "company": company,
         "date": date,
         "number": number,
         "total_excl_tax": total_excl_tax,
@@ -550,7 +550,7 @@ def transform_quote(xero_quote, xero_id):
     Returns:
         The saved Quote model.
     """
-    client = resolve_client_from_xero_contact(
+    company = resolve_company_from_xero_contact(
         getattr(xero_quote, "contact", None), f"quote {xero_id}"
     )
     raw_json = process_xero_data(xero_quote)
@@ -560,7 +560,7 @@ def transform_quote(xero_quote, xero_id):
     validate_required_fields({"status": status}, "quote", xero_id)
 
     defaults = {
-        "client": client,
+        "company": company,
         "date": raw_json.get("_date"),
         "number": getattr(xero_quote, "quote_number", None),
         "status": status,
@@ -595,7 +595,7 @@ def transform_purchase_order(xero_po, xero_id):
         "BILLED": "fully_received",
         "VOIDED": "deleted",
     }
-    supplier = resolve_client_from_xero_contact(
+    supplier = resolve_company_from_xero_contact(
         getattr(xero_po, "contact", None), xero_po.purchase_order_number
     )
 
@@ -868,32 +868,32 @@ def transform_pay_slip(xero_pay_slip, xero_id):
     return pay_slip, _build_sync_status(created, changed_fields)
 
 
-def sync_clients(xero_contacts):
-    """Sync Xero contacts to Client model"""
+def sync_companies(xero_contacts):
+    """Sync Xero contacts to Company model"""
     clients = []
 
     for contact in xero_contacts:
         raw_json = process_xero_data(contact)
 
-        # Check if we already have a client with this xero_contact_id
-        existing_client = Client.objects.filter(
+        # Check if we already have a company with this xero_contact_id
+        existing_client = Company.objects.filter(
             xero_contact_id=contact.contact_id
         ).first()
 
         if existing_client:
             # Already linked - just update with latest Xero data
-            client = existing_client
-            client.raw_json = raw_json
-            client.xero_last_modified = timezone.now()
-            client.xero_archived = contact.contact_status == "ARCHIVED"
-            client.xero_merged_into_id = getattr(contact, "merged_to_contact_id", None)
-            client.save()
+            company = existing_client
+            company.raw_json = raw_json
+            company.xero_last_modified = timezone.now()
+            company.xero_archived = contact.contact_status == "ARCHIVED"
+            company.xero_merged_into_id = getattr(contact, "merged_to_contact_id", None)
+            company.save()
             created = False
         else:
             # Not linked yet - check if name already exists in our database
             contact_name = raw_json.get("_name", "").strip()
             if contact_name:
-                matching_client = Client.objects.filter(name=contact_name).first()
+                matching_client = Company.objects.filter(name=contact_name).first()
 
                 if matching_client:
                     if matching_client.xero_contact_id is None:
@@ -909,22 +909,22 @@ def sync_clients(xero_contacts):
                         )
                         matching_client.save()
                         logger.info(
-                            f"Linked existing client '{contact_name}' (ID: {matching_client.id}) to Xero contact {contact.contact_id}"
+                            f"Linked existing company '{contact_name}' (ID: {matching_client.id}) to Xero contact {contact.contact_id}"
                         )
-                        client = matching_client
+                        company = matching_client
                         created = False
                     else:
                         if contact.contact_status == "ARCHIVED":
-                            # Archived contact with same name as an existing client
+                            # Archived contact with same name as an existing company
                             # linked to a different (active) Xero contact. This
                             # commonly happens when Xero merges contacts — the old
-                            # record is archived. Create a separate archived client.
+                            # record is archived. Create a separate archived company.
                             logger.warning(
                                 f"Archived Xero contact '{contact_name}' ({contact.contact_id}) "
-                                f"has same name as client already linked to {matching_client.xero_contact_id}. "
-                                f"Creating separate archived client record."
+                                f"has same name as company already linked to {matching_client.xero_contact_id}. "
+                                f"Creating separate archived company record."
                             )
-                            client = Client.objects.create(
+                            company = Company.objects.create(
                                 xero_contact_id=contact.contact_id,
                                 raw_json=raw_json,
                                 xero_last_modified=timezone.now(),
@@ -940,8 +940,8 @@ def sync_clients(xero_contacts):
                                 f"Name '{contact_name}' already linked to Xero ID {matching_client.xero_contact_id}, cannot link to {contact.contact_id}"
                             )
                 else:
-                    # No existing client with this name - safe to create new one
-                    client = Client.objects.create(
+                    # No existing company with this name - safe to create new one
+                    company = Company.objects.create(
                         xero_contact_id=contact.contact_id,
                         raw_json=raw_json,
                         xero_last_modified=timezone.now(),
@@ -953,7 +953,7 @@ def sync_clients(xero_contacts):
                     created = True
             else:
                 # No name in contact - create anyway
-                client = Client.objects.create(
+                company = Company.objects.create(
                     xero_contact_id=contact.contact_id,
                     raw_json=raw_json,
                     xero_last_modified=timezone.now(),
@@ -962,34 +962,34 @@ def sync_clients(xero_contacts):
                 )
                 created = True
 
-        set_client_fields(client, new_from_xero=created)
-        clients.append(client)
+        set_company_fields(company, new_from_xero=created)
+        clients.append(company)
 
-    # Resolve merges and move stranded FK records onto the terminal client.
-    from apps.client.services.client_merge_service import reassign_client_fk_records
+    # Resolve merges and move stranded FK records onto the terminal company.
+    from apps.company.services.company_merge_service import reassign_company_fk_records
 
-    for client in clients:
-        if client.xero_merged_into_id and not client.merged_into:
-            merged_into = Client.objects.filter(
-                xero_contact_id=client.xero_merged_into_id
+    for company in clients:
+        if company.xero_merged_into_id and not company.merged_into:
+            merged_into = Company.objects.filter(
+                xero_contact_id=company.xero_merged_into_id
             ).first()
             if not merged_into:
                 logger.warning(
-                    "Deferred merge: client %s points at unsynced "
+                    "Deferred merge: company %s points at unsynced "
                     "xero_contact_id=%s; reassignment will retry next sync",
-                    client.id,
-                    client.xero_merged_into_id,
+                    company.id,
+                    company.xero_merged_into_id,
                 )
                 continue
-            client.merged_into = merged_into
-            client.allow_jobs = False
-            client.save()
-            destination = client.get_final_client()
-            if destination.id != client.id:
+            company.merged_into = merged_into
+            company.allow_jobs = False
+            company.save()
+            destination = company.get_final_company()
+            if destination.id != company.id:
                 from apps.accounts.models import Staff
 
-                reassign_client_fk_records(
-                    client,
+                reassign_company_fk_records(
+                    company,
                     destination,
                     Staff.get_automation_user(),
                     logger_prefix="[batch-sync] ",

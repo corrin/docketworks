@@ -8,7 +8,7 @@ from datetime import datetime
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
-    from apps.client.models import Client
+    from apps.company.models import Company
     from apps.job.models import Job
 
     from .types import (
@@ -61,11 +61,11 @@ class AccountingProvider(Protocol):
 
     # --- Contacts/Clients ---
 
-    def create_contact(self, client: Client) -> ContactResult:
-        """Create a contact in the accounting system from a local Client."""
+    def create_contact(self, company: Company) -> ContactResult:
+        """Create a contact in the accounting system from a local Company."""
         ...
 
-    def update_contact(self, client: Client) -> ContactResult:
+    def update_contact(self, company: Company) -> ContactResult:
         """Update an existing contact in the accounting system."""
         ...
 

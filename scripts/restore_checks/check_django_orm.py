@@ -10,12 +10,12 @@ import django
 django.setup()
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 
 print(f"Jobs: {Job.objects.count()}")
 print(f"Staff: {Staff.objects.count()}")
-print(f"Clients: {Client.objects.count()}")
+print(f"Companies: {Company.objects.count()}")
 
 job = Job.objects.first()
 if job:

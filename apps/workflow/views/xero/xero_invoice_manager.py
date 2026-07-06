@@ -11,7 +11,7 @@ from apps.accounting.enums import InvoiceStatus
 # Import models
 from apps.accounting.models import Invoice
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.models.costing import CostSet
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
@@ -32,7 +32,7 @@ class XeroInvoiceManager(XeroDocumentManager):
 
     def __init__(
         self,
-        client: Client,
+        company: Company,
         job: Job,
         staff: Staff,
         xero_invoice_id: str | None = None,
@@ -40,15 +40,15 @@ class XeroInvoiceManager(XeroDocumentManager):
         """
         Initializes the invoice manager.
         Args:
-            client (Client): The client associated with the document.
+            company (Company): The company associated with the document.
             job (Job): The associated job.
             staff (Staff): The authenticated staff member performing the action.
             xero_invoice_id (str, optional): A specific Xero ID to operate on,
                                              useful for deletion of a specific invoice.
         """
-        if not client or not job:
-            raise ValueError("Client and Job are required for XeroInvoiceManager")
-        super().__init__(client=client, job=job, staff=staff)
+        if not company or not job:
+            raise ValueError("Company and Job are required for XeroInvoiceManager")
+        super().__init__(company=company, job=job, staff=staff)
 
         if xero_invoice_id is not None:
             self._xero_id_override = str(xero_invoice_id)
@@ -131,19 +131,19 @@ class XeroInvoiceManager(XeroDocumentManager):
     def _compute_invoice_dates(self) -> tuple[date, date]:
         """Return ``(invoice_date, due_date)`` per the customer's payment terms.
 
-        Account customers (``Client.is_account_customer=True``) are due on
+        Account customers (``Company.is_account_customer=True``) are due on
         the 20th of the calendar month following the invoice date. Cash
         customers are due same-day.
         """
         invoice_date = timezone.localdate()
-        if self.client.is_account_customer:
+        if self.company.is_account_customer:
             due_date = (invoice_date + relativedelta(months=1)).replace(day=20)
         else:
             due_date = invoice_date
         return invoice_date, due_date
 
     def build_payload(self, total_amount: Decimal | None = None) -> InvoicePayload:
-        """Build a provider-agnostic invoice payload from the job and client."""
+        """Build a provider-agnostic invoice payload from the job and company."""
         if not self.job:
             raise ValueError("Job is required to build invoice payload.")
 
@@ -151,8 +151,8 @@ class XeroInvoiceManager(XeroDocumentManager):
         invoice_date, due_date = self._compute_invoice_dates()
 
         payload = InvoicePayload(
-            client_external_id=self.client.xero_contact_id,
-            client_name=self.client.name,
+            client_external_id=self.company.xero_contact_id,
+            company_name=self.company.name,
             line_items=line_items,
             date=invoice_date,
             due_date=due_date,
@@ -202,7 +202,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             billing_metadata: Calculation metadata to persist on the Invoice record.
         """
         try:
-            self.validate_client()
+            self.validate_company()
 
             if not self.state_valid_for_xero():
                 raise ValueError("Document is not in a valid state for submission.")
@@ -222,7 +222,7 @@ class XeroInvoiceManager(XeroDocumentManager):
             invoice_kwargs = {
                 "xero_id": result.external_id,
                 "job": self.job,
-                "client": self.client,
+                "company": self.company,
                 "number": result.number,
                 "date": payload.date,
                 "due_date": payload.due_date,
@@ -294,7 +294,7 @@ class XeroInvoiceManager(XeroDocumentManager):
                 "success": True,
                 "invoice_id": str(invoice.id),
                 "xero_id": result.external_id,
-                "client": self.client.name,
+                "company": self.company.name,
                 "total_excl_tax": str(invoice.total_excl_tax),
                 "total_incl_tax": str(invoice.total_incl_tax),
                 "online_url": result.online_url,
@@ -319,7 +319,7 @@ class XeroInvoiceManager(XeroDocumentManager):
     def delete_document(self):
         """Deletes an invoice via the provider and removes the local record."""
         try:
-            self.validate_client()
+            self.validate_company()
             xero_id = self.get_xero_id()
             if not xero_id:
                 raise ValueError("Cannot delete invoice without a Xero ID.")

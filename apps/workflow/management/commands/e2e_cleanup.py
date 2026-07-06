@@ -15,7 +15,7 @@ from django.core.management.base import BaseCommand
 from django.db import transaction
 
 from apps.accounting.models import Invoice, Quote
-from apps.client.models import Client, ClientContact
+from apps.company.models import ClientContact, Company
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
@@ -42,11 +42,11 @@ class Command(BaseCommand):
         # Collect what to delete
         test_jobs = Job.objects.filter(name__startswith=TEST_DATA_PREFIX)
         test_contacts = ClientContact.objects.filter(name__startswith=TEST_DATA_PREFIX)
-        test_clients = Client.objects.filter(name__startswith=TEST_DATA_PREFIX)
-        # Swept so Job.client PROTECT doesn't block the [TEST] client delete.
-        test_prefix_client_jobs = Job.objects.filter(client__in=test_clients)
+        test_clients = Company.objects.filter(name__startswith=TEST_DATA_PREFIX)
+        # Swept so Job.company PROTECT doesn't block the [TEST] company delete.
+        test_prefix_client_jobs = Job.objects.filter(company__in=test_clients)
         test_prefix_client_contacts = ClientContact.objects.filter(
-            client__in=test_clients
+            company__in=test_clients
         )
 
         # Legacy E2E-prefixed clients and their data
@@ -55,14 +55,16 @@ class Command(BaseCommand):
         legacy_q = Q()
         for prefix in LEGACY_E2E_PREFIXES:
             legacy_q |= Q(name__startswith=prefix)
-        legacy_clients = Client.objects.filter(legacy_q)
-        legacy_client_jobs = Job.objects.filter(client__in=legacy_clients)
-        legacy_client_contacts = ClientContact.objects.filter(client__in=legacy_clients)
+        legacy_clients = Company.objects.filter(legacy_q)
+        legacy_client_jobs = Job.objects.filter(company__in=legacy_clients)
+        legacy_client_contacts = ClientContact.objects.filter(
+            company__in=legacy_clients
+        )
 
-        # Test client data (all jobs/contacts on the test client are test artifacts)
-        test_client_qs = Client.objects.filter(name=TEST_CLIENT_NAME)
-        test_client_jobs = Job.objects.filter(client__in=test_client_qs)
-        test_client_contacts = ClientContact.objects.filter(client__in=test_client_qs)
+        # Test company data (all jobs/contacts on the test company are test artifacts)
+        test_client_qs = Company.objects.filter(name=TEST_CLIENT_NAME)
+        test_client_jobs = Job.objects.filter(company__in=test_client_qs)
+        test_client_contacts = ClientContact.objects.filter(company__in=test_client_qs)
 
         # Report
         self.stdout.write("\n=== E2E Test Data ===\n")
@@ -71,15 +73,15 @@ class Command(BaseCommand):
         self._report_queryset("[TEST]-prefixed contacts", test_contacts, "name")
         self._report_queryset("[TEST]-prefixed clients", test_clients, "name")
         self._report_queryset("Legacy E2E clients", legacy_clients, "name")
-        self._report_queryset("Legacy E2E client jobs", legacy_client_jobs, "name")
+        self._report_queryset("Legacy E2E company jobs", legacy_client_jobs, "name")
         self._report_queryset(
-            "Legacy E2E client contacts", legacy_client_contacts, "name"
+            "Legacy E2E company contacts", legacy_client_contacts, "name"
         )
         self._report_queryset(
-            f"Jobs on test client ({TEST_CLIENT_NAME})", test_client_jobs, "name"
+            f"Jobs on test company ({TEST_CLIENT_NAME})", test_client_jobs, "name"
         )
         self._report_queryset(
-            f"Contacts on test client ({TEST_CLIENT_NAME})",
+            f"Contacts on test company ({TEST_CLIENT_NAME})",
             test_client_contacts,
             "name",
         )
@@ -203,20 +205,20 @@ class Command(BaseCommand):
             if count:
                 self.stdout.write(f"  Quote spreadsheets: {count} objects ({details})")
 
-            # 4. Jobs on test client (cascade deletes cost sets, cost lines, etc.)
+            # 4. Jobs on test company (cascade deletes cost sets, cost lines, etc.)
             count, details = test_client_jobs.delete()
-            self.stdout.write(f"  Test client jobs: {count} objects ({details})")
+            self.stdout.write(f"  Test company jobs: {count} objects ({details})")
 
-            # 5. Contacts on test client
+            # 5. Contacts on test company
             count, details = test_client_contacts.delete()
-            self.stdout.write(f"  Test client contacts: {count} objects ({details})")
+            self.stdout.write(f"  Test company contacts: {count} objects ({details})")
 
-            # 6. Legacy client data
+            # 6. Legacy company data
             count, details = legacy_client_jobs.delete()
-            self.stdout.write(f"  Legacy client jobs: {count} objects ({details})")
+            self.stdout.write(f"  Legacy company jobs: {count} objects ({details})")
 
             count, details = legacy_client_contacts.delete()
-            self.stdout.write(f"  Legacy client contacts: {count} objects ({details})")
+            self.stdout.write(f"  Legacy company contacts: {count} objects ({details})")
 
             count, details = legacy_clients.delete()
             self.stdout.write(f"  Legacy clients: {count} objects ({details})")
@@ -228,7 +230,7 @@ class Command(BaseCommand):
             count, details = test_contacts.delete()
             self.stdout.write(f"  [TEST] contacts: {count} objects ({details})")
 
-            # 8. Jobs/contacts on [TEST]-prefixed clients (unblocks client delete)
+            # 8. Jobs/contacts on [TEST]-prefixed clients (unblocks company delete)
             count, details = test_prefix_client_jobs.delete()
             self.stdout.write(f"  Jobs on [TEST] clients: {count} objects ({details})")
 

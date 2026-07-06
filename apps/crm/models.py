@@ -61,16 +61,16 @@ class PhoneEndpoint(models.Model):
         using: str | None = None,
         update_fields: Iterable[str] | None = None,
     ) -> None:
-        from apps.client.models import ClientContactMethod
+        from apps.company.models import ClientContactMethod
 
         self.normalized_number = ClientContactMethod.normalize_phone(self.number)
         if not self.normalized_number:
             raise ValueError("phone endpoint requires a phone number")
         if self.is_active and self._active_number_changed():
             # Mirror of the ClientContactMethod.save() guard: a number cannot be
-            # both a client contact method and an active internal endpoint, or
-            # the client's calls would silently reclassify as INTERNAL.
-            conflict = ClientContactMethod.conflicting_client(
+            # both a company contact method and an active internal endpoint, or
+            # the company's calls would silently reclassify as INTERNAL.
+            conflict = ClientContactMethod.conflicting_company(
                 self.normalized_number, None
             )
             if conflict:
@@ -181,15 +181,15 @@ class PhoneCallRecord(models.Model):
     )
     duration_seconds = models.PositiveIntegerField(default=0)
     charge = models.DecimalField(max_digits=12, decimal_places=4, null=True, blank=True)
-    client = models.ForeignKey(
-        "client.Client",
+    company = models.ForeignKey(
+        "company.Company",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="phone_calls",
     )
     contact = models.ForeignKey(
-        "client.ClientContact",
+        "company.ClientContact",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -222,8 +222,8 @@ class PhoneCallRecord(models.Model):
                 name="crm_phone_acct_call_idx",
             ),
             models.Index(
-                fields=["client", "-call_datetime"],
-                name="crm_phone_client_call_idx",
+                fields=["company", "-call_datetime"],
+                name="crm_phone_company_call_idx",
             ),
             models.Index(
                 fields=["contact", "-call_datetime"],
@@ -263,7 +263,7 @@ class PhoneCallRecord(models.Model):
         using: str | None = None,
         update_fields: Iterable[str] | None = None,
     ) -> None:
-        from apps.client.models import ClientContactMethod
+        from apps.company.models import ClientContactMethod
 
         self.normalized_origin = ClientContactMethod.normalize_phone(self.origin)
         self.normalized_destination = ClientContactMethod.normalize_phone(

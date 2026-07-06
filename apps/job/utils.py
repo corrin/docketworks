@@ -15,4 +15,4 @@ def get_active_jobs() -> models.QuerySet[Job]:
     """
     excluded_statuses = ["rejected", "on_hold", "archived"]
     # Include select_related for fields commonly needed when displaying these jobs
-    return Job.objects.exclude(status__in=excluded_statuses).select_related("client")
+    return Job.objects.exclude(status__in=excluded_statuses).select_related("company")

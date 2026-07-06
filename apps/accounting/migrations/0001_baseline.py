@@ -13,7 +13,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
     ]
 
     operations = [
@@ -414,7 +414,7 @@ class Migration(migrations.Migration):
                 (
                     "client",
                     models.ForeignKey(
-                        on_delete=django.db.models.deletion.PROTECT, to="client.client"
+                        on_delete=django.db.models.deletion.PROTECT, to="company.client"
                     ),
                 ),
             ],

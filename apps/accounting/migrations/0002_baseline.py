@@ -10,7 +10,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("accounting", "0001_baseline"),
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
         ("job", "0001_baseline"),
         ("workflow", "0001_baseline"),
     ]
@@ -39,7 +39,7 @@ class Migration(migrations.Migration):
             model_name="creditnote",
             name="client",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT, to="client.client"
+                on_delete=django.db.models.deletion.PROTECT, to="company.client"
             ),
         ),
         migrations.AddField(
@@ -65,7 +65,7 @@ class Migration(migrations.Migration):
             model_name="invoice",
             name="client",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT, to="client.client"
+                on_delete=django.db.models.deletion.PROTECT, to="company.client"
             ),
         ),
         migrations.AddField(
@@ -102,7 +102,7 @@ class Migration(migrations.Migration):
             model_name="quote",
             name="client",
             field=models.ForeignKey(
-                on_delete=django.db.models.deletion.PROTECT, to="client.client"
+                on_delete=django.db.models.deletion.PROTECT, to="company.client"
             ),
         ),
         migrations.AddField(

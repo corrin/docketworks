@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Verify the public app API and Xero agree on client/quote contact data.
+"""Verify the public app API and Xero agree on company/quote contact data.
 
 App writes go through the configured public app URL. Xero verification uses
 official Xero SDK read APIs. This creates real local records and real Xero
@@ -153,19 +153,19 @@ client_payload = {
     "is_account_customer": True,
     "allow_jobs": True,
 }
-log.info("client request: %s", json.dumps(client_payload, sort_keys=True))
-client = app_request("POST", "/api/clients/create/", json=client_payload)["client"]
-assert client["email"] == client_payload["email"], client
-assert client["phone"] == client_payload["phone"], client
-assert client["address"] == client_payload["address"], client
-assert client["xero_contact_id"], client
+log.info("company request: %s", json.dumps(client_payload, sort_keys=True))
+company = app_request("POST", "/api/companies/create/", json=client_payload)["company"]
+assert company["email"] == client_payload["email"], company
+assert company["phone"] == client_payload["phone"], company
+assert company["address"] == client_payload["address"], company
+assert company["xero_contact_id"], company
 
-created_contact = xero_contact(client["xero_contact_id"])
+created_contact = xero_contact(company["xero_contact_id"])
 assert_contact_contract(created_contact, client_payload)
 
 job_payload = {
     "name": f"Xero Contract Job {run_id}",
-    "client_id": client["id"],
+    "client_id": company["id"],
     "description": "Xero contract smoke test",
     "pricing_methodology": "fixed_price",
     "estimated_materials": "1000.00",
@@ -176,23 +176,23 @@ job = app_request("POST", "/api/job/jobs/", json=job_payload)
 job_id = job["job_id"]
 
 job_readback = app_request("GET", f"/api/job/jobs/{job_id}/")["data"]["job"]
-assert job_readback["client_id"] == client["id"], job_readback
+assert job_readback["client_id"] == company["id"], job_readback
 
 quote = app_request(
     "POST", f"/api/xero/create_quote/{job_id}", json={"breakdown": False}
 )
 quote_readback = xero_quote(quote["xero_id"])
-assert str(quote_readback.contact.contact_id) == client["xero_contact_id"], (
+assert str(quote_readback.contact.contact_id) == company["xero_contact_id"], (
     quote_readback.contact.contact_id,
-    client["xero_contact_id"],
+    company["xero_contact_id"],
 )
 
-contact_after_quote = xero_contact(client["xero_contact_id"])
+contact_after_quote = xero_contact(company["xero_contact_id"])
 assert_contact_contract(contact_after_quote, client_payload)
 
 log.info("PASS")
-log.info("client_id=%s", client["id"])
-log.info("xero_contact_id=%s", client["xero_contact_id"])
+log.info("client_id=%s", company["id"])
+log.info("xero_contact_id=%s", company["xero_contact_id"])
 log.info("job_id=%s", job_id)
 log.info("xero_quote_id=%s", quote["xero_id"])
 log.info("email=%s", client_payload["email"])

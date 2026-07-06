@@ -7,7 +7,7 @@ aborting on a normalized-value collision.
 
 from django.test import SimpleTestCase
 
-from apps.client.models import ClientContactMethod
+from apps.company.models import ClientContactMethod
 from apps.workflow.services.db_scrubber import _unique_scrub_value
 
 PHONE = ClientContactMethod.MethodType.PHONE

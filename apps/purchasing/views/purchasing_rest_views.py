@@ -100,7 +100,7 @@ class PurchaseOrderETagMixin:
 class SupplierPriceStatusAPIView(APIView):
     """Return latest price upload status per supplier.
 
-    Minimal-impact: read-only query over existing Client and SupplierPriceList
+    Minimal-impact: read-only query over existing Company and SupplierPriceList
     models. No migrations required.
     """
 
@@ -112,7 +112,7 @@ class SupplierPriceStatusAPIView(APIView):
     )
     def get(self, request):
         try:
-            from apps.client.models import Client
+            from apps.company.models import Company
             from apps.quoting.models import SupplierPriceList
 
             # Subquery to get the latest upload per supplier
@@ -121,7 +121,7 @@ class SupplierPriceStatusAPIView(APIView):
             ).order_by("-uploaded_at")
 
             suppliers = (
-                Client.objects.filter(
+                Company.objects.filter(
                     id__in=SupplierPriceList.objects.values("supplier_id").distinct()
                 )
                 .annotate(
@@ -208,7 +208,7 @@ class AllJobsAPIView(APIView):
             # Get active jobs for purchasing (archived jobs don't need POs)
             jobs = (
                 Job.objects.exclude(status="archived")
-                .select_related("client")
+                .select_related("company")
                 .order_by("job_number")
             )
 
@@ -259,7 +259,7 @@ class PurchasingJobsAPIView(APIView):
                     ]
                 )
                 .exclude(status__in=excluded_statuses)
-                .select_related("client")
+                .select_related("company")
                 .prefetch_related("cost_sets")
                 .order_by("job_number")
             )
@@ -296,7 +296,9 @@ class PurchasingJobsAPIView(APIView):
                         "id": str(job.id),
                         "job_number": job.job_number,
                         "name": job.name,
-                        "client_name": job.client.name if job.client else "No Client",
+                        "company_name": (
+                            job.company.name if job.company else "No Company"
+                        ),
                         "status": job.status,
                         "cost_set_id": (
                             str(actual_cost_set.id) if actual_cost_set else None
@@ -439,7 +441,7 @@ class PurchaseOrderDetailRestView(PurchaseOrderETagMixin, APIView):
         po = get_object_or_404(queryset, id=po_id)
         po.detail_lines = list(
             PurchaseOrderLine.objects.filter(purchase_order=po).select_related(
-                "job__client"
+                "job__company"
             )
         )
         item_codes = [line.item_code for line in po.detail_lines if line.item_code]

@@ -99,7 +99,7 @@ def main():
         return 1
 
     print(f"\nTesting with job: {job.job_number} - {job.name}")
-    print(f"Client: {job.client.name}")
+    print(f"Company: {job.company.name}")
 
     # Clear existing chat
     deleted = JobQuoteChat.objects.filter(job=job).delete()

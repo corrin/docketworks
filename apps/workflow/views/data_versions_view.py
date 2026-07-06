@@ -23,7 +23,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact
+from apps.company.models import ClientContact, Company
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 from apps.purchasing.models import Stock
@@ -48,7 +48,7 @@ def _kanban_version() -> str:
     return "|".join(
         [
             _model_version(Job, "updated_at"),
-            _model_version(Client, "django_updated_at"),
+            _model_version(Company, "django_updated_at"),
             _model_version(ClientContact, "updated_at"),
             _model_version(Staff, "updated_at"),
         ]
@@ -62,7 +62,7 @@ def _crm_calls_version() -> str:
         [
             _model_version(PhoneCallRecord, "updated_at"),
             _model_version(PhoneCallRecording, "updated_at"),
-            _model_version(Client, "django_updated_at"),
+            _model_version(Company, "django_updated_at"),
             _model_version(ClientContact, "updated_at"),
             _model_version(Job, "updated_at"),
         ]

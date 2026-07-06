@@ -23,7 +23,7 @@ class DeliveryDocketView(APIView):
     API view for generating and serving delivery docket PDFs.
 
     This view creates delivery docket PDFs that are identical to the workshop
-    PDF (job details, specifications, client info, signature fields), saves
+    PDF (job details, specifications, company info, signature fields), saves
     them as JobFile records, creates a JobEvent for tracking, and returns
     the PDF for immediate download or printing.
 

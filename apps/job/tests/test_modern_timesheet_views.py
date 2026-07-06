@@ -5,7 +5,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, Job, LabourSubtype
 from apps.job.serializers.costing_serializer import TimesheetCostLineSerializer
 from apps.job.views.modern_timesheet_views import ModernTimesheetEntryView
@@ -17,8 +17,8 @@ class ModernTimesheetEntryQueryTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.target_date = date(2026, 5, 22)
-        self.client = Client.objects.create(
-            name="Modern Timesheet Client",
+        self.company = Company.objects.create(
+            name="Modern Timesheet Company",
             email="modern-timesheet@example.com",
             xero_last_modified=timezone.now(),
         )
@@ -26,7 +26,7 @@ class ModernTimesheetEntryQueryTests(BaseTestCase):
         self.job = Job.objects.create(
             job_number=98767,
             name="Modern Timesheet Job",
-            client=self.client,
+            company=self.company,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
@@ -57,7 +57,7 @@ class ModernTimesheetEntryQueryTests(BaseTestCase):
         cost_lines = (
             CostLine.objects.filter(pk=self.cost_line.pk)
             .select_related(
-                "cost_set__job__client",
+                "cost_set__job__company",
                 "staff",
                 "xero_pay_item",
                 "labour_subtype",
@@ -70,7 +70,7 @@ class ModernTimesheetEntryQueryTests(BaseTestCase):
         with self.assertNumQueries(2):
             data = TimesheetCostLineSerializer(cost_lines, many=True).data
 
-        self.assertEqual(data[0]["client_name"], "Modern Timesheet Client")
+        self.assertEqual(data[0]["company_name"], "Modern Timesheet Company")
         self.assertEqual(data[0]["wage_rate"], 40.0)
         self.assertEqual(data[0]["xero_pay_item_name"], self.pay_item.name)
         self.assertEqual(data[0]["labour_subtype_name"], "Workshop")

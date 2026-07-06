@@ -14,7 +14,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
 
@@ -53,7 +53,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="scrape_jobs",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -115,7 +115,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="supplier_credentials",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -150,7 +150,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="price_lists",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -357,7 +357,7 @@ class Migration(migrations.Migration):
                     models.ForeignKey(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="scraped_products",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],
@@ -392,7 +392,7 @@ class Migration(migrations.Migration):
                     models.OneToOneField(
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="scraper_config",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],

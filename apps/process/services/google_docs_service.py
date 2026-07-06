@@ -625,11 +625,11 @@ class GoogleDocsService:
 
         # Job details
         site_location = content.get("site_location", "To be confirmed")
-        client_name = job.client.name if job.client else "N/A"
+        company_name = job.company.name if job.company else "N/A"
 
         info_lines = [
             f"Job Number: {job.job_number}",
-            f"Client: {client_name}",
+            f"Company: {company_name}",
             f"Site Location: {site_location}",
         ]
 

@@ -10,7 +10,7 @@ from django.core.cache import caches
 from django.test import TestCase, override_settings
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, Job, JobFile
 from apps.job.services.job_summary_pdf_service import JobSummaryPdfService
 from apps.job.services.workshop_pdf_service import JOB_SUMMARY_PDF_FILENAME
@@ -31,12 +31,12 @@ class JobSummaryPdfServiceTests(BaseTestCase):
         self.dropbox = tempfile.mkdtemp(prefix="dw-summary-pdf-")
         self.settings_override = override_settings(DROPBOX_WORKFLOW_FOLDER=self.dropbox)
         self.settings_override.enable()
-        self.client_obj = Client.objects.create(
-            name="Summary Client",
+        self.client_obj = Company.objects.create(
+            name="Summary Company",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Summary Job",
             staff=self.test_staff,
         )
@@ -66,12 +66,12 @@ class JobSummaryPdfServiceTests(BaseTestCase):
 
     def test_refresh_batches_missing_jobs_and_skips_fresh(self) -> None:
         missing = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Missing Summary",
             staff=self.test_staff,
         )
         fresh = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Fresh Summary",
             staff=self.test_staff,
         )

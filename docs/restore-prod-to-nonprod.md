@@ -87,7 +87,7 @@ PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error 
 PGPASSWORD="$DB_PASSWORD" psql -U "$DB_USER" "$DB_NAME" -c "
 SELECT 'job_job' as table_name, COUNT(*) as count FROM job_job
 UNION ALL SELECT 'accounts_staff', COUNT(*) FROM accounts_staff
-UNION ALL SELECT 'client_client', COUNT(*) FROM client_client
+UNION ALL SELECT 'company_company', COUNT(*) FROM company_company
 UNION ALL SELECT 'job_costset', COUNT(*) FROM job_costset
 UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
 "
@@ -100,7 +100,7 @@ UNION ALL SELECT 'job_costline', COUNT(*) FROM job_costline;
 ----------------+-------
  job_job         |  1054
  accounts_staff  |    20
- client_client   |  3739
+ company_company |  3739
  job_costset     |  3162
  job_costline    | 10334
 ```
@@ -116,7 +116,7 @@ python scripts/restore_checks/check_django_orm.py
 ```
 Jobs: ~1400
 Staff: ~22
-Clients: ~4800
+Companies: ~4800
 Sample job: [any real job name] (#XXXXX)
 Contact: [any real contact name]
 ```
@@ -175,21 +175,21 @@ Creates a default admin user and resets all staff passwords to defaults.
 python scripts/recreate_jobfiles.py
 ```
 
-#### Fix Shop Client Name
+#### Fix Shop Company Name
 
 ```bash
-python scripts/restore_checks/fix_shop_client.py
+python scripts/restore_checks/fix_shop_company.py
 ```
 
-#### Create Test Client
+#### Create Test Company
 
-Creates the test client named per `CompanyDefaults.test_client_name` (e.g. `ABC Carpet Cleaning TEST IGNORE`) if it isn't already there. Idempotent. Required by Seed Database to Xero, which crashes if the client is missing.
+Creates the test company named per `CompanyDefaults.test_company_name` (e.g. `ABC Carpet Cleaning TEST IGNORE`) if it isn't already there. Idempotent. Required by Seed Database to Xero, which crashes if the company is missing.
 
 ```bash
-python scripts/fix_test_client.py
+python scripts/fix_test_company.py
 ```
 
-**Expected output:** `Test client already exists: …` or `Created test client: …`.
+**Expected output:** `Test company already exists: …` or `Created test company: …`.
 
 #### Connect to Xero OAuth
 
@@ -246,10 +246,10 @@ echo "Background process started, PID: $!"
 ```
 
 **What this does:**
-1. Clears production Xero IDs (clients, jobs, stock, purchase orders, staff)
+1. Clears production Xero IDs (companies, jobs, stock, purchase orders, staff)
 2. Updates XeroAccount xero_ids from prod to dev Xero tenant (fetches from dev Xero, upserts by account_name)
 3. Remaps XeroPayItem FK references (Job.default_xero_pay_item, CostLine.xero_pay_item) from prod UUIDs to dev UUIDs by matching pay item names
-4. Links/creates contacts in Xero for all clients
+4. Links/creates contacts in Xero for all companies
 5. Creates projects in Xero for all jobs
 6. Deletes orphaned invoices, re-creates job-linked invoices in dev Xero
 7. Deletes orphaned quotes, re-creates job-linked quotes in dev Xero
@@ -297,7 +297,7 @@ Must show `active (running)`. The Beat startup banner shows the loaded schedule;
 for s in scripts/restore_checks/check_*.py; do python "$s"; done
 ```
 
-**Expected output:** Each script prints its own success line and exits zero. Covers: Django ORM (`check_django_orm.py`), admin user (`check_admin_user.py`), company defaults (`check_company_defaults.py`), AI providers (`check_ai_providers.py`), JobFiles (`check_jobfiles.py`), shop client (`check_shop_client.py`), test client (`check_test_client.py`), Xero app (`check_xero_app.py`), Xero accounts (`check_xero_accounts.py`), Xero seed (`check_xero_seed.py`).
+**Expected output:** Each script prints its own success line and exits zero. Covers: Django ORM (`check_django_orm.py`), admin user (`check_admin_user.py`), company defaults (`check_company_defaults.py`), AI providers (`check_ai_providers.py`), JobFiles (`check_jobfiles.py`), shop company (`check_shop_company.py`), test company (`check_test_company.py`), Xero app (`check_xero_app.py`), Xero accounts (`check_xero_accounts.py`), Xero seed (`check_xero_seed.py`).
 
 Any non-zero exit means the upstream mutation step that should have produced that state silently failed — fix the underlying problem, do not re-run just the failing check.
 

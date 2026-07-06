@@ -22,7 +22,7 @@ django.setup()
 
 from django.conf import settings
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.services.import_quote_service import (
     QuoteImportError,
@@ -37,14 +37,14 @@ def get_or_create_test_job() -> Job:
     if test_job:
         return test_job
 
-    client = Client.objects.first()
-    if not client:
-        logging.info("Creating test client...")
-        client = Client.objects.create(name="Test Client", account_ref="TEST001")
+    company = Company.objects.first()
+    if not company:
+        logging.info("Creating test company...")
+        company = Company.objects.create(name="Test Company", account_ref="TEST001")
 
     test_job = Job.objects.create(
         name="Quote Import Test Job",
-        client=client,
+        company=company,
         status="quoting",
         description="Test job for quote import service testing",
     )

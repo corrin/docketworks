@@ -2,7 +2,7 @@
 
 ClientContactMethod.save() refuses numbers held by an active PhoneEndpoint;
 these tests cover the mirror — an active endpoint cannot claim a number a
-client already owns, or that client's calls silently become INTERNAL.
+company already owns, or that company's calls silently become INTERNAL.
 """
 
 from django.core.exceptions import ValidationError
@@ -11,18 +11,18 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.company.models import ClientContact, ClientContactMethod, Company
 from apps.crm.models import PhoneEndpoint
 from apps.testing import BaseAPITestCase
 
 
-def _client(name: str = "Acme Ltd") -> Client:
-    return Client.objects.create(name=name, xero_last_modified=timezone.now())
+def _client(name: str = "Acme Ltd") -> Company:
+    return Company.objects.create(name=name, xero_last_modified=timezone.now())
 
 
-def _client_phone(client: Client, value: str = "021 555 123") -> ClientContactMethod:
+def _client_phone(company: Company, value: str = "021 555 123") -> ClientContactMethod:
     return ClientContactMethod.objects.create(
-        client=client,
+        company=company,
         method_type=ClientContactMethod.MethodType.PHONE,
         value=value,
     )
@@ -43,13 +43,13 @@ class PhoneEndpointGuardModelTests(TestCase):
         _client_phone(_client("Acme Ltd"))
 
         with self.assertRaisesRegex(
-            ValidationError, "already belongs to.*client Acme Ltd"
+            ValidationError, "already belongs to.*company Acme Ltd"
         ):
             _endpoint("021 555 123")
 
     def test_error_names_owning_contact(self) -> None:
         contact = ClientContact.objects.create(
-            client=_client("Acme Ltd"), name="Jane Smith"
+            company=_client("Acme Ltd"), name="Jane Smith"
         )
         ClientContactMethod.objects.create(
             contact=contact,
@@ -89,7 +89,7 @@ class PhoneEndpointGuardModelTests(TestCase):
         # Legacy cross-owned row inserted bypassing the method-side guard,
         # as pre-guard data was.
         legacy = ClientContactMethod(
-            client=_client(),
+            company=_client(),
             method_type=ClientContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
@@ -137,7 +137,7 @@ class PhoneEndpointGuardApiTests(BaseAPITestCase):
     def test_update_unrelated_field_on_grandfathered_endpoint_succeeds(self) -> None:
         endpoint = _endpoint("021 555 123")
         legacy = ClientContactMethod(
-            client=_client(),
+            company=_client(),
             method_type=ClientContactMethod.MethodType.PHONE,
             value="021 555 123",
         )

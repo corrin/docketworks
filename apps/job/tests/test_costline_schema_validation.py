@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from django.core.exceptions import ValidationError
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, Job, LabourSubtype
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
@@ -15,8 +15,8 @@ from apps.workflow.models import XeroPayItem
 class CostLineSchemaValidationTests(BaseTestCase):
 
     def setUp(self) -> None:
-        self.client = Client.objects.create(
-            name="Test Client",
+        self.company = Company.objects.create(
+            name="Test Company",
             email="test@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
@@ -24,7 +24,7 @@ class CostLineSchemaValidationTests(BaseTestCase):
         self.job = Job.objects.create(
             job_number=1,
             name="CostLine Schema Test",
-            client=self.client,
+            company=self.company,
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
         )

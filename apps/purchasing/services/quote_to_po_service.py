@@ -17,7 +17,7 @@ from google import genai
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 from rapidfuzz import fuzz, process
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.enums import MetalType
 from apps.purchasing.models import (
     PurchaseOrder,
@@ -102,7 +102,7 @@ def normalize(s: str) -> str:
     )  # lower, remove extra whitespace, preserve everything else
 
 
-def fuzzy_find_supplier(supplier_name: str) -> tuple[Client | None, str]:
+def fuzzy_find_supplier(supplier_name: str) -> tuple[Company | None, str]:
     """
     Find a supplier in the database using fuzzy matching.
 
@@ -116,7 +116,7 @@ def fuzzy_find_supplier(supplier_name: str) -> tuple[Client | None, str]:
         raise ValueError("Supplier name must be a non-empty string")
 
     # Get all suppliers
-    suppliers = Client.objects.all()
+    suppliers = Company.objects.all()
 
     # Extract supplier names and create a mapping from name to supplier object
     supplier_names = [s.name for s in suppliers]

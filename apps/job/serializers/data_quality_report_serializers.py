@@ -2,7 +2,7 @@
 
 from rest_framework import serializers
 
-from apps.client.services.duplicate_phone_report import (
+from apps.company.services.duplicate_phone_report import (
     DuplicatePhoneIssue,
     DuplicatePhoneOwner,
     DuplicatePhonesReport,
@@ -30,7 +30,7 @@ class ArchivedJobIssueSerializer(serializers.Serializer):
 
     job_id = serializers.CharField(help_text="Job's unique identifier")
     job_number = serializers.CharField(help_text="Job number")
-    client_name = serializers.CharField(help_text="Client name or 'Shop Job'")
+    company_name = serializers.CharField(help_text="Company name or 'Shop Job'")
     archived_date = serializers.DateField(help_text="Date when job was archived")
     current_status = serializers.CharField(help_text="Job's current status")
     issue = serializers.CharField(
@@ -71,10 +71,10 @@ class DuplicatePhoneOwnerSerializer(serializers.Serializer[DuplicatePhoneOwner])
     """One owner of a mis-owned phone number."""
 
     method_id = serializers.CharField(help_text="Contact-method id")
-    owner_kind = serializers.CharField(help_text="'client' or 'contact'")
+    owner_kind = serializers.CharField(help_text="'company' or 'contact'")
     owner_name = serializers.CharField(help_text="Human-readable owner")
     effective_client_id = serializers.CharField(
-        allow_null=True, help_text="Client the number resolves to"
+        allow_null=True, help_text="Company the number resolves to"
     )
 
 
@@ -82,10 +82,10 @@ class DuplicatePhoneSummarySerializer(serializers.Serializer[DuplicatePhoneSumma
     """Summary of duplicate-phone issues."""
 
     cross_client = serializers.IntegerField(
-        help_text="Numbers owned by more than one client"
+        help_text="Numbers owned by more than one company"
     )
     internal_line = serializers.IntegerField(
-        help_text="Client numbers that are actually internal company lines"
+        help_text="Company numbers that are actually internal company lines"
     )
 
 

@@ -3,7 +3,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.testing import BaseTestCase
 from apps.workflow.accounting.types import DocumentResult
@@ -33,13 +33,13 @@ class _FakeProvider:
 
 class XeroDocumentRawJsonTests(BaseTestCase):
     def setUp(self):
-        self.client_obj = Client.objects.create(
-            name="Raw JSON Client",
+        self.client_obj = Company.objects.create(
+            name="Raw JSON Company",
             xero_contact_id=str(uuid.uuid4()),
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Raw JSON Job",
             pricing_methodology="fixed_price",
             staff=self.test_staff,
@@ -47,7 +47,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
 
     def test_created_invoice_stores_canonical_raw_json_dict(self):
         raw_response = {
-            "_contact": {"_name": "Raw JSON Client"},
+            "_contact": {"_name": "Raw JSON Company"},
             "_invoice_id": str(uuid.uuid4()),
             "_invoice_number": "INV-RAW-1",
             "_sub_total": "100.00",
@@ -66,7 +66,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         )
 
         manager = XeroInvoiceManager(
-            client=self.client_obj,
+            company=self.client_obj,
             job=self.job,
             staff=self.test_staff,
         )
@@ -78,7 +78,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         self.assertTrue(result["success"])
         invoice = self.job.invoices.get()
         self.assertIsInstance(invoice.raw_json, dict)
-        self.assertEqual(invoice.raw_json["_contact"]["_name"], "Raw JSON Client")
+        self.assertEqual(invoice.raw_json["_contact"]["_name"], "Raw JSON Company")
         self.assertNotIn("full", invoice.raw_json)
         self.assertNotIn("contact", invoice.raw_json)
         self.assertEqual(invoice.total_excl_tax, Decimal("100.00"))
@@ -90,7 +90,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         self.job.latest_quote.summary = {"cost": 0.0, "rev": 250.0, "hours": 0.0}
         self.job.latest_quote.save(update_fields=["summary"])
         raw_response = {
-            "_contact": {"_name": "Raw JSON Client"},
+            "_contact": {"_name": "Raw JSON Company"},
             "_quote_id": str(uuid.uuid4()),
             "_quote_number": "QU-RAW-1",
             "_sub_total": "250.00",
@@ -107,7 +107,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         )
 
         manager = XeroQuoteManager(
-            client=self.client_obj,
+            company=self.client_obj,
             job=self.job,
             staff=self.test_staff,
         )
@@ -118,7 +118,7 @@ class XeroDocumentRawJsonTests(BaseTestCase):
         self.assertTrue(result["success"])
         quote = self.job.quote
         self.assertIsInstance(quote.raw_json, dict)
-        self.assertEqual(quote.raw_json["_contact"]["_name"], "Raw JSON Client")
+        self.assertEqual(quote.raw_json["_contact"]["_name"], "Raw JSON Company")
         self.assertNotIn("contact", quote.raw_json)
         self.assertEqual(quote.total_excl_tax, Decimal("250.00"))
         self.assertEqual(quote.total_incl_tax, Decimal("287.50"))

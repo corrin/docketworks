@@ -5,10 +5,10 @@ from unittest.mock import patch
 from django.test import TestCase
 from django.utils import timezone as django_timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.workflow.api.xero.transforms import (
     _extract_required_fields_xero,
-    resolve_client_from_xero_contact,
+    resolve_company_from_xero_contact,
     transform_purchase_order,
     transform_quote,
 )
@@ -20,41 +20,41 @@ def _make_contact(contact_id: str, **extra):
 
 class XeroTransformContactResolutionTests(TestCase):
     def setUp(self):
-        self.client = Client.objects.create(
-            name="Existing Client",
+        self.company = Company.objects.create(
+            name="Existing Company",
             xero_contact_id="contact-123",
             xero_last_modified=django_timezone.now(),
         )
 
-    @patch("apps.workflow.api.xero.transforms.get_or_fetch_client")
+    @patch("apps.workflow.api.xero.transforms.get_or_fetch_company")
     def test_resolve_client_uses_embedded_contact_without_follow_up_get(
         self, mock_get_or_fetch
     ):
-        contact = _make_contact("contact-123", name="Existing Client")
+        contact = _make_contact("contact-123", name="Existing Company")
 
-        resolved = resolve_client_from_xero_contact(contact, "INV-001")
+        resolved = resolve_company_from_xero_contact(contact, "INV-001")
 
-        self.assertEqual(resolved.id, self.client.id)
+        self.assertEqual(resolved.id, self.company.id)
         mock_get_or_fetch.assert_not_called()
 
-    @patch("apps.workflow.api.xero.transforms.get_or_fetch_client")
+    @patch("apps.workflow.api.xero.transforms.get_or_fetch_company")
     def test_resolve_client_falls_back_only_when_embedded_contact_missing(
         self, mock_get_or_fetch
     ):
-        mock_get_or_fetch.return_value = self.client
+        mock_get_or_fetch.return_value = self.company
 
-        resolved = resolve_client_from_xero_contact(
+        resolved = resolve_company_from_xero_contact(
             SimpleNamespace(contact_id="contact-123"), "INV-001"
         )
 
-        self.assertEqual(resolved.id, self.client.id)
+        self.assertEqual(resolved.id, self.company.id)
         mock_get_or_fetch.assert_called_once_with("contact-123", "INV-001")
 
-    @patch("apps.workflow.api.xero.transforms.resolve_client_from_xero_contact")
+    @patch("apps.workflow.api.xero.transforms.resolve_company_from_xero_contact")
     def test_invoice_extract_uses_contact_resolver(self, mock_resolve_client):
-        mock_resolve_client.return_value = self.client
+        mock_resolve_client.return_value = self.company
         invoice = SimpleNamespace(
-            contact=_make_contact("contact-123", name="Existing Client"),
+            contact=_make_contact("contact-123", name="Existing Company"),
             invoice_number="INV-001",
             date="2026-05-05",
             sub_total=100,
@@ -66,16 +66,16 @@ class XeroTransformContactResolutionTests(TestCase):
 
         fields = _extract_required_fields_xero("invoice", invoice, "inv-xero-id")
 
-        self.assertEqual(fields["client"].id, self.client.id)
+        self.assertEqual(fields["company"].id, self.company.id)
         mock_resolve_client.assert_called_once_with(invoice.contact, "INV-001")
 
-    @patch("apps.workflow.api.xero.transforms.resolve_client_from_xero_contact")
+    @patch("apps.workflow.api.xero.transforms.resolve_company_from_xero_contact")
     @patch("apps.workflow.api.xero.transforms.process_xero_data")
     @patch("apps.workflow.api.xero.transforms.Quote.objects.get_or_create")
     def test_quote_transform_uses_contact_resolver(
         self, mock_get_or_create, mock_process_xero_data, mock_resolve_client
     ):
-        mock_resolve_client.return_value = self.client
+        mock_resolve_client.return_value = self.company
         mock_process_xero_data.return_value = {
             "_status": {"_value_": "DRAFT"},
             "_date": "2026-05-05",
@@ -86,7 +86,7 @@ class XeroTransformContactResolutionTests(TestCase):
         mock_quote = SimpleNamespace(number="Q-001")
         mock_get_or_create.return_value = (mock_quote, True)
         quote = SimpleNamespace(
-            contact=_make_contact("contact-123", name="Existing Client"),
+            contact=_make_contact("contact-123", name="Existing Company"),
             quote_number="Q-001",
         )
 
@@ -96,7 +96,7 @@ class XeroTransformContactResolutionTests(TestCase):
             quote.contact, "quote quote-xero-id"
         )
 
-    @patch("apps.workflow.api.xero.transforms.resolve_client_from_xero_contact")
+    @patch("apps.workflow.api.xero.transforms.resolve_company_from_xero_contact")
     @patch("apps.workflow.api.xero.transforms.process_xero_data")
     @patch("apps.workflow.api.xero.transforms.PurchaseOrder.objects.filter")
     @patch("apps.workflow.api.xero.transforms.PurchaseOrder.objects.create")
@@ -107,7 +107,7 @@ class XeroTransformContactResolutionTests(TestCase):
         mock_process_xero_data,
         mock_resolve_client,
     ):
-        mock_resolve_client.return_value = self.client
+        mock_resolve_client.return_value = self.company
         mock_process_xero_data.return_value = {"_line_items": []}
         mock_filter.return_value.first.return_value = None
         mock_po = SimpleNamespace(
@@ -117,7 +117,7 @@ class XeroTransformContactResolutionTests(TestCase):
         )
         mock_create.return_value = mock_po
         xero_po = SimpleNamespace(
-            contact=_make_contact("contact-123", name="Existing Client"),
+            contact=_make_contact("contact-123", name="Existing Company"),
             purchase_order_number="PO-001",
             date="2026-05-05",
             status="DRAFT",

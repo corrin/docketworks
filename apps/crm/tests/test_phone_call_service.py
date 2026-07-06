@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.company.models import ClientContact, ClientContactMethod, Company
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -83,58 +83,58 @@ class PhoneMatcherTests(SimpleTestCase):
 class PhoneMatcherDatabaseTests(TestCase):
     """Business case: call records drive customer history. The matcher should
     attach calls when ownership is unambiguous, and refuse ambiguous matches so
-    one client's calls are not shown under another client or contact.
+    one company's calls are not shown under another company or contact.
     """
 
-    def _client(self, name: str) -> Client:
-        return Client.objects.create(name=name, xero_last_modified=timezone.now())
+    def _client(self, name: str) -> Company:
+        return Company.objects.create(name=name, xero_last_modified=timezone.now())
 
     def test_assign_phone_number_creates_primary_contact_method_and_matches_client(
         self,
     ) -> None:
-        client = self._client("Acme Ltd")
+        company = self._client("Acme Ltd")
 
         method = assign_phone_number(
             phone_number="09 636 5131",
-            client_id=str(client.id),
+            company_id=str(company.id),
             label="Reception",
         )
-        matched_client, matched_contact = PhoneMatcher().match_customer(
+        matched_company, matched_contact = PhoneMatcher().match_customer(
             "+6496365131",
             "+6490000000",
         )
 
         self.assertEqual(method.normalized_value, "+6496365131")
         self.assertTrue(method.is_primary)
-        self.assertEqual(matched_client, client)
+        self.assertEqual(matched_company, company)
         self.assertIsNone(matched_contact)
 
     def test_assign_number_allowed_on_contact_of_owning_client(self) -> None:
-        """Assigning a client's number to one of its own contacts is not a conflict."""
-        client = self._client("Acme Ltd")
-        contact = ClientContact.objects.create(client=client, name="Jane Smith")
-        assign_phone_number(phone_number="021 555 900", client_id=str(client.id))
+        """Assigning a company's number to one of its own contacts is not a conflict."""
+        company = self._client("Acme Ltd")
+        contact = ClientContact.objects.create(company=company, name="Jane Smith")
+        assign_phone_number(phone_number="021 555 900", company_id=str(company.id))
 
         method = assign_phone_number(
             phone_number="021 555 900",
-            client_id=str(client.id),
+            company_id=str(company.id),
             contact_id=str(contact.id),
         )
 
         self.assertEqual(method.contact_id, contact.id)
 
     def test_assign_number_rejected_for_different_client(self) -> None:
-        """A number owned by one client cannot be assigned to a different client."""
+        """A number owned by one company cannot be assigned to a different company."""
         owner = self._client("Acme Ltd")
         other = self._client("Beta Ltd")
-        assign_phone_number(phone_number="021 555 901", client_id=str(owner.id))
+        assign_phone_number(phone_number="021 555 901", company_id=str(owner.id))
 
         with self.assertRaisesRegex(ValueError, "already belongs"):
-            assign_phone_number(phone_number="021 555 901", client_id=str(other.id))
+            assign_phone_number(phone_number="021 555 901", company_id=str(other.id))
 
     def test_single_contact_method_matches_contact(self) -> None:
-        client = self._client("Acme Ltd")
-        contact = ClientContact.objects.create(client=client, name="Jane Smith")
+        company = self._client("Acme Ltd")
+        contact = ClientContact.objects.create(company=company, name="Jane Smith")
         ClientContactMethod.objects.create(
             contact=contact,
             method_type=ClientContactMethod.MethodType.PHONE,
@@ -142,21 +142,21 @@ class PhoneMatcherDatabaseTests(TestCase):
             is_primary=True,
         )
 
-        matched_client, matched_contact = PhoneMatcher().match_customer(
+        matched_company, matched_contact = PhoneMatcher().match_customer(
             "+6490000000",
             "+6421555123",
         )
 
-        self.assertEqual(matched_client, client)
+        self.assertEqual(matched_company, company)
         self.assertEqual(matched_contact, contact)
 
     def test_same_number_across_contacts_on_one_client_is_allowed(
         self,
     ) -> None:
-        """Two contacts of one client resolve to a single effective client owner."""
-        client = self._client("Acme Ltd")
-        jane = ClientContact.objects.create(client=client, name="Jane Smith")
-        john = ClientContact.objects.create(client=client, name="John Smith")
+        """Two contacts of one company resolve to a single effective company owner."""
+        company = self._client("Acme Ltd")
+        jane = ClientContact.objects.create(company=company, name="Jane Smith")
+        john = ClientContact.objects.create(company=company, name="John Smith")
         ClientContactMethod.objects.create(
             contact=jane,
             method_type=ClientContactMethod.MethodType.PHONE,
@@ -168,24 +168,24 @@ class PhoneMatcherDatabaseTests(TestCase):
             value="021 555 123",
         )
 
-        matched_client, matched_contact = PhoneMatcher().match_customer("+6421555123")
+        matched_company, matched_contact = PhoneMatcher().match_customer("+6421555123")
 
         self.assertIsNotNone(on_john.pk)
-        self.assertEqual(matched_client, client)
+        self.assertEqual(matched_company, company)
         self.assertIsNone(matched_contact)
 
     def test_same_number_across_clients_is_rejected(self) -> None:
         first = self._client("Acme Ltd")
         second = self._client("Beta Ltd")
         ClientContactMethod.objects.create(
-            client=first,
+            company=first,
             method_type=ClientContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
 
         with self.assertRaises(ValidationError):
             ClientContactMethod.objects.create(
-                client=second,
+                company=second,
                 method_type=ClientContactMethod.MethodType.PHONE,
                 value="021 555 123",
             )
@@ -213,16 +213,16 @@ class PhoneMatcherDatabaseTests(TestCase):
         second = self._client("Beta Ltd")
         CompanyDefaults.objects.create(
             company_name="Test Company",
-            shop_client=first,
+            shop_company=first,
         )
         staff = Staff.objects.create_user(
             email="rematch-link@example.com",
             password="testpass",
             is_office_staff=True,
         )
-        job = Job.objects.create(client=first, name="Linked Job", staff=staff)
+        job = Job.objects.create(company=first, name="Linked Job", staff=staff)
         ClientContactMethod.objects.create(
-            client=second,
+            company=second,
             method_type=ClientContactMethod.MethodType.PHONE,
             value="+6421555123",
             normalized_value="+6421555123",
@@ -236,7 +236,7 @@ class PhoneMatcherDatabaseTests(TestCase):
             call_time=call_datetime.time(),
             origin="021 555 123",
             destination="+6490000000",
-            client=first,
+            company=first,
             job=job,
             job_linked_by=staff,
             job_linked_at=call_datetime,
@@ -250,7 +250,7 @@ class PhoneMatcherDatabaseTests(TestCase):
         rematch_calls_for_numbers(["+6421555123"])
 
         call.refresh_from_db()
-        self.assertEqual(call.client, second)
+        self.assertEqual(call.company, second)
         self.assertIsNone(call.contact)
         self.assertIsNone(call.job)
         self.assertIsNone(call.job_linked_by)
@@ -264,13 +264,13 @@ class ProviderRecordingDeletionTests(TestCase):
     """
 
     def setUp(self) -> None:
-        shop_client = Client.objects.create(
-            name="Shop Client",
+        shop_company = Company.objects.create(
+            name="Shop Company",
             xero_last_modified=timezone.now(),
         )
         CompanyDefaults.objects.create(
             company_name="Test Company",
-            shop_client=shop_client,
+            shop_company=shop_company,
         )
         PhoneProviderSettings.objects.update_or_create(
             pk=1,
@@ -380,12 +380,12 @@ class PhoneCallSyncTests(BaseTestCase):
         super().tearDown()
 
     def test_sync_archives_recording_and_is_idempotent(self) -> None:
-        client = Client.objects.create(
-            name="Sync Client",
+        company = Company.objects.create(
+            name="Sync Company",
             xero_last_modified=timezone.now(),
         )
         ClientContactMethod.objects.create(
-            client=client,
+            company=company,
             method_type=ClientContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
@@ -418,7 +418,7 @@ class PhoneCallSyncTests(BaseTestCase):
         self.assertEqual(PhoneCallRecording.objects.count(), 1)
 
         call = PhoneCallRecord.objects.get()
-        self.assertEqual(call.client, client)
+        self.assertEqual(call.company, company)
         recording = call.recording
         self.assertEqual(recording.filename, "call.mp3")
         self.assertEqual(recording.byte_size, len(b"recorded audio"))
@@ -468,7 +468,7 @@ class PhoneCallSyncTests(BaseTestCase):
 
 class PhoneCallJobLinkApiTests(BaseAPITestCase):
     """Business case: office staff must be able to connect an imported phone
-    call to the job it was about, while preventing cross-client history leaks.
+    call to the job it was about, while preventing cross-company history leaks.
     """
 
     def setUp(self) -> None:
@@ -491,25 +491,25 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         )
         self.api = APIClient()
         self.api.force_authenticate(user=self.office_staff)
-        self.client_obj = Client.objects.create(
-            name="Phone Link Client",
+        self.company_obj = Company.objects.create(
+            name="Phone Link Company",
             xero_last_modified=timezone.now(),
         )
-        self.other_client = Client.objects.create(
-            name="Other Phone Link Client",
+        self.other_company = Company.objects.create(
+            name="Other Phone Link Company",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.company_obj,
             name="Phone Link Job",
             staff=self.test_staff,
         )
         self.other_job = Job.objects.create(
-            client=self.other_client,
+            company=self.other_company,
             name="Other Phone Link Job",
             staff=self.test_staff,
         )
-        self.call = self._call("call-1", client=self.client_obj)
+        self.call = self._call("call-1", company=self.company_obj)
 
     def tearDown(self) -> None:
         self.settings_override.disable()
@@ -542,8 +542,8 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
 
     def test_list_paginates_recent_calls(self) -> None:
         """Catches CRM calls page regressions that fetch the full call archive."""
-        self._call("call-2", client=self.client_obj)
-        self._call("call-3", client=self.client_obj)
+        self._call("call-2", company=self.company_obj)
+        self._call("call-3", company=self.company_obj)
 
         response = self.api.get("/api/crm/phone-calls/", {"page_size": "2"})
 
@@ -587,7 +587,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
     def test_list_page_size_is_capped(self) -> None:
         """Catches accidental oversized phone-call responses."""
         for index in range(101):
-            self._call(f"call-{index + 2}", client=self.client_obj)
+            self._call(f"call-{index + 2}", company=self.company_obj)
 
         response = self.api.get("/api/crm/phone-calls/", {"page_size": "250"})
 
@@ -601,8 +601,8 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         linked = self.call
         linked.job = self.job
         linked.save(update_fields=["job", "updated_at"])
-        unlinked = self._call("unlinked", client=self.client_obj)
-        unmatched = self._call("unmatched", client=None)
+        unlinked = self._call("unlinked", company=self.company_obj)
+        unmatched = self._call("unmatched", company=None)
 
         unmatched_response = self.api.get(
             "/api/crm/phone-calls/",
@@ -655,7 +655,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         )
         outbound = self._call(
             "outbound",
-            client=self.client_obj,
+            company=self.company_obj,
             origin="+6496365131",
             destination="+6421555999",
         )
@@ -678,7 +678,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
                 "has_recording": "true",
                 "from_date": timezone.localdate().isoformat(),
                 "to_date": timezone.localdate().isoformat(),
-                "q": "Phone Link Client",
+                "q": "Phone Link Company",
             },
         )
 
@@ -687,7 +687,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(response.data["results"][0]["id"], str(recorded_call.id))
 
     def test_bad_call_id_does_not_persist_app_error(self) -> None:
-        """Catches client typos being treated as server errors."""
+        """Catches company typos being treated as server errors."""
         before = AppError.objects.count()
 
         response = self.api.post(
@@ -714,7 +714,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(AppError.objects.count(), before)
 
     def test_bad_job_id_does_not_persist_app_error(self) -> None:
-        """Catches client typos being treated as server errors."""
+        """Catches company typos being treated as server errors."""
         before = AppError.objects.count()
 
         response = self.api.post(
@@ -736,7 +736,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
             )
 
     def test_bad_call_id_on_unlink_does_not_persist_app_error(self) -> None:
-        """Catches client typos being treated as server errors."""
+        """Catches company typos being treated as server errors."""
         before = AppError.objects.count()
 
         response = self.api.delete(f"/api/crm/phone-calls/{uuid.uuid4()}/job-link/")
@@ -762,13 +762,13 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         response = self.api.post(
             f"/api/crm/phone-calls/{self.call.id}/assign-number/",
             {
-                "client": str(uuid.uuid4()),
+                "company": str(uuid.uuid4()),
             },
             format="json",
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("Client not found", response.data["message"])
+        self.assertIn("Company not found", response.data["message"])
         self.assertEqual(AppError.objects.count(), before)
 
     def test_assign_number_cross_client_contact_does_not_persist_app_error(
@@ -777,7 +777,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.call.external_number = "+6421555001"
         self.call.save(update_fields=["external_number", "updated_at"])
         contact = ClientContact.objects.create(
-            client=self.other_client,
+            company=self.other_company,
             name="Other Contact",
         )
         before = AppError.objects.count()
@@ -785,7 +785,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         response = self.api.post(
             f"/api/crm/phone-calls/{self.call.id}/assign-number/",
             {
-                "client": str(self.client_obj.id),
+                "company": str(self.company_obj.id),
                 "contact": str(contact.id),
             },
             format="json",
@@ -796,7 +796,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(AppError.objects.count(), before)
 
     def test_link_rejects_unmatched_call(self) -> None:
-        unmatched = self._call("unmatched", client=None)
+        unmatched = self._call("unmatched", company=None)
 
         response = self.api.post(
             f"/api/crm/phone-calls/{unmatched.id}/job-link/",
@@ -805,7 +805,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("assigned to a client", response.data["message"])
+        self.assertIn("assigned to a company", response.data["message"])
 
     def test_link_rejects_cross_client_job(self) -> None:
         response = self.api.post(
@@ -815,7 +815,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("same client", response.data["message"])
+        self.assertIn("same company", response.data["message"])
 
     def test_unlink_clears_job_metadata(self) -> None:
         self.call.job = self.job
@@ -896,7 +896,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self,
         provider_id: str,
         *,
-        client: Client | None,
+        company: Company | None,
         origin: str = "+6421555123",
         destination: str = "+6496365131",
     ) -> PhoneCallRecord:
@@ -910,7 +910,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
             call_time=call_datetime.time(),
             origin=origin,
             destination=destination,
-            client=client,
+            company=company,
             raw_json={
                 "id": provider_id,
                 "calldate": call_date.isoformat(),

@@ -1,5 +1,5 @@
 """Guards against stale-data regressions: any write to Stock, Job, Staff
-assignments, or Client contacts must bump the corresponding data-version
+assignments, or Company contacts must bump the corresponding data-version
 string so the frontend invalidates its cache and re-fetches.
 """
 
@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact
+from apps.company.models import ClientContact, Company
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 from apps.job.services.job_service import JobStaffService
@@ -51,10 +51,10 @@ def _stock(**overrides):
 
 @pytest.fixture
 def kanban_prerequisites(db):
-    shop_client = _client(name="Shop Client")
+    shop_company = _client(name="Shop Company")
     CompanyDefaults.objects.get_or_create(
         company_name="Test Co",
-        defaults={"shop_client": shop_client},
+        defaults={"shop_company": shop_company},
     )
     XeroPayItem.objects.get_or_create(
         name="Ordinary Time",
@@ -64,15 +64,15 @@ def kanban_prerequisites(db):
 
 
 def _client(**overrides):
-    defaults = dict(name="Kanban Client", xero_last_modified=timezone.now())
+    defaults = dict(name="Kanban Company", xero_last_modified=timezone.now())
     defaults.update(overrides)
-    return Client.objects.create(**defaults)
+    return Company.objects.create(**defaults)
 
 
 def _job(staff, **overrides):
     defaults = dict(
         staff=staff,
-        client=_client(),
+        company=_client(),
         name="Kanban Job",
         pricing_methodology="time_materials",
     )
@@ -201,9 +201,9 @@ def test_assigning_staff_changes_kanban_version(
 def test_related_display_changes_change_kanban_version(
     auth_client, office_staff, kanban_prerequisites
 ):
-    client = _client(name="Original Client")
-    contact = ClientContact.objects.create(client=client, name="Original Contact")
-    _job(office_staff, client=client, contact=contact)
+    company = _client(name="Original Company")
+    contact = ClientContact.objects.create(company=company, name="Original Contact")
+    _job(office_staff, company=company, contact=contact)
     before = auth_client.get("/api/data-versions/").json()["kanban"]
     contact.name = "Updated Contact"
     contact.save(update_fields=["name"])
@@ -214,11 +214,11 @@ def test_related_display_changes_change_kanban_version(
 def test_client_partial_save_changes_kanban_version(
     auth_client: APIClient, office_staff: Staff, kanban_prerequisites: None
 ) -> None:
-    client = _client(name="Original Client")
-    _job(office_staff, client=client)
+    company = _client(name="Original Company")
+    _job(office_staff, company=company)
     before = auth_client.get("/api/data-versions/").json()["kanban"]
-    client.name = "Updated Client"
-    client.save(update_fields=["name"])
+    company.name = "Updated Company"
+    company.save(update_fields=["name"])
     after = auth_client.get("/api/data-versions/").json()["kanban"]
     assert before != after
 

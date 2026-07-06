@@ -45,7 +45,7 @@ class WorkshopTimesheetService:
                 staff=self.staff,
                 accounting_date=entry_date,
             )
-            .select_related("cost_set__job__client")
+            .select_related("cost_set__job__company")
             .order_by("entry_seq")
         )
 
@@ -116,7 +116,7 @@ class WorkshopTimesheetService:
 
     def update_entry(self, data) -> CostLine:
         """Update an existing CostLine belonging to the staff member."""
-        cost_line = CostLine.objects.select_related("cost_set__job__client").get(
+        cost_line = CostLine.objects.select_related("cost_set__job__company").get(
             id=data["entry_id"], kind="time"
         )
 

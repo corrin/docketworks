@@ -11,7 +11,7 @@ from django.utils import timezone
 from xero_python.accounting import AccountingApi
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.purchasing.models import PurchaseOrder, Stock
 from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
 from apps.workflow.api.xero.client import quota_floor_breached
@@ -21,25 +21,25 @@ from apps.workflow.api.xero.payroll import (
 )
 from apps.workflow.api.xero.push import (  # noqa: F401
     bulk_create_contacts_in_xero,
-    create_client_contact_in_xero,
+    create_company_contact_in_xero,
     get_all_xero_contacts,
     map_costline_to_expense_entry,
     map_costline_to_time_entry,
-    sync_client_to_xero,
+    sync_company_to_xero,
     sync_costlines_to_xero,
     sync_expense_entries_bulk,
     sync_job_to_xero,
     sync_time_entries_bulk,
 )
 from apps.workflow.api.xero.seed import (  # noqa: F401
-    seed_clients_to_xero,
+    seed_companies_to_xero,
     seed_jobs_to_xero,
     sync_single_contact,
     sync_single_invoice,
     sync_single_pay_run,
 )
 from apps.workflow.api.xero.transforms import process_xero_data  # noqa: F401
-from apps.workflow.api.xero.transforms import sync_clients  # noqa: F401
+from apps.workflow.api.xero.transforms import sync_companies  # noqa: F401
 from apps.workflow.api.xero.transforms import (
     sync_accounts,
     sync_entities,
@@ -343,9 +343,9 @@ ENTITY_CONFIGS = {
     "contacts": (
         "contacts",
         "contacts",
-        Client,
+        Company,
         "get_contacts",
-        sync_clients,
+        sync_companies,
         {"include_archived": True},
         "page",
     ),

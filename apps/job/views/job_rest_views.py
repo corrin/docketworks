@@ -259,7 +259,7 @@ class JobCreateRestView(BaseJobRestView):
         Expected JSON:
         {
             "name": "Job Name",
-            "client_id": "client-uuid",
+            "company_id": "company-uuid",
             "description": "Optional description",
             "order_number": "Optional order number",
             "notes": "Optional notes",
@@ -709,7 +709,7 @@ class JobEventRestView(BaseJobRestView):
             if not if_match:
                 return self._precondition_required_response()
 
-            # Verify client ETag against current job version
+            # Verify company ETag against current job version
             try:
                 job_for_etag = Job.objects.only("id", "updated_at").get(id=job_id)
                 current_etag_norm = self._normalize_etag(
@@ -889,15 +889,15 @@ class JobHeaderRestView(BaseJobRestView):
         Fetch essential job header data for fast initial loading.
         """
         try:
-            # Query fields derived from JOB_DIRECT_FIELDS, plus id and client/contact for joins
+            # Query fields derived from JOB_DIRECT_FIELDS, plus id and company/contact for joins
             query_fields = [
                 "id",
                 "updated_at",
-                "client_id",
+                "company_id",
                 "contact_id",
             ] + Job.JOB_DIRECT_FIELDS
             job = (
-                Job.objects.select_related("client", "contact")
+                Job.objects.select_related("company", "contact")
                 .only(*query_fields)
                 .get(id=job_id)
             )

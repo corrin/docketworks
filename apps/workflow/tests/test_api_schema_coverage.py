@@ -35,7 +35,7 @@ ALLOWED_NON_SCHEMA_PATTERNS = {
     "api/enums/",
     # DRF router roots (meta-endpoints listing sub-routes, not real APIs)
     "api/workflow/",
-    "api/clients/",
+    "api/companies/",
     "api/crm/",
     "api/purchasing/",
     "api/quoting/",

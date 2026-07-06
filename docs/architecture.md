@@ -78,10 +78,10 @@ The system is organized into focused Django apps, each handling specific busines
   - Password strength validation (minimum 10 characters)
   - Role-based permissions and authentication
 
-#### **`client`** - (Minimal) Customer Relationship Management
+#### **`company`** - (Minimal) Customer Relationship Management
 
 - **Purpose**: Customer data and (future) contact management
-- **Key Models**: Client
+- **Key Models**: Company
 - **Responsibilities**:
   - Bidirectional Xero contact synchronization
   - Contact person and communication history
@@ -135,7 +135,7 @@ erDiagram
     JobPricing ||--o{ TimeEntry : "tracks time"
     JobPricing ||--o{ MaterialEntry : "uses materials"
     Staff ||--o{ TimeEntry : "logs time"
-    Client ||--o{ Job : "requests work"
+    Company ||--o{ Job : "requests work"
     PurchaseOrder ||--o{ PurchaseOrderLine : "contains items"
     PurchaseOrderLine ||--o{ Stock : "creates inventory"
     Stock ||--o{ MaterialEntry : "used in jobs"
@@ -145,7 +145,7 @@ erDiagram
         string status
         text description
         datetime created_at
-        uuid client_id FK
+        uuid company_id FK
     }
 
     JobPricing {
@@ -218,7 +218,7 @@ Located in `frontend/`:
 
 ```
 /api/jobs/                 - Job CRUD operations
-/api/clients/              - Client management
+/api/companies/            - Company management
 /api/timesheets/           - Time entry operations
 /api/purchasing/           - Purchase order management
 /api/xero/                 - Xero integration endpoints

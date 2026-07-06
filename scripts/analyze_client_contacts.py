@@ -19,7 +19,7 @@ django.setup()
 
 from django.db.models import Count
 
-from apps.client.models import Client, ClientContact
+from apps.company.models import ClientContact, Company
 from apps.job.models import Job
 
 
@@ -38,7 +38,7 @@ def analyze_empty_names(verbose: bool) -> None:
         logging.info("Sample records (first 10):")
         for contact in empty_name_contacts[:10]:
             logging.info("  - ID: %s", contact.id)
-            logging.info("    Client: %s", contact.client.name)
+            logging.info("    Company: %s", contact.company.name)
             logging.info("    Name: '%s' (length: %d)", contact.name, len(contact.name))
             logging.info("    Email: %s", contact.email or "None")
 
@@ -48,11 +48,11 @@ def analyze_empty_names(verbose: bool) -> None:
 
 
 def analyze_duplicates(verbose: bool) -> None:
-    """Analyze duplicate ClientContact records (same client + name)."""
+    """Analyze duplicate ClientContact records (same company + name)."""
     logging.info("2. DUPLICATE CONTACT ANALYSIS")
 
     duplicates = (
-        ClientContact.objects.values("client", "name")
+        ClientContact.objects.values("company", "name")
         .annotate(count=Count("id"))
         .filter(count__gt=1)
         .order_by("-count")
@@ -60,7 +60,7 @@ def analyze_duplicates(verbose: bool) -> None:
 
     total_duplicate_groups = duplicates.count()
     logging.info(
-        "Total duplicate (client, name) combinations: %d", total_duplicate_groups
+        "Total duplicate (company, name) combinations: %d", total_duplicate_groups
     )
 
     if total_duplicate_groups == 0:
@@ -73,17 +73,17 @@ def analyze_duplicates(verbose: bool) -> None:
     if verbose:
         logging.info("Top 10 duplicate groups:")
         for i, dup in enumerate(duplicates[:10], 1):
-            client = Client.objects.get(id=dup["client"])
+            company = Company.objects.get(id=dup["company"])
             logging.info(
-                "%d. Client: %s — Contact: '%s' — %d copies",
+                "%d. Company: %s — Contact: '%s' — %d copies",
                 i,
-                client.name,
+                company.name,
                 dup["name"],
                 dup["count"],
             )
 
             contacts = ClientContact.objects.filter(
-                client_id=dup["client"], name=dup["name"]
+                company_id=dup["company"], name=dup["name"]
             ).order_by("-created_at")
 
             for contact in contacts[:5]:
@@ -105,7 +105,7 @@ def analyze_duplicates(verbose: bool) -> None:
 
     logging.info("--- SUMMARY ---")
     logging.info("Empty/whitespace name contacts: %d", empty_count)
-    logging.info("Duplicate (client, name) combinations: %d", total_duplicate_groups)
+    logging.info("Duplicate (company, name) combinations: %d", total_duplicate_groups)
     logging.info("Total duplicate records to be removed: %d", total_duplicate_records)
     logging.info(
         "Total records after cleanup: %d",

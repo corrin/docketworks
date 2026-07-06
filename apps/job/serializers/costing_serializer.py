@@ -40,7 +40,7 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
     Architecture principle: Job data comes from CostSet->Job relationship,
     NOT from metadata. This ensures data consistency and follows SRP:
     - Metadata = timesheet-specific data (staff, date, billable, etc.)
-    - Relationship = job data (job_id, job_number, job_name, client)
+    - Relationship = job data (job_id, job_number, job_name, company)
 
     Benefits:
     - No data duplication
@@ -64,8 +64,8 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
         source="labour_subtype.name", read_only=True
     )
 
-    # Client name with null handling
-    client_name = serializers.SerializerMethodField()
+    # Company name with null handling
+    company_name = serializers.SerializerMethodField()
 
     # Staff wage rate for frontend cost calculations
     wage_rate = serializers.SerializerMethodField()
@@ -97,10 +97,10 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
         """Get total revenue (quantity * unit_rev)"""
         return float(obj.quantity * obj.unit_rev) if obj.unit_rev else 0.0
 
-    def get_client_name(self, obj) -> str:
-        """Get client name with safe null handling"""
-        if obj.cost_set and obj.cost_set.job and obj.cost_set.job.client:
-            return obj.cost_set.job.client.name
+    def get_company_name(self, obj) -> str:
+        """Get company name with safe null handling"""
+        if obj.cost_set and obj.cost_set.job and obj.cost_set.job.company:
+            return obj.cost_set.job.company.name
         return ""
 
     def get_wage_rate(self, obj) -> float:
@@ -124,7 +124,7 @@ class TimesheetCostLineSerializer(serializers.ModelSerializer):
             "job_id",
             "job_number",
             "job_name",
-            "client_name",
+            "company_name",
             "charge_out_rate",
             "wage_rate",
             "xero_pay_item_name",

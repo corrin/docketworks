@@ -39,7 +39,7 @@ from django.db.models import Count, Prefetch
 from django.test import RequestFactory
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, CostSet, Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
@@ -162,7 +162,7 @@ class SerializerTester:
             .select_related(
                 "contact",
                 "created_by",
-                "client",
+                "company",
                 "latest_estimate",
                 "latest_quote",
                 "latest_actual",
@@ -185,7 +185,7 @@ class SerializerTester:
             Job.objects.filter(
                 status__in=["quoting", "in_progress", "ready_for_delivery"]
             )
-            .select_related("contact", "client", "created_by")
+            .select_related("contact", "company", "created_by")
             .prefetch_related("people")
         )
         context = KanbanService.build_serialization_context(jobs)
@@ -213,10 +213,10 @@ class SerializerTester:
 
     def test_client_serializer(self) -> Dict[str, Any]:
         """Test ClientSerializer with sample of clients"""
-        from apps.client.serializers import ClientSerializer
+        from apps.company.serializers import ClientSerializer
 
         # Test sample of clients to avoid overwhelming output
-        queryset = Client.objects.all()[:500]
+        queryset = Company.objects.all()[:500]
 
         return self._test_serializer_batch(
             ClientSerializer, queryset, "ClientSerializer (Sample)"
@@ -240,7 +240,7 @@ class SerializerTester:
             .prefetch_related(
                 Prefetch(
                     "po_lines",
-                    queryset=PurchaseOrderLine.objects.select_related("job__client"),
+                    queryset=PurchaseOrderLine.objects.select_related("job__company"),
                     to_attr="detail_lines",
                 )
             )
@@ -289,7 +289,7 @@ class SerializerTester:
             "job": self.test_job_serializer,
             "kanban": self.test_kanban_serializer,
             "costing": self.test_costing_serializer,
-            "client": self.test_client_serializer,
+            "company": self.test_client_serializer,
             "staff": self.test_staff_serializer,
             "purchase_order": self.test_purchase_order_serializer,
             "timesheet": self.test_modern_timesheet_serializer,
@@ -374,7 +374,7 @@ def main():
         "--serializer",
         "-s",
         type=str,
-        help="Test specific serializer (job, kanban, costing, client, staff, purchase_order, timesheet)",
+        help="Test specific serializer (job, kanban, costing, company, staff, purchase_order, timesheet)",
     )
 
     args = parser.parse_args()

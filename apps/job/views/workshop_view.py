@@ -39,7 +39,7 @@ class WorkshopKanbanView(ListAPIView):
                 "name": job.name,
                 "description": job.description,
                 "job_number": job.job_number,
-                "client_name": job.client.name,
+                "company_name": job.company.name,
                 "contact_person": job.contact.name if job.contact else None,
                 "people": [
                     {

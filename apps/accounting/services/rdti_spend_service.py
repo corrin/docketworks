@@ -55,7 +55,7 @@ class RDTISpendService:
                 job_id=F("cost_set__job__id"),
                 job_number=F("cost_set__job__job_number"),
                 job_name=F("cost_set__job__name"),
-                client_name=F("cost_set__job__client__name"),
+                company_name=F("cost_set__job__company__name"),
                 rdti_type=Coalesce(
                     F("cost_set__job__rdti_type"), Value("unclassified")
                 ),
@@ -76,7 +76,7 @@ class RDTISpendService:
                     "job_id": str(row["job_id"]),
                     "job_number": row["job_number"],
                     "job_name": row["job_name"],
-                    "client_name": row["client_name"] or "",
+                    "company_name": row["company_name"] or "",
                     "rdti_type": row["rdti_type"],
                     "hours": float(row["hours"]),
                     "cost": float(row["cost"]),

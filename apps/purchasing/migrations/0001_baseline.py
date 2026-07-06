@@ -15,7 +15,7 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
         ("job", "0001_baseline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
@@ -111,7 +111,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="purchase_orders",
-                        to="client.supplierpickupaddress",
+                        to="company.supplierpickupaddress",
                     ),
                 ),
                 (
@@ -121,7 +121,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="purchase_orders",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],

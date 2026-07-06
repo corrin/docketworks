@@ -36,7 +36,7 @@ class RDTISpendJobDetailSerializer(serializers.Serializer[Any]):
     job_id = serializers.CharField()
     job_number = serializers.IntegerField()
     job_name = serializers.CharField()
-    client_name = serializers.CharField()
+    company_name = serializers.CharField()
     rdti_type = serializers.CharField()
     hours = serializers.FloatField()
     cost = serializers.FloatField()

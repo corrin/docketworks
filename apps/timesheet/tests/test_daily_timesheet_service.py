@@ -5,7 +5,7 @@ from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, Job, LabourSubtype
 from apps.testing import BaseTestCase
 from apps.timesheet.services.daily_timesheet_service import DailyTimesheetService
@@ -16,8 +16,8 @@ class DailyTimesheetServiceTests(BaseTestCase):
     def setUp(self):
         super().setUp()
         self.target_date = date(2026, 5, 22)
-        self.client = Client.objects.create(
-            name="Daily Timesheet Client",
+        self.company = Company.objects.create(
+            name="Daily Timesheet Company",
             email="daily-timesheet@example.com",
             xero_last_modified=timezone.now(),
         )
@@ -25,7 +25,7 @@ class DailyTimesheetServiceTests(BaseTestCase):
         self.job = Job.objects.create(
             job_number=98766,
             name="Daily Timesheet Job",
-            client=self.client,
+            company=self.company,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
@@ -50,16 +50,16 @@ class DailyTimesheetServiceTests(BaseTestCase):
             entry_seq=1,
         )
 
-    def _create_job(self, *, job_number: int, client_name: str) -> Job:
-        client = Client.objects.create(
-            name=client_name,
+    def _create_job(self, *, job_number: int, company_name: str) -> Job:
+        company = Company.objects.create(
+            name=company_name,
             email=f"{job_number}@example.com",
             xero_last_modified=timezone.now(),
         )
         job = Job.objects.create(
             job_number=job_number,
             name=f"Daily Timesheet Job {job_number}",
-            client=client,
+            company=company,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
@@ -88,10 +88,10 @@ class DailyTimesheetServiceTests(BaseTestCase):
         )
 
     def test_staff_timesheet_data_does_not_lazy_load_job_breakdown_relations(self):
-        """Catches N+1 DB access while daily timesheets serialize job/client data."""
+        """Catches N+1 DB access while daily timesheets serialize job/company data."""
         other_job = self._create_job(
             job_number=98767,
-            client_name="Second Daily Timesheet Client",
+            company_name="Second Daily Timesheet Company",
         )
         self._create_time_line(other_job, hours="3.000", entry_seq=2)
 
@@ -105,14 +105,14 @@ class DailyTimesheetServiceTests(BaseTestCase):
             for query in captured
             if 'FROM "job_costset"' in query["sql"]
             or 'FROM "job_job"' in query["sql"]
-            or 'FROM "client_client"' in query["sql"]
+            or 'FROM "company_company"' in query["sql"]
         ]
 
         self.assertEqual(direct_relation_queries, [])
         self.assertEqual(
-            [(row["client"], row["hours"]) for row in staff_data["job_breakdown"]],
+            [(row["company"], row["hours"]) for row in staff_data["job_breakdown"]],
             [
-                ("Second Daily Timesheet Client", 3.0),
-                ("Daily Timesheet Client", 2.0),
+                ("Second Daily Timesheet Company", 3.0),
+                ("Daily Timesheet Company", 2.0),
             ],
         )

@@ -93,7 +93,7 @@ class XeroAppSerializer(serializers.ModelSerializer):
     """List / detail / PATCH serializer for XeroApp.
 
     client_secret and webhook_key are write-only — never returned. The
-    webhook signing key is comparable in sensitivity to the client secret
+    webhook signing key is comparable in sensitivity to the company secret
     (anyone holding it can forge webhook deliveries that we'd verify as
     authentic), so it gets the same treatment. access_token /
     refresh_token are not surfaced at all; instead a derived has_tokens
@@ -330,7 +330,7 @@ class XeroDocumentSuccessResponseSerializer(serializers.Serializer):
     )
 
     # Fields returned by Invoice/Quote managers
-    client = serializers.CharField(required=False, help_text="Name of the client.")
+    company = serializers.CharField(required=False, help_text="Name of the company.")
     total_excl_tax = serializers.DecimalField(
         max_digits=12, decimal_places=2, required=False
     )
@@ -630,7 +630,7 @@ class GroupedErrorResolveRequestSerializer(serializers.Serializer):
     iterates the unresolved rows, computes each message's hash, and cascades
     the resolve across every row whose hash matches.
 
-    Using a fingerprint (not the message string) avoids client-side
+    Using a fingerprint (not the message string) avoids company-side
     whitespace mangling: the frontend's global axios interceptor calls
     trimStringsDeep on outbound payloads, which would strip trailing
     whitespace and prevent a later exact match.

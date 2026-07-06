@@ -105,7 +105,7 @@ class DailyTimesheetService:
                 kind="time",
                 staff=staff,
                 accounting_date=target_date,
-            ).select_related("cost_set__job__client")
+            ).select_related("cost_set__job__company")
 
             logger.debug(f"Found {len(cost_lines)} cost lines for staff {staff.id}")
 
@@ -239,7 +239,7 @@ class DailyTimesheetService:
                         "job_id": job_id_str,
                         "job_number": job_number,
                         "job_name": job_name,
-                        "client": job.client.name if job.client else "",
+                        "company": job.company.name if job.company else "",
                         "price_cap": job.price_cap,
                         "hours": Decimal("0.0"),
                         "revenue": Decimal("0.0"),

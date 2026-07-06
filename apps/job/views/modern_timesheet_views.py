@@ -158,7 +158,7 @@ class ModernTimesheetEntryView(APIView):
                     accounting_date=parsed_date,
                 )
                 .select_related(
-                    "cost_set__job__client",
+                    "cost_set__job__company",
                     "staff",
                     "xero_pay_item",
                     "labour_subtype",
@@ -553,7 +553,7 @@ class ModernTimesheetDayView(APIView):
                     accounting_date=parsed_date,
                 )
                 .select_related(
-                    "cost_set__job__client",
+                    "cost_set__job__company",
                     "staff",
                     "xero_pay_item",
                     "labour_subtype",
@@ -624,7 +624,7 @@ class ModernTimesheetJobView(APIView):
                     meta__created_from_timesheet=True,
                 )
                 .select_related(
-                    "cost_set__job__client",
+                    "cost_set__job__company",
                     "staff",
                     "xero_pay_item",
                     "labour_subtype",

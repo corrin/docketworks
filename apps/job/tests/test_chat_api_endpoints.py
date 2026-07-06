@@ -14,7 +14,7 @@ from rest_framework import status
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobQuoteChat
 from apps.testing import BaseTestCase
 from apps.workflow.enums import AIProviderTypes
@@ -31,9 +31,9 @@ class ChatAPIEndpointTests(BaseTestCase):
         # Get test data from fixture
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -44,7 +44,7 @@ class ChatAPIEndpointTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client_obj,
+            company=self.client_obj,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
@@ -352,9 +352,9 @@ class ChatAPIPermissionTests(BaseTestCase):
         # Get test data from fixture
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -365,7 +365,7 @@ class ChatAPIPermissionTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client_obj,
+            company=self.client_obj,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
@@ -436,9 +436,9 @@ class ChatAPIValidationTests(BaseTestCase):
 
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -449,7 +449,7 @@ class ChatAPIValidationTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client_obj,
+            company=self.client_obj,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,

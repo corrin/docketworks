@@ -12,7 +12,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.client.services.duplicate_phone_report import DuplicatePhoneReportService
+from apps.company.services.duplicate_phone_report import DuplicatePhoneReportService
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.data_quality_report_serializers import (
     ArchivedJobsComplianceResponseSerializer,
@@ -71,7 +71,7 @@ class DuplicatePhonesView(APIView):
         operation_id="check_duplicate_phones",
         summary="Check duplicate phone ownership",
         description=(
-            "List phone numbers owned by more than one client, or client numbers "
+            "List phone numbers owned by more than one company, or company numbers "
             "that are actually internal company lines."
         ),
         responses={
@@ -81,7 +81,7 @@ class DuplicatePhonesView(APIView):
         tags=["Data Quality"],
     )
     def get(self, request: Request) -> Response:
-        """Return phone numbers that break the one-number-one-client rule."""
+        """Return phone numbers that break the one-number-one-company rule."""
         try:
             result = DuplicatePhoneReportService().get_report()
 

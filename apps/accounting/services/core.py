@@ -153,7 +153,7 @@ class KPIService:
             List of job breakdowns with profit details
         """
         defaults = CompanyDefaults.get_solo()
-        shop_client_id = defaults.shop_client_id
+        shop_company_id = defaults.shop_company_id
         excluded_staff_ids = get_payroll_excluded_staff_ids()
 
         # Get cost lines for the target date from 'actual' cost sets
@@ -165,7 +165,7 @@ class KPIService:
                 cost_set__kind="actual",
                 accounting_date=target_date,
             )
-            .select_related("cost_set__job__client")
+            .select_related("cost_set__job__company")
         )
 
         # For time entries, exclude staff that shouldn't be included
@@ -190,7 +190,7 @@ class KPIService:
                     "job_id": str(job.id),
                     "job_number": job_number,
                     "job_display_name": job.job_display_name,
-                    "client_name": job.client.name,  # Add client name
+                    "company_name": job.company.name,  # Add company name
                     "labour_revenue": 0,
                     "labour_cost": 0,
                     "material_revenue": 0,
@@ -199,8 +199,8 @@ class KPIService:
                     "adjustment_cost": 0,
                 }
 
-            # Only count billable time revenue if not shop client
-            if line.is_billable == "true" and job.client_id != shop_client_id:
+            # Only count billable time revenue if not shop company
+            if line.is_billable == "true" and job.company_id != shop_company_id:
                 job_data[job_number]["labour_revenue"] += float(line.total_rev)
 
             job_data[job_number]["labour_cost"] += float(line.total_cost)
@@ -215,7 +215,7 @@ class KPIService:
                     "job_id": str(job.id),
                     "job_number": job_number,
                     "job_display_name": job.job_display_name,
-                    "client_name": job.client.name,  # Add client name
+                    "company_name": job.company.name,  # Add company name
                     "labour_revenue": 0,
                     "labour_cost": 0,
                     "material_revenue": 0,
@@ -237,7 +237,7 @@ class KPIService:
                     "job_id": str(job.id),
                     "job_number": job_number,
                     "job_display_name": job.job_display_name,
-                    "client_name": job.client.name,  # Add client name
+                    "company_name": job.company.name,  # Add company name
                     "labour_revenue": 0,
                     "labour_cost": 0,
                     "material_revenue": 0,
@@ -263,7 +263,7 @@ class KPIService:
                 if (
                     line.cost_set.job.job_number == job_number
                     and line.is_billable == "true"
-                    and line.cost_set.job.client_id != shop_client_id
+                    and line.cost_set.job.company_id != shop_company_id
                 ):
                     billable_hours += float(line.quantity)
 
@@ -282,7 +282,7 @@ class KPIService:
                     "job_id": data["job_id"],
                     "job_number": str(job_number),
                     "job_name": data["job_display_name"],
-                    "client_name": data["client_name"],
+                    "company_name": data["company_name"],
                     "billable_hours": billable_hours,
                     "revenue": total_revenue,
                     "cost": total_cost,
@@ -313,7 +313,7 @@ class KPIService:
         logger.info(f"Generating KPI calendar data for {year}-{month}")
 
         defaults = CompanyDefaults.get_solo()
-        shop_client_id = defaults.shop_client_id
+        shop_company_id = defaults.shop_company_id
         thresholds = cls.get_company_thresholds()
         logger.debug(
             f"Using thresholds: green={thresholds['kpi_daily_billable_hours_green']}, "
@@ -389,16 +389,16 @@ class KPIService:
             hours = line.quantity
             time_entries_by_date[line_date]["total_hours"] += hours
 
-            # Check if billable and not shop client
+            # Check if billable and not shop company
             if (
                 line.is_billable == "true"
-                and line.cost_set.job.client_id != shop_client_id
+                and line.cost_set.job.company_id != shop_company_id
             ):
                 time_entries_by_date[line_date]["billable_hours"] += hours
                 time_entries_by_date[line_date]["time_revenue"] += line.total_rev
 
             # Check if shop hours
-            if line.cost_set.job.client_id == shop_client_id:
+            if line.cost_set.job.company_id == shop_company_id:
                 time_entries_by_date[line_date]["shop_hours"] += hours
 
             time_entries_by_date[line_date]["staff_cost"] += line.total_cost
@@ -782,7 +782,7 @@ class JobAgingService:
 
         try:
             # Get active jobs (exclude archived unless requested)
-            jobs_query = Job.objects.select_related("client").prefetch_related(
+            jobs_query = Job.objects.select_related("company").prefetch_related(
                 "events", "cost_sets__cost_lines"
             )
 
@@ -799,7 +799,7 @@ class JobAgingService:
                 additional_context={
                     "operation": "fetch_jobs_for_aging_report",
                     "include_archived": include_archived,
-                    "query_filters": "active_jobs_with_client_and_cost_data",
+                    "query_filters": "active_jobs_with_company_and_cost_data",
                 },
             )
 
@@ -816,7 +816,7 @@ class JobAgingService:
                     "id": str(job.id),
                     "job_number": job.job_number,
                     "name": job.name,
-                    "client_name": job.client.name if job.client else "No Client",
+                    "company_name": job.company.name if job.company else "No Company",
                     "status": job.status,
                     "status_display": job.get_status_display(),
                     "price_cap": job.price_cap,
@@ -833,7 +833,7 @@ class JobAgingService:
                         "operation": "process_individual_job_for_aging",
                         "job_number": job.job_number,
                         "job_status": job.status,
-                        "client_name": job.client.name if job.client else None,
+                        "company_name": job.company.name if job.company else None,
                     },
                 )
                 # Continue processing other jobs
@@ -1189,7 +1189,7 @@ class StaffPerformanceService:
                     accounting_date__gte=start_date,
                     accounting_date__lte=end_date,
                 )
-                .select_related("cost_set__job__client")
+                .select_related("cost_set__job__company")
             )
 
             # Get all active staff
@@ -1201,7 +1201,7 @@ class StaffPerformanceService:
 
             staff_data = []
             include_job_breakdown = staff_id is not None
-            shop_client_id = CompanyDefaults.get_solo().shop_client_id
+            shop_company_id = CompanyDefaults.get_solo().shop_company_id
 
             lines_by_staff_id: Dict[str, List[CostLine]] = {}
             for line in cost_lines:
@@ -1216,7 +1216,7 @@ class StaffPerformanceService:
                     staff,
                     staff_cost_lines,
                     include_job_breakdown,
-                    shop_client_id,
+                    shop_company_id,
                 )
                 # Only include staff with recorded hours in the period
                 if staff_metrics["total_hours"] > 0:
@@ -1261,7 +1261,7 @@ class StaffPerformanceService:
         staff: Staff,
         cost_lines: List[CostLine],
         include_job_breakdown: bool = False,
-        shop_client_id: UUID | None = None,
+        shop_company_id: UUID | None = None,
     ) -> Dict[str, Any]:
         """
         Calculate performance metrics for a single staff member.
@@ -1275,15 +1275,15 @@ class StaffPerformanceService:
             Dict containing staff performance metrics
         """
         total_hours = float(sum(line.quantity for line in cost_lines))
-        if shop_client_id is None:
-            shop_client_id = CompanyDefaults.get_solo().shop_client_id
+        if shop_company_id is None:
+            shop_company_id = CompanyDefaults.get_solo().shop_company_id
 
         billable_hours = float(
             sum(
                 line.quantity
                 for line in cost_lines
                 if line.is_billable_meta == "true"
-                and line.cost_set.job.client_id != shop_client_id
+                and line.cost_set.job.company_id != shop_company_id
             )
         )
 
@@ -1320,7 +1320,7 @@ class StaffPerformanceService:
         if include_job_breakdown:
             job_breakdown = StaffPerformanceService._calculate_job_breakdown(
                 cost_lines,
-                shop_client_id,
+                shop_company_id,
             )
             staff_metrics["job_breakdown"] = job_breakdown
 
@@ -1329,7 +1329,7 @@ class StaffPerformanceService:
     @staticmethod
     def _calculate_job_breakdown(
         cost_lines: models.QuerySet,
-        shop_client_id: UUID | None = None,
+        shop_company_id: UUID | None = None,
     ) -> List[Dict[str, Any]]:
         """
         Calculate job-level breakdown for cost lines.
@@ -1341,8 +1341,8 @@ class StaffPerformanceService:
             List of job breakdown dictionaries
         """
         job_data = {}
-        if shop_client_id is None:
-            shop_client_id = CompanyDefaults.get_solo().shop_client_id
+        if shop_company_id is None:
+            shop_company_id = CompanyDefaults.get_solo().shop_company_id
 
         for line in cost_lines:
             job = line.cost_set.job
@@ -1353,7 +1353,7 @@ class StaffPerformanceService:
                     "job_id": job_id,
                     "job_number": job.job_number or "",
                     "job_name": job.name or "",
-                    "client_name": job.client.name if job.client else "",
+                    "company_name": job.company.name if job.company else "",
                     "billable_hours": 0.0,
                     "non_billable_hours": 0.0,
                     "revenue": 0.0,
@@ -1362,7 +1362,7 @@ class StaffPerformanceService:
 
             hours = float(line.quantity)
             # Shop jobs are always non-billable regardless of the is_billable flag
-            is_shop_job = line.cost_set.job.client_id == shop_client_id
+            is_shop_job = line.cost_set.job.company_id == shop_company_id
             is_billable = line.is_billable_meta == "true" and not is_shop_job
 
             if is_billable:

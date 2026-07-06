@@ -2,7 +2,7 @@ import logging
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.quoting.models import SupplierProduct
 
 logger = logging.getLogger(__name__)
@@ -283,8 +283,8 @@ class PDFDataValidationService:
             Dictionary with 'duplicates' and 'new' product lists
         """
         try:
-            supplier = Client.objects.get(name=supplier_name)
-        except Client.DoesNotExist:
+            supplier = Company.objects.get(name=supplier_name)
+        except Company.DoesNotExist:
             # If supplier doesn't exist, all products are new
             return {"duplicates": [], "new": products}
 

@@ -101,7 +101,7 @@ class SalesPipelineSnapshotJobSerializer(serializers.Serializer[Any]):
     id = serializers.CharField()
     job_number = serializers.IntegerField()
     name = serializers.CharField()
-    client_name = serializers.CharField(allow_blank=True)
+    company_name = serializers.CharField(allow_blank=True)
     hours = serializers.FloatField()
     value = serializers.FloatField()
     days_in_stage = serializers.IntegerField()

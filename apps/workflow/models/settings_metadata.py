@@ -135,8 +135,8 @@ COMPANY_DEFAULTS_FIELD_SECTIONS: dict[str, str] = {
     "starting_job_number": "setup",
     "starting_po_number": "setup",
     "po_prefix": "setup",
-    "shop_client": "setup",
-    "test_client_name": "setup",
+    "shop_company": "setup",
+    "test_company_name": "setup",
     # Xero integration
     "accounting_provider": "xero",
     "xero_tenant_id": "xero",
@@ -165,8 +165,8 @@ def get_ui_type_for_field(field: "models.Field[Any, Any]") -> str:
     """
     related_model = getattr(field.remote_field, "model", None)
     related_label = getattr(getattr(related_model, "_meta", None), "label", None)
-    if isinstance(field, models.ForeignKey) and related_label == "client.Client":
-        return "client"
+    if isinstance(field, models.ForeignKey) and related_label == "company.Company":
+        return "company"
 
     for field_class, ui_type in DJANGO_TO_UI_TYPE.items():
         if isinstance(field, field_class):

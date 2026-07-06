@@ -14,7 +14,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 from pypdf import PdfReader
 
-from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.company.models import ClientContact, ClientContactMethod, Company
 from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.services.workshop_pdf_service import (
@@ -33,25 +33,25 @@ from apps.testing import BaseTestCase
 
 class PrimaryPhoneForJobTests(BaseTestCase):
     """Phone preference order on workshop PDFs and delivery dockets:
-    the job contact's number first, then the client's own number."""
+    the job contact's number first, then the company's own number."""
 
     def setUp(self) -> None:
-        self.client_obj = Client.objects.create(
-            name="Phone Pref Client",
+        self.client_obj = Company.objects.create(
+            name="Phone Pref Company",
             xero_last_modified=timezone.now(),
         )
         self.contact = ClientContact.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Jane Doe",
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             contact=self.contact,
             name="Phone Pref Job",
             staff=self.test_staff,
         )
         ClientContactMethod.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             method_type=ClientContactMethod.MethodType.PHONE,
             value="09 555 0001",
         )
@@ -396,12 +396,12 @@ class WorkshopHourBreakdownTests(BaseTestCase):
     """Tests for subtype-based workshop PDF hour calculations."""
 
     def setUp(self) -> None:
-        self.client_obj = Client.objects.create(
-            name="PDF Time Client",
+        self.client_obj = Company.objects.create(
+            name="PDF Time Company",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="PDF Time Job",
             staff=self.test_staff,
         )
@@ -554,7 +554,7 @@ class WorkshopHourBreakdownTests(BaseTestCase):
         assert estimate is not None
         self._add_time(estimate, "Workshop", "4.000", "Workshop")
         ClientContactMethod.objects.create(
-            client=self.job.client,
+            company=self.job.company,
             method_type=ClientContactMethod.MethodType.PHONE,
             value="09 555 0001",
         )
@@ -583,7 +583,7 @@ class WorkshopHourBreakdownTests(BaseTestCase):
         contact_method_queries = [
             query["sql"]
             for query in captured
-            if 'FROM "client_clientcontactmethod"' in query["sql"]
+            if 'FROM "company_clientcontactmethod"' in query["sql"]
         ]
         self.assertEqual(cost_line_queries, [])
         self.assertEqual(contact_method_queries, [])
@@ -659,12 +659,12 @@ class DeliveryDocketPDFTests(BaseTestCase):
     """Tests for delivery docket PDF generation."""
 
     def setUp(self) -> None:
-        self.client_obj = Client.objects.create(
-            name="Test Client",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Test Delivery Job",
             description="Deliver some steel",
             staff=self.test_staff,

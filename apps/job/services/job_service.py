@@ -20,7 +20,7 @@ def get_paid_complete_jobs():
     """Fetches the jobs that are both completed and paid."""
     return (
         Job.objects.filter(status__in=["completed", "recently_completed"], paid=True)
-        .select_related("client")
+        .select_related("company")
         .order_by("-updated_at")
     )
 

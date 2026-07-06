@@ -39,7 +39,7 @@ def _build_server_error_response(*, message: str, exc: Exception) -> Response:
 @extend_schema_view(
     post=extend_schema(
         summary="Log search result selection",
-        description="Records a selected result from client, Kanban, or stock search.",
+        description="Records a selected result from company, Kanban, or stock search.",
         request=SearchTelemetryClickRequestSerializer,
         responses={200: SearchTelemetryClickResponseSerializer},
         tags=["Search telemetry"],

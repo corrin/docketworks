@@ -22,7 +22,7 @@ class InvoicePayload:
     """Data needed to create an invoice in any accounting system."""
 
     client_external_id: str
-    client_name: str
+    company_name: str
     line_items: list[DocumentLineItem]
     date: date
     due_date: date
@@ -38,7 +38,7 @@ class QuotePayload:
     """Data needed to create a quote in any accounting system."""
 
     client_external_id: str
-    client_name: str
+    company_name: str
     line_items: list[DocumentLineItem]
     date: date
     expiry_date: date
