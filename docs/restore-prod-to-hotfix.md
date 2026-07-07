@@ -28,30 +28,36 @@ must never **act on** production's external systems.
    wipe_tokens_and_quota(get_active_app())
    ```
 
-3. **Point Xero OAuth back to the hotfix server.** A production restore keeps
-   production's `XeroApp.redirect_uri`; if it is not repaired, Xero login will
-   send the browser back to production instead of this checkout. Set the active
-   app's redirect URI from `APP_DOMAIN`:
+3. **Point Django and Xero URLs back to the hotfix server.** A production
+   restore keeps production's `django_site.domain` and `XeroApp.redirect_uri`;
+   if they are not repaired, generated links and Xero login can send the browser
+   back to production instead of this checkout. Set both from `APP_DOMAIN`:
 
    ```python
    from django.conf import settings
+   from django.contrib.sites.models import Site
    from apps.workflow.models import XeroApp
 
+   Site.objects.update(domain=settings.APP_DOMAIN)
    expected = f"https://{settings.APP_DOMAIN}/api/xero/oauth/callback/"
-   app = XeroApp.objects.get(is_active=True)
-   app.redirect_uri = expected
-   app.save(update_fields=["redirect_uri", "updated_at"])
+   XeroApp.objects.exclude(redirect_uri=expected).update(redirect_uri=expected)
    ```
 
    The same URI must be registered in the Xero developer app:
    `https://docketworks-msm-hotfix.ngrok-free.app/api/xero/oauth/callback/`.
 
-4. **Run the hotfix processes with `XERO_READONLY=True`** so that even a
+4. **Restore tenant media files used by DB fields.** The DB restore only brings
+   `CompanyDefaults.logo` and `logo_wide` paths, for example
+   `company_logos/logo_regular_msm.png` and `company_logos/logo_wide_msm.jpg`.
+   Copy the corresponding files into this checkout's media storage and verify
+   the settings UI renders both logos.
+
+5. **Run the hotfix processes with `XERO_READONLY=True`** so that even a
    reconnected Xero cannot write to MSM's real organisation. This is
    process-scoped: the Django server, Celery worker, and Celery beat sharing
    this database must all have `XERO_READONLY=True`.
 
-5. **Set the accounting provider to Xero.** The read-only provider is selected
+6. **Set the accounting provider to Xero.** The read-only provider is selected
    by the process-level `XERO_READONLY=True` flag when the configured backend is
    `xero`:
 
