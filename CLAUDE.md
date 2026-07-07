@@ -189,6 +189,8 @@ See ADR 0020. Backend owns data, calculations, and external systems; frontend ow
 
 `npm run test:e2e` (from `frontend/`) runs Playwright tests against live HTTP endpoints. The suite takes ~20–25 min.
 
+**CRITICAL: The backend serving `APP_DOMAIN` must run with `XERO_READONLY=True`.** The flag swaps in a provider that suppresses all Xero writes (contacts, invoices, quotes, attachments, history notes) while reads and token refresh stay live; without it the suite writes real entities into the connected Xero tenant. Global-setup enforces this via `/api/xero/ping/` (`xero_readonly` field) and aborts otherwise. The flag is process-scoped: any celery worker/beat sharing the DB must also run with `XERO_READONLY=True`, or the hourly `xero_regular_sync_task` will push local `[TEST]` stock to Xero — global-setup cannot verify a worker's environment.
+
 **CRITICAL: The global teardown (`global-teardown.ts`) MUST always run to completion.** It restores the database from backup, saves/reinjects Xero tokens, removes the lock file, and runs integrity checks. If the bash process is killed (timeout, SIGTERM, etc.) the teardown never executes and the database is left polluted with `[TEST]` data.
 
 - **Never set a bash timeout on the E2E command.** A timeout (or SIGTERM) kills the node process before Playwright calls `globalTeardown`, leaving the DB polluted with `[TEST]` data and a stale lock file. The teardown is NOT a signal handler — it only fires on normal exit.

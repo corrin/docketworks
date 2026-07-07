@@ -61,3 +61,4 @@ class WorkflowConfig(AppConfig):
     def _register_accounting_providers() -> None:
         """Import accounting provider modules so they auto-register."""
         import apps.workflow.accounting.xero.provider  # noqa: F401
+        import apps.workflow.accounting.xero.readonly_provider  # noqa: F401
