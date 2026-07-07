@@ -44,6 +44,7 @@ const sampleClient: Client = {
   id: 'c1',
   name: 'MSM (Shop)',
   email: 'lakeland@gmail.com',
+  phone: '',
   address: '',
   is_account_customer: false,
   is_supplier: false,

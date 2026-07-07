@@ -8,21 +8,34 @@ All business logic for Client REST operations should be implemented here.
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
+    from django_stubs_ext import WithAnnotations
+
     from apps.accounts.models import Staff
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Case, IntegerField, Q, When
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.client.models import Client, ClientContact
-from apps.client.serializers import ClientCreateSerializer, ClientUpdateSerializer
+from apps.client.models import (
+    PRIMARY_PHONE_ORDERING,
+    Client,
+    ClientContact,
+    ClientContactMethod,
+)
+from apps.client.serializers import (
+    ClientCreateSerializer,
+    ClientUpdateSerializer,
+    set_primary_phone,
+)
 from apps.client.utils import date_to_datetime
+from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
@@ -32,6 +45,19 @@ from apps.workflow.services.error_persistence import (
 from apps.workflow.services.search_telemetry import SearchTelemetryService
 
 CLIENT_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+class ClientPhoneAnnotations(TypedDict):
+    """Queryset annotation required by _format_client_summary and
+    _format_client_detail; not a Client model field."""
+
+    phone: str
+
+
+if TYPE_CHECKING:
+    # Evaluated only by the type checker (annotation is quoted at use site), so
+    # the dev-only django_stubs_ext dependency is never imported at runtime.
+    _AnnotatedClientWithPhone = WithAnnotations[Client, ClientPhoneAnnotations]
 
 logger = logging.getLogger(__name__)
 client_search_logger = logging.getLogger("client_search")
@@ -135,7 +161,15 @@ class ClientRestService:
                 sort_field = f"-{sort_field}"
 
             # Annotate computed fields for sorting capability
-            queryset = Client.objects.with_invoice_summary().defer("raw_json")
+            queryset = (
+                Client.objects.with_invoice_summary()
+                .defer("raw_json")
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="pk"
+                    )
+                )
+            )
 
             # Apply search filter if query provided
             if query:
@@ -168,6 +202,8 @@ class ClientRestService:
 
         except AlreadyLoggedException:
             raise
+        except ValueError:
+            raise
         except Exception as exc:
             persist_and_raise(
                 exc,
@@ -193,11 +229,21 @@ class ClientRestService:
             ValueError: If client not found
         """
         try:
-            client = Client.objects.with_invoice_summary().get(id=client_id)
+            client = (
+                Client.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="pk"
+                    )
+                )
+                .get(id=client_id)
+            )
             return ClientRestService._format_client_detail(client)
         except Client.DoesNotExist:
             raise ValueError(f"Client with id {client_id} not found")
         except AlreadyLoggedException:
+            raise
+        except ValueError:
             raise
         except Exception as exc:
             persist_and_raise(
@@ -253,7 +299,9 @@ class ClientRestService:
             )
 
     @staticmethod
-    def update_client(client_id: UUID, data: Dict[str, Any]) -> Client:
+    def update_client(
+        client_id: UUID, data: Dict[str, Any]
+    ) -> "_AnnotatedClientWithPhone":
         """
         Updates an existing client.
         If client is synced with Xero, updates Xero first then syncs locally.
@@ -269,7 +317,9 @@ class ClientRestService:
             ValueError: If client not found or validation fails
         """
         try:
-            client = get_object_or_404(Client, id=client_id)
+            client = Client.objects.filter(id=client_id).first()
+            if client is None:
+                raise ValueError(f"Client with id {client_id} not found")
 
             # Store xero_contact_id before validation
             original_xero_contact_id = client.xero_contact_id
@@ -283,6 +333,10 @@ class ClientRestService:
                 raise ValueError("; ".join(error_messages))
 
             validated_data = serializer.validated_data
+            # Stored as the client's primary ClientContactMethod, not a Client
+            # field, so it never reaches the generic setattr loop below.
+            phone_supplied = "phone" in validated_data
+            phone = validated_data.pop("phone", None)
 
             # Guard clause - validate required fields
             if not validated_data.get("name") and not client.name:
@@ -301,7 +355,12 @@ class ClientRestService:
             # Check if client is synced with Xero
             if original_xero_contact_id:
                 # Update in Xero first, then sync locally
-                updated_client = ClientRestService._update_client_in_xero(client, data)
+                updated_client = ClientRestService._update_client_in_xero(
+                    client,
+                    validated_data,
+                    phone_supplied=phone_supplied,
+                    raw_phone=phone,
+                )
                 logger.info(
                     f"Client {updated_client.id} updated in Xero and synced locally",
                     extra={
@@ -311,7 +370,6 @@ class ClientRestService:
                         "operation": "update_client_xero_sync",
                     },
                 )
-                return updated_client
             else:
                 # Local-only update for clients not synced with Xero
                 with transaction.atomic():
@@ -319,6 +377,12 @@ class ClientRestService:
                         setattr(client, field, value)
                     client.xero_last_modified = timezone.now()
                     client.save()
+
+                    ClientRestService._apply_client_phone_change(
+                        client,
+                        phone_supplied=phone_supplied,
+                        raw_phone=phone,
+                    )
 
                     logger.info(
                         f"Client {client.id} updated locally (no Xero sync)",
@@ -328,10 +392,24 @@ class ClientRestService:
                             "operation": "update_client_local_only",
                         },
                     )
+                updated_client = client
 
-                return client
-
+            # The response's phone field always reads from a queryset annotation;
+            # refetch through it, restoring the with_invoice_summary() aggregates
+            # _format_client_detail needs.
+            updated_with_phone: _AnnotatedClientWithPhone = (
+                Client.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="pk"
+                    )
+                )
+                .get(id=updated_client.id)
+            )
+            return updated_with_phone
         except AlreadyLoggedException:
+            raise
+        except ValueError:
             raise
         except Exception as exc:
             persist_and_raise(
@@ -541,6 +619,11 @@ class ClientRestService:
         return list(
             Client.objects.with_invoice_summary()
             .defer("raw_json")  # Not needed for search results
+            .annotate(
+                phone=ClientContactMethod.primary_phone_annotation(
+                    owner="client", outer_ref="pk"
+                )
+            )
             .only(
                 "id",
                 "name",
@@ -789,14 +872,18 @@ class ClientRestService:
         return "no_match"
 
     @staticmethod
-    def _format_client_summary(client: Client) -> Dict[str, Any]:
+    def _format_client_summary(client: "_AnnotatedClientWithPhone") -> Dict[str, Any]:
         """
         Formats a single client summary for list/search responses.
+
+        Callers must annotate their queryset with
+        ClientContactMethod.primary_phone_annotation (see ClientPhoneAnnotations).
         """
         return {
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
+            "phone": client.phone,
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
@@ -814,14 +901,18 @@ class ClientRestService:
         return [ClientRestService._format_client_summary(client) for client in clients]
 
     @staticmethod
-    def _format_client_detail(client: Client) -> Dict[str, Any]:
+    def _format_client_detail(client: "_AnnotatedClientWithPhone") -> Dict[str, Any]:
         """
         Formats complete client details for API response.
+
+        Callers must annotate their queryset with
+        ClientContactMethod.primary_phone_annotation (see ClientPhoneAnnotations).
         """
         return {
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
+            "phone": client.phone,
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
@@ -867,6 +958,12 @@ class ClientRestService:
                 is_account_customer=client_data.get("is_account_customer", True),
                 xero_last_modified=timezone.now(),
             )
+            phone = client_data.get("phone")
+            ClientRestService._apply_client_phone_change(
+                client,
+                phone_supplied="phone" in client_data,
+                raw_phone=phone,
+            )
 
         # Push to accounting provider (persists xero_contact_id on the client object)
         result = provider.create_contact(client)
@@ -898,7 +995,13 @@ class ClientRestService:
         return client
 
     @staticmethod
-    def _update_client_in_xero(client: Client, data: Dict[str, Any]) -> Client:
+    def _update_client_in_xero(
+        client: Client,
+        data: Dict[str, Any],
+        *,
+        phone_supplied: bool,
+        raw_phone: str | None,
+    ) -> Client:
         """
         Updates client locally and in the accounting provider.
         """
@@ -907,7 +1010,15 @@ class ClientRestService:
         # Check accounting provider authentication
         token = provider.get_valid_token()
         if not token:
-            raise ValueError("Accounting provider authentication required")
+            exc = RuntimeError("Accounting provider authentication required")
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "operation": "_update_client_in_xero",
+                    "client_id": str(client.id),
+                    "provider": provider.provider_name,
+                },
+            )
 
         # Update local fields first
         with transaction.atomic():
@@ -921,6 +1032,11 @@ class ClientRestService:
                 client.allow_jobs = data["allow_jobs"]
             client.xero_last_modified = timezone.now()
             client.save()
+            ClientRestService._apply_client_phone_change(
+                client,
+                phone_supplied=phone_supplied,
+                raw_phone=raw_phone,
+            )
 
         # FIXME: `allow_jobs` is a local-only field (not synced to Xero) but
         # toggling it still routes through this method, which unconditionally
@@ -934,8 +1050,17 @@ class ClientRestService:
         # Push updated client to accounting provider
         result = provider.update_contact(client)
         if not result.success:
-            raise ValueError(
+            exc = RuntimeError(
                 f"Failed to update client in {provider.provider_name}: {result.error}"
+            )
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "operation": "_update_client_in_xero",
+                    "client_id": str(client.id),
+                    "provider": provider.provider_name,
+                    "provider_error": result.error,
+                },
             )
 
         logger.info(
@@ -949,6 +1074,69 @@ class ClientRestService:
         )
 
         return client
+
+    @staticmethod
+    def _apply_client_phone_change(
+        client: Client,
+        *,
+        phone_supplied: bool,
+        raw_phone: str | None,
+    ) -> None:
+        if not phone_supplied:
+            logger.debug(
+                "Client phone omitted; leaving contact methods unchanged",
+                extra={
+                    "client_id": str(client.id),
+                    "operation": "client_phone_omitted",
+                },
+            )
+            return
+
+        if raw_phone is not None and raw_phone.strip():
+            try:
+                set_primary_phone(client, raw_phone)
+            except DjangoValidationError as exc:
+                raise ValueError("; ".join(exc.messages)) from exc
+            else:
+                return
+
+        ClientRestService._clear_client_primary_phone(client)
+
+    @staticmethod
+    def _clear_client_primary_phone(client: Client) -> None:
+        primary = (
+            ClientContactMethod.objects.filter(
+                client=client,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                is_primary=True,
+            )
+            .order_by(*PRIMARY_PHONE_ORDERING)
+            .first()
+        )
+        if primary is None:
+            logger.info(
+                "Client primary phone clear requested but no primary phone exists",
+                extra={
+                    "client_id": str(client.id),
+                    "operation": "client_phone_clear_noop",
+                },
+            )
+            return
+
+        old_number = primary.normalized_value
+        primary.delete()
+        if not old_number:
+            logger.warning(
+                "Deleted client primary phone without normalized value",
+                extra={
+                    "client_id": str(client.id),
+                    "contact_method_id": str(primary.id),
+                    "operation": "client_phone_clear_missing_normalized_value",
+                },
+            )
+            return
+
+        transaction.on_commit(lambda: rematch_phone_calls_task.delay([old_number]))
 
     @staticmethod
     def get_client_jobs(client_id: UUID) -> List[Dict[str, Any]]:

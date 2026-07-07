@@ -645,11 +645,13 @@ const ClientDetailResponse = z.object({
   django_updated_at: z.string().datetime({ offset: true }),
   last_invoice_date: z.string().datetime({ offset: true }).nullable(),
   total_spend: z.string(),
+  phone: z.string(),
 })
 const ClientErrorResponse = z.object({
   success: z.boolean().optional().default(false),
   error: z.string(),
   details: z.string().optional(),
+  error_id: z.string().optional(),
 })
 const ClientJobHeader = z.object({
   job_id: z.string().uuid(),
@@ -684,6 +686,7 @@ const ClientUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
+    phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
     allow_jobs: z.boolean(),
@@ -698,6 +701,7 @@ const PatchedClientUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
+    phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
     allow_jobs: z.boolean(),
@@ -760,6 +764,7 @@ const ClientContact = z.object({
   is_active: z.boolean(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
+  phone: z.string().nullish().default(''),
 })
 const ClientContactRequest = z.object({
   client: z.string().uuid(),
@@ -768,6 +773,7 @@ const ClientContactRequest = z.object({
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
+  phone: z.string().nullish().default(''),
 })
 const PatchedClientContactRequest = z
   .object({
@@ -777,11 +783,13 @@ const PatchedClientContactRequest = z
     position: z.string().max(255).nullable(),
     is_primary: z.boolean(),
     notes: z.string().nullable(),
+    phone: z.string().nullable().default(''),
   })
   .partial()
 const ClientCreateRequest = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email().nullish(),
+  phone: z.string().nullish(),
   address: z.string().nullish(),
   is_account_customer: z.boolean().optional().default(true),
   allow_jobs: z.boolean().optional().default(true),
@@ -790,6 +798,7 @@ const ClientSearchResult = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
+  phone: z.string(),
   address: z.string(),
   is_account_customer: z.boolean(),
   is_supplier: z.boolean(),
@@ -3492,7 +3501,10 @@ const XeroDocumentErrorResponse = z.object({
   redirect_to_auth: z.boolean().optional(),
 })
 const XeroQuoteCreateRequest = z.object({ breakdown: z.boolean() })
-const XeroPingResponse = z.object({ connected: z.boolean() })
+const XeroPingResponse = z.object({
+  connected: z.boolean(),
+  xero_readonly: z.boolean(),
+})
 const XeroSyncStartResponse = z.object({
   status: z.string(),
   message: z.string(),
@@ -10470,7 +10482,7 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
     alias: 'xero_disconnect_create',
     description: `Disconnects from Xero by clearing the token from cache and database.`,
     requestFormat: 'json',
-    response: z.object({ connected: z.boolean() }),
+    response: XeroPingResponse,
   },
   {
     method: 'get',
@@ -10478,7 +10490,7 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
     alias: 'xero_ping_retrieve',
     description: `Check if the user is authenticated with Xero.`,
     requestFormat: 'json',
-    response: z.object({ connected: z.boolean() }),
+    response: XeroPingResponse,
   },
   {
     method: 'get',

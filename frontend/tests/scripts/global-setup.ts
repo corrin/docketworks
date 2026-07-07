@@ -52,19 +52,21 @@ async function getAuthCookie(frontendUrl: string): Promise<string> {
 }
 
 /**
- * Read-only check: verify Xero is connected by hitting the ping endpoint.
+ * Read-only check: verify Xero is connected and the backend is in
+ * XERO_READONLY mode by hitting the ping endpoint.
  * Does NOT attempt to connect or refresh tokens.
  */
-async function checkXeroConnected(): Promise<boolean> {
+async function checkXeroStatus(): Promise<{ connected: boolean; xeroReadonly: boolean }> {
   const frontendUrl = getFrontendUrl()
   const cookieValue = await getAuthCookie(frontendUrl)
 
   const response = await fetch(`${frontendUrl}/api/xero/ping/`, {
     headers: { Cookie: cookieValue },
   })
-  if (!response.ok) return false
-  const data = (await response.json()) as { connected: boolean }
-  return data.connected === true
+  if (!response.ok) return { connected: false, xeroReadonly: false }
+  const data = (await response.json()) as { connected?: boolean; xero_readonly?: boolean }
+  // A missing xero_readonly field (old backend) must fail, not pass silently.
+  return { connected: data.connected === true, xeroReadonly: data.xero_readonly === true }
 }
 
 export default async function globalSetup() {
@@ -77,13 +79,21 @@ export default async function globalSetup() {
   // All checks are read-only — they abort if something is wrong, never fix it.
   const issues: string[] = []
 
-  // Check Xero connection
+  // Check Xero connection and readonly mode
   console.log('[xero] Checking Xero connection...')
-  const xeroConnected = await checkXeroConnected()
-  if (!xeroConnected) {
+  const xeroStatus = await checkXeroStatus()
+  if (!xeroStatus.connected) {
     issues.push('Xero is not connected. Navigate to /xero in the app to connect.')
   } else {
     console.log('[xero] Xero is connected.')
+  }
+  if (!xeroStatus.xeroReadonly) {
+    issues.push(
+      'Backend is not running in XERO_READONLY mode — E2E would write to PROD Xero. ' +
+        'Restart the backend (and any celery worker) with XERO_READONLY=True.',
+    )
+  } else {
+    console.log('[xero] Backend is in XERO_READONLY mode.')
   }
 
   // Check database is clean

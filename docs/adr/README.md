@@ -38,3 +38,4 @@ See [`_template.md`](_template.md). Copy, renumber, fill in.
 | 0026 | Plan the tests before the plan is approved |
 | 0027 | A capability deploys with the means to operate it |
 | 0028 | Type annotations are data contracts |
+| 0029 | Servers run the production branch |

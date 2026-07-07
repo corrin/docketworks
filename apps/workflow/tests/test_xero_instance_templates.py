@@ -246,7 +246,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
         self.assertIn("Restore or recreate the instance", content)
         self.assertLess(
             content.index("has config but no app/current release link"),
-            content.index('TARGET_SHA="$(resolve_release_ref origin/main)"'),
+            content.index('TARGET_SHA="$(resolve_release_ref origin/production)"'),
         )
 
     def test_instance_script_uses_shared_releases_not_instance_checkouts(self) -> None:
@@ -290,7 +290,7 @@ class XeroInstanceTemplateTests(SimpleTestCase):
     def test_deploy_prepares_one_shared_release_for_all_targets(self) -> None:
         content = DEPLOY_SCRIPT.read_text()
 
-        self.assertIn('TARGET_REF="origin/main"', content)
+        self.assertIn('TARGET_REF="origin/production"', content)
         self.assertIn('TARGET_SHA="$(resolve_release_ref "$TARGET_REF")"', content)
         self.assertIn('ensure_release "$TARGET_SHA"', content)
         self.assertIn('switch_instance_release "$instance" "$TARGET_SHA"', content)
