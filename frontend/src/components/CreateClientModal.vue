@@ -72,6 +72,24 @@
           </p>
         </div>
 
+        <!-- Phone is create-only: editing client phones lives in PhoneNumberManager on the client detail page -->
+        <div v-if="!editMode">
+          <label for="clientPhone" class="block text-sm font-medium text-gray-700 mb-1">
+            Phone
+          </label>
+          <input
+            id="clientPhone"
+            v-model="formData.phone"
+            type="tel"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :class="{ 'border-red-300': fieldErrors.phone }"
+            placeholder="Phone number"
+          />
+          <p v-if="fieldErrors.phone" class="mt-1 text-sm text-red-600">
+            {{ fieldErrors.phone }}
+          </p>
+        </div>
+
         <div>
           <label for="clientAddress" class="block text-sm font-medium text-gray-700 mb-1">
             Address
@@ -181,6 +199,7 @@ const clientSchema: ClientCreateRequestSchema = schemas.ClientCreateRequest
 type ClientFormPayload = {
   name: ClientCreateInput['name']
   email?: ClientUpdateInput['email']
+  phone?: ClientCreateInput['phone']
   address?: ClientUpdateInput['address']
   is_account_customer: NonNullable<ClientCreateInput['is_account_customer']>
   allow_jobs: NonNullable<ClientCreateInput['allow_jobs']>
@@ -221,6 +240,7 @@ const emit = defineEmits<{
 const formData = reactive<ClientFormPayload>({
   name: '',
   email: '',
+  phone: '',
   address: '',
   is_account_customer: false,
   allow_jobs: true,
@@ -314,8 +334,11 @@ const handleSubmit = async () => {
     }
 
     if (props.editMode && props.clientId) {
-      // Update existing client
-      const updatePayload: ClientUpdateRequest = { ...cleanedData }
+      // Update existing client. ClientUpdateRequest has no phone field —
+      // client phone editing lives in PhoneNumberManager on the client detail page.
+      const { phone: _createOnlyPhone, ...updateFields } = cleanedData
+      void _createOnlyPhone
+      const updatePayload: ClientUpdateRequest = { ...updateFields }
       const result = await api.clients_update_update(updatePayload, {
         params: { client_id: props.clientId },
       })
@@ -351,6 +374,7 @@ const cleanOptionalFields = (data: ClientFormPayload): ClientFormPayload => {
     ...data,
     name: data.name.trim(),
     email: normalizeOptionalString(data.email),
+    phone: normalizeOptionalString(data.phone),
     address: normalizeOptionalString(data.address),
   }
 }
@@ -386,6 +410,8 @@ const normalizeClientResult = (
   return schemas.ClientSearchResult.parse({
     ...clientPayload,
     email: clientPayload.email ?? '',
+    // ClientUpdateResponse.client (ClientDetailResponse) has no phone field
+    phone: 'phone' in clientPayload ? clientPayload.phone : '',
     address: clientPayload.address ?? '',
     xero_contact_id: clientPayload.xero_contact_id ?? '',
   })
@@ -425,6 +451,7 @@ const resetForm = () => {
   Object.assign(formData, {
     name: '',
     email: '',
+    phone: '',
     address: '',
     is_account_customer: false,
     allow_jobs: true,

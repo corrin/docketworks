@@ -5,11 +5,13 @@ Guards the phone the job-settings tab shows for the job's contact person
 annotates onto the payload.
 """
 
-from typing import Any, cast
+from typing import TYPE_CHECKING, Any
 
-from django.http import HttpResponse
 from django.urls import reverse
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from rest_framework.response import _MonkeyPatchedResponse
 
 from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.job.models import Job
@@ -52,6 +54,12 @@ class JobContactViewTests(BaseAPITestCase):
     def _url(self, job: Job) -> str:
         return reverse("clients:job_contact_rest", kwargs={"job_id": job.id})
 
+    def _get(self, job: Job) -> "_MonkeyPatchedResponse":
+        return self.client.get(self._url(job))
+
+    def _put(self, job: Job, payload: dict[str, Any]) -> "_MonkeyPatchedResponse":
+        return self.client.put(self._url(job), payload, format="json")
+
     def _put_payload(self, contact: ClientContact) -> dict[str, Any]:
         return {
             "id": str(contact.id),
@@ -65,7 +73,7 @@ class JobContactViewTests(BaseAPITestCase):
     def test_get_returns_contact_phone(self) -> None:
         job = self._job(self._contact("Jane Smith", phone="021 111 111"))
 
-        response = cast(HttpResponse, self.client.get(self._url(job)))
+        response = self._get(job)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["phone"], "021 111 111")
@@ -73,7 +81,7 @@ class JobContactViewTests(BaseAPITestCase):
     def test_get_returns_empty_phone_when_contact_has_no_phone_methods(self) -> None:
         job = self._job(self._contact("Jane Smith", phone=None))
 
-        response = cast(HttpResponse, self.client.get(self._url(job)))
+        response = self._get(job)
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["phone"], "")
@@ -82,12 +90,7 @@ class JobContactViewTests(BaseAPITestCase):
         job = self._job(self._contact("Jane Smith", phone="021 111 111"))
         replacement = self._contact("Bob Jones", phone="021 222 222")
 
-        response = cast(
-            HttpResponse,
-            self.client.put(
-                self._url(job), self._put_payload(replacement), format="json"
-            ),
-        )
+        response = self._put(job, self._put_payload(replacement))
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["phone"], "021 222 222")
@@ -99,9 +102,7 @@ class JobContactViewTests(BaseAPITestCase):
         replacement = self._contact("Bob Jones", phone="021 222 222")
         payload = self._put_payload(replacement) | {"phone": "09 999 9999"}
 
-        response = cast(
-            HttpResponse, self.client.put(self._url(job), payload, format="json")
-        )
+        response = self._put(job, payload)
 
         # The unknown field is ignored; the response still reports the
         # contact's real phone from ClientContactMethod.

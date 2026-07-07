@@ -1,5 +1,5 @@
 from typing import TYPE_CHECKING
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from django.core.exceptions import ValidationError
 from django.db import connection
@@ -482,7 +482,9 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
             name="Acme Ltd", xero_last_modified=timezone.now()
         )
 
-    def _contact(self, name: str = "Jane Smith", phone: str | None = None):
+    def _contact(
+        self, name: str = "Jane Smith", phone: str | None = None
+    ) -> ClientContact:
         contact = ClientContact.objects.create(client=self.job_client, name=name)
         if phone is not None:
             ClientContactMethod.objects.create(
@@ -498,7 +500,7 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
         self._contact("No Phone")
 
         with CaptureQueriesContext(connection) as captured:
-            response = self.client.get(self.URL, {"client_id": self.job_client.id})
+            response = self.client.get(self.URL, {"client_id": str(self.job_client.id)})
 
         self.assertEqual(response.status_code, 200)
         phones = {row["name"]: row["phone"] for row in response.json()}
@@ -600,6 +602,67 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("phone", response.json())
         self.assertEqual(contact.contact_methods.count(), 0)
+
+
+class ClientCreatePhoneTests(BaseTestCase):
+    """Guards the phone entry restored on the create-client modal."""
+
+    def _provider(self) -> MagicMock:
+        from apps.workflow.accounting.types import ContactResult
+
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.search_contact_by_name.return_value = None
+        provider.create_contact.return_value = ContactResult(
+            success=True, external_id="xero-contact-id", name="New Client"
+        )
+        return provider
+
+    def _create(self, provider: MagicMock, **payload: str) -> Client:
+        from apps.client.services.client_rest_service import ClientRestService
+
+        data: dict[str, str] = {"name": "New Client", "email": "", "address": ""}
+        data.update(payload)
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            return ClientRestService.create_client(data)
+
+    def test_create_with_phone_creates_primary_client_method(self) -> None:
+        with patch("apps.client.serializers.rematch_phone_calls_task.delay"):
+            client = self._create(self._provider(), phone="09 777 7777")
+
+        method = ClientContactMethod.objects.get(client=client)
+        self.assertEqual(method.method_type, ClientContactMethod.MethodType.PHONE)
+        self.assertEqual(method.value, "09 777 7777")
+        self.assertTrue(method.is_primary)
+
+    def test_create_without_phone_creates_no_methods(self) -> None:
+        client = self._create(self._provider())
+
+        self.assertEqual(ClientContactMethod.objects.filter(client=client).count(), 0)
+
+    def test_create_with_conflicting_phone_rolls_back_client(self) -> None:
+        from apps.workflow.exceptions import AlreadyLoggedException
+
+        owner = Client.objects.create(
+            name="Owner Ltd", xero_last_modified=timezone.now()
+        )
+        ClientContactMethod.objects.create(
+            client=owner,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 777 7777",
+        )
+        provider = self._provider()
+
+        with self.assertRaises(AlreadyLoggedException) as ctx:
+            self._create(provider, phone="09 777 7777")
+
+        self.assertIn("already belongs", str(ctx.exception))
+        self.assertFalse(Client.objects.filter(name="New Client").exists())
+        provider.create_contact.assert_not_called()
 
 
 class ClientContactMethodApiTests(BaseAPITestCase):

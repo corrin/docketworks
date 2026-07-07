@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.core.exceptions import ValidationError as DjangoValidationError
 from rest_framework import serializers
 
@@ -66,7 +68,7 @@ class ClientContactSerializer(serializers.ModelSerializer):
         fields = ClientContact.CLIENTCONTACT_API_FIELDS + ["phone"]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
 
-    def to_internal_value(self, data):
+    def to_internal_value(self, data: Any) -> Any:
         """Convert empty strings to None for nullable fields before validation."""
         # Fields that should be NULL instead of empty string
         nullable_fields = ["email", "position", "notes"]
@@ -87,7 +89,9 @@ class ClientContactSerializer(serializers.ModelSerializer):
         contact = super().update(instance, validated_data)
         return self._apply_phone(contact, raw_phone)
 
-    def _apply_phone(self, contact: ClientContact, raw_phone: str | None):
+    def _apply_phone(
+        self, contact: ClientContact, raw_phone: str | None
+    ) -> ClientContact:
         """Upsert the primary phone; blank/omitted input is a no-op (deleting
         numbers is PhoneNumberManager's job, not this form's)."""
         if raw_phone and raw_phone.strip():
@@ -97,7 +101,7 @@ class ClientContactSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"phone": exc.messages}) from exc
         else:
             pass  # blank phone: leave existing contact methods untouched
-        contact.phone = contact.primary_phone_value()
+        contact.phone = contact.primary_phone_value()  # type: ignore[attr-defined]  # serializer field backed by annotation, not a model column
         return contact
 
 
@@ -149,7 +153,7 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
     def get_contact_name(self, obj: ClientContactMethod) -> str:
         return obj.contact.name if obj.contact else ""
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         client = attrs.get("client", getattr(self.instance, "client", None))
         contact = attrs.get("contact", getattr(self.instance, "contact", None))
         if bool(client) == bool(contact):
@@ -206,7 +210,7 @@ class SupplierPickupAddressSerializer(serializers.ModelSerializer):
             "formatted_address",
         ]
 
-    def to_internal_value(self, data):
+    def to_internal_value(self, data: Any) -> Any:
         """Convert empty strings to None for nullable fields before validation."""
         nullable_fields = [
             "suburb",
@@ -317,6 +321,8 @@ class ClientCreateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    # Stored as the client's primary ClientContactMethod, not a Client column
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     is_account_customer = serializers.BooleanField(default=True)
     allow_jobs = serializers.BooleanField(default=True)

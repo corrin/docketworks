@@ -14,6 +14,7 @@ from uuid import UUID, uuid4
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Case, IntegerField, Q, When
 from django.http import HttpRequest
@@ -21,7 +22,11 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.client.models import Client, ClientContact, ClientContactMethod
-from apps.client.serializers import ClientCreateSerializer, ClientUpdateSerializer
+from apps.client.serializers import (
+    ClientCreateSerializer,
+    ClientUpdateSerializer,
+    set_primary_phone,
+)
 from apps.client.utils import date_to_datetime
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -826,7 +831,7 @@ class ClientRestService:
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
-            "phone": client.phone,
+            "phone": client.phone,  # type: ignore[attr-defined]  # primary_phone_annotation on every feeding queryset
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
@@ -897,6 +902,16 @@ class ClientRestService:
                 is_account_customer=client_data.get("is_account_customer", True),
                 xero_last_modified=timezone.now(),
             )
+            phone = client_data.get("phone")
+            if phone and phone.strip():
+                try:
+                    set_primary_phone(client, phone)
+                except DjangoValidationError as exc:
+                    # Roll back the client and skip the Xero push; the view
+                    # surfaces the ownership-guard message as a 400.
+                    raise ValueError("; ".join(exc.messages)) from exc
+            else:
+                pass  # no phone supplied: nothing to store
 
         # Push to accounting provider (persists xero_contact_id on the client object)
         result = provider.create_contact(client)

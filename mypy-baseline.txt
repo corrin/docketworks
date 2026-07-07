@@ -1311,7 +1311,6 @@ apps/client/serializers.py:0: error: Function is missing a type annotation  [no-
 apps/client/serializers.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
 apps/client/serializers.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/client/serializers.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
-apps/client/serializers.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/client/serializers.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
 apps/client/serializers.py:0: error: Missing type arguments for generic type "ModelSerializer"  [type-arg]
 apps/client/serializers.py:0: error: Missing type arguments for generic type "Serializer"  [type-arg]

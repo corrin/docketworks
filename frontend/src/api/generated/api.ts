@@ -785,6 +785,7 @@ const PatchedClientContactRequest = z
 const ClientCreateRequest = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email().nullish(),
+  phone: z.string().nullish(),
   address: z.string().nullish(),
   is_account_customer: z.boolean().optional().default(true),
   allow_jobs: z.boolean().optional().default(true),

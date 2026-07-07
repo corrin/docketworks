@@ -83,6 +83,7 @@
                   </button>
                 </th>
                 <th class="p-3 text-left font-semibold text-gray-700">Email</th>
+                <th class="p-3 text-left font-semibold text-gray-700">Phone</th>
                 <th class="p-3 text-left">
                   <button
                     @click="toggleSort('total_spend')"
@@ -139,6 +140,12 @@
                   :data-automation-id="`ClientsTable-cell-${client.id}-email`"
                 >
                   {{ client.email || '-' }}
+                </td>
+                <td
+                  class="p-3 text-gray-600"
+                  :data-automation-id="`ClientsTable-cell-${client.id}-phone`"
+                >
+                  {{ client.phone || '-' }}
                 </td>
                 <td
                   class="p-3 text-gray-900 font-medium"
