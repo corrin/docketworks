@@ -33,9 +33,11 @@ def set_primary_phone(owner: Client | ClientContact, raw_value: str) -> None:
     )
     old_primary = phone_methods.filter(is_primary=True).first()
     old_number = old_primary.normalized_value if old_primary else ""
-    same_number = phone_methods.filter(
-        normalized_value=ClientContactMethod.normalize_phone(value)
-    ).first()
+    normalized_value = ClientContactMethod.normalize_phone(value)
+    if not normalized_value:
+        raise DjangoValidationError("Phone number must contain at least one digit")
+
+    same_number = phone_methods.filter(normalized_value=normalized_value).first()
 
     if same_number is not None:
         same_number.value = value
@@ -87,13 +89,15 @@ class ClientContactSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         raw_phone = validated_data.pop("phone", None)  # not a model field
-        contact = super().create(validated_data)
-        return self._apply_phone(contact, raw_phone)
+        with transaction.atomic():
+            contact = super().create(validated_data)
+            return self._apply_phone(contact, raw_phone)
 
     def update(self, instance, validated_data):
         raw_phone = validated_data.pop("phone", None)  # not a model field
-        contact = super().update(instance, validated_data)
-        return self._apply_phone(contact, raw_phone)
+        with transaction.atomic():
+            contact = super().update(instance, validated_data)
+            return self._apply_phone(contact, raw_phone)
 
     def _apply_phone(
         self, contact: ClientContact, raw_phone: str | None

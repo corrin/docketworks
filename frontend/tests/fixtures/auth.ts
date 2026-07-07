@@ -13,7 +13,7 @@ import {
   createLoginSessionCheckConsoleAllowance,
   LOGIN_ME_PATH,
   type CapturedBrowserError,
-} from './auth-console-errors'
+} from '@/utils/authConsoleErrors'
 
 // Define fixture types
 type AuthFixtures = {

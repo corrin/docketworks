@@ -204,9 +204,9 @@ test.describe('kanban drag vanishing', () => {
     const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
 
     const searchInput = page.getByPlaceholder('Search jobs...')
+    await expect(searchInput).toBeVisible()
     await searchInput.fill(jobNumber)
 
     await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
@@ -246,7 +246,7 @@ test.describe('kanban drag vanishing', () => {
     const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await jobCard.scrollIntoViewIfNeeded()
@@ -286,7 +286,7 @@ test.describe('kanban drag vanishing', () => {
     const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await jobCard.scrollIntoViewIfNeeded()
@@ -360,7 +360,7 @@ test.describe('kanban drag vanishing', () => {
     const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
-    await page.waitForLoadState('networkidle')
+    await expect(page.getByPlaceholder('Search jobs...')).toBeVisible()
 
     const jobCard = getVisibleJobCard(page, jobId)
     await jobCard.scrollIntoViewIfNeeded()

@@ -47,7 +47,7 @@ from apps.workflow.services.search_telemetry import SearchTelemetryService
 CLIENT_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
-class _ClientPhoneAnnotations(TypedDict):
+class ClientPhoneAnnotations(TypedDict):
     """Queryset annotation required by _format_client_summary and
     _format_client_detail; not a Client model field."""
 
@@ -57,7 +57,7 @@ class _ClientPhoneAnnotations(TypedDict):
 if TYPE_CHECKING:
     # Evaluated only by the type checker (annotation is quoted at use site), so
     # the dev-only django_stubs_ext dependency is never imported at runtime.
-    _AnnotatedClientWithPhone = WithAnnotations[Client, _ClientPhoneAnnotations]
+    _AnnotatedClientWithPhone = WithAnnotations[Client, ClientPhoneAnnotations]
 
 logger = logging.getLogger(__name__)
 client_search_logger = logging.getLogger("client_search")
@@ -202,6 +202,8 @@ class ClientRestService:
 
         except AlreadyLoggedException:
             raise
+        except ValueError:
+            raise
         except Exception as exc:
             persist_and_raise(
                 exc,
@@ -240,6 +242,8 @@ class ClientRestService:
         except Client.DoesNotExist:
             raise ValueError(f"Client with id {client_id} not found")
         except AlreadyLoggedException:
+            raise
+        except ValueError:
             raise
         except Exception as exc:
             persist_and_raise(
@@ -295,7 +299,9 @@ class ClientRestService:
             )
 
     @staticmethod
-    def update_client(client_id: UUID, data: Dict[str, Any]) -> Client:
+    def update_client(
+        client_id: UUID, data: Dict[str, Any]
+    ) -> "_AnnotatedClientWithPhone":
         """
         Updates an existing client.
         If client is synced with Xero, updates Xero first then syncs locally.
@@ -310,95 +316,110 @@ class ClientRestService:
         Raises:
             ValueError: If client not found or validation fails
         """
-        client = Client.objects.filter(id=client_id).first()
-        if client is None:
-            raise ValueError(f"Client with id {client_id} not found")
+        try:
+            client = Client.objects.filter(id=client_id).first()
+            if client is None:
+                raise ValueError(f"Client with id {client_id} not found")
 
-        # Store xero_contact_id before validation
-        original_xero_contact_id = client.xero_contact_id
+            # Store xero_contact_id before validation
+            original_xero_contact_id = client.xero_contact_id
 
-        # Validate using DRF serializer
-        serializer = ClientUpdateSerializer(data=data)
-        if not serializer.is_valid():
-            error_messages = []
-            for field, errors in serializer.errors.items():
-                error_messages.extend([f"{field}: {e}" for e in errors])
-            raise ValueError("; ".join(error_messages))
+            # Validate using DRF serializer
+            serializer = ClientUpdateSerializer(data=data)
+            if not serializer.is_valid():
+                error_messages = []
+                for field, errors in serializer.errors.items():
+                    error_messages.extend([f"{field}: {e}" for e in errors])
+                raise ValueError("; ".join(error_messages))
 
-        validated_data = serializer.validated_data
-        # Stored as the client's primary ClientContactMethod, not a Client
-        # field, so it never reaches the generic setattr loop below.
-        phone_supplied = "phone" in validated_data
-        phone = validated_data.pop("phone", None)
+            validated_data = serializer.validated_data
+            # Stored as the client's primary ClientContactMethod, not a Client
+            # field, so it never reaches the generic setattr loop below.
+            phone_supplied = "phone" in validated_data
+            phone = validated_data.pop("phone", None)
 
-        # Guard clause - validate required fields
-        if not validated_data.get("name") and not client.name:
-            raise ValueError("Client name is required")
+            # Guard clause - validate required fields
+            if not validated_data.get("name") and not client.name:
+                raise ValueError("Client name is required")
 
-        # DEBUG: Log client state after validation
-        logger.info(
-            f"Client data after validation: xero_contact_id={original_xero_contact_id}",
-            extra={
-                "client_id": str(client.id),
-                "original_xero_contact_id": original_xero_contact_id,
-                "operation": "update_client_debug_after_validation",
-            },
-        )
-
-        # Check if client is synced with Xero
-        if original_xero_contact_id:
-            # Update in Xero first, then sync locally
-            updated_client = ClientRestService._update_client_in_xero(
-                client,
-                validated_data,
-                phone_supplied=phone_supplied,
-                raw_phone=phone,
-            )
+            # DEBUG: Log client state after validation
             logger.info(
-                f"Client {updated_client.id} updated in Xero and synced locally",
+                f"Client data after validation: xero_contact_id={original_xero_contact_id}",
                 extra={
-                    "client_id": str(updated_client.id),
-                    "client_name": updated_client.name,
-                    "xero_contact_id": updated_client.xero_contact_id,
-                    "operation": "update_client_xero_sync",
+                    "client_id": str(client.id),
+                    "original_xero_contact_id": original_xero_contact_id,
+                    "operation": "update_client_debug_after_validation",
                 },
             )
-        else:
-            # Local-only update for clients not synced with Xero
-            with transaction.atomic():
-                for field, value in validated_data.items():
-                    setattr(client, field, value)
-                client.xero_last_modified = timezone.now()
-                client.save()
 
-                ClientRestService._apply_client_phone_change(
+            # Check if client is synced with Xero
+            if original_xero_contact_id:
+                # Update in Xero first, then sync locally
+                updated_client = ClientRestService._update_client_in_xero(
                     client,
+                    validated_data,
                     phone_supplied=phone_supplied,
                     raw_phone=phone,
                 )
-
                 logger.info(
-                    f"Client {client.id} updated locally (no Xero sync)",
+                    f"Client {updated_client.id} updated in Xero and synced locally",
                     extra={
-                        "client_id": str(client.id),
-                        "client_name": client.name,
-                        "operation": "update_client_local_only",
+                        "client_id": str(updated_client.id),
+                        "client_name": updated_client.name,
+                        "xero_contact_id": updated_client.xero_contact_id,
+                        "operation": "update_client_xero_sync",
                     },
                 )
-            updated_client = client
+            else:
+                # Local-only update for clients not synced with Xero
+                with transaction.atomic():
+                    for field, value in validated_data.items():
+                        setattr(client, field, value)
+                    client.xero_last_modified = timezone.now()
+                    client.save()
 
-        # The response's phone field always reads from a queryset annotation;
-        # refetch through it, restoring the with_invoice_summary() aggregates
-        # _format_client_detail needs.
-        return (
-            Client.objects.with_invoice_summary()
-            .annotate(
-                phone=ClientContactMethod.primary_phone_annotation(
-                    owner="client", outer_ref="pk"
+                    ClientRestService._apply_client_phone_change(
+                        client,
+                        phone_supplied=phone_supplied,
+                        raw_phone=phone,
+                    )
+
+                    logger.info(
+                        f"Client {client.id} updated locally (no Xero sync)",
+                        extra={
+                            "client_id": str(client.id),
+                            "client_name": client.name,
+                            "operation": "update_client_local_only",
+                        },
+                    )
+                updated_client = client
+
+            # The response's phone field always reads from a queryset annotation;
+            # refetch through it, restoring the with_invoice_summary() aggregates
+            # _format_client_detail needs.
+            updated_with_phone: _AnnotatedClientWithPhone = (
+                Client.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="pk"
+                    )
                 )
+                .get(id=updated_client.id)
             )
-            .get(id=updated_client.id)
-        )
+            return updated_with_phone
+        except AlreadyLoggedException:
+            raise
+        except ValueError:
+            raise
+        except Exception as exc:
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "operation": "update_client",
+                    "client_id": str(client_id),
+                    "payload_keys": list(data.keys()),
+                },
+            )
 
     @staticmethod
     def get_client_contacts(client_id: UUID) -> List[Dict[str, Any]]:
@@ -856,7 +877,7 @@ class ClientRestService:
         Formats a single client summary for list/search responses.
 
         Callers must annotate their queryset with
-        ClientContactMethod.primary_phone_annotation (see _ClientPhoneAnnotations).
+        ClientContactMethod.primary_phone_annotation (see ClientPhoneAnnotations).
         """
         return {
             "id": str(client.id),
@@ -885,7 +906,7 @@ class ClientRestService:
         Formats complete client details for API response.
 
         Callers must annotate their queryset with
-        ClientContactMethod.primary_phone_annotation (see _ClientPhoneAnnotations).
+        ClientContactMethod.primary_phone_annotation (see ClientPhoneAnnotations).
         """
         return {
             "id": str(client.id),

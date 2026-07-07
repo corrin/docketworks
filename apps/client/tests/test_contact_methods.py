@@ -543,7 +543,7 @@ class ClientUpdatePhoneTests(BaseAPITestCase):
     def _client(self, name: str = "Acme Ltd") -> Client:
         return Client.objects.create(name=name, xero_last_modified=timezone.now())
 
-    def _update_url(self, client_id) -> str:
+    def _update_url(self, client_id: uuid.UUID) -> str:
         return f"/api/clients/{client_id}/update/"
 
     def test_update_with_new_phone_creates_primary_method(self) -> None:
