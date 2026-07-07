@@ -866,7 +866,7 @@ class ClientRestService:
         Formats a single client summary for list/search responses.
 
         Callers must annotate their queryset with
-        ClientContactMethod.primary_phone_annotation (see _ClientSummaryAnnotations).
+        ClientContactMethod.primary_phone_annotation (see _ClientPhoneAnnotations).
         """
         return {
             "id": str(client.id),
