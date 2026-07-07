@@ -23,13 +23,19 @@ from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.client.models import (
+    PRIMARY_PHONE_ORDERING,
+    Client,
+    ClientContact,
+    ClientContactMethod,
+)
 from apps.client.serializers import (
     ClientCreateSerializer,
     ClientUpdateSerializer,
     set_primary_phone,
 )
 from apps.client.utils import date_to_datetime
+from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
@@ -321,6 +327,7 @@ class ClientRestService:
             validated_data = serializer.validated_data
             # Stored as the client's primary ClientContactMethod, not a Client
             # field, so it never reaches the generic setattr loop below.
+            phone_supplied = "phone" in validated_data
             phone = validated_data.pop("phone", None)
 
             # Guard clause - validate required fields
@@ -340,7 +347,12 @@ class ClientRestService:
             # Check if client is synced with Xero
             if original_xero_contact_id:
                 # Update in Xero first, then sync locally
-                updated_client = ClientRestService._update_client_in_xero(client, data)
+                updated_client = ClientRestService._update_client_in_xero(
+                    client,
+                    validated_data,
+                    phone_supplied=phone_supplied,
+                    raw_phone=phone,
+                )
                 logger.info(
                     f"Client {updated_client.id} updated in Xero and synced locally",
                     extra={
@@ -358,15 +370,11 @@ class ClientRestService:
                     client.xero_last_modified = timezone.now()
                     client.save()
 
-                    if phone and phone.strip():
-                        try:
-                            set_primary_phone(client, phone)
-                        except DjangoValidationError as exc:
-                            # A conflict rolls back the whole update (matching
-                            # create's "conflict rolls back the client").
-                            raise ValueError("; ".join(exc.messages)) from exc
-                    else:
-                        pass  # no phone supplied: leave contact methods untouched
+                    ClientRestService._apply_client_phone_change(
+                        client,
+                        phone_supplied=phone_supplied,
+                        raw_phone=phone,
+                    )
 
                     logger.info(
                         f"Client {client.id} updated locally (no Xero sync)",
@@ -948,15 +956,11 @@ class ClientRestService:
                 xero_last_modified=timezone.now(),
             )
             phone = client_data.get("phone")
-            if phone and phone.strip():
-                try:
-                    set_primary_phone(client, phone)
-                except DjangoValidationError as exc:
-                    # Roll back the client and skip the Xero push; the view
-                    # surfaces the ownership-guard message as a 400.
-                    raise ValueError("; ".join(exc.messages)) from exc
-            else:
-                pass  # no phone supplied: nothing to store
+            ClientRestService._apply_client_phone_change(
+                client,
+                phone_supplied="phone" in client_data,
+                raw_phone=phone,
+            )
 
         # Push to accounting provider (persists xero_contact_id on the client object)
         result = provider.create_contact(client)
@@ -988,7 +992,13 @@ class ClientRestService:
         return client
 
     @staticmethod
-    def _update_client_in_xero(client: Client, data: Dict[str, Any]) -> Client:
+    def _update_client_in_xero(
+        client: Client,
+        data: Dict[str, Any],
+        *,
+        phone_supplied: bool,
+        raw_phone: str | None,
+    ) -> Client:
         """
         Updates client locally and in the accounting provider.
         """
@@ -1011,6 +1021,11 @@ class ClientRestService:
                 client.allow_jobs = data["allow_jobs"]
             client.xero_last_modified = timezone.now()
             client.save()
+            ClientRestService._apply_client_phone_change(
+                client,
+                phone_supplied=phone_supplied,
+                raw_phone=raw_phone,
+            )
 
         # FIXME: `allow_jobs` is a local-only field (not synced to Xero) but
         # toggling it still routes through this method, which unconditionally
@@ -1039,6 +1054,69 @@ class ClientRestService:
         )
 
         return client
+
+    @staticmethod
+    def _apply_client_phone_change(
+        client: Client,
+        *,
+        phone_supplied: bool,
+        raw_phone: str | None,
+    ) -> None:
+        if not phone_supplied:
+            logger.debug(
+                "Client phone omitted; leaving contact methods unchanged",
+                extra={
+                    "client_id": str(client.id),
+                    "operation": "client_phone_omitted",
+                },
+            )
+            return
+
+        if raw_phone is not None and raw_phone.strip():
+            try:
+                set_primary_phone(client, raw_phone)
+            except DjangoValidationError as exc:
+                raise ValueError("; ".join(exc.messages)) from exc
+            else:
+                return
+
+        ClientRestService._clear_client_primary_phone(client)
+
+    @staticmethod
+    def _clear_client_primary_phone(client: Client) -> None:
+        primary = (
+            ClientContactMethod.objects.filter(
+                client=client,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                is_primary=True,
+            )
+            .order_by(*PRIMARY_PHONE_ORDERING)
+            .first()
+        )
+        if primary is None:
+            logger.info(
+                "Client primary phone clear requested but no primary phone exists",
+                extra={
+                    "client_id": str(client.id),
+                    "operation": "client_phone_clear_noop",
+                },
+            )
+            return
+
+        old_number = primary.normalized_value
+        primary.delete()
+        if not old_number:
+            logger.warning(
+                "Deleted client primary phone without normalized value",
+                extra={
+                    "client_id": str(client.id),
+                    "contact_method_id": str(primary.id),
+                    "operation": "client_phone_clear_missing_normalized_value",
+                },
+            )
+            return
+
+        transaction.on_commit(lambda: rematch_phone_calls_task.delay([old_number]))
 
     @staticmethod
     def get_client_jobs(client_id: UUID) -> List[Dict[str, Any]]:

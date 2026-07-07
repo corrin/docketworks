@@ -1,6 +1,7 @@
 from typing import Any
 
 from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.client.models import (
@@ -53,8 +54,10 @@ def set_primary_phone(owner: Client | ClientContact, raw_value: str) -> None:
             **{owner_field: owner},
         )
 
-    numbers = [number for number in {old_number, method.normalized_value} if number]
-    rematch_phone_calls_task.delay(sorted(numbers))
+    numbers = sorted(
+        number for number in {old_number, method.normalized_value} if number
+    )
+    transaction.on_commit(lambda: rematch_phone_calls_task.delay(numbers))
 
 
 class ClientContactSerializer(serializers.ModelSerializer):

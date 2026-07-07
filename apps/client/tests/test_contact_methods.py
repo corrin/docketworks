@@ -14,6 +14,7 @@ from apps.client.models import Client, ClientContact, ClientContactMethod
 from apps.crm.models import PhoneCallRecord
 from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.testing import BaseAPITestCase, BaseTestCase
+from apps.workflow.accounting.types import ContactResult
 
 
 class ClientContactMethodTests(TestCase):
@@ -441,15 +442,16 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
 
     def test_create_contact_with_phone_creates_primary_method(self) -> None:
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
-            response = self.client.post(
-                self.URL,
-                {
-                    "client": str(self.job_client.id),
-                    "name": "Bob Brown",
-                    "phone": "021 222 222",
-                },
-                format="json",
-            )
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.post(
+                    self.URL,
+                    {
+                        "client": str(self.job_client.id),
+                        "name": "Bob Brown",
+                        "phone": "021 222 222",
+                    },
+                    format="json",
+                )
 
         self.assertEqual(response.status_code, 201)
         self.assertEqual(response.json()["phone"], "021 222 222")
@@ -463,11 +465,12 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
         method = contact.contact_methods.get()
 
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
-            response = self.client.patch(
-                f"{self.URL}{contact.id}/",
-                {"phone": "021 333 333"},
-                format="json",
-            )
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.patch(
+                    f"{self.URL}{contact.id}/",
+                    {"phone": "021 333 333"},
+                    format="json",
+                )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["phone"], "021 333 333")
@@ -549,9 +552,12 @@ class ClientUpdatePhoneTests(BaseAPITestCase):
         client = self._client()
 
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
-            response = self.client.patch(
-                self._update_url(client.id), {"phone": "09 111 1111"}, format="json"
-            )
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.patch(
+                    self._update_url(client.id),
+                    {"phone": "09 111 1111"},
+                    format="json",
+                )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["client"]["phone"], "09 111 1111")
@@ -610,7 +616,7 @@ class ClientUpdatePhoneTests(BaseAPITestCase):
         self.assertEqual(primary.value, "09 333 3333")
         self.assertTrue(primary.is_primary)
 
-    def test_blank_phone_leaves_methods_untouched(self) -> None:
+    def test_blank_phone_clears_primary_method(self) -> None:
         client = self._client()
         ClientContactMethod.objects.create(
             client=client,
@@ -619,17 +625,50 @@ class ClientUpdatePhoneTests(BaseAPITestCase):
             is_primary=True,
         )
 
-        response = self.client.patch(
-            self._update_url(client.id),
-            {"phone": "", "name": "Acme Renamed"},
-            format="json",
+        with patch(
+            "apps.client.services.client_rest_service.rematch_phone_calls_task.delay"
+        ) as rematch:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.patch(
+                    self._update_url(client.id),
+                    {"phone": "", "name": "Acme Renamed"},
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["client"]["phone"], "")
+        self.assertEqual(client.contact_methods.count(), 0)
+        client.refresh_from_db()
+        self.assertEqual(client.name, "Acme Renamed")
+        rematch.assert_called_once_with(
+            [ClientContactMethod.normalize_phone("09 111 1111")]
         )
+
+    def test_omitted_phone_leaves_methods_untouched(self) -> None:
+        client = self._client()
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+            is_primary=True,
+        )
+
+        with patch(
+            "apps.client.services.client_rest_service.rematch_phone_calls_task.delay"
+        ) as rematch:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.patch(
+                    self._update_url(client.id),
+                    {"name": "Acme Renamed"},
+                    format="json",
+                )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["client"]["phone"], "09 111 1111")
         self.assertEqual(client.contact_methods.count(), 1)
         client.refresh_from_db()
         self.assertEqual(client.name, "Acme Renamed")
+        rematch.assert_not_called()
 
     def test_conflicting_phone_returns_400_and_rolls_back_update(self) -> None:
         """A conflict must not leave the update half-applied: neither the new
@@ -676,13 +715,104 @@ class ClientUpdatePhoneTests(BaseAPITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["phone"], "")
 
+    def test_xero_synced_update_applies_phone_before_provider_push(self) -> None:
+        client = self._client()
+        client.xero_contact_id = "xero-contact-id"
+        client.save()
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.update_contact.return_value = ContactResult(
+            success=True, external_id=client.xero_contact_id, name=client.name
+        )
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.patch(
+                        self._update_url(client.id),
+                        {"phone": "09 444 4444"},
+                        format="json",
+                    )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["client"]["phone"], "09 444 4444")
+        pushed_client = provider.update_contact.call_args.args[0]
+        pushed_contact = pushed_client.get_client_for_xero()
+        self.assertEqual(pushed_contact.phones[0].phone_number, "09 444 4444")
+        rematch.assert_called_once_with(
+            [ClientContactMethod.normalize_phone("09 444 4444")]
+        )
+
+    def test_xero_synced_blank_phone_clears_before_provider_push(self) -> None:
+        client = self._client()
+        client.xero_contact_id = "xero-contact-id"
+        client.save()
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+            is_primary=True,
+        )
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.update_contact.return_value = ContactResult(
+            success=True, external_id=client.xero_contact_id, name=client.name
+        )
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            with patch(
+                "apps.client.services.client_rest_service."
+                "rematch_phone_calls_task.delay"
+            ) as rematch:
+                with self.captureOnCommitCallbacks(execute=True):
+                    response = self.client.patch(
+                        self._update_url(client.id),
+                        {"phone": ""},
+                        format="json",
+                    )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["client"]["phone"], "")
+        pushed_client = provider.update_contact.call_args.args[0]
+        pushed_contact = pushed_client.get_client_for_xero()
+        self.assertIsNone(pushed_contact.phones[0].phone_number)
+        rematch.assert_called_once_with(
+            [ClientContactMethod.normalize_phone("09 111 1111")]
+        )
+
+    def test_phone_rematch_waits_until_transaction_commit(self) -> None:
+        client = self._client()
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
+            with self.captureOnCommitCallbacks(execute=False) as callbacks:
+                response = self.client.patch(
+                    self._update_url(client.id),
+                    {"phone": "09 111 1111"},
+                    format="json",
+                )
+                rematch.assert_not_called()
+
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(len(callbacks), 1)
+            rematch.assert_not_called()
+            callbacks[0]()
+            rematch.assert_called_once_with(
+                [ClientContactMethod.normalize_phone("09 111 1111")]
+            )
+
 
 class ClientCreatePhoneTests(BaseTestCase):
     """Guards the phone entry restored on the create-client modal."""
 
     def _provider(self) -> MagicMock:
-        from apps.workflow.accounting.types import ContactResult
-
         provider = MagicMock()
         provider.provider_name = "Xero"
         provider.get_valid_token.return_value = {"access_token": "token"}
@@ -705,7 +835,8 @@ class ClientCreatePhoneTests(BaseTestCase):
 
     def test_create_with_phone_creates_primary_client_method(self) -> None:
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
-            client = self._create(self._provider(), phone="09 777 7777")
+            with self.captureOnCommitCallbacks(execute=True):
+                client = self._create(self._provider(), phone="09 777 7777")
 
         method = ClientContactMethod.objects.get(client=client)
         self.assertEqual(method.method_type, ClientContactMethod.MethodType.PHONE)
