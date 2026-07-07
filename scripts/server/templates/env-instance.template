@@ -45,6 +45,8 @@ REDIS_PORT=6379
 
 # Xero Integration
 XERO_SYNC_PROJECTS=False
+# Suppress all Xero writes for this process (E2E/test backends only; reads stay live)
+XERO_READONLY=False
 XERO_DEFAULT_USER_ID=__XERO_DEFAULT_USER_ID__
 
 # Email Configuration

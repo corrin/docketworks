@@ -952,10 +952,16 @@ def xero_disconnect(request):
             active = get_active_app()
         except NoActiveXeroApp:
             logger.info("xero_disconnect: no active XeroApp; nothing to do")
-            return Response({"connected": False}, status=status.HTTP_200_OK)
+            return Response(
+                {"connected": False, "xero_readonly": settings.XERO_READONLY},
+                status=status.HTTP_200_OK,
+            )
         wipe_tokens_and_quota(active)
         logger.info(f"Disconnected XeroApp {active.id} ({active.label})")
-        return Response({"connected": False}, status=status.HTTP_200_OK)
+        return Response(
+            {"connected": False, "xero_readonly": settings.XERO_READONLY},
+            status=status.HTTP_200_OK,
+        )
     except AlreadyLoggedException:
         raise
     except Exception as exc:
@@ -1145,7 +1151,10 @@ def xero_ping(request):
         token = get_valid_token()
         is_connected = bool(token)
         logger.info(f"Xero ping: connected={is_connected}")
-        return Response({"connected": is_connected}, status=status.HTTP_200_OK)
+        return Response(
+            {"connected": is_connected, "xero_readonly": settings.XERO_READONLY},
+            status=status.HTTP_200_OK,
+        )
     except AlreadyLoggedException as exc:
         logger.error("Error in xero_ping: %s", exc)
         return Response(

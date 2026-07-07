@@ -23294,8 +23294,11 @@ components:
       properties:
         connected:
           type: boolean
+        xero_readonly:
+          type: boolean
       required:
         - connected
+        - xero_readonly
     XeroQuote:
       type: object
       description: Simplified Quote serializer for xero_quote field

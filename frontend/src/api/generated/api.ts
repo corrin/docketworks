@@ -3501,7 +3501,10 @@ const XeroDocumentErrorResponse = z.object({
   redirect_to_auth: z.boolean().optional(),
 })
 const XeroQuoteCreateRequest = z.object({ breakdown: z.boolean() })
-const XeroPingResponse = z.object({ connected: z.boolean() })
+const XeroPingResponse = z.object({
+  connected: z.boolean(),
+  xero_readonly: z.boolean(),
+})
 const XeroSyncStartResponse = z.object({
   status: z.string(),
   message: z.string(),
@@ -10479,7 +10482,7 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
     alias: 'xero_disconnect_create',
     description: `Disconnects from Xero by clearing the token from cache and database.`,
     requestFormat: 'json',
-    response: z.object({ connected: z.boolean() }),
+    response: XeroPingResponse,
   },
   {
     method: 'get',
@@ -10487,7 +10490,7 @@ Endpoint: /api/xero/errors/&lt;id&gt;/`,
     alias: 'xero_ping_retrieve',
     description: `Check if the user is authenticated with Xero.`,
     requestFormat: 'json',
-    response: z.object({ connected: z.boolean() }),
+    response: XeroPingResponse,
   },
   {
     method: 'get',
