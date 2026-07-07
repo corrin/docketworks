@@ -384,6 +384,7 @@ class ClientDetailResponseSerializer(serializers.Serializer):
     django_updated_at = serializers.DateTimeField()
     last_invoice_date = serializers.DateTimeField(allow_null=True)
     total_spend = serializers.CharField()
+    phone = serializers.CharField(allow_blank=True)
 
 
 class ClientUpdateSerializer(serializers.Serializer):
@@ -391,6 +392,8 @@ class ClientUpdateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
+    # Stored as the client's primary ClientContactMethod, not a Client column
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True)
     is_account_customer = serializers.BooleanField(required=False)
     allow_jobs = serializers.BooleanField(required=False)

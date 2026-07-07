@@ -645,6 +645,7 @@ const ClientDetailResponse = z.object({
   django_updated_at: z.string().datetime({ offset: true }),
   last_invoice_date: z.string().datetime({ offset: true }).nullable(),
   total_spend: z.string(),
+  phone: z.string(),
 })
 const ClientErrorResponse = z.object({
   success: z.boolean().optional().default(false),
@@ -684,6 +685,7 @@ const ClientUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
+    phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
     allow_jobs: z.boolean(),
@@ -698,6 +700,7 @@ const PatchedClientUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
+    phone: z.string().nullable(),
     address: z.string(),
     is_account_customer: z.boolean(),
     allow_jobs: z.boolean(),

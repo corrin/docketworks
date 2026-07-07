@@ -645,6 +645,7 @@ const TYPING_TIMEOUT_MS = 1000 // Consider user stopped typing after 1 second
 const currentClientData = ref({
   name: '',
   email: '',
+  phone: '',
   address: '',
   is_account_customer: true,
   allow_jobs: true,
@@ -1111,6 +1112,7 @@ const editCurrentClient = async () => {
     currentClientData.value = {
       name: clientDetail.name,
       email: clientDetail.email,
+      phone: clientDetail.phone,
       address: clientDetail.address,
       is_account_customer: clientDetail.is_account_customer,
       allow_jobs: clientDetail.allow_jobs,

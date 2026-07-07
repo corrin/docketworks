@@ -10467,6 +10467,8 @@ components:
           nullable: true
         total_spend:
           type: string
+        phone:
+          type: string
       required:
         - address
         - allow_jobs
@@ -10479,6 +10481,7 @@ components:
         - last_invoice_date
         - merged_into
         - name
+        - phone
         - primary_contact_email
         - primary_contact_name
         - total_spend
@@ -10668,6 +10671,9 @@ components:
         email:
           type: string
           format: email
+        phone:
+          type: string
+          nullable: true
         address:
           type: string
         is_account_customer:
@@ -16212,6 +16218,9 @@ components:
         email:
           type: string
           format: email
+        phone:
+          type: string
+          nullable: true
         address:
           type: string
         is_account_customer:

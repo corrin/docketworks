@@ -530,6 +530,153 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
         self.assertEqual(contact.contact_methods.count(), 0)
 
 
+class ClientUpdatePhoneTests(BaseAPITestCase):
+    """Guards the phone edit restored on the Edit Client modal's update flow
+    (client detail's "phone" read via ClientContactMethod, written through
+    set_primary_phone)."""
+
+    def setUp(self) -> None:
+        super().setUp()
+        self.client.force_authenticate(user=self.test_staff)
+
+    def _client(self, name: str = "Acme Ltd") -> Client:
+        return Client.objects.create(name=name, xero_last_modified=timezone.now())
+
+    def _update_url(self, client_id) -> str:
+        return f"/api/clients/{client_id}/update/"
+
+    def test_update_with_new_phone_creates_primary_method(self) -> None:
+        client = self._client()
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
+            response = self.client.patch(
+                self._update_url(client.id), {"phone": "09 111 1111"}, format="json"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["client"]["phone"], "09 111 1111")
+        method = ClientContactMethod.objects.get(client=client)
+        self.assertEqual(method.method_type, ClientContactMethod.MethodType.PHONE)
+        self.assertEqual(method.value, "09 111 1111")
+        self.assertTrue(method.is_primary)
+        rematch.assert_called_once_with(
+            [ClientContactMethod.normalize_phone("09 111 1111")]
+        )
+
+    def test_update_with_existing_secondary_number_promotes_it(self) -> None:
+        client = self._client()
+        primary = ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+            is_primary=True,
+        )
+        secondary = ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 222 2222",
+        )
+
+        response = self.client.patch(
+            self._update_url(client.id), {"phone": "09 222 2222"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        primary.refresh_from_db()
+        secondary.refresh_from_db()
+        self.assertFalse(primary.is_primary)
+        self.assertTrue(secondary.is_primary)
+        self.assertEqual(client.contact_methods.count(), 2)
+
+    def test_update_renumbers_current_primary_when_number_is_new(self) -> None:
+        """Matches set_primary_phone's contract: a genuinely new number reuses
+        (renumbers) the existing primary row instead of creating a second
+        one."""
+        client = self._client()
+        primary = ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+            is_primary=True,
+        )
+
+        response = self.client.patch(
+            self._update_url(client.id), {"phone": "09 333 3333"}, format="json"
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(client.contact_methods.count(), 1)
+        primary.refresh_from_db()
+        self.assertEqual(primary.value, "09 333 3333")
+        self.assertTrue(primary.is_primary)
+
+    def test_blank_phone_leaves_methods_untouched(self) -> None:
+        client = self._client()
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+            is_primary=True,
+        )
+
+        response = self.client.patch(
+            self._update_url(client.id),
+            {"phone": "", "name": "Acme Renamed"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["client"]["phone"], "09 111 1111")
+        self.assertEqual(client.contact_methods.count(), 1)
+        client.refresh_from_db()
+        self.assertEqual(client.name, "Acme Renamed")
+
+    def test_conflicting_phone_returns_400_and_rolls_back_update(self) -> None:
+        """A conflict must not leave the update half-applied: neither the new
+        name nor a stray contact method should be persisted."""
+        other = self._client("Beta Ltd")
+        ClientContactMethod.objects.create(
+            client=other,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 555 5555",
+        )
+        client = self._client("Acme Ltd")
+
+        response = self.client.patch(
+            self._update_url(client.id),
+            {"phone": "09 555 5555", "name": "Acme Renamed"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("phone", response.json()["error"].lower())
+        client.refresh_from_db()
+        self.assertEqual(client.name, "Acme Ltd")
+        self.assertEqual(client.contact_methods.count(), 0)
+
+    def test_get_client_detail_returns_primary_phone(self) -> None:
+        client = self._client()
+        ClientContactMethod.objects.create(
+            client=client,
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value="09 111 1111",
+            is_primary=True,
+        )
+
+        response = self.client.get(f"/api/clients/{client.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["phone"], "09 111 1111")
+
+    def test_get_client_detail_returns_empty_string_without_phone(self) -> None:
+        client = self._client("Phoneless Ltd")
+
+        response = self.client.get(f"/api/clients/{client.id}/")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["phone"], "")
+
+
 class ClientCreatePhoneTests(BaseTestCase):
     """Guards the phone entry restored on the create-client modal."""
 

@@ -72,8 +72,7 @@
           </p>
         </div>
 
-        <!-- Phone is create-only: editing client phones lives in PhoneNumberManager on the client detail page -->
-        <div v-if="!editMode">
+        <div>
           <label for="clientPhone" class="block text-sm font-medium text-gray-700 mb-1">
             Phone
           </label>
@@ -199,7 +198,7 @@ const clientSchema: ClientCreateRequestSchema = schemas.ClientCreateRequest
 type ClientFormPayload = {
   name: ClientCreateInput['name']
   email?: ClientUpdateInput['email']
-  phone?: ClientCreateInput['phone']
+  phone?: ClientUpdateInput['phone']
   address?: ClientUpdateInput['address']
   is_account_customer: NonNullable<ClientCreateInput['is_account_customer']>
   allow_jobs: NonNullable<ClientCreateInput['allow_jobs']>
@@ -213,6 +212,7 @@ interface Props {
   clientData?: {
     name: string
     email: string
+    phone: string
     address: string
     is_account_customer: boolean
     allow_jobs: boolean
@@ -226,6 +226,7 @@ const props = withDefaults(defineProps<Props>(), {
   clientData: () => ({
     name: '',
     email: '',
+    phone: '',
     address: '',
     is_account_customer: false,
     allow_jobs: true,
@@ -334,11 +335,8 @@ const handleSubmit = async () => {
     }
 
     if (props.editMode && props.clientId) {
-      // Update existing client. ClientUpdateRequest has no phone field —
-      // client phone editing lives in PhoneNumberManager on the client detail page.
-      const { phone: _createOnlyPhone, ...updateFields } = cleanedData
-      void _createOnlyPhone
-      const updatePayload: ClientUpdateRequest = { ...updateFields }
+      // Update existing client
+      const updatePayload: ClientUpdateRequest = { ...cleanedData }
       const result = await api.clients_update_update(updatePayload, {
         params: { client_id: props.clientId },
       })
@@ -410,8 +408,7 @@ const normalizeClientResult = (
   return schemas.ClientSearchResult.parse({
     ...clientPayload,
     email: clientPayload.email ?? '',
-    // ClientUpdateResponse.client (ClientDetailResponse) has no phone field
-    phone: 'phone' in clientPayload ? clientPayload.phone : '',
+    phone: clientPayload.phone ?? '',
     address: clientPayload.address ?? '',
     xero_contact_id: clientPayload.xero_contact_id ?? '',
   })
@@ -483,6 +480,7 @@ watch(
         Object.assign(formData, {
           name: props.clientData.name,
           email: props.clientData.email,
+          phone: props.clientData.phone,
           address: props.clientData.address,
           is_account_customer: props.clientData.is_account_customer,
           allow_jobs: props.clientData.allow_jobs,

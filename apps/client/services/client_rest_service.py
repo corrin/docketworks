@@ -41,8 +41,9 @@ from apps.workflow.services.search_telemetry import SearchTelemetryService
 CLIENT_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
 
 
-class _ClientSummaryAnnotations(TypedDict):
-    """Queryset annotations required by _format_client_summary; not Client fields."""
+class _ClientPhoneAnnotations(TypedDict):
+    """Queryset annotation required by _format_client_summary and
+    _format_client_detail; not a Client model field."""
 
     phone: str
 
@@ -50,7 +51,7 @@ class _ClientSummaryAnnotations(TypedDict):
 if TYPE_CHECKING:
     # Evaluated only by the type checker (annotation is quoted at use site), so
     # the dev-only django_stubs_ext dependency is never imported at runtime.
-    _AnnotatedClientSummary = WithAnnotations[Client, _ClientSummaryAnnotations]
+    _AnnotatedClientWithPhone = WithAnnotations[Client, _ClientPhoneAnnotations]
 
 logger = logging.getLogger(__name__)
 client_search_logger = logging.getLogger("client_search")
@@ -220,7 +221,15 @@ class ClientRestService:
             ValueError: If client not found
         """
         try:
-            client = Client.objects.with_invoice_summary().get(id=client_id)
+            client = (
+                Client.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="pk"
+                    )
+                )
+                .get(id=client_id)
+            )
             return ClientRestService._format_client_detail(client)
         except Client.DoesNotExist:
             raise ValueError(f"Client with id {client_id} not found")
@@ -310,6 +319,9 @@ class ClientRestService:
                 raise ValueError("; ".join(error_messages))
 
             validated_data = serializer.validated_data
+            # Stored as the client's primary ClientContactMethod, not a Client
+            # field, so it never reaches the generic setattr loop below.
+            phone = validated_data.pop("phone", None)
 
             # Guard clause - validate required fields
             if not validated_data.get("name") and not client.name:
@@ -338,7 +350,6 @@ class ClientRestService:
                         "operation": "update_client_xero_sync",
                     },
                 )
-                return updated_client
             else:
                 # Local-only update for clients not synced with Xero
                 with transaction.atomic():
@@ -346,6 +357,16 @@ class ClientRestService:
                         setattr(client, field, value)
                     client.xero_last_modified = timezone.now()
                     client.save()
+
+                    if phone and phone.strip():
+                        try:
+                            set_primary_phone(client, phone)
+                        except DjangoValidationError as exc:
+                            # A conflict rolls back the whole update (matching
+                            # create's "conflict rolls back the client").
+                            raise ValueError("; ".join(exc.messages)) from exc
+                    else:
+                        pass  # no phone supplied: leave contact methods untouched
 
                     logger.info(
                         f"Client {client.id} updated locally (no Xero sync)",
@@ -355,10 +376,29 @@ class ClientRestService:
                             "operation": "update_client_local_only",
                         },
                     )
+                updated_client = client
 
-                return client
+            # The response's phone field always reads from a queryset
+            # annotation; refetch through it (mirrors
+            # ClientContactSerializer._apply_phone's trailing annotated
+            # refetch), which also restores the with_invoice_summary()
+            # aggregates _format_client_detail needs.
+            return (
+                Client.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="client", outer_ref="pk"
+                    )
+                )
+                .get(id=updated_client.id)
+            )
 
         except AlreadyLoggedException:
+            raise
+        except ValueError:
+            # Validation failures (e.g. phone ownership conflicts, missing
+            # name) must reach the view as ValueError so it surfaces a 400
+            # instead of being swallowed into a 500 by persist_and_raise.
             raise
         except Exception as exc:
             persist_and_raise(
@@ -821,7 +861,7 @@ class ClientRestService:
         return "no_match"
 
     @staticmethod
-    def _format_client_summary(client: "_AnnotatedClientSummary") -> Dict[str, Any]:
+    def _format_client_summary(client: "_AnnotatedClientWithPhone") -> Dict[str, Any]:
         """
         Formats a single client summary for list/search responses.
 
@@ -850,14 +890,18 @@ class ClientRestService:
         return [ClientRestService._format_client_summary(client) for client in clients]
 
     @staticmethod
-    def _format_client_detail(client: Client) -> Dict[str, Any]:
+    def _format_client_detail(client: "_AnnotatedClientWithPhone") -> Dict[str, Any]:
         """
         Formats complete client details for API response.
+
+        Callers must annotate their queryset with
+        ClientContactMethod.primary_phone_annotation (see _ClientPhoneAnnotations).
         """
         return {
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
+            "phone": client.phone,
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,
