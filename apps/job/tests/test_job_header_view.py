@@ -1,6 +1,8 @@
 """Job header endpoint tests.
 
-Guards the ETag/If-None-Match round trip on the job header fetch.
+Guards the ETag/If-None-Match round trip on the job header fetch, and the
+null-client contract (shell jobs have no client; every client/contact field
+must serialize as null, not 500).
 """
 
 from typing import TYPE_CHECKING
@@ -39,6 +41,18 @@ class JobHeaderViewTests(BaseAPITestCase):
         if if_none_match is not None:
             return self.client.get(url, HTTP_IF_NONE_MATCH=if_none_match)
         return self.client.get(url)
+
+    def test_header_for_job_without_client(self) -> None:
+        job = self._job(job_client=None)
+
+        response = self._get_header(job)
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertIsNone(payload["client_id"])
+        self.assertIsNone(payload["client_name"])
+        self.assertIsNone(payload["contact_id"])
+        self.assertIsNone(payload["contact_name"])
 
     def test_etag_round_trip_returns_304(self) -> None:
         job_client = Client.objects.create(

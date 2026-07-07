@@ -894,6 +894,59 @@ class ClientUpdatePhoneTests(BaseAPITestCase):
         self.assertEqual(response.json()["error_id"], str(app_error.id))
 
 
+class ClientUpdateProviderFailureTests(BaseTestCase):
+    """Service-level guard for ADR 0019 on update_client: Xero/system
+    failures must persist to AppError and surface as AlreadyLoggedException
+    at the service boundary, never ride the user-facing ValueError (400)
+    path. Complements the HTTP-level 500/error_id tests above."""
+
+    def _xero_synced_client(self) -> Client:
+        return Client.objects.create(
+            name="Acme Ltd",
+            xero_contact_id="xero-contact-id",
+            xero_last_modified=timezone.now(),
+        )
+
+    def test_failed_provider_push_persists_app_error(self) -> None:
+        from apps.client.services.client_rest_service import ClientRestService
+
+        client = self._xero_synced_client()
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.update_contact.return_value = ContactResult(
+            success=False, error="rate limited"
+        )
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            with self.assertRaises(AlreadyLoggedException) as ctx:
+                ClientRestService.update_client(client.id, {"name": "Acme Renamed"})
+
+        self.assertIn("Failed to update client", str(ctx.exception))
+        self.assertEqual(AppError.objects.count(), 1)
+
+    def test_missing_provider_token_persists_app_error(self) -> None:
+        from apps.client.services.client_rest_service import ClientRestService
+
+        client = self._xero_synced_client()
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = None
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            with self.assertRaises(AlreadyLoggedException) as ctx:
+                ClientRestService.update_client(client.id, {"name": "Acme Renamed"})
+
+        self.assertIn("authentication required", str(ctx.exception))
+        self.assertEqual(AppError.objects.count(), 1)
+
+
 class ClientCreatePhoneTests(BaseTestCase):
     """Guards the phone entry restored on the create-client modal."""
 
