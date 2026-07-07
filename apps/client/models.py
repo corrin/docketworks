@@ -361,21 +361,6 @@ class ClientContact(models.Model):
     def __str__(self):
         return f"{self.name} ({self.client.name})"
 
-    def primary_phone_value(self) -> str:
-        """The contact's own primary phone number, or "" when it has none.
-
-        Single-object flows only. Queryset consumers must use
-        ClientContactMethod.primary_phone_annotation instead.
-        """
-        method = (
-            self.contact_methods.filter(
-                method_type=ClientContactMethod.MethodType.PHONE
-            )
-            .order_by(*PRIMARY_PHONE_ORDERING)
-            .first()
-        )
-        return method.value if method else ""
-
     def save(
         self,
         *,

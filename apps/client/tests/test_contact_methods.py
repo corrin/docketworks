@@ -245,42 +245,6 @@ class ClientPrimaryPhoneValueTests(TestCase):
         self.assertEqual(client.primary_phone_value(), "")
 
 
-class ClientContactPrimaryPhoneValueTests(TestCase):
-    """Guards the helper the job-settings tab uses to show the contact's phone."""
-
-    def _contact(self) -> ClientContact:
-        client = Client.objects.create(
-            name="Acme Ltd", xero_last_modified=timezone.now()
-        )
-        return ClientContact.objects.create(client=client, name="Jane Smith")
-
-    def test_returns_primary_phone_first(self) -> None:
-        contact = self._contact()
-        ClientContactMethod.objects.create(
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
-            value="09 111 1111",
-        )
-        ClientContactMethod.objects.create(
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
-            value="09 222 2222",
-            is_primary=True,
-        )
-
-        self.assertEqual(contact.primary_phone_value(), "09 222 2222")
-
-    def test_returns_empty_string_when_no_phone_methods(self) -> None:
-        contact = self._contact()
-        ClientContactMethod.objects.create(
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.EMAIL,
-            value="jane@example.com",
-        )
-
-        self.assertEqual(contact.primary_phone_value(), "")
-
-
 class PrimaryPhoneAnnotationTests(TestCase):
     """Guards the shared queryset annotation every phone-bearing payload uses."""
 
@@ -351,8 +315,8 @@ class PrimaryPhoneAnnotationTests(TestCase):
         self.assertEqual(annotated.phone, "021 222 222")
 
 
-class GetJobContactPhoneTests(BaseTestCase):
-    """Guards the phone the job-settings tab shows for the job's contact."""
+class UpdateJobContactTests(BaseTestCase):
+    """Guards that reassigning a job's contact persists to the job record."""
 
     def _job_with_contact(self) -> "tuple[Job, Client, ClientContact]":
         from apps.job.models import Job
@@ -362,14 +326,8 @@ class GetJobContactPhoneTests(BaseTestCase):
             name="Acme Ltd", xero_last_modified=timezone.now()
         )
         contact = ClientContact.objects.create(client=client, name="Jane Smith")
-        ClientContactMethod.objects.create(
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
-            value="09 333 3333",
-            is_primary=True,
-        )
         job: Job = Job.objects.create(
-            name="Phone Display Job",
+            name="Contact Assignment Job",
             client=client,
             contact=contact,
             created_by=self.test_staff,
@@ -378,48 +336,16 @@ class GetJobContactPhoneTests(BaseTestCase):
         )
         return job, client, contact
 
-    def _lazy_phone_queries(self, captured: CaptureQueriesContext) -> list[str]:
-        """Standalone contact_methods SELECTs — the lazy-load signature.
-
-        The annotation's correlated subquery legitimately appears inside the
-        owning row's SELECT; only a top-level query is a regression.
-        """
-        return [
-            q["sql"]
-            for q in captured.captured_queries
-            if q["sql"].startswith('SELECT "client_clientcontactmethod"')
-        ]
-
-    def test_get_job_contact_includes_contact_phone(self) -> None:
-        from apps.client.services.client_rest_service import ClientRestService
-
-        job, _, _ = self._job_with_contact()
-
-        with CaptureQueriesContext(connection) as captured:
-            result = ClientRestService.get_job_contact(job.id)
-
-        self.assertEqual(result["phone"], "09 333 3333")
-        self.assertEqual(self._lazy_phone_queries(captured), [])
-
-    def test_update_job_contact_returns_new_contacts_phone(self) -> None:
+    def test_update_job_contact_persists_new_contact(self) -> None:
         from apps.client.services.client_rest_service import ClientRestService
 
         job, client, _ = self._job_with_contact()
         new_contact = ClientContact.objects.create(client=client, name="Bob Brown")
-        ClientContactMethod.objects.create(
-            contact=new_contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
-            value="09 444 4444",
-            is_primary=True,
+
+        ClientRestService.update_job_contact(
+            job.id, {"id": str(new_contact.id)}, self.test_staff
         )
 
-        with CaptureQueriesContext(connection) as captured:
-            result = ClientRestService.update_job_contact(
-                job.id, {"id": str(new_contact.id)}, self.test_staff
-            )
-
-        self.assertEqual(result["phone"], "09 444 4444")
-        self.assertEqual(self._lazy_phone_queries(captured), [])
         job.refresh_from_db()
         self.assertEqual(job.contact_id, new_contact.id)
 

@@ -820,7 +820,6 @@ const JobContactResponse = z.object({
   position: z.string().nullable(),
   is_primary: z.boolean(),
   notes: z.string().nullable(),
-  phone: z.string(),
 })
 const JobContactUpdateRequest = z.object({
   id: z.string().uuid(),
@@ -1494,7 +1493,6 @@ const Job = z.object({
   name: z.string().max(100),
   client_id: z.string().uuid().nullish(),
   client_name: z.string().nullable(),
-  client_phone: z.string(),
   contact_id: z.string().uuid().nullish(),
   contact_name: z.string().nullable(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
@@ -1708,7 +1706,6 @@ const JobHeaderResponse = z.object({
   job_id: z.string().uuid(),
   client_id: z.string().uuid().nullable(),
   client_name: z.string().nullable(),
-  client_phone: z.string(),
   contact_id: z.string().uuid().nullable(),
   contact_name: z.string().nullable(),
   quoted: z.boolean(),
@@ -1835,7 +1832,6 @@ const JobSummary = z.object({
   name: z.string().max(100),
   client_id: z.string().uuid().nullish(),
   client_name: z.string().nullable(),
-  client_phone: z.string(),
   contact_id: z.string().uuid().nullish(),
   contact_name: z.string().nullable(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),

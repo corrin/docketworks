@@ -12973,9 +12973,6 @@ components:
           type: string
           readOnly: true
           nullable: true
-        client_phone:
-          type: string
-          readOnly: true
         contact_id:
           type: string
           format: uuid
@@ -13141,7 +13138,6 @@ components:
           description: Whether this job requires urgent rates and priority handling
       required:
         - client_name
-        - client_phone
         - contact_name
         - created_at
         - default_xero_pay_item_name
@@ -13321,15 +13317,12 @@ components:
         notes:
           type: string
           nullable: true
-        phone:
-          type: string
       required:
         - email
         - id
         - is_primary
         - name
         - notes
-        - phone
         - position
     JobContactUpdateRequest:
       type: object
@@ -13929,9 +13922,6 @@ components:
           type: string
           readOnly: true
           nullable: true
-        client_phone:
-          type: string
-          readOnly: true
         contact_id:
           type: string
           format: uuid
@@ -14048,7 +14038,6 @@ components:
       required:
         - client_id
         - client_name
-        - client_phone
         - contact_id
         - contact_name
         - default_xero_pay_item_id
@@ -14535,9 +14524,6 @@ components:
           type: string
           readOnly: true
           nullable: true
-        client_phone:
-          type: string
-          readOnly: true
         contact_id:
           type: string
           format: uuid
@@ -14703,7 +14689,6 @@ components:
           description: Whether this job requires urgent rates and priority handling
       required:
         - client_name
-        - client_phone
         - contact_name
         - created_at
         - default_xero_pay_item_name

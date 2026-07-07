@@ -26,7 +26,6 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from apps.accounts.models import Staff
-from apps.client.models import ClientContactMethod
 from apps.job.models import Job, JobDeltaRejection
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.job_serializer import (
@@ -900,11 +899,6 @@ class JobHeaderRestView(BaseJobRestView):
             job = (
                 Job.objects.select_related("client", "contact")
                 .only(*query_fields)
-                .annotate(
-                    client_phone=ClientContactMethod.primary_phone_annotation(
-                        owner="client", outer_ref="client_id"
-                    )
-                )
                 .get(id=job_id)
             )
 

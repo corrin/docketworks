@@ -24,23 +24,6 @@ logger = logging.getLogger(__name__)
 DEBUG_SERIALIZER = False
 
 
-class AnnotatedCharField(serializers.CharField):
-    """Read-only char field backed by a queryset annotation.
-
-    DRF skips read-only fields whose attribute is missing; a forgotten
-    annotation would silently drop the key from the payload (ADR 0015 —
-    no read-side fallbacks). Raise instead so the caller fails loudly.
-    """
-
-    def get_attribute(self, instance: Any) -> Any:
-        try:
-            return super().get_attribute(instance)
-        except serializers.SkipField as exc:
-            raise AttributeError(
-                f"queryset must be annotated with '{self.field_name}'"
-            ) from exc
-
-
 class InvoiceSerializer(serializers.ModelSerializer):
     total_excl_tax = serializers.FloatField()
     total_incl_tax = serializers.FloatField()
@@ -141,8 +124,6 @@ class JobSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
         source="client.name", read_only=True, allow_null=True, required=False
     )
-    # Backed by ClientContactMethod.primary_phone_annotation on the queryset.
-    client_phone = AnnotatedCharField(read_only=True)
     contact_id = serializers.PrimaryKeyRelatedField(
         queryset=ClientContact.objects.all(),
         source="contact",
@@ -227,7 +208,6 @@ class JobSerializer(serializers.ModelSerializer):
             "name",
             "client_id",
             "client_name",
-            "client_phone",
             "contact_id",
             "contact_name",
             "job_number",
@@ -832,8 +812,6 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
     client_name = serializers.CharField(
         source="client.name", read_only=True, allow_null=True
     )
-    # Backed by ClientContactMethod.primary_phone_annotation on the queryset.
-    client_phone = AnnotatedCharField(read_only=True)
     contact_id = serializers.UUIDField(
         source="contact.id", read_only=True, allow_null=True
     )
@@ -855,7 +833,6 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
             "job_id",
             "client_id",
             "client_name",
-            "client_phone",
             "contact_id",
             "contact_name",
             "quoted",

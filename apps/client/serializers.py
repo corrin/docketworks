@@ -405,12 +405,7 @@ class ClientUpdateResponseSerializer(serializers.Serializer):
 
 
 class JobContactBaseSerializer(serializers.Serializer):
-    """Fields shared by the job contact response and update serializers.
-
-    phone is response-only: phones live in ClientContactMethod; the job
-    contact update path only reassigns the contact FK and must never
-    write phones.
-    """
+    """Fields shared by the job contact response and update serializers."""
 
     id = serializers.UUIDField()
     name = serializers.CharField()
@@ -422,8 +417,6 @@ class JobContactBaseSerializer(serializers.Serializer):
 
 class JobContactResponseSerializer(JobContactBaseSerializer):
     """Serializer for job contact information response"""
-
-    phone = serializers.CharField(allow_blank=True)
 
 
 class JobContactUpdateSerializer(JobContactBaseSerializer):

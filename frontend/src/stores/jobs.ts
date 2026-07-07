@@ -488,7 +488,6 @@ export const useJobsStore = defineStore('jobs', () => {
       name: job.name,
       client_id: job.client_id ?? null,
       client_name: job.client_name ?? null,
-      client_phone: job.client_phone,
       contact_id: job.contact_id ?? null,
       contact_name: job.contact_name ?? null,
       status: job.job_status as JobHeaderResponse['status'],
