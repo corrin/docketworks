@@ -529,8 +529,8 @@ EOSQL
     if [[ ! -L "$INSTANCE_DIR/app" ]]; then
         local TARGET_SHA
         fetch_local_repo
-        TARGET_SHA="$(resolve_release_ref origin/main)"
-        log "Creating app release link from origin/main SHA $TARGET_SHA"
+        TARGET_SHA="$(resolve_release_ref origin/production)"
+        log "Creating app release link from origin/production SHA $TARGET_SHA"
         ensure_release "$TARGET_SHA"
         switch_instance_release "$INSTANCE" "$TARGET_SHA"
         chown -h "$INSTANCE_USER:$INSTANCE_USER" "$INSTANCE_DIR/app"

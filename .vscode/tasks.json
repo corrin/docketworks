@@ -120,7 +120,7 @@
       }
     },
     {
-      "label": "Start Dev Environment",
+      "label": "Start Hotfix Environment",
       "dependsOn": [
         "Frontend Dev Server",
         "Frontend Manual Dev Server",

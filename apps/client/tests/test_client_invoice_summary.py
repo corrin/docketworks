@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounting.models import Invoice
-from apps.client.models import Client
+from apps.client.models import Client, ClientContactMethod
 from apps.client.services.client_rest_service import ClientRestService
 from apps.client.utils import date_to_datetime
 from apps.client.views.client_rest_views import ClientCreateRestView
@@ -96,6 +96,11 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
 
     clients = list(
         Client.objects.with_invoice_summary()
+        .annotate(
+            phone=ClientContactMethod.primary_phone_annotation(
+                owner="client", outer_ref="pk"
+            )
+        )
         .filter(id__in=[with_invoices.id, without_invoices.id])
         .order_by("name")
     )
@@ -109,6 +114,7 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
             "id": str(with_invoices.id),
             "name": "With Invoices",
             "email": "",
+            "phone": "",
             "address": "",
             "is_account_customer": False,
             "is_supplier": False,
@@ -121,6 +127,7 @@ def test_formatting_annotated_clients_does_not_query_invoice_metrics(db):
             "id": str(without_invoices.id),
             "name": "Without Invoices",
             "email": "",
+            "phone": "",
             "address": "",
             "is_account_customer": False,
             "is_supplier": False,

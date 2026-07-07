@@ -12,6 +12,7 @@ type ContactFormFields = {
   name: ContactCreateRequest['name']
   position: ContactCreateRequest['position']
   email: ContactCreateRequest['email']
+  phone: ContactCreateRequest['phone']
   notes: ContactCreateRequest['notes']
   is_primary: boolean
 }
@@ -37,6 +38,7 @@ export function useContactManagement() {
     name: '',
     position: '',
     email: '',
+    phone: '',
     notes: '',
     is_primary: false,
   })
@@ -57,22 +59,25 @@ export function useContactManagement() {
       if (!selectedContact.value) return ''
       const contact = selectedContact.value
       const parts = [contact.name]
+      if (contact.phone) parts.push(contact.phone)
       if (contact.email) parts.push(contact.email)
       return parts.join(' - ')
     },
     set(val: string) {
-      // Expecting format: "name - email"
-      const [name, email] = val.split(' - ')
+      // Expecting format: "name - phone - email"
+      const [name, phone, email] = val.split(' - ')
       if (selectedContact.value) {
         selectedContact.value = {
           ...selectedContact.value,
           name,
+          phone: phone || '',
           email: email || '',
         }
       } else {
         newContactForm.value = {
           ...newContactForm.value,
           name,
+          phone: phone || '',
           email: email || '',
         }
       }
@@ -194,6 +199,7 @@ export function useContactManagement() {
 
       const trimmedPosition = newContactForm.value.position?.trim()
       const trimmedEmail = newContactForm.value.email?.trim()
+      const trimmedPhone = newContactForm.value.phone?.trim()
       const trimmedNotes = newContactForm.value.notes?.trim()
 
       const contactData: ContactCreateRequest = {
@@ -203,6 +209,8 @@ export function useContactManagement() {
         position: trimmedPosition || undefined,
         email: trimmedEmail || undefined,
         notes: trimmedNotes || undefined,
+        // Omit phone entirely when blank so the backend leaves contact methods untouched
+        ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       }
 
       debugLog('Creating new contact:', contactData)
@@ -248,6 +256,7 @@ export function useContactManagement() {
       name: '',
       position: '',
       email: '',
+      phone: '',
       notes: '',
       is_primary: contacts.value.length === 0,
     }
@@ -265,6 +274,7 @@ export function useContactManagement() {
       name: contact.name,
       position: contact.position || '',
       email: contact.email || '',
+      phone: contact.phone || '',
       notes: contact.notes || '',
       is_primary: contact.is_primary || false,
     }
@@ -297,12 +307,16 @@ export function useContactManagement() {
     isLoading.value = true
 
     try {
+      const trimmedPhone = newContactForm.value.phone?.trim()
+
       const contactData: ContactUpdateRequest = {
         name: newContactForm.value.name.trim(),
         is_primary: newContactForm.value.is_primary,
         position: newContactForm.value.position?.trim() || null,
         email: newContactForm.value.email?.trim() || null,
         notes: newContactForm.value.notes?.trim() || null,
+        // Omit phone entirely when blank so the backend leaves contact methods untouched
+        ...(trimmedPhone ? { phone: trimmedPhone } : {}),
       }
 
       debugLog('Updating contact:', editingContact.value.id, contactData)

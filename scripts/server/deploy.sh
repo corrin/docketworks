@@ -6,12 +6,13 @@ set -euo pipefail
 #        deploy.sh --all  [--ref <branch|tag|sha>] [--no-backup]
 #        deploy.sh --cleanup-releases
 #
-# Normal operator path after a PR is merged:
+# Normal operator path after a PR is merged to production:
 #   sudo scripts/server/deploy.sh <instance>
 #
-# That command fetches GitHub, resolves origin/main to a SHA, builds
+# That command fetches GitHub, resolves origin/production to a SHA, builds
 # /opt/docketworks/releases/<sha> if missing, then switches only the requested
-# instance to that release.
+# instance to that release. Servers only ever run the production branch
+# (ADR 0029); main is the integration branch and is never deployed directly.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 SELF="$SCRIPT_DIR/$(basename "$0")"
@@ -39,7 +40,7 @@ eval set -- "$parsed"
 DO_BACKUP=1
 DEPLOY_ALL=0
 DO_CLEANUP_RELEASES=0
-TARGET_REF="origin/main"
+TARGET_REF="origin/production"
 while true; do
     case "$1" in
         --no-backup)   DO_BACKUP=0;      shift ;;
@@ -57,7 +58,7 @@ if ! flock -n 9; then
 fi
 
 if [[ $DO_CLEANUP_RELEASES -eq 1 ]]; then
-    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || "$TARGET_REF" != "origin/main" ]]; then
+    if [[ $# -gt 0 || $DEPLOY_ALL -eq 1 || $DO_BACKUP -eq 0 || "$TARGET_REF" != "origin/production" ]]; then
         echo "ERROR: --cleanup-releases cannot be combined with deploy targets or deploy flags." >&2
         echo "$USAGE" >&2
         exit 1

@@ -3,6 +3,7 @@ import re
 import uuid
 from collections.abc import Iterable
 from decimal import Decimal
+from typing import Final, Literal
 
 from django.contrib.postgres.indexes import GinIndex
 from django.contrib.postgres.search import SearchVector
@@ -14,20 +15,6 @@ from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
 
 logger = logging.getLogger(__name__)
-
-
-def _include_auto_now_update_field(kwargs, field_name: str) -> None:
-    update_fields = kwargs.get("update_fields")
-    if update_fields is None:
-        return
-
-    update_field_names = (
-        [update_fields] if isinstance(update_fields, str) else list(update_fields)
-    )
-    if not update_field_names or field_name in update_field_names:
-        return
-
-    kwargs["update_fields"] = [*update_field_names, field_name]
 
 
 def _augment_update_fields(
@@ -172,11 +159,23 @@ class Client(models.Model):
     def __str__(self):
         return self.name
 
-    def save(self, *args, **kwargs):
-        _include_auto_now_update_field(kwargs, "django_updated_at")
-        super().save(*args, **kwargs)
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        update_fields = _augment_update_fields(update_fields, "django_updated_at")
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
-    def validate_for_xero(self):
+    def validate_for_xero(self) -> bool:
         """
         Validate if the client data is sufficient to sync to Xero.
         Only name is required by Xero.
@@ -249,19 +248,19 @@ class Client(models.Model):
     def primary_phone_value(self) -> str:
         """The client's own primary phone number, or "" when it has none.
 
-        Uses the same ordering as every other primary-phone consumer:
-        primary first, then label/value as a stable tie-break.
+        Single-object flows only (Xero sync, PO PDFs). Queryset consumers must
+        use ClientContactMethod.primary_phone_annotation instead.
         """
         method = (
             self.contact_methods.filter(
                 method_type=ClientContactMethod.MethodType.PHONE
             )
-            .order_by("-is_primary", "label", "value")
+            .order_by(*PRIMARY_PHONE_ORDERING)
             .first()
         )
         return method.value if method else ""
 
-    def get_final_client(self):
+    def get_final_client(self) -> "Client":
         """
         Follow the merge chain to get the final client.
         If this client was merged into another, return that client
@@ -403,6 +402,13 @@ class PhoneAssignmentConflictError(Exception):
         super().__init__(message)
 
 
+# The primary-phone ordering rule: primary first, then label/value as a
+# stable tie-break. Single source — every primary-phone consumer must use it.
+PRIMARY_PHONE_ORDERING: Final[tuple[str, str, str]] = ("-is_primary", "label", "value")
+
+PhoneOwner = Literal["client", "contact"]
+
+
 class ClientContactMethod(models.Model):
     """Phone or email address owned by a client or one of its contacts."""
 
@@ -487,6 +493,26 @@ class ClientContactMethod(models.Model):
     def __str__(self) -> str:
         owner = self.contact or self.client
         return f"{self.method_type}: {self.value} ({owner})"
+
+    @classmethod
+    def primary_phone_annotation(cls, *, owner: PhoneOwner, outer_ref: str) -> Coalesce:
+        """Queryset annotation: the owner's primary phone value, "" when it has none.
+
+        ``outer_ref`` names the outer queryset's column holding the owner's id
+        (e.g. "pk" on a Client queryset, "client_id" on a Job queryset).
+        """
+        candidates = (
+            cls.objects.filter(
+                method_type=cls.MethodType.PHONE, **{owner: models.OuterRef(outer_ref)}
+            )
+            .order_by(*PRIMARY_PHONE_ORDERING)
+            .values("value")[:1]
+        )
+        return Coalesce(
+            models.Subquery(candidates),
+            models.Value(""),
+            output_field=models.CharField(),
+        )
 
     def save(
         self,

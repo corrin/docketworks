@@ -28,7 +28,10 @@ If you're running the application locally for development:
 
 ## Server Environment (Multi-Tenant)
 
-**This section is the deploy runbook.** PR merged to `main`? SSH into the server and run:
+**This section is the deploy runbook.** Servers only ever run the `production`
+branch (ADR 0029): feature PRs merge to `main`, and a release is a promotion PR
+merging `main` → `production` (hotfixes PR straight into `production` and are
+back-merged to `main`). PR merged to `production`? SSH into the server and run:
 
 ```bash
 # One client
@@ -38,7 +41,7 @@ sudo ./scripts/server/deploy.sh <client>-<env>
 sudo ./scripts/server/deploy.sh --all
 ```
 
-That's it for a normal code release. `deploy.sh` pulls `main` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, stops runtime services, switches `app` to that release, runs migrations, and restarts its services — you don't run anything per service.
+That's it for a normal code release. `deploy.sh` pulls `production` itself, builds or reuses the shared `/opt/docketworks/releases/<sha>` release, then for each target instance takes a pre-deploy DB backup, stops runtime services, switches `app` to that release, runs migrations, and restarts its services — you don't run anything per service.
 
 If migrations fail, deploy leaves that instance's services stopped and does not
 perform an automatic rollback. Django records successful migrations in the

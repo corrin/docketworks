@@ -73,6 +73,23 @@
         </div>
 
         <div>
+          <label for="clientPhone" class="block text-sm font-medium text-gray-700 mb-1">
+            Phone
+          </label>
+          <input
+            id="clientPhone"
+            v-model="formData.phone"
+            type="tel"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :class="{ 'border-red-300': fieldErrors.phone }"
+            placeholder="Phone number"
+          />
+          <p v-if="fieldErrors.phone" class="mt-1 text-sm text-red-600">
+            {{ fieldErrors.phone }}
+          </p>
+        </div>
+
+        <div>
           <label for="clientAddress" class="block text-sm font-medium text-gray-700 mb-1">
             Address
           </label>
@@ -181,6 +198,7 @@ const clientSchema: ClientCreateRequestSchema = schemas.ClientCreateRequest
 type ClientFormPayload = {
   name: ClientCreateInput['name']
   email?: ClientUpdateInput['email']
+  phone?: ClientUpdateInput['phone']
   address?: ClientUpdateInput['address']
   is_account_customer: NonNullable<ClientCreateInput['is_account_customer']>
   allow_jobs: NonNullable<ClientCreateInput['allow_jobs']>
@@ -194,6 +212,7 @@ interface Props {
   clientData?: {
     name: string
     email: string
+    phone: string
     address: string
     is_account_customer: boolean
     allow_jobs: boolean
@@ -207,6 +226,7 @@ const props = withDefaults(defineProps<Props>(), {
   clientData: () => ({
     name: '',
     email: '',
+    phone: '',
     address: '',
     is_account_customer: false,
     allow_jobs: true,
@@ -221,6 +241,7 @@ const emit = defineEmits<{
 const formData = reactive<ClientFormPayload>({
   name: '',
   email: '',
+  phone: '',
   address: '',
   is_account_customer: false,
   allow_jobs: true,
@@ -351,6 +372,7 @@ const cleanOptionalFields = (data: ClientFormPayload): ClientFormPayload => {
     ...data,
     name: data.name.trim(),
     email: normalizeOptionalString(data.email),
+    phone: normalizeOptionalString(data.phone),
     address: normalizeOptionalString(data.address),
   }
 }
@@ -386,6 +408,7 @@ const normalizeClientResult = (
   return schemas.ClientSearchResult.parse({
     ...clientPayload,
     email: clientPayload.email ?? '',
+    phone: clientPayload.phone ?? '',
     address: clientPayload.address ?? '',
     xero_contact_id: clientPayload.xero_contact_id ?? '',
   })
@@ -425,6 +448,7 @@ const resetForm = () => {
   Object.assign(formData, {
     name: '',
     email: '',
+    phone: '',
     address: '',
     is_account_customer: false,
     allow_jobs: true,
@@ -456,6 +480,7 @@ watch(
         Object.assign(formData, {
           name: props.clientData.name,
           email: props.clientData.email,
+          phone: props.clientData.phone,
           address: props.clientData.address,
           is_account_customer: props.clientData.is_account_customer,
           allow_jobs: props.clientData.allow_jobs,

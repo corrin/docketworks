@@ -8,6 +8,7 @@
  * ghost duplication (2+ instances from stale SortableJS DOM nodes).
  */
 import { test, expect } from '../fixtures/auth'
+import { autoId } from '../fixtures/helpers'
 import type { Page, Locator, Response } from '@playwright/test'
 
 const getJobIdFromUrl = (url: string): string => {
@@ -186,24 +187,31 @@ test.describe('kanban drag vanishing', () => {
     sharedEditJobUrl,
   }) => {
     const jobId = getJobIdFromUrl(sharedEditJobUrl)
+
+    // The fixture exposes only the job URL, so read the job number from the
+    // job page header (same source as tests/timesheet/keyboard-nav.spec.ts).
+    // Do NOT scrape it from the unfiltered board: kanban columns are capped
+    // (200 cards per column), so on production-size databases the shared
+    // job's card can legitimately be absent until the search below filters
+    // the board.
+    await page.goto(sharedEditJobUrl)
+    const jobNumberText = await autoId(page, 'JobView-job-number').first().innerText()
+    const jobNumber = jobNumberText.match(/#(\d+)/)?.[1] ?? ''
+    expect(jobNumber).not.toBe('')
+
+    // Attach the console capture only now, keeping it scoped to the kanban
+    // drag flow it was written for.
     const consoleIssues = captureDragConsoleIssues(page)
 
     await page.goto('/kanban')
     await page.waitForLoadState('networkidle')
-
-    const jobCard = getVisibleJobCard(page, jobId)
-    await jobCard.scrollIntoViewIfNeeded()
-    await expect(jobCard).toBeVisible({ timeout: 15000 })
-
-    const jobNumberText = (await jobCard.locator('span').first().textContent()) || ''
-    const jobNumber = jobNumberText.replace('#', '').trim()
-    expect(jobNumber).not.toBe('')
 
     const searchInput = page.getByPlaceholder('Search jobs...')
     await searchInput.fill(jobNumber)
 
     await expect(getVisibleJobCard(page, jobId)).toBeVisible({ timeout: 15000 })
 
+    const jobCard = getVisibleJobCard(page, jobId)
     const sourceColumn = getJobColumn(page, jobId)
     const sourceStatus = await sourceColumn.getAttribute('data-status')
 

@@ -874,6 +874,7 @@ def sync_clients(xero_contacts):
 
     for contact in xero_contacts:
         raw_json = process_xero_data(contact)
+        client: Client
 
         # Check if we already have a client with this xero_contact_id
         existing_client = Client.objects.filter(
