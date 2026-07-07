@@ -651,6 +651,7 @@ const ClientErrorResponse = z.object({
   success: z.boolean().optional().default(false),
   error: z.string(),
   details: z.string().optional(),
+  error_id: z.string().optional(),
 })
 const ClientJobHeader = z.object({
   job_id: z.string().uuid(),
