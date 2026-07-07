@@ -353,6 +353,7 @@ class ClientErrorResponseSerializer(serializers.Serializer):
     success = serializers.BooleanField(default=False)
     error = serializers.CharField()
     details = serializers.CharField(required=False)
+    error_id = serializers.CharField(required=False)
 
 
 class ClientDuplicateErrorResponseSerializer(serializers.Serializer):

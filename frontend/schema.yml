@@ -10517,6 +10517,8 @@ components:
           type: string
         details:
           type: string
+        error_id:
+          type: string
       required:
         - error
     ClientJobHeader:

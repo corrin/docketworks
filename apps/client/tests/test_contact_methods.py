@@ -1,3 +1,4 @@
+import uuid
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
@@ -11,10 +12,13 @@ if TYPE_CHECKING:
     from apps.job.models import Job
 
 from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.client.services.client_rest_service import ClientRestService
 from apps.crm.models import PhoneCallRecord
 from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.testing import BaseAPITestCase, BaseTestCase
 from apps.workflow.accounting.types import ContactResult
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.models import AppError
 
 
 class ClientContactMethodTests(TestCase):
@@ -338,8 +342,6 @@ class UpdateJobContactTests(BaseTestCase):
         return job, client, contact
 
     def test_update_job_contact_persists_new_contact(self) -> None:
-        from apps.client.services.client_rest_service import ClientRestService
-
         job, client, _ = self._job_with_contact()
         new_contact = ClientContact.objects.create(client=client, name="Bob Brown")
 
@@ -373,8 +375,6 @@ class ClientListPhoneTests(TestCase):
         ]
 
     def test_list_clients_rows_include_phone(self) -> None:
-        from apps.client.services.client_rest_service import ClientRestService
-
         self._client_with_phone("Acme Ltd", "09 111 1111")
         Client.objects.create(name="Phoneless Ltd", xero_last_modified=timezone.now())
 
@@ -387,8 +387,6 @@ class ClientListPhoneTests(TestCase):
         self.assertEqual(self._lazy_phone_queries(captured), [])
 
     def test_searched_clients_include_phone(self) -> None:
-        from apps.client.services.client_rest_service import ClientRestService
-
         self._client_with_phone("Acme Ltd", "09 111 1111")
 
         result = ClientRestService.list_clients(query="Acme", page=1, page_size=10)
@@ -808,6 +806,93 @@ class ClientUpdatePhoneTests(BaseAPITestCase):
                 [ClientContactMethod.normalize_phone("09 111 1111")]
             )
 
+    def test_unknown_client_update_returns_404_without_app_error(self) -> None:
+        before = AppError.objects.count()
+
+        response = self.client.patch(
+            self._update_url(uuid.uuid4()),
+            {"name": "Missing Client"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("not found", response.json()["error"].lower())
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_validation_error_returns_400_without_app_error(self) -> None:
+        client = self._client()
+        before = AppError.objects.count()
+
+        response = self.client.patch(
+            self._update_url(client.id),
+            {"email": "not-an-email"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("invalid input data", response.json()["error"].lower())
+        self.assertEqual(AppError.objects.count(), before)
+
+    def test_xero_update_failure_persists_once_and_returns_500(self) -> None:
+        client = self._client()
+        client.xero_contact_id = "xero-contact-id"
+        client.save()
+        provider = MagicMock()
+        provider.provider_name = "Xero"
+        provider.get_valid_token.return_value = {"access_token": "token"}
+        provider.update_contact.return_value = ContactResult(
+            success=False,
+            error="RemoteDisconnected",
+        )
+        before = AppError.objects.count()
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            return_value=provider,
+        ):
+            response = self.client.patch(
+                self._update_url(client.id),
+                {"name": "Acme Renamed"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 500)
+        payload = response.json()
+        self.assertEqual(payload["error"], "Error updating client")
+        self.assertIn("RemoteDisconnected", payload["details"])
+        self.assertEqual(AppError.objects.count(), before + 1)
+        app_error = AppError.objects.latest("timestamp")
+        self.assertEqual(payload["error_id"], str(app_error.id))
+
+    def test_already_logged_update_failure_is_not_persisted_again(self) -> None:
+        client = self._client()
+        client.xero_contact_id = "xero-contact-id"
+        client.save()
+        before = AppError.objects.count()
+        app_error = AppError.objects.create(
+            message="upstream failure",
+            app="client",
+            file="client_rest_service.py",
+            function="_update_client_in_xero",
+        )
+
+        with patch(
+            "apps.client.services.client_rest_service.get_provider",
+            side_effect=AlreadyLoggedException(
+                RuntimeError("upstream failure"),
+                app_error.id,
+            ),
+        ):
+            response = self.client.patch(
+                self._update_url(client.id),
+                {"name": "Acme Renamed"},
+                format="json",
+            )
+
+        self.assertEqual(response.status_code, 500)
+        self.assertEqual(AppError.objects.count(), before + 1)
+        self.assertEqual(response.json()["error_id"], str(app_error.id))
+
 
 class ClientCreatePhoneTests(BaseTestCase):
     """Guards the phone entry restored on the create-client modal."""
@@ -823,8 +908,6 @@ class ClientCreatePhoneTests(BaseTestCase):
         return provider
 
     def _create(self, provider: MagicMock, **payload: str) -> Client:
-        from apps.client.services.client_rest_service import ClientRestService
-
         data: dict[str, str] = {"name": "New Client", "email": "", "address": ""}
         data.update(payload)
         with patch(
@@ -849,8 +932,6 @@ class ClientCreatePhoneTests(BaseTestCase):
         self.assertEqual(ClientContactMethod.objects.filter(client=client).count(), 0)
 
     def test_create_with_conflicting_phone_rolls_back_client(self) -> None:
-        from apps.workflow.exceptions import AlreadyLoggedException
-
         owner = Client.objects.create(
             name="Owner Ltd", xero_last_modified=timezone.now()
         )
