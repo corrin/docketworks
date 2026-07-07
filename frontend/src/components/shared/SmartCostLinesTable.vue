@@ -224,10 +224,16 @@ function updateLineKind(line: CostLine, newKind: KindOption) {
     })
   } else {
     Object.assign(line, { kind: newKind })
-    // Recalculate unit_rev with markup for material/adjust
     Object.assign(line, { labour_subtype: null })
-    const derived = apply(line).derived
-    Object.assign(line, { unit_rev: derived.unit_rev })
+    if (line.unit_cost !== undefined && line.unit_cost !== null) {
+      // Recalculate unit_rev with markup for material/adjust
+      const derived = apply(line).derived
+      Object.assign(line, { unit_rev: derived.unit_rev })
+    } else {
+      // Mid-entry row (e.g. phantom row where the user typed a description
+      // first): no unit_cost yet, so unit_rev cannot be derived. It is
+      // derived when the user enters unit_cost.
+    }
   }
 
   // Save if line has real ID and meets baseline
