@@ -17,6 +17,7 @@ import {
 
 // Define fixture types
 type AuthFixtures = {
+  sessionCheckConsoleAllowance: ReturnType<typeof createLoginSessionCheckConsoleAllowance>
   authenticatedPage: Page
   /**
    * Patterns for console errors a test deliberately triggers (string = substring,
@@ -168,12 +169,14 @@ async function authenticateViaLoginPage(
 
 export const test = base.extend<AuthFixtures, WorkerFixtures>({
   expectedConsoleErrors: [[], { option: true }],
+  sessionCheckConsoleAllowance: async ({}, use) => {
+    await use(createLoginSessionCheckConsoleAllowance())
+  },
 
   // Every test's page fails on unexpected browser console errors and uncaught
   // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
-  page: async ({ page, expectedConsoleErrors }, use) => {
+  page: async ({ page, expectedConsoleErrors, sessionCheckConsoleAllowance }, use) => {
     const captured: CapturedBrowserError[] = []
-    const sessionCheckConsoleAllowance = createLoginSessionCheckConsoleAllowance()
     page.on('response', (response) => {
       const url = new URL(response.url())
       sessionCheckConsoleAllowance.recordResponse({
@@ -216,7 +219,7 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
     }
   },
 
-  authenticatedPage: async ({ page }, use, testInfo) => {
+  authenticatedPage: async ({ page, sessionCheckConsoleAllowance }, use, testInfo) => {
     const username = process.env.E2E_TEST_USERNAME
     const password = process.env.E2E_TEST_PASSWORD
 
