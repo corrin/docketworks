@@ -173,7 +173,6 @@ function waitForCostLineCreate(page: Page): Promise<Response> {
       res.url().includes('/cost_lines') &&
       res.request().method() === 'POST' &&
       [200, 201].includes(res.status()),
-    { timeout: 15000 },
   )
 }
 
@@ -183,26 +182,22 @@ function waitForCostLinePatch(page: Page): Promise<Response> {
       res.url().includes('/api/job/cost_lines/') &&
       res.request().method() === 'PATCH' &&
       res.status() === 200,
-    { timeout: 15000 },
   )
 }
 
 function waitForCostLineStockPatch(page: Page, stockId: string): Promise<Response> {
-  return page.waitForResponse(
-    (res) => {
-      if (
-        !res.url().includes('/api/job/cost_lines/') ||
-        res.request().method() !== 'PATCH' ||
-        res.status() !== 200
-      ) {
-        return false
-      }
+  return page.waitForResponse((res) => {
+    if (
+      !res.url().includes('/api/job/cost_lines/') ||
+      res.request().method() !== 'PATCH' ||
+      res.status() !== 200
+    ) {
+      return false
+    }
 
-      const body = res.request().postDataJSON() as { ext_refs?: { stock_id?: string } } | null
-      return body?.ext_refs?.stock_id === stockId
-    },
-    { timeout: 15000 },
-  )
+    const body = res.request().postDataJSON() as { ext_refs?: { stock_id?: string } } | null
+    return body?.ext_refs?.stock_id === stockId
+  })
 }
 
 function waitForCostLineDelete(page: Page): Promise<Response> {
@@ -211,7 +206,6 @@ function waitForCostLineDelete(page: Page): Promise<Response> {
       res.url().includes('/api/job/cost_lines/') &&
       res.request().method() === 'DELETE' &&
       res.status() === 204,
-    { timeout: 15000 },
   )
 }
 
@@ -222,7 +216,6 @@ function waitForStockConsume(page: Page): Promise<Response> {
       res.url().includes('/consume/') &&
       res.request().method() === 'POST' &&
       res.status() === 200,
-    { timeout: 15000 },
   )
 }
 
