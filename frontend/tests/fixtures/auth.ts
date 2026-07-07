@@ -9,6 +9,11 @@ import {
   TEST_CLIENT_NAME,
   waitForCurrentUrl,
 } from './helpers'
+import {
+  createLoginSessionCheckConsoleAllowance,
+  LOGIN_ME_PATH,
+  type CapturedBrowserError,
+} from './auth-console-errors'
 
 // Define fixture types
 type AuthFixtures = {
@@ -36,13 +41,6 @@ const SHARED_EDIT_JOB_BUDGET_MS = {
 } as const
 
 const LOGIN_TOKEN_PATH = '/api/accounts/token/'
-const LOGIN_ME_PATH = '/api/accounts/me/'
-
-type CapturedBrowserError = {
-  kind: 'console' | 'pageerror'
-  text: string
-}
-
 function isExpectedBrowserError(text: string, patterns: ReadonlyArray<string | RegExp>): boolean {
   return patterns.some((pattern) =>
     typeof pattern === 'string' ? text.includes(pattern) : pattern.test(text),
@@ -114,9 +112,11 @@ async function authenticateViaLoginPage(
   page: Page,
   username: string,
   password: string,
+  startSessionCheckConsoleAllowance: () => () => void = () => () => undefined,
 ): Promise<void> {
   let tokenResponse: Response | undefined
   let meResponse: Response | undefined
+  const stopSessionCheckConsoleAllowance = startSessionCheckConsoleAllowance()
 
   try {
     await page.goto('/login')
@@ -161,6 +161,8 @@ async function authenticateViaLoginPage(
         await responseDiagnostics('current-user response', meResponse),
       ].join('\n'),
     )
+  } finally {
+    stopSessionCheckConsoleAllowance()
   }
 }
 
@@ -171,22 +173,34 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
   // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
   page: async ({ page, expectedConsoleErrors }, use) => {
     const captured: CapturedBrowserError[] = []
+    const sessionCheckConsoleAllowance = createLoginSessionCheckConsoleAllowance()
+    page.on('response', (response) => {
+      const url = new URL(response.url())
+      sessionCheckConsoleAllowance.recordResponse({
+        pathname: url.pathname,
+        method: response.request().method(),
+        status: response.status(),
+      })
+    })
     page.on('console', (message) => {
       if (message.type() === 'error') {
-        captured.push({ kind: 'console', text: message.text() })
+        captured.push({ kind: 'console', text: message.text(), capturedAt: Date.now() })
       } else {
         // other console levels are out of scope for this guard
       }
     })
     page.on('pageerror', (error) => {
-      captured.push({ kind: 'pageerror', text: error.message })
+      captured.push({ kind: 'pageerror', text: error.message, capturedAt: Date.now() })
     })
 
     await use(page)
 
-    const unexpected = captured.filter(
-      (entry) => !isExpectedBrowserError(entry.text, expectedConsoleErrors),
-    )
+    const unexpected = captured.filter((entry) => {
+      if (sessionCheckConsoleAllowance.consumeIfExpected(entry)) {
+        return false
+      }
+      return !isExpectedBrowserError(entry.text, expectedConsoleErrors)
+    })
     if (unexpected.length > 0) {
       throw new Error(
         [
@@ -214,7 +228,12 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
     enableNetworkLogging(page, testInfo.title)
 
     await base.step('authenticatedPage: login', async () => {
-      await authenticateViaLoginPage(page, username, password)
+      await authenticateViaLoginPage(
+        page,
+        username,
+        password,
+        sessionCheckConsoleAllowance.startLoginWindow,
+      )
     })
 
     // Enable debug logging if DEBUG env var is set
