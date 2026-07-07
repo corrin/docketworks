@@ -8,10 +8,12 @@ All business logic for Client REST operations should be implemented here.
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
+    from django_stubs_ext import WithAnnotations
+
     from apps.accounts.models import Staff
 
 from django.core.exceptions import ValidationError as DjangoValidationError
@@ -37,6 +39,18 @@ from apps.workflow.services.error_persistence import (
 from apps.workflow.services.search_telemetry import SearchTelemetryService
 
 CLIENT_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+class _ClientSummaryAnnotations(TypedDict):
+    """Queryset annotations required by _format_client_summary; not Client fields."""
+
+    phone: str
+
+
+if TYPE_CHECKING:
+    # Evaluated only by the type checker (annotation is quoted at use site), so
+    # the dev-only django_stubs_ext dependency is never imported at runtime.
+    _AnnotatedClientSummary = WithAnnotations[Client, _ClientSummaryAnnotations]
 
 logger = logging.getLogger(__name__)
 client_search_logger = logging.getLogger("client_search")
@@ -823,15 +837,18 @@ class ClientRestService:
         return "no_match"
 
     @staticmethod
-    def _format_client_summary(client: Client) -> Dict[str, Any]:
+    def _format_client_summary(client: "_AnnotatedClientSummary") -> Dict[str, Any]:
         """
         Formats a single client summary for list/search responses.
+
+        Callers must annotate their queryset with
+        ClientContactMethod.primary_phone_annotation (see _ClientSummaryAnnotations).
         """
         return {
             "id": str(client.id),
             "name": client.name,
             "email": client.email or "",
-            "phone": client.phone,  # type: ignore[attr-defined]  # primary_phone_annotation on every feeding queryset
+            "phone": client.phone,
             "address": client.address or "",
             "is_account_customer": client.is_account_customer,
             "is_supplier": client.is_supplier,

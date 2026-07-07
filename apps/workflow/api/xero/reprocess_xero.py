@@ -254,8 +254,7 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
         # Ensure essential fields are not None if raw_json is missing
         client.name = client.name or "Unnamed Client"
         client.xero_last_modified = client.xero_last_modified or timezone.now()
-        # type ignore: Client.save is still untyped (apps/client/models.py).
-        client.save()  # type: ignore[no-untyped-call]
+        client.save()
         return
 
     # Capture old values for change tracking (only for updates, not new clients)
@@ -456,8 +455,7 @@ def set_client_fields(client: Client, new_from_xero: bool = False) -> None:
     # conflict raised by sync_xero_phone_methods must roll back this client's
     # field update too, rather than leaving it committed without its numbers.
     with transaction.atomic():
-        # type ignore: Client.save is still untyped (apps/client/models.py).
-        client.save()  # type: ignore[no-untyped-call]
+        client.save()
         created_numbers = sync_xero_phone_methods(client)
     if created_numbers:
         # Numbers imported from Xero must rematch historical calls just like

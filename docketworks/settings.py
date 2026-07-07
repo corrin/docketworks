@@ -821,8 +821,8 @@ XERO_DEFAULT_USER_ID = os.getenv("XERO_DEFAULT_USER_ID")
 XERO_SYNC_PROJECTS = os.getenv("XERO_SYNC_PROJECTS").lower() == "true"
 # Process-scoped: suppress all Xero writes (reads/token refresh stay live).
 # For E2E/test backends only — never set on a live server or celery worker
-# serving real users.
-XERO_READONLY = os.getenv("XERO_READONLY").lower() == "true"
+# serving real users. os.environ (not getenv): required var, crash if absent.
+XERO_READONLY = os.environ["XERO_READONLY"].lower() == "true"
 PHONE_RECORDING_STORAGE_ROOT = os.getenv("PHONE_RECORDING_STORAGE_ROOT")
 
 # Hardcoded production Xero tenant ID

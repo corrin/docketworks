@@ -2,7 +2,7 @@
 
 This checkout (`~/src/docketworks_prod`) is the MSM **hotfix environment**: its
 database is refreshed by restoring the production DB into it, it is served via
-the `docketworks-msm-prod` ngrok domain, and the E2E suite runs here to verify
+the `docketworks-msm-hotfix` ngrok domain, and the E2E suite runs here to verify
 prod hotfixes.
 
 This is NOT the anonymised dev/UAT restore — that flow (scrub, reseed to a dev
@@ -28,19 +28,37 @@ must never **act on** production's external systems.
    wipe_tokens_and_quota(get_active_app())
    ```
 
-3. **Set the accounting provider to read-only Xero** so that even a
-   reconnected Xero (e.g. for an E2E run) cannot write to MSM's real
-   organisation:
+3. **Point Xero OAuth back to the hotfix server.** A production restore keeps
+   production's `XeroApp.redirect_uri`; if it is not repaired, Xero login will
+   send the browser back to production instead of this checkout. Set the active
+   app's redirect URI from `APP_DOMAIN`:
+
+   ```python
+   from django.conf import settings
+   from apps.workflow.models import XeroApp
+
+   expected = f"https://{settings.APP_DOMAIN}/api/xero/oauth/callback/"
+   app = XeroApp.objects.get(is_active=True)
+   app.redirect_uri = expected
+   app.save(update_fields=["redirect_uri", "updated_at"])
+   ```
+
+   The same URI must be registered in the Xero developer app:
+   `https://docketworks-msm-hotfix.ngrok-free.app/api/xero/oauth/callback/`.
+
+4. **Run the hotfix processes with `XERO_READONLY=True`** so that even a
+   reconnected Xero cannot write to MSM's real organisation. This is
+   process-scoped: the Django server, Celery worker, and Celery beat sharing
+   this database must all have `XERO_READONLY=True`.
+
+5. **Set the accounting provider to Xero.** The read-only provider is selected
+   by the process-level `XERO_READONLY=True` flag when the configured backend is
+   `xero`:
 
    ```python
    from apps.workflow.models import CompanyDefaults
 
    defaults = CompanyDefaults.get_solo()
-   defaults.accounting_provider = "xero_readonly"
+   defaults.accounting_provider = "xero"
    defaults.save()
    ```
-
-   > `xero_readonly` is under construction (parallel session, 2026-07-07) —
-   > until it lands in the provider registry
-   > (`apps/workflow/accounting/xero/provider.py`), a cleared token is the only
-   > guard against Xero writes, so step 2 is non-negotiable.

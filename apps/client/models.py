@@ -17,20 +17,6 @@ from xero_python.accounting.models import Address, Contact, Phone
 logger = logging.getLogger(__name__)
 
 
-def _include_auto_now_update_field(kwargs, field_name: str) -> None:
-    update_fields = kwargs.get("update_fields")
-    if update_fields is None:
-        return
-
-    update_field_names = (
-        [update_fields] if isinstance(update_fields, str) else list(update_fields)
-    )
-    if not update_field_names or field_name in update_field_names:
-        return
-
-    kwargs["update_fields"] = [*update_field_names, field_name]
-
-
 def _augment_update_fields(
     update_fields: Iterable[str] | None, field_name: str
 ) -> list[str] | None:
@@ -173,11 +159,23 @@ class Client(models.Model):
     def __str__(self):
         return self.name
 
-    def save(self, *args, **kwargs):
-        _include_auto_now_update_field(kwargs, "django_updated_at")
-        super().save(*args, **kwargs)
+    def save(
+        self,
+        *,
+        force_insert: bool | tuple[ModelBase, ...] = False,
+        force_update: bool = False,
+        using: str | None = None,
+        update_fields: Iterable[str] | None = None,
+    ) -> None:
+        update_fields = _augment_update_fields(update_fields, "django_updated_at")
+        super().save(
+            force_insert=force_insert,
+            force_update=force_update,
+            using=using,
+            update_fields=update_fields,
+        )
 
-    def validate_for_xero(self):
+    def validate_for_xero(self) -> bool:
         """
         Validate if the client data is sufficient to sync to Xero.
         Only name is required by Xero.
@@ -262,7 +260,7 @@ class Client(models.Model):
         )
         return method.value if method else ""
 
-    def get_final_client(self):
+    def get_final_client(self) -> "Client":
         """
         Follow the merge chain to get the final client.
         If this client was merged into another, return that client

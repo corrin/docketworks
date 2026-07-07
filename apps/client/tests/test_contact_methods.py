@@ -514,7 +514,7 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
         self.assertEqual(lazy, [])
 
     def test_create_contact_with_phone_creates_primary_method(self) -> None:
-        with patch("apps.client.serializers.rematch_phone_calls_task.delay") as rematch:
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
             response = self.client.post(
                 self.URL,
                 {
@@ -536,7 +536,7 @@ class ClientContactApiPhoneTests(BaseAPITestCase):
         contact = self._contact("Jane Smith", phone="021 111 111")
         method = contact.contact_methods.get()
 
-        with patch("apps.client.serializers.rematch_phone_calls_task.delay") as rematch:
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
             response = self.client.patch(
                 f"{self.URL}{contact.id}/",
                 {"phone": "021 333 333"},
@@ -631,7 +631,7 @@ class ClientCreatePhoneTests(BaseTestCase):
             return ClientRestService.create_client(data)
 
     def test_create_with_phone_creates_primary_client_method(self) -> None:
-        with patch("apps.client.serializers.rematch_phone_calls_task.delay"):
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
             client = self._create(self._provider(), phone="09 777 7777")
 
         method = ClientContactMethod.objects.get(client=client)

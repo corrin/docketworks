@@ -57,7 +57,8 @@ class XeroPingReadonlyFieldTests(BaseTestCase):
         force_authenticate(request, user=self.test_staff)
         response = xero_ping(request)
         self.assertEqual(response.status_code, 200)
-        return response.data
+        data: dict[str, bool] = response.data
+        return data
 
     @override_settings(XERO_READONLY=True)
     def test_ping_reports_readonly_true(self) -> None:
@@ -146,9 +147,8 @@ class XeroReadOnlyProviderTests(BaseTestCase):
         )
         manager.provider = self.provider
         # PDF generation is not under test (see test_xero_document_raw_json.py)
-        manager._attach_workshop_pdf = lambda external_id: None  # type: ignore[method-assign]  # test stub, mirrors existing convention
-
-        result = manager.create_document(total_amount=Decimal("100.00"))
+        with patch.object(manager, "_attach_workshop_pdf", return_value=None):
+            result = manager.create_document(total_amount=Decimal("100.00"))
 
         self.assertTrue(result["success"])
         invoice = self.job.invoices.get()

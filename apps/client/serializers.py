@@ -11,7 +11,6 @@ from apps.client.models import (
     SupplierPickupAddress,
     SupplierSearchAlias,
 )
-from apps.crm.tasks import rematch_phone_calls_task
 
 
 def set_primary_phone(owner: Client | ClientContact, raw_value: str) -> None:
@@ -22,6 +21,10 @@ def set_primary_phone(owner: Client | ClientContact, raw_value: str) -> None:
     the per-owner uniqueness and single-primary constraints hold. Ownership
     conflicts raise the model's ValidationError for the caller to surface.
     """
+    # Lazy: apps.job.models imports this module; a module-level crm.tasks
+    # import closes an import cycle that breaks mypy's cross-module inference.
+    from apps.crm.tasks import rematch_phone_calls_task
+
     value = raw_value.strip()
     owner_field = "client" if isinstance(owner, Client) else "contact"
     phone_methods = ClientContactMethod.objects.filter(
@@ -101,8 +104,13 @@ class ClientContactSerializer(serializers.ModelSerializer):
                 raise serializers.ValidationError({"phone": exc.messages}) from exc
         else:
             pass  # blank phone: leave existing contact methods untouched
-        contact.phone = contact.primary_phone_value()  # type: ignore[attr-defined]  # serializer field backed by annotation, not a model column
-        return contact
+        # The phone field always reads from a queryset annotation; give the
+        # write response the same shape by re-fetching through it.
+        return ClientContact.objects.annotate(
+            phone=ClientContactMethod.primary_phone_annotation(
+                owner="contact", outer_ref="pk"
+            )
+        ).get(pk=contact.pk)
 
 
 class ClientContactMethodSerializer(serializers.ModelSerializer):

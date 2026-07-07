@@ -37,6 +37,7 @@ from apps.accounting.services.invoice_calculation import (
     calculate_invoice_amount,
     get_job_for_invoice_calculation,
 )
+from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.job.permissions import IsOfficeStaff
 from apps.purchasing.models import PurchaseOrder
@@ -693,6 +694,9 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
+        if job.client is None:
+            raise ValueError(f"Job {job_id} has no client; cannot create a quote")
+        assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
         manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
         result_data = manager.create_document(breakdown=breakdown)
 
@@ -827,6 +831,9 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
+        if job.client is None:
+            raise ValueError(f"Job {job_id} has no client; cannot delete its quote")
+        assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
         manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
         result_data: dict = manager.delete_document()
 
