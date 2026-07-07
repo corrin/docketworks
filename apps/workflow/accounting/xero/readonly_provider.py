@@ -83,6 +83,11 @@ class XeroReadOnlyProvider(XeroAccountingProvider):
     def update_contact(self, client: Client) -> ContactResult:
         from apps.workflow.accounting.types import ContactResult
 
+        if not client.xero_contact_id:
+            # Mirror sync_client_to_xero: updating a client that has no
+            # contact ID is an upsert — it creates the contact and assigns
+            # a fresh ID rather than succeeding with a missing external_id.
+            return self.create_contact(client)
         _log_suppressed("update_contact", f"client {client.id} ({client.name})")
         return ContactResult(
             success=True, external_id=client.xero_contact_id, name=client.name

@@ -121,6 +121,20 @@ class XeroReadOnlyProviderTests(BaseTestCase):
         self.assertEqual(result.external_id, self.client_obj.xero_contact_id)
         self._assert_no_app_errors()
 
+    def test_update_contact_without_id_upserts_like_real_provider(self) -> None:
+        """sync_client_to_xero creates the contact when no ID exists; the
+        readonly provider must mirror that upsert, never succeed with a
+        missing external_id."""
+        self.assertIsNone(self.client_obj.xero_contact_id)
+
+        result = self.provider.update_contact(self.client_obj)
+
+        self.assertTrue(result.success)
+        self.assertIsNotNone(result.external_id)
+        self.client_obj.refresh_from_db()
+        self.assertEqual(result.external_id, self.client_obj.xero_contact_id)
+        self._assert_no_app_errors()
+
     # --- Documents through the real managers ---
 
     def test_create_invoice_stub_drives_invoice_manager(self) -> None:
