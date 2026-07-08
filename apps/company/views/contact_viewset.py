@@ -53,9 +53,7 @@ class ClientContactViewSet(viewsets.ModelViewSet):
         Filter to only active contacts, optionally filtered by company_id.
         """
         queryset = ClientContact.objects.filter(is_active=True).annotate(
-            phone=ClientContactMethod.primary_phone_annotation(
-                owner="contact", outer_ref="pk"
-            )
+            phone=ClientContactMethod.primary_phone_for_link_annotation()
         )
         company_id = self.request.query_params.get("company_id")
         if company_id:

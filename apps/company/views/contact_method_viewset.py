@@ -73,16 +73,23 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
             "company",
             "contact",
             "contact__company",
+            "person",
         )
         company_id = self.request.query_params.get("company_id")
         if company_id:
-            queryset = queryset.filter(company_id=company_id) | queryset.filter(
-                contact__company_id=company_id
+            queryset = (
+                queryset.filter(company_id=company_id)
+                | queryset.filter(contact__company_id=company_id)
+                | queryset.filter(person__company_links__company_id=company_id)
             )
 
         contact_id = self.request.query_params.get("contact_id")
         if contact_id:
             queryset = queryset.filter(contact_id=contact_id)
+
+        person_id = self.request.query_params.get("person_id")
+        if person_id:
+            queryset = queryset.filter(person_id=person_id)
 
         method_type = self.request.query_params.get("method_type")
         if method_type:

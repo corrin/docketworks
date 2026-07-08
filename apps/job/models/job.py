@@ -217,12 +217,20 @@ class Job(models.Model):
 
     # New relationship to ClientContact
     contact = models.ForeignKey(
-        "company.ClientContact",
+        "company.CompanyPersonLink",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="jobs",
         help_text="The contact person for this job",
+    )
+    person = models.ForeignKey(
+        "company.Person",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="person_jobs",
+        help_text="The person for this job",
     )
     job_number = models.IntegerField(unique=True)  # Job 1234
     description = models.TextField(

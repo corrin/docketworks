@@ -71,7 +71,7 @@ class PhoneEndpoint(models.Model):
             # both a company contact method and an active internal endpoint, or
             # the company's calls would silently reclassify as INTERNAL.
             conflict = ClientContactMethod.conflicting_company(
-                self.normalized_number, None
+                self.normalized_number, set()
             )
             if conflict:
                 raise ValidationError(
@@ -189,11 +189,18 @@ class PhoneCallRecord(models.Model):
         related_name="phone_calls",
     )
     contact = models.ForeignKey(
-        "company.ClientContact",
+        "company.CompanyPersonLink",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="phone_calls",
+    )
+    person = models.ForeignKey(
+        "company.Person",
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="person_phone_calls",
     )
     job = models.ForeignKey(
         "job.Job",

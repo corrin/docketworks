@@ -1533,7 +1533,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact Method.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
         - companies
@@ -1555,7 +1555,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact Method.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
         - companies
@@ -1589,7 +1589,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact Method.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
         - companies
@@ -1622,7 +1622,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact Method.
+          description: A UUID string identifying this Contact Method.
           required: true
       tags:
         - companies
@@ -1715,7 +1715,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Company Person Link.
           required: true
       tags:
         - companies
@@ -1749,7 +1749,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Company Person Link.
           required: true
       tags:
         - companies
@@ -1795,7 +1795,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Company Person Link.
           required: true
       tags:
         - companies
@@ -1840,7 +1840,7 @@ paths:
           schema:
             type: string
             format: uuid
-          description: A UUID string identifying this Client Contact.
+          description: A UUID string identifying this Company Person Link.
           required: true
       tags:
         - companies
@@ -2627,6 +2627,11 @@ paths:
           name: page_size
           schema:
             type: integer
+        - in: query
+          name: person
+          schema:
+            type: string
+            format: uuid
         - in: query
           name: q
           schema:
@@ -10191,6 +10196,10 @@ components:
           type: string
           format: uuid
           description: The company this contact belongs to
+        person:
+          type: string
+          format: uuid
+          nullable: true
         name:
           type: string
           description: Full name of the contact person
@@ -10201,6 +10210,10 @@ components:
           nullable: true
           description: Email address of the contact
           maxLength: 254
+        xero_name:
+          type: string
+          nullable: true
+          maxLength: 255
         position:
           type: string
           nullable: true
@@ -10262,6 +10275,10 @@ components:
         contact_name:
           type: string
           readOnly: true
+        person:
+          type: string
+          format: uuid
+          nullable: true
         method_type:
           $ref: '#/components/schemas/MethodTypeEnum'
         value:
@@ -10275,7 +10292,6 @@ components:
           maxLength: 255
         is_primary:
           type: boolean
-          default: false
         source:
           $ref: '#/components/schemas/ClientContactMethodSourceEnum'
         created_at:
@@ -10308,6 +10324,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        person:
+          type: string
+          format: uuid
+          nullable: true
         method_type:
           $ref: '#/components/schemas/MethodTypeEnum'
         value:
@@ -10319,7 +10339,6 @@ components:
           maxLength: 255
         is_primary:
           type: boolean
-          default: false
         source:
           $ref: '#/components/schemas/ClientContactMethodSourceEnum'
       required:
@@ -10341,6 +10360,10 @@ components:
           type: string
           format: uuid
           description: The company this contact belongs to
+        person:
+          type: string
+          format: uuid
+          nullable: true
         name:
           type: string
           minLength: 1
@@ -10352,6 +10375,10 @@ components:
           nullable: true
           description: Email address of the contact
           maxLength: 254
+        xero_name:
+          type: string
+          nullable: true
+          maxLength: 255
         position:
           type: string
           nullable: true
@@ -12989,6 +13016,14 @@ components:
           type: string
           readOnly: true
           nullable: true
+        person_id:
+          type: string
+          format: uuid
+          nullable: true
+        person_name:
+          type: string
+          readOnly: true
+          nullable: true
         job_number:
           type: integer
           maximum: 2147483647
@@ -13158,6 +13193,7 @@ components:
         - latest_estimate
         - latest_quote
         - name
+        - person_name
         - quote
         - quote_sheet
         - quoted
@@ -14540,6 +14576,14 @@ components:
           type: string
           readOnly: true
           nullable: true
+        person_id:
+          type: string
+          format: uuid
+          nullable: true
+        person_name:
+          type: string
+          readOnly: true
+          nullable: true
         job_number:
           type: integer
           maximum: 2147483647
@@ -14709,6 +14753,7 @@ components:
         - latest_estimate
         - latest_quote
         - name
+        - person_name
         - quote
         - quote_sheet
         - quoted
@@ -16160,6 +16205,10 @@ components:
           type: string
           format: uuid
           nullable: true
+        person:
+          type: string
+          format: uuid
+          nullable: true
         method_type:
           $ref: '#/components/schemas/MethodTypeEnum'
         value:
@@ -16171,7 +16220,6 @@ components:
           maxLength: 255
         is_primary:
           type: boolean
-          default: false
         source:
           $ref: '#/components/schemas/ClientContactMethodSourceEnum'
     PatchedClientContactRequest:
@@ -16182,6 +16230,10 @@ components:
           type: string
           format: uuid
           description: The company this contact belongs to
+        person:
+          type: string
+          format: uuid
+          nullable: true
         name:
           type: string
           minLength: 1
@@ -16193,6 +16245,10 @@ components:
           nullable: true
           description: Email address of the contact
           maxLength: 254
+        xero_name:
+          type: string
+          nullable: true
+          maxLength: 255
         position:
           type: string
           nullable: true
@@ -17651,6 +17707,14 @@ components:
         contact_name:
           type: string
           readOnly: true
+        person:
+          type: string
+          format: uuid
+          readOnly: true
+          nullable: true
+        person_name:
+          type: string
+          readOnly: true
         job:
           type: string
           format: uuid
@@ -17719,6 +17783,8 @@ components:
         - origin_endpoint
         - origin_endpoint_label
         - our_number
+        - person
+        - person_name
         - provider_call_id
         - recording
         - status

@@ -150,7 +150,7 @@ class PhoneEndpointSerializer(serializers.ModelSerializer[PhoneEndpoint]):
             return attrs  # association unchanged — grandfathered, like save()
 
         if is_active:
-            conflict = ClientContactMethod.conflicting_company(normalized, None)
+            conflict = ClientContactMethod.conflicting_company(normalized, set())
             if conflict:
                 raise serializers.ValidationError(
                     {
@@ -244,6 +244,7 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
     recording = serializers.SerializerMethodField()
     company_name = serializers.SerializerMethodField()
     contact_name = serializers.SerializerMethodField()
+    person_name = serializers.SerializerMethodField()
     origin_endpoint_label = serializers.SerializerMethodField()
     destination_endpoint_label = serializers.SerializerMethodField()
     job_number = serializers.SerializerMethodField()
@@ -277,6 +278,8 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
             "company_name",
             "contact",
             "contact_name",
+            "person",
+            "person_name",
             "job",
             "job_number",
             "job_name",
@@ -294,6 +297,9 @@ class PhoneCallRecordSerializer(serializers.ModelSerializer[PhoneCallRecord]):
 
     def get_contact_name(self, obj: PhoneCallRecord) -> str:
         return obj.contact.name if obj.contact else ""
+
+    def get_person_name(self, obj: PhoneCallRecord) -> str:
+        return obj.person.name if obj.person else ""
 
     def get_origin_endpoint_label(self, obj: PhoneCallRecord) -> str:
         return obj.origin_endpoint.label if obj.origin_endpoint else ""

@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 from apps.accounting.models.invoice import Invoice
 from apps.accounting.models.quote import Quote
-from apps.company.models import ClientContact, Company
+from apps.company.models import ClientContact, Company, Person
 from apps.job.models import Job, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
 
@@ -134,6 +134,16 @@ class JobSerializer(serializers.ModelSerializer):
     contact_name = serializers.CharField(
         source="contact.name", read_only=True, required=False, allow_null=True
     )
+    person_id = serializers.PrimaryKeyRelatedField(
+        queryset=Person.objects.all(),
+        source="person",
+        write_only=False,
+        required=False,
+        allow_null=True,
+    )
+    person_name = serializers.CharField(
+        source="person.name", read_only=True, required=False, allow_null=True
+    )
     default_xero_pay_item_id = serializers.PrimaryKeyRelatedField(
         queryset=XeroPayItem.objects.all(),
         source="default_xero_pay_item",
@@ -210,6 +220,8 @@ class JobSerializer(serializers.ModelSerializer):
             "company_name",
             "contact_id",
             "contact_name",
+            "person_id",
+            "person_name",
             "job_number",
             "notes",
             "order_number",

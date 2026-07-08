@@ -8,13 +8,14 @@ from apps.company.models import (
     ClientContact,
     ClientContactMethod,
     Company,
+    Person,
     PhoneAssignmentConflictError,
     SupplierPickupAddress,
     SupplierSearchAlias,
 )
 
 
-def set_primary_phone(owner: Company | ClientContact, raw_value: str) -> None:
+def set_primary_phone(owner: Company | ClientContact | Person, raw_value: str) -> None:
     """Point the owner's primary phone at ``raw_value`` (non-blank).
 
     Reuses an existing method carrying the same normalized number (promoting
@@ -27,7 +28,12 @@ def set_primary_phone(owner: Company | ClientContact, raw_value: str) -> None:
     from apps.crm.tasks import rematch_phone_calls_task
 
     value = raw_value.strip()
-    owner_field = "company" if isinstance(owner, Company) else "contact"
+    if isinstance(owner, Company):
+        owner_field = "company"
+    elif isinstance(owner, Person):
+        owner_field = "person"
+    else:
+        owner_field = "contact"
     phone_methods = ClientContactMethod.objects.filter(
         method_type=ClientContactMethod.MethodType.PHONE, **{owner_field: owner}
     )
@@ -49,11 +55,14 @@ def set_primary_phone(owner: Company | ClientContact, raw_value: str) -> None:
         old_primary.save()
         method = old_primary
     else:
+        create_kwargs = {owner_field: owner}
+        if isinstance(owner, ClientContact) and owner.person_id:
+            create_kwargs["person"] = owner.person
         method = ClientContactMethod.objects.create(
             method_type=ClientContactMethod.MethodType.PHONE,
             value=value,
             is_primary=True,
-            **{owner_field: owner},
+            **create_kwargs,
         )
 
     numbers = sorted(
@@ -90,6 +99,13 @@ class ClientContactSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         raw_phone = validated_data.pop("phone", None)  # not a model field
         with transaction.atomic():
+            person = Person.objects.create(
+                name=validated_data["name"],
+                email=validated_data.get("email"),
+                is_active=validated_data.get("is_active", True),
+            )
+            validated_data["person"] = person
+            validated_data["xero_name"] = validated_data["name"]
             contact = super().create(validated_data)
             return self._apply_phone(contact, raw_phone)
 
@@ -97,6 +113,18 @@ class ClientContactSerializer(serializers.ModelSerializer):
         raw_phone = validated_data.pop("phone", None)  # not a model field
         with transaction.atomic():
             contact = super().update(instance, validated_data)
+            if contact.person_id:
+                person_update_fields = ["updated_at"]
+                if "name" in validated_data:
+                    contact.person.name = contact.name
+                    person_update_fields.append("name")
+                if "email" in validated_data:
+                    contact.person.email = contact.email
+                    person_update_fields.append("email")
+                if "is_active" in validated_data:
+                    contact.person.is_active = contact.is_active
+                    person_update_fields.append("is_active")
+                contact.person.save(update_fields=person_update_fields)
             return self._apply_phone(contact, raw_phone)
 
     def _apply_phone(
@@ -114,9 +142,7 @@ class ClientContactSerializer(serializers.ModelSerializer):
         # The phone field always reads from a queryset annotation; give the
         # write response the same shape by re-fetching through it.
         return ClientContact.objects.annotate(
-            phone=ClientContactMethod.primary_phone_annotation(
-                owner="contact", outer_ref="pk"
-            )
+            phone=ClientContactMethod.primary_phone_for_link_annotation()
         ).get(pk=contact.pk)
 
 
@@ -136,6 +162,7 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
             "company_name",
             "contact",
             "contact_name",
+            "person",
             "method_type",
             "value",
             "normalized_value",
@@ -158,11 +185,21 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
     def get_owner_company(self, obj: ClientContactMethod) -> str:
         if obj.company_id:
             return str(obj.company_id)
+        if obj.person_id:
+            company_id = obj.owner_company_id()
+            return str(company_id) if company_id else ""
         return str(obj.contact.company_id) if obj.contact else ""
 
     def get_company_name(self, obj: ClientContactMethod) -> str:
         if obj.company:
             return obj.company.name
+        if obj.person_id:
+            link = (
+                obj.person.company_links.select_related("company")
+                .order_by("-is_primary", "company__name")
+                .first()
+            )
+            return link.company.name if link else ""
         return obj.contact.company.name if obj.contact else ""
 
     def get_contact_name(self, obj: ClientContactMethod) -> str:
@@ -171,9 +208,11 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         company = attrs.get("company", getattr(self.instance, "company", None))
         contact = attrs.get("contact", getattr(self.instance, "contact", None))
-        if bool(company) == bool(contact):
+        person = attrs.get("person", getattr(self.instance, "person", None))
+        owner_count = sum(1 for owner in (company, contact, person) if owner)
+        if owner_count != 1:
             raise serializers.ValidationError(
-                "Exactly one of company or contact is required"
+                "Exactly one of company, contact, or person is required"
             )
         method_type = attrs.get(
             "method_type", getattr(self.instance, "method_type", None)
@@ -186,6 +225,7 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
                     normalized,
                     company_id=company.id if company else None,
                     contact=contact,
+                    person=person,
                     instance=self.instance,
                 )
             except PhoneAssignmentConflictError as exc:

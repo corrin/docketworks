@@ -67,6 +67,7 @@ def _phone_call_filter_kwargs(request: Request) -> dict[str, UUID]:
     query_filters = (
         ("company_id", _query_uuid(request.query_params.get("company"), "company")),
         ("contact_id", _query_uuid(request.query_params.get("contact"), "contact")),
+        ("person_id", _query_uuid(request.query_params.get("person"), "person")),
         ("job_id", _query_uuid(request.query_params.get("job"), "job")),
         (
             "origin_endpoint_id",
@@ -186,6 +187,7 @@ def _apply_search_filter(
     filters = (
         Q(company__name__icontains=search)
         | Q(contact__name__icontains=search)
+        | Q(person__name__icontains=search)
         | Q(origin_endpoint__label__icontains=search)
         | Q(destination_endpoint__label__icontains=search)
         | Q(job__name__icontains=search)
@@ -242,6 +244,7 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
         parameters=[
             OpenApiParameter("company", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("contact", OpenApiTypes.UUID, OpenApiParameter.QUERY),
+            OpenApiParameter("person", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("job", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter(
                 "origin_endpoint", OpenApiTypes.UUID, OpenApiParameter.QUERY
@@ -284,6 +287,7 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
             PhoneCallRecord.objects.select_related(
                 "company",
                 "contact",
+                "person",
                 "job",
                 "job_linked_by",
                 "origin_endpoint",

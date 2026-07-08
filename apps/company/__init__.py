@@ -9,10 +9,11 @@ try:
 
     if apps.ready:
         from .models import (
-            ClientContact,
-            ClientContactMethod,
             Company,
+            CompanyPersonLink,
             CompanyQuerySet,
+            ContactMethod,
+            Person,
             PhoneAssignmentConflictError,
             Supplier,
             SupplierPickupAddress,
@@ -49,8 +50,6 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
-    "ClientContact",
-    "ClientContactMethod",
     "ClientContactMethodSerializer",
     "ClientContactSerializer",
     "Company",
@@ -64,15 +63,18 @@ __all__ = [
     "CompanyJobsResponseSerializer",
     "CompanyListResponseSerializer",
     "CompanyNameOnlySerializer",
+    "CompanyPersonLink",
     "CompanyQuerySet",
     "CompanySearchResponseSerializer",
     "CompanySearchResultSerializer",
     "CompanySerializer",
     "CompanyUpdateResponseSerializer",
     "CompanyUpdateSerializer",
+    "ContactMethod",
     "JobContactBaseSerializer",
     "JobContactResponseSerializer",
     "JobContactUpdateSerializer",
+    "Person",
     "PhoneAssignmentConflictError",
     "StandardErrorSerializer",
     "Supplier",
