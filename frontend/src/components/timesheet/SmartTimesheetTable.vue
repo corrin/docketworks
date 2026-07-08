@@ -133,7 +133,7 @@ function makeEmptyEntry(): TimesheetCostLine {
     job_id: '',
     job_number: 0,
     job_name: '',
-    client_name: '',
+    company_name: '',
     charge_out_rate: 0,
     wage_rate: props.staffWageRate,
     xero_pay_item_name: '',
@@ -429,7 +429,7 @@ function setJob(entry: TimesheetCostLine, job: Job): void {
     job_id: job.id,
     job_number: job.job_number,
     job_name: job.name ?? '',
-    client_name: job.client_name ?? '',
+    company_name: job.company_name ?? '',
     charge_out_rate: rate,
   })
   // Adopt the job's default pay item if the user hasn't picked a non-Ord rate.
@@ -592,17 +592,17 @@ const columns = computed(() => [
     },
   },
   {
-    id: 'client',
-    header: 'Client',
+    id: 'company',
+    header: 'Company',
     cell: ({ row }: RowCtx) => {
       const entry = displayEntries.value[row.index]
       return h(
         'span',
         {
           class: 'text-sm text-slate-500',
-          'data-automation-id': `SmartTimesheetTable-client-${row.index}`,
+          'data-automation-id': `SmartTimesheetTable-company-${row.index}`,
         },
-        entry.client_name || '',
+        entry.company_name || '',
       )
     },
   },

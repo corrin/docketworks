@@ -23,7 +23,7 @@ from apps.crm.models import PhoneCallRecord
 from django.utils import timezone
 from uuid import uuid4
 
-job = Job.objects.select_related("client").get(id="${jobId}")
+job = Job.objects.select_related("company").get(id="${jobId}")
 now = timezone.now()
 call = PhoneCallRecord.objects.create(
     provider_call_id=f"e2e:{uuid4()}",
@@ -37,7 +37,7 @@ call = PhoneCallRecord.objects.create(
     origin="+6421555123",
     destination="+6496365131",
     duration_seconds=67,
-    client=job.client,
+    company=job.company,
     raw_json={
         "id": "e2e",
         "calldate": now.date().isoformat(),

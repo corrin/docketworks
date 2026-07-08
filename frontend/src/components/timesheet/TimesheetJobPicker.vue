@@ -74,8 +74,8 @@ const filtered = computed<Job[]>(() => {
     .filter((j) => {
       const num = String(j.job_number ?? '').toLowerCase()
       const name = (j.name ?? '').toLowerCase()
-      const client = (j.client_name ?? '').toLowerCase()
-      return num.includes(term) || name.includes(term) || client.includes(term)
+      const company = (j.company_name ?? '').toLowerCase()
+      return num.includes(term) || name.includes(term) || company.includes(term)
     })
     .slice(0, 15)
 })
@@ -228,7 +228,7 @@ function onKeyDown(e: KeyboardEvent) {
         <Input
           ref="searchInput"
           v-model="search"
-          placeholder="Search jobs… (job number, name, or client)"
+          placeholder="Search jobs… (job number, name, or company)"
           class="h-8 text-sm"
           :data-automation-id="`${automationIdPrefix}-search`"
           @keydown="onKeyDown"
@@ -269,7 +269,7 @@ function onKeyDown(e: KeyboardEvent) {
             {{ job.name }}
           </div>
           <div class="text-slate-500 text-xs leading-tight">
-            Client: {{ job.client_name || 'No Client' }}
+            Company: {{ job.company_name || 'No Company' }}
           </div>
           <div class="text-slate-400 text-[11px] leading-tight">
             Rate: ${{ jobDisplayRate(job) }}/hr

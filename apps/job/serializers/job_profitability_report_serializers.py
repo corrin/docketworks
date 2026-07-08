@@ -59,7 +59,7 @@ class JobProfitabilityItemSerializer(serializers.Serializer):
     job_id = serializers.CharField(help_text="Job UUID")
     job_number = serializers.IntegerField(help_text="Job number")
     job_name = serializers.CharField(help_text="Job description", allow_blank=True)
-    client_name = serializers.CharField(help_text="Client name")
+    company_name = serializers.CharField(help_text="Company name")
     pricing_type = serializers.CharField(help_text="Pricing methodology key")
     pricing_type_display = serializers.CharField(help_text="Pricing methodology label")
     completion_date = serializers.CharField(

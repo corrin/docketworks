@@ -22,7 +22,7 @@ export const salesPipelineReportService = {
    * Two GETs hit `/api/accounting/reports/sales-pipeline/` simultaneously; the
    * caller scales the baseline to the headline window's length client-side.
    *
-   * Both calls go through the same generated client, so warnings, etag, and
+   * Both calls go through the same generated company, so warnings, etag, and
    * error handling are identical to the single-window method.
    */
   async getCurrentAndBaseline(args: {

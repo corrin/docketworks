@@ -83,7 +83,7 @@ onMounted(async () => {
             <CardContent>
               <div class="text-xl text-black font-semibold">
                 <Briefcase class="inline-block" />
-                Customer: <span class="text-gray font-medium text-lg">{{ job.client_name }}</span>
+                Customer: <span class="text-gray font-medium text-lg">{{ job.company_name }}</span>
               </div>
               <div class="text-xl text-black font-semibold">
                 <NotebookText class="inline-block" />
@@ -117,7 +117,7 @@ onMounted(async () => {
             <CardContent class="flex flex-col gap-2">
               <!-- <div class="text-xl text-black font-semibold">
                 <Briefcase class="inline-block" />
-                Customer: <span class="text-gray font-medium text-lg">{{ job.client_name }}</span>
+                Customer: <span class="text-gray font-medium text-lg">{{ job.company_name }}</span>
               </div> -->
               <Skeleton class="h-4 max-w-50" />
               <!-- <div class="text-xl text-black font-semibold">

@@ -11,7 +11,7 @@ from django.test import TestCase
 from django.utils import timezone
 from jsonschema import ValidationError
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.job.schemas import quote_mode_schemas
 from apps.job.services.quote_mode_controller import QuoteModeController
@@ -147,14 +147,14 @@ class TestQuoteModeController(BaseTestCase):
         self.controller = QuoteModeController()
 
         # Create test job
-        self.client_obj = Client.objects.create(
-            name="Test Client",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
             email="test@example.com",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
             name="Test Job",
-            client=self.client_obj,
+            company=self.client_obj,
             staff=self.test_staff,
         )
 
@@ -240,7 +240,7 @@ class TestQuoteModeController(BaseTestCase):
         calc_prompt = self.controller.render_prompt(
             mode="CALC",
             user_input="Calculate area for 100x50mm",
-            job_ctx={"job_number": "TEST001", "client": "Test Client"},
+            job_ctx={"job_number": "TEST001", "company": "Test Company"},
         )
         self.assertIn("MODE=CALC", calc_prompt)
         self.assertIn("SCHEMA for CALC", calc_prompt)
@@ -317,14 +317,14 @@ class TestSheetTenthsIntegration(BaseTestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Create test job
-        self.client_obj = Client.objects.create(
-            name="Test Client",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
             email="test@example.com",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
             name="Sheet Tenths Test Job",
-            client=self.client_obj,
+            company=self.client_obj,
             staff=self.test_staff,
         )
 

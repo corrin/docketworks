@@ -13,7 +13,7 @@ from unittest.mock import patch
 from django.test import override_settings
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.testing import BaseTestCase
 from apps.workflow.accounting.registry import get_provider
@@ -73,11 +73,11 @@ class XeroPingReadonlyFieldTests(BaseTestCase):
 class XeroReadOnlyProviderTests(BaseTestCase):
     def setUp(self) -> None:
         super().setUp()
-        self.client_obj = Client.objects.create(
-            name="[TEST] Readonly Client", xero_last_modified=timezone.now()
+        self.company = Company.objects.create(
+            name="[TEST] Readonly Company", xero_last_modified=timezone.now()
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.company,
             name="[TEST] Readonly Job",
             pricing_methodology="fixed_price",
             staff=self.test_staff,
@@ -102,48 +102,48 @@ class XeroReadOnlyProviderTests(BaseTestCase):
     # --- Contacts ---
 
     def test_create_contact_persists_fake_id_and_succeeds(self) -> None:
-        result = self.provider.create_contact(self.client_obj)
+        result = self.provider.create_contact(self.company)
 
         self.assertTrue(result.success)
-        self.client_obj.refresh_from_db()
-        self.assertEqual(result.external_id, self.client_obj.xero_contact_id)
+        self.company.refresh_from_db()
+        self.assertEqual(result.external_id, self.company.xero_contact_id)
         # Must be a well-formed UUID: the frontend Xero badge keys off it
-        uuid.UUID(self.client_obj.xero_contact_id)
-        self.assertEqual(result.name, self.client_obj.name)
+        uuid.UUID(self.company.xero_contact_id)
+        self.assertEqual(result.name, self.company.name)
         self._assert_no_app_errors()
 
     def test_update_contact_succeeds_without_api(self) -> None:
-        self.client_obj.xero_contact_id = str(uuid.uuid4())
-        self.client_obj.save(update_fields=["xero_contact_id"])
+        self.company.xero_contact_id = str(uuid.uuid4())
+        self.company.save(update_fields=["xero_contact_id"])
 
-        result = self.provider.update_contact(self.client_obj)
+        result = self.provider.update_contact(self.company)
 
         self.assertTrue(result.success)
-        self.assertEqual(result.external_id, self.client_obj.xero_contact_id)
+        self.assertEqual(result.external_id, self.company.xero_contact_id)
         self._assert_no_app_errors()
 
     def test_update_contact_without_id_upserts_like_real_provider(self) -> None:
-        """sync_client_to_xero creates the contact when no ID exists; the
+        """sync_company_to_xero creates the contact when no ID exists; the
         readonly provider must mirror that upsert, never succeed with a
         missing external_id."""
-        self.assertIsNone(self.client_obj.xero_contact_id)
+        self.assertIsNone(self.company.xero_contact_id)
 
-        result = self.provider.update_contact(self.client_obj)
+        result = self.provider.update_contact(self.company)
 
         self.assertTrue(result.success)
         self.assertIsNotNone(result.external_id)
-        self.client_obj.refresh_from_db()
-        self.assertEqual(result.external_id, self.client_obj.xero_contact_id)
+        self.company.refresh_from_db()
+        self.assertEqual(result.external_id, self.company.xero_contact_id)
         self._assert_no_app_errors()
 
     # --- Documents through the real managers ---
 
     def test_create_invoice_stub_drives_invoice_manager(self) -> None:
-        self.client_obj.xero_contact_id = str(uuid.uuid4())
-        self.client_obj.save(update_fields=["xero_contact_id"])
+        self.company.xero_contact_id = str(uuid.uuid4())
+        self.company.save(update_fields=["xero_contact_id"])
 
         manager = XeroInvoiceManager(
-            client=self.client_obj, job=self.job, staff=self.test_staff
+            company=self.company, job=self.job, staff=self.test_staff
         )
         manager.provider = self.provider
         # PDF generation is not under test (see test_xero_document_raw_json.py)
@@ -164,13 +164,13 @@ class XeroReadOnlyProviderTests(BaseTestCase):
         self._assert_no_app_errors()
 
     def test_create_quote_stub_drives_quote_manager(self) -> None:
-        self.client_obj.xero_contact_id = str(uuid.uuid4())
-        self.client_obj.save(update_fields=["xero_contact_id"])
+        self.company.xero_contact_id = str(uuid.uuid4())
+        self.company.save(update_fields=["xero_contact_id"])
         self.job.latest_quote.summary = {"cost": 0.0, "rev": 250.0, "hours": 0.0}
         self.job.latest_quote.save(update_fields=["summary"])
 
         manager = XeroQuoteManager(
-            client=self.client_obj, job=self.job, staff=self.test_staff
+            company=self.company, job=self.job, staff=self.test_staff
         )
         manager.provider = self.provider
 

@@ -7,8 +7,10 @@
         <DialogHeader class="flex-shrink-0 pb-4 border-b border-gray-200">
           <DialogTitle class="text-lg font-semibold">Select Contact</DialogTitle>
           <DialogDescription class="text-sm text-gray-600">
-            Client:
-            <span class="font-medium text-gray-900">{{ clientName || 'No client selected' }}</span>
+            Company:
+            <span class="font-medium text-gray-900">{{
+              companyName || 'No company selected'
+            }}</span>
           </DialogDescription>
         </DialogHeader>
 
@@ -38,7 +40,7 @@
                   v-if="contactToDelete?.is_primary"
                   class="text-sm text-amber-600 font-medium mb-4"
                 >
-                  This is the primary contact for this client.
+                  This is the primary contact for this company.
                 </p>
                 <div class="flex gap-3 justify-center">
                   <button
@@ -326,8 +328,8 @@ type ClientContact = z.infer<typeof schemas.ClientContact>
 
 const props = defineProps<{
   isOpen: boolean
-  clientId: string
-  clientName: string
+  companyId: string
+  companyName: string
   contacts: ClientContact[]
   selectedContact: ClientContact | null
   isLoading: boolean

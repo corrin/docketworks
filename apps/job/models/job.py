@@ -9,7 +9,7 @@ from django.db.models import Index, Max, Min
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.enums import RDTIType, SpeedQualityTradeoff
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 
@@ -108,8 +108,8 @@ class Job(models.Model):
     # CHECKLIST - when adding a new field or property to Job, check these locations:
     #   1. JOB_DIRECT_FIELDS below (if it's a model field)
     #   2. JobSerializer.Meta.fields in apps/job/serializers/job_serializer.py
-    #   3. ClientJobHeaderSerializer in apps/client/serializers.py
-    #   4. get_client_jobs() response dict in apps/client/services/client_rest_service.py
+    #   3. ClientJobHeaderSerializer in apps/company/serializers.py
+    #   4. get_company_jobs() response dict in apps/company/services/company_rest_service.py
     #   5. KanbanService.serialize_job_for_api() in apps/job/services/kanban_service.py
     #   6. KanbanJobSerializer and KanbanColumnJobSerializer in apps/job/serializers/kanban_serializer.py
     #   7. TestSerializeJobForApi.test_serialized_shape_for_fully_populated_job
@@ -207,17 +207,17 @@ class Job(models.Model):
         "archived": "The job has been paid for and picked up",
     }
 
-    client = models.ForeignKey(
-        "client.Client",
-        on_delete=models.PROTECT,  # Prevent deletion of clients with jobs
+    company = models.ForeignKey(
+        "company.Company",
+        on_delete=models.PROTECT,  # Prevent deletion of companies with jobs
         null=True,
-        related_name="jobs",  # Allows reverse lookup of jobs for a client
+        related_name="jobs",  # Allows reverse lookup of jobs for a company
     )
     order_number = models.CharField(max_length=100, null=True, blank=True)
 
     # New relationship to ClientContact
     contact = models.ForeignKey(
-        "client.ClientContact",
+        "company.ClientContact",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -301,7 +301,7 @@ class Job(models.Model):
     #     related_name="revisions",
     #     on_delete=models.SET_NULL,
     # )
-    # Shop job has no client (client_id is None)
+    # Shop job has no company (company_id is None)
 
     job_is_valid = models.BooleanField(default=False)
     collected: bool = models.BooleanField(default=False)
@@ -421,21 +421,21 @@ class Job(models.Model):
 
     @property
     def shop_job(self) -> bool:
-        """Indicates if this is a shop job (belongs to shop client)."""
-        if not self.client_id:
+        """Indicates if this is a shop job (belongs to shop company)."""
+        if not self.company_id:
             return False
 
         defaults = CompanyDefaults.get_solo()
-        return self.client_id == defaults.shop_client_id
+        return self.company_id == defaults.shop_company_id
 
     @shop_job.setter
     def shop_job(self, value: bool) -> None:
-        """Sets whether this is a shop job by updating the client ID."""
+        """Sets whether this is a shop job by updating the company ID."""
         if value:
             defaults = CompanyDefaults.get_solo()
-            self.client_id = defaults.shop_client_id
+            self.company_id = defaults.shop_company_id
         else:
-            self.client_id = None
+            self.company_id = None
 
     @property
     def quoted(self) -> bool:
@@ -553,11 +553,11 @@ class Job(models.Model):
     @property
     def job_display_name(self) -> str:
         """
-        Returns a formatted display name for the job including client name.
-        Format: job_number - (first 12 chars of client name), job_name
+        Returns a formatted display name for the job including company name.
+        Format: job_number - (first 12 chars of company name), job_name
         """
-        client_name = self.client.name[:12] if self.client else "No Client"
-        return f"{self.job_number} - {client_name}, {self.name}"
+        company_name = self.company.name[:12] if self.company else "No Company"
+        return f"{self.job_number} - {company_name}, {self.name}"
 
     @property
     def start_date(self) -> Optional[date]:
@@ -930,19 +930,25 @@ class Job(models.Model):
         )
 
     @staticmethod
-    def _handle_client_change(self_job, old_client_id, new_client_id):
-        old_client = "Shop Job"
-        new_client = "Shop Job"
-        if old_client_id:
+    def _handle_company_change(self_job, old_company_id, new_company_id):
+        old_company = "Shop Job"
+        new_company = "Shop Job"
+        if old_company_id:
             try:
-                old_client = Client.objects.get(id=old_client_id).name
+                old_company = Company.objects.get(id=old_company_id).name
             except Exception:
-                old_client = "Unknown Client"
-        if new_client_id:
-            new_client = self_job.client.name if self_job.client else "Unknown Client"
+                old_company = "Unknown Company"
+        if new_company_id:
+            new_company = (
+                self_job.company.name if self_job.company else "Unknown Company"
+            )
         return (
             "client_changed",
-            {"field_name": "Client", "old_value": old_client, "new_value": new_client},
+            {
+                "field_name": "Company",
+                "old_value": old_company,
+                "new_value": new_company,
+            },
         )
 
     @staticmethod
@@ -951,7 +957,7 @@ class Job(models.Model):
         new_contact = "None"
         if old_contact_id:
             try:
-                from apps.client.models import ClientContact
+                from apps.company.models import ClientContact
 
                 old_contact = ClientContact.objects.get(id=old_contact_id).name
             except Exception:
@@ -1098,7 +1104,7 @@ class Job(models.Model):
             "job_updated",
             {"field_name": "Job name", "old_value": str(old), "new_value": str(new)},
         ),
-        "client_id": _handle_client_change.__func__,
+        "company_id": _handle_company_change.__func__,
         "contact_id": _handle_contact_change.__func__,
         "order_number": lambda _self, old, new: (
             "job_updated",

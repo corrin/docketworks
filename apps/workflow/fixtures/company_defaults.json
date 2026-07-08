@@ -1,6 +1,6 @@
 [
   {
-    "model": "client.client",
+    "model": "company.company",
     "pk": "00000000-0000-0000-0000-000000000001",
     "fields": {
       "xero_contact_id": null,
@@ -75,8 +75,8 @@
       "updated_at": "2024-01-01T00:00:00Z",
       "last_xero_sync": null,
       "last_xero_deep_sync": null,
-      "shop_client": "00000000-0000-0000-0000-000000000001",
-      "test_client_name": "ABC Carpet Cleaning TEST IGNORE",
+      "shop_company": "00000000-0000-0000-0000-000000000001",
+      "test_company_name": "ABC Carpet Cleaning TEST IGNORE",
       "kpi_daily_billable_hours_green": "45.00",
       "kpi_daily_billable_hours_amber": "35.00",
       "kpi_daily_gp_target": "1250.00",

@@ -83,7 +83,7 @@ onMounted(async () => {
             <CardContent>
               <div class="text-xl text-black font-semibold">
                 <Briefcase class="inline-block" />
-                Customer: <span class="text-gray font-medium text-lg">{{ job.client_name }}</span>
+                Customer: <span class="text-gray font-medium text-lg">{{ job.company_name }}</span>
               </div>
               <div class="text-xl text-black font-semibold">
                 <NotebookText class="inline-block" />

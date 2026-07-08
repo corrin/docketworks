@@ -40,7 +40,7 @@ def get_prior_valid_invoice_total(job: Job) -> Decimal:
 
 
 def get_job_for_invoice_calculation(job_id: UUID) -> Job:
-    job = Job.objects.select_related("client", "latest_quote", "latest_actual").get(
+    job = Job.objects.select_related("company", "latest_quote", "latest_actual").get(
         id=job_id
     )
 

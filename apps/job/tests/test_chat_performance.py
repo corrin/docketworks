@@ -7,7 +7,7 @@ from unittest.mock import Mock, patch
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobQuoteChat
 from apps.job.services.chat_service import ChatService
 from apps.testing import BaseTestCase
@@ -48,9 +48,9 @@ class ChatQueryOptimizationTests(BaseTestCase):
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.company = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -61,7 +61,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client,
+            company=self.company,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
@@ -95,7 +95,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
             mock_llm.completion.return_value = mock_response
             mock_get_llm.return_value = mock_llm
 
-            # Upper bound: Job, CompanyDefaults, Client, History, Insert, Savepoint x2.
+            # Upper bound: Job, CompanyDefaults, Company, History, Insert, Savepoint x2.
             # CompanyDefaults is usually cached by SOLO_CACHE after setUp() primes
             # it, so the observed count is typically 6 — but 7 is also acceptable
             # if the cache isn't warm.
@@ -118,7 +118,7 @@ class ChatQueryOptimizationTests(BaseTestCase):
                 name=f"DB Test Job {i}",
                 job_number=3000 + i,
                 description=f"Database test job {i}",
-                client=self.client,
+                company=self.company,
                 status="quoting",
                 default_xero_pay_item=self.xero_pay_item,
                 staff=self.test_staff,

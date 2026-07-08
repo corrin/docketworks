@@ -51,7 +51,7 @@ Django-based job/project management system for jobbing shops and custom work bus
 - **`workflow`** - Central hub, Xero integration, auth middleware
 - **`job`** - Job lifecycle, Kanban status tracking (Quoting → In Progress → Completed → Archived), audit trails
 - **`accounts`** - Custom Staff model extending AbstractBaseUser, authentication
-- **`client`** - Customer management, bidirectional Xero contact sync
+- **`company`** - Customer management, bidirectional Xero contact sync
 - **`timesheet`** - Time tracking, billable/non-billable, wage rates
 - **`purchasing`** - POs, stock management, Xero integration, links to CostLine via ext_refs
 - **`accounting`** - KPIs, financial reporting, invoice generation
@@ -65,7 +65,7 @@ Django-based job/project management system for jobbing shops and custom work bus
 Job → CostSet (1:many) → CostLine (1:many)
 PurchaseOrder → PurchaseOrderLine → Stock → CostLine
 Staff → CostLine (time entries)
-Client → Job (1:many)
+Company → Job (1:many)
 ```
 
 **Key Design Patterns:**
@@ -83,7 +83,7 @@ Client → Job (1:many)
 TIME entries (kind='time'):
 - staff_id (str, UUID): Reference to Staff member
 - date (str, ISO): Date work performed (legacy - use accounting_date field instead)
-- is_billable (bool): Whether billable to client
+- is_billable (bool): Whether billable to company
 - wage_rate_multiplier/rate_multiplier (float): Rate multiplier (e.g., 1.5 for overtime)
 - note (str): Optional notes
 - created_from_timesheet (bool): True if from modern timesheet UI

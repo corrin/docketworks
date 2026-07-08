@@ -6,7 +6,7 @@ import { toLocalDateString } from '@/utils/dateUtils'
 export interface WIPJobData {
   job_number: number
   name: string
-  client: string
+  company: string
   status: string
   time_cost: number
   time_rev: number
@@ -76,7 +76,7 @@ export class WIPReportService {
     const headers = [
       'Job Number',
       'Job Name',
-      'Client',
+      'Company',
       'Status',
       `Time (${valueLabel})`,
       `Material (${valueLabel})`,
@@ -89,7 +89,7 @@ export class WIPReportService {
     const rows = jobs.map((job) => [
       job.job_number,
       job.name,
-      job.client,
+      job.company,
       job.status,
       method === 'revenue' ? job.time_rev : job.time_cost,
       method === 'revenue' ? job.material_rev : job.material_cost,

@@ -29,7 +29,7 @@ def seed_subtype_onto_existing_jobs(subtype: LabourSubtype) -> int:
         with connection.cursor() as cursor:
             cursor.execute(f"LOCK TABLE {table_name} IN SHARE ROW EXCLUSIVE MODE")
 
-        shop_client_id = CompanyDefaults.get_solo().shop_client_id
+        shop_company_id = CompanyDefaults.get_solo().shop_company_id
         existing_job_ids = set(
             JobLabourRate.objects.filter(labour_subtype=subtype).values_list(
                 "job_id", flat=True
@@ -41,13 +41,13 @@ def seed_subtype_onto_existing_jobs(subtype: LabourSubtype) -> int:
                 labour_subtype=subtype,
                 charge_out_rate=(
                     Decimal("0.00")
-                    if client_id == shop_client_id
+                    if company_id == shop_company_id
                     else subtype.default_charge_out_rate
                 ),
             )
-            for job_id, client_id in Job.objects.exclude(
+            for job_id, company_id in Job.objects.exclude(
                 id__in=existing_job_ids
-            ).values_list("id", "client_id")
+            ).values_list("id", "company_id")
         ]
         JobLabourRate.objects.bulk_create(rows, batch_size=1000, ignore_conflicts=True)
         missing_job_ids = list(

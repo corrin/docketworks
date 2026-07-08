@@ -35,7 +35,7 @@ ALLOWED_NON_SCHEMA_PATTERNS = {
     "api/enums/",
     # DRF router roots (meta-endpoints listing sub-routes, not real APIs)
     "api/workflow/",
-    "api/clients/",
+    "api/companies/",
     "api/crm/",
     "api/purchasing/",
     "api/quoting/",
@@ -101,13 +101,18 @@ class APISchemaComplianceTest(TestCase):
         # Normalize trailing slash
         return path.rstrip("/")
 
-    def _get_schema_paths(self) -> set:
+    def _get_schema_paths(self) -> set[str]:
         """Get all paths from the OpenAPI schema."""
-        generator = SchemaGenerator()
-        schema = generator.get_schema(public=True)
-        if schema and "paths" in schema:
-            return {path.lstrip("/").rstrip("/") for path in schema["paths"].keys()}
-        return set()
+        schema = SchemaGenerator().get_schema(public=True)
+        if schema is None or "paths" not in schema:
+            return set()
+        paths = schema["paths"]
+        if not isinstance(paths, dict):
+            raise TypeError(
+                f"expected OpenAPI 'paths' to be a JSON object, "
+                f"got {type(paths).__name__}"
+            )
+        return {path.lstrip("/").rstrip("/") for path in paths}
 
     def test_all_api_endpoints_in_schema(self):
         """Every API endpoint must be documented in the OpenAPI schema."""

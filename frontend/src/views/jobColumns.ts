@@ -5,7 +5,7 @@ import { Checkbox } from '@/components/ui/checkbox'
 interface JobTableRow {
   id: number
   name: string
-  client_name: string
+  company_name: string
   updated_at?: string | null
 }
 
@@ -59,10 +59,10 @@ export const jobColumns: ColumnDef<JobTableRow, unknown>[] = [
     cell: ({ row }: CellContext<JobTableRow, unknown>) => h('span', row.original.name),
   },
   {
-    id: 'client_name',
-    accessorKey: 'client_name',
-    header: 'Client',
-    cell: ({ row }: CellContext<JobTableRow, unknown>) => h('span', row.original.client_name),
+    id: 'company_name',
+    accessorKey: 'company_name',
+    header: 'Company',
+    cell: ({ row }: CellContext<JobTableRow, unknown>) => h('span', row.original.company_name),
   },
   {
     id: 'updated_at',

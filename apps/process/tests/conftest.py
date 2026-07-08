@@ -2,7 +2,7 @@ import pytest
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.workflow.models import CompanyDefaults
 
@@ -19,16 +19,16 @@ def test_staff(db):
 
 @pytest.fixture
 def job(db, test_staff):
-    shop_client = Client.objects.create(
-        name="Process Shop Client",
+    shop_company = Company.objects.create(
+        name="Process Shop Company",
         xero_last_modified=timezone.now(),
     )
     CompanyDefaults.objects.create(
         company_name="Process Test Co",
-        shop_client=shop_client,
+        shop_company=shop_company,
     )
-    client = Client.objects.create(
-        name="Test Client",
+    company = Company.objects.create(
+        name="Test Company",
         xero_last_modified=timezone.now(),
     )
-    return Job.objects.create(client=client, name="Test Job", staff=test_staff)
+    return Job.objects.create(company=company, name="Test Job", staff=test_staff)

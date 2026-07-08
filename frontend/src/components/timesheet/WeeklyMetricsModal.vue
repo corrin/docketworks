@@ -158,7 +158,7 @@
             <input
               v-model="searchQuery"
               type="text"
-              placeholder="Search jobs by name, client, or job number..."
+              placeholder="Search jobs by name, company, or job number..."
               class="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
             />
             <Search class="absolute left-3 top-3.5 h-4 w-4 text-gray-400" />
@@ -190,7 +190,7 @@
                     #{{ job.job_number }}
                   </span>
                 </div>
-                <p class="text-xs text-gray-600 mb-1 truncate">{{ job.client || 'No client' }}</p>
+                <p class="text-xs text-gray-600 mb-1 truncate">{{ job.company || 'No company' }}</p>
 
                 <!-- Issues Warning -->
                 <div v-if="hasJobIssues(job)" class="mt-2">
@@ -296,7 +296,7 @@ const filteredJobs = computed<WeeklyJob[]>(() => {
   return jobs.value.filter(
     (job) =>
       job.name.toLowerCase().includes(query) ||
-      (job.client && job.client.toLowerCase().includes(query)) ||
+      (job.company && job.company.toLowerCase().includes(query)) ||
       job.job_number.toString().toLowerCase().includes(query) ||
       (job.description && job.description.toLowerCase().includes(query)),
   )

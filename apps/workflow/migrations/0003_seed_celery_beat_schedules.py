@@ -145,11 +145,6 @@ def remove_schedules(apps: StateApps, schema_editor: BaseDatabaseSchemaEditor) -
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("workflow", "0220_seed_celery_beat_schedule"),
-        ("workflow", "0226_seed_stock_metadata_parse_schedule"),
-        ("workflow", "0229_seed_session_replay_purge_schedule"),
-    ]
 
     dependencies = [
         ("workflow", "0002_seed_xero_pay_items"),

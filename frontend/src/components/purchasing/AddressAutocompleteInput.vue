@@ -130,7 +130,7 @@ const searchAddress = async (query: string) => {
   const requestId = ++currentRequestId
   isLoading.value = true
   try {
-    const response = await api.clients_addresses_validate_create({
+    const response = await api.companies_addresses_validate_create({
       address: query,
     })
     if (requestId !== currentRequestId) {

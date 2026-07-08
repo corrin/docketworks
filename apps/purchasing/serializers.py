@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from rest_framework import serializers
 
-from apps.client.serializers import SupplierPickupAddressSerializer
+from apps.company.serializers import SupplierPickupAddressSerializer
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.job.serializers.costing_serializer import CostLineSerializer
@@ -62,10 +62,10 @@ class SupplierSearchResponseSerializer(serializers.Serializer):
 class JobForPurchasingSerializer(serializers.ModelSerializer):
     """Serializer for Job model in purchasing contexts."""
 
-    client_name = serializers.CharField(
-        source="client.name",
+    company_name = serializers.CharField(
+        source="company.name",
         read_only=True,
-        default="No Client",
+        default="No Company",
     )
     is_stock_holding = serializers.SerializerMethodField()
     job_display_name = serializers.SerializerMethodField()
@@ -83,7 +83,7 @@ class JobForPurchasingSerializer(serializers.ModelSerializer):
             "id",
             "job_number",
             "name",
-            "client_name",
+            "company_name",
             "status",
             "is_stock_holding",
             "job_display_name",
@@ -97,8 +97,8 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
     job_number = serializers.IntegerField(
         source="job.job_number", read_only=True, allow_null=True
     )
-    client_name = serializers.CharField(
-        source="job.client.name", read_only=True, allow_null=True
+    company_name = serializers.CharField(
+        source="job.company.name", read_only=True, allow_null=True
     )
     job_name = serializers.CharField(source="job.name", read_only=True, allow_null=True)
     times_used = serializers.SerializerMethodField()
@@ -108,13 +108,13 @@ class PurchaseOrderLineSerializer(serializers.ModelSerializer):
         fields = PurchaseOrderLine.PURCHASEORDERLINE_API_FIELDS + [
             "job_id",
             "job_number",
-            "client_name",
+            "company_name",
             "job_name",
             "times_used",
         ]
 
     def get_times_used(self, obj: PurchaseOrderLine) -> int:
-        """Always emit a numeric usage count for generated client validation."""
+        """Always emit a numeric usage count for generated company validation."""
         if not obj.item_code:
             return 0
 
@@ -220,7 +220,7 @@ class PurchaseOrderJobSerializer(serializers.Serializer):
 
     job_number = serializers.CharField()
     name = serializers.CharField()
-    client = serializers.CharField(allow_blank=True)
+    company = serializers.CharField(allow_blank=True)
 
 
 class PurchaseOrderListSerializer(serializers.Serializer):
@@ -370,7 +370,7 @@ class StockItemSerializer(serializers.ModelSerializer):
         fields = Stock.STOCK_API_FIELDS + ["job_id", "times_used"]
 
     def get_times_used(self, obj: Stock) -> int:
-        """Always emit a numeric usage count for generated client validation."""
+        """Always emit a numeric usage count for generated company validation."""
         return int(getattr(obj, "times_used", 0) or 0)
 
 

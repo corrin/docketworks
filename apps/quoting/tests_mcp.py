@@ -3,7 +3,7 @@ Unit tests for MCP Quoting Tools
 Run with: python manage.py test apps.quoting.tests_mcp
 """
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.quoting.models import SupplierPriceList, SupplierProduct
 from apps.testing import BaseTestCase
@@ -17,23 +17,23 @@ class QuotingToolTests(BaseTestCase):
         self.tool = QuotingTool()
 
         # Create test supplier
-        self.supplier = Client.objects.create(
+        self.supplier = Company.objects.create(
             name="Test Steel Co",
             is_supplier=True,
             email="test@steelco.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
-        # Create test client and job
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@test.com",
+        # Create test company and job
+        self.company_obj = Company.objects.create(
+            name="Test Company",
+            email="company@test.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
         self.job = Job.objects.create(
             name="Test Job",
-            client=self.client_obj,
+            company=self.company_obj,
             description="Test metal work",
             staff=self.test_staff,
         )
@@ -95,7 +95,7 @@ class QuotingToolTests(BaseTestCase):
         )
 
         self.assertIn("Quote Estimate for Job: Test Job", result)
-        self.assertIn("Client: Test Client", result)
+        self.assertIn("Company: Test Company", result)
         self.assertIn("steel sheet", result)
         self.assertIn("Labor estimate: 10.0 hours", result)
 
@@ -131,7 +131,7 @@ class SupplierProductQueryToolTests(BaseTestCase):
         self.tool = SupplierProductQueryTool()
 
         # Create test data
-        self.supplier = Client.objects.create(
+        self.supplier = Company.objects.create(
             name="Query Test Supplier",
             is_supplier=True,
             xero_last_modified="2024-01-01T00:00:00Z",

@@ -8,25 +8,25 @@ from django.utils import timezone
 
 from apps.accounting.services.core import KPIService, StaffPerformanceService
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostLine, Job, LabourSubtype
 from apps.testing import BaseTestCase
 from apps.workflow.models import XeroPayItem
 
 
 class AccountingCoreQueryTests(BaseTestCase):
-    """Accounting reports must not query job/client data once per row.
+    """Accounting reports must not query job/company data once per row.
 
     The reports loop over CostLine rows and grouped staff metrics. These tests
-    catch refactors that drop the preloaded job/client data by using multiple
+    catch refactors that drop the preloaded job/company data by using multiple
     rows and a fixed query budget for the report boundary.
     """
 
     def setUp(self):
         super().setUp()
         self.target_date = date(2026, 5, 22)
-        self.client = Client.objects.create(
-            name="Accounting Nplusone Client",
+        self.company = Company.objects.create(
+            name="Accounting Nplusone Company",
             email="accounting-nplusone@example.com",
             xero_last_modified=timezone.now(),
         )
@@ -47,7 +47,7 @@ class AccountingCoreQueryTests(BaseTestCase):
         job = Job.objects.create(
             job_number=job_number,
             name=f"Accounting Job {job_number}",
-            client=self.client,
+            company=self.company,
             default_xero_pay_item=self.pay_item,
             staff=self.test_staff,
         )
@@ -76,11 +76,11 @@ class AccountingCoreQueryTests(BaseTestCase):
         )
 
     def test_kpi_job_breakdown_preloads_job_client(self):
-        """Job breakdown must not fetch each job's client inside the loop.
+        """Job breakdown must not fetch each job's company inside the loop.
 
-        This catches removing ``select_related("cost_set__job__client")`` by
+        This catches removing ``select_related("cost_set__job__company")`` by
         asserting the report stays at fixed query overhead plus one query per
-        CostLine kind, even when it emits client names.
+        CostLine kind, even when it emits company names.
         """
         job = self._create_job(98801)
         CostLine.objects.create(
@@ -98,12 +98,12 @@ class AccountingCoreQueryTests(BaseTestCase):
         with self.assertNumQueries(5):
             breakdown = KPIService.get_job_breakdown_for_date(self.target_date)
 
-        self.assertEqual(breakdown[0]["client_name"], "Accounting Nplusone Client")
+        self.assertEqual(breakdown[0]["company_name"], "Accounting Nplusone Company")
 
     def test_staff_performance_groups_prefetched_cost_lines_by_staff(self):
         """Staff performance must group prefetched lines without per-staff queries.
 
-        This catches metric code that looks up CostLine/job/client data inside
+        This catches metric code that looks up CostLine/job/company data inside
         the staff loop by asserting two staff with separate jobs stay within a
         fixed query ceiling.
         """

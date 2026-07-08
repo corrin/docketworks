@@ -81,7 +81,7 @@ const error = ref('')
 interface ArchiveTableRow {
   id: number
   name: string
-  client_name: string
+  company_name: string
   updated_at?: string | null
   jobId: string
 }
@@ -90,7 +90,7 @@ const toTableRow = (job: Job): ArchiveTableRow => ({
   id: job.job_number,
   jobId: job.id,
   name: job.name,
-  client_name: job.client_name ?? '',
+  company_name: job.company_name ?? '',
   updated_at: job.updated_at ?? null,
 })
 

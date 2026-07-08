@@ -18,7 +18,7 @@ export async function updateCompanyDefaults(
   return await api.company_defaults_partial_update(payload)
 }
 
-// Raw fetch used here because the generated Zodios client does not support multipart form uploads.
+// Raw fetch used here because the generated Zodios company does not support multipart form uploads.
 export async function uploadLogo(fieldName: string, file: File): Promise<CompanyDefaults> {
   const formData = new FormData()
   formData.append('field_name', fieldName)

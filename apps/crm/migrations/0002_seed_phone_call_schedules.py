@@ -74,9 +74,6 @@ def remove_phone_call_schedules(
 
 
 class Migration(migrations.Migration):
-    replaces = [
-        ("crm", "0005_phone_call_sync_near_realtime"),
-    ]
 
     dependencies = [
         ("crm", "0001_baseline"),

@@ -1,6 +1,6 @@
 import { test, expect } from '../fixtures/auth'
 import type { Page, Response } from '@playwright/test'
-import { autoId, getPhantomRowIndex, TEST_CLIENT_NAME } from '../fixtures/helpers'
+import { autoId, getPhantomRowIndex, TEST_COMPANY_NAME } from '../fixtures/helpers'
 import { getLatestWeekdayDate } from '../../src/utils/dateUtils'
 
 type JsonObject = Record<string, unknown>
@@ -28,37 +28,37 @@ async function navigateToTimesheetEntry(page: Page): Promise<void> {
   await page.waitForTimeout(1000)
 }
 
-async function getClientId(page: Page): Promise<string> {
-  const response = await page.request.get('/api/clients/all/', {
+async function getCompanyId(page: Page): Promise<string> {
+  const response = await page.request.get('/api/companies/all/', {
     headers: { Accept: 'application/json' },
   })
   const responseText = await response.text()
 
   if (!response.ok()) {
-    throw new Error(`Client list failed with HTTP ${response.status()}: ${responseText}`)
+    throw new Error(`Company list failed with HTTP ${response.status()}: ${responseText}`)
   }
 
-  let clients: Array<{ id: string; name: string }>
+  let companies: Array<{ id: string; name: string }>
   try {
-    clients = JSON.parse(responseText) as Array<{ id: string; name: string }>
+    companies = JSON.parse(responseText) as Array<{ id: string; name: string }>
   } catch {
-    throw new Error(`Client list returned non-JSON response: ${responseText}`)
+    throw new Error(`Company list returned non-JSON response: ${responseText}`)
   }
 
-  if (!Array.isArray(clients)) {
-    throw new Error(`Client list returned unexpected payload: ${responseText}`)
+  if (!Array.isArray(companies)) {
+    throw new Error(`Company list returned unexpected payload: ${responseText}`)
   }
 
-  const match = clients.find((client) => client.name === TEST_CLIENT_NAME)
+  const match = companies.find((company) => company.name === TEST_COMPANY_NAME)
   if (!match) {
-    throw new Error(`Test client not found: ${TEST_CLIENT_NAME}`)
+    throw new Error(`Test company not found: ${TEST_COMPANY_NAME}`)
   }
 
   return match.id
 }
 
 async function createUrgentJob(page: Page): Promise<{ jobId: string; jobNumber: string }> {
-  const clientId = await getClientId(page)
+  const companyId = await getCompanyId(page)
   const timestamp = Date.now()
   const jobName = `[TEST] Urgent Job ${timestamp}`
 
@@ -66,7 +66,7 @@ async function createUrgentJob(page: Page): Promise<{ jobId: string; jobNumber: 
     headers: { Accept: 'application/json' },
     data: {
       name: jobName,
-      client_id: clientId,
+      company_id: companyId,
       description: '',
       order_number: '',
       notes: '',

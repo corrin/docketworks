@@ -448,7 +448,7 @@ def create_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         if calc_result.requested_amount is not None:
             billing_metadata["requested_amount"] = str(calc_result.requested_amount)
 
-        manager = XeroInvoiceManager(client=job.client, job=job, staff=request.user)
+        manager = XeroInvoiceManager(company=job.company, job=job, staff=request.user)
         result_data = manager.create_document(
             total_amount=calc_result.calculated_amount,
             billing_metadata=billing_metadata,
@@ -694,10 +694,10 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
-        if job.client is None:
-            raise ValueError(f"Job {job_id} has no client; cannot create a quote")
+        if job.company is None:
+            raise ValueError(f"Job {job_id} has no company; cannot create a quote")
         assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
-        manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
+        manager = XeroQuoteManager(company=job.company, job=job, staff=request.user)
         result_data = manager.create_document(breakdown=breakdown)
 
         if result_data.get("success"):
@@ -770,7 +770,7 @@ def delete_xero_invoice(request: Request, job_id: uuid.UUID) -> Response:
         job = Job.objects.get(id=job_id)
         invoice = Invoice.objects.get(xero_id=xero_invoice_id, job=job)
         manager = XeroInvoiceManager(
-            client=job.client,
+            company=job.company,
             job=job,
             staff=request.user,
             xero_invoice_id=invoice.xero_id,
@@ -831,10 +831,10 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
-        if job.client is None:
-            raise ValueError(f"Job {job_id} has no client; cannot delete its quote")
+        if job.company is None:
+            raise ValueError(f"Job {job_id} has no company; cannot delete its quote")
         assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
-        manager = XeroQuoteManager(client=job.client, job=job, staff=request.user)
+        manager = XeroQuoteManager(company=job.company, job=job, staff=request.user)
         result_data: dict = manager.delete_document()
 
         if result_data.get("success"):

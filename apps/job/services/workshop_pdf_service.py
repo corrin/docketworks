@@ -22,7 +22,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Flowable, Paragraph, Table, TableStyle
 
-from apps.client.models import ClientContactMethod
+from apps.company.models import ClientContactMethod
 from apps.crm.models import PhoneEndpoint
 from apps.job.enums import SpeedQualityTradeoff
 from apps.job.models import CostLine, CostSet, Job, JobFile
@@ -36,25 +36,25 @@ JOB_SUMMARY_PDF_FILENAME = "JobSummary.pdf"
 WORKSHOP_PDF_COST_LINES_ATTR = "_workshop_pdf_cost_lines"
 WORKSHOP_PDF_FILES_ATTR = "_workshop_pdf_files_to_print"
 WORKSHOP_PDF_CONTACT_PHONE_ATTR = "_workshop_pdf_contact_phone"
-WORKSHOP_PDF_CLIENT_PHONE_ATTR = "_workshop_pdf_client_phone"
+WORKSHOP_PDF_COMPANY_PHONE_ATTR = "_workshop_pdf_company_phone"
 
 
 def _primary_phone_for_job(job: Job) -> str:
     """Phone to print on workshop docs and delivery dockets.
 
     Display preference order: the job contact's own number first, falling back
-    to the client's number when the contact has no phone method (the business
+    to the company's number when the contact has no phone method (the business
     rule carried over from the pre-ClientContactMethod scalar fields).
     """
     if not hasattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR) or not hasattr(
-        job, WORKSHOP_PDF_CLIENT_PHONE_ATTR
+        job, WORKSHOP_PDF_COMPANY_PHONE_ATTR
     ):
         raise ValueError("PDF phone fields must be loaded before rendering")
 
     contact_phone = getattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR)
     if contact_phone:
         return str(contact_phone)
-    return str(getattr(job, WORKSHOP_PDF_CLIENT_PHONE_ATTR) or "")
+    return str(getattr(job, WORKSHOP_PDF_COMPANY_PHONE_ATTR) or "")
 
 
 def _primary_company_endpoint_number() -> str:
@@ -74,8 +74,8 @@ def _primary_phone_annotations() -> dict[str, Coalesce]:
         WORKSHOP_PDF_CONTACT_PHONE_ATTR: ClientContactMethod.primary_phone_annotation(
             owner="contact", outer_ref="contact_id"
         ),
-        WORKSHOP_PDF_CLIENT_PHONE_ATTR: ClientContactMethod.primary_phone_annotation(
-            owner="client", outer_ref="client_id"
+        WORKSHOP_PDF_COMPANY_PHONE_ATTR: ClientContactMethod.primary_phone_annotation(
+            owner="company", outer_ref="company_id"
         ),
     }
 
@@ -84,7 +84,7 @@ def get_job_for_delivery_docket_pdf(job_id: UUID) -> Job:
     """Load a job with the relations required to render a delivery docket."""
     return cast(
         Job,
-        Job.objects.select_related("client", "contact")
+        Job.objects.select_related("company", "contact")
         .annotate(**_primary_phone_annotations())
         .get(id=job_id),
     )
@@ -103,7 +103,7 @@ def get_job_for_workshop_pdf(job_id: UUID) -> Job:
     return cast(
         Job,
         Job.objects.select_related(
-            "client",
+            "company",
             "contact",
             "latest_estimate",
             "latest_quote",
@@ -151,7 +151,7 @@ def _ensure_workshop_pdf_job_loaded(job: Job) -> Job:
 
 def _ensure_delivery_docket_pdf_job_loaded(job: Job) -> Job:
     if hasattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR) and hasattr(
-        job, WORKSHOP_PDF_CLIENT_PHONE_ATTR
+        job, WORKSHOP_PDF_COMPANY_PHONE_ATTR
     ):
         return job
     return get_job_for_delivery_docket_pdf(job.id)
@@ -420,8 +420,8 @@ BORDER = colors.HexColor("#CBD5E1")
 ROW_ALT = colors.HexColor("#F8FAFC")
 
 # Paragraph styles for table content
-header_client_style = ParagraphStyle(
-    "HeaderClient",
+header_company_style = ParagraphStyle(
+    "HeaderCompany",
     parent=styles["Normal"],
     fontName="Helvetica-Bold",
     fontSize=18,
@@ -1162,7 +1162,7 @@ def add_workshop_details_table(
     pdf: canvas.Canvas, y_position: float, job: Job
 ) -> float:
     """Render a full-page workshop brief: identity, constraints, labour budget, and specs."""
-    client_name = job.client.name if job.client else "N/A"
+    company_name = job.company.name if job.company else "N/A"
     contact_name = job.contact.name if job.contact else ""
     contact_phone = _primary_phone_for_job(job)
     contact_info = (
@@ -1174,7 +1174,7 @@ def add_workshop_details_table(
     contact_table = Table(
         [
             [
-                _plain_paragraph(client_name, header_client_style),
+                _plain_paragraph(company_name, header_company_style),
                 Paragraph(contact_info, header_contact_style),
             ]
         ],
@@ -1311,7 +1311,7 @@ def add_delivery_docket_details_table(
     job: Job,
 ):
     """Render the delivery docket details with page-aware wrapping."""
-    client_name = job.client.name if job.client else "N/A"
+    company_name = job.company.name if job.company else "N/A"
     contact_name = job.contact.name if job.contact else ""
 
     contact_phone = _primary_phone_for_job(job)
@@ -1322,7 +1322,7 @@ def add_delivery_docket_details_table(
     # Delivery docket details - no workshop time or internal notes
     job_details = [
         [
-            Paragraph(client_name, header_client_style),
+            Paragraph(company_name, header_company_style),
             Paragraph(contact_info, header_contact_style),
         ],
         [

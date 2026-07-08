@@ -13,7 +13,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine, Stock
 from apps.purchasing.services.delivery_receipt_service import (
@@ -385,7 +385,7 @@ def test_stock_viewset_create_enqueues_metadata_parse() -> None:
 @pytest.fixture
 def company_defaults(db: None) -> None:
     # Job.save -> generate_job_number -> CompanyDefaults.get_solo(); the
-    # singleton cannot be lazily created (shop_client is NOT NULL).
+    # singleton cannot be lazily created (shop_company is NOT NULL).
     call_command("loaddata", "company_defaults")
 
 
@@ -394,11 +394,11 @@ def test_delivery_receipt_stock_creation_enqueues_metadata_parse(
     company_defaults: None,
 ) -> None:
     staff = _staff()
-    client = Client.objects.create(
-        name="Receipt Stock Client",
+    company = Company.objects.create(
+        name="Receipt Stock Company",
         xero_last_modified=timezone.now(),
     )
-    job = Job.objects.create(client=client, name="Receipt Stock Job", staff=staff)
+    job = Job.objects.create(company=company, name="Receipt Stock Job", staff=staff)
     po = PurchaseOrder.objects.create(po_number="PO-STOCK-META")
     line = PurchaseOrderLine.objects.create(
         purchase_order=po,

@@ -26,7 +26,7 @@ function buildKanbanJob(overrides: Partial<Record<string, unknown>> = {}) {
     name: overrides.name ?? 'Kanban Job',
     description: overrides.description ?? '',
     job_number: overrides.job_number ?? 9001,
-    client_name: overrides.client_name ?? 'Client',
+    company_name: overrides.company_name ?? 'Company',
     contact_person: overrides.contact_person ?? '',
     people: overrides.people ?? [],
     status: overrides.status ?? 'In Progress',

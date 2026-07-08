@@ -133,7 +133,7 @@
                     <td class="px-4 py-3 font-medium text-indigo-600">
                       {{ job.job_number }}
                     </td>
-                    <td class="px-4 py-3">{{ job.client }}</td>
+                    <td class="px-4 py-3">{{ job.company }}</td>
                     <td class="px-4 py-3">
                       <span
                         class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -175,7 +175,7 @@
                     <div>
                       <div class="text-lg font-semibold text-indigo-600">#{{ job.job_number }}</div>
                       <div class="text-sm text-gray-600">{{ job.name }}</div>
-                      <div class="text-sm text-gray-500">{{ job.client }}</div>
+                      <div class="text-sm text-gray-500">{{ job.company }}</div>
                     </div>
                     <span
                       class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium"
@@ -330,7 +330,7 @@ interface TableColumn {
 
 const tableColumns: TableColumn[] = [
   { key: 'job_number', label: 'Job #', sortable: true },
-  { key: 'client', label: 'Client', sortable: true },
+  { key: 'company', label: 'Company', sortable: true },
   { key: 'status', label: 'Status', sortable: true },
   { key: 'time', label: 'Time', sortable: true, align: 'right' },
   { key: 'material', label: 'Material', sortable: true, align: 'right' },
@@ -361,8 +361,8 @@ const getSortValue = (job: WIPJobData, key: string): number | string => {
       return getAdjustValue(job)
     case 'job_number':
       return job.job_number
-    case 'client':
-      return job.client
+    case 'company':
+      return job.company
     case 'status':
       return job.status
     case 'gross_wip':

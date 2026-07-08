@@ -21,7 +21,7 @@ from rest_framework.response import Response
 
 from apps.accounts.models import Staff
 from apps.accounts.utils import get_displayable_staff
-from apps.client.serializers import ClientErrorResponseSerializer
+from apps.company.serializers import CompanyErrorResponseSerializer
 from apps.job.models import Job
 from apps.job.models.costing import CostLine
 from apps.timesheet.serializers import (
@@ -216,7 +216,7 @@ class JobsAPIView(TimesheetBaseView):
                     )
                 )
                 .select_related(
-                    "client",
+                    "company",
                     "default_xero_pay_item",
                     "latest_actual",
                     "latest_estimate",
@@ -321,8 +321,8 @@ class WeeklyTimesheetAPIView(TimesheetResponseMixin, TimesheetBaseView):
         ],
         responses={
             200: WeeklyTimesheetDataSerializer,
-            400: ClientErrorResponseSerializer,
-            500: ClientErrorResponseSerializer,
+            400: CompanyErrorResponseSerializer,
+            500: CompanyErrorResponseSerializer,
         },
     )
     def get(self, request):
@@ -340,9 +340,9 @@ class CreatePayRunAPIView(TimesheetBaseView):
         request=CreatePayRunSerializer,
         responses={
             201: CreatePayRunResponseSerializer,
-            400: ClientErrorResponseSerializer,
-            409: ClientErrorResponseSerializer,
-            500: ClientErrorResponseSerializer,
+            400: CompanyErrorResponseSerializer,
+            409: CompanyErrorResponseSerializer,
+            500: CompanyErrorResponseSerializer,
         },
     )
     def post(self, request):
@@ -421,7 +421,7 @@ class CreatePayRunAPIView(TimesheetBaseView):
             )
 
         except ValueError as exc:
-            # Client errors (bad date, not Monday)
+            # Company errors (bad date, not Monday)
             return Response({"error": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
         except Exception as exc:
             error_msg = str(exc)
@@ -443,7 +443,7 @@ class PayRunListAPIView(TimesheetBaseView):
         summary="List pay runs",
         responses={
             200: PayRunListResponseSerializer,
-            500: ClientErrorResponseSerializer,
+            500: CompanyErrorResponseSerializer,
         },
     )
     def get(self, request):
@@ -484,7 +484,7 @@ class RefreshPayRunsAPIView(TimesheetBaseView):
         request=None,
         responses={
             200: PayRunSyncResponseSerializer,
-            500: ClientErrorResponseSerializer,
+            500: CompanyErrorResponseSerializer,
         },
     )
     def post(self, request):
@@ -523,7 +523,7 @@ class PostWeekToXeroPayrollAPIView(TimesheetBaseView):
         request=PostWeekToXeroSerializer,
         responses={
             200: PostWeekToXeroStartResponseSerializer,
-            400: ClientErrorResponseSerializer,
+            400: CompanyErrorResponseSerializer,
         },
     )
     def post(self, request):

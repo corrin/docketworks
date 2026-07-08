@@ -20,7 +20,7 @@ from unittest.mock import patch
 
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.purchasing.models import PurchaseOrder
 from apps.testing import BaseAPITestCase
 from apps.workflow.views.xero.xero_po_manager import XeroPurchaseOrderManager
@@ -34,7 +34,7 @@ class XeroPurchaseOrderManagerConstructionTests(BaseAPITestCase):
         cls.test_staff.is_office_staff = True
         cls.test_staff.save(update_fields=["is_office_staff"])
 
-        cls.supplier = Client.objects.create(
+        cls.supplier = Company.objects.create(
             name="Test Supplier",
             xero_contact_id="00000000-0000-0000-0000-000000000001",
             xero_last_modified=timezone.now(),

@@ -8,7 +8,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobEvent
 from apps.job.models.job_event import (
     _format_ordinal,
@@ -32,15 +32,15 @@ class JobEventTrackingTest(BaseTestCase):
             first_name="Test",
             last_name="Tracker",
         )
-        self.client_obj = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
         self.job = Job(
             name="Test Job",
-            client=self.client_obj,
+            company=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
         )
@@ -537,8 +537,8 @@ class PriorityPositionCaptureTest(BaseTestCase):
             first_name="Kanban",
             last_name="Tester",
         )
-        self.client_obj = Client.objects.create(
-            name="Kanban Client",
+        self.client_obj = Company.objects.create(
+            name="Kanban Company",
             email="kc@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
@@ -547,7 +547,7 @@ class PriorityPositionCaptureTest(BaseTestCase):
     def _make_job(self, name, status="in_progress"):
         job = Job(
             name=name,
-            client=self.client_obj,
+            company=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
             status=status,
@@ -687,15 +687,15 @@ class StaffRequiredTest(BaseTestCase):
             first_name="Staff",
             last_name="Required",
         )
-        self.client_obj = Client.objects.create(
-            name="Required Client",
-            email="required-client@example.com",
+        self.client_obj = Company.objects.create(
+            name="Required Company",
+            email="required-company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
         self.job = Job(
             name="Required Job",
-            client=self.client_obj,
+            company=self.client_obj,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
         )

@@ -13,7 +13,7 @@ from io import BytesIO
 from django.test import override_settings
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobEvent, JobFile
 from apps.job.services.delivery_docket_service import generate_delivery_docket
 from apps.testing import BaseTestCase
@@ -32,12 +32,12 @@ class GenerateDeliveryDocketTests(BaseTestCase):
         )
         self._settings_override.enable()
 
-        self.client_obj = Client.objects.create(
-            name="Test Client",
+        self.client_obj = Company.objects.create(
+            name="Test Company",
             xero_last_modified=timezone.now(),
         )
         self.job = Job.objects.create(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Test Delivery Job",
             description="Deliver some steel",
             staff=self.test_staff,

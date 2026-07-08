@@ -20,7 +20,7 @@ import {
   Mail,
   CalendarIcon,
 } from 'lucide-vue-next'
-import ClientLookup from '@/components/ClientLookup.vue'
+import CompanyLookup from '@/components/CompanyLookup.vue'
 import PickupAddressSelector from '@/components/purchasing/PickupAddressSelector.vue'
 import { schemas } from '@/api/generated/api'
 import { poStatusLabels } from '@/utils/statusMappings'
@@ -54,7 +54,7 @@ const emit = defineEmits<{
 }>()
 
 const supplierLookup = reactive({
-  value: true, // indicates supplier mode vs client mode
+  value: true, // indicates supplier mode vs company mode
 })
 
 // ✅ 2. Add autosave logic
@@ -94,8 +94,8 @@ function onStatusUpdate(value: Status) {
   emit('update:status', value)
 }
 
-function onSupplierSelected(client: { name?: string } | null) {
-  emit('update:supplier', client?.name || '')
+function onSupplierSelected(company: { name?: string } | null) {
+  emit('update:supplier', company?.name || '')
 }
 
 function onSupplierIdUpdate(id: string | null) {
@@ -124,13 +124,13 @@ const statusOptions: { value: Status; label: string }[] =
     <CardContent>
       <div class="flex flex-col gap-1">
         <template v-if="po.status === 'draft'">
-          <ClientLookup
+          <CompanyLookup
             :supplier-lookup="supplierLookup"
             id="supplier"
             :model-value="po.supplier"
             required
             placeholder="Search supplier…"
-            @update:selected-client="onSupplierSelected"
+            @update:selected-company="onSupplierSelected"
             @update:selected-id="onSupplierIdUpdate"
             :label="'Supplier'"
             data-automation-id="PoSummaryCard-supplier-lookup"

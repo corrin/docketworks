@@ -151,7 +151,7 @@ interface Props {
   jobId: string
   jobName?: string
   jobNumber?: string
-  clientName?: string
+  companyName?: string
 }
 
 const props = defineProps<Props>()

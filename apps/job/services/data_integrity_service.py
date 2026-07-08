@@ -17,7 +17,7 @@ from apps.accounting.models import (
     Quote,
 )
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact
+from apps.company.models import ClientContact, Company
 from apps.job.models import (
     CostLine,
     CostSet,
@@ -92,8 +92,8 @@ class DataIntegrityService:
         # Workflow App
         issues.extend(DataIntegrityService._check_apperror_fks())
 
-        # Client App
-        issues.extend(DataIntegrityService._check_client_fks())
+        # Company App
+        issues.extend(DataIntegrityService._check_company_fks())
         issues.extend(DataIntegrityService._check_clientcontact_fks())
 
         # Purchasing App
@@ -115,20 +115,20 @@ class DataIntegrityService:
     def _check_job_fks() -> list[dict[str, Any]]:
         """Check Job FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
         valid_contact_ids = set(ClientContact.objects.values_list("id", flat=True))
         valid_staff_ids = set(Staff.objects.values_list("id", flat=True))
         valid_costset_ids = set(CostSet.objects.values_list("id", flat=True))
 
         for job in Job.objects.all():
-            if job.client_id and job.client_id not in valid_client_ids:
+            if job.company_id and job.company_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "Job",
                         "record_id": str(job.id),
-                        "field": "client",
-                        "target_model": "Client",
-                        "target_id": str(job.client_id),
+                        "field": "company",
+                        "target_model": "Company",
+                        "target_id": str(job.company_id),
                     }
                 )
             if job.contact_id and job.contact_id not in valid_contact_ids:
@@ -335,7 +335,7 @@ class DataIntegrityService:
         """Check Invoice FK references."""
         issues = []
         valid_job_ids = set(Job.objects.values_list("id", flat=True))
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
         for invoice in Invoice.objects.all():
             if invoice.job_id and invoice.job_id not in valid_job_ids:
@@ -348,14 +348,14 @@ class DataIntegrityService:
                         "target_id": str(invoice.job_id),
                     }
                 )
-            if invoice.client_id not in valid_client_ids:
+            if invoice.company_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "Invoice",
                         "record_id": str(invoice.id),
-                        "field": "client",
-                        "target_model": "Client",
-                        "target_id": str(invoice.client_id),
+                        "field": "company",
+                        "target_model": "Company",
+                        "target_id": str(invoice.company_id),
                     }
                 )
 
@@ -365,17 +365,17 @@ class DataIntegrityService:
     def _check_bill_fks() -> list[dict[str, Any]]:
         """Check Bill FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
         for bill in Bill.objects.all():
-            if bill.client_id not in valid_client_ids:
+            if bill.company_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "Bill",
                         "record_id": str(bill.id),
-                        "field": "client",
-                        "target_model": "Client",
-                        "target_id": str(bill.client_id),
+                        "field": "company",
+                        "target_model": "Company",
+                        "target_id": str(bill.company_id),
                     }
                 )
 
@@ -385,17 +385,17 @@ class DataIntegrityService:
     def _check_creditnote_fks() -> list[dict[str, Any]]:
         """Check CreditNote FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
         for creditnote in CreditNote.objects.all():
-            if creditnote.client_id not in valid_client_ids:
+            if creditnote.company_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "CreditNote",
                         "record_id": str(creditnote.id),
-                        "field": "client",
-                        "target_model": "Client",
-                        "target_id": str(creditnote.client_id),
+                        "field": "company",
+                        "target_model": "Company",
+                        "target_id": str(creditnote.company_id),
                     }
                 )
 
@@ -499,7 +499,7 @@ class DataIntegrityService:
         """Check Quote FK references."""
         issues = []
         valid_job_ids = set(Job.objects.values_list("id", flat=True))
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
         for quote in Quote.objects.all():
             if quote.job_id and quote.job_id not in valid_job_ids:
@@ -512,14 +512,14 @@ class DataIntegrityService:
                         "target_id": str(quote.job_id),
                     }
                 )
-            if quote.client_id not in valid_client_ids:
+            if quote.company_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "Quote",
                         "record_id": str(quote.id),
-                        "field": "client",
-                        "target_model": "Client",
-                        "target_id": str(quote.client_id),
+                        "field": "company",
+                        "target_model": "Company",
+                        "target_id": str(quote.company_id),
                     }
                 )
 
@@ -567,22 +567,25 @@ class DataIntegrityService:
 
         return issues
 
-    # Client App FK Checks
+    # Company App FK Checks
     @staticmethod
-    def _check_client_fks() -> list[dict[str, Any]]:
-        """Check Client FK references."""
+    def _check_company_fks() -> list[dict[str, Any]]:
+        """Check Company FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
-        for client in Client.objects.all():
-            if client.merged_into_id and client.merged_into_id not in valid_client_ids:
+        for company in Company.objects.all():
+            if (
+                company.merged_into_id
+                and company.merged_into_id not in valid_company_ids
+            ):
                 issues.append(
                     {
-                        "model": "Client",
-                        "record_id": str(client.id),
+                        "model": "Company",
+                        "record_id": str(company.id),
                         "field": "merged_into",
-                        "target_model": "Client",
-                        "target_id": str(client.merged_into_id),
+                        "target_model": "Company",
+                        "target_id": str(company.merged_into_id),
                     }
                 )
 
@@ -592,17 +595,17 @@ class DataIntegrityService:
     def _check_clientcontact_fks() -> list[dict[str, Any]]:
         """Check ClientContact FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
         for contact in ClientContact.objects.all():
-            if contact.client_id not in valid_client_ids:
+            if contact.company_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "ClientContact",
                         "record_id": str(contact.id),
-                        "field": "client",
-                        "target_model": "Client",
-                        "target_id": str(contact.client_id),
+                        "field": "company",
+                        "target_model": "Company",
+                        "target_id": str(contact.company_id),
                     }
                 )
 
@@ -613,17 +616,17 @@ class DataIntegrityService:
     def _check_purchaseorder_fks() -> list[dict[str, Any]]:
         """Check PurchaseOrder FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
         valid_job_ids = set(Job.objects.values_list("id", flat=True))
 
         for po in PurchaseOrder.objects.all():
-            if po.supplier_id and po.supplier_id not in valid_client_ids:
+            if po.supplier_id and po.supplier_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "PurchaseOrder",
                         "record_id": str(po.id),
                         "field": "supplier",
-                        "target_model": "Client",
+                        "target_model": "Company",
                         "target_id": str(po.supplier_id),
                     }
                 )
@@ -757,19 +760,19 @@ class DataIntegrityService:
     def _check_supplierproduct_fks() -> list[dict[str, Any]]:
         """Check SupplierProduct FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
         valid_pricelist_ids = set(
             SupplierPriceList.objects.values_list("id", flat=True)
         )
 
         for product in SupplierProduct.objects.all():
-            if product.supplier_id not in valid_client_ids:
+            if product.supplier_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "SupplierProduct",
                         "record_id": str(product.id),
                         "field": "supplier",
-                        "target_model": "Client",
+                        "target_model": "Company",
                         "target_id": str(product.supplier_id),
                     }
                 )
@@ -790,16 +793,16 @@ class DataIntegrityService:
     def _check_supplierpricelist_fks() -> list[dict[str, Any]]:
         """Check SupplierPriceList FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
         for pricelist in SupplierPriceList.objects.all():
-            if pricelist.supplier_id not in valid_client_ids:
+            if pricelist.supplier_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "SupplierPriceList",
                         "record_id": str(pricelist.id),
                         "field": "supplier",
-                        "target_model": "Client",
+                        "target_model": "Company",
                         "target_id": str(pricelist.supplier_id),
                     }
                 )
@@ -810,16 +813,16 @@ class DataIntegrityService:
     def _check_scrapejob_fks() -> list[dict[str, Any]]:
         """Check ScrapeJob FK references."""
         issues = []
-        valid_client_ids = set(Client.objects.values_list("id", flat=True))
+        valid_company_ids = set(Company.objects.values_list("id", flat=True))
 
         for scrapejob in ScrapeJob.objects.all():
-            if scrapejob.supplier_id not in valid_client_ids:
+            if scrapejob.supplier_id not in valid_company_ids:
                 issues.append(
                     {
                         "model": "ScrapeJob",
                         "record_id": str(scrapejob.id),
                         "field": "supplier",
-                        "target_model": "Client",
+                        "target_model": "Company",
                         "target_id": str(scrapejob.supplier_id),
                     }
                 )
@@ -941,8 +944,8 @@ class DataIntegrityService:
         # Stock business rules
         issues.extend(DataIntegrityService._check_stock_business_rules())
 
-        # Client business rules
-        issues.extend(DataIntegrityService._check_client_business_rules())
+        # Company business rules
+        issues.extend(DataIntegrityService._check_company_business_rules())
 
         # JobFile business rules
         issues.extend(DataIntegrityService._check_jobfile_business_rules())
@@ -1215,24 +1218,24 @@ class DataIntegrityService:
         return issues
 
     @staticmethod
-    def _check_client_business_rules() -> list[dict[str, Any]]:
-        """Check Client business rules."""
+    def _check_company_business_rules() -> list[dict[str, Any]]:
+        """Check Company business rules."""
         issues = []
 
         # Check circular merges
-        checked_clients = set()
-        for client in Client.objects.exclude(merged_into__isnull=True):
-            if client.id in checked_clients:
+        checked_companies = set()
+        for company in Company.objects.exclude(merged_into__isnull=True):
+            if company.id in checked_companies:
                 continue
 
-            path = [client.id]
-            current = client
+            path = [company.id]
+            current = company
             while current.merged_into_id:
                 if current.merged_into_id in path:
                     issues.append(
                         {
-                            "model": "Client",
-                            "record_id": str(client.id),
+                            "model": "Company",
+                            "record_id": str(company.id),
                             "field": "merged_into",
                             "rule": "circular merge detected",
                             "path": [str(p) for p in path],
@@ -1240,10 +1243,10 @@ class DataIntegrityService:
                     )
                     break
                 path.append(current.merged_into_id)
-                checked_clients.add(current.id)
+                checked_companies.add(current.id)
                 try:
-                    current = Client.objects.get(id=current.merged_into_id)
-                except Client.DoesNotExist:
+                    current = Company.objects.get(id=current.merged_into_id)
+                except Company.DoesNotExist:
                     break
 
         return issues

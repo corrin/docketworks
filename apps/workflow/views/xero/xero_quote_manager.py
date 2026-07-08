@@ -8,7 +8,7 @@ from django.utils import timezone
 
 if TYPE_CHECKING:
     from apps.accounts.models import Staff
-    from apps.client.models import Client
+    from apps.company.models import Company
     from apps.job.models import Job
 
 from apps.accounting.enums import QuoteStatus
@@ -31,18 +31,18 @@ class XeroQuoteManager(XeroDocumentManager):
     Handles Quote creation and syncing via the accounting provider.
     """
 
-    def __init__(self, client: "Client", job: "Job", staff: "Staff") -> None:
+    def __init__(self, company: "Company", job: "Job", staff: "Staff") -> None:
         """
-        Initializes the quote manager. Client, job, and staff are all required.
+        Initializes the quote manager. Company, job, and staff are all required.
 
         Args:
-            client: The client associated with the quote.
+            company: The company associated with the quote.
             job: The associated job.
             staff: The authenticated staff member performing the action.
         """
-        if not client or not job:
-            raise ValueError("Client and Job are required for XeroQuoteManager")
-        super().__init__(client=client, job=job, staff=staff)
+        if not company or not job:
+            raise ValueError("Company and Job are required for XeroQuoteManager")
+        super().__init__(company=company, job=job, staff=staff)
 
     def get_xero_id(self):
         return (
@@ -128,7 +128,7 @@ class XeroQuoteManager(XeroDocumentManager):
             ]
 
     def build_payload(self, breakdown: bool = True) -> QuotePayload:
-        """Build a provider-agnostic quote payload from the job and client."""
+        """Build a provider-agnostic quote payload from the job and company."""
         if not self.job:
             raise ValueError("Job is required to build quote payload.")
 
@@ -136,8 +136,8 @@ class XeroQuoteManager(XeroDocumentManager):
         today = timezone.localdate()
 
         return QuotePayload(
-            client_external_id=self.client.xero_contact_id,
-            client_name=self.client.name,
+            client_external_id=self.company.xero_contact_id,
+            company_name=self.company.name,
             line_items=line_items,
             date=today,
             expiry_date=today + timedelta(days=30),
@@ -156,7 +156,7 @@ class XeroQuoteManager(XeroDocumentManager):
             breakdown: If True, sends detailed line items. If False, sends single total.
         """
         try:
-            self.validate_client()
+            self.validate_company()
 
             if not self.state_valid_for_xero():
                 raise ValueError("Document is not in a valid state for submission.")
@@ -176,7 +176,7 @@ class XeroQuoteManager(XeroDocumentManager):
             quote = Quote.objects.create(
                 xero_id=result.external_id,
                 job=self.job,
-                client=self.client,
+                company=self.company,
                 date=timezone.localdate(),
                 status=QuoteStatus.DRAFT,
                 number=result.number,
@@ -215,7 +215,7 @@ class XeroQuoteManager(XeroDocumentManager):
             return {
                 "success": True,
                 "xero_id": result.external_id,
-                "client": self.client.name,
+                "company": self.company.name,
                 "online_url": result.online_url,
             }
 
@@ -233,7 +233,7 @@ class XeroQuoteManager(XeroDocumentManager):
     def delete_document(self):
         """Deletes a quote via the provider and removes the local record."""
         try:
-            self.validate_client()
+            self.validate_company()
             xero_id = self.get_xero_id()
             if not xero_id:
                 raise ValueError("Cannot delete quote without a Xero ID.")

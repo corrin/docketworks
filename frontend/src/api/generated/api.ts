@@ -10,7 +10,7 @@ const KPIJobBreakdown = z.object({
   job_id: z.string(),
   job_number: z.string(),
   job_name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   billable_hours: z.number(),
   revenue: z.number(),
   cost: z.number(),
@@ -121,7 +121,7 @@ const JobAgingJobData = z.object({
   id: z.string(),
   job_number: z.number().int(),
   name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   status: z.string(),
   status_display: z.string(),
   financial_data: JobAgingFinancialData,
@@ -209,7 +209,7 @@ const RDTISpendJobDetail = z.object({
   job_id: z.string(),
   job_number: z.number().int(),
   job_name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   rdti_type: z.string(),
   hours: z.number(),
   cost: z.number(),
@@ -270,7 +270,7 @@ const SalesPipelineSnapshotJob = z.object({
   id: z.string(),
   job_number: z.number().int(),
   name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   hours: z.number(),
   value: z.number(),
   days_in_stage: z.number().int(),
@@ -360,7 +360,7 @@ const StaffPerformanceJobBreakdown = z.object({
   job_id: z.string(),
   job_number: z.number().int(),
   job_name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   billable_hours: z.number(),
   non_billable_hours: z.number(),
   total_hours: z.number(),
@@ -397,7 +397,7 @@ const StaffPerformanceResponse = z.object({
 const WIPJob = z.object({
   job_number: z.number().int(),
   name: z.string(),
-  client: z.string(),
+  company: z.string(),
   status: z.string(),
   time_cost: z.number(),
   time_rev: z.number(),
@@ -623,7 +623,7 @@ const GroupedErrorResolveRequestRequest = z.object({
 })
 const GroupedErrorResolveResponse = z.object({ updated: z.number().int() })
 const BuildId = z.object({ build_id: z.string() })
-const ClientDetailResponse = z.object({
+const CompanyDetailResponse = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
@@ -647,17 +647,17 @@ const ClientDetailResponse = z.object({
   total_spend: z.string(),
   phone: z.string(),
 })
-const ClientErrorResponse = z.object({
+const CompanyErrorResponse = z.object({
   success: z.boolean().optional().default(false),
   error: z.string(),
   details: z.string().optional(),
   error_id: z.string().optional(),
 })
-const ClientJobHeader = z.object({
+const CompanyJobHeader = z.object({
   job_id: z.string().uuid(),
   job_number: z.number().int(),
   name: z.string(),
-  client: z.object({}).partial().passthrough().nullable(),
+  company: z.object({}).partial().passthrough().nullable(),
   status: z.string(),
   pricing_methodology: z.string().nullable(),
   speed_quality_tradeoff: z.string(),
@@ -670,10 +670,10 @@ const ClientJobHeader = z.object({
   min_people: z.number().int(),
   max_people: z.number().int(),
 })
-const ClientJobsResponse = z.object({ results: z.array(ClientJobHeader) })
+const CompanyJobsResponse = z.object({ results: z.array(CompanyJobHeader) })
 const SupplierSearchAlias = z.object({
   id: z.string().uuid(),
-  client: z.string().uuid(),
+  company: z.string().uuid(),
   alias: z.string().max(255),
   is_active: z.boolean(),
   created_at: z.string().datetime({ offset: true }),
@@ -682,7 +682,7 @@ const SupplierSearchAlias = z.object({
 const SupplierSearchAliasCreateRequest = z.object({
   alias: z.string().min(1).max(255),
 })
-const ClientUpdateRequest = z
+const CompanyUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
@@ -692,12 +692,12 @@ const ClientUpdateRequest = z
     allow_jobs: z.boolean(),
   })
   .partial()
-const ClientUpdateResponse = z.object({
+const CompanyUpdateResponse = z.object({
   success: z.boolean(),
-  client: ClientDetailResponse,
+  company: CompanyDetailResponse,
   message: z.string(),
 })
-const PatchedClientUpdateRequest = z
+const PatchedCompanyUpdateRequest = z
   .object({
     name: z.string().min(1).max(255),
     email: z.string().email(),
@@ -707,14 +707,14 @@ const PatchedClientUpdateRequest = z
     allow_jobs: z.boolean(),
   })
   .partial()
-const ClientNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
+const CompanyNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
 const MethodTypeEnum = z.enum(['phone', 'email'])
 const ClientContactMethodSourceEnum = z.enum(['imported', 'local'])
 const ClientContactMethod = z.object({
   id: z.string().uuid(),
-  client: z.string().uuid().nullish(),
-  owner_client: z.string(),
-  client_name: z.string(),
+  company: z.string().uuid().nullish(),
+  owner_company: z.string(),
+  company_name: z.string(),
   contact: z.string().uuid().nullish(),
   contact_name: z.string(),
   method_type: MethodTypeEnum,
@@ -734,7 +734,7 @@ const PaginatedClientContactMethodList = z.object({
   total_pages: z.number().int(),
 })
 const ClientContactMethodRequest = z.object({
-  client: z.string().uuid().nullish(),
+  company: z.string().uuid().nullish(),
   contact: z.string().uuid().nullish(),
   method_type: MethodTypeEnum,
   value: z.string().min(1).max(255),
@@ -744,7 +744,7 @@ const ClientContactMethodRequest = z.object({
 })
 const PatchedClientContactMethodRequest = z
   .object({
-    client: z.string().uuid().nullable(),
+    company: z.string().uuid().nullable(),
     contact: z.string().uuid().nullable(),
     method_type: MethodTypeEnum,
     value: z.string().min(1).max(255),
@@ -755,7 +755,7 @@ const PatchedClientContactMethodRequest = z
   .partial()
 const ClientContact = z.object({
   id: z.string().uuid(),
-  client: z.string().uuid(),
+  company: z.string().uuid(),
   name: z.string().max(255),
   email: z.string().max(254).email().nullish(),
   position: z.string().max(255).nullish(),
@@ -767,7 +767,7 @@ const ClientContact = z.object({
   phone: z.string().nullish().default(''),
 })
 const ClientContactRequest = z.object({
-  client: z.string().uuid(),
+  company: z.string().uuid(),
   name: z.string().min(1).max(255),
   email: z.string().max(254).email().nullish(),
   position: z.string().max(255).nullish(),
@@ -777,7 +777,7 @@ const ClientContactRequest = z.object({
 })
 const PatchedClientContactRequest = z
   .object({
-    client: z.string().uuid(),
+    company: z.string().uuid(),
     name: z.string().min(1).max(255),
     email: z.string().max(254).email().nullable(),
     position: z.string().max(255).nullable(),
@@ -786,7 +786,7 @@ const PatchedClientContactRequest = z
     phone: z.string().nullable().default(''),
   })
   .partial()
-const ClientCreateRequest = z.object({
+const CompanyCreateRequest = z.object({
   name: z.string().min(1).max(255),
   email: z.string().email().nullish(),
   phone: z.string().nullish(),
@@ -794,7 +794,7 @@ const ClientCreateRequest = z.object({
   is_account_customer: z.boolean().optional().default(true),
   allow_jobs: z.boolean().optional().default(true),
 })
-const ClientSearchResult = z.object({
+const CompanySearchResult = z.object({
   id: z.string(),
   name: z.string(),
   email: z.string(),
@@ -807,15 +807,15 @@ const ClientSearchResult = z.object({
   last_invoice_date: z.string().datetime({ offset: true }).nullable(),
   total_spend: z.string(),
 })
-const ClientCreateResponse = z.object({
+const CompanyCreateResponse = z.object({
   success: z.boolean(),
-  client: ClientSearchResult,
+  company: CompanySearchResult,
   message: z.string(),
 })
-const ClientDuplicateErrorResponse = z.object({
+const CompanyDuplicateErrorResponse = z.object({
   success: z.boolean().optional().default(false),
   error: z.string(),
-  existing_client: z.object({}).partial().passthrough(),
+  existing_company: z.object({}).partial().passthrough(),
 })
 const JobContactResponse = z.object({
   id: z.string().uuid(),
@@ -835,7 +835,7 @@ const JobContactUpdateRequest = z.object({
 })
 const SupplierPickupAddress = z.object({
   id: z.string().uuid(),
-  client: z.string().uuid(),
+  company: z.string().uuid(),
   name: z.string().max(255),
   street: z.string().max(255),
   suburb: z.string().max(100).nullish(),
@@ -854,7 +854,7 @@ const SupplierPickupAddress = z.object({
   formatted_address: z.string(),
 })
 const SupplierPickupAddressRequest = z.object({
-  client: z.string().uuid(),
+  company: z.string().uuid(),
   name: z.string().min(1).max(255),
   street: z.string().min(1).max(255),
   suburb: z.string().max(100).nullish(),
@@ -870,7 +870,7 @@ const SupplierPickupAddressRequest = z.object({
 })
 const PatchedSupplierPickupAddressRequest = z
   .object({
-    client: z.string().uuid(),
+    company: z.string().uuid(),
     name: z.string().min(1).max(255),
     street: z.string().min(1).max(255),
     suburb: z.string().max(100).nullable(),
@@ -885,8 +885,8 @@ const PatchedSupplierPickupAddressRequest = z
     notes: z.string().nullable(),
   })
   .partial()
-const ClientSearchResponse = z.object({
-  results: z.array(ClientSearchResult),
+const CompanySearchResponse = z.object({
+  results: z.array(CompanySearchResult),
   count: z.number().int(),
   page: z.number().int(),
   page_size: z.number().int(),
@@ -947,7 +947,7 @@ const CompanyDefaults = z.object({
   country: z.string().max(100).optional(),
   company_email: z.string().max(254).email().nullish(),
   company_url: z.string().max(200).url().nullish(),
-  test_client_name: z.string().max(255).nullish(),
+  test_company_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
@@ -956,7 +956,7 @@ const CompanyDefaults = z.object({
   kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
   kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
   daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-  shop_client: z.string().uuid(),
+  shop_company: z.string().uuid(),
 })
 const CompanyDefaultsRequest = z.object({
   logo: z.instanceof(File).nullish(),
@@ -1009,7 +1009,7 @@ const CompanyDefaultsRequest = z.object({
   country: z.string().min(1).max(100).optional(),
   company_email: z.string().max(254).email().nullish(),
   company_url: z.string().max(200).url().nullish(),
-  test_client_name: z.string().max(255).nullish(),
+  test_company_name: z.string().max(255).nullish(),
   kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000).optional(),
   kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000).optional(),
@@ -1018,7 +1018,7 @@ const CompanyDefaultsRequest = z.object({
   kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000).optional(),
   kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000).optional(),
   daily_approved_hours_target: z.number().gt(-1000).lt(1000).optional(),
-  shop_client: z.string().uuid(),
+  shop_company: z.string().uuid(),
 })
 const PatchedCompanyDefaultsRequest = z
   .object({
@@ -1072,7 +1072,7 @@ const PatchedCompanyDefaultsRequest = z
     country: z.string().min(1).max(100),
     company_email: z.string().max(254).email().nullable(),
     company_url: z.string().max(200).url().nullable(),
-    test_client_name: z.string().max(255).nullable(),
+    test_company_name: z.string().max(255).nullable(),
     kpi_daily_billable_hours_green: z.number().gt(-1000).lt(1000),
     kpi_daily_billable_hours_amber: z.number().gt(-1000).lt(1000),
     kpi_daily_gp_target: z.number().gt(-100000000).lt(100000000),
@@ -1081,7 +1081,7 @@ const PatchedCompanyDefaultsRequest = z
     kpi_daily_gp_green: z.number().gt(-100000000).lt(100000000),
     kpi_daily_gp_amber: z.number().gt(-100000000).lt(100000000),
     daily_approved_hours_target: z.number().gt(-1000).lt(1000),
-    shop_client: z.string().uuid(),
+    shop_company: z.string().uuid(),
   })
   .partial()
 const SettingsField = z.object({
@@ -1139,8 +1139,8 @@ const PhoneCallRecord = z.object({
   destination_endpoint_label: z.string(),
   duration_seconds: z.number().int(),
   charge: z.number().gt(-100000000).lt(100000000).nullable(),
-  client: z.string().uuid().nullable(),
-  client_name: z.string(),
+  company: z.string().uuid().nullable(),
+  company_name: z.string(),
   contact: z.string().uuid().nullable(),
   contact_name: z.string(),
   job: z.string().uuid().nullable(),
@@ -1161,7 +1161,7 @@ const PaginatedPhoneCallRecordList = z.object({
   total_pages: z.number().int(),
 })
 const PhoneNumberAssignmentRequest = z.object({
-  client: z.string().uuid(),
+  company: z.string().uuid(),
   contact: z.string().uuid().nullish(),
   is_primary: z.boolean().optional().default(false),
   label: z.string().max(255).optional().default(''),
@@ -1328,7 +1328,7 @@ const DataIntegrityResponse = z.object({
 const ArchivedJobIssue = z.object({
   job_id: z.string(),
   job_number: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   archived_date: z.string(),
   current_status: z.string(),
   issue: z.string(),
@@ -1379,7 +1379,7 @@ const CompleteJob = z.object({
   id: z.string().uuid(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
   name: z.string().max(100),
-  client_name: z.string(),
+  company_name: z.string(),
   updated_at: z.string().datetime({ offset: true }),
   job_status: z.string(),
 })
@@ -1398,7 +1398,7 @@ const ArchiveJobsResponse = z.object({
 })
 const JobCreateRequest = z.object({
   name: z.string().min(1).max(255),
-  client_id: z.string().uuid(),
+  company_id: z.string().uuid(),
   description: z.string().optional(),
   order_number: z.string().optional(),
   notes: z.string().optional(),
@@ -1495,8 +1495,8 @@ const NullEnum = z.unknown()
 const Job = z.object({
   id: z.string().uuid(),
   name: z.string().max(100),
-  client_id: z.string().uuid().nullish(),
-  client_name: z.string().nullable(),
+  company_id: z.string().uuid().nullish(),
+  company_name: z.string().nullable(),
   contact_id: z.string().uuid().nullish(),
   contact_name: z.string().nullable(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
@@ -1708,8 +1708,8 @@ const JobStatusEnum = z.enum([
 ])
 const JobHeaderResponse = z.object({
   job_id: z.string().uuid(),
-  client_id: z.string().uuid().nullable(),
-  client_name: z.string().nullable(),
+  company_id: z.string().uuid().nullable(),
+  company_name: z.string().nullable(),
   contact_id: z.string().uuid().nullable(),
   contact_name: z.string().nullable(),
   quoted: z.boolean(),
@@ -1834,8 +1834,8 @@ const CostSetSummaryOnly = z.object({
 const JobSummary = z.object({
   id: z.string().uuid(),
   name: z.string().max(100),
-  client_id: z.string().uuid().nullish(),
-  client_name: z.string().nullable(),
+  company_id: z.string().uuid().nullish(),
+  company_name: z.string().nullable(),
   contact_id: z.string().uuid().nullish(),
   contact_name: z.string().nullable(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
@@ -1976,7 +1976,7 @@ const KanbanJob = z.object({
   name: z.string(),
   description: z.string().nullable(),
   job_number: z.number().int(),
-  client_name: z.string(),
+  company_name: z.string(),
   contact_person: z.string(),
   people: z.array(KanbanJobPerson),
   status: z.string(),
@@ -2044,7 +2044,7 @@ const KanbanColumnJob = z.object({
   job_number: z.number().int(),
   name: z.string(),
   description: z.string().nullable(),
-  client_name: z.string(),
+  company_name: z.string(),
   contact_person: z.string(),
   people: z.array(KanbanJobPerson),
   status: z.string(),
@@ -2102,7 +2102,7 @@ const WeeklyMetrics = z.object({
   job_id: z.string().uuid(),
   job_number: z.number().int(),
   name: z.string(),
-  client: z.string().nullish(),
+  company: z.string().nullish(),
   description: z.string().nullish(),
   status: z.string(),
   people: z.array(z.object({}).partial().passthrough()),
@@ -2115,7 +2115,7 @@ const WorkshopJob = z.object({
   name: z.string(),
   description: z.string().nullable(),
   job_number: z.number().int(),
-  client_name: z.string(),
+  company_name: z.string(),
   contact_person: z.string().nullable(),
   people: z.array(KanbanJobPerson),
 })
@@ -2163,7 +2163,7 @@ const MonthEndJob = z.object({
   job_id: z.string().uuid(),
   job_number: z.number().int(),
   job_name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   history: z.array(MonthEndJobHistory),
   total_hours: z.number(),
   total_dollars: z.number(),
@@ -2199,7 +2199,7 @@ const JobProfitabilityItem = z.object({
   job_id: z.string(),
   job_number: z.number().int(),
   job_name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   pricing_type: z.string(),
   pricing_type_display: z.string(),
   completion_date: z.string().nullable(),
@@ -2262,7 +2262,7 @@ const TimesheetCostLine = z.object({
   job_id: z.string(),
   job_number: z.number().int(),
   job_name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   charge_out_rate: z.number(),
   wage_rate: z.number(),
   xero_pay_item_name: z.string().min(1),
@@ -2321,7 +2321,7 @@ const WorkshopTimesheetEntry = z.object({
   job_id: z.string().uuid(),
   job_number: z.number().int(),
   job_name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   description: z.string(),
   hours: z.number().gt(-100000).lt(100000),
   accounting_date: z.string(),
@@ -2381,7 +2381,7 @@ const ScheduledJob = z.object({
   id: z.string().uuid(),
   job_number: z.number().int(),
   name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   remaining_hours: z.number(),
   delivery_date: z.string().nullable(),
   anticipated_start_date: z.string().nullable(),
@@ -2396,7 +2396,7 @@ const UnscheduledJob = z.object({
   id: z.string().uuid(),
   job_number: z.number().int(),
   name: z.string(),
-  client_name: z.string(),
+  company_name: z.string(),
   delivery_date: z.string().nullable(),
   remaining_hours: z.number(),
   reason: z.string(),
@@ -2609,7 +2609,7 @@ const JobForPurchasing = z.object({
   id: z.string().uuid(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
   name: z.string().max(100),
-  client_name: z.string().default('No Client'),
+  company_name: z.string().default('No Company'),
   status: JobStatusEnum.optional(),
   is_stock_holding: z.boolean(),
   job_display_name: z.string(),
@@ -2689,7 +2689,7 @@ const ProductMappingValidateResponse = z.object({
 const PurchaseOrderJob = z.object({
   job_number: z.string(),
   name: z.string(),
-  client: z.string(),
+  company: z.string(),
 })
 const PurchaseOrderList = z.object({
   id: z.string().uuid(),
@@ -2770,7 +2770,7 @@ const PurchaseOrderLine = z.object({
   location: z.string().max(255).nullish(),
   job_id: z.string().uuid().nullable(),
   job_number: z.number().int().nullable(),
-  client_name: z.string().nullable(),
+  company_name: z.string().nullable(),
   job_name: z.string().nullable(),
   times_used: z.number().int(),
 })
@@ -3144,7 +3144,7 @@ const JobBreakdown = z.object({
   job_id: z.string(),
   job_number: z.number().int(),
   job_name: z.string(),
-  client: z.string(),
+  company: z.string(),
   hours: z.number(),
   revenue: z.number(),
   cost: z.number(),
@@ -3203,7 +3203,7 @@ const ModernTimesheetJob = z.object({
   id: z.string().uuid(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
   name: z.string().max(100),
-  client_name: z.string().nullable(),
+  company_name: z.string().nullable(),
   status: JobStatusEnum.optional(),
   labour_rates: z.array(JobLabourRate),
   has_actual_costset: z.boolean(),
@@ -3488,7 +3488,7 @@ const XeroDocumentSuccessResponse = z.object({
   xero_id: z.string().uuid(),
   online_url: z.string().url().optional(),
   messages: z.array(z.string()).optional(),
-  client: z.string().optional(),
+  company: z.string().optional(),
   total_excl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
   total_incl_tax: z.number().gt(-10000000000).lt(10000000000).optional(),
   action: z.string().optional(),
@@ -3593,16 +3593,16 @@ export const schemas = {
   GroupedErrorResolveRequestRequest,
   GroupedErrorResolveResponse,
   BuildId,
-  ClientDetailResponse,
-  ClientErrorResponse,
-  ClientJobHeader,
-  ClientJobsResponse,
+  CompanyDetailResponse,
+  CompanyErrorResponse,
+  CompanyJobHeader,
+  CompanyJobsResponse,
   SupplierSearchAlias,
   SupplierSearchAliasCreateRequest,
-  ClientUpdateRequest,
-  ClientUpdateResponse,
-  PatchedClientUpdateRequest,
-  ClientNameOnly,
+  CompanyUpdateRequest,
+  CompanyUpdateResponse,
+  PatchedCompanyUpdateRequest,
+  CompanyNameOnly,
   MethodTypeEnum,
   ClientContactMethodSourceEnum,
   ClientContactMethod,
@@ -3612,16 +3612,16 @@ export const schemas = {
   ClientContact,
   ClientContactRequest,
   PatchedClientContactRequest,
-  ClientCreateRequest,
-  ClientSearchResult,
-  ClientCreateResponse,
-  ClientDuplicateErrorResponse,
+  CompanyCreateRequest,
+  CompanySearchResult,
+  CompanyCreateResponse,
+  CompanyDuplicateErrorResponse,
   JobContactResponse,
   JobContactUpdateRequest,
   SupplierPickupAddress,
   SupplierPickupAddressRequest,
   PatchedSupplierPickupAddressRequest,
-  ClientSearchResponse,
+  CompanySearchResponse,
   CompanyDefaults,
   CompanyDefaultsRequest,
   PatchedCompanyDefaultsRequest,
@@ -4235,7 +4235,7 @@ Returns:
           z
             .object({
               date: z.string(),
-              client_name: z.string(),
+              company_name: z.string(),
               job_number: z.number().int().nullable(),
               job_name: z.string().nullable(),
               invoice_numbers: z.string().nullable(),
@@ -4780,63 +4780,63 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
-    path: '/api/clients/:client_id/',
-    alias: 'clients_retrieve',
-    description: `Retrieve detailed information for a specific client.`,
+    path: '/api/companies/:company_id/',
+    alias: 'companies_retrieve',
+    description: `Retrieve detailed information for a specific company.`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
-    response: ClientDetailResponse,
+    response: CompanyDetailResponse,
     errors: [
       {
         status: 404,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'get',
-    path: '/api/clients/:client_id/jobs/',
-    alias: 'clients_jobs_retrieve',
-    description: `Retrieve all jobs for a specific client.`,
+    path: '/api/companies/:company_id/jobs/',
+    alias: 'companies_jobs_retrieve',
+    description: `Retrieve all jobs for a specific company.`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
-    response: ClientJobsResponse,
+    response: CompanyJobsResponse,
     errors: [
       {
         status: 404,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'get',
-    path: '/api/clients/:client_id/supplier-aliases/',
-    alias: 'clients_supplier_aliases_list',
-    description: `List and create search aliases for a client/supplier contact.`,
+    path: '/api/companies/:company_id/supplier-aliases/',
+    alias: 'companies_supplier_aliases_list',
+    description: `List and create search aliases for a company/supplier contact.`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Path',
         schema: z.string().uuid(),
       },
@@ -4845,9 +4845,9 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'post',
-    path: '/api/clients/:client_id/supplier-aliases/',
-    alias: 'clients_supplier_aliases_create',
-    description: `List and create search aliases for a client/supplier contact.`,
+    path: '/api/companies/:company_id/supplier-aliases/',
+    alias: 'companies_supplier_aliases_create',
+    description: `List and create search aliases for a company/supplier contact.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -4856,7 +4856,7 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         schema: z.object({ alias: z.string().min(1).max(255) }),
       },
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Path',
         schema: z.string().uuid(),
       },
@@ -4865,76 +4865,76 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'put',
-    path: '/api/clients/:client_id/update/',
-    alias: 'clients_update_update',
-    description: `Update an existing client&#x27;s information.`,
+    path: '/api/companies/:company_id/update/',
+    alias: 'companies_update_update',
+    description: `Update an existing company&#x27;s information.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: ClientUpdateRequest,
+        schema: CompanyUpdateRequest,
       },
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
-    response: ClientUpdateResponse,
+    response: CompanyUpdateResponse,
     errors: [
       {
         status: 400,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 404,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'patch',
-    path: '/api/clients/:client_id/update/',
-    alias: 'clients_update_partial_update',
-    description: `Partially update an existing client&#x27;s information.`,
+    path: '/api/companies/:company_id/update/',
+    alias: 'companies_update_partial_update',
+    description: `Partially update an existing company&#x27;s information.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: PatchedClientUpdateRequest,
+        schema: PatchedCompanyUpdateRequest,
       },
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Path',
         schema: z.string().uuid(),
       },
     ],
-    response: ClientUpdateResponse,
+    response: CompanyUpdateResponse,
     errors: [
       {
         status: 400,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 404,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'post',
-    path: '/api/clients/addresses/validate/',
-    alias: 'clients_addresses_validate_create',
+    path: '/api/companies/addresses/validate/',
+    alias: 'companies_addresses_validate_create',
     description: `Validate an address and return structured candidates.`,
     requestFormat: 'json',
     parameters: [
@@ -4977,27 +4977,27 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
-    path: '/api/clients/all/',
-    alias: 'clients_all_list',
-    description: `Returns a list of all clients with basic information (id and name) for dropdowns and search.`,
+    path: '/api/companies/all/',
+    alias: 'companies_all_list',
+    description: `Returns a list of all companies with basic information (id and name) for dropdowns and search.`,
     requestFormat: 'json',
-    response: z.array(ClientNameOnly),
+    response: z.array(CompanyNameOnly),
     errors: [
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'get',
-    path: '/api/clients/contact-methods/',
-    alias: 'clients_contact_methods_list',
-    description: `CRUD API for canonical client/contact phone and email methods.`,
+    path: '/api/companies/contact-methods/',
+    alias: 'companies_contact_methods_list',
+    description: `CRUD API for canonical company/contact phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Query',
         schema: z.string().uuid().optional(),
       },
@@ -5026,9 +5026,9 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'post',
-    path: '/api/clients/contact-methods/',
-    alias: 'clients_contact_methods_create',
-    description: `CRUD API for canonical client/contact phone and email methods.`,
+    path: '/api/companies/contact-methods/',
+    alias: 'companies_contact_methods_create',
+    description: `CRUD API for canonical company/contact phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5041,9 +5041,9 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
-    path: '/api/clients/contact-methods/:id/',
-    alias: 'clients_contact_methods_retrieve',
-    description: `CRUD API for canonical client/contact phone and email methods.`,
+    path: '/api/companies/contact-methods/:id/',
+    alias: 'companies_contact_methods_retrieve',
+    description: `CRUD API for canonical company/contact phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5056,9 +5056,9 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'put',
-    path: '/api/clients/contact-methods/:id/',
-    alias: 'clients_contact_methods_update',
-    description: `CRUD API for canonical client/contact phone and email methods.`,
+    path: '/api/companies/contact-methods/:id/',
+    alias: 'companies_contact_methods_update',
+    description: `CRUD API for canonical company/contact phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5076,9 +5076,9 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'patch',
-    path: '/api/clients/contact-methods/:id/',
-    alias: 'clients_contact_methods_partial_update',
-    description: `CRUD API for canonical client/contact phone and email methods.`,
+    path: '/api/companies/contact-methods/:id/',
+    alias: 'companies_contact_methods_partial_update',
+    description: `CRUD API for canonical company/contact phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5096,9 +5096,9 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'delete',
-    path: '/api/clients/contact-methods/:id/',
-    alias: 'clients_contact_methods_destroy',
-    description: `CRUD API for canonical client/contact phone and email methods.`,
+    path: '/api/companies/contact-methods/:id/',
+    alias: 'companies_contact_methods_destroy',
+    description: `CRUD API for canonical company/contact phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5111,13 +5111,13 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
-    path: '/api/clients/contacts/',
-    alias: 'clients_contacts_list',
-    description: `List all contacts, optionally filtered by client_id.`,
+    path: '/api/companies/contacts/',
+    alias: 'companies_contacts_list',
+    description: `List all contacts, optionally filtered by company_id.`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client_id',
+        name: 'company_id',
         type: 'Query',
         schema: z.string().uuid().optional(),
       },
@@ -5126,20 +5126,20 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'post',
-    path: '/api/clients/contacts/',
-    alias: 'clients_contacts_create',
+    path: '/api/companies/contacts/',
+    alias: 'companies_contacts_create',
     description: `ViewSet for ClientContact CRUD operations.
 
 Endpoints:
-- GET    /api/clients/contacts/           - list all contacts
-- POST   /api/clients/contacts/           - create contact
-- GET    /api/clients/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/clients/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/clients/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/clients/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/contacts/           - list all contacts
+- POST   /api/companies/contacts/           - create contact
+- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
+- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
+- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
+- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- client_id: Filter contacts by client UUID`,
+- company_id: Filter contacts by company UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5152,20 +5152,20 @@ Query Parameters:
   },
   {
     method: 'get',
-    path: '/api/clients/contacts/:id/',
-    alias: 'clients_contacts_retrieve',
+    path: '/api/companies/contacts/:id/',
+    alias: 'companies_contacts_retrieve',
     description: `ViewSet for ClientContact CRUD operations.
 
 Endpoints:
-- GET    /api/clients/contacts/           - list all contacts
-- POST   /api/clients/contacts/           - create contact
-- GET    /api/clients/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/clients/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/clients/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/clients/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/contacts/           - list all contacts
+- POST   /api/companies/contacts/           - create contact
+- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
+- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
+- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
+- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- client_id: Filter contacts by client UUID`,
+- company_id: Filter contacts by company UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5178,20 +5178,20 @@ Query Parameters:
   },
   {
     method: 'put',
-    path: '/api/clients/contacts/:id/',
-    alias: 'clients_contacts_update',
+    path: '/api/companies/contacts/:id/',
+    alias: 'companies_contacts_update',
     description: `ViewSet for ClientContact CRUD operations.
 
 Endpoints:
-- GET    /api/clients/contacts/           - list all contacts
-- POST   /api/clients/contacts/           - create contact
-- GET    /api/clients/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/clients/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/clients/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/clients/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/contacts/           - list all contacts
+- POST   /api/companies/contacts/           - create contact
+- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
+- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
+- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
+- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- client_id: Filter contacts by client UUID`,
+- company_id: Filter contacts by company UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5209,20 +5209,20 @@ Query Parameters:
   },
   {
     method: 'patch',
-    path: '/api/clients/contacts/:id/',
-    alias: 'clients_contacts_partial_update',
+    path: '/api/companies/contacts/:id/',
+    alias: 'companies_contacts_partial_update',
     description: `ViewSet for ClientContact CRUD operations.
 
 Endpoints:
-- GET    /api/clients/contacts/           - list all contacts
-- POST   /api/clients/contacts/           - create contact
-- GET    /api/clients/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/clients/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/clients/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/clients/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/contacts/           - list all contacts
+- POST   /api/companies/contacts/           - create contact
+- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
+- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
+- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
+- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- client_id: Filter contacts by client UUID`,
+- company_id: Filter contacts by company UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5240,20 +5240,20 @@ Query Parameters:
   },
   {
     method: 'delete',
-    path: '/api/clients/contacts/:id/',
-    alias: 'clients_contacts_destroy',
+    path: '/api/companies/contacts/:id/',
+    alias: 'companies_contacts_destroy',
     description: `ViewSet for ClientContact CRUD operations.
 
 Endpoints:
-- GET    /api/clients/contacts/           - list all contacts
-- POST   /api/clients/contacts/           - create contact
-- GET    /api/clients/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/clients/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/clients/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/clients/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/contacts/           - list all contacts
+- POST   /api/companies/contacts/           - create contact
+- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
+- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
+- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
+- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- client_id: Filter contacts by client UUID`,
+- company_id: Filter contacts by company UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5266,41 +5266,41 @@ Query Parameters:
   },
   {
     method: 'post',
-    path: '/api/clients/create/',
-    alias: 'clients_create_create',
-    description: `Creates a new client in Xero first, then syncs locally. Requires valid Xero authentication.`,
+    path: '/api/companies/create/',
+    alias: 'companies_create_create',
+    description: `Creates a new company in Xero first, then syncs locally. Requires valid Xero authentication.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: ClientCreateRequest,
+        schema: CompanyCreateRequest,
       },
     ],
-    response: ClientCreateResponse,
+    response: CompanyCreateResponse,
     errors: [
       {
         status: 400,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 401,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 409,
-        schema: ClientDuplicateErrorResponse,
+        schema: CompanyDuplicateErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'get',
-    path: '/api/clients/jobs/:job_id/contact/',
-    alias: 'clients_jobs_contact_retrieve',
+    path: '/api/companies/jobs/:job_id/contact/',
+    alias: 'companies_jobs_contact_retrieve',
     description: `Retrieve contact information for a specific job.`,
     requestFormat: 'json',
     parameters: [
@@ -5314,18 +5314,18 @@ Query Parameters:
     errors: [
       {
         status: 404,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'put',
-    path: '/api/clients/jobs/:job_id/contact/',
-    alias: 'clients_jobs_contact_update',
+    path: '/api/companies/jobs/:job_id/contact/',
+    alias: 'companies_jobs_contact_update',
     description: `Update the contact person associated with a specific job.`,
     requestFormat: 'json',
     parameters: [
@@ -5344,22 +5344,22 @@ Query Parameters:
     errors: [
       {
         status: 400,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 404,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'get',
-    path: '/api/clients/pickup-addresses/',
-    alias: 'clients_pickup_addresses_list',
+    path: '/api/companies/pickup-addresses/',
+    alias: 'companies_pickup_addresses_list',
     description: `List all pickup addresses, optionally filtered by supplier_id.`,
     requestFormat: 'json',
     parameters: [
@@ -5373,20 +5373,20 @@ Query Parameters:
   },
   {
     method: 'post',
-    path: '/api/clients/pickup-addresses/',
-    alias: 'clients_pickup_addresses_create',
+    path: '/api/companies/pickup-addresses/',
+    alias: 'companies_pickup_addresses_create',
     description: `ViewSet for SupplierPickupAddress CRUD operations.
 
 Endpoints:
-- GET    /api/clients/pickup-addresses/           - list all addresses
-- POST   /api/clients/pickup-addresses/           - create address
-- GET    /api/clients/pickup-addresses/&lt;id&gt;/      - retrieve address
-- PUT    /api/clients/pickup-addresses/&lt;id&gt;/      - full update
-- PATCH  /api/clients/pickup-addresses/&lt;id&gt;/      - partial update
-- DELETE /api/clients/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/pickup-addresses/           - list all addresses
+- POST   /api/companies/pickup-addresses/           - create address
+- GET    /api/companies/pickup-addresses/&lt;id&gt;/      - retrieve address
+- PUT    /api/companies/pickup-addresses/&lt;id&gt;/      - full update
+- PATCH  /api/companies/pickup-addresses/&lt;id&gt;/      - partial update
+- DELETE /api/companies/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- supplier_id: Filter addresses by supplier (client) UUID`,
+- supplier_id: Filter addresses by supplier (company) UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5399,20 +5399,20 @@ Query Parameters:
   },
   {
     method: 'get',
-    path: '/api/clients/pickup-addresses/:id/',
-    alias: 'clients_pickup_addresses_retrieve',
+    path: '/api/companies/pickup-addresses/:id/',
+    alias: 'companies_pickup_addresses_retrieve',
     description: `ViewSet for SupplierPickupAddress CRUD operations.
 
 Endpoints:
-- GET    /api/clients/pickup-addresses/           - list all addresses
-- POST   /api/clients/pickup-addresses/           - create address
-- GET    /api/clients/pickup-addresses/&lt;id&gt;/      - retrieve address
-- PUT    /api/clients/pickup-addresses/&lt;id&gt;/      - full update
-- PATCH  /api/clients/pickup-addresses/&lt;id&gt;/      - partial update
-- DELETE /api/clients/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/pickup-addresses/           - list all addresses
+- POST   /api/companies/pickup-addresses/           - create address
+- GET    /api/companies/pickup-addresses/&lt;id&gt;/      - retrieve address
+- PUT    /api/companies/pickup-addresses/&lt;id&gt;/      - full update
+- PATCH  /api/companies/pickup-addresses/&lt;id&gt;/      - partial update
+- DELETE /api/companies/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- supplier_id: Filter addresses by supplier (client) UUID`,
+- supplier_id: Filter addresses by supplier (company) UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5425,20 +5425,20 @@ Query Parameters:
   },
   {
     method: 'put',
-    path: '/api/clients/pickup-addresses/:id/',
-    alias: 'clients_pickup_addresses_update',
+    path: '/api/companies/pickup-addresses/:id/',
+    alias: 'companies_pickup_addresses_update',
     description: `ViewSet for SupplierPickupAddress CRUD operations.
 
 Endpoints:
-- GET    /api/clients/pickup-addresses/           - list all addresses
-- POST   /api/clients/pickup-addresses/           - create address
-- GET    /api/clients/pickup-addresses/&lt;id&gt;/      - retrieve address
-- PUT    /api/clients/pickup-addresses/&lt;id&gt;/      - full update
-- PATCH  /api/clients/pickup-addresses/&lt;id&gt;/      - partial update
-- DELETE /api/clients/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/pickup-addresses/           - list all addresses
+- POST   /api/companies/pickup-addresses/           - create address
+- GET    /api/companies/pickup-addresses/&lt;id&gt;/      - retrieve address
+- PUT    /api/companies/pickup-addresses/&lt;id&gt;/      - full update
+- PATCH  /api/companies/pickup-addresses/&lt;id&gt;/      - partial update
+- DELETE /api/companies/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- supplier_id: Filter addresses by supplier (client) UUID`,
+- supplier_id: Filter addresses by supplier (company) UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5456,20 +5456,20 @@ Query Parameters:
   },
   {
     method: 'patch',
-    path: '/api/clients/pickup-addresses/:id/',
-    alias: 'clients_pickup_addresses_partial_update',
+    path: '/api/companies/pickup-addresses/:id/',
+    alias: 'companies_pickup_addresses_partial_update',
     description: `ViewSet for SupplierPickupAddress CRUD operations.
 
 Endpoints:
-- GET    /api/clients/pickup-addresses/           - list all addresses
-- POST   /api/clients/pickup-addresses/           - create address
-- GET    /api/clients/pickup-addresses/&lt;id&gt;/      - retrieve address
-- PUT    /api/clients/pickup-addresses/&lt;id&gt;/      - full update
-- PATCH  /api/clients/pickup-addresses/&lt;id&gt;/      - partial update
-- DELETE /api/clients/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/pickup-addresses/           - list all addresses
+- POST   /api/companies/pickup-addresses/           - create address
+- GET    /api/companies/pickup-addresses/&lt;id&gt;/      - retrieve address
+- PUT    /api/companies/pickup-addresses/&lt;id&gt;/      - full update
+- PATCH  /api/companies/pickup-addresses/&lt;id&gt;/      - partial update
+- DELETE /api/companies/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- supplier_id: Filter addresses by supplier (client) UUID`,
+- supplier_id: Filter addresses by supplier (company) UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5487,20 +5487,20 @@ Query Parameters:
   },
   {
     method: 'delete',
-    path: '/api/clients/pickup-addresses/:id/',
-    alias: 'clients_pickup_addresses_destroy',
+    path: '/api/companies/pickup-addresses/:id/',
+    alias: 'companies_pickup_addresses_destroy',
     description: `ViewSet for SupplierPickupAddress CRUD operations.
 
 Endpoints:
-- GET    /api/clients/pickup-addresses/           - list all addresses
-- POST   /api/clients/pickup-addresses/           - create address
-- GET    /api/clients/pickup-addresses/&lt;id&gt;/      - retrieve address
-- PUT    /api/clients/pickup-addresses/&lt;id&gt;/      - full update
-- PATCH  /api/clients/pickup-addresses/&lt;id&gt;/      - partial update
-- DELETE /api/clients/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
+- GET    /api/companies/pickup-addresses/           - list all addresses
+- POST   /api/companies/pickup-addresses/           - create address
+- GET    /api/companies/pickup-addresses/&lt;id&gt;/      - retrieve address
+- PUT    /api/companies/pickup-addresses/&lt;id&gt;/      - full update
+- PATCH  /api/companies/pickup-addresses/&lt;id&gt;/      - partial update
+- DELETE /api/companies/pickup-addresses/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
 
 Query Parameters:
-- supplier_id: Filter addresses by supplier (client) UUID`,
+- supplier_id: Filter addresses by supplier (company) UUID`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5513,9 +5513,9 @@ Query Parameters:
   },
   {
     method: 'get',
-    path: '/api/clients/search/',
-    alias: 'clients_search_retrieve',
-    description: `Lists/searches clients with pagination and sorting.`,
+    path: '/api/companies/search/',
+    alias: 'companies_search_retrieve',
+    description: `Lists/searches companies with pagination and sorting.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5544,18 +5544,18 @@ Query Parameters:
         schema: z.string().optional(),
       },
     ],
-    response: ClientSearchResponse,
+    response: CompanySearchResponse,
     errors: [
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
   {
     method: 'delete',
-    path: '/api/clients/supplier-aliases/:alias_id/',
-    alias: 'clients_supplier_aliases_destroy',
+    path: '/api/companies/supplier-aliases/:alias_id/',
+    alias: 'companies_supplier_aliases_destroy',
     description: `Deactivate a supplier search alias.`,
     requestFormat: 'json',
     parameters: [
@@ -5764,14 +5764,14 @@ DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client',
-        type: 'Query',
-        schema: z.string().uuid().optional(),
-      },
-      {
         name: 'client_match',
         type: 'Query',
         schema: z.string().optional(),
+      },
+      {
+        name: 'company',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
       },
       {
         name: 'contact',
@@ -6152,7 +6152,7 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
     method: 'get',
     path: '/api/job/data-quality/duplicate-phones/',
     alias: 'check_duplicate_phones',
-    description: `List phone numbers owned by more than one client, or client numbers that are actually internal company lines.`,
+    description: `List phone numbers owned by more than one company, or company numbers that are actually internal company lines.`,
     requestFormat: 'json',
     response: DuplicatePhonesResponse,
     errors: [
@@ -7355,7 +7355,7 @@ Expected JSON:
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client_name',
+        name: 'company_name',
         type: 'Query',
         schema: z.string().optional(),
       },
@@ -9239,7 +9239,7 @@ Custom Actions:
     alias: 'getSupplierPriceStatus',
     description: `Return latest price upload status per supplier.
 
-Minimal-impact: read-only query over existing Client and SupplierPriceList
+Minimal-impact: read-only query over existing Company and SupplierPriceList
 models. No migrations required.`,
     requestFormat: 'json',
     response: SupplierPriceStatusResponse,
@@ -9400,7 +9400,7 @@ Supports pagination via &#x60;&#x60;limit&#x60;&#x60;/&#x60;&#x60;offset&#x60;&#
     method: 'post',
     path: '/api/search-events/click/',
     alias: 'search_events_click_create',
-    description: `Records a selected result from client, Kanban, or stock search.`,
+    description: `Records a selected result from company, Kanban, or stock search.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -9564,7 +9564,7 @@ Returns:
     errors: [
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
@@ -9585,15 +9585,15 @@ Returns:
     errors: [
       {
         status: 400,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 409,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
@@ -9607,7 +9607,7 @@ Returns:
     errors: [
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
@@ -9630,7 +9630,7 @@ Use GET /api/payroll/post-staff-week/stream/{task_id}/ to receive SSE progress.`
     errors: [
       {
         status: 400,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },
@@ -9693,11 +9693,11 @@ Returns:
     errors: [
       {
         status: 400,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
       {
         status: 500,
-        schema: ClientErrorResponse,
+        schema: CompanyErrorResponse,
       },
     ],
   },

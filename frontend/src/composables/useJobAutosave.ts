@@ -285,7 +285,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     const rawPatch: Record<string, unknown> = {}
     for (const [k, v] of changeBuffer.entries()) rawPatch[k] = v
 
-    if ('client_id' in rawPatch) {
+    if ('company_id' in rawPatch) {
       rawPatch['contact_id'] = null
       rawPatch['contact_name'] = null
       pendingKeys.value.add('contact_id')
@@ -308,7 +308,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
       return
     }
 
-    if ('client_id' in effectivePatch) {
+    if ('company_id' in effectivePatch) {
       if (!('contact_id' in effectivePatch)) effectivePatch['contact_id'] = null
       if (!('contact_name' in effectivePatch)) effectivePatch['contact_name'] = null
     }
@@ -317,9 +317,9 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     const virtualSnapshot = { ...originalSnapshot, ...effectivePatch }
     if (
       ('contact_id' in effectivePatch || 'contact_name' in effectivePatch) &&
-      !virtualSnapshot['client_id']
+      !virtualSnapshot['company_id']
     ) {
-      log('⛔ canSave=false (contact_* change without client_id)', { reason })
+      log('⛔ canSave=false (contact_* change without company_id)', { reason })
       return
     }
 

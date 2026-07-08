@@ -14,44 +14,8 @@ class Migration(migrations.Migration):
 
     initial = True
 
-    replaces = [
-        ("purchasing", "0001_move_purchase_models_state"),
-        ("purchasing", "0002_move_purchase_models_database"),
-        ("purchasing", "0003_alter_purchaseorder_xero_tenant_id_and_more"),
-        ("purchasing", "0004_stock"),
-        ("purchasing", "0005_add_stock_in_database"),
-        ("purchasing", "0006_add_stock_item_code_xero_id"),
-        ("purchasing", "0007_stock_unique_xero_id"),
-        ("purchasing", "0008_stock_parsed_at_stock_parser_confidence_and_more"),
-        ("purchasing", "0009_purchaseorderline_item_code"),
-        ("purchasing", "0010_add_raw_json_to_purchaseorder"),
-        ("purchasing", "0011_stock_xero_inventory_tracked"),
-        ("purchasing", "0012_add_unit_revenue_to_stock"),
-        ("purchasing", "0013_populate_unit_revenue_from_existing_data"),
-        ("purchasing", "0014_remove_retail_rate_field"),
-        ("purchasing", "0015_stock_active_source_purchase_order_line_id_and_more"),
-        ("purchasing", "0016_add_product_catalog_source"),
-        ("purchasing", "0017_remove_stock_notes"),
-        ("purchasing", "0018_add_xero_line_item_id"),
-        ("purchasing", "0019_populate_xero_line_item_id"),
-        ("purchasing", "0020_add_purchaseorderevent"),
-        ("purchasing", "0021_clean_po_line_descriptions"),
-        ("purchasing", "0022_add_pickup_address_to_po"),
-        ("purchasing", "0023_dedupe_stock_item_codes"),
-        ("purchasing", "0024_stock_item_code_unique"),
-        ("purchasing", "0025_add_xero_last_synced_to_stock"),
-        ("purchasing", "0026_remove_xero_last_synced_default"),
-        ("purchasing", "0027_add_created_by_to_purchase_order"),
-        ("purchasing", "0028_update_created_by_from_events"),
-        ("purchasing", "0029_alter_purchaseorder_table_and_more"),
-        ("purchasing", "0030_add_stock_updated_at"),
-        ("purchasing", "0031_stock_fts_index"),
-        ("purchasing", "0032_stock_parser_attempted_at"),
-        ("purchasing", "0033_use_aluminium_metal_type"),
-    ]
-
     dependencies = [
-        ("client", "0001_baseline"),
+        ("company", "0001_baseline"),
         ("job", "0001_baseline"),
         migrations.swappable_dependency(settings.AUTH_USER_MODEL),
     ]
@@ -147,7 +111,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.SET_NULL,
                         related_name="purchase_orders",
-                        to="client.supplierpickupaddress",
+                        to="company.supplierpickupaddress",
                     ),
                 ),
                 (
@@ -157,7 +121,7 @@ class Migration(migrations.Migration):
                         null=True,
                         on_delete=django.db.models.deletion.PROTECT,
                         related_name="purchase_orders",
-                        to="client.client",
+                        to="company.client",
                     ),
                 ),
             ],

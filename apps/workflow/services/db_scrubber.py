@@ -31,7 +31,7 @@ from apps.accounting.models import (
 )
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.staff_anonymization import create_staff_profile
-from apps.client.models import Client, ClientContact, ClientContactMethod
+from apps.company.models import ClientContact, ClientContactMethod, Company
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -83,15 +83,15 @@ def _scrub_staff() -> None:
         )
 
 
-def _preserved_client_names() -> set[str]:
-    """Names that must survive scrubbing: shop, test client, scraper suppliers.
+def _preserved_company_names() -> set[str]:
+    """Names that must survive scrubbing: shop, test company, scraper suppliers.
 
-    Mirrors legacy backport_data_backup._get_preserved_client_names() exactly.
+    Mirrors legacy backport_data_backup._get_preserved_company_names() exactly.
     """
     preserved: set[str] = set()
     cd = CompanyDefaults.objects.using(SCRUB_ALIAS).get()
-    preserved.add(cd.shop_client.name)
-    preserved.add(cd.test_client_name)
+    preserved.add(cd.shop_company.name)
+    preserved.add(cd.test_company_name)
 
     from apps.quoting.models import SupplierScraperConfig
 
@@ -115,7 +115,7 @@ def _unique_scrub_value(
     no two scrubbed contact methods can share a normalized value. That keeps the
     scrub clear of the per-owner unique constraints even against a real,
     not-yet-scrubbed number still in the table, without relying on the
-    one-number-one-client guard in ``ClientContactMethod.save()`` (which
+    one-number-one-company guard in ``ClientContactMethod.save()`` (which
     ``bulk_update`` deliberately bypasses).
     """
     for _ in range(1000):
@@ -130,8 +130,8 @@ def _unique_scrub_value(
     )
 
 
-def _scrub_clients() -> None:
-    """Mirror legacy PII_CONFIG entries for client.client and client.clientcontact.
+def _scrub_companies() -> None:
+    """Mirror legacy PII_CONFIG entries for company.company and company.clientcontact.
 
     Top-level fields touched: name (with allow-list), primary_contact_name,
     primary_contact_email, email.
@@ -143,10 +143,10 @@ def _scrub_clients() -> None:
     other raw_json keys) is left untouched — matches today's behaviour exactly.
     """
     fake = Faker()
-    preserved = _preserved_client_names()
+    preserved = _preserved_company_names()
     used_company_names: set[str] = set()
 
-    for client in Client.objects.using(SCRUB_ALIAS).exclude(name__in=preserved):
+    for company in Company.objects.using(SCRUB_ALIAS).exclude(name__in=preserved):
         for _ in range(1000):
             candidate = fake.company()
             if candidate not in used_company_names:
@@ -156,12 +156,12 @@ def _scrub_clients() -> None:
             raise RuntimeError(
                 "Failed to generate unique company name after 1000 attempts"
             )
-        client.name = candidate
-        client.primary_contact_name = fake.name()
-        client.primary_contact_email = fake.email()
-        client.email = fake.email()
+        company.name = candidate
+        company.primary_contact_name = fake.name()
+        company.primary_contact_email = fake.email()
+        company.email = fake.email()
 
-        rj = client.raw_json or {}
+        rj = company.raw_json or {}
         if "_name" in rj:
             rj["_name"] = candidate
         if "_email_address" in rj:
@@ -178,8 +178,8 @@ def _scrub_clients() -> None:
                 bp["_bank_account_number"] = fake.iban()
             if "_bank_account_name" in bp:
                 bp["_bank_account_name"] = fake.name()
-        client.raw_json = rj
-        client.save(using=SCRUB_ALIAS)
+        company.raw_json = rj
+        company.save(using=SCRUB_ALIAS)
 
     for contact in ClientContact.objects.using(SCRUB_ALIAS).all():
         contact.name = fake.name()
@@ -189,15 +189,15 @@ def _scrub_clients() -> None:
             update_fields=["name", "email"],
         )
 
-    # Preserved clients (shop, test, enabled scrapers) keep their real contact
+    # Preserved companies (shop, test, enabled scrapers) keep their real contact
     # methods, matching the name/email exclusion above. A method is preserved
-    # whether it is owned directly by the client or via one of its contacts.
+    # whether it is owned directly by the company or via one of its contacts.
     used_method_values: set[tuple[str, str]] = set()
     methods_to_update: list[ClientContactMethod] = []
     for method in (
         ClientContactMethod.objects.using(SCRUB_ALIAS)
-        .exclude(client__name__in=preserved)
-        .exclude(contact__client__name__in=preserved)
+        .exclude(company__name__in=preserved)
+        .exclude(contact__company__name__in=preserved)
     ):
         if method.method_type == ClientContactMethod.MethodType.PHONE:
             generate = fake.phone_number
@@ -211,7 +211,7 @@ def _scrub_clients() -> None:
         method.value = value
         method.normalized_value = normalized
         methods_to_update.append(method)
-    # bulk_update bypasses ClientContactMethod.save(), so the one-number-one-client
+    # bulk_update bypasses ClientContactMethod.save(), so the one-number-one-company
     # guard and primary-demotion logic (neither of which is a business operation
     # during a scrub) never run and cannot abort the transaction on a collision.
     ClientContactMethod.objects.using(SCRUB_ALIAS).bulk_update(
@@ -305,7 +305,7 @@ def scrub() -> None:
         with transaction.atomic(using=SCRUB_ALIAS):
             # Per-step helpers added by subsequent tasks.
             _scrub_staff()
-            _scrub_clients()
+            _scrub_companies()
             _scrub_accounting_contacts()
             _delete_unlinked_accounting()
             _truncate_excluded_tables()

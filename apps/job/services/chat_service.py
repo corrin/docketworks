@@ -54,7 +54,7 @@ and generate estimates.
 Current Job Context:
 - Job: {job.name} (#{job.job_number})
 - Job ID: {job.id}
-- Client: {job.client.name}
+- Company: {job.company.name}
 - Status: {job.get_status_display()}
 - Description: {job.description or 'No description available'}
 

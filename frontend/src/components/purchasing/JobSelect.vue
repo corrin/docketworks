@@ -54,10 +54,10 @@
             {{ job.description || job.name || job.job_display_name }}
           </div>
           <div
-            v-if="job.client_name && !isStockHoldingJob(job)"
+            v-if="job.company_name && !isStockHoldingJob(job)"
             class="text-xs text-gray-500 truncate"
           >
-            Client: {{ job.client_name }}
+            Company: {{ job.company_name }}
           </div>
           <div v-if="isStockHoldingJob(job)" class="text-xs text-orange-600 truncate">
             Stock Holding Job
@@ -156,7 +156,7 @@ const filteredJobs = computed(() => {
     const jobNumberMatch = job.job_number?.toString().toLowerCase().includes(term)
     const descriptionMatch = job.description?.toLowerCase().includes(term)
     const nameMatch = job.name?.toLowerCase().includes(term)
-    const clientMatch = job.client_name?.toLowerCase().includes(term)
+    const clientMatch = job.company_name?.toLowerCase().includes(term)
 
     return jobNumberMatch || descriptionMatch || nameMatch || clientMatch
   })

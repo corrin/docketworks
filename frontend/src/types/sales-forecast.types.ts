@@ -13,7 +13,7 @@ export interface SalesForecastReportResponse {
 
 export interface SalesForecastDetailRow {
   date: string
-  client_name: string
+  company_name: string
   job_number: number | null
   job_name: string | null
   job_id: string | null

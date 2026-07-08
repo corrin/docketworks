@@ -8,7 +8,7 @@ from encrypted_model_fields.fields import (
     EncryptedCharField,
 )
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.enums import MetalType
 from apps.purchasing.models import Stock
 
@@ -24,7 +24,7 @@ class SupplierCredential(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.ForeignKey(
-        Client, on_delete=models.PROTECT, related_name="supplier_credentials"
+        Company, on_delete=models.PROTECT, related_name="supplier_credentials"
     )
     label = models.CharField(max_length=255)
     credential_type = models.CharField(
@@ -99,7 +99,7 @@ class SupplierScraperConfig(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.OneToOneField(
-        Client, on_delete=models.PROTECT, related_name="scraper_config"
+        Company, on_delete=models.PROTECT, related_name="scraper_config"
     )
     scraper_class = models.CharField(max_length=255, db_index=True)
     portal_url = models.URLField(max_length=1000)
@@ -151,7 +151,7 @@ class SupplierProduct(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.ForeignKey(
-        Client, on_delete=models.PROTECT, related_name="scraped_products"
+        Company, on_delete=models.PROTECT, related_name="scraped_products"
     )
     price_list = models.ForeignKey(
         "SupplierPriceList", on_delete=models.CASCADE, related_name="products"
@@ -284,7 +284,7 @@ class SupplierPriceList(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.ForeignKey(
-        Client, on_delete=models.PROTECT, related_name="price_lists"
+        Company, on_delete=models.PROTECT, related_name="price_lists"
     )
     file_name = models.CharField(
         max_length=255, help_text="Original filename of the uploaded price list"
@@ -313,7 +313,7 @@ class ScrapeJob(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.ForeignKey(
-        Client, on_delete=models.PROTECT, related_name="scrape_jobs"
+        Company, on_delete=models.PROTECT, related_name="scrape_jobs"
     )
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default="running")
     started_at = models.DateTimeField(default=timezone.now)

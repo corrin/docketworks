@@ -335,7 +335,7 @@ class AdvancedSearchAPIView(APIView):
                 type=str,
                 location=OpenApiParameter.QUERY,
                 required=False,
-                description="Universal search - searches across job number, name, description, and client name with OR logic",
+                description="Universal search - searches across job number, name, description, and company name with OR logic",
             ),
             OpenApiParameter(
                 name="job_number",
@@ -359,11 +359,11 @@ class AdvancedSearchAPIView(APIView):
                 description="Filter by job description",
             ),
             OpenApiParameter(
-                name="client_name",
+                name="company_name",
                 type=str,
                 location=OpenApiParameter.QUERY,
                 required=False,
-                description="Filter by client name",
+                description="Filter by company name",
             ),
             OpenApiParameter(
                 name="contact_person",
@@ -439,7 +439,7 @@ class AdvancedSearchAPIView(APIView):
                 "job_number": request.GET.get("job_number", ""),
                 "name": request.GET.get("name", ""),
                 "description": request.GET.get("description", ""),
-                "client_name": request.GET.get("client_name", ""),
+                "company_name": request.GET.get("company_name", ""),
                 "contact_person": request.GET.get("contact_person", ""),
                 "order_number": request.GET.get("order_number", ""),
                 "created_by": request.GET.get("created_by", ""),

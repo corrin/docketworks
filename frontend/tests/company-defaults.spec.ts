@@ -19,10 +19,10 @@ test('test can call backend API directly', async ({ authenticatedPage: page }) =
   expect(contentType).toContain('application/json')
 
   const data = await response.json()
-  expect(data.test_client_name).toBeDefined()
-  expect(data.test_client_name).not.toBe('')
+  expect(data.test_company_name).toBeDefined()
+  expect(data.test_company_name).not.toBe('')
 
-  console.log(`Test client name from API: ${data.test_client_name}`)
+  console.log(`Test company name from API: ${data.test_company_name}`)
 })
 
 test('test company defaults edit and save', async ({ authenticatedPage: page }) => {

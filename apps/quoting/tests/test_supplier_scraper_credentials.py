@@ -1,7 +1,7 @@
 from django.core.exceptions import ValidationError
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.quoting.management.commands.run_scrapers import Command
 from apps.quoting.models import SupplierCredential, SupplierScraperConfig
 from apps.quoting.scrapers.steel_and_tube import SteelAndTubeScraper
@@ -14,7 +14,7 @@ class DummyScraper:
 
 class SupplierScraperCredentialTests(BaseTestCase):
     def setUp(self) -> None:
-        self.supplier = Client.objects.create(
+        self.supplier = Company.objects.create(
             name="S&T Stainless Limited",
             is_supplier=True,
             xero_last_modified=timezone.now(),
@@ -49,7 +49,7 @@ class SupplierScraperCredentialTests(BaseTestCase):
         self.assertIn("password", context.exception.message_dict)
 
     def test_supplier_scraper_config_requires_same_supplier_credential(self) -> None:
-        other_supplier = Client.objects.create(
+        other_supplier = Company.objects.create(
             name="Other Supplier",
             is_supplier=True,
             xero_last_modified=timezone.now(),

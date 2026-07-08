@@ -52,7 +52,7 @@ const emit = defineEmits<{
                   #{{ entry.job_number }} &middot; {{ entry.job_name }}
                 </div>
                 <div class="text-xs text-muted-foreground">
-                  {{ entry.client_name || 'No client' }}
+                  {{ entry.company_name || 'No company' }}
                 </div>
               </div>
             </td>

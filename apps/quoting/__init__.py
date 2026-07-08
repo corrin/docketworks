@@ -47,7 +47,7 @@ except (ImportError, RuntimeError):
 
 # EXCLUDED IMPORTS - These contain problematic dependencies that cause circular imports
 # Import these directly where needed using:
-# from .admin import ClientAdmin
+# from .admin import CompanyAdmin
 # from .admin import SupplierAdmin
 # from .admin import SupplierCredentialAdmin
 # from .admin import SupplierCredentialAdminForm

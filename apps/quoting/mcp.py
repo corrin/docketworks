@@ -3,7 +3,7 @@ from functools import reduce
 from django.db.models import Q
 from mcp_server import MCPToolset, ModelQueryToolset
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job
 
 from .models import ScrapeJob, SupplierPriceList, SupplierProduct
@@ -102,7 +102,7 @@ class QuotingTool(MCPToolset):
         # Create a basic quote structure
         quote_info = [
             f"Quote Estimate for Job: {job.name}",
-            f"Client: {job.client.name}",
+            f"Company: {job.company.name}",
             f"Materials requested: {materials}",
             "",
         ]
@@ -147,11 +147,11 @@ class QuotingTool(MCPToolset):
     def get_supplier_status(self, supplier_name: str = None) -> str:
         """Get status of supplier scraping and price lists"""
         if supplier_name:
-            suppliers = Client.objects.filter(
+            suppliers = Company.objects.filter(
                 name__icontains=supplier_name, is_supplier=True
             )
         else:
-            suppliers = Client.objects.filter(is_supplier=True)
+            suppliers = Company.objects.filter(is_supplier=True)
 
         results = ["Supplier Status Report:"]
 

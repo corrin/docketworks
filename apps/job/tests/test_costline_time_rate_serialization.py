@@ -4,7 +4,7 @@ from datetime import date
 from decimal import Decimal
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, LabourSubtype
 from apps.job.serializers.costing_serializer import CostLineCreateUpdateSerializer
 from apps.testing import BaseTestCase
@@ -13,15 +13,15 @@ from apps.workflow.models import XeroPayItem
 
 class CostLineTimeRateSerializationTests(BaseTestCase):
     def setUp(self) -> None:
-        self.client_obj = Client.objects.create(
-            name="Rate Serialization Client",
+        self.client_obj = Company.objects.create(
+            name="Rate Serialization Company",
             email="rates@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.job = Job.objects.create(
             job_number=9100,
             name="Rate Serialization Job",
-            client=self.client_obj,
+            company=self.client_obj,
             staff=self.test_staff,
         )
         self.job.labour_rates.update(charge_out_rate=Decimal("125.00"))
@@ -127,7 +127,7 @@ class CostLineTimeRateSerializationTests(BaseTestCase):
         sick_job = Job.objects.create(
             job_number=9101,
             name="Sick Leave",
-            client=self.client_obj,
+            company=self.client_obj,
             staff=self.test_staff,
             default_xero_pay_item=sick_pay_item,
         )

@@ -14,7 +14,7 @@
               <h1 class="text-xl font-bold text-gray-900">Interactive Quote Chat</h1>
               <p v-if="jobContext" class="text-sm text-gray-500">
                 {{ jobContext.jobName }} • Job #{{ jobContext.jobNumber }} •
-                {{ jobContext.clientName }}
+                {{ jobContext.companyName }}
               </p>
             </div>
           </div>
@@ -182,14 +182,14 @@ const modes: Mode[] = ['AUTO', 'CALC', 'PRICE', 'TABLE']
 const currentMode = ref<Mode>('AUTO')
 
 const jobContext = computed(() => {
-  const { jobId, jobName, jobNumber, clientName } = route.query
+  const { jobId, jobName, jobNumber, companyName } = route.query
   if (!jobId) return null
 
   return {
     jobId: String(jobId),
     jobName: String(jobName || ''),
     jobNumber: String(jobNumber || ''),
-    clientName: String(clientName || ''),
+    companyName: String(companyName || ''),
   }
 })
 

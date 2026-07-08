@@ -4,7 +4,7 @@ from typing import Dict, List, Tuple
 from django.db import transaction
 from django.utils import timezone
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.quoting.models import SupplierPriceList, SupplierProduct
 from apps.quoting.services.product_parser import create_mapping_record
 
@@ -28,35 +28,35 @@ class PDFImportService:
             "errors": [],
         }
 
-    def create_or_get_supplier(self, supplier_name: str) -> Tuple[Client, bool]:
+    def create_or_get_supplier(self, supplier_name: str) -> Tuple[Company, bool]:
         """
-        Create or retrieve supplier client record.
+        Create or retrieve supplier company record.
 
         Args:
             supplier_name: Name of the supplier
 
         Returns:
-            Tuple of (Client instance, was_created boolean)
+            Tuple of (Company instance, was_created boolean)
         """
         try:
-            supplier = Client.objects.get(name=supplier_name)
+            supplier = Company.objects.get(name=supplier_name)
             logger.info(f"Found existing supplier: {supplier.name} (ID: {supplier.id})")
             return supplier, False
-        except Client.DoesNotExist:
+        except Company.DoesNotExist:
             # Create new supplier
-            supplier = Client.objects.create(
+            supplier = Company.objects.create(
                 name=supplier_name, is_supplier=True, xero_last_modified=timezone.now()
             )
             logger.info(f"Created new supplier: {supplier.name} (ID: {supplier.id})")
             self.import_stats["supplier_created"] = True
             return supplier, True
 
-    def create_price_list(self, supplier: Client, filename: str) -> SupplierPriceList:
+    def create_price_list(self, supplier: Company, filename: str) -> SupplierPriceList:
         """
         Create a new price list record for the supplier.
 
         Args:
-            supplier: Supplier client instance
+            supplier: Supplier company instance
             filename: Original filename of the uploaded PDF
 
         Returns:
@@ -73,7 +73,7 @@ class PDFImportService:
     def import_products(
         self,
         products: List[Dict],
-        supplier: Client,
+        supplier: Company,
         price_list: SupplierPriceList,
         duplicate_strategy: str = "skip",
     ) -> Dict[str, int]:
@@ -82,7 +82,7 @@ class PDFImportService:
 
         Args:
             products: List of sanitized product dictionaries
-            supplier: Supplier client instance
+            supplier: Supplier company instance
             price_list: Price list instance
             duplicate_strategy: How to handle duplicates ("skip", "update", "create_new")
 
@@ -155,7 +155,7 @@ class PDFImportService:
     def _import_single_product(
         self,
         product_data: Dict,
-        supplier: Client,
+        supplier: Company,
         price_list: SupplierPriceList,
         duplicate_strategy: str,
         index: int,
@@ -165,7 +165,7 @@ class PDFImportService:
 
         Args:
             product_data: Sanitized product data dictionary
-            supplier: Supplier client instance
+            supplier: Supplier company instance
             price_list: Price list instance
             duplicate_strategy: How to handle duplicates
             index: Product index for logging
@@ -185,14 +185,14 @@ class PDFImportService:
             return self._create_new_product(product_data, supplier, price_list, index)
 
     def _find_existing_product(
-        self, product_data: Dict, supplier: Client
+        self, product_data: Dict, supplier: Company
     ) -> SupplierProduct:
         """
         Find existing product by item_no or product_name.
 
         Args:
             product_data: Product data dictionary
-            supplier: Supplier client instance
+            supplier: Supplier company instance
 
         Returns:
             Existing SupplierProduct instance or None
@@ -301,7 +301,7 @@ class PDFImportService:
     def _create_new_product(
         self,
         product_data: Dict,
-        supplier: Client,
+        supplier: Company,
         price_list: SupplierPriceList,
         index: int,
     ) -> str:
@@ -310,7 +310,7 @@ class PDFImportService:
 
         Args:
             product_data: Product data dictionary
-            supplier: Supplier client instance
+            supplier: Supplier company instance
             price_list: Price list instance
             index: Product index for logging
 
@@ -360,8 +360,8 @@ class PDFImportService:
             Dictionary with duplicate analysis results
         """
         try:
-            supplier = Client.objects.get(name=supplier_name)
-        except Client.DoesNotExist:
+            supplier = Company.objects.get(name=supplier_name)
+        except Company.DoesNotExist:
             # No supplier exists, so no duplicates possible
             return {
                 "duplicates_found": 0,

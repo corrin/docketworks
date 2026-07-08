@@ -7,7 +7,7 @@ export interface JobAgingData {
   id: string
   job_number: number
   name: string
-  client_name: string
+  company_name: string
   status: string
   status_display: string
   financial_data: {
@@ -63,7 +63,7 @@ export class JobAgingReportService {
     const headers = [
       'Job Number',
       'Job Name',
-      'Client Name',
+      'Company Name',
       'Status',
       'Days in Status',
       'Job Age (Days)',
@@ -77,7 +77,7 @@ export class JobAgingReportService {
     const rows = jobs.map((job) => [
       job.job_number,
       job.name,
-      job.client_name,
+      job.company_name,
       job.status_display,
       job.timing_data.days_in_current_status,
       job.timing_data.created_days_ago,

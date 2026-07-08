@@ -16,7 +16,7 @@ from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 @pytest.fixture
 def company_defaults(db: None) -> None:
     # Job.save -> generate_job_number -> CompanyDefaults.get_solo(); the
-    # singleton cannot be lazily created (shop_client is NOT NULL).
+    # singleton cannot be lazily created (shop_company is NOT NULL).
     call_command("loaddata", "company_defaults")
 
 

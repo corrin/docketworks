@@ -6,7 +6,7 @@ from decimal import Decimal
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import CostSet, Job, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.operations.models import AllocationBlock, JobProjection
@@ -35,15 +35,15 @@ def _make_staff(
     )
 
 
-def _make_client() -> Client:
-    return Client.objects.create(
-        name="Test Client",
+def _make_client() -> Company:
+    return Company.objects.create(
+        name="Test Company",
         xero_last_modified=timezone.now(),
     )
 
 
 def _make_job(
-    client: Client,
+    company: Company,
     staff: Staff,
     name: str = "Test Job",
     status: str = "approved",
@@ -51,7 +51,7 @@ def _make_job(
     max_people: int = 1,
 ) -> Job:
     job = Job(
-        client=client,
+        company=company,
         name=name,
         status=status,
         min_people=min_people,
@@ -474,7 +474,7 @@ class TestBookedTimeReducesCapacity(BaseTestCase):
         """Create a leave-style job with an actual CostSet for booking time
         against (matches how create_leave_entries.py models leave)."""
         leave_job = Job(
-            client=self.client_obj,
+            company=self.client_obj,
             name="Annual Leave",
             status="special",
             min_people=1,

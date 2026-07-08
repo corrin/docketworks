@@ -6,7 +6,7 @@ import {
   expectStepUnder,
   INFINITE_TIMEOUT,
   submitJobAndWaitForCreatedJob,
-  TEST_CLIENT_NAME,
+  TEST_COMPANY_NAME,
   waitForCurrentUrl,
 } from './helpers'
 import {
@@ -35,7 +35,7 @@ type WorkerFixtures = {
 
 const SHARED_EDIT_JOB_BUDGET_MS = {
   navigateToCreatePage: 2500,
-  searchAndSelectClient: 1500,
+  searchAndSelectCompany: 1500,
   fillJobDetails: 1000,
   contactSelection: 2500,
   submitAndRedirect: 3500,
@@ -282,14 +282,14 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
       )
 
       await expectStepUnder(
-        'sharedEditJobUrl: search and select client',
-        SHARED_EDIT_JOB_BUDGET_MS.searchAndSelectClient,
+        'sharedEditJobUrl: search and select company',
+        SHARED_EDIT_JOB_BUDGET_MS.searchAndSelectCompany,
         async () => {
-          const clientInput = autoId(page, 'ClientLookup-input')
-          await clientInput.waitFor({ timeout: 10000 })
-          await clientInput.fill('ABC')
-          await autoId(page, 'ClientLookup-results').waitFor({ timeout: 10000 })
-          await page.getByRole('option', { name: new RegExp(TEST_CLIENT_NAME) }).click()
+          const companyInput = autoId(page, 'CompanyLookup-input')
+          await companyInput.waitFor({ timeout: 10000 })
+          await companyInput.fill('ABC')
+          await autoId(page, 'CompanyLookup-results').waitFor({ timeout: 10000 })
+          await page.getByRole('option', { name: new RegExp(TEST_COMPANY_NAME) }).click()
         },
       )
 

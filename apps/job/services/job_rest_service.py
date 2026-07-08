@@ -21,7 +21,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.client.models import Client, ClientContact
+from apps.company.models import ClientContact, Company
 from apps.job.models import Job, JobDeltaRejection, JobEvent, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.serializers import JobSerializer
@@ -74,7 +74,7 @@ def _current_job_etag_value(job: Job) -> str:
 @dataclass
 class JobDeltaPayload:
     """
-    Structured representation of the delta envelope submitted by the client.
+    Structured representation of the delta envelope submitted by the company.
 
     We keep this lightweight dataclass (instead of passing DRF serializer
     instances around) so the service layer can remain decoupled from REST
@@ -252,23 +252,23 @@ class JobRestService:
         if not data.get("name"):
             raise ValueError("Job name is required")
 
-        if not data.get("client_id"):
-            raise ValueError("Client is required")
+        if not data.get("company_id"):
+            raise ValueError("Company is required")
 
         try:
-            client = Client.objects.get(id=data["client_id"])
-        except Client.DoesNotExist:
-            raise ValueError("Client not found")
+            company = Company.objects.get(id=data["company_id"])
+        except Company.DoesNotExist:
+            raise ValueError("Company not found")
 
-        if not client.allow_jobs:
+        if not company.allow_jobs:
             raise ValueError(
-                f"Client '{client.name}' is not permitted for jobs. "
-                f"Update the client to allow jobs if this is wrong."
+                f"Company '{company.name}' is not permitted for jobs. "
+                f"Update the company to allow jobs if this is wrong."
             )
 
         job_data = {
             "name": data["name"],
-            "client": client,
+            "company": company,
             "created_by": user,
         }
 
@@ -310,14 +310,14 @@ class JobRestService:
             job.save(staff=user)
 
             # Create job creation event (moved from Job.save() to prevent duplicates)
-            client_name = job.client.name if job.client else "Shop Job"
+            company_name = job.company.name if job.company else "Shop Job"
             contact_name = job.contact.name if job.contact else None
             JobEvent.objects.create(
                 job=job,
                 event_type="job_created",
                 detail={
                     "job_name": job.name,
-                    "client_name": client_name,
+                    "company_name": company_name,
                     "contact_name": contact_name,
                     "initial_status": job.get_status_display(),
                     "pricing_methodology": job.get_pricing_methodology_display(),
@@ -669,7 +669,7 @@ class JobRestService:
             ValueError: If job is not found.
         """
         try:
-            job = Job.objects.select_related("client").get(id=job_id)
+            job = Job.objects.select_related("company").get(id=job_id)
         except Job.DoesNotExist:
             raise ValueError(f"Job with id {job_id} not found")
 
@@ -715,7 +715,7 @@ class JobRestService:
             ValueError: If job is not found.
         """
         try:
-            job = Job.objects.select_related("client").get(id=job_id)
+            job = Job.objects.select_related("company").get(id=job_id)
         except Job.DoesNotExist:
             raise ValueError(f"Job with id {job_id} not found")
 
@@ -948,7 +948,7 @@ class JobRestService:
         """Match rows by sha256(reason) and cascade.
 
         Callers send the fingerprint returned by the grouped listing; this
-        sidesteps client-side whitespace mangling on the raw reason. See
+        sidesteps company-side whitespace mangling on the raw reason. See
         apps.workflow.services.error_grouping._mark_group_by_fingerprint
         for the same pattern on AppError/XeroError.
         """
@@ -1065,7 +1065,7 @@ class JobRestService:
                 else:
                     current_norm = _current_job_etag_value(job)
                     logger.debug(f"[JOB_UPDATE] Current ETag: {current_norm}")
-                    logger.debug(f"[JOB_UPDATE] Client ETag: {if_match}")
+                    logger.debug(f"[JOB_UPDATE] Company ETag: {if_match}")
                     if current_norm != if_match:
                         logger.error(
                             f"[JOB_UPDATE] ETag mismatch! Current: {current_norm}, Expected: {if_match}"
@@ -1082,9 +1082,9 @@ class JobRestService:
                     f"JobRestService.update_job - Current job contact_id: {job.contact.id if job.contact else None}"
                 )
 
-                # Snapshot values needed for post-save logic (priority bump, client change)
+                # Snapshot values needed for post-save logic (priority bump, company change)
                 original_status = job.status
-                original_client_id = job.client_id
+                original_company_id = job.company_id
 
                 if delta_payload.job_id and str(job.id) != delta_payload.job_id:
                     detail = {
@@ -1146,35 +1146,35 @@ class JobRestService:
                     job.priority = Job._calculate_next_priority_for_status(job.status)
                     job.save(staff=user, update_fields=["priority", "updated_at"])
 
-                # When client changes, auto-set contact to new client's primary contact.
+                # When company changes, auto-set contact to new company's primary contact.
                 # Only do this if contact_id was NOT explicitly provided in the update.
                 contact_explicitly_updated = "contact_id" in delta_payload.fields
                 try:
                     if (
-                        job.client
-                        and original_client_id != job.client_id
+                        job.company
+                        and original_company_id != job.company_id
                         and not contact_explicitly_updated
                     ):
                         primary_contact = ClientContact.objects.filter(
-                            client_id=job.client_id,
+                            company_id=job.company_id,
                             is_primary=True,
                             is_active=True,
                         ).first()
                         job.contact = primary_contact  # May be None if no primary
                         job.save(staff=user)
                         logger.info(
-                            f"Auto-set contact to primary contact after client change: "
-                            f"job.client_id={job.client_id}, "
+                            f"Auto-set contact to primary contact after company change: "
+                            f"job.company_id={job.company_id}, "
                             f"contact={'None' if not primary_contact else primary_contact.id}"
                         )
                     elif (
                         job.contact
-                        and job.client
-                        and job.contact.client_id != job.client_id
+                        and job.company
+                        and job.contact.company_id != job.company_id
                     ):
                         logger.warning(
-                            "Clearing mismatched contact after client change: "
-                            f"contact.client_id={job.contact.client_id} != job.client_id={job.client_id}"
+                            "Clearing mismatched contact after company change: "
+                            f"contact.company_id={job.contact.company_id} != job.company_id={job.company_id}"
                         )
                         job.contact = None
                         job.save(staff=user)
@@ -1577,7 +1577,7 @@ class JobRestService:
                             "status": "status",
                             "order_number": "order number",
                             "notes": "notes",
-                            "client_id": "client",
+                            "company_id": "company",
                             "contact_id": "contact",
                             "delivery_date": "delivery date",
                             "job_status": "status",
@@ -1763,7 +1763,7 @@ class JobRestService:
 
         jobs = (
             Job.objects.filter(id__in=job_ids_with_time_entries)
-            .select_related("client")
+            .select_related("company")
             .prefetch_related("people")
         )
 
@@ -1808,7 +1808,7 @@ class JobRestService:
                     "job_id": str(job.id),
                     "name": job.name,
                     "job_number": job.job_number,
-                    "client": job.client.name if job.client else None,
+                    "company": job.company.name if job.company else None,
                     "description": job.description,
                     "status": job.status,
                     "price_cap": job.price_cap,

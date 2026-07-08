@@ -46,8 +46,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
   const headerToPartialHeaderPatch = (patch: Partial<Job>): Partial<JobHeaderResponse> => {
     const p: Partial<JobHeaderResponse> = {}
     if ('name' in patch) p.name = patch.name as string
-    if ('client_id' in patch) p.client_id = patch.client_id as string | null
-    if ('client_name' in patch) p.client_name = patch.client_name as string | null
+    if ('company_id' in patch) p.company_id = patch.company_id as string | null
+    if ('company_name' in patch) p.company_name = patch.company_name as string | null
     if ('job_status' in patch)
       p.status = (patch.job_status as JobStatusKey | undefined) ?? undefined
     if ('pricing_methodology' in patch)
@@ -64,7 +64,7 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
 
   /**
    * Applies a patch (based on "local" fields reflected from header) to the header snapshot.
-   * Accepts keys: name, client_id, client_name, job_status, pricing_methodology, quoted, fully_invoiced, paid.
+   * Accepts keys: name, company_id, company_name, job_status, pricing_methodology, quoted, fully_invoiced, paid.
    * Here we do the inverse mapping (local fields -> header).
    */
   const applyPatchToHeader = (base: JobHeaderResponse, patch: Partial<Job>): JobHeaderResponse => {
@@ -76,14 +76,14 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
     return {
       ...base,
       name: patch.name ?? base.name,
-      client_id:
-        patch.client_id !== undefined
-          ? ((patch.client_id as string | null) ?? null)
-          : base.client_id,
-      client_name:
-        patch.client_name !== undefined
-          ? ((patch.client_name as string | null) ?? null)
-          : base.client_name,
+      company_id:
+        patch.company_id !== undefined
+          ? ((patch.company_id as string | null) ?? null)
+          : base.company_id,
+      company_name:
+        patch.company_name !== undefined
+          ? ((patch.company_name as string | null) ?? null)
+          : base.company_name,
       status,
       pricing_methodology:
         (patch.pricing_methodology as PricingMethodology | undefined) ?? base.pricing_methodology,
@@ -133,7 +133,7 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
 
             const allowedHeaderKeys = [
               'name',
-              'client_id',
+              'company_id',
               'job_status',
               'pricing_methodology',
               'quoted',
@@ -156,7 +156,7 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
 
             const payloadJob: Record<string, unknown> = { ...filteredPatch }
 
-            if ('client_id' in (filteredPatch as Partial<Job>)) {
+            if ('company_id' in (filteredPatch as Partial<Job>)) {
               payloadJob.contact_id = null
               payloadJob.contact_name = null
             }
@@ -171,8 +171,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
                 case 'name':
                   beforeValues[field] = headerSnapshot.name
                   break
-                case 'client_id':
-                  beforeValues[field] = headerSnapshot.client_id ?? null
+                case 'company_id':
+                  beforeValues[field] = headerSnapshot.company_id ?? null
                   break
                 case 'rejected_flag':
                   beforeValues[field] = headerSnapshot.rejected_flag ?? false
@@ -285,15 +285,15 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
 
   // Handlers that UI uses (everything in terms of "local" fields that map well to Job)
   const handleNameUpdate = (name: string) => enqueue('name', name)
-  const handleClientUpdate = (client: { id: string; name: string }) => {
+  const handleCompanyUpdate = (company: { id: string; name: string }) => {
     if (!headerRef.value || !autosave) return
     autosave.queueChanges({
-      client_id: client.id,
-      client_name: client.name,
+      company_id: company.id,
+      company_name: company.name,
       contact_id: null,
       contact_name: null,
     })
-    void autosave.flush('client-change')
+    void autosave.flush('company-change')
   }
   const handleStatusUpdate = (newStatus: JobStatusKey) => enqueue('job_status', newStatus)
   const handlePricingMethodologyUpdate = (method: PricingMethodology | null) =>
@@ -348,7 +348,7 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
     localHeader: localHeaderComputed,
     // setters
     handleNameUpdate,
-    handleClientUpdate,
+    handleCompanyUpdate,
     handleStatusUpdate,
     handlePricingMethodologyUpdate,
     handleQuotedUpdate,

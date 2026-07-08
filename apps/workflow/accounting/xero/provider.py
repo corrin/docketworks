@@ -11,7 +11,7 @@ from apps.workflow.api.xero.transforms import process_xero_data
 from apps.workflow.services.error_persistence import persist_app_error
 
 if TYPE_CHECKING:
-    from apps.client.models import Client
+    from apps.company.models import Company
     from apps.job.models import Job
     from apps.workflow.accounting.types import (
         ContactResult,
@@ -125,31 +125,31 @@ class XeroAccountingProvider:
 
     # --- Contacts ---
 
-    def create_contact(self, client: Client) -> ContactResult:
+    def create_contact(self, company: Company) -> ContactResult:
         from apps.workflow.accounting.types import ContactResult
-        from apps.workflow.api.xero.push import create_client_contact_in_xero
+        from apps.workflow.api.xero.push import create_company_contact_in_xero
 
         try:
-            xero_contact_id = create_client_contact_in_xero(client)
+            xero_contact_id = create_company_contact_in_xero(company)
             return ContactResult(
                 success=True,
                 external_id=xero_contact_id,
-                name=client.name,
+                name=company.name,
             )
         except Exception as exc:
             persist_app_error(exc)
             return ContactResult(success=False, error=str(exc))
 
-    def update_contact(self, client: Client) -> ContactResult:
+    def update_contact(self, company: Company) -> ContactResult:
         from apps.workflow.accounting.types import ContactResult
-        from apps.workflow.api.xero.push import sync_client_to_xero
+        from apps.workflow.api.xero.push import sync_company_to_xero
 
         try:
-            sync_client_to_xero(client)
+            sync_company_to_xero(company)
             return ContactResult(
                 success=True,
-                external_id=client.xero_contact_id,
-                name=client.name,
+                external_id=company.xero_contact_id,
+                name=company.name,
             )
         except Exception as exc:
             persist_app_error(exc)
@@ -182,7 +182,7 @@ class XeroAccountingProvider:
                 type="ACCREC",
                 contact=Contact(
                     contact_id=payload.client_external_id,
-                    name=payload.client_name,
+                    name=payload.company_name,
                 ),
                 line_items=self._build_line_items(payload.line_items),
                 date=payload.date.isoformat(),
@@ -253,7 +253,7 @@ class XeroAccountingProvider:
             xero_quote = Quote(
                 contact=Contact(
                     contact_id=payload.client_external_id,
-                    name=payload.client_name,
+                    name=payload.company_name,
                 ),
                 line_items=self._build_line_items(payload.line_items),
                 date=payload.date.isoformat(),

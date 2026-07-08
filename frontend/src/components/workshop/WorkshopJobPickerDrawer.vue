@@ -40,7 +40,7 @@ const emit = defineEmits<{
       <div class="mx-auto flex h-full w-full max-w-4xl flex-col min-h-0">
         <DrawerHeader>
           <DrawerTitle class="text-xl font-semibold">Select a job</DrawerTitle>
-          <DrawerDescription>Search by job number, name, or client</DrawerDescription>
+          <DrawerDescription>Search by job number, name, or company</DrawerDescription>
         </DrawerHeader>
         <div class="drawer-scroll flex-1 overflow-y-auto px-4 pb-4 space-y-3">
           <input
@@ -57,7 +57,7 @@ const emit = defineEmits<{
                 <tr>
                   <th class="text-left px-3 py-2 font-semibold">Job #</th>
                   <th class="text-left px-3 py-2 font-semibold">Name</th>
-                  <th class="text-left px-3 py-2 font-semibold">Client</th>
+                  <th class="text-left px-3 py-2 font-semibold">Company</th>
                   <th class="text-left px-3 py-2 font-semibold">Action</th>
                 </tr>
               </thead>
@@ -65,7 +65,7 @@ const emit = defineEmits<{
                 <tr v-for="job in filteredJobs" :key="job.id" class="border-t hover:bg-muted/50">
                   <td class="px-3 py-2 whitespace-nowrap">#{{ job.job_number }}</td>
                   <td class="px-3 py-2">{{ job.name }}</td>
-                  <td class="px-3 py-2">{{ job.client_name || '-' }}</td>
+                  <td class="px-3 py-2">{{ job.company_name || '-' }}</td>
                   <td class="px-3 py-2">
                     <Button
                       size="sm"

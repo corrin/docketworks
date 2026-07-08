@@ -69,14 +69,14 @@ class JobProfitabilityReportService:
             completed_at__date__range=(self.start_date, self.end_date),
         )
 
-        shop_client_id = CompanyDefaults.get_solo().shop_client_id
-        qs = qs.exclude(client_id=shop_client_id)
+        shop_company_id = CompanyDefaults.get_solo().shop_company_id
+        qs = qs.exclude(company_id=shop_company_id)
 
         if self.pricing_type:
             qs = qs.filter(pricing_methodology=self.pricing_type)
 
         return qs.select_related(
-            "client", "latest_estimate", "latest_quote", "latest_actual"
+            "company", "latest_estimate", "latest_quote", "latest_actual"
         )
 
     def _build_job_rows(self, jobs_qs) -> List[Dict[str, Any]]:
@@ -162,7 +162,7 @@ class JobProfitabilityReportService:
             "job_id": str(job.id),
             "job_number": job.job_number,
             "job_name": job.description or "",
-            "client_name": job.client.name if job.client else "Unknown",
+            "company_name": job.company.name if job.company else "Unknown",
             "pricing_type": job.pricing_methodology,
             "pricing_type_display": job.get_pricing_methodology_display(),
             "completion_date": (

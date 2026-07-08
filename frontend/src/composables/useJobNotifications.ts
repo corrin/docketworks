@@ -38,7 +38,7 @@ export function useJobNotifications() {
 
   const notifyQuoteAccepted = () => {
     toast.success('Quote accepted', {
-      description: 'Quote was accepted by the client',
+      description: 'Quote was accepted by the company',
     })
   }
 

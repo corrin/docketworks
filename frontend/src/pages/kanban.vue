@@ -136,7 +136,7 @@
           <DrawerHeader>
             <DrawerTitle>Update Job Status</DrawerTitle>
             <DrawerDescription v-if="statusDrawerJob">
-              Job #{{ statusDrawerJob.job_number }} - {{ statusDrawerJob.client_name }}
+              Job #{{ statusDrawerJob.job_number }} - {{ statusDrawerJob.company_name }}
             </DrawerDescription>
             <DrawerDescription v-else>Select a job to update.</DrawerDescription>
           </DrawerHeader>

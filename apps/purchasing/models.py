@@ -73,14 +73,14 @@ class PurchaseOrder(models.Model):
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     supplier = models.ForeignKey(
-        "client.Client",
+        "company.Company",
         on_delete=models.PROTECT,
         related_name="purchase_orders",
         null=True,
         blank=True,
     )
     pickup_address = models.ForeignKey(
-        "client.SupplierPickupAddress",
+        "company.SupplierPickupAddress",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,

@@ -21,7 +21,7 @@ class KPIJobBreakdownSerializer(serializers.Serializer[Any]):
         serializers.CharField()
     )  # Changed to CharField to match frontend schema
     job_name = serializers.CharField()  # Changed from job_display_name
-    client_name = serializers.CharField()  # Added client_name field
+    company_name = serializers.CharField()  # Added company_name field
     billable_hours = serializers.FloatField()  # Added billable_hours field
     revenue = serializers.FloatField()
     cost = serializers.FloatField()
@@ -160,7 +160,7 @@ class JobAgingJobDataSerializer(serializers.Serializer[Any]):
     id = serializers.CharField()
     job_number = serializers.IntegerField()
     name = serializers.CharField()
-    client_name = serializers.CharField()
+    company_name = serializers.CharField()
     status = serializers.CharField()
     status_display = serializers.CharField()
     financial_data = JobAgingFinancialDataSerializer()
@@ -208,7 +208,7 @@ class StaffPerformanceJobBreakdownSerializer(serializers.Serializer[Any]):
     job_id = serializers.CharField()
     job_number = serializers.IntegerField()
     job_name = serializers.CharField()
-    client_name = serializers.CharField()
+    company_name = serializers.CharField()
     billable_hours = serializers.FloatField()
     non_billable_hours = serializers.FloatField()
     total_hours = serializers.FloatField()

@@ -6,7 +6,7 @@ from django.db import models
 from django.utils import timezone
 
 if TYPE_CHECKING:
-    from apps.client.models import Client
+    from apps.company.models import Company
 
 from apps.accounting.enums import InvoiceStatus
 
@@ -23,7 +23,7 @@ class BaseXeroInvoiceDocument(models.Model):
         max_length=255, null=True, blank=True
     )  # For reference only - we are not fully multi-tenant yet
     number = models.CharField(max_length=255)
-    client = models.ForeignKey("client.Client", on_delete=models.PROTECT)
+    company = models.ForeignKey("company.Company", on_delete=models.PROTECT)
     date = models.DateField()
     due_date = models.DateField(null=True, blank=True)
     status = models.CharField(
@@ -43,7 +43,7 @@ class BaseXeroInvoiceDocument(models.Model):
         abstract = True
 
     def __str__(self) -> str:
-        return f"{self.number} - {self.client.name}"
+        return f"{self.number} - {self.company.name}"
 
     @property
     def total_amount(self) -> Decimal:
@@ -125,13 +125,13 @@ class Bill(BaseXeroInvoiceDocument):
         ordering = ["-date", "number"]
 
     @property
-    def supplier(self) -> "Client":
-        """Return the client as 'supplier' for bills."""
-        return self.client
+    def supplier(self) -> "Company":
+        """Return the company as 'supplier' for bills."""
+        return self.company
 
     @supplier.setter
-    def supplier(self, value: "Client") -> None:
-        self.client = value
+    def supplier(self, value: "Company") -> None:
+        self.company = value
 
 
 class CreditNote(BaseXeroInvoiceDocument):

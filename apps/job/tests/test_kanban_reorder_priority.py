@@ -2,7 +2,7 @@
 
 from django.contrib.auth import get_user_model
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobEvent
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
@@ -19,9 +19,9 @@ class KanbanReorderPriorityTest(BaseTestCase):
             first_name="Reorder",
             last_name="Tester",
         )
-        self.client = Client.objects.create(
-            name="Reorder Client",
-            email="reorder-client@example.com",
+        self.company = Company.objects.create(
+            name="Reorder Company",
+            email="reorder-company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
         self.xero_pay_item = XeroPayItem.get_ordinary_time()
@@ -29,7 +29,7 @@ class KanbanReorderPriorityTest(BaseTestCase):
     def _make_job(self, name, status="in_progress"):
         job = Job(
             name=name,
-            client=self.client,
+            company=self.company,
             created_by=self.user,
             default_xero_pay_item=self.xero_pay_item,
             status=status,

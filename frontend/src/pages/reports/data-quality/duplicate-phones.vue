@@ -206,7 +206,7 @@ const ISSUE_CLASSES: Record<string, string> = {
 }
 
 const OWNER_KIND_LABELS: Record<string, string> = {
-  client: 'Client',
+  company: 'Company',
   contact: 'Contact',
 }
 

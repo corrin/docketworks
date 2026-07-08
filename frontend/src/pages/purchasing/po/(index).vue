@@ -188,7 +188,7 @@ const formatStatus = (status: PurchaseOrderStatus) => poStatusLabels[status]
 
 const getStatusClass = (status: PurchaseOrderStatus) => poStatusBadgeClasses[status]
 
-type PurchaseOrderJob = { job_number: string; name: string; client: string }
+type PurchaseOrderJob = { job_number: string; name: string; company: string }
 
 const formatJobs = (jobs: PurchaseOrderJob[]) => {
   if (!jobs || jobs.length === 0) return '—'

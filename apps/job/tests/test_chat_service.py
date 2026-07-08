@@ -18,7 +18,7 @@ from unittest.mock import Mock, patch
 
 from django.test import TestCase
 
-from apps.client.models import Client
+from apps.company.models import Company
 from apps.job.models import Job, JobQuoteChat
 from apps.job.services.chat_service import ChatService
 from apps.testing import BaseTestCase
@@ -122,9 +122,9 @@ class ChatServiceConfigurationTests(BaseTestCase):
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.company = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -135,7 +135,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client,
+            company=self.company,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
@@ -197,7 +197,7 @@ class ChatServiceConfigurationTests(BaseTestCase):
         self.assertIn(self.company_defaults.company_name, prompt)
         self.assertIn(self.job.name, prompt)
         self.assertIn(str(self.job.job_number), prompt)
-        self.assertIn(self.client.name, prompt)
+        self.assertIn(self.company.name, prompt)
         self.assertIn(self.job.description, prompt)
 
     def test_mcp_tools_definition(self):
@@ -266,9 +266,9 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.company = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -279,7 +279,7 @@ class ChatServiceResponseGenerationTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client,
+            company=self.company,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
@@ -416,9 +416,9 @@ class ChatServiceMultimodalTests(BaseTestCase):
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.company = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -428,7 +428,7 @@ class ChatServiceMultimodalTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client,
+            company=self.company,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
@@ -615,9 +615,9 @@ class ChatServiceIntegrationTests(BaseTestCase):
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.company = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -628,7 +628,7 @@ class ChatServiceIntegrationTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client,
+            company=self.company,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,
@@ -703,9 +703,9 @@ class ChatServiceModeResponseTests(BaseTestCase):
         """Set up test data"""
         self.company_defaults = CompanyDefaults.get_solo()
 
-        self.client = Client.objects.create(
-            name="Test Client",
-            email="client@example.com",
+        self.company = Company.objects.create(
+            name="Test Company",
+            email="company@example.com",
             xero_last_modified="2024-01-01T00:00:00Z",
         )
 
@@ -715,7 +715,7 @@ class ChatServiceModeResponseTests(BaseTestCase):
             name="Test Job",
             job_number=1001,
             description="Test job description",
-            client=self.client,
+            company=self.company,
             status="quoting",
             default_xero_pay_item=self.xero_pay_item,
             staff=self.test_staff,

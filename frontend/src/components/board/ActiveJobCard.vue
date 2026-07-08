@@ -59,7 +59,7 @@ const getJobDescription = (job: WorkshopJob) => {
         <div class="text-xl text-black font-semibold flex items-center gap-2">
           <Briefcase class="h-5 w-5 text-gray-500 flex-shrink-0" />
           <span>Customer:</span>
-          <span class="text-gray-600 font-medium">{{ job.client_name }}</span>
+          <span class="text-gray-600 font-medium">{{ job.company_name }}</span>
         </div>
 
         <div class="text-xl text-black font-semibold flex items-start gap-2">

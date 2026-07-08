@@ -44,9 +44,9 @@ class Command(BaseCommand):
         if Job.objects.filter(name=name).exists():
             raise CommandError(f"Job '{name}' already exists")
 
-        # Resolve shop client from CompanyDefaults
+        # Resolve shop company from CompanyDefaults
         defaults = CompanyDefaults.get_solo()
-        client = defaults.shop_client
+        company = defaults.shop_company
 
         # Resolve pay item
         pay_item = XeroPayItem.objects.filter(
@@ -58,7 +58,7 @@ class Command(BaseCommand):
         if options["dry_run"]:
             self.stdout.write(self.style.WARNING("DRY RUN — no changes made:"))
             self.stdout.write(f"  Job: '{name}' (status=special)")
-            self.stdout.write(f"  Client: {client.name}")
+            self.stdout.write(f"  Company: {company.name}")
             self.stdout.write(
                 f"  Default pay item: {pay_item.name} ({pay_item.multiplier}x)"
             )
@@ -69,7 +69,7 @@ class Command(BaseCommand):
             job = Job(
                 name=name,
                 status="special",
-                client=client,
+                company=company,
                 contact=None,
                 pricing_methodology="time_materials",
                 speed_quality_tradeoff="normal",
