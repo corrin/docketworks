@@ -9,7 +9,7 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
 
-from apps.company.models import ClientContact
+from apps.company.models import ClientContact, ClientContactMethod
 from apps.company.serializers import ClientContactSerializer
 
 
@@ -52,7 +52,11 @@ class ClientContactViewSet(viewsets.ModelViewSet):
         """
         Filter to only active contacts, optionally filtered by company_id.
         """
-        queryset = ClientContact.objects.filter(is_active=True)
+        queryset = ClientContact.objects.filter(is_active=True).annotate(
+            phone=ClientContactMethod.primary_phone_annotation(
+                owner="contact", outer_ref="pk"
+            )
+        )
         company_id = self.request.query_params.get("company_id")
         if company_id:
             queryset = queryset.filter(company_id=company_id)

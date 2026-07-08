@@ -6,7 +6,7 @@ try:
 
     if apps.ready:
         from .company_merge_service import reassign_company_fk_records
-        from .company_rest_service import CompanyRestService
+        from .company_rest_service import CompanyPhoneAnnotations, CompanyRestService
         from .duplicate_phone_report import (
             DuplicatePhoneIssue,
             DuplicatePhoneOwner,
@@ -26,6 +26,7 @@ except (ImportError, RuntimeError):
     pass
 
 __all__ = [
+    "CompanyPhoneAnnotations",
     "CompanyRestService",
     "DuplicatePhoneIssue",
     "DuplicatePhoneOwner",

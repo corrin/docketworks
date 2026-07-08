@@ -37,6 +37,7 @@ from apps.accounting.services.invoice_calculation import (
     calculate_invoice_amount,
     get_job_for_invoice_calculation,
 )
+from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.job.permissions import IsOfficeStaff
 from apps.purchasing.models import PurchaseOrder
@@ -693,6 +694,9 @@ def create_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
+        if job.company is None:
+            raise ValueError(f"Job {job_id} has no company; cannot create a quote")
+        assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
         manager = XeroQuoteManager(company=job.company, job=job, staff=request.user)
         result_data = manager.create_document(breakdown=breakdown)
 
@@ -827,6 +831,9 @@ def delete_xero_quote(request: Request, job_id: uuid.UUID) -> Response:
 
     try:
         job = Job.objects.get(id=job_id)
+        if job.company is None:
+            raise ValueError(f"Job {job_id} has no company; cannot delete its quote")
+        assert isinstance(request.user, Staff)  # IsAuthenticated guarantees Staff
         manager = XeroQuoteManager(company=job.company, job=job, staff=request.user)
         result_data: dict = manager.delete_document()
 
@@ -952,10 +959,16 @@ def xero_disconnect(request):
             active = get_active_app()
         except NoActiveXeroApp:
             logger.info("xero_disconnect: no active XeroApp; nothing to do")
-            return Response({"connected": False}, status=status.HTTP_200_OK)
+            return Response(
+                {"connected": False, "xero_readonly": settings.XERO_READONLY},
+                status=status.HTTP_200_OK,
+            )
         wipe_tokens_and_quota(active)
         logger.info(f"Disconnected XeroApp {active.id} ({active.label})")
-        return Response({"connected": False}, status=status.HTTP_200_OK)
+        return Response(
+            {"connected": False, "xero_readonly": settings.XERO_READONLY},
+            status=status.HTTP_200_OK,
+        )
     except AlreadyLoggedException:
         raise
     except Exception as exc:
@@ -1145,7 +1158,10 @@ def xero_ping(request):
         token = get_valid_token()
         is_connected = bool(token)
         logger.info(f"Xero ping: connected={is_connected}")
-        return Response({"connected": is_connected}, status=status.HTTP_200_OK)
+        return Response(
+            {"connected": is_connected, "xero_readonly": settings.XERO_READONLY},
+            status=status.HTTP_200_OK,
+        )
     except AlreadyLoggedException as exc:
         logger.error("Error in xero_ping: %s", exc)
         return Response(

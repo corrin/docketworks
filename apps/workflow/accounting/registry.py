@@ -23,9 +23,15 @@ def get_provider() -> AccountingProvider:
     """Return an instance of the configured accounting provider.
 
     The active backend is determined by CompanyDefaults.accounting_provider.
+    When settings.XERO_READONLY is set (process-scoped, E2E/test backends
+    only) the Xero backend is swapped for its write-suppressing variant.
     Raises RuntimeError if the backend is not registered.
     """
+    from django.conf import settings
+
     backend = get_provider_name()
+    if settings.XERO_READONLY and backend == "xero":
+        backend = "xero_readonly"
     if backend not in _providers:
         raise RuntimeError(
             f"Unknown accounting backend '{backend}'. "

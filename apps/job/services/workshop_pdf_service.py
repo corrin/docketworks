@@ -10,7 +10,8 @@ from uuid import UUID
 
 from bs4 import BeautifulSoup, NavigableString
 from django.conf import settings
-from django.db.models import OuterRef, Prefetch, Subquery
+from django.db.models import Prefetch
+from django.db.models.functions import Coalesce
 from django.utils import timezone
 from PIL import Image, ImageFile
 from pypdf import PdfWriter
@@ -68,26 +69,14 @@ def _primary_company_endpoint_number() -> str:
     return endpoint.number if endpoint else ""
 
 
-def _primary_phone_annotations() -> dict[str, Subquery]:
-    contact_phone = (
-        ClientContactMethod.objects.filter(
-            method_type=ClientContactMethod.MethodType.PHONE,
-            contact_id=OuterRef("contact_id"),
-        )
-        .order_by("-is_primary", "label", "value")
-        .values("value")[:1]
-    )
-    company_phone = (
-        ClientContactMethod.objects.filter(
-            method_type=ClientContactMethod.MethodType.PHONE,
-            company_id=OuterRef("company_id"),
-        )
-        .order_by("-is_primary", "label", "value")
-        .values("value")[:1]
-    )
+def _primary_phone_annotations() -> dict[str, Coalesce]:
     return {
-        WORKSHOP_PDF_CONTACT_PHONE_ATTR: Subquery(contact_phone),
-        WORKSHOP_PDF_COMPANY_PHONE_ATTR: Subquery(company_phone),
+        WORKSHOP_PDF_CONTACT_PHONE_ATTR: ClientContactMethod.primary_phone_annotation(
+            owner="contact", outer_ref="contact_id"
+        ),
+        WORKSHOP_PDF_COMPANY_PHONE_ATTR: ClientContactMethod.primary_phone_annotation(
+            owner="company", outer_ref="company_id"
+        ),
     }
 
 

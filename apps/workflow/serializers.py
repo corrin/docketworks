@@ -428,6 +428,7 @@ class XeroPingResponseSerializer(serializers.Serializer):
     """Serializer for Xero ping response."""
 
     connected = serializers.BooleanField()
+    xero_readonly = serializers.BooleanField()
 
 
 # ---------------------------------------------------------------------------

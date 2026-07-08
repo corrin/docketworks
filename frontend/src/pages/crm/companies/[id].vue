@@ -193,6 +193,7 @@
                     </p>
                     <div class="flex flex-col gap-1 mt-1 text-sm text-gray-600">
                       <span v-if="contact.email">{{ contact.email }}</span>
+                      <span v-if="contact.phone">{{ contact.phone }}</span>
                     </div>
                   </div>
                 </div>

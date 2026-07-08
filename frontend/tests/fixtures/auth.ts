@@ -9,10 +9,23 @@ import {
   TEST_COMPANY_NAME,
   waitForCurrentUrl,
 } from './helpers'
+import {
+  createLoginSessionCheckConsoleAllowance,
+  LOGIN_ME_PATH,
+  type CapturedBrowserError,
+} from '@/utils/authConsoleErrors'
 
 // Define fixture types
 type AuthFixtures = {
+  sessionCheckConsoleAllowance: ReturnType<typeof createLoginSessionCheckConsoleAllowance>
   authenticatedPage: Page
+  /**
+   * Patterns for console errors a test deliberately triggers (string = substring,
+   * RegExp = test). Set via `test.use({ expectedConsoleErrors: [...] })`. Any
+   * browser console error or uncaught page exception NOT matching a pattern
+   * fails the test — every console.error must toast or throw (rule 30).
+   */
+  expectedConsoleErrors: Array<string | RegExp>
 }
 
 type WorkerFixtures = {
@@ -29,7 +42,11 @@ const SHARED_EDIT_JOB_BUDGET_MS = {
 } as const
 
 const LOGIN_TOKEN_PATH = '/api/accounts/token/'
-const LOGIN_ME_PATH = '/api/accounts/me/'
+function isExpectedBrowserError(text: string, patterns: ReadonlyArray<string | RegExp>): boolean {
+  return patterns.some((pattern) =>
+    typeof pattern === 'string' ? text.includes(pattern) : pattern.test(text),
+  )
+}
 
 function waitForLoginResponse(page: Page, path: string, method: 'GET' | 'POST'): Promise<Response> {
   return page.waitForResponse(
@@ -96,9 +113,11 @@ async function authenticateViaLoginPage(
   page: Page,
   username: string,
   password: string,
+  startSessionCheckConsoleAllowance: () => () => void = () => () => undefined,
 ): Promise<void> {
   let tokenResponse: Response | undefined
   let meResponse: Response | undefined
+  const stopSessionCheckConsoleAllowance = startSessionCheckConsoleAllowance()
 
   try {
     await page.goto('/login')
@@ -143,11 +162,64 @@ async function authenticateViaLoginPage(
         await responseDiagnostics('current-user response', meResponse),
       ].join('\n'),
     )
+  } finally {
+    stopSessionCheckConsoleAllowance()
   }
 }
 
 export const test = base.extend<AuthFixtures, WorkerFixtures>({
-  authenticatedPage: async ({ page }, use, testInfo) => {
+  expectedConsoleErrors: [[], { option: true }],
+  sessionCheckConsoleAllowance: async ({}, use) => {
+    await use(createLoginSessionCheckConsoleAllowance())
+  },
+
+  // Every test's page fails on unexpected browser console errors and uncaught
+  // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
+  page: async ({ page, expectedConsoleErrors, sessionCheckConsoleAllowance }, use) => {
+    const captured: CapturedBrowserError[] = []
+    page.on('response', (response) => {
+      const url = new URL(response.url())
+      sessionCheckConsoleAllowance.recordResponse({
+        pathname: url.pathname,
+        method: response.request().method(),
+        status: response.status(),
+      })
+    })
+    page.on('console', (message) => {
+      if (message.type() === 'error') {
+        captured.push({ kind: 'console', text: message.text(), capturedAt: Date.now() })
+      } else {
+        // other console levels are out of scope for this guard
+      }
+    })
+    page.on('pageerror', (error) => {
+      captured.push({ kind: 'pageerror', text: error.message, capturedAt: Date.now() })
+    })
+
+    await use(page)
+
+    const unexpected = captured.filter((entry) => {
+      if (sessionCheckConsoleAllowance.consumeIfExpected(entry)) {
+        return false
+      }
+      return !isExpectedBrowserError(entry.text, expectedConsoleErrors)
+    })
+    if (unexpected.length > 0) {
+      throw new Error(
+        [
+          `Browser emitted ${unexpected.length} unexpected error(s) during this test.`,
+          'Every console.error must toast or throw (rule 30) — fix the cause, or if this',
+          'test deliberately triggers the error, allow it via',
+          'test.use({ expectedConsoleErrors: [...] }).',
+          ...unexpected.map((entry) => `- [${entry.kind}] ${entry.text}`),
+        ].join('\n'),
+      )
+    } else {
+      // no unexpected browser errors — nothing to report
+    }
+  },
+
+  authenticatedPage: async ({ page, sessionCheckConsoleAllowance }, use, testInfo) => {
     const username = process.env.E2E_TEST_USERNAME
     const password = process.env.E2E_TEST_PASSWORD
 
@@ -159,7 +231,12 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
     enableNetworkLogging(page, testInfo.title)
 
     await base.step('authenticatedPage: login', async () => {
-      await authenticateViaLoginPage(page, username, password)
+      await authenticateViaLoginPage(
+        page,
+        username,
+        password,
+        sessionCheckConsoleAllowance.startLoginWindow,
+      )
     })
 
     // Enable debug logging if DEBUG env var is set

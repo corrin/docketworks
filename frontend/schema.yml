@@ -10226,6 +10226,10 @@ components:
           type: string
           format: date-time
           readOnly: true
+        phone:
+          type: string
+          nullable: true
+          default: ''
       required:
         - company
         - created_at
@@ -10360,6 +10364,10 @@ components:
           type: string
           nullable: true
           description: Additional notes about this contact
+        phone:
+          type: string
+          nullable: true
+          default: ''
       required:
         - company
         - name
@@ -10374,6 +10382,9 @@ components:
         email:
           type: string
           format: email
+          nullable: true
+        phone:
+          type: string
           nullable: true
         address:
           type: string
@@ -11188,6 +11199,8 @@ components:
           nullable: true
         total_spend:
           type: string
+        phone:
+          type: string
       required:
         - address
         - allow_jobs
@@ -11200,6 +11213,7 @@ components:
         - last_invoice_date
         - merged_into
         - name
+        - phone
         - primary_contact_email
         - primary_contact_name
         - total_spend
@@ -11234,6 +11248,8 @@ components:
         error:
           type: string
         details:
+          type: string
+        error_id:
           type: string
       required:
         - error
@@ -11348,6 +11364,8 @@ components:
           type: string
         email:
           type: string
+        phone:
+          type: string
         address:
           type: string
         is_account_customer:
@@ -11373,6 +11391,7 @@ components:
         - is_supplier
         - last_invoice_date
         - name
+        - phone
         - total_spend
         - xero_contact_id
     CompanyUpdateRequest:
@@ -11386,6 +11405,9 @@ components:
         email:
           type: string
           format: email
+        phone:
+          type: string
+          nullable: true
         address:
           type: string
         is_account_customer:
@@ -16183,6 +16205,10 @@ components:
           type: string
           nullable: true
           description: Additional notes about this contact
+        phone:
+          type: string
+          nullable: true
+          default: ''
     PatchedCompanyDefaultsRequest:
       type: object
       properties:
@@ -16536,6 +16562,9 @@ components:
         email:
           type: string
           format: email
+        phone:
+          type: string
+          nullable: true
         address:
           type: string
         is_account_customer:
@@ -23261,8 +23290,11 @@ components:
       properties:
         connected:
           type: boolean
+        xero_readonly:
+          type: boolean
       required:
         - connected
+        - xero_readonly
     XeroQuote:
       type: object
       description: Simplified Quote serializer for xero_quote field

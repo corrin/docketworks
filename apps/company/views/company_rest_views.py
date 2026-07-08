@@ -23,7 +23,7 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.company.models import Company
+from apps.company.models import ClientContactMethod, Company
 from apps.company.serializers import (
     CompanyCreateResponseSerializer,
     CompanyCreateSerializer,
@@ -434,8 +434,14 @@ class CompanyCreateRestView(APIView):
 
             validated_data = input_serializer.validated_data
             created_company = CompanyRestService.create_company(validated_data)
-            created_company = Company.objects.with_invoice_summary().get(
-                id=created_company.id
+            created_company = (
+                Company.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="company", outer_ref="pk"
+                    )
+                )
+                .get(id=created_company.id)
             )
 
             response_data = {

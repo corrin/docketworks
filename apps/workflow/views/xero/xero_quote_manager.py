@@ -2,8 +2,14 @@
 import logging
 from datetime import timedelta
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from django.utils import timezone
+
+if TYPE_CHECKING:
+    from apps.accounts.models import Staff
+    from apps.company.models import Company
+    from apps.job.models import Job
 
 from apps.accounting.enums import QuoteStatus
 
@@ -25,7 +31,7 @@ class XeroQuoteManager(XeroDocumentManager):
     Handles Quote creation and syncing via the accounting provider.
     """
 
-    def __init__(self, company, job, staff):
+    def __init__(self, company: "Company", job: "Job", staff: "Staff") -> None:
         """
         Initializes the quote manager. Company, job, and staff are all required.
 

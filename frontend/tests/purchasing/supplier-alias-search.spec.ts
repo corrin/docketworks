@@ -6,7 +6,7 @@ test.describe('supplier alias search', () => {
     authenticatedPage: page,
   }) => {
     const suffix = Date.now()
-    const supplierName = `S&T Stainless Limited ${suffix}`
+    const supplierName = `[TEST] S&T Stainless Limited ${suffix}`
     const alias = `Steel and Tube ${suffix}`
 
     await page.goto('/purchasing/po/create')

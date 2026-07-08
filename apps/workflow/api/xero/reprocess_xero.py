@@ -259,8 +259,7 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
         # Ensure essential fields are not None if raw_json is missing
         company.name = company.name or "Unnamed Company"
         company.xero_last_modified = company.xero_last_modified or timezone.now()
-        # type ignore: Company.save is still untyped (apps/company/models.py).
-        company.save()  # type: ignore[no-untyped-call]
+        company.save()
         return
 
     # Capture old values for change tracking (only for updates, not new clients)
@@ -463,8 +462,7 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
     # conflict raised by sync_xero_phone_methods must roll back this company's
     # field update too, rather than leaving it committed without its numbers.
     with transaction.atomic():
-        # type ignore: Company.save is still untyped (apps/company/models.py).
-        company.save()  # type: ignore[no-untyped-call]
+        company.save()
         created_numbers = sync_xero_phone_methods(company)
     if created_numbers:
         # Numbers imported from Xero must rematch historical calls just like

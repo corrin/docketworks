@@ -384,7 +384,7 @@ import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 import { requiredNumber } from '@/utils/requiredNumber'
 
-type ClientContact = Omit<z.infer<typeof schemas.ClientContact>, 'phone'>
+type ClientContact = z.infer<typeof schemas.ClientContact>
 
 // Use the existing JobHeaderResponse schema from generated API
 type Job = z.infer<typeof schemas.JobHeaderResponse>
@@ -645,6 +645,7 @@ const TYPING_TIMEOUT_MS = 1000 // Consider user stopped typing after 1 second
 const currentCompanyData = ref({
   name: '',
   email: '',
+  phone: '',
   address: '',
   is_account_customer: true,
   allow_jobs: true,
@@ -865,7 +866,8 @@ watch(
         localJobData.value.contact_name = undefined
         contactDisplayValue.value = ''
       } else {
-        debugLog('Failed to load contact information:', error)
+        console.error('Failed to load contact information:', error)
+        toast.error('Failed to load contact information')
         contactDisplayValue.value = ''
       }
     }
@@ -1110,6 +1112,7 @@ const editCurrentCompany = async () => {
     currentCompanyData.value = {
       name: companyDetail.name,
       email: companyDetail.email,
+      phone: companyDetail.phone,
       address: companyDetail.address,
       is_account_customer: companyDetail.is_account_customer,
       allow_jobs: companyDetail.allow_jobs,
@@ -1161,7 +1164,7 @@ const handleContactSelected = async (contact: ClientContact | null) => {
       position: contact.position ?? null,
       notes: contact.notes ?? null,
       is_primary: contact.is_primary ?? false,
-    } satisfies Omit<z.input<typeof schemas.JobContactUpdateRequest>, 'phone'>
+    } satisfies z.input<typeof schemas.JobContactUpdateRequest>
 
     // Save contact directly (not through header autosave)
     try {

@@ -35,12 +35,14 @@ try:
             CompanySerializer,
             CompanyUpdateResponseSerializer,
             CompanyUpdateSerializer,
+            JobContactBaseSerializer,
             JobContactResponseSerializer,
             JobContactUpdateSerializer,
             StandardErrorSerializer,
             SupplierPickupAddressSerializer,
             SupplierSearchAliasCreateSerializer,
             SupplierSearchAliasSerializer,
+            set_primary_phone,
         )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -68,6 +70,7 @@ __all__ = [
     "CompanySerializer",
     "CompanyUpdateResponseSerializer",
     "CompanyUpdateSerializer",
+    "JobContactBaseSerializer",
     "JobContactResponseSerializer",
     "JobContactUpdateSerializer",
     "PhoneAssignmentConflictError",
@@ -79,4 +82,5 @@ __all__ = [
     "SupplierSearchAliasCreateSerializer",
     "SupplierSearchAliasSerializer",
     "date_to_datetime",
+    "set_primary_phone",
 ]

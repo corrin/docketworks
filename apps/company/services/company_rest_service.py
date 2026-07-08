@@ -8,21 +8,34 @@ All business logic for Company REST operations should be implemented here.
 import json
 import logging
 import re
-from typing import TYPE_CHECKING, Any, Dict, List, Optional
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, TypedDict
 from uuid import UUID, uuid4
 
 if TYPE_CHECKING:
+    from django_stubs_ext import WithAnnotations
+
     from apps.accounts.models import Staff
 
+from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
 from django.db.models import Case, IntegerField, Q, When
 from django.http import HttpRequest
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
-from apps.company.models import ClientContact, Company
-from apps.company.serializers import CompanyCreateSerializer, CompanyUpdateSerializer
+from apps.company.models import (
+    PRIMARY_PHONE_ORDERING,
+    ClientContact,
+    ClientContactMethod,
+    Company,
+)
+from apps.company.serializers import (
+    CompanyCreateSerializer,
+    CompanyUpdateSerializer,
+    set_primary_phone,
+)
 from apps.company.utils import date_to_datetime
+from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import (
@@ -32,6 +45,19 @@ from apps.workflow.services.error_persistence import (
 from apps.workflow.services.search_telemetry import SearchTelemetryService
 
 COMPANY_SEARCH_TOKEN_RE = re.compile(r"[a-z0-9]+")
+
+
+class CompanyPhoneAnnotations(TypedDict):
+    """Queryset annotation required by _format_company_summary and
+    _format_company_detail; not a Company model field."""
+
+    phone: str
+
+
+if TYPE_CHECKING:
+    # Evaluated only by the type checker (annotation is quoted at use site), so
+    # the dev-only django_stubs_ext dependency is never imported at runtime.
+    _AnnotatedCompanyWithPhone = WithAnnotations[Company, CompanyPhoneAnnotations]
 
 logger = logging.getLogger(__name__)
 company_search_logger = logging.getLogger("company_search")
@@ -134,8 +160,15 @@ class CompanyRestService:
             if sort_dir.lower() == "desc":
                 sort_field = f"-{sort_field}"
 
-            # Annotate computed fields for sorting capability
-            queryset = Company.objects.with_invoice_summary().defer("raw_json")
+            queryset = (
+                Company.objects.with_invoice_summary()
+                .defer("raw_json")
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="company", outer_ref="pk"
+                    )
+                )
+            )
 
             # Apply search filter if query provided
             if query:
@@ -168,6 +201,8 @@ class CompanyRestService:
 
         except AlreadyLoggedException:
             raise
+        except ValueError:
+            raise
         except Exception as exc:
             persist_and_raise(
                 exc,
@@ -193,11 +228,21 @@ class CompanyRestService:
             ValueError: If company not found
         """
         try:
-            company = Company.objects.with_invoice_summary().get(id=company_id)
+            company = (
+                Company.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="company", outer_ref="pk"
+                    )
+                )
+                .get(id=company_id)
+            )
             return CompanyRestService._format_company_detail(company)
         except Company.DoesNotExist:
             raise ValueError(f"Company with id {company_id} not found")
         except AlreadyLoggedException:
+            raise
+        except ValueError:
             raise
         except Exception as exc:
             persist_and_raise(
@@ -255,7 +300,9 @@ class CompanyRestService:
             )
 
     @staticmethod
-    def update_company(company_id: UUID, data: Dict[str, Any]) -> Company:
+    def update_company(
+        company_id: UUID, data: Dict[str, Any]
+    ) -> "_AnnotatedCompanyWithPhone":
         """
         Updates an existing company.
         If company is synced with Xero, updates Xero first then syncs locally.
@@ -271,7 +318,9 @@ class CompanyRestService:
             ValueError: If company not found or validation fails
         """
         try:
-            company = get_object_or_404(Company, id=company_id)
+            company = Company.objects.filter(id=company_id).first()
+            if company is None:
+                raise ValueError(f"Company with id {company_id} not found")
 
             # Store xero_contact_id before validation
             original_xero_contact_id = company.xero_contact_id
@@ -285,6 +334,10 @@ class CompanyRestService:
                 raise ValueError("; ".join(error_messages))
 
             validated_data = serializer.validated_data
+            # Stored as the company's primary ClientContactMethod, not a Company
+            # field, so it never reaches the generic setattr loop below.
+            phone_supplied = "phone" in validated_data
+            phone = validated_data.pop("phone", None)
 
             # Guard clause - validate required fields
             if not validated_data.get("name") and not company.name:
@@ -304,7 +357,10 @@ class CompanyRestService:
             if original_xero_contact_id:
                 # Update in Xero first, then sync locally
                 updated_company = CompanyRestService._update_company_in_xero(
-                    company, data
+                    company,
+                    validated_data,
+                    phone_supplied=phone_supplied,
+                    raw_phone=phone,
                 )
                 logger.info(
                     f"Company {updated_company.id} updated in Xero and synced locally",
@@ -315,7 +371,6 @@ class CompanyRestService:
                         "operation": "update_company_xero_sync",
                     },
                 )
-                return updated_company
             else:
                 # Local-only update for companies not synced with Xero
                 with transaction.atomic():
@@ -323,6 +378,12 @@ class CompanyRestService:
                         setattr(company, field, value)
                     company.xero_last_modified = timezone.now()
                     company.save()
+
+                    CompanyRestService._apply_company_phone_change(
+                        company,
+                        phone_supplied=phone_supplied,
+                        raw_phone=phone,
+                    )
 
                     logger.info(
                         f"Company {company.id} updated locally (no Xero sync)",
@@ -332,10 +393,24 @@ class CompanyRestService:
                             "operation": "update_company_local_only",
                         },
                     )
+                updated_company = company
 
-                return company
-
+            # The response's phone field always reads from a queryset annotation;
+            # refetch through it, restoring the with_invoice_summary() aggregates
+            # _format_company_detail needs.
+            updated_with_phone: _AnnotatedCompanyWithPhone = (
+                Company.objects.with_invoice_summary()
+                .annotate(
+                    phone=ClientContactMethod.primary_phone_annotation(
+                        owner="company", outer_ref="pk"
+                    )
+                )
+                .get(id=updated_company.id)
+            )
+            return updated_with_phone
         except AlreadyLoggedException:
+            raise
+        except ValueError:
             raise
         except Exception as exc:
             persist_and_raise(
@@ -545,6 +620,11 @@ class CompanyRestService:
         return list(
             Company.objects.with_invoice_summary()
             .defer("raw_json")  # Not needed for search results
+            .annotate(
+                phone=ClientContactMethod.primary_phone_annotation(
+                    owner="company", outer_ref="pk"
+                )
+            )
             .only(
                 "id",
                 "name",
@@ -795,14 +875,20 @@ class CompanyRestService:
         return "no_match"
 
     @staticmethod
-    def _format_company_summary(company: Company) -> Dict[str, Any]:
+    def _format_company_summary(
+        company: "_AnnotatedCompanyWithPhone",
+    ) -> Dict[str, Any]:
         """
         Formats a single company summary for list/search responses.
+
+        Callers must annotate their queryset with
+        ClientContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
         """
         return {
             "id": str(company.id),
             "name": company.name,
             "email": company.email or "",
+            "phone": company.phone,
             "address": company.address or "",
             "is_account_customer": company.is_account_customer,
             "is_supplier": company.is_supplier,
@@ -822,14 +908,20 @@ class CompanyRestService:
         ]
 
     @staticmethod
-    def _format_company_detail(company: Company) -> Dict[str, Any]:
+    def _format_company_detail(
+        company: "_AnnotatedCompanyWithPhone",
+    ) -> Dict[str, Any]:
         """
         Formats complete company details for API response.
+
+        Callers must annotate their queryset with
+        ClientContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
         """
         return {
             "id": str(company.id),
             "name": company.name,
             "email": company.email or "",
+            "phone": company.phone,
             "address": company.address or "",
             "is_account_customer": company.is_account_customer,
             "is_supplier": company.is_supplier,
@@ -875,6 +967,12 @@ class CompanyRestService:
                 is_account_customer=company_data.get("is_account_customer", True),
                 xero_last_modified=timezone.now(),
             )
+            phone = company_data.get("phone")
+            CompanyRestService._apply_company_phone_change(
+                company,
+                phone_supplied="phone" in company_data,
+                raw_phone=phone,
+            )
 
         # Push to accounting provider (persists xero_contact_id on the company object)
         result = provider.create_contact(company)
@@ -906,7 +1004,13 @@ class CompanyRestService:
         return company
 
     @staticmethod
-    def _update_company_in_xero(company: Company, data: Dict[str, Any]) -> Company:
+    def _update_company_in_xero(
+        company: Company,
+        data: Dict[str, Any],
+        *,
+        phone_supplied: bool,
+        raw_phone: str | None,
+    ) -> Company:
         """
         Updates company locally and in the accounting provider.
         """
@@ -915,7 +1019,15 @@ class CompanyRestService:
         # Check accounting provider authentication
         token = provider.get_valid_token()
         if not token:
-            raise ValueError("Accounting provider authentication required")
+            exc = RuntimeError("Accounting provider authentication required")
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "operation": "_update_company_in_xero",
+                    "company_id": str(company.id),
+                    "provider": provider.provider_name,
+                },
+            )
 
         # Update local fields first
         with transaction.atomic():
@@ -929,6 +1041,11 @@ class CompanyRestService:
                 company.allow_jobs = data["allow_jobs"]
             company.xero_last_modified = timezone.now()
             company.save()
+            CompanyRestService._apply_company_phone_change(
+                company,
+                phone_supplied=phone_supplied,
+                raw_phone=raw_phone,
+            )
 
         # FIXME: `allow_jobs` is a local-only field (not synced to Xero) but
         # toggling it still routes through this method, which unconditionally
@@ -942,8 +1059,17 @@ class CompanyRestService:
         # Push updated company to accounting provider
         result = provider.update_contact(company)
         if not result.success:
-            raise ValueError(
+            exc = RuntimeError(
                 f"Failed to update company in {provider.provider_name}: {result.error}"
+            )
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "operation": "_update_company_in_xero",
+                    "company_id": str(company.id),
+                    "provider": provider.provider_name,
+                    "provider_error": result.error,
+                },
             )
 
         logger.info(
@@ -957,6 +1083,69 @@ class CompanyRestService:
         )
 
         return company
+
+    @staticmethod
+    def _apply_company_phone_change(
+        company: Company,
+        *,
+        phone_supplied: bool,
+        raw_phone: str | None,
+    ) -> None:
+        if not phone_supplied:
+            logger.debug(
+                "Company phone omitted; leaving contact methods unchanged",
+                extra={
+                    "company_id": str(company.id),
+                    "operation": "company_phone_omitted",
+                },
+            )
+            return
+
+        if raw_phone is not None and raw_phone.strip():
+            try:
+                set_primary_phone(company, raw_phone)
+            except DjangoValidationError as exc:
+                raise ValueError("; ".join(exc.messages)) from exc
+            else:
+                return
+
+        CompanyRestService._clear_company_primary_phone(company)
+
+    @staticmethod
+    def _clear_company_primary_phone(company: Company) -> None:
+        primary = (
+            ClientContactMethod.objects.filter(
+                company=company,
+                method_type=ClientContactMethod.MethodType.PHONE,
+                is_primary=True,
+            )
+            .order_by(*PRIMARY_PHONE_ORDERING)
+            .first()
+        )
+        if primary is None:
+            logger.info(
+                "Company primary phone clear requested but no primary phone exists",
+                extra={
+                    "company_id": str(company.id),
+                    "operation": "company_phone_clear_noop",
+                },
+            )
+            return
+
+        old_number = primary.normalized_value
+        primary.delete()
+        if not old_number:
+            logger.warning(
+                "Deleted company primary phone without normalized value",
+                extra={
+                    "company_id": str(company.id),
+                    "contact_method_id": str(primary.id),
+                    "operation": "company_phone_clear_missing_normalized_value",
+                },
+            )
+            return
+
+        transaction.on_commit(lambda: rematch_phone_calls_task.delay([old_number]))
 
     @staticmethod
     def get_company_jobs(company_id: UUID) -> List[Dict[str, Any]]:

@@ -420,7 +420,7 @@ def search_stock(query: str, limit: int = 10) -> List[Dict[str, Any]]:
     Quick top-N search for typeahead/autocomplete callers.
 
     Returns [] for queries shorter than 3 characters; matches the guard
-    used by ClientRestService.search_clients.
+    used by CompanyRestService.search_companies.
     """
     try:
         if not query or len(query.strip()) < 3:

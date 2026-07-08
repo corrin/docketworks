@@ -73,6 +73,23 @@
         </div>
 
         <div>
+          <label for="companyPhone" class="block text-sm font-medium text-gray-700 mb-1">
+            Phone
+          </label>
+          <input
+            id="companyPhone"
+            v-model="formData.phone"
+            type="tel"
+            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            :class="{ 'border-red-300': fieldErrors.phone }"
+            placeholder="Phone number"
+          />
+          <p v-if="fieldErrors.phone" class="mt-1 text-sm text-red-600">
+            {{ fieldErrors.phone }}
+          </p>
+        </div>
+
+        <div>
           <label for="companyAddress" class="block text-sm font-medium text-gray-700 mb-1">
             Address
           </label>
@@ -181,6 +198,7 @@ const companySchema: CompanyCreateRequestSchema = schemas.CompanyCreateRequest
 type CompanyFormPayload = {
   name: CompanyCreateInput['name']
   email?: CompanyUpdateInput['email']
+  phone?: CompanyUpdateInput['phone']
   address?: CompanyUpdateInput['address']
   is_account_customer: NonNullable<CompanyCreateInput['is_account_customer']>
   allow_jobs: NonNullable<CompanyCreateInput['allow_jobs']>
@@ -194,6 +212,7 @@ interface Props {
   companyData?: {
     name: string
     email: string
+    phone: string
     address: string
     is_account_customer: boolean
     allow_jobs: boolean
@@ -207,6 +226,7 @@ const props = withDefaults(defineProps<Props>(), {
   companyData: () => ({
     name: '',
     email: '',
+    phone: '',
     address: '',
     is_account_customer: false,
     allow_jobs: true,
@@ -221,6 +241,7 @@ const emit = defineEmits<{
 const formData = reactive<CompanyFormPayload>({
   name: '',
   email: '',
+  phone: '',
   address: '',
   is_account_customer: false,
   allow_jobs: true,
@@ -351,6 +372,7 @@ const cleanOptionalFields = (data: CompanyFormPayload): CompanyFormPayload => {
     ...data,
     name: data.name.trim(),
     email: normalizeOptionalString(data.email),
+    phone: normalizeOptionalString(data.phone),
     address: normalizeOptionalString(data.address),
   }
 }
@@ -386,6 +408,7 @@ const normalizeCompanyResult = (
   return schemas.CompanySearchResult.parse({
     ...companyPayload,
     email: companyPayload.email ?? '',
+    phone: companyPayload.phone ?? '',
     address: companyPayload.address ?? '',
     xero_contact_id: companyPayload.xero_contact_id ?? '',
   })
@@ -427,6 +450,7 @@ const resetForm = () => {
   Object.assign(formData, {
     name: '',
     email: '',
+    phone: '',
     address: '',
     is_account_customer: false,
     allow_jobs: true,
@@ -458,6 +482,7 @@ watch(
         Object.assign(formData, {
           name: props.companyData.name,
           email: props.companyData.email,
+          phone: props.companyData.phone,
           address: props.companyData.address,
           is_account_customer: props.companyData.is_account_customer,
           allow_jobs: props.companyData.allow_jobs,

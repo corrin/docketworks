@@ -6,9 +6,9 @@ import { api } from '@/api/client'
 import { debugLog } from '@/utils/debug'
 import { logSearchResultClick } from '@/services/searchTelemetry.service'
 
-// Use generated schemas, excluding scalar phone fields now owned by contact methods.
-export type Company = Omit<z.infer<typeof schemas.CompanySearchResult>, 'phone'>
-export type ClientContact = Omit<z.infer<typeof schemas.ClientContact>, 'phone'>
+// Use generated schemas
+export type Company = z.infer<typeof schemas.CompanySearchResult>
+export type ClientContact = z.infer<typeof schemas.ClientContact>
 
 type UseCompanyLookupOptions = {
   supplierLookup?: { value: boolean }

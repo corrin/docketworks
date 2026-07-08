@@ -1,12 +1,7 @@
-from typing import TypeAlias
-
 from rest_framework.pagination import PageNumberPagination
 from rest_framework.response import Response
 
-JsonValue: TypeAlias = (
-    None | bool | int | float | str | list["JsonValue"] | dict[str, "JsonValue"]
-)
-JsonObject: TypeAlias = dict[str, JsonValue]
+from apps.workflow.api.types import JsonObject, JsonValue
 
 
 class FiftyPerPagePagination(PageNumberPagination):

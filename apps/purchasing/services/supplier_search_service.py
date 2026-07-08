@@ -9,7 +9,7 @@ from datetime import timedelta
 from difflib import SequenceMatcher
 from typing import TYPE_CHECKING, Any, TypedDict
 
-from django.db.models import Count, OuterRef, Q, Subquery
+from django.db.models import Count, Q
 from django.utils import timezone
 
 from apps.company.models import ClientContactMethod, Company, SupplierSearchAlias
@@ -29,7 +29,7 @@ class _SupplierAnnotations(TypedDict):
     """Queryset annotations list_suppliers() adds; not Company model fields."""
 
     recent_purchase_count: int
-    primary_phone: str | None
+    primary_phone: str
 
 
 if TYPE_CHECKING:
@@ -144,9 +144,7 @@ def _format_supplier(
         "id": str(company.id),
         "name": company.name,
         "email": company.email or "",
-        # The Subquery annotation yields None for suppliers with no phone
-        # method; the API contract is a plain string.
-        "phone": company.primary_phone or "",
+        "phone": company.primary_phone,
         "address": company.address or "",
         "is_account_customer": company.is_account_customer,
         "is_supplier": company.is_supplier,
@@ -183,13 +181,8 @@ def list_suppliers(
                 & ~Q(purchase_orders__status="deleted"),
                 distinct=True,
             ),
-            primary_phone=Subquery(
-                ClientContactMethod.objects.filter(
-                    company=OuterRef("pk"),
-                    method_type=ClientContactMethod.MethodType.PHONE,
-                )
-                .order_by("-is_primary", "label", "value")
-                .values("value")[:1]
+            primary_phone=ClientContactMethod.primary_phone_annotation(
+                owner="company", outer_ref="pk"
             ),
         )
         .defer("raw_json")

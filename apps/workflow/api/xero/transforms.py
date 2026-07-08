@@ -870,19 +870,20 @@ def transform_pay_slip(xero_pay_slip, xero_id):
 
 def sync_companies(xero_contacts):
     """Sync Xero contacts to Company model"""
-    clients = []
+    companies: list[Company] = []
 
     for contact in xero_contacts:
         raw_json = process_xero_data(contact)
+        company: Company
 
         # Check if we already have a company with this xero_contact_id
-        existing_client = Company.objects.filter(
+        existing_company = Company.objects.filter(
             xero_contact_id=contact.contact_id
         ).first()
 
-        if existing_client:
+        if existing_company:
             # Already linked - just update with latest Xero data
-            company = existing_client
+            company = existing_company
             company.raw_json = raw_json
             company.xero_last_modified = timezone.now()
             company.xero_archived = contact.contact_status == "ARCHIVED"
@@ -893,25 +894,25 @@ def sync_companies(xero_contacts):
             # Not linked yet - check if name already exists in our database
             contact_name = raw_json.get("_name", "").strip()
             if contact_name:
-                matching_client = Company.objects.filter(name=contact_name).first()
+                matching_company = Company.objects.filter(name=contact_name).first()
 
-                if matching_client:
-                    if matching_client.xero_contact_id is None:
+                if matching_company:
+                    if matching_company.xero_contact_id is None:
                         # Safe to link - no existing Xero ID
-                        matching_client.xero_contact_id = contact.contact_id
-                        matching_client.raw_json = raw_json
-                        matching_client.xero_last_modified = timezone.now()
-                        matching_client.xero_archived = (
+                        matching_company.xero_contact_id = contact.contact_id
+                        matching_company.raw_json = raw_json
+                        matching_company.xero_last_modified = timezone.now()
+                        matching_company.xero_archived = (
                             contact.contact_status == "ARCHIVED"
                         )
-                        matching_client.xero_merged_into_id = getattr(
+                        matching_company.xero_merged_into_id = getattr(
                             contact, "merged_to_contact_id", None
                         )
-                        matching_client.save()
+                        matching_company.save()
                         logger.info(
-                            f"Linked existing company '{contact_name}' (ID: {matching_client.id}) to Xero contact {contact.contact_id}"
+                            f"Linked existing company '{contact_name}' (ID: {matching_company.id}) to Xero contact {contact.contact_id}"
                         )
-                        company = matching_client
+                        company = matching_company
                         created = False
                     else:
                         if contact.contact_status == "ARCHIVED":
@@ -921,7 +922,7 @@ def sync_companies(xero_contacts):
                             # record is archived. Create a separate archived company.
                             logger.warning(
                                 f"Archived Xero contact '{contact_name}' ({contact.contact_id}) "
-                                f"has same name as company already linked to {matching_client.xero_contact_id}. "
+                                f"has same name as company already linked to {matching_company.xero_contact_id}. "
                                 f"Creating separate archived company record."
                             )
                             company = Company.objects.create(
@@ -937,7 +938,7 @@ def sync_companies(xero_contacts):
                         else:
                             # Active contact name collision — real conflict
                             raise ValueError(
-                                f"Name '{contact_name}' already linked to Xero ID {matching_client.xero_contact_id}, cannot link to {contact.contact_id}"
+                                f"Name '{contact_name}' already linked to Xero ID {matching_company.xero_contact_id}, cannot link to {contact.contact_id}"
                             )
                 else:
                     # No existing company with this name - safe to create new one
@@ -963,12 +964,12 @@ def sync_companies(xero_contacts):
                 created = True
 
         set_company_fields(company, new_from_xero=created)
-        clients.append(company)
+        companies.append(company)
 
     # Resolve merges and move stranded FK records onto the terminal company.
     from apps.company.services.company_merge_service import reassign_company_fk_records
 
-    for company in clients:
+    for company in companies:
         if company.xero_merged_into_id and not company.merged_into:
             merged_into = Company.objects.filter(
                 xero_contact_id=company.xero_merged_into_id
@@ -995,7 +996,7 @@ def sync_companies(xero_contacts):
                     logger_prefix="[batch-sync] ",
                 )
 
-    return clients
+    return companies
 
 
 def sync_accounts(xero_accounts):

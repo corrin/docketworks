@@ -1,3 +1,7 @@
+from typing import Any
+
+from django.core.exceptions import ValidationError as DjangoValidationError
+from django.db import transaction
 from rest_framework import serializers
 
 from apps.company.models import (
@@ -10,15 +14,69 @@ from apps.company.models import (
 )
 
 
+def set_primary_phone(owner: Company | ClientContact, raw_value: str) -> None:
+    """Point the owner's primary phone at ``raw_value`` (non-blank).
+
+    Reuses an existing method carrying the same normalized number (promoting
+    it) or the current primary (renumbering it) before creating a new row, so
+    the per-owner uniqueness and single-primary constraints hold. Ownership
+    conflicts raise the model's ValidationError for the caller to surface.
+    """
+    # Lazy: apps.job.models imports this module; a module-level crm.tasks
+    # import closes an import cycle that breaks mypy's cross-module inference.
+    from apps.crm.tasks import rematch_phone_calls_task
+
+    value = raw_value.strip()
+    owner_field = "company" if isinstance(owner, Company) else "contact"
+    phone_methods = ClientContactMethod.objects.filter(
+        method_type=ClientContactMethod.MethodType.PHONE, **{owner_field: owner}
+    )
+    old_primary = phone_methods.filter(is_primary=True).first()
+    old_number = old_primary.normalized_value if old_primary else ""
+    normalized_value = ClientContactMethod.normalize_phone(value)
+    if not normalized_value:
+        raise DjangoValidationError("Phone number must contain at least one digit")
+
+    same_number = phone_methods.filter(normalized_value=normalized_value).first()
+
+    if same_number is not None:
+        same_number.value = value
+        same_number.is_primary = True  # save() demotes any other primary
+        same_number.save()
+        method = same_number
+    elif old_primary is not None:
+        old_primary.value = value
+        old_primary.save()
+        method = old_primary
+    else:
+        method = ClientContactMethod.objects.create(
+            method_type=ClientContactMethod.MethodType.PHONE,
+            value=value,
+            is_primary=True,
+            **{owner_field: owner},
+        )
+
+    numbers = sorted(
+        number for number in {old_number, method.normalized_value} if number
+    )
+    transaction.on_commit(lambda: rematch_phone_calls_task.delay(numbers))
+
+
 class ClientContactSerializer(serializers.ModelSerializer):
     """Serializer for ClientContact model."""
 
+    # Backed by ClientContactMethod: reads come from the viewset's
+    # primary_phone_annotation; writes upsert the contact's primary method.
+    phone = serializers.CharField(
+        required=False, allow_blank=True, allow_null=True, default=""
+    )
+
     class Meta:
         model = ClientContact
-        fields = ClientContact.CLIENTCONTACT_API_FIELDS
+        fields = ClientContact.CLIENTCONTACT_API_FIELDS + ["phone"]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
 
-    def to_internal_value(self, data):
+    def to_internal_value(self, data: Any) -> Any:
         """Convert empty strings to None for nullable fields before validation."""
         # Fields that should be NULL instead of empty string
         nullable_fields = ["email", "position", "notes"]
@@ -28,6 +86,38 @@ class ClientContactSerializer(serializers.ModelSerializer):
                 data[field] = None
 
         return super().to_internal_value(data)
+
+    def create(self, validated_data):
+        raw_phone = validated_data.pop("phone", None)  # not a model field
+        with transaction.atomic():
+            contact = super().create(validated_data)
+            return self._apply_phone(contact, raw_phone)
+
+    def update(self, instance, validated_data):
+        raw_phone = validated_data.pop("phone", None)  # not a model field
+        with transaction.atomic():
+            contact = super().update(instance, validated_data)
+            return self._apply_phone(contact, raw_phone)
+
+    def _apply_phone(
+        self, contact: ClientContact, raw_phone: str | None
+    ) -> ClientContact:
+        """Upsert the primary phone; blank/omitted input is a no-op (deleting
+        numbers is PhoneNumberManager's job, not this form's)."""
+        if raw_phone and raw_phone.strip():
+            try:
+                set_primary_phone(contact, raw_phone)
+            except DjangoValidationError as exc:
+                raise serializers.ValidationError({"phone": exc.messages}) from exc
+        else:
+            pass  # blank phone: leave existing contact methods untouched
+        # The phone field always reads from a queryset annotation; give the
+        # write response the same shape by re-fetching through it.
+        return ClientContact.objects.annotate(
+            phone=ClientContactMethod.primary_phone_annotation(
+                owner="contact", outer_ref="pk"
+            )
+        ).get(pk=contact.pk)
 
 
 class ClientContactMethodSerializer(serializers.ModelSerializer):
@@ -78,7 +168,7 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
     def get_contact_name(self, obj: ClientContactMethod) -> str:
         return obj.contact.name if obj.contact else ""
 
-    def validate(self, attrs):
+    def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         company = attrs.get("company", getattr(self.instance, "company", None))
         contact = attrs.get("contact", getattr(self.instance, "contact", None))
         if bool(company) == bool(contact):
@@ -135,7 +225,7 @@ class SupplierPickupAddressSerializer(serializers.ModelSerializer):
             "formatted_address",
         ]
 
-    def to_internal_value(self, data):
+    def to_internal_value(self, data: Any) -> Any:
         """Convert empty strings to None for nullable fields before validation."""
         nullable_fields = [
             "suburb",
@@ -200,6 +290,7 @@ class CompanySearchResultSerializer(serializers.Serializer):
     id = serializers.CharField()
     name = serializers.CharField()
     email = serializers.CharField(allow_blank=True)
+    phone = serializers.CharField(allow_blank=True)
     address = serializers.CharField(allow_blank=True)
     is_account_customer = serializers.BooleanField()
     is_supplier = serializers.BooleanField()
@@ -245,6 +336,8 @@ class CompanyCreateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
+    # Stored as the client's primary ClientContactMethod, not a Client column
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     is_account_customer = serializers.BooleanField(default=True)
     allow_jobs = serializers.BooleanField(default=True)
@@ -264,6 +357,7 @@ class CompanyErrorResponseSerializer(serializers.Serializer):
     success = serializers.BooleanField(default=False)
     error = serializers.CharField()
     details = serializers.CharField(required=False)
+    error_id = serializers.CharField(required=False)
 
 
 class CompanyDuplicateErrorResponseSerializer(serializers.Serializer):
@@ -298,6 +392,7 @@ class CompanyDetailResponseSerializer(serializers.Serializer):
     django_updated_at = serializers.DateTimeField()
     last_invoice_date = serializers.DateTimeField(allow_null=True)
     total_spend = serializers.CharField()
+    phone = serializers.CharField(allow_blank=True)
 
 
 class CompanyUpdateSerializer(serializers.Serializer):
@@ -305,6 +400,8 @@ class CompanyUpdateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
+    # Stored as the client's primary ClientContactMethod, not a Client column
+    phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True)
     is_account_customer = serializers.BooleanField(required=False)
     allow_jobs = serializers.BooleanField(required=False)
@@ -318,8 +415,8 @@ class CompanyUpdateResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-class JobContactResponseSerializer(serializers.Serializer):
-    """Serializer for job contact information response"""
+class JobContactBaseSerializer(serializers.Serializer):
+    """Fields shared by the job contact response and update serializers."""
 
     id = serializers.UUIDField()
     name = serializers.CharField()
@@ -329,7 +426,11 @@ class JobContactResponseSerializer(serializers.Serializer):
     notes = serializers.CharField(allow_blank=True, allow_null=True)
 
 
-class JobContactUpdateSerializer(JobContactResponseSerializer):
+class JobContactResponseSerializer(JobContactBaseSerializer):
+    """Serializer for job contact information response"""
+
+
+class JobContactUpdateSerializer(JobContactBaseSerializer):
     """Serializer for job contact update request"""
 
 
