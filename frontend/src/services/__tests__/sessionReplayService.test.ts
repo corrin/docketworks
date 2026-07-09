@@ -37,10 +37,21 @@ describe('sessionReplayService', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
     vi.resetModules()
+    window.localStorage.clear()
     const state = await import('@/services/sessionReplayState')
     state.setSessionReplayId(null)
     apiMock.session_replay_recordings_create.mockResolvedValue({ id: 'replay-1' })
     apiMock.session_replay_recording_chunks_create.mockResolvedValue({ id: 'chunk-1' })
+  })
+
+  it('does not start replay capture when E2E disables it in dev', async () => {
+    window.localStorage.setItem('e2e:disable-session-replay', 'true')
+    const { startSessionReplay } = await import('@/services/sessionReplayService')
+
+    await startSessionReplay()
+
+    expect(apiMock.session_replay_recordings_create).not.toHaveBeenCalled()
+    expect(recordMock).not.toHaveBeenCalled()
   })
 
   it('drops duplicate chunk uploads and continues with the next sequence', async () => {

@@ -57,16 +57,16 @@
                 </div>
 
                 <div>
-                  <ContactSelector
-                    ref="contactSelectorRef"
-                    id="contact"
-                    v-model="contactDisplayName"
+                  <PersonSelector
+                    ref="personSelectorRef"
+                    id="person"
+                    v-model="personDisplayName"
                     :company-id="formData.company_id as string"
                     :company-name="companyDisplayName"
-                    label="Contact"
-                    placeholder="Search or add contact person"
+                    label="Person"
+                    placeholder="Search or add person"
                     :optional="true"
-                    @update:selected-contact="updateSelectedContact"
+                    @update:selected-person="updateSelectedPerson"
                   />
                 </div>
 
@@ -244,7 +244,7 @@ import { ref, computed, onMounted, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import AppLayout from '@/components/AppLayout.vue'
 import CompanyLookup from '@/components/CompanyLookup.vue'
-import ContactSelector from '@/components/ContactSelector.vue'
+import PersonSelector from '@/components/PersonSelector.vue'
 import RichTextEditor from '@/components/RichTextEditor.vue'
 import { jobService, type JobCreateData } from '@/services/job.service'
 import { schemas } from '@/api/generated/api'
@@ -252,10 +252,10 @@ import { z } from 'zod'
 import { debugLog } from '@/utils/debug'
 
 type CompanySearchResult = z.infer<typeof schemas.CompanySearchResult>
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
 import { toast } from 'vue-sonner'
 
-const contactSelectorRef = ref<InstanceType<typeof ContactSelector> | null>(null)
+const personSelectorRef = ref<InstanceType<typeof PersonSelector> | null>(null)
 
 const filterNumericInput = (event: KeyboardEvent) => {
   // Allow control keys, arrow keys, and numeric keys on numpad
@@ -301,7 +301,7 @@ const formData = ref<JobCreateData>({
   description: '',
   order_number: '',
   notes: '',
-  contact_id: null,
+  person_id: null,
   estimated_materials: 0,
   estimated_time: 0,
   is_urgent: false,
@@ -311,8 +311,8 @@ const formData = ref<JobCreateData>({
 const companyDisplayName = ref('')
 
 const selectedCompany = ref<CompanySearchResult | null>(null)
-const selectedContact = ref<ClientContact | null>(null)
-const contactDisplayName = ref('')
+const selectedPerson = ref<CompanyPersonLink | null>(null)
+const personDisplayName = ref('')
 
 const errors = ref<Record<string, string>>({})
 const isSubmitting = ref(false)
@@ -322,39 +322,39 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
   debugLog('JobCreateView - handleCompanySelection:', {
     company,
     previousCompanyId: formData.value.company_id,
-    previousContactId: formData.value.contact_id,
+    previousPersonId: formData.value.person_id,
   })
 
   selectedCompany.value = company
 
-  // Always clear contact person when company changes (even if same company selected)
-  formData.value.contact_id = null
-  selectedContact.value = null
-  contactDisplayName.value = ''
+  // Always clear person when company changes (even if same company selected)
+  formData.value.person_id = null
+  selectedPerson.value = null
+  personDisplayName.value = ''
 
-  // Clear the ContactSelector's internal state first
-  if (contactSelectorRef.value) {
-    contactSelectorRef.value.clearSelection()
+  // Clear the PersonSelector's internal state first
+  if (personSelectorRef.value) {
+    personSelectorRef.value.clearSelection()
   }
 
   if (company) {
     companyDisplayName.value = company.name
     formData.value.company_id = company.id
 
-    debugLog('JobCreateView - Company selected, waiting for ContactSelector to update')
+    debugLog('JobCreateView - Company selected, waiting for PersonSelector to update')
 
     // Wait for the next DOM update cycle to ensure the ref is ready
-    // and the new company ID has propagated to the ContactSelector.
+    // and the new company ID has propagated to the PersonSelector.
     await nextTick()
 
-    // Give the ContactSelector's watcher time to process the companyId change
+    // Give the PersonSelector's watcher time to process the companyId change
     await new Promise((resolve) => setTimeout(resolve, 100))
 
-    if (contactSelectorRef.value) {
-      debugLog('JobCreateView - Calling selectPrimaryContact')
-      // The `selectPrimaryContact` method within the composable
-      // will handle loading contacts and finding the primary.
-      await contactSelectorRef.value.selectPrimaryContact()
+    if (personSelectorRef.value) {
+      debugLog('JobCreateView - Calling selectPrimaryPerson')
+      // The `selectPrimaryPerson` method within the composable
+      // will handle loading people and finding the primary.
+      await personSelectorRef.value.selectPrimaryPerson()
     }
   } else {
     // Clear company fields if company is deselected
@@ -364,15 +364,15 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
   }
 }
 
-const updateSelectedContact = (contact: ClientContact | null) => {
-  selectedContact.value = contact
-  if (contact) {
-    // Save the contact ID for the API and display name for the UI
-    formData.value.contact_id = contact.id
-    contactDisplayName.value = contact.name
+const updateSelectedPerson = (personLink: CompanyPersonLink | null) => {
+  selectedPerson.value = personLink
+  if (personLink) {
+    // Save the person ID for the API and display name for the UI
+    formData.value.person_id = personLink.person
+    personDisplayName.value = personLink.person_name
   } else {
-    formData.value.contact_id = null
-    contactDisplayName.value = ''
+    formData.value.person_id = null
+    personDisplayName.value = ''
   }
 }
 
@@ -525,7 +525,7 @@ onMounted(() => {
     formData.value.description = ''
     formData.value.order_number = ''
     formData.value.notes = ''
-    formData.value.contact_id = null
+    formData.value.person_id = null
     formData.value.estimated_materials = 0
     formData.value.estimated_time = 0
     formData.value.pricing_methodology = 'time_materials'

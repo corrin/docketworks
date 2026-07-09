@@ -81,8 +81,8 @@ const emit = defineEmits<{
                 </span>
                 <span class="inline-flex items-center gap-1">
                   <UserRound class="h-4 w-4" />
-                  <span class="font-medium text-foreground">Contact:</span>
-                  {{ job.contact_name || '-' }}
+                  <span class="font-medium text-foreground">Person:</span>
+                  {{ job.person_name || '-' }}
                 </span>
               </div>
             </div>

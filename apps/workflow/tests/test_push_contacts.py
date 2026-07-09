@@ -14,7 +14,7 @@ from django.test import TestCase
 from django.utils import timezone
 from xero_python.accounting.models import Contact, Contacts
 
-from apps.company.models import ClientContactMethod, Company
+from apps.company.models import Company, ContactMethod
 from apps.workflow.tests.fixtures.xero_responses import make_create_contacts_response
 
 
@@ -29,9 +29,9 @@ def _make_client(**overrides):
     defaults.update(overrides)
     company = Company.objects.create(**defaults)
     if phone is not None:
-        ClientContactMethod.objects.create(
+        ContactMethod.objects.create(
             company=company,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value=phone,
             is_primary=True,
         )
@@ -96,7 +96,7 @@ class SyncClientToXeroPushTests(TestCase):
 @patch("time.sleep")
 @patch("apps.workflow.api.xero.push.get_tenant_id", return_value="tenant-1")
 @patch("apps.workflow.api.xero.push.AccountingApi")
-class CreateClientContactInXeroTests(TestCase):
+class CreateCompanyContactInXeroTests(TestCase):
     """create_company_contact_in_xero — passes Contact, saves xero_contact_id."""
 
     def test_passes_sdk_contact_and_saves_id(

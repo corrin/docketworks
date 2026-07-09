@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Button } from '@/components/ui/button'
-import { RefreshCw, ExternalLink, Briefcase, NotebookText, Contact } from 'lucide-vue-next'
+import { RefreshCw, ExternalLink, Briefcase, NotebookText, UserRound } from 'lucide-vue-next'
 import StaffAvatar from '@/components/StaffAvatar.vue'
 import { schemas } from '@/api/generated/api'
 import type { z } from 'zod'
@@ -69,12 +69,12 @@ const getJobDescription = (job: WorkshopJob) => {
         </div>
 
         <div
-          v-if="job.contact_person"
+          v-if="job.person_name"
           class="text-xl text-black font-semibold flex items-center gap-2"
         >
-          <Contact class="h-5 w-5 text-gray-500 flex-shrink-0" />
-          <span>Contact:</span>
-          <span class="text-gray-600 font-medium">{{ job.contact_person }}</span>
+          <UserRound class="h-5 w-5 text-gray-500 flex-shrink-0" />
+          <span>Person:</span>
+          <span class="text-gray-600 font-medium">{{ job.person_name }}</span>
         </div>
       </div>
 

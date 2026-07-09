@@ -13,16 +13,17 @@ import logging
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Model, Q, QuerySet
 
 from apps.accounting.models import Invoice, Quote
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
 logger = logging.getLogger(__name__)
 
 TEST_DATA_PREFIX = "[TEST]"
-TEST_CLIENT_NAME = "ABC Carpet Cleaning TEST IGNORE"
+TEST_COMPANY_NAME = "ABC Carpet Cleaning TEST IGNORE"
 LEGACY_E2E_PREFIXES = ["E2E Test Client", "E2E Modal Client", "E2E Test Supplier"]
 
 
@@ -41,70 +42,89 @@ class Command(BaseCommand):
 
         # Collect what to delete
         test_jobs = Job.objects.filter(name__startswith=TEST_DATA_PREFIX)
-        test_contacts = ClientContact.objects.filter(name__startswith=TEST_DATA_PREFIX)
-        test_clients = Company.objects.filter(name__startswith=TEST_DATA_PREFIX)
-        # Swept so Job.company PROTECT doesn't block the [TEST] company delete.
-        test_prefix_client_jobs = Job.objects.filter(company__in=test_clients)
-        test_prefix_client_contacts = ClientContact.objects.filter(
-            company__in=test_clients
+        test_people = CompanyPersonLink.objects.filter(
+            person__name__startswith=TEST_DATA_PREFIX
         )
-
-        # Legacy E2E-prefixed clients and their data
-        from django.db.models import Q
+        test_companies = Company.objects.filter(name__startswith=TEST_DATA_PREFIX)
+        # Swept so Job.company PROTECT doesn't block the [TEST] company delete.
+        test_prefix_company_jobs = Job.objects.filter(company__in=test_companies)
+        test_prefix_company_people = CompanyPersonLink.objects.filter(
+            company__in=test_companies
+        )
+        test_person_records = Person.objects.filter(name__startswith=TEST_DATA_PREFIX)
 
         legacy_q = Q()
         for prefix in LEGACY_E2E_PREFIXES:
             legacy_q |= Q(name__startswith=prefix)
-        legacy_clients = Company.objects.filter(legacy_q)
-        legacy_client_jobs = Job.objects.filter(company__in=legacy_clients)
-        legacy_client_contacts = ClientContact.objects.filter(
-            company__in=legacy_clients
+        legacy_companies = Company.objects.filter(legacy_q)
+        legacy_company_jobs = Job.objects.filter(company__in=legacy_companies)
+        legacy_company_people = CompanyPersonLink.objects.filter(
+            company__in=legacy_companies
         )
 
-        # Test company data (all jobs/contacts on the test company are test artifacts)
-        test_client_qs = Company.objects.filter(name=TEST_CLIENT_NAME)
-        test_client_jobs = Job.objects.filter(company__in=test_client_qs)
-        test_client_contacts = ClientContact.objects.filter(company__in=test_client_qs)
+        # Test company data (all jobs/people on the test company are test artifacts)
+        test_company_qs = Company.objects.filter(name=TEST_COMPANY_NAME)
+        test_company_jobs = Job.objects.filter(company__in=test_company_qs)
+        test_company_people = CompanyPersonLink.objects.filter(
+            company__in=test_company_qs
+        )
 
         # Report
         self.stdout.write("\n=== E2E Test Data ===\n")
 
         self._report_queryset("[TEST]-prefixed jobs", test_jobs, "name")
-        self._report_queryset("[TEST]-prefixed contacts", test_contacts, "name")
-        self._report_queryset("[TEST]-prefixed clients", test_clients, "name")
-        self._report_queryset("Legacy E2E clients", legacy_clients, "name")
-        self._report_queryset("Legacy E2E company jobs", legacy_client_jobs, "name")
+        self._report_queryset("[TEST]-prefixed people", test_people, "person__name")
         self._report_queryset(
-            "Legacy E2E company contacts", legacy_client_contacts, "name"
-        )
-        self._report_queryset(
-            f"Jobs on test company ({TEST_CLIENT_NAME})", test_client_jobs, "name"
-        )
-        self._report_queryset(
-            f"Contacts on test company ({TEST_CLIENT_NAME})",
-            test_client_contacts,
+            "Underlying [TEST]-prefixed person records",
+            test_person_records,
             "name",
         )
+        self._report_queryset("[TEST]-prefixed companies", test_companies, "name")
+        self._report_queryset("Legacy E2E companies", legacy_companies, "name")
+        self._report_queryset("Legacy E2E company jobs", legacy_company_jobs, "name")
         self._report_queryset(
-            "Jobs on [TEST]-prefixed clients", test_prefix_client_jobs, "name"
+            "Legacy E2E company people", legacy_company_people, "person__name"
         )
         self._report_queryset(
-            "Contacts on [TEST]-prefixed clients",
-            test_prefix_client_contacts,
-            "name",
+            f"Jobs on test company ({TEST_COMPANY_NAME})", test_company_jobs, "name"
         )
+        self._report_queryset(
+            f"People on test company ({TEST_COMPANY_NAME})",
+            test_company_people,
+            "person__name",
+        )
+        self._report_queryset(
+            "Jobs on [TEST]-prefixed companies", test_prefix_company_jobs, "name"
+        )
+        self._report_queryset(
+            "People on [TEST]-prefixed companies",
+            test_prefix_company_people,
+            "person__name",
+        )
+
+        all_companies_to_delete = (test_companies | legacy_companies).distinct()
+        all_people_links_to_delete = (
+            test_company_people
+            | legacy_company_people
+            | test_people
+            | test_prefix_company_people
+        ).distinct()
+        people_ids_to_delete = set(
+            all_people_links_to_delete.values_list("person_id", flat=True)
+        ) | set(test_person_records.values_list("id", flat=True))
 
         total = (
             test_jobs.count()
-            + test_contacts.count()
-            + test_clients.count()
-            + legacy_clients.count()
-            + legacy_client_jobs.count()
-            + legacy_client_contacts.count()
-            + test_client_jobs.count()
-            + test_client_contacts.count()
-            + test_prefix_client_jobs.count()
-            + test_prefix_client_contacts.count()
+            + test_people.count()
+            + test_person_records.count()
+            + test_companies.count()
+            + legacy_companies.count()
+            + legacy_company_jobs.count()
+            + legacy_company_people.count()
+            + test_company_jobs.count()
+            + test_company_people.count()
+            + test_prefix_company_jobs.count()
+            + test_prefix_company_people.count()
         )
 
         if total == 0:
@@ -128,7 +148,10 @@ class Command(BaseCommand):
 
         # Collect all jobs that will be deleted (union of all sources)
         all_jobs_to_delete = (
-            test_jobs | test_client_jobs | legacy_client_jobs | test_prefix_client_jobs
+            test_jobs
+            | test_company_jobs
+            | legacy_company_jobs
+            | test_prefix_company_jobs
         ).distinct()
 
         # Check for rows with PROTECTED FKs pointing at these jobs
@@ -164,15 +187,12 @@ class Command(BaseCommand):
                 "sheet_id",
             )
 
-        # Collect all clients to delete
-        all_clients_to_delete = (test_clients | legacy_clients).distinct()
-
-        # Find POs referencing these clients (PROTECTED FK on supplier)
-        linked_pos = PurchaseOrder.objects.filter(supplier__in=all_clients_to_delete)
+        # Find POs referencing these companies (PROTECTED FK on supplier)
+        linked_pos = PurchaseOrder.objects.filter(supplier__in=all_companies_to_delete)
 
         if linked_pos.exists():
             self._report_queryset(
-                "Purchase orders linked to test clients (will be deleted)",
+                "Purchase orders linked to test companies (will be deleted)",
                 linked_pos,
                 "id",
             )
@@ -187,7 +207,7 @@ class Command(BaseCommand):
             if count:
                 self.stdout.write(f"  Invoices: {count} objects ({details})")
 
-            # 2. POs on test clients (PROTECTED FK on supplier)
+            # 2. POs on test companies (PROTECTED FK on supplier)
             count, details = linked_pos.delete()
             if count:
                 self.stdout.write(f"  Purchase orders: {count} objects ({details})")
@@ -206,45 +226,58 @@ class Command(BaseCommand):
                 self.stdout.write(f"  Quote spreadsheets: {count} objects ({details})")
 
             # 4. Jobs on test company (cascade deletes cost sets, cost lines, etc.)
-            count, details = test_client_jobs.delete()
+            count, details = test_company_jobs.delete()
             self.stdout.write(f"  Test company jobs: {count} objects ({details})")
 
-            # 5. Contacts on test company
-            count, details = test_client_contacts.delete()
-            self.stdout.write(f"  Test company contacts: {count} objects ({details})")
+            # 5. People on test company
+            count, details = test_company_people.delete()
+            self.stdout.write(f"  Test company people: {count} objects ({details})")
 
             # 6. Legacy company data
-            count, details = legacy_client_jobs.delete()
+            count, details = legacy_company_jobs.delete()
             self.stdout.write(f"  Legacy company jobs: {count} objects ({details})")
 
-            count, details = legacy_client_contacts.delete()
-            self.stdout.write(f"  Legacy company contacts: {count} objects ({details})")
+            count, details = legacy_company_people.delete()
+            self.stdout.write(f"  Legacy company people: {count} objects ({details})")
 
-            count, details = legacy_clients.delete()
-            self.stdout.write(f"  Legacy clients: {count} objects ({details})")
+            count, details = legacy_companies.delete()
+            self.stdout.write(f"  Legacy companies: {count} objects ({details})")
 
             # 7. [TEST]-prefixed items (may overlap with above, that's fine)
             count, details = test_jobs.delete()
             self.stdout.write(f"  [TEST] jobs: {count} objects ({details})")
 
-            count, details = test_contacts.delete()
-            self.stdout.write(f"  [TEST] contacts: {count} objects ({details})")
+            count, details = test_people.delete()
+            self.stdout.write(f"  [TEST] people: {count} objects ({details})")
 
-            # 8. Jobs/contacts on [TEST]-prefixed clients (unblocks company delete)
-            count, details = test_prefix_client_jobs.delete()
-            self.stdout.write(f"  Jobs on [TEST] clients: {count} objects ({details})")
-
-            count, details = test_prefix_client_contacts.delete()
+            # 8. Jobs/people on [TEST]-prefixed companies (unblocks company delete)
+            count, details = test_prefix_company_jobs.delete()
             self.stdout.write(
-                f"  Contacts on [TEST] clients: {count} objects ({details})"
+                f"  Jobs on [TEST] companies: {count} objects ({details})"
             )
 
-            count, details = test_clients.delete()
-            self.stdout.write(f"  [TEST] clients: {count} objects ({details})")
+            count, details = test_prefix_company_people.delete()
+            self.stdout.write(
+                f"  People on [TEST] companies: {count} objects ({details})"
+            )
+
+            remaining_non_test_people_links = CompanyPersonLink.objects.exclude(
+                company__in=all_companies_to_delete
+            ).values_list("person_id", flat=True)
+            orphaned_test_people = Person.objects.filter(
+                id__in=people_ids_to_delete
+            ).exclude(id__in=remaining_non_test_people_links)
+            count, details = orphaned_test_people.delete()
+            self.stdout.write(
+                f"  Underlying test person records: {count} objects ({details})"
+            )
+
+            count, details = test_companies.delete()
+            self.stdout.write(f"  [TEST] companies: {count} objects ({details})")
 
         self.stdout.write("\nDone.")
 
-    def _report_queryset(self, label, qs, field):
+    def _report_queryset(self, label: str, qs: QuerySet[Model], field: str) -> None:
         count = qs.count()
         if count == 0:
             return

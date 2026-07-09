@@ -13,7 +13,7 @@ class SearchTelemetryEvent(models.Model):
         CLICK = "click", "Click"
 
     class Domain(models.TextChoices):
-        CLIENT = "client", "Client"
+        COMPANY = "company", "Company"
         KANBAN = "kanban", "Kanban"
         STOCK = "stock", "Stock"
 

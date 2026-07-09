@@ -222,15 +222,13 @@ export function checkSafeToTest(dbConfig: DbConfig): SafetyCheckResult {
     issues.push(`${testJobCount} test jobs found (names starting with '${TEST_DATA_PREFIX}')`)
   }
 
-  // Check for [TEST]-prefixed contacts
-  const testContactCount = runPsql(
+  // Check for [TEST]-prefixed people
+  const testPersonCount = runPsql(
     dbConfig,
-    `SELECT COUNT(*) FROM company_clientcontact WHERE name LIKE '${prefix}%'`,
+    `SELECT COUNT(*) FROM company_person WHERE name LIKE '${prefix}%'`,
   )
-  if (parseInt(testContactCount) > 0) {
-    issues.push(
-      `${testContactCount} test contacts found (names starting with '${TEST_DATA_PREFIX}')`,
-    )
+  if (parseInt(testPersonCount) > 0) {
+    issues.push(`${testPersonCount} test people found (names starting with '${TEST_DATA_PREFIX}')`)
   }
 
   // Check for [TEST]-prefixed companies

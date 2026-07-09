@@ -58,12 +58,12 @@
           </div>
 
           <div>
-            <label class="block text-sm font-medium text-gray-700 mb-1">Contact Person</label>
+            <label class="block text-sm font-medium text-gray-700 mb-1">Person</label>
             <input
-              v-model="localFilters.contact_person"
+              v-model="localFilters.person_name"
               type="text"
               class="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent text-sm"
-              placeholder="Contact person"
+              placeholder="Person"
             />
           </div>
         </div>

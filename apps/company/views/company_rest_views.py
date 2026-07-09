@@ -10,6 +10,7 @@ REST views for the Company module following clean code principles:
 
 import logging
 from typing import Any, Dict
+from uuid import UUID
 
 from drf_spectacular.utils import (
     OpenApiParameter,
@@ -23,7 +24,8 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.company.models import ClientContactMethod, Company
+from apps.accounts.models import Staff
+from apps.company.models import Company, ContactMethod
 from apps.company.serializers import (
     CompanyCreateResponseSerializer,
     CompanyCreateSerializer,
@@ -36,8 +38,8 @@ from apps.company.serializers import (
     CompanySearchResponseSerializer,
     CompanyUpdateResponseSerializer,
     CompanyUpdateSerializer,
-    JobContactResponseSerializer,
-    JobContactUpdateSerializer,
+    JobPersonResponseSerializer,
+    JobPersonUpdateSerializer,
 )
 from apps.company.services.company_rest_service import CompanyRestService
 from apps.workflow.exceptions import AlreadyLoggedException
@@ -437,7 +439,7 @@ class CompanyCreateRestView(APIView):
             created_company = (
                 Company.objects.with_invoice_summary()
                 .annotate(
-                    phone=ClientContactMethod.primary_phone_annotation(
+                    phone=ContactMethod.primary_phone_annotation(
                         owner="company", outer_ref="pk"
                     )
                 )
@@ -505,8 +507,8 @@ class CompanyCreateRestView(APIView):
 
 @extend_schema_view(
     get=extend_schema(
-        summary="Get job contact",
-        description="Retrieve contact information for a specific job.",
+        summary="Get job person",
+        description="Retrieve person information for a specific job.",
         parameters=[
             OpenApiParameter(
                 name="job_id",
@@ -517,15 +519,15 @@ class CompanyCreateRestView(APIView):
             )
         ],
         responses={
-            200: JobContactResponseSerializer,
+            200: JobPersonResponseSerializer,
             404: CompanyErrorResponseSerializer,
             500: CompanyErrorResponseSerializer,
         },
         tags=["Companies"],
     ),
     put=extend_schema(
-        summary="Update job contact",
-        description="Update the contact person associated with a specific job.",
+        summary="Update job person",
+        description="Update the person associated with a specific job.",
         parameters=[
             OpenApiParameter(
                 name="job_id",
@@ -535,35 +537,35 @@ class CompanyCreateRestView(APIView):
                 type=OpenApiTypes.UUID,
             )
         ],
-        request=JobContactUpdateSerializer,
+        request=JobPersonUpdateSerializer,
         responses={
-            200: JobContactResponseSerializer,
+            200: JobPersonResponseSerializer,
             400: CompanyErrorResponseSerializer,
             404: CompanyErrorResponseSerializer,
             500: CompanyErrorResponseSerializer,
         },
         tags=["Companies"],
-        operation_id="companies_jobs_contact_update",
+        operation_id="companies_jobs_person_update",
     ),
 )
-class JobContactRestView(APIView):
+class JobPersonRestView(APIView):
     """
-    REST view for contact information operations for a job.
-    Handles both retrieving and updating the contact associated with a specific job.
+    REST view for person information operations for a job.
+    Handles both retrieving and updating the person associated with a specific job.
     """
 
     permission_classes = [IsAuthenticated]
-    serializer_class = JobContactResponseSerializer
+    serializer_class = JobPersonResponseSerializer
 
     def get_serializer_class(self):
         """Return the appropriate serializer class based on the request method"""
         if self.request.method == "PUT":
-            return JobContactUpdateSerializer
-        return JobContactResponseSerializer
+            return JobPersonUpdateSerializer
+        return JobPersonResponseSerializer
 
-    def get(self, request: Request, job_id: str) -> Response:
+    def get(self, request: Request, job_id: UUID) -> Response:
         """
-        Retrieves contact information for a specific job.
+        Retrieves person information for a specific job.
         """
         try:
             # Guard clause: validate job_id
@@ -576,8 +578,8 @@ class JobContactRestView(APIView):
                     error_serializer.data, status=status.HTTP_400_BAD_REQUEST
                 )
 
-            contact_data = CompanyRestService.get_job_contact(job_id)
-            serializer = JobContactResponseSerializer(data=contact_data)
+            person_data = CompanyRestService.get_job_person(job_id)
+            serializer = JobPersonResponseSerializer(data=person_data)
             serializer.is_valid(raise_exception=True)
             return Response(serializer.data)
 
@@ -587,12 +589,12 @@ class JobContactRestView(APIView):
             return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
         except Exception as exc:
             return _build_server_error_response(
-                message="Error retrieving job contact", exc=exc
+                message="Error retrieving job person", exc=exc
             )
 
-    def put(self, request: Request, job_id: str) -> Response:
+    def put(self, request: Request, job_id: UUID) -> Response:
         """
-        Updates the contact person for a specific job.
+        Updates the person for a specific job.
         """
         try:
             # Guard clause: validate job_id
@@ -606,7 +608,7 @@ class JobContactRestView(APIView):
                 )
 
             # Validate input data
-            input_serializer = JobContactUpdateSerializer(data=request.data)
+            input_serializer = JobPersonUpdateSerializer(data=request.data)
             if not input_serializer.is_valid():
                 error_serializer = CompanyErrorResponseSerializer(
                     data={"error": f"Invalid input data: {input_serializer.errors}"}
@@ -616,11 +618,19 @@ class JobContactRestView(APIView):
                     error_serializer.data, status=status.HTTP_400_BAD_REQUEST
                 )
 
-            contact_data = input_serializer.validated_data
-            updated_contact = CompanyRestService.update_job_contact(
-                job_id, contact_data, request.user
+            person_data = input_serializer.validated_data
+            if not isinstance(request.user, Staff):
+                error_serializer = CompanyErrorResponseSerializer(
+                    data={"error": "Authentication required"}
+                )
+                error_serializer.is_valid(raise_exception=True)
+                return Response(
+                    error_serializer.data, status=status.HTTP_401_UNAUTHORIZED
+                )
+            updated_person = CompanyRestService.update_job_person(
+                job_id, person_data, request.user
             )
-            serializer = JobContactResponseSerializer(data=updated_contact)
+            serializer = JobPersonResponseSerializer(data=updated_person)
             serializer.is_valid(raise_exception=True)
             return Response(serializer.data)
 
@@ -630,7 +640,7 @@ class JobContactRestView(APIView):
             return Response(error_serializer.data, status=status.HTTP_404_NOT_FOUND)
         except Exception as exc:
             return _build_server_error_response(
-                message="Error updating job contact", exc=exc
+                message="Error updating job person", exc=exc
             )
 
 

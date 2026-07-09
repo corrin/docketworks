@@ -233,7 +233,7 @@ class Command(BaseCommand):
         return updated + created
 
     def process_contacts(self, dry_run):
-        """Phase 1: Link/Create contacts for all clients with jobs + test company"""
+        """Phase 1: Link/create Xero contacts for all companies with jobs plus test company."""
         # Validate test company exists - required for testing Xero flows
         cd = CompanyDefaults.get_solo()
         if not cd.test_company_name:
@@ -241,48 +241,50 @@ class Command(BaseCommand):
                 "CompanyDefaults.test_company_name is not set. "
                 "This is required for Xero sync testing."
             )
-        test_client = Company.objects.filter(name=cd.test_company_name).first()
-        if not test_client:
+        test_company = Company.objects.filter(name=cd.test_company_name).first()
+        if not test_company:
             raise ValueError(
                 f"Test company '{cd.test_company_name}' not found in database. "
                 "Ensure the test company is created before running Xero sync."
             )
 
-        # Find clients with jobs that need xero_contact_id
-        client_ids_needing_sync = set(
+        # Find companies with jobs that need xero_contact_id
+        company_ids_needing_sync = set(
             Company.objects.filter(
                 jobs__isnull=False, xero_contact_id__isnull=True
             ).values_list("id", flat=True)
         )
 
         # Also include test company if it needs syncing
-        if not test_client.xero_contact_id:
-            client_ids_needing_sync.add(test_client.id)
+        if not test_company.xero_contact_id:
+            company_ids_needing_sync.add(test_company.id)
             self.stdout.write(f"Including test company: {cd.test_company_name}")
 
-        clients_needing_sync = Company.objects.filter(id__in=client_ids_needing_sync)
+        companies_needing_sync = Company.objects.filter(id__in=company_ids_needing_sync)
 
         self.stdout.write(
-            f"Found {clients_needing_sync.count()} clients needing Xero contact IDs"
+            f"Found {companies_needing_sync.count()} companies needing Xero contact IDs"
         )
 
-        if not clients_needing_sync.exists():
-            self.stdout.write("All clients with jobs already have Xero contact IDs")
+        if not companies_needing_sync.exists():
+            self.stdout.write("All companies with jobs already have Xero contact IDs")
             return 0
 
         if dry_run:
-            for company in clients_needing_sync[:10]:  # Show first 10
+            for company in companies_needing_sync[:10]:  # Show first 10
                 job_count = company.jobs.count()
                 self.stdout.write(
                     f"  • Would process: {company.name} ({job_count} jobs)"
                 )
-            if clients_needing_sync.count() > 10:
-                self.stdout.write(f"  ... and {clients_needing_sync.count() - 10} more")
-            return clients_needing_sync.count()
+            if companies_needing_sync.count() > 10:
+                self.stdout.write(
+                    f"  ... and {companies_needing_sync.count() - 10} more"
+                )
+            return companies_needing_sync.count()
 
         # Call sync module for bulk processing
-        self.stdout.write("Processing clients with Xero sync module...")
-        results = seed_companies_to_xero(clients_needing_sync)
+        self.stdout.write("Processing companies with Xero sync module...")
+        results = seed_companies_to_xero(companies_needing_sync)
 
         # Report results
         self.stdout.write(
@@ -290,7 +292,7 @@ class Command(BaseCommand):
         )
 
         if results["failed"]:
-            self.stdout.write(f"Failed to process {len(results['failed'])} clients:")
+            self.stdout.write(f"Failed to process {len(results['failed'])} companies:")
             for name in results["failed"][:5]:  # Show first 5 failures
                 self.stdout.write(f"  • {name}")
             if len(results["failed"]) > 5:
@@ -299,7 +301,7 @@ class Command(BaseCommand):
         return results["linked"] + results["created"]
 
     def process_projects(self, dry_run):
-        """Phase 2: Create projects for all jobs whose clients have xero_contact_id"""
+        """Phase 2: Create projects for all jobs whose companies have xero_contact_id."""
         # Find jobs that need xero_project_id
         jobs_needing_sync = Job.objects.filter(
             company__xero_contact_id__isnull=False, xero_project_id__isnull=True
@@ -311,7 +313,7 @@ class Command(BaseCommand):
 
         if not jobs_needing_sync.exists():
             self.stdout.write(
-                "All jobs with valid clients already have Xero project IDs"
+                "All jobs with valid companies already have Xero project IDs"
             )
             return 0
 

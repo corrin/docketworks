@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from apps.company.models import ClientContactMethod, Company
+from apps.company.models import Company, ContactMethod
 from apps.crm.models import PhoneCallRecord
 from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.workflow.api.xero.reprocess_xero import (
@@ -285,9 +285,9 @@ class XeroPhoneMethodSyncTests(TestCase):
             xero_last_modified=timezone.now(),
         )
         imported = self._client_with_phone("Imported Phone Owner")
-        ClientContactMethod.objects.create(
+        ContactMethod.objects.create(
             company=existing,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
         before = AppError.objects.count()
@@ -315,23 +315,21 @@ class XeroPhoneMethodSyncTests(TestCase):
         other = Company.objects.create(
             name="Legacy Other Owner", xero_last_modified=timezone.now()
         )
-        legacy = ClientContactMethod(
+        legacy = ContactMethod(
             company=other,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
-        legacy.normalized_value = ClientContactMethod.normalize_phone("021 555 123")
-        ClientContactMethod.objects.bulk_create([legacy])
+        legacy.normalized_value = ContactMethod.normalize_phone("021 555 123")
+        ContactMethod.objects.bulk_create([legacy])
         # owner already stores the number too (its own row).
-        owner_method = ClientContactMethod(
+        owner_method = ContactMethod(
             company=owner,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
-        owner_method.normalized_value = ClientContactMethod.normalize_phone(
-            "021 555 123"
-        )
-        ClientContactMethod.objects.bulk_create([owner_method])
+        owner_method.normalized_value = ContactMethod.normalize_phone("021 555 123")
+        ContactMethod.objects.bulk_create([owner_method])
 
         created = sync_xero_phone_methods(owner)  # must not raise
 
@@ -344,20 +342,20 @@ class XeroPhoneMethodSyncTests(TestCase):
         owner = self._client_with_phone("Phone Owner")
         created = sync_xero_phone_methods(owner)
         self.assertEqual(created, ["+6421555123"])
-        imported_method = ClientContactMethod.objects.get(company=owner)
+        imported_method = ContactMethod.objects.get(company=owner)
         self.assertEqual(imported_method.label, "DEFAULT")
         self.assertTrue(imported_method.is_primary)
 
         # CRM user relabels the imported number and picks a LOCAL primary.
         imported_method.label = "Reception"
         imported_method.save()
-        local_primary = ClientContactMethod.objects.create(
+        local_primary = ContactMethod.objects.create(
             company=owner,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value="09 555 000",
             label="After hours",
             is_primary=True,
-            source=ClientContactMethod.Source.LOCAL,
+            source=ContactMethod.Source.LOCAL,
         )
 
         self.assertEqual(sync_xero_phone_methods(owner), [])
@@ -367,12 +365,12 @@ class XeroPhoneMethodSyncTests(TestCase):
         self.assertEqual(imported_method.label, "Reception")
         self.assertFalse(imported_method.is_primary)
         self.assertTrue(local_primary.is_primary)
-        self.assertEqual(imported_method.source, ClientContactMethod.Source.IMPORTED)
+        self.assertEqual(imported_method.source, ContactMethod.Source.IMPORTED)
 
     def test_unchanged_resync_does_not_write_the_method_row(self) -> None:
         owner = self._client_with_phone("Phone Owner")
         sync_xero_phone_methods(owner)
-        method = ClientContactMethod.objects.get(company=owner)
+        method = ContactMethod.objects.get(company=owner)
         updated_at_before = method.updated_at
 
         with CaptureQueriesContext(connection) as ctx:

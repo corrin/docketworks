@@ -18,10 +18,10 @@ from apps.company.views.company_rest_views import (
     CompanyRetrieveRestView,
     CompanySearchRestView,
     CompanyUpdateRestView,
-    JobContactRestView,
+    JobPersonRestView,
 )
-from apps.company.views.contact_method_viewset import ClientContactMethodViewSet
-from apps.company.views.contact_viewset import ClientContactViewSet
+from apps.company.views.contact_method_viewset import ContactMethodViewSet
+from apps.company.views.contact_viewset import CompanyPersonLinkViewSet
 from apps.company.views.supplier_pickup_address_viewset import (
     SupplierPickupAddressViewSet,
 )
@@ -36,10 +36,12 @@ app_name = "companies_rest"
 router = DefaultRouter()
 router.register(
     "contact-methods",
-    ClientContactMethodViewSet,
+    ContactMethodViewSet,
     basename="contact-method",
 )
-router.register("contacts", ClientContactViewSet, basename="company-contact")
+router.register(
+    "person-links", CompanyPersonLinkViewSet, basename="company-person-link"
+)
 router.register(
     "pickup-addresses", SupplierPickupAddressViewSet, basename="supplier-pickup-address"
 )
@@ -91,11 +93,11 @@ urlpatterns = [
         SupplierAliasDetailView.as_view(),
         name="supplier_alias_detail_rest",
     ),
-    # Job contact REST endpoint
+    # Job person REST endpoint
     path(
-        "jobs/<uuid:job_id>/contact/",
-        JobContactRestView.as_view(),
-        name="job_contact_rest",
+        "jobs/<uuid:job_id>/person/",
+        JobPersonRestView.as_view(),
+        name="job_person_rest",
     ),
     # Address validation endpoint
     path(
@@ -103,6 +105,6 @@ urlpatterns = [
         AddressValidateView.as_view(),
         name="address_validate",
     ),
-    # ViewSet routes (contacts CRUD)
+    # ViewSet routes (people/contact method CRUD)
     path("", include(router.urls)),
 ]

@@ -215,14 +215,13 @@ class Job(models.Model):
     )
     order_number = models.CharField(max_length=100, null=True, blank=True)
 
-    # New relationship to ClientContact
-    contact = models.ForeignKey(
-        "company.ClientContact",
+    person = models.ForeignKey(
+        "company.Person",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
         related_name="jobs",
-        help_text="The contact person for this job",
+        help_text="The person for this job",
     )
     job_number = models.IntegerField(unique=True)  # Job 1234
     description = models.TextField(
@@ -952,26 +951,24 @@ class Job(models.Model):
         )
 
     @staticmethod
-    def _handle_contact_change(self_job, old_contact_id, new_contact_id):
-        old_contact = "None"
-        new_contact = "None"
-        if old_contact_id:
+    def _handle_person_change(self_job, old_person_id, new_person_id):
+        old_person = "None"
+        new_person = "None"
+        if old_person_id:
             try:
-                from apps.company.models import ClientContact
+                from apps.company.models import Person
 
-                old_contact = ClientContact.objects.get(id=old_contact_id).name
+                old_person = Person.objects.get(id=old_person_id).name
             except Exception:
-                old_contact = "Unknown Contact"
-        if new_contact_id:
-            new_contact = (
-                self_job.contact.name if self_job.contact else "Unknown Contact"
-            )
+                old_person = "Unknown Person"
+        if new_person_id:
+            new_person = self_job.person.name if self_job.person else "Unknown Person"
         return (
             "contact_changed",
             {
-                "field_name": "Primary contact",
-                "old_value": old_contact,
-                "new_value": new_contact,
+                "field_name": "Person",
+                "old_value": old_person,
+                "new_value": new_person,
             },
         )
 
@@ -1105,7 +1102,7 @@ class Job(models.Model):
             {"field_name": "Job name", "old_value": str(old), "new_value": str(new)},
         ),
         "company_id": _handle_company_change.__func__,
-        "contact_id": _handle_contact_change.__func__,
+        "person_id": _handle_person_change.__func__,
         "order_number": lambda _self, old, new: (
             "job_updated",
             {

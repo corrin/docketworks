@@ -3,9 +3,9 @@
     <DialogContent
       class="modal-content overflow-hidden flex flex-col fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 !max-w-[950px]"
     >
-      <div data-automation-id="ContactSelectionModal-container">
+      <div data-automation-id="PersonSelectionModal-container">
         <DialogHeader class="flex-shrink-0 pb-4 border-b border-gray-200">
-          <DialogTitle class="text-lg font-semibold">Select Contact</DialogTitle>
+          <DialogTitle class="text-lg font-semibold">Select Person</DialogTitle>
           <DialogDescription class="text-sm text-gray-600">
             Company:
             <span class="font-medium text-gray-900">{{
@@ -17,8 +17,8 @@
         <div
           class="modal-body flex-1 overflow-hidden flex flex-col xl:flex-row gap-4 lg:gap-6 py-4"
         >
-          <!-- Existing Contacts Section -->
-          <div class="contacts-section flex-1 min-h-0 flex flex-col relative">
+          <!-- Existing People Section -->
+          <div class="people-section flex-1 min-h-0 flex flex-col relative">
             <!-- Delete Confirmation Overlay -->
             <div
               v-if="showDeleteConfirm"
@@ -30,17 +30,17 @@
                 >
                   <AlertTriangle class="w-6 h-6 text-red-600" />
                 </div>
-                <h4 class="text-lg font-semibold text-gray-900 mb-2">Delete Contact?</h4>
+                <h4 class="text-lg font-semibold text-gray-900 mb-2">Delete Person?</h4>
                 <p class="text-sm text-gray-600 mb-4">
                   Are you sure you want to remove
-                  <strong>{{ contactToDelete?.name }}</strong
-                  >? The contact will be marked as inactive.
+                  <strong>{{ personToDelete?.person_name }}</strong
+                  >? The person will be marked as inactive.
                 </p>
                 <p
-                  v-if="contactToDelete?.is_primary"
+                  v-if="personToDelete?.is_primary"
                   class="text-sm text-amber-600 font-medium mb-4"
                 >
-                  This is the primary contact for this company.
+                  This is the primary person for this company.
                 </p>
                 <div class="flex gap-3 justify-center">
                   <button
@@ -64,38 +64,38 @@
                 <div
                   class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"
                 ></div>
-                <p class="mt-2 text-sm text-gray-500">Loading contacts...</p>
+                <p class="mt-2 text-sm text-gray-500">Loading people...</p>
               </div>
             </div>
 
             <div v-else class="flex-1 flex flex-col min-h-0">
-              <div v-if="contacts.length > 0" class="flex-1 flex flex-col min-h-0">
+              <div v-if="people.length > 0" class="flex-1 flex flex-col min-h-0">
                 <h4 class="section-title text-sm font-semibold text-gray-900 mb-3 flex-shrink-0">
-                  Existing Contacts ({{ contacts.length }})
+                  Existing People ({{ people.length }})
                 </h4>
 
-                <!-- Contacts Grid Container -->
+                <!-- People Grid Container -->
                 <div
-                  class="contacts-grid-container flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 pr-1"
+                  class="people-grid-container flex-1 overflow-y-auto scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-gray-100 pr-1"
                 >
-                  <div class="contacts-grid grid gap-3 pb-2">
+                  <div class="people-grid grid gap-3 pb-2">
                     <div
-                      v-for="contact in contacts || []"
-                      :key="contact?.id || ''"
-                      :data-automation-id="`ContactSelectionModal-card-${contact?.id}`"
+                      v-for="person in people || []"
+                      :key="person?.id || ''"
+                      :data-automation-id="`PersonSelectionModal-card-${person?.id}`"
                       class="group relative bg-white border border-gray-200 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-300 hover:-translate-y-0.5"
                       :class="{
                         'ring-2 ring-blue-500 bg-blue-50 border-blue-500 shadow-md mt-1':
-                          selectedContact?.id === contact?.id,
+                          selectedPerson?.id === person?.id,
                         'ring-2 ring-amber-500 bg-amber-50 border-amber-500':
-                          editingContact?.id === contact?.id,
+                          editingPersonLink?.id === person?.id,
                         'hover:bg-gray-50':
-                          selectedContact?.id !== contact?.id && editingContact?.id !== contact?.id,
+                          selectedPerson?.id !== person?.id && editingPersonLink?.id !== person?.id,
                       }"
-                      @click="selectContact(contact)"
+                      @click="selectPerson(person)"
                     >
                       <!-- Primary Badge -->
-                      <div v-if="contact?.is_primary" class="absolute -top-1 -right-1">
+                      <div v-if="person?.is_primary" class="absolute -top-1 -right-1">
                         <span
                           class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-500 text-white shadow-sm"
                         >
@@ -103,19 +103,19 @@
                         </span>
                       </div>
 
-                      <!-- Contact Info -->
+                      <!-- Person Info -->
                       <div class="space-y-1">
                         <div class="font-medium text-gray-900 text-sm truncate pr-4">
-                          {{ contact?.name || '' }}
+                          {{ person?.person_name || '' }}
                         </div>
 
-                        <div v-if="contact?.position" class="text-xs text-gray-600 truncate">
-                          {{ contact?.position }}
+                        <div v-if="person?.position" class="text-xs text-gray-600 truncate">
+                          {{ person?.position }}
                         </div>
 
                         <div class="space-y-0.5">
                           <div
-                            v-if="contact?.email"
+                            v-if="person?.person_email"
                             class="text-xs text-gray-500 truncate flex items-center"
                           >
                             <svg
@@ -128,11 +128,11 @@
                               />
                               <path d="M18 8.118l-8 4-8-4V14a2 2 0 002 2h12a2 2 0 002-2V8.118z" />
                             </svg>
-                            {{ contact?.email }}
+                            {{ person?.person_email }}
                           </div>
 
                           <div
-                            v-if="contact?.phone"
+                            v-if="person?.phone"
                             class="text-xs text-gray-500 truncate flex items-center"
                           >
                             <svg
@@ -144,7 +144,7 @@
                                 d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"
                               />
                             </svg>
-                            {{ contact?.phone }}
+                            {{ person?.phone }}
                           </div>
                         </div>
                       </div>
@@ -155,23 +155,23 @@
                       >
                         <button
                           class="px-2.5 py-1 text-xs font-medium bg-blue-600 text-white rounded-md shadow-sm hover:bg-blue-700 transition-colors"
-                          data-automation-id="ContactSelectionModal-select-button"
-                          @click.stop="selectContact(contact)"
-                          title="Select this contact"
+                          data-automation-id="PersonSelectionModal-select-button"
+                          @click.stop="selectPerson(person)"
+                          title="Select this person"
                         >
                           Select
                         </button>
                         <button
                           class="p-1.5 text-xs font-medium bg-gray-600 text-white rounded-md shadow-sm hover:bg-gray-700 transition-colors"
-                          @click.stop="emit('edit-contact', contact)"
-                          title="Edit contact"
+                          @click.stop="emit('edit-person', person)"
+                          title="Edit person"
                         >
                           <PencilLine class="w-3.5 h-3.5" />
                         </button>
                         <button
                           class="p-1.5 text-xs font-medium bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700 transition-colors"
-                          @click.stop="confirmDeleteContact(contact)"
-                          title="Delete contact"
+                          @click.stop="confirmDeletePerson(person)"
+                          title="Delete person"
                         >
                           <Trash2 class="w-3.5 h-3.5" />
                         </button>
@@ -184,20 +184,20 @@
               <div v-else class="flex-1 flex items-center justify-center">
                 <div class="text-center text-gray-500">
                   <Users class="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                  <p class="font-medium">No existing contacts</p>
-                  <p class="text-xs mt-1">Create a new contact to get started</p>
+                  <p class="font-medium">No existing people</p>
+                  <p class="text-xs mt-1">Create a new person to get started</p>
                 </div>
               </div>
             </div>
           </div>
 
-          <!-- Create/Edit Contact Section -->
+          <!-- Create/Edit Person Section -->
           <div
-            class="create-contact-section w-full xl:w-80 2xl:w-96 flex-shrink-0 border-t xl:border-t-0 xl:border-l border-gray-200 pt-4 xl:pt-0 xl:pl-6"
+            class="create-person-section w-full xl:w-80 2xl:w-96 flex-shrink-0 border-t xl:border-t-0 xl:border-l border-gray-200 pt-4 xl:pt-0 xl:pl-6"
           >
             <div class="flex items-center justify-between mb-4">
               <h4 class="section-title text-sm font-semibold text-gray-900">
-                {{ isEditing ? 'Edit Contact' : 'Create New Contact' }}
+                {{ isEditing ? 'Edit Person' : 'Create New Person' }}
               </h4>
               <button
                 v-if="isEditing"
@@ -215,18 +215,18 @@
                   Name <span class="text-red-500">*</span>
                 </label>
                 <input
-                  v-model="localContactForm.name"
+                  v-model="localPersonForm.name"
                   type="text"
-                  data-automation-id="ContactSelectionModal-name-input"
+                  data-automation-id="PersonSelectionModal-name-input"
                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
-                  placeholder="Contact name"
+                  placeholder="Person name"
                 />
               </div>
 
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Position</label>
                 <input
-                  v-model="localContactForm.position"
+                  v-model="localPersonForm.position"
                   type="text"
                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="Job title/position"
@@ -236,9 +236,9 @@
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Phone</label>
                 <input
-                  v-model="localContactForm.phone"
+                  v-model="localPersonForm.phone"
                   type="tel"
-                  data-automation-id="ContactSelectionModal-phone-input"
+                  data-automation-id="PersonSelectionModal-phone-input"
                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="Phone number"
                 />
@@ -247,9 +247,9 @@
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Email</label>
                 <input
-                  v-model="localContactForm.email"
+                  v-model="localPersonForm.email"
                   type="email"
-                  data-automation-id="ContactSelectionModal-email-input"
+                  data-automation-id="PersonSelectionModal-email-input"
                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
                   placeholder="Email address"
                 />
@@ -258,7 +258,7 @@
               <div>
                 <label class="block text-xs font-medium text-gray-700 mb-1">Notes</label>
                 <textarea
-                  v-model="localContactForm.notes"
+                  v-model="localPersonForm.notes"
                   rows="2"
                   class="w-full px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors resize-none"
                   placeholder="Additional notes"
@@ -268,15 +268,15 @@
               <div>
                 <label class="flex items-center">
                   <input
-                    v-model="localContactForm.is_primary"
+                    v-model="localPersonForm.is_primary"
                     type="checkbox"
                     class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-                    :disabled="contacts.length === 0"
+                    :disabled="people.length === 0"
                   />
-                  <span class="ml-2 text-xs text-gray-700">Set as primary contact</span>
+                  <span class="ml-2 text-xs text-gray-700">Set as primary person</span>
                 </label>
-                <p v-if="contacts.length === 0" class="mt-1 text-xs text-green-600 font-medium">
-                  ✓ Automatically set for first contact
+                <p v-if="people.length === 0" class="mt-1 text-xs text-green-600 font-medium">
+                  ✓ Automatically set for first person
                 </p>
               </div>
 
@@ -295,12 +295,12 @@
           </button>
           <button
             type="button"
-            data-automation-id="ContactSelectionModal-submit"
+            data-automation-id="PersonSelectionModal-submit"
             class="ml-3 px-4 py-2 text-sm font-medium text-white bg-blue-600 border border-transparent rounded-md hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             @click="handleSave"
-            :disabled="isLoading || !localContactForm.name.trim()"
+            :disabled="isLoading || !localPersonForm.name.trim()"
           >
-            {{ isLoading ? 'Saving...' : isEditing ? 'Update Contact' : 'Create Contact' }}
+            {{ isLoading ? 'Saving...' : isEditing ? 'Update Person' : 'Create Person' }}
           </button>
         </DialogFooter>
       </div>
@@ -313,7 +313,7 @@ import { ref, watch, reactive } from 'vue'
 import { Users, PencilLine, Trash2, AlertTriangle } from 'lucide-vue-next'
 import { schemas } from '../api/generated/api'
 import { z } from 'zod'
-import type { ContactFormData } from '@/composables/useContactManagement'
+import type { PersonFormData } from '@/composables/usePersonManagement'
 import {
   Dialog,
   DialogContent,
@@ -324,49 +324,49 @@ import {
 } from '../components/ui/dialog'
 
 // Type aliases for schema-based types
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
 
 const props = defineProps<{
   isOpen: boolean
   companyId: string
   companyName: string
-  contacts: ClientContact[]
-  selectedContact: ClientContact | null
+  people: CompanyPersonLink[]
+  selectedPerson: CompanyPersonLink | null
   isLoading: boolean
-  newContactForm: ContactFormData
-  editingContact: ClientContact | null
+  personForm: PersonFormData
+  editingPersonLink: CompanyPersonLink | null
   isEditing: boolean
 }>()
 const emit = defineEmits<{
   close: []
-  'select-contact': [contact: ClientContact]
-  'save-contact': [newContact: ContactFormData]
-  'edit-contact': [contact: ClientContact]
-  'delete-contact': [contactId: string]
+  'select-person': [person: CompanyPersonLink]
+  'save-person': [newPerson: PersonFormData]
+  'edit-person': [person: CompanyPersonLink]
+  'delete-person': [personLinkId: string]
   'cancel-edit': []
+  'update:personForm': [personForm: PersonFormData]
 }>()
 
 const nameError = ref('')
 
-type ContactForm = ContactFormData
-const localContactForm = reactive<ContactForm>({ ...props.newContactForm })
+type PersonForm = PersonFormData
+const localPersonForm = reactive<PersonForm>({ ...props.personForm })
 
 watch(
-  () => props.newContactForm,
+  () => props.personForm,
   (val) => {
-    Object.assign(localContactForm, val)
+    Object.assign(localPersonForm, val)
   },
   { deep: true, immediate: true },
 )
 
-// Watch for changes in contacts length to auto-set primary for first contact
+// Watch for changes in people length to auto-set primary for first person
 watch(
-  () => props.contacts.length,
-  (contactsLength) => {
-    console.log('[CONTACTS] Modal received:', contactsLength, 'contacts')
-    if (contactsLength === 0) {
-      // Automatically set as primary if this is the first contact
-      localContactForm.is_primary = true
+  () => props.people.length,
+  (peopleLength) => {
+    if (peopleLength === 0) {
+      // Automatically set as primary if this is the first person
+      localPersonForm.is_primary = true
     }
   },
   { immediate: true },
@@ -374,48 +374,43 @@ watch(
 
 // Sync changes back to parent
 watch(
-  localContactForm,
+  localPersonForm,
   (val) => {
-    // Update the parent's form data
-    Object.keys(val).forEach((key) => {
-      if (key in props.newContactForm) {
-        ;(props.newContactForm as Record<string, unknown>)[key] = val[key as keyof typeof val]
-      }
-    })
+    emit('update:personForm', { ...val })
   },
   { deep: true },
 )
 
 const handleSave = () => {
-  if (!localContactForm.name?.trim()) {
+  if (!localPersonForm.name?.trim()) {
     nameError.value = 'Name is required.'
     return
   }
   nameError.value = ''
-  emit('save-contact', { ...localContactForm })
+  emit('save-person', { ...localPersonForm })
 }
 
-const selectContact = (contact: ClientContact) => {
-  emit('select-contact', contact)
+const selectPerson = (person: CompanyPersonLink) => {
+  emit('select-person', person)
 }
 
 // Delete confirmation state
-const contactToDelete = ref<ClientContact | null>(null)
+const personToDelete = ref<CompanyPersonLink | null>(null)
 const showDeleteConfirm = ref(false)
 
-const confirmDeleteContact = (contact: ClientContact) => {
-  contactToDelete.value = contact
+const confirmDeletePerson = (person: CompanyPersonLink) => {
+  personToDelete.value = person
   showDeleteConfirm.value = true
 }
 
 const cancelDelete = () => {
-  contactToDelete.value = null
+  personToDelete.value = null
   showDeleteConfirm.value = false
 }
 
 const executeDelete = () => {
-  if (contactToDelete.value?.id) {
-    emit('delete-contact', contactToDelete.value.id)
+  if (personToDelete.value?.id) {
+    emit('delete-person', personToDelete.value.id)
   }
   cancelDelete()
 }
@@ -457,11 +452,11 @@ const executeDelete = () => {
     gap: 1rem;
   }
 
-  .contacts-section {
+  .people-section {
     min-height: 250px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 100% !important;
     border-top: 1px solid #e5e7eb;
     border-left: none !important;
@@ -482,12 +477,12 @@ const executeDelete = () => {
     gap: 1.5rem;
   }
 
-  .contacts-section {
+  .people-section {
     flex: 2;
     min-height: 400px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 280px !important;
     flex-shrink: 0;
     border-top: none !important;
@@ -509,12 +504,12 @@ const executeDelete = () => {
     gap: 2rem;
   }
 
-  .contacts-section {
+  .people-section {
     flex: 2;
     min-height: 450px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 290px !important;
     flex-shrink: 0;
     border-top: none !important;
@@ -536,13 +531,13 @@ const executeDelete = () => {
     gap: 2rem;
   }
 
-  .contacts-section {
+  .people-section {
     flex: 2;
     min-width: 0;
     min-height: 500px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 300px !important;
     flex-shrink: 0;
     border-top: none !important;
@@ -558,20 +553,20 @@ const executeDelete = () => {
     max-width: 725px !important;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 310px !important;
   }
 }
 
-/* ===== CONTACTS GRID RESPONSIVE LAYOUT ===== */
-.contacts-grid {
+/* ===== PEOPLE GRID RESPONSIVE LAYOUT ===== */
+.people-grid {
   /* Base: 1 column for mobile */
   grid-template-columns: 1fr;
   gap: 0.75rem;
 }
 
 @media (min-width: 640px) {
-  .contacts-grid {
+  .people-grid {
     /* 2 columns for small screens */
     grid-template-columns: repeat(2, 1fr);
     gap: 1rem;
@@ -579,7 +574,7 @@ const executeDelete = () => {
 }
 
 @media (min-width: 768px) {
-  .contacts-grid {
+  .people-grid {
     /* 3 columns for tablets and up - optimal balance */
     grid-template-columns: repeat(3, 1fr);
     gap: 1rem;
@@ -587,7 +582,7 @@ const executeDelete = () => {
 }
 
 @media (min-width: 1024px) {
-  .contacts-grid {
+  .people-grid {
     /* Keep 3 columns for better card width and readability */
     grid-template-columns: repeat(3, 1fr);
     gap: 1.25rem;
@@ -595,7 +590,7 @@ const executeDelete = () => {
 }
 
 @media (min-width: 1280px) {
-  .contacts-grid {
+  .people-grid {
     /* 3 columns with more spacing for wider modal */
     grid-template-columns: repeat(3, 1fr);
     gap: 0.5rem;
@@ -603,7 +598,7 @@ const executeDelete = () => {
 }
 
 @media (min-width: 1536px) {
-  .contacts-grid {
+  .people-grid {
     /* Keep 3 columns even on very wide screens for optimal readability */
     grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
@@ -611,12 +606,12 @@ const executeDelete = () => {
 }
 
 /* ===== SECTION STYLING ===== */
-.contacts-section {
-  /* Ensure minimum space for contacts */
+.people-section {
+  /* Ensure minimum space for people */
   min-height: 200px;
 }
 
-.create-contact-section {
+.create-person-section {
   /* Ensure form is always visible and accessible */
   min-height: fit-content;
   max-height: 100%;
@@ -757,7 +752,7 @@ const executeDelete = () => {
     transform: none;
   }
 
-  .contacts-grid {
+  .people-grid {
     grid-template-columns: 1fr;
     gap: 0.5rem;
   }
@@ -769,7 +764,7 @@ const executeDelete = () => {
     max-height: 95vh;
   }
 
-  .contacts-section {
+  .people-section {
     min-height: 200px;
   }
 }
@@ -780,7 +775,7 @@ const executeDelete = () => {
     width: min(85vw, 1600px);
   }
 
-  .contacts-grid {
+  .people-grid {
     grid-template-columns: repeat(7, 1fr);
   }
 }

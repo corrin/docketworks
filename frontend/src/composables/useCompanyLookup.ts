@@ -8,7 +8,7 @@ import { logSearchResultClick } from '@/services/searchTelemetry.service'
 
 // Use generated schemas
 export type Company = z.infer<typeof schemas.CompanySearchResult>
-export type ClientContact = z.infer<typeof schemas.ClientContact>
+export type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
 
 type UseCompanyLookupOptions = {
   supplierLookup?: { value: boolean }
@@ -27,7 +27,7 @@ export async function logCompanySearchClick(
 
   try {
     await logSearchResultClick({
-      domain: 'client',
+      domain: 'company',
       query: trimmedQuery,
       selectedResultId: company.id,
       selectedLabel: company.name,
@@ -45,7 +45,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
   const isLoading = ref(false)
   const showSuggestions = ref(false)
   const selectedCompany = ref<Company | null>(null)
-  const contacts = ref<ClientContact[]>([])
+  const people = ref<CompanyPersonLink[]>([])
 
   const hasValidXeroId = computed(() => {
     debugLog('Selected company value: ', selectedCompany.value)
@@ -136,37 +136,37 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     searchQuery.value = company.name
     showSuggestions.value = false
 
-    contacts.value = []
+    people.value = []
 
-    await loadClientContacts(company.id)
+    await loadCompanyPersonLinks(company.id)
   }
 
-  const loadClientContacts = async (companyId: string) => {
+  const loadCompanyPersonLinks = async (companyId: string) => {
     if (!companyId) {
-      contacts.value = []
+      people.value = []
       return
     }
 
     try {
-      const response = await api.companies_contacts_list({
+      const response = await api.companies_person_links_list({
         queries: { company_id: companyId },
       })
-      contacts.value = response || []
+      people.value = response || []
     } catch (error) {
-      console.error('Error loading company contacts:', error)
-      contacts.value = []
-      toast.error('Failed to load company contacts')
+      console.error('Error loading company people:', error)
+      people.value = []
+      toast.error('Failed to load company people')
     }
   }
 
-  const getPrimaryContact = (): ClientContact | null => {
-    if (contacts.value.length === 0) {
+  const getPrimaryPerson = (): CompanyPersonLink | null => {
+    if (people.value.length === 0) {
       return null
     }
 
-    const primaryContact = contacts.value.find((contact) => contact.is_primary)
+    const primaryPerson = people.value.find((person) => person.is_primary)
 
-    return primaryContact || contacts.value[0]
+    return primaryPerson || people.value[0]
   }
 
   const clearSelection = () => {
@@ -174,7 +174,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     searchQuery.value = ''
     suggestions.value = []
     showSuggestions.value = false
-    contacts.value = []
+    people.value = []
   }
 
   const resetToInitialState = () => {
@@ -183,7 +183,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
       searchQuery.value = ''
       suggestions.value = []
       showSuggestions.value = false
-      contacts.value = []
+      people.value = []
     }
   }
 
@@ -205,7 +205,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
 
     if (selectedCompany.value && selectedCompany.value.name !== value) {
       selectedCompany.value = null
-      contacts.value = []
+      people.value = []
     }
 
     if (value.length >= 3) {
@@ -249,7 +249,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     isLoading,
     showSuggestions,
     selectedCompany,
-    contacts,
+    people,
 
     hasValidXeroId,
     displayValue,
@@ -258,8 +258,8 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     browseCompanies,
     logSelectedCompanyClick,
     selectCompany,
-    loadClientContacts,
-    getPrimaryContact,
+    loadCompanyPersonLinks,
+    getPrimaryPerson,
     clearSelection,
     handleInputChange,
     createNewCompany,

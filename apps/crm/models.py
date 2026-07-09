@@ -61,18 +61,16 @@ class PhoneEndpoint(models.Model):
         using: str | None = None,
         update_fields: Iterable[str] | None = None,
     ) -> None:
-        from apps.company.models import ClientContactMethod
+        from apps.company.models import ContactMethod
 
-        self.normalized_number = ClientContactMethod.normalize_phone(self.number)
+        self.normalized_number = ContactMethod.normalize_phone(self.number)
         if not self.normalized_number:
             raise ValueError("phone endpoint requires a phone number")
         if self.is_active and self._active_number_changed():
-            # Mirror of the ClientContactMethod.save() guard: a number cannot be
+            # Mirror of the ContactMethod.save() guard: a number cannot be
             # both a company contact method and an active internal endpoint, or
             # the company's calls would silently reclassify as INTERNAL.
-            conflict = ClientContactMethod.conflicting_company(
-                self.normalized_number, None
-            )
+            conflict = ContactMethod.conflicting_company(self.normalized_number, set())
             if conflict:
                 raise ValidationError(
                     f"phone number {self.normalized_number} already belongs to "
@@ -90,7 +88,7 @@ class PhoneEndpoint(models.Model):
         """True when the endpoint is new or its number/is_active changed.
 
         Grandfathers pre-existing rows (symmetry with the grandfathering in
-        ClientContactMethod.check_phone_assignment): re-saving an existing
+        ContactMethod.check_phone_assignment): re-saving an existing
         endpoint without touching number or is_active must not start failing.
         """
         if self._state.adding:
@@ -188,8 +186,8 @@ class PhoneCallRecord(models.Model):
         blank=True,
         related_name="phone_calls",
     )
-    contact = models.ForeignKey(
-        "company.ClientContact",
+    person = models.ForeignKey(
+        "company.Person",
         on_delete=models.SET_NULL,
         null=True,
         blank=True,
@@ -226,8 +224,8 @@ class PhoneCallRecord(models.Model):
                 name="crm_phone_company_call_idx",
             ),
             models.Index(
-                fields=["contact", "-call_datetime"],
-                name="crm_phone_contact_call_idx",
+                fields=["person", "-call_datetime"],
+                name="crm_phone_person_call_idx",
             ),
             models.Index(
                 fields=["job", "-call_datetime"],
@@ -263,12 +261,10 @@ class PhoneCallRecord(models.Model):
         using: str | None = None,
         update_fields: Iterable[str] | None = None,
     ) -> None:
-        from apps.company.models import ClientContactMethod
+        from apps.company.models import ContactMethod
 
-        self.normalized_origin = ClientContactMethod.normalize_phone(self.origin)
-        self.normalized_destination = ClientContactMethod.normalize_phone(
-            self.destination
-        )
+        self.normalized_origin = ContactMethod.normalize_phone(self.origin)
+        self.normalized_destination = ContactMethod.normalize_phone(self.destination)
         if update_fields is not None:
             fields = set(update_fields)
             if "origin" in fields:

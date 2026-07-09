@@ -8,7 +8,7 @@ from rest_framework import serializers
 
 from apps.accounting.models.invoice import Invoice
 from apps.accounting.models.quote import Quote
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, Person
 from apps.job.models import Job, JobEvent, JobFile
 from apps.workflow.models import XeroPayItem
 
@@ -124,15 +124,15 @@ class JobSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(
         source="company.name", read_only=True, allow_null=True, required=False
     )
-    contact_id = serializers.PrimaryKeyRelatedField(
-        queryset=ClientContact.objects.all(),
-        source="contact",
-        write_only=False,  # Allow read access
+    person_id = serializers.PrimaryKeyRelatedField(
+        queryset=Person.objects.all(),
+        source="person",
+        write_only=False,
         required=False,
         allow_null=True,
     )
-    contact_name = serializers.CharField(
-        source="contact.name", read_only=True, required=False, allow_null=True
+    person_name = serializers.CharField(
+        source="person.name", read_only=True, required=False, allow_null=True
     )
     default_xero_pay_item_id = serializers.PrimaryKeyRelatedField(
         queryset=XeroPayItem.objects.all(),
@@ -208,8 +208,8 @@ class JobSerializer(serializers.ModelSerializer):
             "name",
             "company_id",
             "company_name",
-            "contact_id",
-            "contact_name",
+            "person_id",
+            "person_name",
             "job_number",
             "notes",
             "order_number",
@@ -250,33 +250,6 @@ class JobSerializer(serializers.ModelSerializer):
         if DEBUG_SERIALIZER:
             logger.debug(f"JobSerializer validate called with attrs: {attrs}")
 
-        # Validate contact belongs to company
-        contact = attrs.get("contact")
-        company = attrs.get("company")
-
-        # If we're updating and no company is provided, use the existing company
-        if not company and self.instance:
-            company = self.instance.company
-
-        if contact and company:
-            logger.debug(
-                f"JobSerializer validate - Checking if contact {contact.id} belongs to company {company.id}"
-            )
-            if contact.company != company:
-                logger.error(
-                    f"JobSerializer validate - Contact {contact.id} does not belong to company {company.id}"
-                )
-                raise serializers.ValidationError(
-                    {
-                        "contact_id": f"Contact does not belong to the selected company. Contact belongs to {contact.company.name}, but job is for {company.name}."
-                    }
-                )
-            if DEBUG_SERIALIZER:
-                logger.debug(
-                    f"JobSerializer validate - Contact {contact.id} belongs to company {company.id}"
-                )
-                logger.debug("JobSerializer validate - Contact validation passed")
-
         # No longer validating pricing data - use CostSet/CostLine instead
 
         validated = super().validate(attrs)
@@ -286,7 +259,7 @@ class JobSerializer(serializers.ModelSerializer):
 
     def update(self, instance, validated_data):
         # Store original values for change detection
-        original_contact = instance.contact if "contact" in validated_data else None
+        original_person = instance.person if "person" in validated_data else None
 
         # Remove read-only/computed fields to avoid AttributeError
         validated_data.pop("quoted", None)
@@ -353,13 +326,10 @@ class JobSerializer(serializers.ModelSerializer):
         # Save the instance (enrichment kwargs flow through to _create_change_events)
         instance.save(staff=staff, **save_enrichment)
 
-        # Log contact change after save if it actually changed
-        if (
-            "contact" in validated_data
-            and original_contact != validated_data["contact"]
-        ):
+        # Log person change after save if it actually changed
+        if "person" in validated_data and original_person != validated_data["person"]:
             logger.debug(
-                f"JobSerializer update - contact changed from {original_contact} to {instance.contact}"
+                f"JobSerializer update - person changed from {original_person} to {instance.person}"
             )
 
         return instance
@@ -438,7 +408,7 @@ class JobEventSerializer(serializers.ModelSerializer):
                 "order_number": "order number",
                 "notes": "notes",
                 "company_id": "company",
-                "contact_id": "contact",
+                "person_id": "person",
                 "delivery_date": "delivery date",
                 "job_status": "status",
                 "paid": "payment status",
@@ -524,7 +494,7 @@ class JobCreateSerializer(serializers.Serializer):
     description = serializers.CharField(required=False, allow_blank=True)
     order_number = serializers.CharField(required=False, allow_blank=True)
     notes = serializers.CharField(required=False, allow_blank=True)
-    contact_id = serializers.UUIDField(required=False, allow_null=True)
+    person_id = serializers.UUIDField(required=False, allow_null=True)
     pricing_methodology = serializers.CharField(
         required=False, allow_null=True, allow_blank=True
     )
@@ -819,11 +789,11 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
     company_name = serializers.CharField(
         source="company.name", read_only=True, allow_null=True
     )
-    contact_id = serializers.UUIDField(
-        source="contact.id", read_only=True, allow_null=True
+    person_id = serializers.UUIDField(
+        source="person.id", read_only=True, allow_null=True
     )
-    contact_name = serializers.CharField(
-        source="contact.name", read_only=True, allow_null=True
+    person_name = serializers.CharField(
+        source="person.name", read_only=True, allow_null=True
     )
     quoted = serializers.BooleanField()
     default_xero_pay_item_id = serializers.UUIDField(
@@ -840,8 +810,8 @@ class JobHeaderResponseSerializer(serializers.ModelSerializer):
             "job_id",
             "company_id",
             "company_name",
-            "contact_id",
-            "contact_name",
+            "person_id",
+            "person_name",
             "quoted",
             "default_xero_pay_item_id",
             "default_xero_pay_item_name",
@@ -1030,7 +1000,7 @@ class TimelineEntrySerializer(serializers.Serializer):
                 "order_number": "order number",
                 "notes": "notes",
                 "company_id": "company",
-                "contact_id": "contact",
+                "person_id": "person",
                 "delivery_date": "delivery date",
                 "job_status": "status",
                 "paid": "payment status",
@@ -1143,8 +1113,8 @@ class JobPatchSerializer(serializers.Serializer):
     company_id = serializers.UUIDField(
         required=False, allow_null=True, help_text="Company ID"
     )
-    contact_id = serializers.UUIDField(
-        required=False, allow_null=True, help_text="Contact person ID"
+    person_id = serializers.UUIDField(
+        required=False, allow_null=True, help_text="Person ID"
     )
 
     # Files
@@ -1161,34 +1131,17 @@ class JobPatchSerializer(serializers.Serializer):
                 raise serializers.ValidationError("Company not found")
         return value
 
-    def validate_contact_id(self, value):
-        """Validate that contact exists if provided"""
+    def validate_person_id(self, value):
+        """Validate that person exists if provided"""
         if value:
             try:
-                ClientContact.objects.get(id=value)
-            except ClientContact.DoesNotExist:
-                raise serializers.ValidationError("Contact not found")
+                Person.objects.get(id=value)
+            except Person.DoesNotExist as exc:
+                raise serializers.ValidationError("Person not found") from exc
         return value
 
     def validate(self, attrs):
         """Cross-field validation"""
-        # Validate contact belongs to company if both are provided
-        contact_id = attrs.get("contact_id")
-        company_id = attrs.get("company_id")
-
-        if contact_id and company_id:
-            try:
-                contact = ClientContact.objects.get(id=contact_id)
-                company = Company.objects.get(id=company_id)
-                if contact.company != company:
-                    raise serializers.ValidationError(
-                        {
-                            "contact_id": "Contact does not belong to the selected company"
-                        }
-                    )
-            except (ClientContact.DoesNotExist, Company.DoesNotExist):
-                pass  # Individual field validation will catch these
-
         return attrs
 
 

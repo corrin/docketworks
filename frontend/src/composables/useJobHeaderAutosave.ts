@@ -48,6 +48,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
     if ('name' in patch) p.name = patch.name as string
     if ('company_id' in patch) p.company_id = patch.company_id as string | null
     if ('company_name' in patch) p.company_name = patch.company_name as string | null
+    if ('person_id' in patch) p.person_id = patch.person_id as string | null
+    if ('person_name' in patch) p.person_name = patch.person_name as string | null
     if ('job_status' in patch)
       p.status = (patch.job_status as JobStatusKey | undefined) ?? undefined
     if ('pricing_methodology' in patch)
@@ -64,7 +66,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
 
   /**
    * Applies a patch (based on "local" fields reflected from header) to the header snapshot.
-   * Accepts keys: name, company_id, company_name, job_status, pricing_methodology, quoted, fully_invoiced, paid.
+   * Accepts keys: name, company_id, company_name, person_id, person_name, job_status,
+   * pricing_methodology, quoted, fully_invoiced, paid.
    * Here we do the inverse mapping (local fields -> header).
    */
   const applyPatchToHeader = (base: JobHeaderResponse, patch: Partial<Job>): JobHeaderResponse => {
@@ -84,6 +87,14 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
         patch.company_name !== undefined
           ? ((patch.company_name as string | null) ?? null)
           : base.company_name,
+      person_id:
+        patch.person_id !== undefined
+          ? ((patch.person_id as string | null) ?? null)
+          : base.person_id,
+      person_name:
+        patch.person_name !== undefined
+          ? ((patch.person_name as string | null) ?? null)
+          : base.person_name,
       status,
       pricing_methodology:
         (patch.pricing_methodology as PricingMethodology | undefined) ?? base.pricing_methodology,
@@ -134,6 +145,9 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
             const allowedHeaderKeys = [
               'name',
               'company_id',
+              'company_name',
+              'person_id',
+              'person_name',
               'job_status',
               'pricing_methodology',
               'quoted',
@@ -157,8 +171,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
             const payloadJob: Record<string, unknown> = { ...filteredPatch }
 
             if ('company_id' in (filteredPatch as Partial<Job>)) {
-              payloadJob.contact_id = null
-              payloadJob.contact_name = null
+              payloadJob.person_id = null
+              payloadJob.person_name = null
             }
 
             const fields = Object.keys(payloadJob)
@@ -195,11 +209,11 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
                 case 'quote_acceptance_date':
                   beforeValues[field] = headerSnapshot.quote_acceptance_date
                   break
-                case 'contact_id':
-                  beforeValues[field] = detail?.job?.contact_id ?? null
+                case 'person_id':
+                  beforeValues[field] = detail?.job?.person_id ?? null
                   break
-                case 'contact_name':
-                  beforeValues[field] = detail?.job?.contact_name ?? null
+                case 'person_name':
+                  beforeValues[field] = detail?.job?.person_name ?? null
                   break
                 default:
                   beforeValues[field] = detail?.job
@@ -290,8 +304,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
     autosave.queueChanges({
       company_id: company.id,
       company_name: company.name,
-      contact_id: null,
-      contact_name: null,
+      person_id: null,
+      person_name: null,
     })
     void autosave.flush('company-change')
   }

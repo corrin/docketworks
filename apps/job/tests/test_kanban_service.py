@@ -8,7 +8,7 @@ from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
@@ -42,6 +42,14 @@ class TestSerializeJobForApi(BaseTestCase):
 
     def _serialize_one(self, job: Job) -> dict[str, Any]:
         return KanbanService.serialize_jobs_for_api([job])[0]
+
+    def _link(self, name: str) -> CompanyPersonLink:
+        person = Person.objects.create(name=name)
+        return CompanyPersonLink.objects.create(
+            company=self.client_obj,
+            person=person,
+            xero_name=name,
+        )
 
     def test_over_budget_when_tm_actual_exceeds_price_cap(self):
         """T&M jobs show over-budget when actual revenue exceeds the price cap."""
@@ -80,10 +88,9 @@ class TestSerializeJobForApi(BaseTestCase):
         jobs = []
         for index in range(3):
             job = self._create_job(name=f"Batch Job {index}")
-            job.contact = ClientContact.objects.create(
-                company=self.client_obj, name=f"Contact {index}"
-            )
-            job.save(staff=self.test_staff, update_fields=["contact"])
+            link = self._link(f"Contact {index}")
+            job.person = link.person
+            job.save(staff=self.test_staff, update_fields=["person"])
             job.people.add(self.test_staff)
             self._set_summary_revenue(job.latest_actual, Decimal("100.00"))
             self._set_summary_revenue(job.latest_quote, Decimal("200.00"))
@@ -107,10 +114,10 @@ class TestSerializeJobForApi(BaseTestCase):
         """The rewritten serializer must keep the exact response contract the
         frontend Zod schema requires."""
         job = self._create_job(name="Shape Job")
-        contact = ClientContact.objects.create(company=self.client_obj, name="Jane Doe")
-        job.contact = contact
+        contact = self._link("Jane Doe")
+        job.person = contact.person
         job.delivery_date = timezone.localdate()
-        job.save(staff=self.test_staff, update_fields=["contact", "delivery_date"])
+        job.save(staff=self.test_staff, update_fields=["person", "delivery_date"])
         staff_b = Staff.objects.create_user(
             email="kanban-shape-b@example.com",
             password="testpass",
@@ -137,7 +144,7 @@ class TestSerializeJobForApi(BaseTestCase):
                 "description",
                 "job_number",
                 "company_name",
-                "contact_person",
+                "person_name",
                 "people",
                 "status",
                 "status_key",
@@ -162,7 +169,7 @@ class TestSerializeJobForApi(BaseTestCase):
             },
         )
         self.assertEqual(serialized["company_name"], "Test Company")
-        self.assertEqual(serialized["contact_person"], "Jane Doe")
+        self.assertEqual(serialized["person_name"], "Jane Doe")
         self.assertEqual(serialized["quote_revenue"], 200.0)
         self.assertEqual(serialized["time_and_materials_revenue"], 100.0)
         self.assertEqual(serialized["created_by_id"], str(self.test_staff.id))

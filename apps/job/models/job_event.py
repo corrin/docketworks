@@ -273,12 +273,12 @@ class JobEvent(models.Model):
     def _build_job_created_description(detail: dict) -> str:
         job_name = detail.get("job_name", "Unknown")
         company_name = detail.get("company_name", "Unknown")
-        contact_name = detail.get("contact_name")
+        person_name = detail.get("person_name")
         initial_status = detail.get("initial_status", "Unknown")
         pricing = detail.get("pricing_methodology", "Unknown")
-        contact_info = f" (Contact: {contact_name})" if contact_name else ""
+        person_info = f" (Person: {person_name})" if person_name else ""
         return (
-            f"New job '{job_name}' created for company {company_name}{contact_info}. "
+            f"New job '{job_name}' created for company {company_name}{person_info}. "
             f"Initial status: {initial_status}. "
             f"Pricing methodology: {pricing}."
         )

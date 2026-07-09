@@ -95,6 +95,25 @@ class XeroAuthenticationResult:
     status_code: int = status.HTTP_200_OK
 
 
+def _xero_production_client() -> bool:
+    try:
+        active = get_active_app()
+    except NoActiveXeroApp:
+        return False
+    production_client_ids = {
+        client_id.strip().upper() for client_id in settings.PRODUCTION_XERO_CLIENT_IDS
+    }
+    return active.client_id.strip().upper() in production_client_ids
+
+
+def _xero_ping_payload(*, connected: bool) -> dict[str, bool]:
+    return {
+        "connected": connected,
+        "xero_readonly": settings.XERO_READONLY,
+        "xero_production_client": _xero_production_client(),
+    }
+
+
 def _build_xero_error_payload(
     exc: Exception,
     *,
@@ -960,13 +979,13 @@ def xero_disconnect(request):
         except NoActiveXeroApp:
             logger.info("xero_disconnect: no active XeroApp; nothing to do")
             return Response(
-                {"connected": False, "xero_readonly": settings.XERO_READONLY},
+                _xero_ping_payload(connected=False),
                 status=status.HTTP_200_OK,
             )
         wipe_tokens_and_quota(active)
         logger.info(f"Disconnected XeroApp {active.id} ({active.label})")
         return Response(
-            {"connected": False, "xero_readonly": settings.XERO_READONLY},
+            _xero_ping_payload(connected=False),
             status=status.HTTP_200_OK,
         )
     except AlreadyLoggedException:
@@ -1159,7 +1178,7 @@ def xero_ping(request):
         is_connected = bool(token)
         logger.info(f"Xero ping: connected={is_connected}")
         return Response(
-            {"connected": is_connected, "xero_readonly": settings.XERO_READONLY},
+            _xero_ping_payload(connected=is_connected),
             status=status.HTTP_200_OK,
         )
     except AlreadyLoggedException as exc:

@@ -114,7 +114,7 @@
           <p class="text-xs text-gray-500 mb-2">{{ job.description }}</p>
           <div class="text-xs text-gray-400">
             <p>{{ job.company_name }}</p>
-            <p>{{ job.contact_person }}</p>
+            <p>{{ job.person_name }}</p>
           </div>
         </div>
 

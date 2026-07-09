@@ -8,7 +8,7 @@ from django.core.management import call_command
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.models import ClientContactMethod, Company
+from apps.company.models import Company, ContactMethod
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -48,9 +48,9 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
         xero_last_modified=timezone.now(),
         raw_json={"_name": "Realistic Company Ltd"},
     )
-    ClientContactMethod.objects.create(
+    ContactMethod.objects.create(
         company=company,
-        method_type=ClientContactMethod.MethodType.PHONE,
+        method_type=ContactMethod.MethodType.PHONE,
         value="+64211234567",
         is_primary=True,
     )
@@ -146,7 +146,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     )
     SearchTelemetryEvent.objects.create(
         event_type=SearchTelemetryEvent.EventType.CLICK,
-        domain=SearchTelemetryEvent.Domain.CLIENT,
+        domain=SearchTelemetryEvent.Domain.COMPANY,
         query="company@example.test",
         normalized_query="company@example.test",
         selected_result_id=str(company.id),
@@ -224,7 +224,7 @@ def test_dev_demo_scrub_preserves_business_signal_and_redacts_risk():
     assert chunk.path == "/redacted"
 
     telemetry = SearchTelemetryEvent.objects.get()
-    assert telemetry.domain == SearchTelemetryEvent.Domain.CLIENT
+    assert telemetry.domain == SearchTelemetryEvent.Domain.COMPANY
     assert telemetry.query == ""
     assert telemetry.metadata == {}
 

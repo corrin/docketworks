@@ -35,7 +35,7 @@
                 <Input
                   v-model="searchQuery"
                   class="pl-9"
-                  placeholder="Search number, company, contact, job, or description"
+                  placeholder="Search number, company, person, job, or description"
                   @keydown.enter.prevent="loadCalls"
                 />
               </div>
@@ -117,13 +117,13 @@
               </option>
             </select>
             <select
-              v-model="selectedContactId"
+              v-model="selectedPersonId"
               class="rounded-md border border-gray-300 p-2 text-sm"
               :disabled="!selectedCompanyId"
             >
-              <option value="">No specific contact</option>
-              <option v-for="contact in contactOptions" :key="contact.id" :value="contact.id">
-                {{ contact.name }}
+              <option value="">No specific person</option>
+              <option v-for="person in personOptions" :key="person.id" :value="person.person">
+                {{ person.person_name }}
               </option>
             </select>
           </div>
@@ -200,7 +200,7 @@ const directionFilter = ref<DirectionFilter>('all')
 const recordingsOnly = ref(false)
 const selectedCall = ref<PhoneCallRecord | null>(null)
 const selectedCompanyId = ref('')
-const selectedContactId = ref('')
+const selectedPersonId = ref('')
 const phoneLabel = ref('')
 const isPrimary = ref(false)
 const isAssigningNumber = ref(false)
@@ -209,9 +209,9 @@ let unsubscribeCrmCallsFreshness: (() => void) | null = null
 const {
   searchQuery: companySearch,
   suggestions: companyOptions,
-  contacts: contactOptions,
+  people: personOptions,
   browseCompanies: searchCompanies,
-  loadClientContacts,
+  loadCompanyPersonLinks,
   logSelectedCompanyClick,
 } = useCompanyLookup()
 
@@ -223,7 +223,7 @@ const QUEUE_META: Record<CallsTab, { title: string; description: string }> = {
   unmatched: {
     title: 'Unmatched Calls',
     description:
-      'Assign these numbers to companies or contacts so future and historical calls land in the right CRM history.',
+      'Assign these numbers to companies or people so future and historical calls land in the right CRM history.',
   },
   unlinked: {
     title: 'Matched Calls Needing Job Link',
@@ -279,11 +279,11 @@ async function loadCalls(): Promise<void> {
 function handleAssignNumber(call: PhoneCallRecord): void {
   selectedCall.value = call
   selectedCompanyId.value = ''
-  selectedContactId.value = ''
+  selectedPersonId.value = ''
   phoneLabel.value = ''
   isPrimary.value = false
   companyOptions.value = []
-  contactOptions.value = []
+  personOptions.value = []
   toast.info('Select a company for this call number')
 }
 
@@ -307,7 +307,7 @@ async function assignSelectedCallNumber(): Promise<void> {
     const updatedCall = await api.assignPhoneCallNumber(
       {
         company: selectedCompanyId.value,
-        contact: selectedContactId.value || null,
+        person: selectedPersonId.value || null,
         label: phoneLabel.value,
         is_primary: isPrimary.value,
       },
@@ -329,9 +329,9 @@ function resetAssignmentForm(): void {
   selectedCall.value = null
   companySearch.value = ''
   companyOptions.value = []
-  contactOptions.value = []
+  personOptions.value = []
   selectedCompanyId.value = ''
-  selectedContactId.value = ''
+  selectedPersonId.value = ''
   phoneLabel.value = ''
   isPrimary.value = false
 }
@@ -346,9 +346,9 @@ watch([activeTab, directionFilter, recordingsOnly], () => {
 
 watch(selectedCompanyId, (companyId) => {
   if (!companyId) {
-    selectedContactId.value = ''
+    selectedPersonId.value = ''
   }
-  void loadClientContacts(companyId)
+  void loadCompanyPersonLinks(companyId)
 })
 
 onMounted(() => {

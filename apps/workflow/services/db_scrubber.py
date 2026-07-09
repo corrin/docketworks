@@ -31,7 +31,7 @@ from apps.accounting.models import (
 )
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.staff_anonymization import create_staff_profile
-from apps.company.models import ClientContact, ClientContactMethod, Company
+from apps.company.models import Company, ContactMethod, Person
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -115,12 +115,12 @@ def _unique_scrub_value(
     no two scrubbed contact methods can share a normalized value. That keeps the
     scrub clear of the per-owner unique constraints even against a real,
     not-yet-scrubbed number still in the table, without relying on the
-    one-number-one-company guard in ``ClientContactMethod.save()`` (which
+    one-number-one-company guard in ``ContactMethod.save()`` (which
     ``bulk_update`` deliberately bypasses).
     """
     for _ in range(1000):
         value = generate()
-        normalized = ClientContactMethod.normalize_value(method_type, value)
+        normalized = ContactMethod.normalize_value(method_type, value)
         key = (method_type, normalized)
         if normalized and key not in used:
             used.add(key)
@@ -131,16 +131,12 @@ def _unique_scrub_value(
 
 
 def _scrub_companies() -> None:
-    """Mirror legacy PII_CONFIG entries for company.company and company.clientcontact.
+    """Mirror legacy PII_CONFIG entries for companies and people.
 
-    Top-level fields touched: name (with allow-list), primary_contact_name,
-    primary_contact_email, email.
+    Top-level fields touched: company name/email and person name/email.
     raw_json paths touched: _name, _email_address, _bank_account_details,
     _phones[]._phone_number, _batch_payments._bank_account_number,
     _batch_payments._bank_account_name.
-
-    Anything else (address, additional_contact_persons, supplierpickupaddress,
-    other raw_json keys) is left untouched — matches today's behaviour exactly.
     """
     fake = Faker()
     preserved = _preserved_company_names()
@@ -157,8 +153,6 @@ def _scrub_companies() -> None:
                 "Failed to generate unique company name after 1000 attempts"
             )
         company.name = candidate
-        company.primary_contact_name = fake.name()
-        company.primary_contact_email = fake.email()
         company.email = fake.email()
 
         rj = company.raw_json or {}
@@ -181,27 +175,27 @@ def _scrub_companies() -> None:
         company.raw_json = rj
         company.save(using=SCRUB_ALIAS)
 
-    for contact in ClientContact.objects.using(SCRUB_ALIAS).all():
-        contact.name = fake.name()
-        contact.email = fake.email()
-        contact.save(
+    for person in Person.objects.using(SCRUB_ALIAS).all():
+        person.name = fake.name()
+        person.email = fake.email()
+        person.save(
             using=SCRUB_ALIAS,
             update_fields=["name", "email"],
         )
 
     # Preserved companies (shop, test, enabled scrapers) keep their real contact
     # methods, matching the name/email exclusion above. A method is preserved
-    # whether it is owned directly by the company or via one of its contacts.
+    # whether it is owned directly by the company or by a linked person.
     used_method_values: set[tuple[str, str]] = set()
-    methods_to_update: list[ClientContactMethod] = []
+    methods_to_update: list[ContactMethod] = []
     for method in (
-        ClientContactMethod.objects.using(SCRUB_ALIAS)
+        ContactMethod.objects.using(SCRUB_ALIAS)
         .exclude(company__name__in=preserved)
-        .exclude(contact__company__name__in=preserved)
+        .exclude(person__company_links__company__name__in=preserved)
     ):
-        if method.method_type == ClientContactMethod.MethodType.PHONE:
+        if method.method_type == ContactMethod.MethodType.PHONE:
             generate = fake.phone_number
-        elif method.method_type == ClientContactMethod.MethodType.EMAIL:
+        elif method.method_type == ContactMethod.MethodType.EMAIL:
             generate = fake.email
         else:
             continue
@@ -211,10 +205,10 @@ def _scrub_companies() -> None:
         method.value = value
         method.normalized_value = normalized
         methods_to_update.append(method)
-    # bulk_update bypasses ClientContactMethod.save(), so the one-number-one-company
+    # bulk_update bypasses ContactMethod.save(), so the one-number-one-company
     # guard and primary-demotion logic (neither of which is a business operation
     # during a scrub) never run and cannot abort the transaction on a collision.
-    ClientContactMethod.objects.using(SCRUB_ALIAS).bulk_update(
+    ContactMethod.objects.using(SCRUB_ALIAS).bulk_update(
         methods_to_update, ["value", "normalized_value"], batch_size=500
     )
 

@@ -23,7 +23,7 @@ def test_search_click_endpoint_records_generic_event(db):
     resp = api.post(
         "/api/search-events/click/",
         {
-            "domain": "client",
+            "domain": "company",
             "query": "FUME",
             "selected_result_id": "client-123",
             "selected_label": "Fumecare Ltd",
@@ -38,7 +38,7 @@ def test_search_click_endpoint_records_generic_event(db):
     assert resp.status_code == 200, resp.content
     event = SearchTelemetryEvent.objects.get()
     assert event.event_type == SearchTelemetryEvent.EventType.CLICK
-    assert event.domain == SearchTelemetryEvent.Domain.CLIENT
+    assert event.domain == SearchTelemetryEvent.Domain.COMPANY
     assert event.query == "FUME"
     assert event.normalized_query == "fume"
     assert event.selected_result_id == "client-123"

@@ -22,7 +22,7 @@ from reportlab.lib.utils import ImageReader
 from reportlab.pdfgen import canvas
 from reportlab.platypus import Flowable, Paragraph, Table, TableStyle
 
-from apps.company.models import ClientContactMethod
+from apps.company.models import ContactMethod
 from apps.crm.models import PhoneEndpoint
 from apps.job.enums import SpeedQualityTradeoff
 from apps.job.models import CostLine, CostSet, Job, JobFile
@@ -35,25 +35,24 @@ logger = logging.getLogger(__name__)
 JOB_SUMMARY_PDF_FILENAME = "JobSummary.pdf"
 WORKSHOP_PDF_COST_LINES_ATTR = "_workshop_pdf_cost_lines"
 WORKSHOP_PDF_FILES_ATTR = "_workshop_pdf_files_to_print"
-WORKSHOP_PDF_CONTACT_PHONE_ATTR = "_workshop_pdf_contact_phone"
+WORKSHOP_PDF_PERSON_PHONE_ATTR = "_workshop_pdf_person_phone"
 WORKSHOP_PDF_COMPANY_PHONE_ATTR = "_workshop_pdf_company_phone"
 
 
 def _primary_phone_for_job(job: Job) -> str:
     """Phone to print on workshop docs and delivery dockets.
 
-    Display preference order: the job contact's own number first, falling back
-    to the company's number when the contact has no phone method (the business
-    rule carried over from the pre-ClientContactMethod scalar fields).
+    Display preference order: the job person's own number first, falling back
+    to the company's number when the person has no phone method.
     """
-    if not hasattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR) or not hasattr(
+    if not hasattr(job, WORKSHOP_PDF_PERSON_PHONE_ATTR) or not hasattr(
         job, WORKSHOP_PDF_COMPANY_PHONE_ATTR
     ):
         raise ValueError("PDF phone fields must be loaded before rendering")
 
-    contact_phone = getattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR)
-    if contact_phone:
-        return str(contact_phone)
+    person_phone = getattr(job, WORKSHOP_PDF_PERSON_PHONE_ATTR)
+    if person_phone:
+        return str(person_phone)
     return str(getattr(job, WORKSHOP_PDF_COMPANY_PHONE_ATTR) or "")
 
 
@@ -71,10 +70,10 @@ def _primary_company_endpoint_number() -> str:
 
 def _primary_phone_annotations() -> dict[str, Coalesce]:
     return {
-        WORKSHOP_PDF_CONTACT_PHONE_ATTR: ClientContactMethod.primary_phone_annotation(
-            owner="contact", outer_ref="contact_id"
+        WORKSHOP_PDF_PERSON_PHONE_ATTR: ContactMethod.primary_phone_annotation(
+            owner="person", outer_ref="person_id"
         ),
-        WORKSHOP_PDF_COMPANY_PHONE_ATTR: ClientContactMethod.primary_phone_annotation(
+        WORKSHOP_PDF_COMPANY_PHONE_ATTR: ContactMethod.primary_phone_annotation(
             owner="company", outer_ref="company_id"
         ),
     }
@@ -84,7 +83,7 @@ def get_job_for_delivery_docket_pdf(job_id: UUID) -> Job:
     """Load a job with the relations required to render a delivery docket."""
     return cast(
         Job,
-        Job.objects.select_related("company", "contact")
+        Job.objects.select_related("company", "person")
         .annotate(**_primary_phone_annotations())
         .get(id=job_id),
     )
@@ -104,7 +103,7 @@ def get_job_for_workshop_pdf(job_id: UUID) -> Job:
         Job,
         Job.objects.select_related(
             "company",
-            "contact",
+            "person",
             "latest_estimate",
             "latest_quote",
             "latest_actual",
@@ -150,7 +149,7 @@ def _ensure_workshop_pdf_job_loaded(job: Job) -> Job:
 
 
 def _ensure_delivery_docket_pdf_job_loaded(job: Job) -> Job:
-    if hasattr(job, WORKSHOP_PDF_CONTACT_PHONE_ATTR) and hasattr(
+    if hasattr(job, WORKSHOP_PDF_PERSON_PHONE_ATTR) and hasattr(
         job, WORKSHOP_PDF_COMPANY_PHONE_ATTR
     ):
         return job
@@ -1163,19 +1162,19 @@ def add_workshop_details_table(
 ) -> float:
     """Render a full-page workshop brief: identity, constraints, labour budget, and specs."""
     company_name = job.company.name if job.company else "N/A"
-    contact_name = job.contact.name if job.contact else ""
-    contact_phone = _primary_phone_for_job(job)
-    contact_info = (
-        f"{escape(contact_name)}<br/>{escape(contact_phone)}"
-        if contact_phone
-        else escape(contact_name or "N/A")
+    person_name = job.person.name if job.person else ""
+    person_phone = _primary_phone_for_job(job)
+    person_info = (
+        f"{escape(person_name)}<br/>{escape(person_phone)}"
+        if person_phone
+        else escape(person_name or "N/A")
     )
 
     contact_table = Table(
         [
             [
                 _plain_paragraph(company_name, header_company_style),
-                Paragraph(contact_info, header_contact_style),
+                Paragraph(person_info, header_contact_style),
             ]
         ],
         colWidths=[CONTENT_WIDTH * 0.42, CONTENT_WIDTH * 0.58],
@@ -1312,22 +1311,24 @@ def add_delivery_docket_details_table(
 ):
     """Render the delivery docket details with page-aware wrapping."""
     company_name = job.company.name if job.company else "N/A"
-    contact_name = job.contact.name if job.contact else ""
+    person_name = job.person.name if job.person else ""
 
-    contact_phone = _primary_phone_for_job(job)
-    contact_info = (
-        f"{contact_name}<br/>{contact_phone}" if contact_phone else contact_name
+    person_phone = _primary_phone_for_job(job)
+    person_info = (
+        f"{escape(person_name)}<br/>{escape(person_phone)}"
+        if person_phone
+        else escape(person_name or "N/A")
     )
 
     # Delivery docket details - no workshop time or internal notes
     job_details = [
         [
-            Paragraph(company_name, header_company_style),
-            Paragraph(contact_info, header_contact_style),
+            _plain_paragraph(company_name, header_company_style),
+            Paragraph(person_info, header_contact_style),
         ],
         [
             Paragraph("DESCRIPTION", label_style),
-            Paragraph(job.description or "N/A", body_style),
+            _plain_paragraph(job.description, body_style),
         ],
         [
             Paragraph("ENTRY DATE", label_style),
@@ -1345,7 +1346,7 @@ def add_delivery_docket_details_table(
         ],
         [
             Paragraph("ORDER NUMBER", label_style),
-            Paragraph(job.order_number or "N/A", body_style),
+            _plain_paragraph(job.order_number, body_style),
         ],
     ]
 

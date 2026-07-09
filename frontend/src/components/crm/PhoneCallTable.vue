@@ -25,7 +25,7 @@
               {{ call.company_name || call.external_number || '-' }}
             </div>
             <div class="flex flex-wrap items-center gap-2 text-xs text-gray-500">
-              <span>{{ call.contact_name || call.external_number || '-' }}</span>
+              <span>{{ call.person_name || call.external_number || '-' }}</span>
               <Button
                 v-if="allowNumberAssignment && !call.company && call.external_number"
                 variant="ghost"

@@ -24,8 +24,8 @@ SLEEP_TIME = 1  # Sleep after every API call to avoid hitting rate limits
 logger = logging.getLogger("xero")
 
 
-def seed_companies_to_xero(clients):
-    """Bulk process clients: link existing contacts + create missing ones in batches of 50"""
+def seed_companies_to_xero(companies):
+    """Bulk process companies: link existing Xero contacts or create missing ones."""
     # Get all existing Xero contacts (one API call)
     try:
         existing_contacts = get_all_xero_contacts()
@@ -34,7 +34,7 @@ def seed_companies_to_xero(clients):
         raise  # FAIL EARLY
 
     # Multimap: a single Xero name can map to multiple contact_ids (Xero
-    # allows duplicate contact names). Local clients with shared names
+    # allows duplicate contact names). Local companies with shared names
     # (legitimate — different real customers in Morris/MSM data) must each
     # claim a distinct Xero contact_id; the column is unique-constrained.
     existing_by_name = defaultdict(list)
@@ -43,23 +43,23 @@ def seed_companies_to_xero(clients):
 
     results = {"linked": 0, "created": 0, "failed": []}
 
-    # Separate clients into link vs create lists
-    clients_to_link = []
-    clients_to_create = []
+    # Separate companies into link vs create lists
+    companies_to_link = []
+    companies_to_create = []
 
-    for company in clients:
+    for company in companies:
         candidates = existing_by_name.get(company.name.lower())
         if candidates:
             # Pop one candidate so a second local company with the same name
             # doesn't race onto the same xero_contact_id; it falls through
             # to create instead.
             existing_contact_id = candidates.pop(0)
-            clients_to_link.append((company, existing_contact_id))
+            companies_to_link.append((company, existing_contact_id))
         else:
-            clients_to_create.append(company)
+            companies_to_create.append(company)
 
     # Process linking (fast, no API calls)
-    for company, existing_contact_id in clients_to_link:
+    for company, existing_contact_id in companies_to_link:
         try:
             company.xero_contact_id = existing_contact_id
             company.save(update_fields=["xero_contact_id"])
@@ -75,8 +75,8 @@ def seed_companies_to_xero(clients):
     # bulk_create_contacts_in_xero relies on Xero preserving submission
     # order in the response. If you suspect that's changed, run
     # scripts/integration/verify_xero_batch_order.py before this seed.
-    if clients_to_create:
-        results["created"] = bulk_create_contacts_in_xero(clients_to_create)
+    if companies_to_create:
+        results["created"] = bulk_create_contacts_in_xero(companies_to_create)
 
     return results
 

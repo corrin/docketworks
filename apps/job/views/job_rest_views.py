@@ -263,7 +263,7 @@ class JobCreateRestView(BaseJobRestView):
             "description": "Optional description",
             "order_number": "Optional order number",
             "notes": "Optional notes",
-            "contact_id": "optional-contact-uuid"
+            "person_id": "optional-person-uuid"
             "pricing_methodology": "Optional methodology (defaults to T&M)"
         }
         """
@@ -889,15 +889,15 @@ class JobHeaderRestView(BaseJobRestView):
         Fetch essential job header data for fast initial loading.
         """
         try:
-            # Query fields derived from JOB_DIRECT_FIELDS, plus id and company/contact for joins
+            # Query fields derived from JOB_DIRECT_FIELDS, plus id and company/person for joins
             query_fields = [
                 "id",
                 "updated_at",
                 "company_id",
-                "contact_id",
+                "person_id",
             ] + Job.JOB_DIRECT_FIELDS
             job = (
-                Job.objects.select_related("company", "contact")
+                Job.objects.select_related("company", "person")
                 .only(*query_fields)
                 .get(id=job_id)
             )

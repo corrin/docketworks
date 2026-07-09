@@ -34,7 +34,7 @@ from django.http import HttpRequest
 
 from apps.accounting.models import Invoice
 from apps.accounts.models import Staff
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, Person
 from apps.job.models import CostSet, Job
 from apps.job.services.kanban_categorization_service import KanbanCategorizationService
 from apps.workflow.models import CompanyDefaults
@@ -58,7 +58,7 @@ class KanbanSerializationContext:
     shop_company_id: Optional[UUID]
     summaries: Dict[UUID, Dict[str, Any]]
     company_names: Dict[UUID, str]
-    contact_names: Dict[UUID, str]
+    person_names: Dict[UUID, str]
     people_by_job: Dict[UUID, List[Staff]]
 
 
@@ -72,7 +72,7 @@ class KanbanService:
     SEARCH_SCORE_QUOTE_CONTAINS = 75.0
     SEARCH_SCORE_NAME_CONTAINS = 65.0
     SEARCH_SCORE_COMPANY_CONTAINS = 55.0
-    SEARCH_SCORE_CONTACT_CONTAINS = 55.0
+    SEARCH_SCORE_PERSON_CONTAINS = 55.0
     SEARCH_SCORE_DESCRIPTION_CONTAINS = 35.0
     SEARCH_SCORE_TRIGRAM_MULTIPLIER = 30.0
     SEARCH_SCORE_FALLBACK_RATIO = 0.5
@@ -95,12 +95,10 @@ class KanbanService:
             "reason": "client_contains",
         },
         {
-            "db_path": "contact__name",
-            "expression": Coalesce(
-                "contact__name", Value(""), output_field=TextField()
-            ),
-            "score": SEARCH_SCORE_CONTACT_CONTAINS,
-            "reason": "contact_contains",
+            "db_path": "person__name",
+            "expression": Coalesce("person__name", Value(""), output_field=TextField()),
+            "score": SEARCH_SCORE_PERSON_CONTAINS,
+            "reason": "person_contains",
         },
         {
             "db_path": "description",
@@ -246,7 +244,7 @@ class KanbanService:
 
         candidates = list(
             jobs_query.filter(token_filter)
-            .select_related("company", "contact", "quote")
+            .select_related("company", "person", "quote")
             .prefetch_related("invoices")
             .order_by("-trigram_score", "-created_at")
         )
@@ -371,10 +369,8 @@ class KanbanService:
                 return (
                     job.company.name if job.company_id and job.company else ""
                 ).lower()
-            case "contact__name":
-                return (
-                    job.contact.name if job.contact_id and job.contact else ""
-                ).lower()
+            case "person__name":
+                return (job.person.name if job.person_id and job.person else "").lower()
             case "description":
                 return (job.description or "").lower()
             case "job_number":
@@ -529,9 +525,9 @@ class KanbanService:
             Company.objects.filter(id__in=company_ids).values_list("id", "name")
         )
 
-        contact_ids = {job.contact_id for job in jobs} - {None}
-        contact_names = dict(
-            ClientContact.objects.filter(id__in=contact_ids).values_list("id", "name")
+        person_ids = {job.person_id for job in jobs} - {None}
+        person_names = dict(
+            Person.objects.filter(id__in=person_ids).values_list("id", "name")
         )
 
         people_links = list(
@@ -556,7 +552,7 @@ class KanbanService:
             shop_company_id=defaults.shop_company_id,
             summaries=summaries,
             company_names=company_names,
-            contact_names=contact_names,
+            person_names=person_names,
             people_by_job=dict(people_by_job),
         )
 
@@ -630,8 +626,8 @@ class KanbanService:
             "company_name": (
                 context.company_names.get(job.company_id, "") if job.company_id else ""
             ),
-            "contact_person": (
-                context.contact_names.get(job.contact_id, "") if job.contact_id else ""
+            "person_name": (
+                context.person_names.get(job.person_id, "") if job.person_id else ""
             ),
             "people": [
                 {
@@ -958,8 +954,8 @@ class KanbanService:
         if company_name := filters.get("company_name", "").strip():
             jobs_query = jobs_query.filter(company__name__icontains=company_name)
 
-        if contact_person := filters.get("contact_person", "").strip():
-            jobs_query = jobs_query.filter(contact__name__icontains=contact_person)
+        if person_name := filters.get("person_name", "").strip():
+            jobs_query = jobs_query.filter(person__name__icontains=person_name)
 
         if order_number := filters.get("order_number", "").strip():
             jobs_query = jobs_query.filter(order_number__icontains=order_number)

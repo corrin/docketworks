@@ -164,9 +164,9 @@
       {{ descriptionOrName }}
     </p>
 
-    <!-- Contact only (company line removed by request) -->
-    <div v-if="job.contact_person" class="text-[0.8rem] text-gray-600 truncate font-medium">
-      <span class="font-semibold">Contact:</span> {{ job.contact_person }}
+    <!-- Person only (company line removed by request) -->
+    <div v-if="job.person_name" class="text-[0.8rem] text-gray-600 truncate font-medium">
+      <span class="font-semibold">Person:</span> {{ job.person_name }}
     </div>
 
     <div v-if="dueDateDisplay" class="text-[0.8rem] truncate font-bold" :class="dueDateColor">

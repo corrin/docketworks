@@ -12,7 +12,7 @@ from nplusone.core.profiler import Profiler
 from nplusone.ext.django.patch import apply_patches
 
 from apps.accounting.models import Invoice, Quote
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job
 from apps.job.services.kanban_service import KanbanService
 from apps.testing import BaseTestCase
@@ -38,20 +38,25 @@ class KanbanSearchTest(BaseTestCase):
         name: str,
         company_name: str,
         status: str = "in_progress",
-        contact_name: str | None = None,
+        person_name: str | None = None,
         order_number: str | None = None,
     ):
         company = self._make_client(company_name)
-        contact = None
-        if contact_name:
-            contact = ClientContact.objects.create(company=company, name=contact_name)
+        person = None
+        if person_name:
+            person = Person.objects.create(name=person_name)
+            CompanyPersonLink.objects.create(
+                company=company,
+                person=person,
+                xero_name=person_name,
+            )
 
         self.job_number += 1
         return Job.objects.create(
             staff=self.test_staff,
             name=name,
             company=company,
-            contact=contact,
+            person=person,
             status=status,
             job_number=self.job_number,
             created_by=self.test_staff,
@@ -287,7 +292,7 @@ class KanbanSearchTest(BaseTestCase):
         self._make_job(
             name="Auckland airport - bag drop",
             company_name="Another Company",
-            contact_name="Alice Brown",
+            person_name="Alice Brown",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "977"}))
@@ -362,17 +367,17 @@ class KanbanSearchTest(BaseTestCase):
 
         self.assertEqual([job.id for job in jobs], [target.id])
 
-    def test_perform_advanced_search_matches_contact_name_substring(self):
+    def test_perform_advanced_search_matches_person_name_substring(self):
         """Catches contact-name search no longer matching partial names."""
         target = self._make_job(
             name="Kick plates",
             company_name="Weaver, Decker and Schultz",
-            contact_name="Molly Wainwright",
+            person_name="Molly Wainwright",
         )
         self._make_job(
             name="Other work",
             company_name="Other Company",
-            contact_name="Alice Brown",
+            person_name="Alice Brown",
         )
 
         jobs = list(KanbanService.perform_advanced_search({"universal_search": "wain"}))

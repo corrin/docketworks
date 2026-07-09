@@ -8,7 +8,7 @@ from .company_rest_views import (
     CompanyRetrieveRestView,
     CompanySearchRestView,
     CompanyUpdateRestView,
-    JobContactRestView,
+    JobPersonRestView,
 )
 from .supplier_search_alias_views import (
     CompanySupplierAliasListCreateView,
@@ -20,8 +20,8 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .contact_method_viewset import ClientContactMethodViewSet
-        from .contact_viewset import ClientContactViewSet
+        from .contact_method_viewset import ContactMethodViewSet
+        from .contact_viewset import CompanyPersonLinkViewSet
         from .supplier_pickup_address_viewset import SupplierPickupAddressViewSet
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -29,16 +29,16 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "AddressValidateView",
-    "ClientContactMethodViewSet",
-    "ClientContactViewSet",
     "CompanyCreateRestView",
     "CompanyJobsRestView",
     "CompanyListAllRestView",
+    "CompanyPersonLinkViewSet",
     "CompanyRetrieveRestView",
     "CompanySearchRestView",
     "CompanySupplierAliasListCreateView",
     "CompanyUpdateRestView",
-    "JobContactRestView",
+    "ContactMethodViewSet",
+    "JobPersonRestView",
     "SupplierAliasDetailView",
     "SupplierPickupAddressViewSet",
 ]

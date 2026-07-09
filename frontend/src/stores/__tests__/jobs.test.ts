@@ -27,7 +27,7 @@ function buildKanbanJob(overrides: Partial<Record<string, unknown>> = {}) {
     description: overrides.description ?? '',
     job_number: overrides.job_number ?? 9001,
     company_name: overrides.company_name ?? 'Company',
-    contact_person: overrides.contact_person ?? '',
+    person_name: overrides.person_name ?? '',
     people: overrides.people ?? [],
     status: overrides.status ?? 'In Progress',
     status_key: overrides.status_key ?? 'in_progress',
@@ -138,5 +138,35 @@ describe('jobs store kanban cache', () => {
     store.moveKanbanJobInColumnCache('job-1', 'in_progress', 'in_progress', 'job-missing', 'below')
 
     expect(store.kanbanColumnCache.in_progress).toBeUndefined()
+  })
+
+  it('clears stale kanban person name when detailed job has no person', () => {
+    const store = useJobsStore()
+
+    store.setKanbanJob(buildKanbanJob({ id: 'job-1', person_name: 'Stale Person' }))
+    store.setDetailedJob({
+      job: {
+        id: 'job-1',
+        job_number: 9001,
+        name: 'Detailed Job',
+        job_status: 'in_progress',
+        company_name: 'Company',
+        company_id: null,
+        person_id: null,
+        person_name: null,
+        paid: false,
+        fully_invoiced: false,
+        quoted: false,
+        quote_acceptance_date: null,
+        pricing_methodology: 'time_materials',
+        price_cap: null,
+        default_xero_pay_item_id: null,
+        default_xero_pay_item_name: null,
+      },
+      events: [],
+      company_defaults: {},
+    })
+
+    expect(store.getKanbanJobById('job-1')?.person_name).toBe('')
   })
 })

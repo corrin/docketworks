@@ -289,7 +289,7 @@ def test_company_search_logging_emits_structured_json(db, caplog):
 
     event = SearchTelemetryEvent.objects.get(
         event_type=SearchTelemetryEvent.EventType.SEARCH,
-        domain=SearchTelemetryEvent.Domain.CLIENT,
+        domain=SearchTelemetryEvent.Domain.COMPANY,
     )
     assert event.query == "FUME"
     assert event.normalized_query == "fume"

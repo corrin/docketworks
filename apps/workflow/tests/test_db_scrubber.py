@@ -7,10 +7,10 @@ aborting on a normalized-value collision.
 
 from django.test import SimpleTestCase
 
-from apps.company.models import ClientContactMethod
+from apps.company.models import ContactMethod
 from apps.workflow.services.db_scrubber import _unique_scrub_value
 
-PHONE = ClientContactMethod.MethodType.PHONE
+PHONE = ContactMethod.MethodType.PHONE
 
 
 class UniqueScrubValueTests(SimpleTestCase):
@@ -19,7 +19,7 @@ class UniqueScrubValueTests(SimpleTestCase):
         value, normalized = _unique_scrub_value(lambda: "021 111 111", PHONE, used)
 
         self.assertEqual(value, "021 111 111")
-        self.assertEqual(normalized, ClientContactMethod.normalize_phone("021 111 111"))
+        self.assertEqual(normalized, ContactMethod.normalize_phone("021 111 111"))
         self.assertIn((PHONE, normalized), used)
 
     def test_skips_values_that_normalize_to_an_already_used_number(self) -> None:

@@ -1,7 +1,7 @@
 from django.test import TestCase
 from django.utils import timezone
 
-from apps.company.models import ClientContact, ClientContactMethod, Company
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.duplicate_phone_report import DuplicatePhoneReportService
 from apps.crm.models import PhoneEndpoint
 
@@ -14,18 +14,26 @@ class DuplicatePhoneReportTests(TestCase):
         self,
         value: str,
         company: Company | None = None,
-        contact: ClientContact | None = None,
-    ) -> ClientContactMethod:
+        contact: CompanyPersonLink | None = None,
+    ) -> ContactMethod:
         """Insert a phone method bypassing the save() guard (legacy-style data)."""
-        method = ClientContactMethod(
+        method = ContactMethod(
             company=company,
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            person=contact.person if contact else None,
+            method_type=ContactMethod.MethodType.PHONE,
             value=value,
         )
-        method.normalized_value = ClientContactMethod.normalize_phone(value)
-        ClientContactMethod.objects.bulk_create([method])
+        method.normalized_value = ContactMethod.normalize_phone(value)
+        ContactMethod.objects.bulk_create([method])
         return method
+
+    def _link(self, company: Company, name: str) -> CompanyPersonLink:
+        person = Person.objects.create(name=name)
+        return CompanyPersonLink.objects.create(
+            company=company,
+            person=person,
+            xero_name=name,
+        )
 
     def test_detects_cross_company_number(self) -> None:
         acme = self._company("Acme Ltd")
@@ -39,14 +47,14 @@ class DuplicatePhoneReportTests(TestCase):
         self.assertEqual(len(cross), 1)
         self.assertEqual(
             cross[0]["normalized_value"],
-            ClientContactMethod.normalize_phone("021 111 111"),
+            ContactMethod.normalize_phone("021 111 111"),
         )
         self.assertEqual(len(cross[0]["owners"]), 2)
         self.assertEqual(report["summary"]["cross_client"], 1)
 
     def test_detects_internal_line_collision(self) -> None:
         company = self._company("Acme Ltd")
-        contact = ClientContact.objects.create(company=company, name="Paul Jones")
+        contact = self._link(company, "Paul Jones")
         self._phone("09 636 5131", contact=contact)
         # Bypass PhoneEndpoint.save()'s collision guard (legacy-style data):
         # the report exists precisely to surface rows that predate the guard.
@@ -55,7 +63,7 @@ class DuplicatePhoneReportTests(TestCase):
             label="Main line",
             endpoint_type=PhoneEndpoint.EndpointType.MAIN_LINE,
         )
-        endpoint.normalized_number = ClientContactMethod.normalize_phone("09 636 5131")
+        endpoint.normalized_number = ContactMethod.normalize_phone("09 636 5131")
         PhoneEndpoint.objects.bulk_create([endpoint])
 
         report = DuplicatePhoneReportService().get_report()

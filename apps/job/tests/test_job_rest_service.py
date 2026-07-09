@@ -2,7 +2,7 @@ from decimal import Decimal
 
 from django.utils import timezone
 
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, Person
 from apps.job.models import Job, JobEvent
 from apps.job.models.costing import CostLine
 from apps.job.services.job_rest_service import JobRestService
@@ -49,11 +49,11 @@ class JobRestServiceEditTests(BaseTestCase):
             name="Edit Job Company",
             xero_last_modified=timezone.now(),
         )
-        contact = ClientContact.objects.create(company=company, name="Site Contact")
+        person = Person.objects.create(name="Site Contact")
         job = Job.objects.create(
             name="Editable Job",
             company=company,
-            contact=contact,
+            person=person,
             created_by=self.test_staff,
             default_xero_pay_item=XeroPayItem.get_ordinary_time(),
             staff=self.test_staff,

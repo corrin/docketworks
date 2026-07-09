@@ -21,7 +21,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, Person
 from apps.job.models import Job, JobDeltaRejection, JobEvent, LabourSubtype
 from apps.job.models.costing import CostLine
 from apps.job.serializers import JobSerializer
@@ -33,7 +33,6 @@ from apps.job.serializers.job_serializer import (
     QuoteSerializer,
 )
 from apps.job.services.delta_checksum import compute_job_delta_checksum, normalise_value
-from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 from apps.workflow.services.error_persistence import persist_and_raise
 
@@ -283,13 +282,13 @@ class JobRestService:
             if data.get(field):
                 job_data[field] = data[field]
 
-        # Contact (optional relationship)
-        if contact_id := data.get("contact_id"):
+        # Person (optional relationship)
+        if person_id := data.get("person_id"):
             try:
-                contact = ClientContact.objects.get(id=contact_id)
-                job_data["contact"] = contact
-            except ClientContact.DoesNotExist:
-                raise ValueError(f"Contact with id {contact_id} not found")
+                person = Person.objects.get(id=person_id)
+                job_data["person"] = person
+            except Person.DoesNotExist as exc:
+                raise ValueError(f"Person with id {person_id} not found") from exc
 
         if "is_urgent" in data:
             job_data["is_urgent"] = data["is_urgent"]
@@ -311,14 +310,14 @@ class JobRestService:
 
             # Create job creation event (moved from Job.save() to prevent duplicates)
             company_name = job.company.name if job.company else "Shop Job"
-            contact_name = job.contact.name if job.contact else None
+            person_name = job.person.name if job.person else None
             JobEvent.objects.create(
                 job=job,
                 event_type="job_created",
                 detail={
                     "job_name": job.name,
                     "company_name": company_name,
-                    "contact_name": contact_name,
+                    "person_name": person_name,
                     "initial_status": job.get_status_display(),
                     "pricing_methodology": job.get_pricing_methodology_display(),
                 },
@@ -1076,15 +1075,14 @@ class JobRestService:
                 # DEBUG: Log incoming data
                 logger.debug(f"JobRestService.update_job - Incoming data: {data}")
                 logger.debug(
-                    f"JobRestService.update_job - Current job contact: {job.contact}"
+                    f"JobRestService.update_job - Current job person: {job.person}"
                 )
                 logger.debug(
-                    f"JobRestService.update_job - Current job contact_id: {job.contact.id if job.contact else None}"
+                    f"JobRestService.update_job - Current job person_id: {job.person.id if job.person else None}"
                 )
 
-                # Snapshot values needed for post-save logic (priority bump, company change)
+                # Snapshot values needed for post-save logic (priority bump)
                 original_status = job.status
-                original_company_id = job.company_id
 
                 if delta_payload.job_id and str(job.id) != delta_payload.job_id:
                     detail = {
@@ -1145,45 +1143,6 @@ class JobRestService:
                 ):
                     job.priority = Job._calculate_next_priority_for_status(job.status)
                     job.save(staff=user, update_fields=["priority", "updated_at"])
-
-                # When company changes, auto-set contact to new company's primary contact.
-                # Only do this if contact_id was NOT explicitly provided in the update.
-                contact_explicitly_updated = "contact_id" in delta_payload.fields
-                try:
-                    if (
-                        job.company
-                        and original_company_id != job.company_id
-                        and not contact_explicitly_updated
-                    ):
-                        primary_contact = ClientContact.objects.filter(
-                            company_id=job.company_id,
-                            is_primary=True,
-                            is_active=True,
-                        ).first()
-                        job.contact = primary_contact  # May be None if no primary
-                        job.save(staff=user)
-                        logger.info(
-                            f"Auto-set contact to primary contact after company change: "
-                            f"job.company_id={job.company_id}, "
-                            f"contact={'None' if not primary_contact else primary_contact.id}"
-                        )
-                    elif (
-                        job.contact
-                        and job.company
-                        and job.contact.company_id != job.company_id
-                    ):
-                        logger.warning(
-                            "Clearing mismatched contact after company change: "
-                            f"contact.company_id={job.contact.company_id} != job.company_id={job.company_id}"
-                        )
-                        job.contact = None
-                        job.save(staff=user)
-                except Exception as _e:
-                    # Persist the error but do not mask the main operation
-                    try:
-                        persist_and_raise(_e)
-                    except AlreadyLoggedException:
-                        pass
 
                 result_job = job
         except PreconditionFailed:
@@ -1578,7 +1537,7 @@ class JobRestService:
                             "order_number": "order number",
                             "notes": "notes",
                             "company_id": "company",
-                            "contact_id": "contact",
+                            "person_id": "person",
                             "delivery_date": "delivery date",
                             "job_status": "status",
                             "paid": "payment status",

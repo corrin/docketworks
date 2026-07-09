@@ -62,7 +62,7 @@ class SalesPipelineServiceFixturesMixin:
             detail={
                 "job_name": job.name,
                 "company_name": company.name if company else "Shop Job",
-                "contact_name": None,
+                "person_name": None,
                 "initial_status": job.get_status_display(),
                 "pricing_methodology": job.get_pricing_methodology_display(),
             },
