@@ -193,7 +193,7 @@
 
           <!-- Create/Edit Person Section -->
           <div
-            class="create-contact-section w-full xl:w-80 2xl:w-96 flex-shrink-0 border-t xl:border-t-0 xl:border-l border-gray-200 pt-4 xl:pt-0 xl:pl-6"
+            class="create-person-section w-full xl:w-80 2xl:w-96 flex-shrink-0 border-t xl:border-t-0 xl:border-l border-gray-200 pt-4 xl:pt-0 xl:pl-6"
           >
             <div class="flex items-center justify-between mb-4">
               <h4 class="section-title text-sm font-semibold text-gray-900">
@@ -461,7 +461,7 @@ const executeDelete = () => {
     min-height: 250px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 100% !important;
     border-top: 1px solid #e5e7eb;
     border-left: none !important;
@@ -487,7 +487,7 @@ const executeDelete = () => {
     min-height: 400px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 280px !important;
     flex-shrink: 0;
     border-top: none !important;
@@ -514,7 +514,7 @@ const executeDelete = () => {
     min-height: 450px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 290px !important;
     flex-shrink: 0;
     border-top: none !important;
@@ -542,7 +542,7 @@ const executeDelete = () => {
     min-height: 500px;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 300px !important;
     flex-shrink: 0;
     border-top: none !important;
@@ -558,7 +558,7 @@ const executeDelete = () => {
     max-width: 725px !important;
   }
 
-  .create-contact-section {
+  .create-person-section {
     width: 310px !important;
   }
 }
@@ -616,7 +616,7 @@ const executeDelete = () => {
   min-height: 200px;
 }
 
-.create-contact-section {
+.create-person-section {
   /* Ensure form is always visible and accessible */
   min-height: fit-content;
   max-height: 100%;

@@ -159,7 +159,7 @@
 
             <div>
               <PersonSelector
-                id="contact"
+                id="person"
                 label="Person"
                 :optional="true"
                 :company-id="localJobData.company_id || ''"
@@ -848,17 +848,17 @@ watch(
     // Load person information using the job person endpoint
     // IMPORTANT: Do NOT trigger autosave here - this is just loading initial data
     try {
-      const contactResponse = await api.companies_jobs_person_retrieve({
+      const personResponse = await api.companies_jobs_person_retrieve({
         params: { job_id: newJobData.job_id },
       })
-      if (contactResponse) {
+      if (personResponse) {
         // The response is a single person object
-        localJobData.value.person_id = contactResponse.id
-        localJobData.value.person_name = contactResponse.name
-        personDisplayValue.value = contactResponse.name || ''
+        localJobData.value.person_id = personResponse.id
+        localJobData.value.person_name = personResponse.name
+        personDisplayValue.value = personResponse.name || ''
       }
     } catch (error: unknown) {
-      // Handle 404 when no contact is associated with the job - simply ignore
+      // Handle 404 when no person is associated with the job - simply ignore
       const axiosError = error as { response?: { status?: number } }
       if (axiosError?.response?.status === 404) {
         debugLog('No person associated with this job - ignoring 404')
@@ -1139,42 +1139,42 @@ const handleCompanyUpdated = (updatedCompany: Company) => {
   toast.success('Company updated successfully')
 }
 
-const handlePersonSelected = async (contact: CompanyPersonLink | null) => {
-  if (contact) {
+const handlePersonSelected = async (personLink: CompanyPersonLink | null) => {
+  if (personLink) {
     // Skip API call if person is already set to this value
     // This handles:
     // - Scenario 4: Company change - backend sets person in response, no duplicate API call needed
-    // - User re-selecting the same contact
-    if (localJobData.value.person_id === contact.person) {
+    // - User re-selecting the same person
+    if (localJobData.value.person_id === personLink.person) {
       // Still update display value in case it's stale
-      localJobData.value.person_name = contact.person_name
-      personDisplayValue.value = contact.person_name
+      localJobData.value.person_name = personLink.person_name
+      personDisplayValue.value = personLink.person_name
       return
     }
 
-    localJobData.value.person_id = contact.person
-    localJobData.value.person_name = contact.person_name
-    personDisplayValue.value = contact.person_name
+    localJobData.value.person_id = personLink.person
+    localJobData.value.person_name = personLink.person_name
+    personDisplayValue.value = personLink.person_name
 
     // Ensure all fields are present for Zod validation (convert undefined to null)
-    const contactToSend = {
-      id: contact.person,
-      name: contact.person_name,
-      email: contact.person_email ?? null,
+    const personToSend = {
+      id: personLink.person,
+      name: personLink.person_name,
+      email: personLink.person_email ?? null,
     } satisfies z.input<typeof schemas.JobPersonUpdateRequest>
 
     // Save person directly (not through header autosave)
     try {
-      await api.companies_jobs_person_update(contactToSend, {
+      await api.companies_jobs_person_update(personToSend, {
         params: { job_id: props.jobId },
       })
       toast.success('Person updated successfully')
     } catch (error) {
-      toast.error('Failed to update contact')
-      console.error('Failed to update contact:', error)
+      toast.error('Failed to update person')
+      console.error('Failed to update person:', error)
     }
   } else {
-    // Clear person locally - no API call needed since clearing means no contact association
+    // Clear person locally - no API call needed since clearing means no person association
     localJobData.value.person_id = undefined
     localJobData.value.person_name = undefined
     personDisplayValue.value = ''
@@ -1561,19 +1561,19 @@ const autosave = createJobAutosave({
           headerPatch.company_id = companyId
           headerPatch.company_name = companyName
 
-          // Note: When no serverJobDetail, we can't get the auto-set contact
+          // Note: When no serverJobDetail, we can't get the auto-set person
           // The PersonSelector will re-fetch people for the new company
         }
         if (touchedKeys.includes('person_id')) {
-          const contactId = coerceNullableString(partialPayload.person_id)
-          nextBaseline.person_id = contactId
-          localJobData.value.person_id = contactId
+          const personId = coerceNullableString(partialPayload.person_id)
+          nextBaseline.person_id = personId
+          localJobData.value.person_id = personId
         }
         if (touchedKeys.includes('person_name')) {
-          const contactName = coerceNullableString(partialPayload.person_name)
-          nextBaseline.person_name = contactName
-          localJobData.value.person_name = contactName
-          personDisplayValue.value = contactName ?? ''
+          const personName = coerceNullableString(partialPayload.person_name)
+          nextBaseline.person_name = personName
+          localJobData.value.person_name = personName
+          personDisplayValue.value = personName ?? ''
         }
       }
 

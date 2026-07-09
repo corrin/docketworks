@@ -59,8 +59,8 @@
           :disabled="!selectedCompanyId"
         >
           <option value="">No specific person</option>
-          <option v-for="contact in contactOptions" :key="contact.id" :value="contact.person">
-            {{ contact.person_name }}
+          <option v-for="person in personOptions" :key="person.id" :value="person.person">
+            {{ person.person_name }}
           </option>
         </select>
       </div>
@@ -161,9 +161,9 @@ const selectedPersonId = ref('')
 const {
   searchQuery: companySearch,
   suggestions: companyOptions,
-  contacts: contactOptions,
+  people: personOptions,
   browseCompanies,
-  loadCompanyPersonLinks: loadContacts,
+  loadCompanyPersonLinks: loadPeople,
   logSelectedCompanyClick,
 } = useCompanyLookup()
 
@@ -241,7 +241,7 @@ async function editMethod(method: ContactMethod): Promise<void> {
   isPrimary.value = Boolean(method.is_primary)
   selectedCompanyId.value = method.owner_company
   selectedPersonId.value = method.person || ''
-  await loadContacts(method.owner_company)
+  await loadPeople(method.owner_company)
 }
 
 async function deleteMethod(method: ContactMethod): Promise<void> {
@@ -283,7 +283,7 @@ watch(
   () => props.fixedCompanyId,
   (companyId) => {
     selectedCompanyId.value = companyId
-    void loadContacts(companyId)
+    void loadPeople(companyId)
     void loadPhoneMethods().catch((error) => {
       console.error('Failed to reload phone numbers:', error)
       toast.error('Failed to load phone numbers')
@@ -295,11 +295,11 @@ watch(selectedCompanyId, (companyId) => {
   if (!companyId) {
     selectedPersonId.value = ''
   }
-  void loadContacts(companyId)
+  void loadPeople(companyId)
 })
 
 onMounted(() => {
-  void loadContacts(selectedCompanyId.value)
+  void loadPeople(selectedCompanyId.value)
   void loadPhoneMethods().catch((error) => {
     console.error('Failed to load phone numbers:', error)
     toast.error('Failed to load phone numbers')

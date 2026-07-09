@@ -443,7 +443,7 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
     await autoId(page, 'JobCreateView-estimated-time').fill('0')
   })
 
-  // Select contact
+  // Select person
   await expectStepUnder('createTestJob: open person modal', 1000, async () => {
     await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
     await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
@@ -459,7 +459,7 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
   )
 
   if (selectButtonCount > 0) {
-    await expectStepUnder('createTestJob: select existing contact', 1000, async () => {
+    await expectStepUnder('createTestJob: select existing person', 1000, async () => {
       await autoId(page, 'PersonSelectionModal-select-button').first().click()
     })
   } else {

@@ -37,7 +37,7 @@ const SHARED_EDIT_JOB_BUDGET_MS = {
   navigateToCreatePage: 2500,
   searchAndSelectCompany: 1500,
   fillJobDetails: 1000,
-  contactSelection: 2500,
+  personSelection: 2500,
   submitAndRedirect: 3500,
 } as const
 
@@ -304,8 +304,8 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
       )
 
       await expectStepUnder(
-        'sharedEditJobUrl: select or create contact',
-        SHARED_EDIT_JOB_BUDGET_MS.contactSelection,
+        'sharedEditJobUrl: select or create person',
+        SHARED_EDIT_JOB_BUDGET_MS.personSelection,
         async () => {
           await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
           await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })

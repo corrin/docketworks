@@ -134,7 +134,7 @@ export function usePersonManagement() {
       people.value = response || []
       personForm.value.is_primary = people.value.length === 0
     } catch (error) {
-      debugLog('Error loading contacts:', error)
+      debugLog('Error loading people:', error)
       people.value = []
       personForm.value.is_primary = true
     } finally {
@@ -380,7 +380,7 @@ export function usePersonManagement() {
         selectedPerson.value = null
       }
 
-      // Clear editing state if we were editing the deleted contact
+      // Clear editing state if we were editing the deleted person
       if (editingPersonLink.value?.id === personLinkId) {
         cancelEdit()
       }
@@ -420,7 +420,7 @@ export function usePersonManagement() {
   }
 
   /**
-   * Clears the currently selected contact
+   * Clears the currently selected person
    */
   const clearSelection = () => {
     selectedPerson.value = null

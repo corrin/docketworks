@@ -209,11 +209,11 @@ const handleEditPerson = (person: CompanyPersonLink) => {
   startEditPerson(person)
 }
 
-const handleDeletePerson = async (contactId: string) => {
-  debugLog('PersonSelector - handleDeletePerson:', contactId)
+const handleDeletePerson = async (personLinkId: string) => {
+  debugLog('PersonSelector - handleDeletePerson:', personLinkId)
   toast.info('Deleting person...', { id: 'delete-person' })
 
-  const success = await deletePerson(contactId)
+  const success = await deletePerson(personLinkId)
 
   toast.dismiss('delete-person')
 

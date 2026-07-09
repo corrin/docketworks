@@ -811,16 +811,14 @@ async function resolveSupplierEmail(): Promise<string | null> {
   }
 
   try {
-    const contacts = await api.companies_person_links_list({
+    const people = await api.companies_person_links_list({
       queries: { company_id: supplierId },
     })
 
-    const contactsArray: CompanyPersonLink[] = Array.isArray(contacts) ? contacts : []
-    const primaryContact = contactsArray.find(
-      (contact) => contact.is_primary && !!contact.person_email,
-    )
-    const fallbackContact = contactsArray.find((contact) => !!contact.person_email)
-    const resolvedEmail = primaryContact?.person_email ?? fallbackContact?.person_email ?? null
+    const peopleArray: CompanyPersonLink[] = Array.isArray(people) ? people : []
+    const primaryPerson = peopleArray.find((person) => person.is_primary && !!person.person_email)
+    const fallbackPerson = peopleArray.find((person) => !!person.person_email)
+    const resolvedEmail = primaryPerson?.person_email ?? fallbackPerson?.person_email ?? null
 
     supplierEmailCache.value = {
       ...supplierEmailCache.value,
@@ -829,7 +827,7 @@ async function resolveSupplierEmail(): Promise<string | null> {
 
     return resolvedEmail
   } catch (err) {
-    debugLog('Failed to resolve supplier contacts for email:', err)
+    debugLog('Failed to resolve supplier people for email:', err)
     supplierEmailCache.value = {
       ...supplierEmailCache.value,
       [supplierId]: null,

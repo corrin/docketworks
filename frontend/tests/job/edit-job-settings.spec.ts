@@ -15,7 +15,7 @@ const EDIT_JOB_BUDGET_MS = {
   verifyAfterRefresh: 3000,
   reloadVerify: 3500,
   changeCompanyFlow: 2000,
-  createOrSwitchContact: 2000,
+  createOrSwitchPerson: 2000,
 } as const
 
 /**
@@ -456,7 +456,7 @@ test.describe.serial('edit job', () => {
     )
   })
 
-  test('change contact person', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
+  test('change person', async ({ authenticatedPage: page, sharedEditJobUrl }) => {
     await page.goto(sharedEditJobUrl)
     await page.waitForLoadState('networkidle')
 
@@ -472,7 +472,7 @@ test.describe.serial('edit job', () => {
 
     await expectStepUnder(
       'create a new person to switch to',
-      EDIT_JOB_BUDGET_MS.createOrSwitchContact,
+      EDIT_JOB_BUDGET_MS.createOrSwitchPerson,
       async () => {
         // Wait for the form to be ready
         const submitButton = autoId(page, 'PersonSelectionModal-submit')
@@ -481,7 +481,7 @@ test.describe.serial('edit job', () => {
         const timestamp = Date.now()
         await autoId(page, 'PersonSelectionModal-name-input').fill(`New Person ${timestamp}`)
         await autoId(page, 'PersonSelectionModal-email-input').fill(
-          `newcontact${timestamp}@example.com`,
+          `newperson${timestamp}@example.com`,
         )
         await submitButton.click()
 
@@ -493,9 +493,9 @@ test.describe.serial('edit job', () => {
       },
     )
 
-    await test.step('verify contact was updated', async () => {
-      const contactDisplay = autoId(page, 'PersonSelector-display')
-      await expect(contactDisplay).toHaveValue(/New Person/, { timeout: 10000 })
+    await test.step('verify person was updated', async () => {
+      const personDisplay = autoId(page, 'PersonSelector-display')
+      await expect(personDisplay).toHaveValue(/New Person/, { timeout: 10000 })
     })
   })
 

@@ -70,7 +70,7 @@ describe('usePersonManagement displayValue (KAN-281)', () => {
     expect(displayValue.get()).toBe('Jane Doe')
   })
 
-  it('set() splits "name - phone - email" into the selected contact', () => {
+  it('set() splits "name - phone - email" into the selected person', () => {
     const { displayValue, setSelectedPerson, selectedPerson } = usePersonManagement()
     setSelectedPerson(buildPerson())
 

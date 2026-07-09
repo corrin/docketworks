@@ -58,11 +58,11 @@ test.describe('create job with new xero company', () => {
     await autoId(page, 'JobCreateView-estimated-materials').fill('500')
     await autoId(page, 'JobCreateView-estimated-time').fill('4')
 
-    // Select contact - click the modal button
+    // Select person - click the modal button
     await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
     await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
-    // For a new company, there won't be existing contacts - fill in the create form
+    // For a new company, there won't be existing persons - fill in the create form
     // The form fields are always visible for new companies
     await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${randomSuffix}`)
     await page.waitForTimeout(200)
@@ -154,9 +154,9 @@ test.describe('create job with new xero company', () => {
     await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
     await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
-    // Fill in contact details
+    // Fill in person details
     await autoId(page, 'PersonSelectionModal-name-input').fill(
-      `[TEST] Modal Contact ${randomSuffix}`,
+      `[TEST] Modal Person ${randomSuffix}`,
     )
     await page.waitForTimeout(200)
     await autoId(page, 'PersonSelectionModal-email-input').fill(`modal${randomSuffix}@example.com`)

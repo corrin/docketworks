@@ -319,7 +319,7 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
       ('person_id' in effectivePatch || 'person_name' in effectivePatch) &&
       !virtualSnapshot['company_id']
     ) {
-      log('⛔ canSave=false (contact_* change without company_id)', { reason })
+      log('canSave=false (person_* change without company_id)', { reason })
       return
     }
 

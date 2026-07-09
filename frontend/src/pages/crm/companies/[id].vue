@@ -49,7 +49,7 @@
         <TabsList class="grid w-full grid-cols-4">
           <TabsTrigger value="details">
             <FileText class="w-4 h-4 mr-2" />
-            Details & Contacts
+            Details & People
           </TabsTrigger>
           <TabsTrigger value="financial">
             <DollarSign class="w-4 h-4 mr-2" />
@@ -65,7 +65,7 @@
           </TabsTrigger>
         </TabsList>
 
-        <!-- Details & Contacts Tab -->
+        <!-- Details & People Tab -->
         <TabsContent value="details" class="space-y-6 mt-6">
           <!-- Basic Information -->
           <Card>
@@ -158,42 +158,42 @@
             </CardContent>
           </Card>
 
-          <!-- Contact Persons -->
+          <!-- People -->
           <Card>
             <CardHeader>
-              <CardTitle>Contact Persons</CardTitle>
+              <CardTitle>People</CardTitle>
             </CardHeader>
             <CardContent>
               <div
-                v-if="companyStore.isLoadingContacts"
+                v-if="companyStore.isLoadingPeople"
                 class="flex items-center justify-center py-8"
               >
                 <Loader2 class="w-6 h-6 animate-spin text-indigo-600" />
               </div>
-              <div v-else-if="contacts.length === 0" class="text-center py-8 text-gray-500">
+              <div v-else-if="people.length === 0" class="text-center py-8 text-gray-500">
                 <UserCircle class="w-12 h-12 mx-auto mb-2 text-gray-400" />
-                <p>No additional contacts</p>
+                <p>No additional people</p>
               </div>
               <div v-else class="space-y-3">
                 <div
-                  v-for="contact in contacts"
-                  :key="contact.id"
+                  v-for="person in people"
+                  :key="person.id"
                   class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg"
                 >
                   <UserCircle class="w-5 h-5 text-gray-400 mt-0.5" />
                   <div class="flex-1">
                     <div class="flex items-center gap-2">
-                      <p class="font-medium text-gray-900">{{ contact.person_name }}</p>
-                      <Badge v-if="contact.is_primary" variant="default" class="text-xs"
+                      <p class="font-medium text-gray-900">{{ person.person_name }}</p>
+                      <Badge v-if="person.is_primary" variant="default" class="text-xs"
                         >Primary</Badge
                       >
                     </div>
-                    <p v-if="contact.position" class="text-sm text-gray-500">
-                      {{ contact.position }}
+                    <p v-if="person.position" class="text-sm text-gray-500">
+                      {{ person.position }}
                     </p>
                     <div class="flex flex-col gap-1 mt-1 text-sm text-gray-600">
-                      <span v-if="contact.person_email">{{ contact.person_email }}</span>
-                      <span v-if="contact.phone">{{ contact.phone }}</span>
+                      <span v-if="person.person_email">{{ person.person_email }}</span>
+                      <span v-if="person.phone">{{ person.phone }}</span>
                     </div>
                   </div>
                 </div>
@@ -461,12 +461,12 @@ const company = computed(() => {
   return companyStore.detailedCompanies[props.id]
 })
 
-const contacts = computed(() => {
-  return companyStore.companyContacts[props.id] || []
+const people = computed(() => {
+  return companyStore.companyPeople[props.id] || []
 })
 
 const primaryPerson = computed(() => {
-  return contacts.value.find((contact) => contact.is_primary) ?? contacts.value[0] ?? null
+  return people.value.find((person) => person.is_primary) ?? people.value[0] ?? null
 })
 
 const relatedJobs = computed(() => {
@@ -490,10 +490,10 @@ const allowJobsBlockedReason = computed<string | null>(() => {
   const current = company.value
   if (!current) return null
   if (current.merged_into) {
-    return 'Blocked because this contact was merged into another company in Xero.'
+    return 'Blocked because this Xero contact was merged into another company in Xero.'
   }
   if (current.xero_archived) {
-    return 'Blocked because this contact is archived in Xero.'
+    return 'Blocked because this Xero contact is archived in Xero.'
   }
   return null
 })
@@ -614,12 +614,12 @@ async function loadCompanyData() {
     // Load supplier aliases
     await loadSupplierAliases()
 
-    // Load contacts
+    // Load people
     try {
       await companyStore.fetchCompanyPersonLinks(props.id)
     } catch (err) {
-      console.error('Failed to load contacts:', err)
-      // Don't show error for contacts, just log it
+      console.error('Failed to load people:', err)
+      // Don't show error for people, just log it
     }
 
     // Load related jobs

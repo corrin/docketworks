@@ -59,7 +59,7 @@
                 <div>
                   <PersonSelector
                     ref="personSelectorRef"
-                    id="contact"
+                    id="person"
                     v-model="personDisplayName"
                     :company-id="formData.company_id as string"
                     :company-name="companyDisplayName"
@@ -322,12 +322,12 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
   debugLog('JobCreateView - handleCompanySelection:', {
     company,
     previousCompanyId: formData.value.company_id,
-    previousContactId: formData.value.person_id,
+    previousPersonId: formData.value.person_id,
   })
 
   selectedCompany.value = company
 
-  // Always clear contact person when company changes (even if same company selected)
+  // Always clear person when company changes (even if same company selected)
   formData.value.person_id = null
   selectedPerson.value = null
   personDisplayName.value = ''
@@ -353,7 +353,7 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
     if (personSelectorRef.value) {
       debugLog('JobCreateView - Calling selectPrimaryPerson')
       // The `selectPrimaryPerson` method within the composable
-      // will handle loading contacts and finding the primary.
+      // will handle loading people and finding the primary.
       await personSelectorRef.value.selectPrimaryPerson()
     }
   } else {
@@ -364,12 +364,12 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
   }
 }
 
-const updateSelectedPerson = (contact: CompanyPersonLink | null) => {
-  selectedPerson.value = contact
-  if (contact) {
+const updateSelectedPerson = (personLink: CompanyPersonLink | null) => {
+  selectedPerson.value = personLink
+  if (personLink) {
     // Save the person ID for the API and display name for the UI
-    formData.value.person_id = contact.person
-    personDisplayName.value = contact.person_name
+    formData.value.person_id = personLink.person
+    personDisplayName.value = personLink.person_name
   } else {
     formData.value.person_id = null
     personDisplayName.value = ''

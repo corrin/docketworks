@@ -35,11 +35,11 @@ export const useCompanyStore = defineStore('companies', () => {
 
   // State - company details and related data
   const detailedCompanies = ref<Record<string, CompanyDetail>>({})
-  const companyContacts = ref<Record<string, CompanyPersonLink[]>>({})
+  const companyPeople = ref<Record<string, CompanyPersonLink[]>>({})
   const companyJobs = ref<Record<string, CompanyJob[]>>({})
   const isLoading = ref(false)
   const isLoadingDetail = ref(false)
-  const isLoadingContacts = ref(false)
+  const isLoadingPeople = ref(false)
   const isLoadingJobs = ref(false)
 
   // Getters
@@ -104,24 +104,24 @@ export const useCompanyStore = defineStore('companies', () => {
   }
 
   /**
-   * Fetch contacts for a specific company
+   * Fetch people for a specific company
    * @param companyId UUID of the company
    */
   async function fetchCompanyPersonLinks(companyId: string) {
-    isLoadingContacts.value = true
+    isLoadingPeople.value = true
 
     try {
       const response = await api.companies_person_links_list({
         queries: { company_id: companyId },
       })
-      companyContacts.value[companyId] = response
+      companyPeople.value[companyId] = response
       return response
     } catch (error) {
-      console.error('Failed to fetch company contacts:', error)
-      companyContacts.value[companyId] = []
+      console.error('Failed to fetch company people:', error)
+      companyPeople.value[companyId] = []
       throw error
     } finally {
-      isLoadingContacts.value = false
+      isLoadingPeople.value = false
     }
   }
 
@@ -137,12 +137,12 @@ export const useCompanyStore = defineStore('companies', () => {
   }
 
   /**
-   * Get cached company contacts or fetch if not available
+   * Get cached company people or fetch if not available
    * @param companyId UUID of the company
    */
   async function getCompanyPersonLinks(companyId: string): Promise<CompanyPersonLink[]> {
-    if (companyContacts.value[companyId]) {
-      return companyContacts.value[companyId]
+    if (companyPeople.value[companyId]) {
+      return companyPeople.value[companyId]
     }
     return await fetchCompanyPersonLinks(companyId)
   }
@@ -186,7 +186,7 @@ export const useCompanyStore = defineStore('companies', () => {
   function clearCache() {
     companies.value = []
     detailedCompanies.value = {}
-    companyContacts.value = {}
+    companyPeople.value = {}
     companyJobs.value = {}
     searchQuery.value = ''
     page.value = 1
@@ -207,11 +207,11 @@ export const useCompanyStore = defineStore('companies', () => {
 
     // State - other
     detailedCompanies,
-    companyContacts,
+    companyPeople,
     companyJobs,
     isLoading,
     isLoadingDetail,
-    isLoadingContacts,
+    isLoadingPeople,
     isLoadingJobs,
 
     // Getters

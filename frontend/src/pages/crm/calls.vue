@@ -122,8 +122,8 @@
               :disabled="!selectedCompanyId"
             >
               <option value="">No specific person</option>
-              <option v-for="contact in contactOptions" :key="contact.id" :value="contact.person">
-                {{ contact.person_name }}
+              <option v-for="person in personOptions" :key="person.id" :value="person.person">
+                {{ person.person_name }}
               </option>
             </select>
           </div>
@@ -209,7 +209,7 @@ let unsubscribeCrmCallsFreshness: (() => void) | null = null
 const {
   searchQuery: companySearch,
   suggestions: companyOptions,
-  contacts: contactOptions,
+  people: personOptions,
   browseCompanies: searchCompanies,
   loadCompanyPersonLinks,
   logSelectedCompanyClick,
@@ -283,7 +283,7 @@ function handleAssignNumber(call: PhoneCallRecord): void {
   phoneLabel.value = ''
   isPrimary.value = false
   companyOptions.value = []
-  contactOptions.value = []
+  personOptions.value = []
   toast.info('Select a company for this call number')
 }
 
@@ -329,7 +329,7 @@ function resetAssignmentForm(): void {
   selectedCall.value = null
   companySearch.value = ''
   companyOptions.value = []
-  contactOptions.value = []
+  personOptions.value = []
   selectedCompanyId.value = ''
   selectedPersonId.value = ''
   phoneLabel.value = ''
