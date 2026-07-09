@@ -1,7 +1,7 @@
 import { api } from '@/api/client'
 import { debugLog } from '@/utils/debug'
 
-type SearchDomain = 'client' | 'kanban' | 'stock'
+type SearchDomain = 'company' | 'kanban' | 'stock'
 
 export async function logSearchResultClick(params: {
   domain: SearchDomain

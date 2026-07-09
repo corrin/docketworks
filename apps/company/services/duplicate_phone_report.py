@@ -1,21 +1,11 @@
-"""Data Quality report: phone numbers that break the one-number-one-company rule.
-
-Surfaces the two ways a phone number can be mis-owned, for manual clean-up:
-- ``cross_client`` — a number whose effective companies (``COALESCE(company_id,
-  contact.company_id)``) number more than one (the grandfathered pre-existing links).
-- ``internal_line`` — a company/contact phone method whose number is one of the
-  company's own internal ``PhoneEndpoint`` lines (e.g. a staff line mis-filed as a
-  customer contact).
-"""
+"""Data Quality report: phone numbers that break the one-number-one-company rule."""
 
 from datetime import datetime
 from typing import TypedDict
 
-from django.db.models import Count
-from django.db.models.functions import Coalesce
 from django.utils import timezone
 
-from apps.company.models import ClientContactMethod
+from apps.company.models import ContactMethod
 from apps.crm.models import PhoneEndpoint
 
 
@@ -60,25 +50,28 @@ class DuplicatePhoneReportService:
         }
 
     def _cross_company_conflicts(self) -> list[DuplicatePhoneIssue]:
-        phones = ClientContactMethod.objects.filter(
-            method_type=ClientContactMethod.MethodType.PHONE
+        phones = ContactMethod.objects.filter(
+            method_type=ContactMethod.MethodType.PHONE
         )
-        conflict_numbers = [
-            row["normalized_value"]
-            for row in phones.values("normalized_value")
-            .annotate(
-                companies=Count(
-                    Coalesce("company_id", "contact__company_id"), distinct=True
-                )
+        companies_by_number: dict[str, set[str]] = {}
+        for method in phones.select_related("company", "person").prefetch_related(
+            "person__company_links"
+        ):
+            companies_by_number.setdefault(method.normalized_value, set()).update(
+                str(company_id) for company_id in method.owner_company_ids()
             )
-            .filter(companies__gt=1)
+        conflict_numbers = [
+            number
+            for number, company_ids in companies_by_number.items()
+            if len(company_ids) > 1
         ]
         if not conflict_numbers:
             return []
         grouped: dict[str, list[DuplicatePhoneOwner]] = {}
         for method in (
             phones.filter(normalized_value__in=conflict_numbers)
-            .select_related("company", "contact", "contact__company")
+            .select_related("company", "person")
+            .prefetch_related("person__company_links")
             .order_by("normalized_value", "id")
         ):
             grouped.setdefault(method.normalized_value, []).append(self._owner(method))
@@ -108,21 +101,22 @@ class DuplicatePhoneReportService:
                 "owners": [self._owner(method)],
             }
             for method in (
-                ClientContactMethod.objects.filter(
-                    method_type=ClientContactMethod.MethodType.PHONE,
+                ContactMethod.objects.filter(
+                    method_type=ContactMethod.MethodType.PHONE,
                     normalized_value__in=list(endpoint_labels),
                 )
-                .select_related("company", "contact", "contact__company")
+                .select_related("company", "person")
+                .prefetch_related("person__company_links")
                 .order_by("normalized_value", "id")
             )
         ]
 
     @staticmethod
-    def _owner(method: ClientContactMethod) -> DuplicatePhoneOwner:
+    def _owner(method: ContactMethod) -> DuplicatePhoneOwner:
         effective_company_id = method.owner_company_id()
         return {
             "method_id": str(method.id),
-            "owner_kind": "company" if method.company_id else "contact",
+            "owner_kind": "company" if method.company_id else "person",
             "owner_name": method.owner_display_name(),
             "effective_client_id": (
                 str(effective_company_id) if effective_company_id else None

@@ -73,12 +73,17 @@ class Command(BaseCommand):
                 "UPDATE django_content_type SET app_label = 'company' "
                 "WHERE app_label = 'client'"
             )
+            renamed_tables = 0
             for old, new in TABLE_RENAMES:
+                cursor.execute("SELECT to_regclass(%s)", [old])
+                if cursor.fetchone()[0] is None:
+                    continue
                 cursor.execute(f'ALTER TABLE "{old}" RENAME TO "{new}"')
+                renamed_tables += 1
         self.stdout.write(
             self.style.SUCCESS(
                 f"Relabelled the client app: dropped {stale_rows - 1} historic "
                 "ledger rows, kept 0001_baseline, renamed content types and "
-                f"{len(TABLE_RENAMES)} tables."
+                f"{renamed_tables} tables."
             )
         )

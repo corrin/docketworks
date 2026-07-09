@@ -70,7 +70,7 @@ class JobSearchFiltersSerializer(serializers.Serializer):
     name = serializers.CharField(required=False, allow_blank=True)
     description = serializers.CharField(required=False, allow_blank=True)
     company_name = serializers.CharField(required=False, allow_blank=True)
-    contact_person = serializers.CharField(required=False, allow_blank=True)
+    person_name = serializers.CharField(required=False, allow_blank=True)
     created_by = serializers.CharField(required=False, allow_blank=True)
     created_after = serializers.DateField(required=False, allow_null=True)
     created_before = serializers.DateField(required=False, allow_null=True)
@@ -100,9 +100,9 @@ class KanbanJobSerializer(serializers.Serializer):
     description = serializers.CharField(allow_blank=True, allow_null=True)
     job_number = serializers.IntegerField()
 
-    # Company and contact info
+    # Company and person info
     company_name = serializers.CharField(allow_blank=True)
-    contact_person = serializers.CharField(allow_blank=True)
+    person_name = serializers.CharField(allow_blank=True)
 
     # People assigned to the job
     people = KanbanJobPersonSerializer(many=True)
@@ -198,9 +198,9 @@ class KanbanColumnJobSerializer(serializers.Serializer):
     name = serializers.CharField()
     description = serializers.CharField(allow_blank=True, allow_null=True)
 
-    # Company and contact info
+    # Company and person info
     company_name = serializers.CharField(allow_blank=True)
-    contact_person = serializers.CharField(allow_blank=True)
+    person_name = serializers.CharField(allow_blank=True)
 
     # People assigned to the job (empty list for now)
     people = KanbanJobPersonSerializer(many=True)
@@ -265,5 +265,5 @@ class WorkshopJobSerializer(serializers.Serializer):
     description = serializers.CharField(allow_blank=True, allow_null=True)
     job_number = serializers.IntegerField()
     company_name = serializers.CharField()
-    contact_person = serializers.CharField(allow_blank=True, allow_null=True)
+    person_name = serializers.CharField(allow_blank=True, allow_null=True)
     people = KanbanJobPersonSerializer(many=True)

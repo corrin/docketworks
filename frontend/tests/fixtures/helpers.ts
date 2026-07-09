@@ -444,36 +444,36 @@ export async function createTestJob(page: Page, jobNameSuffix: string): Promise<
   })
 
   // Select contact
-  await expectStepUnder('createTestJob: open contact modal', 1000, async () => {
-    await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
-    await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+  await expectStepUnder('createTestJob: open person modal', 1000, async () => {
+    await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
+    await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
   })
 
   const selectButtonCount = await expectStepUnder(
-    'createTestJob: inspect contact modal branch',
+    'createTestJob: inspect person modal branch',
     250,
     async () => {
-      const selectButtons = autoId(page, 'ContactSelectionModal-select-button')
+      const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
       return await selectButtons.count()
     },
   )
 
   if (selectButtonCount > 0) {
     await expectStepUnder('createTestJob: select existing contact', 1000, async () => {
-      await autoId(page, 'ContactSelectionModal-select-button').first().click()
+      await autoId(page, 'PersonSelectionModal-select-button').first().click()
     })
   } else {
-    await expectStepUnder('createTestJob: create new contact', 2000, async () => {
-      const submitButton = autoId(page, 'ContactSelectionModal-submit')
-      await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
-      await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${timestamp}`)
-      await autoId(page, 'ContactSelectionModal-email-input').fill(`test${timestamp}@example.com`)
+    await expectStepUnder('createTestJob: create new person', 2000, async () => {
+      const submitButton = autoId(page, 'PersonSelectionModal-submit')
+      await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+      await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${timestamp}`)
+      await autoId(page, 'PersonSelectionModal-email-input').fill(`test${timestamp}@example.com`)
       await submitButton.click()
     })
   }
 
-  await expectStepUnder('createTestJob: wait for contact modal to close', 1500, async () => {
-    await autoId(page, 'ContactSelectionModal-container').waitFor({
+  await expectStepUnder('createTestJob: wait for person modal to close', 1500, async () => {
+    await autoId(page, 'PersonSelectionModal-container').waitFor({
       state: 'hidden',
       timeout: 10000,
     })

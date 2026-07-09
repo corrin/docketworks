@@ -207,7 +207,7 @@ const ISSUE_CLASSES: Record<string, string> = {
 
 const OWNER_KIND_LABELS: Record<string, string> = {
   company: 'Company',
-  contact: 'Contact',
+  person: 'Person',
 }
 
 const issueLabel = (issue: string): string => ISSUE_LABELS[issue] ?? issue

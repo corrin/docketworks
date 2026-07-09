@@ -12,7 +12,7 @@ from django.utils import timezone
 from xero_python.accounting.models import Address, Contact, Phone
 from xero_python.api_client.serializer import serialize
 
-from apps.company.models import ClientContactMethod, Company
+from apps.company.models import Company, ContactMethod
 
 
 class GetCompanyForXeroTests(TestCase):
@@ -27,9 +27,9 @@ class GetCompanyForXeroTests(TestCase):
         defaults.update(overrides)
         company = Company.objects.create(**defaults)
         if phone is not None:
-            ClientContactMethod.objects.create(
+            ContactMethod.objects.create(
                 company=company,
-                method_type=ClientContactMethod.MethodType.PHONE,
+                method_type=ContactMethod.MethodType.PHONE,
                 value=phone,
                 is_primary=True,
             )

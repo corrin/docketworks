@@ -24,7 +24,7 @@ from zoneinfo import ZoneInfo
 from django.conf import settings
 
 from apps.accounts.models import Staff
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, Person
 from apps.job.models import CostLine, Job, JobEvent, JobFile, LabourSubtype
 from apps.workflow.models import CompanyDefaults, XeroPayItem
 
@@ -78,14 +78,11 @@ def build_golden_job(test_staff: Staff) -> Job:
         xero_last_modified=FROZEN_NOW,
     )
 
-    contact = ClientContact.objects.create(
-        company=company,
-        name="Jane Doe",
-    )
+    person = Person.objects.create(name="Jane Doe")
 
     job = Job.objects.create(
         company=company,
-        contact=contact,
+        person=person,
         name="Custom Bracket Fabrication",
         description=("Stainless steel mounting bracket, 200x100x5mm, 4 holes per spec"),
         notes=(

@@ -20,10 +20,6 @@ class PeopleBackfillMigrationTests(TransactionTestCase):
         self.executor.migrate(self.migrate_from)
         self.old_apps = self.executor.loader.project_state(self.migrate_from).apps
 
-    def tearDown(self) -> None:
-        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
-        super().tearDown()
-
     def test_backfill_and_reverse_restore_legacy_contact_ownership(self) -> None:
         Company = self.old_apps.get_model("company", "Company")
         CompanyPersonLink = self.old_apps.get_model("company", "CompanyPersonLink")

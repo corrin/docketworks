@@ -86,12 +86,12 @@
                 <p class="text-gray-900">{{ company.address || '-' }}</p>
               </div>
               <div>
-                <label class="text-sm font-medium text-gray-500">Primary Contact</label>
-                <p class="text-gray-900">{{ company.primary_contact_name || '-' }}</p>
+                <label class="text-sm font-medium text-gray-500">Primary Person</label>
+                <p class="text-gray-900">{{ primaryPerson?.person_name || '-' }}</p>
               </div>
               <div>
-                <label class="text-sm font-medium text-gray-500">Primary Contact Email</label>
-                <p class="text-gray-900">{{ company.primary_contact_email || '-' }}</p>
+                <label class="text-sm font-medium text-gray-500">Primary Person Email</label>
+                <p class="text-gray-900">{{ primaryPerson?.person_email || '-' }}</p>
               </div>
             </CardContent>
           </Card>
@@ -183,7 +183,7 @@
                   <UserCircle class="w-5 h-5 text-gray-400 mt-0.5" />
                   <div class="flex-1">
                     <div class="flex items-center gap-2">
-                      <p class="font-medium text-gray-900">{{ contact.name }}</p>
+                      <p class="font-medium text-gray-900">{{ contact.person_name }}</p>
                       <Badge v-if="contact.is_primary" variant="default" class="text-xs"
                         >Primary</Badge
                       >
@@ -192,7 +192,7 @@
                       {{ contact.position }}
                     </p>
                     <div class="flex flex-col gap-1 mt-1 text-sm text-gray-600">
-                      <span v-if="contact.email">{{ contact.email }}</span>
+                      <span v-if="contact.person_email">{{ contact.person_email }}</span>
                       <span v-if="contact.phone">{{ contact.phone }}</span>
                     </div>
                   </div>
@@ -465,6 +465,10 @@ const contacts = computed(() => {
   return companyStore.companyContacts[props.id] || []
 })
 
+const primaryPerson = computed(() => {
+  return contacts.value.find((contact) => contact.is_primary) ?? contacts.value[0] ?? null
+})
+
 const relatedJobs = computed(() => {
   return companyStore.companyJobs[props.id] || []
 })
@@ -612,7 +616,7 @@ async function loadCompanyData() {
 
     // Load contacts
     try {
-      await companyStore.fetchClientContacts(props.id)
+      await companyStore.fetchCompanyPersonLinks(props.id)
     } catch (err) {
       console.error('Failed to load contacts:', err)
       // Don't show error for contacts, just log it

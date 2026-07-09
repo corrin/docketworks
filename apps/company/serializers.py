@@ -5,9 +5,9 @@ from django.db import transaction
 from rest_framework import serializers
 
 from apps.company.models import (
-    ClientContact,
-    ClientContactMethod,
     Company,
+    CompanyPersonLink,
+    ContactMethod,
     Person,
     PhoneAssignmentConflictError,
     SupplierPickupAddress,
@@ -15,7 +15,7 @@ from apps.company.models import (
 )
 
 
-def set_primary_phone(owner: Company | ClientContact | Person, raw_value: str) -> None:
+def set_primary_phone(owner: Company | Person, raw_value: str) -> None:
     """Point the owner's primary phone at ``raw_value`` (non-blank).
 
     Reuses an existing method carrying the same normalized number (promoting
@@ -30,16 +30,14 @@ def set_primary_phone(owner: Company | ClientContact | Person, raw_value: str) -
     value = raw_value.strip()
     if isinstance(owner, Company):
         owner_field = "company"
-    elif isinstance(owner, Person):
-        owner_field = "person"
     else:
-        owner_field = "contact"
-    phone_methods = ClientContactMethod.objects.filter(
-        method_type=ClientContactMethod.MethodType.PHONE, **{owner_field: owner}
+        owner_field = "person"
+    phone_methods = ContactMethod.objects.filter(
+        method_type=ContactMethod.MethodType.PHONE, **{owner_field: owner}
     )
     old_primary = phone_methods.filter(is_primary=True).first()
     old_number = old_primary.normalized_value if old_primary else ""
-    normalized_value = ClientContactMethod.normalize_phone(value)
+    normalized_value = ContactMethod.normalize_phone(value)
     if not normalized_value:
         raise DjangoValidationError("Phone number must contain at least one digit")
 
@@ -55,14 +53,11 @@ def set_primary_phone(owner: Company | ClientContact | Person, raw_value: str) -
         old_primary.save()
         method = old_primary
     else:
-        create_kwargs = {owner_field: owner}
-        if isinstance(owner, ClientContact) and owner.person_id:
-            create_kwargs["person"] = owner.person
-        method = ClientContactMethod.objects.create(
-            method_type=ClientContactMethod.MethodType.PHONE,
+        method = ContactMethod.objects.create(
+            method_type=ContactMethod.MethodType.PHONE,
             value=value,
             is_primary=True,
-            **create_kwargs,
+            **{owner_field: owner},
         )
 
     numbers = sorted(
@@ -71,24 +66,43 @@ def set_primary_phone(owner: Company | ClientContact | Person, raw_value: str) -
     transaction.on_commit(lambda: rematch_phone_calls_task.delay(numbers))
 
 
-class ClientContactSerializer(serializers.ModelSerializer):
-    """Serializer for ClientContact model."""
+class CompanyPersonLinkSerializer(serializers.ModelSerializer):
+    """Serializer for a person's relationship to a company."""
 
-    # Backed by ClientContactMethod: reads come from the viewset's
+    person = serializers.UUIDField(source="person_id", read_only=True)
+    person_name = serializers.CharField(source="person.name")
+    person_email = serializers.EmailField(
+        source="person.email", required=False, allow_blank=True, allow_null=True
+    )
+    # Backed by ContactMethod: reads come from the viewset's
     # primary_phone_annotation; writes upsert the contact's primary method.
     phone = serializers.CharField(
         required=False, allow_blank=True, allow_null=True, default=""
     )
 
     class Meta:
-        model = ClientContact
-        fields = ClientContact.CLIENTCONTACT_API_FIELDS + ["phone"]
+        model = CompanyPersonLink
+        fields = [
+            "id",
+            "company",
+            "person",
+            "person_name",
+            "person_email",
+            "xero_name",
+            "position",
+            "is_primary",
+            "notes",
+            "is_active",
+            "created_at",
+            "updated_at",
+            "phone",
+        ]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
 
     def to_internal_value(self, data: Any) -> Any:
         """Convert empty strings to None for nullable fields before validation."""
         # Fields that should be NULL instead of empty string
-        nullable_fields = ["email", "position", "notes"]
+        nullable_fields = ["person_email", "position", "notes"]
 
         for field in nullable_fields:
             if field in data and data[field] == "":
@@ -98,71 +112,75 @@ class ClientContactSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         raw_phone = validated_data.pop("phone", None)  # not a model field
+        person_value = validated_data.pop("person", None)
         with transaction.atomic():
-            person = Person.objects.create(
-                name=validated_data["name"],
-                email=validated_data.get("email"),
-                is_active=validated_data.get("is_active", True),
-            )
-            validated_data["person"] = person
-            validated_data["xero_name"] = validated_data["name"]
-            contact = super().create(validated_data)
-            return self._apply_phone(contact, raw_phone)
+            if isinstance(person_value, dict):
+                person = Person.objects.create(
+                    name=person_value["name"],
+                    email=person_value.get("email"),
+                    is_active=validated_data.get("is_active", True),
+                )
+                validated_data["person"] = person
+            else:
+                raise serializers.ValidationError(
+                    {"person_name": "This field is required."}
+                )
+            if validated_data.get("xero_name") is None:
+                validated_data["xero_name"] = person.name
+            link = super().create(validated_data)
+            return self._apply_phone(link, raw_phone)
 
     def update(self, instance, validated_data):
         raw_phone = validated_data.pop("phone", None)  # not a model field
+        person_data = validated_data.pop("person", None)
         with transaction.atomic():
-            contact = super().update(instance, validated_data)
-            if contact.person_id:
+            link = super().update(instance, validated_data)
+            if isinstance(person_data, dict):
                 person_update_fields = ["updated_at"]
-                if "name" in validated_data:
-                    contact.person.name = contact.name
+                if "name" in person_data:
+                    link.person.name = person_data["name"]
                     person_update_fields.append("name")
-                if "email" in validated_data:
-                    contact.person.email = contact.email
+                if "email" in person_data:
+                    link.person.email = person_data["email"]
                     person_update_fields.append("email")
-                if "is_active" in validated_data:
-                    contact.person.is_active = contact.is_active
-                    person_update_fields.append("is_active")
-                contact.person.save(update_fields=person_update_fields)
-            return self._apply_phone(contact, raw_phone)
+                link.person.save(update_fields=person_update_fields)
+            return self._apply_phone(link, raw_phone)
 
     def _apply_phone(
-        self, contact: ClientContact, raw_phone: str | None
-    ) -> ClientContact:
+        self, link: CompanyPersonLink, raw_phone: str | None
+    ) -> CompanyPersonLink:
         """Upsert the primary phone; blank/omitted input is a no-op (deleting
         numbers is PhoneNumberManager's job, not this form's)."""
         if raw_phone and raw_phone.strip():
             try:
-                set_primary_phone(contact, raw_phone)
+                set_primary_phone(link.person, raw_phone)
             except DjangoValidationError as exc:
                 raise serializers.ValidationError({"phone": exc.messages}) from exc
         else:
             pass  # blank phone: leave existing contact methods untouched
         # The phone field always reads from a queryset annotation; give the
         # write response the same shape by re-fetching through it.
-        return ClientContact.objects.annotate(
-            phone=ClientContactMethod.primary_phone_for_link_annotation()
-        ).get(pk=contact.pk)
+        return CompanyPersonLink.objects.annotate(
+            phone=ContactMethod.primary_phone_for_link_annotation()
+        ).get(pk=link.pk)
 
 
-class ClientContactMethodSerializer(serializers.ModelSerializer):
-    """Serializer for canonical company/contact phone and email methods."""
+class ContactMethodSerializer(serializers.ModelSerializer):
+    """Serializer for canonical company/person phone and email methods."""
 
     owner_company = serializers.SerializerMethodField()
     company_name = serializers.SerializerMethodField()
-    contact_name = serializers.SerializerMethodField()
+    person_name = serializers.SerializerMethodField()
 
     class Meta:
-        model = ClientContactMethod
+        model = ContactMethod
         fields = [
             "id",
             "company",
             "owner_company",
             "company_name",
-            "contact",
-            "contact_name",
             "person",
+            "person_name",
             "method_type",
             "value",
             "normalized_value",
@@ -176,55 +194,56 @@ class ClientContactMethodSerializer(serializers.ModelSerializer):
             "id",
             "owner_company",
             "company_name",
-            "contact_name",
+            "person_name",
             "normalized_value",
             "created_at",
             "updated_at",
         ]
 
-    def get_owner_company(self, obj: ClientContactMethod) -> str:
+    def get_owner_company(self, obj: ContactMethod) -> str:
         if obj.company_id:
             return str(obj.company_id)
         if obj.person_id:
             company_id = obj.owner_company_id()
             return str(company_id) if company_id else ""
-        return str(obj.contact.company_id) if obj.contact else ""
+        return ""
 
-    def get_company_name(self, obj: ClientContactMethod) -> str:
+    def get_company_name(self, obj: ContactMethod) -> str:
         if obj.company:
             return obj.company.name
         if obj.person_id:
+            person = obj.person
+            if person is None:
+                raise RuntimeError(f"Contact method {obj.id} has no person")
             link = (
-                obj.person.company_links.select_related("company")
+                person.company_links.select_related("company")
                 .order_by("-is_primary", "company__name")
                 .first()
             )
             return link.company.name if link else ""
-        return obj.contact.company.name if obj.contact else ""
+        return ""
 
-    def get_contact_name(self, obj: ClientContactMethod) -> str:
-        return obj.contact.name if obj.contact else ""
+    def get_person_name(self, obj: ContactMethod) -> str:
+        return obj.person.name if obj.person else ""
 
     def validate(self, attrs: dict[str, Any]) -> dict[str, Any]:
         company = attrs.get("company", getattr(self.instance, "company", None))
-        contact = attrs.get("contact", getattr(self.instance, "contact", None))
         person = attrs.get("person", getattr(self.instance, "person", None))
-        owner_count = sum(1 for owner in (company, contact, person) if owner)
+        owner_count = sum(1 for owner in (company, person) if owner)
         if owner_count != 1:
             raise serializers.ValidationError(
-                "Exactly one of company, contact, or person is required"
+                "Exactly one of company or person is required"
             )
         method_type = attrs.get(
             "method_type", getattr(self.instance, "method_type", None)
         )
         value = attrs.get("value", getattr(self.instance, "value", None))
-        if method_type == ClientContactMethod.MethodType.PHONE:
-            normalized = ClientContactMethod.normalize_phone(value)
+        if method_type == ContactMethod.MethodType.PHONE:
+            normalized = ContactMethod.normalize_phone(value)
             try:
-                ClientContactMethod.check_phone_assignment(
+                ContactMethod.check_phone_assignment(
                     normalized,
                     company_id=company.id if company else None,
-                    contact=contact,
                     person=person,
                     instance=self.instance,
                 )
@@ -285,7 +304,7 @@ class SupplierPickupAddressSerializer(serializers.ModelSerializer):
 
 
 class CompanySerializer(serializers.ModelSerializer):
-    contacts = ClientContactSerializer(many=True, read_only=True)
+    contacts = CompanyPersonLinkSerializer(many=True, read_only=True)
 
     class Meta:
         model = Company
@@ -376,7 +395,7 @@ class CompanyCreateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255)
     email = serializers.EmailField(required=False, allow_blank=True, allow_null=True)
-    # Stored as the client's primary ClientContactMethod, not a Client column
+    # Stored as the client's primary ContactMethod, not a Client column
     phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     is_account_customer = serializers.BooleanField(default=True)
@@ -420,9 +439,6 @@ class CompanyDetailResponseSerializer(serializers.Serializer):
     allow_jobs = serializers.BooleanField()
     xero_contact_id = serializers.CharField(allow_blank=True)
     xero_tenant_id = serializers.CharField(allow_blank=True)
-    primary_contact_name = serializers.CharField(allow_blank=True)
-    primary_contact_email = serializers.CharField(allow_blank=True)
-    additional_contact_persons = serializers.ListField(required=False)
     xero_last_modified = serializers.DateTimeField(allow_null=True)
     xero_last_synced = serializers.DateTimeField(allow_null=True)
     xero_archived = serializers.BooleanField()
@@ -440,7 +456,7 @@ class CompanyUpdateSerializer(serializers.Serializer):
 
     name = serializers.CharField(max_length=255, required=False)
     email = serializers.EmailField(required=False, allow_blank=True)
-    # Stored as the client's primary ClientContactMethod, not a Client column
+    # Stored as the client's primary ContactMethod, not a Client column
     phone = serializers.CharField(required=False, allow_blank=True, allow_null=True)
     address = serializers.CharField(required=False, allow_blank=True)
     is_account_customer = serializers.BooleanField(required=False)
@@ -455,23 +471,20 @@ class CompanyUpdateResponseSerializer(serializers.Serializer):
     message = serializers.CharField()
 
 
-class JobContactBaseSerializer(serializers.Serializer):
-    """Fields shared by the job contact response and update serializers."""
+class JobPersonBaseSerializer(serializers.Serializer):
+    """Fields shared by the job person response and update serializers."""
 
     id = serializers.UUIDField()
     name = serializers.CharField()
     email = serializers.CharField(allow_blank=True, allow_null=True)
-    position = serializers.CharField(allow_blank=True, allow_null=True)
-    is_primary = serializers.BooleanField()
-    notes = serializers.CharField(allow_blank=True, allow_null=True)
 
 
-class JobContactResponseSerializer(JobContactBaseSerializer):
-    """Serializer for job contact information response"""
+class JobPersonResponseSerializer(JobPersonBaseSerializer):
+    """Serializer for job person information response"""
 
 
-class JobContactUpdateSerializer(JobContactBaseSerializer):
-    """Serializer for job contact update request"""
+class JobPersonUpdateSerializer(JobPersonBaseSerializer):
+    """Serializer for job person update request"""
 
 
 class CompanyJobHeaderSerializer(serializers.Serializer):

@@ -66,6 +66,10 @@ Job → CostSet (1:many) → CostLine (1:many)
 PurchaseOrder → PurchaseOrderLine → Stock → CostLine
 Staff → CostLine (time entries)
 Company → Job (1:many)
+Person → Job (1:many)
+Person → PhoneCallRecord (1:many)
+Company → CompanyPersonLink → Person
+Company/Person → ContactMethod (1:many, exactly one owner)
 ```
 
 **Key Design Patterns:**

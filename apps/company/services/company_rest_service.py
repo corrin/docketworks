@@ -25,9 +25,8 @@ from django.utils import timezone
 
 from apps.company.models import (
     PRIMARY_PHONE_ORDERING,
-    ClientContact,
-    ClientContactMethod,
     Company,
+    ContactMethod,
 )
 from apps.company.serializers import (
     CompanyCreateSerializer,
@@ -164,7 +163,7 @@ class CompanyRestService:
                 Company.objects.with_invoice_summary()
                 .defer("raw_json")
                 .annotate(
-                    phone=ClientContactMethod.primary_phone_annotation(
+                    phone=ContactMethod.primary_phone_annotation(
                         owner="company", outer_ref="pk"
                     )
                 )
@@ -231,7 +230,7 @@ class CompanyRestService:
             company = (
                 Company.objects.with_invoice_summary()
                 .annotate(
-                    phone=ClientContactMethod.primary_phone_annotation(
+                    phone=ContactMethod.primary_phone_annotation(
                         owner="company", outer_ref="pk"
                     )
                 )
@@ -334,7 +333,7 @@ class CompanyRestService:
                 raise ValueError("; ".join(error_messages))
 
             validated_data = serializer.validated_data
-            # Stored as the company's primary ClientContactMethod, not a Company
+            # Stored as the company's primary ContactMethod, not a Company
             # field, so it never reaches the generic setattr loop below.
             phone_supplied = "phone" in validated_data
             phone = validated_data.pop("phone", None)
@@ -401,7 +400,7 @@ class CompanyRestService:
             updated_with_phone: _AnnotatedCompanyWithPhone = (
                 Company.objects.with_invoice_summary()
                 .annotate(
-                    phone=ClientContactMethod.primary_phone_annotation(
+                    phone=ContactMethod.primary_phone_annotation(
                         owner="company", outer_ref="pk"
                     )
                 )
@@ -438,17 +437,20 @@ class CompanyRestService:
         """
         try:
             company = get_object_or_404(Company, id=company_id)
-            contacts = company.contacts.all().order_by("name")
+            links = (
+                company.contacts.select_related("person").all().order_by("person__name")
+            )
 
             return [
                 {
-                    "id": str(contact.id),
-                    "name": contact.name,
-                    "email": contact.email,
-                    "position": contact.position,
-                    "is_primary": contact.is_primary,
+                    "id": str(link.id),
+                    "person": str(link.person_id),
+                    "person_name": link.person.name,
+                    "person_email": link.person.email,
+                    "position": link.position,
+                    "is_primary": link.is_primary,
                 }
-                for contact in contacts
+                for link in links
             ]
 
         except AlreadyLoggedException:
@@ -463,24 +465,24 @@ class CompanyRestService:
             )
 
     @staticmethod
-    def get_job_contact(job_id: UUID) -> Dict[str, Any]:
+    def get_job_person(job_id: UUID) -> Dict[str, Any]:
         """
-        Retrieves contact information for a specific job.
+        Retrieves person information for a specific job.
 
         Args:
             job_id: Job UUID
 
         Returns:
-            Dict with contact information
+            Dict with person information
 
         Raises:
-            ValueError: If job not found or no contact associated
+            ValueError: If job not found or no person associated
         """
         # Import here to avoid circular imports
         from apps.job.models import Job
 
         try:
-            job = Job.objects.select_related("contact").get(id=job_id)
+            job = Job.objects.select_related("person").get(id=job_id)
         except Job.DoesNotExist:
             raise ValueError(f"Job with id {job_id} not found")
         except AlreadyLoggedException:
@@ -489,24 +491,21 @@ class CompanyRestService:
             persist_and_raise(
                 exc,
                 additional_context={
-                    "operation": "get_job_contact",
+                    "operation": "get_job_person",
                     "job_id": str(job_id),
                 },
             )
 
-        if not job.contact:
+        if not job.person:
             # Documented business validation failure should not be persisted
-            raise ValueError(f"No contact associated with job {job_id}")
+            raise ValueError(f"No person associated with job {job_id}")
 
-        contact = job.contact
+        person = job.person
         try:
             return {
-                "id": str(contact.id),
-                "name": contact.name,
-                "email": contact.email,
-                "position": contact.position,
-                "is_primary": contact.is_primary,
-                "notes": contact.notes,
+                "id": str(person.id),
+                "name": person.name,
+                "email": person.email,
             }
         except AlreadyLoggedException:
             raise
@@ -514,73 +513,65 @@ class CompanyRestService:
             persist_and_raise(
                 exc,
                 additional_context={
-                    "operation": "serialize_job_contact",
+                    "operation": "serialize_job_person",
                     "job_id": str(job_id),
                 },
             )
 
     @staticmethod
-    def update_job_contact(
-        job_id: UUID, contact_data: Dict[str, Any], user: "Staff"
+    def update_job_person(
+        job_id: UUID, person_data: Dict[str, Any], user: "Staff"
     ) -> Dict[str, Any]:
         """
-        Updates the contact person for a specific job.
+        Updates the person for a specific job.
 
         Args:
             job_id: Job UUID
-            contact_data: Contact data to update
+            person_data: Person data to update
             user: Staff performing the update
 
         Returns:
             Dict with updated contact information
 
         Raises:
-            ValueError: If job not found, contact not found, or validation fails
+            ValueError: If job not found, person not found, or validation fails
         """
         try:
             # Import here to avoid circular imports
+            from apps.company.models import Person
             from apps.job.models import Job
 
             try:
-                job = Job.objects.select_related("company", "contact").get(id=job_id)
+                job = Job.objects.select_related("company", "person").get(id=job_id)
             except Job.DoesNotExist:
                 raise ValueError(f"Job with id {job_id} not found")
 
-            # Validate contact exists and belongs to the same company
-            contact_id = contact_data.get("id")
-            if not contact_id:
-                raise ValueError("Contact ID is required")
+            person_id = person_data.get("id")
+            if not person_id:
+                raise ValueError("Person ID is required")
 
             try:
-                contact = ClientContact.objects.get(id=contact_id)
-            except ClientContact.DoesNotExist:
-                raise ValueError(f"Contact with id {contact_id} not found")
+                person = Person.objects.get(id=person_id)
+            except Person.DoesNotExist:
+                raise ValueError(f"Person with id {person_id} not found")
 
-            # Validate contact belongs to the job's company
-            if contact.company_id != job.company_id:
-                raise ValueError("Contact does not belong to the job's company")
-
-            # Update job's contact
-            job.contact = contact
+            job.person = person
             job.save(staff=user)
 
             logger.info(
-                f"Contact {contact_id} assigned to job {job_id}",
+                f"Person {person_id} assigned to job {job_id}",
                 extra={
                     "job_id": str(job_id),
-                    "contact_id": str(contact_id),
+                    "person_id": str(person_id),
                     "company_id": str(job.company_id),
-                    "operation": "update_job_contact",
+                    "operation": "update_job_person",
                 },
             )
 
             return {
-                "id": str(contact.id),
-                "name": contact.name,
-                "email": contact.email,
-                "position": contact.position,
-                "is_primary": contact.is_primary,
-                "notes": contact.notes,
+                "id": str(person.id),
+                "name": person.name,
+                "email": person.email,
             }
 
         except AlreadyLoggedException:
@@ -589,9 +580,9 @@ class CompanyRestService:
             persist_and_raise(
                 exc,
                 additional_context={
-                    "operation": "update_job_contact",
+                    "operation": "update_job_person",
                     "job_id": str(job_id),
-                    "contact_id": contact_data.get("id"),
+                    "person_id": person_data.get("id"),
                 },
             )
 
@@ -621,7 +612,7 @@ class CompanyRestService:
             Company.objects.with_invoice_summary()
             .defer("raw_json")  # Not needed for search results
             .annotate(
-                phone=ClientContactMethod.primary_phone_annotation(
+                phone=ContactMethod.primary_phone_annotation(
                     owner="company", outer_ref="pk"
                 )
             )
@@ -780,7 +771,7 @@ class CompanyRestService:
         company_search_logger.info(json.dumps(payload, sort_keys=True, default=str))
         SearchTelemetryService.log_search(
             request=request,
-            domain="client",
+            domain="company",
             source=source,
             query=query,
             result_count=total_count,
@@ -820,7 +811,7 @@ class CompanyRestService:
         company_search_logger.info(json.dumps(payload, sort_keys=True, default=str))
         SearchTelemetryService.log_click(
             request=request,
-            domain="client",
+            domain="company",
             source=source,
             query=query,
             selected_result_id=str(company.id),
@@ -882,7 +873,7 @@ class CompanyRestService:
         Formats a single company summary for list/search responses.
 
         Callers must annotate their queryset with
-        ClientContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
+        ContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
         """
         return {
             "id": str(company.id),
@@ -915,7 +906,7 @@ class CompanyRestService:
         Formats complete company details for API response.
 
         Callers must annotate their queryset with
-        ClientContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
+        ContactMethod.primary_phone_annotation (see CompanyPhoneAnnotations).
         """
         return {
             "id": str(company.id),
@@ -928,9 +919,6 @@ class CompanyRestService:
             "allow_jobs": company.allow_jobs,
             "xero_contact_id": company.xero_contact_id or "",
             "xero_tenant_id": company.xero_tenant_id or "",
-            "primary_contact_name": company.primary_contact_name or "",
-            "primary_contact_email": company.primary_contact_email or "",
-            "additional_contact_persons": company.additional_contact_persons or [],
             "xero_last_modified": company.xero_last_modified,
             "xero_last_synced": company.xero_last_synced,
             "xero_archived": company.xero_archived,
@@ -1114,9 +1102,9 @@ class CompanyRestService:
     @staticmethod
     def _clear_company_primary_phone(company: Company) -> None:
         primary = (
-            ClientContactMethod.objects.filter(
+            ContactMethod.objects.filter(
                 company=company,
-                method_type=ClientContactMethod.MethodType.PHONE,
+                method_type=ContactMethod.MethodType.PHONE,
                 is_primary=True,
             )
             .order_by(*PRIMARY_PHONE_ORDERING)

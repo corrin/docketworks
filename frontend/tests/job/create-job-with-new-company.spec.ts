@@ -59,22 +59,22 @@ test.describe('create job with new xero company', () => {
     await autoId(page, 'JobCreateView-estimated-time').fill('4')
 
     // Select contact - click the modal button
-    await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
-    await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+    await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
+    await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
     // For a new company, there won't be existing contacts - fill in the create form
     // The form fields are always visible for new companies
-    await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${randomSuffix}`)
+    await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${randomSuffix}`)
     await page.waitForTimeout(200)
-    await autoId(page, 'ContactSelectionModal-email-input').fill(`test${randomSuffix}@example.com`)
+    await autoId(page, 'PersonSelectionModal-email-input').fill(`test${randomSuffix}@example.com`)
     await page.waitForTimeout(200)
 
     // Wait for the submit button to be enabled and click it
-    const submitButton = autoId(page, 'ContactSelectionModal-submit')
+    const submitButton = autoId(page, 'PersonSelectionModal-submit')
     await expect(submitButton).toBeEnabled({ timeout: 5000 })
     await submitButton.click()
 
-    await autoId(page, 'ContactSelectionModal-container').waitFor({
+    await autoId(page, 'PersonSelectionModal-container').waitFor({
       state: 'hidden',
       timeout: 10000,
     })
@@ -150,23 +150,23 @@ test.describe('create job with new xero company', () => {
     await autoId(page, 'JobCreateView-estimated-materials').fill('100')
     await autoId(page, 'JobCreateView-estimated-time').fill('2')
 
-    // Handle contact selection
-    await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
-    await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+    // Handle person selection
+    await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
+    await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
     // Fill in contact details
-    await autoId(page, 'ContactSelectionModal-name-input').fill(
+    await autoId(page, 'PersonSelectionModal-name-input').fill(
       `[TEST] Modal Contact ${randomSuffix}`,
     )
     await page.waitForTimeout(200)
-    await autoId(page, 'ContactSelectionModal-email-input').fill(`modal${randomSuffix}@example.com`)
+    await autoId(page, 'PersonSelectionModal-email-input').fill(`modal${randomSuffix}@example.com`)
     await page.waitForTimeout(200)
 
-    const submitButton = autoId(page, 'ContactSelectionModal-submit')
+    const submitButton = autoId(page, 'PersonSelectionModal-submit')
     await expect(submitButton).toBeEnabled({ timeout: 5000 })
     await submitButton.click()
 
-    await autoId(page, 'ContactSelectionModal-container').waitFor({
+    await autoId(page, 'PersonSelectionModal-container').waitFor({
       state: 'hidden',
       timeout: 10000,
     })

@@ -17,9 +17,10 @@ from apps.accounting.models import (
     InvoiceLineItem,
 )
 from apps.company.models import (
-    ClientContact,
-    ClientContactMethod,
     Company,
+    CompanyPersonLink,
+    ContactMethod,
+    Person,
     SupplierPickupAddress,
 )
 from apps.crm.tasks import rematch_phone_calls_task
@@ -59,26 +60,25 @@ def sync_xero_phone_methods(company: Company) -> list[str]:
         if not isinstance(phone_entry, dict):
             continue
         value = _xero_phone_value(phone_entry)
-        normalized = ClientContactMethod.normalize_phone(value)
+        normalized = ContactMethod.normalize_phone(value)
         if not normalized:
             continue
         # The "one number, one company" rule is enforced by the grandfathered
-        # ClientContactMethod.save() guard reached via get_or_create below:
+        # ContactMethod.save() guard reached via get_or_create below:
         # re-syncing an existing number never saves (nothing to update), while
         # a genuinely-new cross-company number raises and hard-fails this
         # company's sync (deliberate — the data must be fixed, not skipped).
         phone_type = phone_entry.get("_phone_type") or ""
         try:
-            _, created = ClientContactMethod.objects.get_or_create(
+            _, created = ContactMethod.objects.get_or_create(
                 company=company,
-                contact=None,
-                method_type=ClientContactMethod.MethodType.PHONE,
+                method_type=ContactMethod.MethodType.PHONE,
                 normalized_value=normalized,
                 defaults={
                     "value": value,
                     "label": phone_type,
                     "is_primary": phone_type == "DEFAULT",
-                    "source": ClientContactMethod.Source.IMPORTED,
+                    "source": ContactMethod.Source.IMPORTED,
                 },
             )
         except AlreadyLoggedException:
@@ -268,8 +268,6 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
         "email",
         "address",
         "is_account_customer",
-        "primary_contact_name",
-        "primary_contact_email",
         "xero_archived",
     ]
     old_values = {}
@@ -372,71 +370,48 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
         "_is_customer", company.is_account_customer
     )
 
-    contact_first_name = raw_json.get("_first_name", None)
-    contact_last_name = raw_json.get("_last_name", None)
-
-    match (contact_first_name, contact_last_name):
-        case (str() as first, str() as last) if first and last:
-            company.primary_contact_name = f"{first} {last}"
-        case (str() as first, None) if first:
-            company.primary_contact_name = first
-        case (None, str() as last) if last:
-            company.primary_contact_name = last
-        case _:
-            company.primary_contact_name = "Unnamed Contact"
-
-    contact_email = raw_json.get("_email_address", None)
-    if contact_email:
-        company.primary_contact_email = contact_email
-
-    additional_persons = raw_json.get("_contact_persons", [])
-    if len(additional_persons) > 0:
-        company.additional_contact_persons = [
-            {
-                "name": (person.get("_first_name") or "")
-                + (" " + person.get("_last_name") if person.get("_last_name") else ""),
-                "email": person.get("_email_address"),
-            }
-            for person in additional_persons
-            if isinstance(person, dict)
-        ]
-        for person in additional_persons:
-            if isinstance(person, dict):
-                first_name = person.get("_first_name") or ""
-                last_name = person.get("_last_name") or ""
-                name = (first_name + (" " + last_name if last_name else "")).strip()
-
-                # Skip contacts with empty names - they're pointless
-                if not name:
-                    logger.debug(
-                        f"Skipping contact with empty name for company {company.name}"
-                    )
-                    continue
-
-                # Use None instead of empty string for nullable fields
-                email = person.get("_email_address") or None
-
-                try:
-                    contact, created = ClientContact.objects.get_or_create(
-                        company=company,
-                        name=name,
-                        defaults={"email": email},
-                    )
-                    # Update email if contact exists and email changed
-                    if not created and contact.email != email:
-                        contact.email = email
-                        contact.save()
-                except ClientContact.MultipleObjectsReturned as exc:
-                    # Should NEVER happen after migrations + constraint.
-                    # If we hit this, data integrity is broken - fail fast.
-                    persist_and_raise(
-                        exc,
-                        additional_context={
-                            "operation": "set_company_fields_duplicate_contact",
-                            "client_id": str(company.id),
-                            "contact_name": name,
-                        },
-                    )
+    for person_payload in raw_json.get("_contact_persons", []):
+        if not isinstance(person_payload, dict):
+            continue
+        first_name = person_payload.get("_first_name") or ""
+        last_name = person_payload.get("_last_name") or ""
+        xero_name = (first_name + (" " + last_name if last_name else "")).strip()
+        if not xero_name:
+            logger.debug("Skipping Xero contact person with empty name for %s", company)
+            continue
+        email = person_payload.get("_email_address") or None
+        try:
+            link = (
+                CompanyPersonLink.objects.filter(
+                    company=company,
+                    xero_name=xero_name,
+                )
+                .select_related("person")
+                .get()
+            )
+            if not link.is_active:
+                link.is_active = True
+                link.save(update_fields=["is_active", "updated_at"])
+            if link.person.email != email:
+                link.person.email = email
+                link.person.save(update_fields=["email", "updated_at"])
+        except CompanyPersonLink.DoesNotExist:
+            person = Person.objects.create(name=xero_name, email=email)
+            CompanyPersonLink.objects.create(
+                company=company,
+                person=person,
+                xero_name=xero_name,
+                is_active=True,
+            )
+        except CompanyPersonLink.MultipleObjectsReturned as exc:
+            persist_and_raise(
+                exc,
+                additional_context={
+                    "operation": "set_company_fields_duplicate_person_link",
+                    "client_id": str(company.id),
+                    "xero_name": xero_name,
+                },
+            )
 
     # Handle xero_last_modified
     updated_date_utc_str = raw_json.get("_updated_date_utc")

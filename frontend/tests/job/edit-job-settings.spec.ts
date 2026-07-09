@@ -462,31 +462,31 @@ test.describe.serial('edit job', () => {
 
     // Navigate to Job Settings tab
     await autoId(page, 'JobViewTabs-jobSettings').click()
-    await autoId(page, 'ContactSelector-modal-button').waitFor({ timeout: 10000 })
+    await autoId(page, 'PersonSelector-modal-button').waitFor({ timeout: 10000 })
     await waitForSettingsInitialized(page)
 
-    await test.step('open contact selection modal', async () => {
-      await autoId(page, 'ContactSelector-modal-button').click()
-      await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+    await test.step('open person selection modal', async () => {
+      await autoId(page, 'PersonSelector-modal-button').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
     })
 
     await expectStepUnder(
-      'create a new contact to switch to',
+      'create a new person to switch to',
       EDIT_JOB_BUDGET_MS.createOrSwitchContact,
       async () => {
         // Wait for the form to be ready
-        const submitButton = autoId(page, 'ContactSelectionModal-submit')
-        await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
+        const submitButton = autoId(page, 'PersonSelectionModal-submit')
+        await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
 
         const timestamp = Date.now()
-        await autoId(page, 'ContactSelectionModal-name-input').fill(`New Contact ${timestamp}`)
-        await autoId(page, 'ContactSelectionModal-email-input').fill(
+        await autoId(page, 'PersonSelectionModal-name-input').fill(`New Person ${timestamp}`)
+        await autoId(page, 'PersonSelectionModal-email-input').fill(
           `newcontact${timestamp}@example.com`,
         )
         await submitButton.click()
 
         // Wait for modal to close
-        await autoId(page, 'ContactSelectionModal-container').waitFor({
+        await autoId(page, 'PersonSelectionModal-container').waitFor({
           state: 'hidden',
           timeout: 10000,
         })
@@ -494,8 +494,8 @@ test.describe.serial('edit job', () => {
     )
 
     await test.step('verify contact was updated', async () => {
-      const contactDisplay = autoId(page, 'ContactSelector-display')
-      await expect(contactDisplay).toHaveValue(/New Contact/, { timeout: 10000 })
+      const contactDisplay = autoId(page, 'PersonSelector-display')
+      await expect(contactDisplay).toHaveValue(/New Person/, { timeout: 10000 })
     })
   })
 

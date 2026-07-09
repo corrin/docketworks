@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient
 
 from apps.accounts.models import Staff
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.crm.models import PhoneCallRecord, PhoneCallRecording
 from apps.job.models import Job
 from apps.job.services.job_service import JobStaffService
@@ -202,16 +202,21 @@ def test_related_display_changes_change_kanban_version(
     auth_client, office_staff, kanban_prerequisites
 ):
     company = _client(name="Original Company")
-    contact = ClientContact.objects.create(company=company, name="Original Contact")
-    _job(office_staff, company=company, contact=contact)
+    person = Person.objects.create(name="Original Person")
+    CompanyPersonLink.objects.create(
+        company=company,
+        person=person,
+        xero_name=person.name,
+    )
+    _job(office_staff, company=company, person=person)
     before = auth_client.get("/api/data-versions/").json()["kanban"]
-    contact.name = "Updated Contact"
-    contact.save(update_fields=["name"])
+    person.name = "Updated Person"
+    person.save(update_fields=["name"])
     after = auth_client.get("/api/data-versions/").json()["kanban"]
     assert before != after
 
 
-def test_client_partial_save_changes_kanban_version(
+def test_company_partial_save_changes_kanban_version(
     auth_client: APIClient, office_staff: Staff, kanban_prerequisites: None
 ) -> None:
     company = _client(name="Original Company")

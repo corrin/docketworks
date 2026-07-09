@@ -366,11 +366,11 @@ class AdvancedSearchAPIView(APIView):
                 description="Filter by company name",
             ),
             OpenApiParameter(
-                name="contact_person",
+                name="person_name",
                 type=str,
                 location=OpenApiParameter.QUERY,
                 required=False,
-                description="Filter by contact person",
+                description="Filter by person name",
             ),
             OpenApiParameter(
                 name="order_number",
@@ -440,7 +440,7 @@ class AdvancedSearchAPIView(APIView):
                 "name": request.GET.get("name", ""),
                 "description": request.GET.get("description", ""),
                 "company_name": request.GET.get("company_name", ""),
-                "contact_person": request.GET.get("contact_person", ""),
+                "person_name": request.GET.get("person_name", ""),
                 "order_number": request.GET.get("order_number", ""),
                 "created_by": request.GET.get("created_by", ""),
                 "created_after": request.GET.get("created_after", ""),

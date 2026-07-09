@@ -66,7 +66,6 @@ def _query_uuid(value: str | None, field_name: str) -> UUID | None:
 def _phone_call_filter_kwargs(request: Request) -> dict[str, UUID]:
     query_filters = (
         ("company_id", _query_uuid(request.query_params.get("company"), "company")),
-        ("contact_id", _query_uuid(request.query_params.get("contact"), "contact")),
         ("person_id", _query_uuid(request.query_params.get("person"), "person")),
         ("job_id", _query_uuid(request.query_params.get("job"), "job")),
         (
@@ -186,7 +185,7 @@ def _apply_search_filter(
     normalized_phone = normalize_phone(search)
     filters = (
         Q(company__name__icontains=search)
-        | Q(contact__name__icontains=search)
+        | Q(person__name__icontains=search)
         | Q(person__name__icontains=search)
         | Q(origin_endpoint__label__icontains=search)
         | Q(destination_endpoint__label__icontains=search)
@@ -243,7 +242,6 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
     @extend_schema(
         parameters=[
             OpenApiParameter("company", OpenApiTypes.UUID, OpenApiParameter.QUERY),
-            OpenApiParameter("contact", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("person", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter("job", OpenApiTypes.UUID, OpenApiParameter.QUERY),
             OpenApiParameter(
@@ -286,7 +284,6 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
         queryset = (
             PhoneCallRecord.objects.select_related(
                 "company",
-                "contact",
                 "person",
                 "job",
                 "job_linked_by",
@@ -377,12 +374,12 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
     ) -> Response:
         payload = PhoneNumberAssignmentSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
-        contact = payload.validated_data["contact"]
+        person = payload.validated_data["person"]
         return self._call_operation_response(
             lambda: assign_phone_number_from_call(
                 call_id=str(pk),
                 company_id=str(payload.validated_data["company"]),
-                contact_id=str(contact) if contact else None,
+                person_id=str(person) if person else None,
                 label=payload.validated_data["label"],
                 is_primary=payload.validated_data["is_primary"],
             )

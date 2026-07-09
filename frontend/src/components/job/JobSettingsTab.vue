@@ -78,7 +78,7 @@
         <Card class="lg:col-span-1">
           <CardHeader>
             <CardTitle>Company Information</CardTitle>
-            <CardDescription>Company details and contact information</CardDescription>
+            <CardDescription>Company details and person information</CardDescription>
           </CardHeader>
           <CardContent class="space-y-4">
             <div>
@@ -158,17 +158,17 @@
             </div>
 
             <div>
-              <ContactSelector
+              <PersonSelector
                 id="contact"
-                label="Contact Person"
+                label="Person"
                 :optional="true"
                 :company-id="localJobData.company_id || ''"
                 :company-name="localJobData.company_name || ''"
-                :initial-contact-id="
-                  typeof localJobData.contact_id === 'string' ? localJobData.contact_id : undefined
+                :initial-person-id="
+                  typeof localJobData.person_id === 'string' ? localJobData.person_id : undefined
                 "
-                v-model="contactDisplayValue"
-                @update:selected-contact="handleContactSelected"
+                v-model="personDisplayValue"
+                @update:selected-person="handlePersonSelected"
               />
             </div>
 
@@ -373,7 +373,7 @@ import { useJobsStore } from '../../stores/jobs'
 import { createJobAutosave } from '../../composables/useJobAutosave'
 import RichTextEditor from '../RichTextEditor.vue'
 import CompanyLookup from '../CompanyLookup.vue'
-import ContactSelector from '../ContactSelector.vue'
+import PersonSelector from '../PersonSelector.vue'
 import CreateCompanyModal from '../CreateCompanyModal.vue'
 import type { Company } from '../../composables/useCompanyLookup'
 import { debugLog } from '../../utils/debug'
@@ -384,7 +384,7 @@ import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 import { requiredNumber } from '@/utils/requiredNumber'
 
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
 
 // Use the existing JobHeaderResponse schema from generated API
 type Job = z.infer<typeof schemas.JobHeaderResponse>
@@ -571,7 +571,7 @@ const newCompanyId = ref('')
 const newCompanyName = ref('')
 const selectedNewCompany = ref<Company | null>(null)
 
-const contactDisplayValue = ref('')
+const personDisplayValue = ref('')
 const showEditCompanyModal = ref(false)
 
 const jobStatusChoices = ref<{ value: string; label: string }[]>([])
@@ -770,8 +770,8 @@ watch(
         name: '',
         company_id: null,
         company_name: null,
-        contact_id: undefined,
-        contact_name: undefined,
+        person_id: undefined,
+        person_name: undefined,
         status: '' as Job['status'],
         pricing_methodology: (props.pricingMethodology ||
           'time_materials') as Job['pricing_methodology'],
@@ -795,7 +795,7 @@ watch(
 
       localJobData.value = { ...defaultJobData }
       serverBaseline.value = { ...defaultJobData }
-      contactDisplayValue.value = ''
+      personDisplayValue.value = ''
       return
     }
     // Received valid jobData, initializing
@@ -832,7 +832,7 @@ watch(
       notes: localJobData.value?.notes ?? '',
     }
 
-    // Keep original snapshot with current state (including separated company/contact fields for delta)
+    // Keep original snapshot with current state (including separated company/person fields for delta)
     serverBaseline.value = {
       ...localJobData.value,
       description: normalizeNullable(localJobData.value.description),
@@ -841,34 +841,34 @@ watch(
       notes: normalizeNullable(localJobData.value.notes),
       price_cap: localJobData.value.price_cap ?? null,
       default_xero_pay_item_id: localJobData.value.default_xero_pay_item_id ?? null,
-      contact_id: localJobData.value.contact_id ?? null,
-      contact_name: localJobData.value.contact_name ?? null,
+      person_id: localJobData.value.person_id ?? null,
+      person_name: localJobData.value.person_name ?? null,
     }
 
-    // Load contact information using the job contacts endpoint
+    // Load person information using the job person endpoint
     // IMPORTANT: Do NOT trigger autosave here - this is just loading initial data
     try {
-      const contactResponse = await api.companies_jobs_contact_retrieve({
+      const contactResponse = await api.companies_jobs_person_retrieve({
         params: { job_id: newJobData.job_id },
       })
       if (contactResponse) {
-        // The response is a single contact object
-        localJobData.value.contact_id = contactResponse.id
-        localJobData.value.contact_name = contactResponse.name
-        contactDisplayValue.value = contactResponse.name || ''
+        // The response is a single person object
+        localJobData.value.person_id = contactResponse.id
+        localJobData.value.person_name = contactResponse.name
+        personDisplayValue.value = contactResponse.name || ''
       }
     } catch (error: unknown) {
       // Handle 404 when no contact is associated with the job - simply ignore
       const axiosError = error as { response?: { status?: number } }
       if (axiosError?.response?.status === 404) {
-        debugLog('No contact associated with this job - ignoring 404')
-        localJobData.value.contact_id = undefined
-        localJobData.value.contact_name = undefined
-        contactDisplayValue.value = ''
+        debugLog('No person associated with this job - ignoring 404')
+        localJobData.value.person_id = undefined
+        localJobData.value.person_name = undefined
+        personDisplayValue.value = ''
       } else {
-        console.error('Failed to load contact information:', error)
-        toast.error('Failed to load contact information')
-        contactDisplayValue.value = ''
+        console.error('Failed to load person information:', error)
+        toast.error('Failed to load person information')
+        personDisplayValue.value = ''
       }
     }
 
@@ -987,8 +987,8 @@ watch(
       if (basicInfo.notes !== undefined) {
         serverBaseline.value.notes = normalizeNullable(basicInfo.notes ?? null)
       }
-      serverBaseline.value.contact_id = localJobData.value.contact_id ?? null
-      serverBaseline.value.contact_name = localJobData.value.contact_name ?? null
+      serverBaseline.value.person_id = localJobData.value.person_id ?? null
+      serverBaseline.value.person_name = localJobData.value.person_name ?? null
 
       // Trigger reactivity
       localJobData.value = { ...localJobData.value }
@@ -1078,7 +1078,7 @@ const confirmCompanyChange = () => {
   localJobData.value.company_id = companyId
   localJobData.value.company_name = companyName
 
-  contactDisplayValue.value = ''
+  personDisplayValue.value = ''
 
   resetCompanyChangeState()
 
@@ -1139,51 +1139,45 @@ const handleCompanyUpdated = (updatedCompany: Company) => {
   toast.success('Company updated successfully')
 }
 
-const handleContactSelected = async (contact: ClientContact | null) => {
+const handlePersonSelected = async (contact: CompanyPersonLink | null) => {
   if (contact) {
-    // Skip API call if contact is already set to this value
+    // Skip API call if person is already set to this value
     // This handles:
-    // - Scenario 4: Company change - backend sets contact in response, no duplicate API call needed
+    // - Scenario 4: Company change - backend sets person in response, no duplicate API call needed
     // - User re-selecting the same contact
-    if (localJobData.value.contact_id === contact.id) {
+    if (localJobData.value.person_id === contact.person) {
       // Still update display value in case it's stale
-      localJobData.value.contact_name = contact.name
-      contactDisplayValue.value = contact.name
+      localJobData.value.person_name = contact.person_name
+      personDisplayValue.value = contact.person_name
       return
     }
 
-    localJobData.value.contact_id = contact.id
-    localJobData.value.contact_name = contact.name
-    contactDisplayValue.value = contact.name
+    localJobData.value.person_id = contact.person
+    localJobData.value.person_name = contact.person_name
+    personDisplayValue.value = contact.person_name
 
     // Ensure all fields are present for Zod validation (convert undefined to null)
     const contactToSend = {
-      id: contact.id,
-      name: contact.name,
-      email: contact.email ?? null,
-      position: contact.position ?? null,
-      notes: contact.notes ?? null,
-      is_primary: contact.is_primary ?? false,
-    } satisfies z.input<typeof schemas.JobContactUpdateRequest>
+      id: contact.person,
+      name: contact.person_name,
+      email: contact.person_email ?? null,
+    } satisfies z.input<typeof schemas.JobPersonUpdateRequest>
 
-    // Save contact directly (not through header autosave)
+    // Save person directly (not through header autosave)
     try {
-      await api.companies_jobs_contact_update(
-        contactToSend as z.input<typeof schemas.JobContactUpdateRequest>,
-        {
-          params: { job_id: props.jobId },
-        },
-      )
-      toast.success('Contact updated successfully')
+      await api.companies_jobs_person_update(contactToSend, {
+        params: { job_id: props.jobId },
+      })
+      toast.success('Person updated successfully')
     } catch (error) {
       toast.error('Failed to update contact')
       console.error('Failed to update contact:', error)
     }
   } else {
-    // Clear contact locally - no API call needed since clearing means no contact association
-    localJobData.value.contact_id = undefined
-    localJobData.value.contact_name = undefined
-    contactDisplayValue.value = ''
+    // Clear person locally - no API call needed since clearing means no contact association
+    localJobData.value.person_id = undefined
+    localJobData.value.person_name = undefined
+    personDisplayValue.value = ''
   }
 }
 
@@ -1210,8 +1204,8 @@ const autosave = createJobAutosave({
       job_number: data.job_number,
       name: data.name,
       company_id: data.company_id ?? null,
-      contact_id: data.contact_id,
-      contact_name: data.contact_name,
+      person_id: data.person_id,
+      person_name: data.person_name,
       job_status: data.status,
       pricing_methodology: data.pricing_methodology,
       speed_quality_tradeoff: data.speed_quality_tradeoff,
@@ -1231,13 +1225,13 @@ const autosave = createJobAutosave({
   },
   applyOptimistic: (patch) => {
     Object.entries(patch).forEach(([k, v]) => {
-      // Apply all fields including separated company/contact fields
+      // Apply all fields including separated company/person fields
       ;(localJobData.value as Record<string, unknown>)[k] = v as unknown
     })
   },
   rollbackOptimistic: (previous) => {
     Object.entries(previous).forEach(([k, v]) => {
-      // Rollback all fields including separated company/contact fields
+      // Rollback all fields including separated company/person fields
       ;(localJobData.value as Record<string, unknown>)[k] = v as unknown
     })
   },
@@ -1441,23 +1435,23 @@ const autosave = createJobAutosave({
           headerPatch.company_id = serverJobDetail.company_id ?? null
           headerPatch.company_name = serverJobDetail.company_name ?? null
 
-          // Backend auto-sets contact when company changes - update from response
-          // This prevents a redundant API call when ContactSelector emits
-          if (serverJobDetail.contact_id !== undefined) {
-            nextBaseline.contact_id = serverJobDetail.contact_id ?? null
-            nextBaseline.contact_name = serverJobDetail.contact_name ?? null
-            localJobData.value.contact_id = serverJobDetail.contact_id ?? null
-            localJobData.value.contact_name = serverJobDetail.contact_name ?? null
-            contactDisplayValue.value = serverJobDetail.contact_name ?? ''
+          // Backend auto-sets person when company changes - update from response
+          // This prevents a redundant API call when PersonSelector emits
+          if (serverJobDetail.person_id !== undefined) {
+            nextBaseline.person_id = serverJobDetail.person_id ?? null
+            nextBaseline.person_name = serverJobDetail.person_name ?? null
+            localJobData.value.person_id = serverJobDetail.person_id ?? null
+            localJobData.value.person_name = serverJobDetail.person_name ?? null
+            personDisplayValue.value = serverJobDetail.person_name ?? ''
           }
         }
-        if (touchedKeys.includes('contact_id')) {
-          nextBaseline.contact_id = serverJobDetail.contact_id ?? null
-          localJobData.value.contact_id = serverJobDetail.contact_id ?? null
+        if (touchedKeys.includes('person_id')) {
+          nextBaseline.person_id = serverJobDetail.person_id ?? null
+          localJobData.value.person_id = serverJobDetail.person_id ?? null
         }
-        if (touchedKeys.includes('contact_name')) {
-          nextBaseline.contact_name = serverJobDetail.contact_name ?? null
-          localJobData.value.contact_name = serverJobDetail.contact_name ?? null
+        if (touchedKeys.includes('person_name')) {
+          nextBaseline.person_name = serverJobDetail.person_name ?? null
+          localJobData.value.person_name = serverJobDetail.person_name ?? null
         }
       } else {
         if (touchedKeys.includes('description')) {
@@ -1568,18 +1562,18 @@ const autosave = createJobAutosave({
           headerPatch.company_name = companyName
 
           // Note: When no serverJobDetail, we can't get the auto-set contact
-          // The ContactSelector will re-fetch contacts for the new company
+          // The PersonSelector will re-fetch people for the new company
         }
-        if (touchedKeys.includes('contact_id')) {
-          const contactId = coerceNullableString(partialPayload.contact_id)
-          nextBaseline.contact_id = contactId
-          localJobData.value.contact_id = contactId
+        if (touchedKeys.includes('person_id')) {
+          const contactId = coerceNullableString(partialPayload.person_id)
+          nextBaseline.person_id = contactId
+          localJobData.value.person_id = contactId
         }
-        if (touchedKeys.includes('contact_name')) {
-          const contactName = coerceNullableString(partialPayload.contact_name)
-          nextBaseline.contact_name = contactName
-          localJobData.value.contact_name = contactName
-          contactDisplayValue.value = contactName ?? ''
+        if (touchedKeys.includes('person_name')) {
+          const contactName = coerceNullableString(partialPayload.person_name)
+          nextBaseline.person_name = contactName
+          localJobData.value.person_name = contactName
+          personDisplayValue.value = contactName ?? ''
         }
       }
 
@@ -1678,8 +1672,8 @@ onMounted(() => {
           delivery_date: normalizeNullable(localJobData.value.delivery_date),
           order_number: normalizeNullable(localJobData.value.order_number),
           notes: normalizeNullable(localJobData.value.notes),
-          contact_id: localJobData.value.contact_id ?? null,
-          contact_name: localJobData.value.contact_name ?? null,
+          person_id: localJobData.value.person_id ?? null,
+          person_name: localJobData.value.person_name ?? null,
         }
 
         // Reload basic info to ensure consistency

@@ -43,8 +43,6 @@ HISTORIC_CLIENT_MIGRATIONS = [
 # live table name -> pre-surgery (legacy) table name
 LEGACY_TABLE_NAMES = [
     ("company_company", "client_client"),
-    ("company_clientcontact", "client_clientcontact"),
-    ("company_clientcontactmethod", "client_clientcontactmethod"),
     ("company_suppliersearchalias", "client_suppliersearchalias"),
     ("company_supplierpickupaddress", "client_supplierpickupaddress"),
 ]

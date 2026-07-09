@@ -1,7 +1,7 @@
 from django.utils import timezone
 
 from apps.accounts.models import Staff
-from apps.company.models import ClientContactMethod, Company
+from apps.company.models import Company, ContactMethod
 from apps.testing import BaseAPITestCase
 
 URL = "/api/job/data-quality/duplicate-phones/"
@@ -18,13 +18,13 @@ class DuplicatePhonesViewTests(BaseAPITestCase):
         )
 
     def _phone(self, value: str, company: Company) -> None:
-        method = ClientContactMethod(
+        method = ContactMethod(
             company=company,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value=value,
         )
-        method.normalized_value = ClientContactMethod.normalize_phone(value)
-        ClientContactMethod.objects.bulk_create([method])
+        method.normalized_value = ContactMethod.normalize_phone(value)
+        ContactMethod.objects.bulk_create([method])
 
     def test_returns_cross_company_conflict_to_office_staff(self) -> None:
         acme = Company.objects.create(name="Acme", xero_last_modified=timezone.now())

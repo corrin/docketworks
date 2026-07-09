@@ -16,7 +16,7 @@ from django.conf import settings
 from django.db import models, transaction
 from django.utils import timezone
 
-from apps.company.models import ClientContact, ClientContactMethod, Company, Person
+from apps.company.models import Company, ContactMethod, Person
 from apps.crm.models import (
     PhoneCallRecord,
     PhoneCallRecording,
@@ -310,7 +310,7 @@ def assign_phone_number_from_call(
     *,
     call_id: str,
     company_id: str,
-    contact_id: str | None = None,
+    person_id: str | None = None,
     label: str = "",
     is_primary: bool = False,
 ) -> PhoneCallRecord:
@@ -326,7 +326,7 @@ def assign_phone_number_from_call(
     assign_phone_number(
         phone_number=call.external_number,
         company_id=company_id,
-        contact_id=contact_id,
+        person_id=person_id,
         label=label,
         is_primary=is_primary,
     )
@@ -525,7 +525,6 @@ def upsert_call_record(
         "duration_seconds": _positive_int(payload.get("seconds")),
         "charge": _decimal_or_none(payload.get("charge")),
         "company": classification.company,
-        "contact": classification.contact,
         "person": classification.person,
         "raw_json": payload,
     }
@@ -597,7 +596,6 @@ class CallClassification:
     origin_endpoint: PhoneEndpoint | None
     destination_endpoint: PhoneEndpoint | None
     company: Company | None
-    contact: ClientContact | None
     person: Person | None
 
 
@@ -617,15 +615,7 @@ class PhoneMatcher:
             for endpoint in PhoneEndpoint.objects.filter(is_active=True)
         }
 
-    def match_customer(
-        self, *values: str
-    ) -> tuple[Company | None, ClientContact | None]:
-        company, contact, _person = self.match_customer_details(*values)
-        return company, contact
-
-    def match_customer_details(
-        self, *values: str
-    ) -> tuple[Company | None, ClientContact | None, Person | None]:
+    def match_customer(self, *values: str) -> tuple[Company | None, Person | None]:
         matches: set[tuple[str, str, str]] = set()
         for value in values:
             normalized = normalize_phone(value)
@@ -634,26 +624,23 @@ class PhoneMatcher:
             matches.update(self.phone_matches.get(normalized, set()))
 
         if not matches:
-            return None, None, None
+            return None, None
 
         company_ids = {company_id for _, _, company_id in matches}
         if len(company_ids) != 1:
-            return None, None, None
+            return None, None
 
         if len(matches) != 1:
             company = Company.objects.get(id=next(iter(company_ids)))
-            return company, None, None
+            return company, None
 
         kind, object_id, _company_id = next(iter(matches))
-        if kind == "contact":
-            contact = ClientContact.objects.select_related("company").get(id=object_id)
-            return contact.company, contact, contact.person
         if kind == "person":
             person = Person.objects.get(id=object_id)
             company = Company.objects.get(id=next(iter(company_ids)))
-            return company, None, person
+            return company, person
         company = Company.objects.get(id=object_id)
-        return company, None, None
+        return company, None
 
     def classify(self, origin: str, destination: str) -> CallClassification:
         normalized_origin = normalize_phone(origin)
@@ -669,14 +656,11 @@ class PhoneMatcher:
                 origin_endpoint=origin_endpoint,
                 destination_endpoint=destination_endpoint,
                 company=None,
-                contact=None,
                 person=None,
             )
 
         if origin_endpoint:
-            company, contact, person = self.match_customer_details(
-                normalized_destination
-            )
+            company, person = self.match_customer(normalized_destination)
             return CallClassification(
                 direction=PhoneCallRecord.Direction.OUTBOUND,
                 our_number=normalized_origin,
@@ -684,12 +668,11 @@ class PhoneMatcher:
                 origin_endpoint=origin_endpoint,
                 destination_endpoint=None,
                 company=company,
-                contact=contact,
                 person=person,
             )
 
         if destination_endpoint:
-            company, contact, person = self.match_customer_details(normalized_origin)
+            company, person = self.match_customer(normalized_origin)
             return CallClassification(
                 direction=PhoneCallRecord.Direction.INBOUND,
                 our_number=normalized_destination,
@@ -697,13 +680,10 @@ class PhoneMatcher:
                 origin_endpoint=None,
                 destination_endpoint=destination_endpoint,
                 company=company,
-                contact=contact,
                 person=person,
             )
 
-        company, contact, person = self.match_customer_details(
-            normalized_origin, normalized_destination
-        )
+        company, person = self.match_customer(normalized_origin, normalized_destination)
         external_number = ""
         if normalized_origin and not normalized_destination:
             external_number = normalized_origin
@@ -718,7 +698,6 @@ class PhoneMatcher:
             origin_endpoint=None,
             destination_endpoint=None,
             company=company,
-            contact=contact,
             person=person,
         )
 
@@ -732,7 +711,7 @@ def is_call_payload(payload: dict[str, Any]) -> bool:
 
 
 def normalize_phone(value: Any) -> str:
-    return ClientContactMethod.normalize_phone(value)
+    return ContactMethod.normalize_phone(value)
 
 
 def configured_own_numbers() -> set[str]:
@@ -744,7 +723,7 @@ def configured_own_numbers() -> set[str]:
 
 
 _REMATCH_FK_FIELDS = frozenset(
-    {"company", "contact", "person", "origin_endpoint", "destination_endpoint"}
+    {"company", "person", "origin_endpoint", "destination_endpoint"}
 )
 
 
@@ -785,7 +764,6 @@ def rematch_calls_for_numbers(numbers: list[str]) -> None:
         )
         new_values: dict[str, object] = {
             "company": classification.company,
-            "contact": classification.contact,
             "person": classification.person,
             "direction": classification.direction,
             "our_number": classification.our_number,
@@ -820,10 +798,10 @@ def assign_phone_number(
     *,
     phone_number: str,
     company_id: str,
-    contact_id: str | None = None,
+    person_id: str | None = None,
     label: str = "",
     is_primary: bool = False,
-) -> ClientContactMethod:
+) -> ContactMethod:
     normalized = normalize_phone(phone_number)
     if not normalized:
         raise ValueError("phone number is required")
@@ -831,24 +809,22 @@ def assign_phone_number(
         raise ValueError("internal phone endpoint cannot be assigned to a company")
 
     company_uuid = _uuid_or_client_error(company_id, "Company not found")
-    if contact_id:
-        contact_uuid = _uuid_or_client_error(contact_id, "Contact not found")
+    owner_filter: dict[str, Company | Person | None]
+    if person_id:
+        person_uuid = _uuid_or_client_error(person_id, "Person not found")
         try:
-            contact = ClientContact.objects.select_related("company").get(
-                id=contact_uuid,
-                company_id=company_uuid,
-                is_active=True,
-            )
-        except ClientContact.DoesNotExist as exc:
-            raise ValueError("Contact not found") from exc
+            person = Person.objects.get(id=person_uuid, is_active=True)
+        except Person.DoesNotExist as exc:
+            raise ValueError("Person not found") from exc
+        if not person.company_links.filter(company_id=company_uuid).exists():
+            raise ValueError("Person is not linked to the selected company")
         owner_filter = {
-            "contact": contact,
-            "person": contact.person,
+            "person": person,
             "company": None,
         }
-        existing_primary = ClientContactMethod.objects.filter(
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
+        existing_primary = ContactMethod.objects.filter(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
             is_primary=True,
         ).exists()
     else:
@@ -856,36 +832,36 @@ def assign_phone_number(
             company = Company.objects.get(id=company_uuid)
         except Company.DoesNotExist as exc:
             raise ValueError("Company not found") from exc
-        owner_filter = {"company": company, "contact": None, "person": None}
-        existing_primary = ClientContactMethod.objects.filter(
+        owner_filter = {"company": company, "person": None}
+        existing_primary = ContactMethod.objects.filter(
             company=company,
-            contact__isnull=True,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            person__isnull=True,
+            method_type=ContactMethod.MethodType.PHONE,
             is_primary=True,
         ).exists()
 
     should_be_primary = is_primary or not existing_primary
-    conflict = ClientContactMethod.conflicting_company(normalized, {company_uuid})
+    conflict = ContactMethod.conflicting_company(normalized, {company_uuid})
     if conflict:
         raise ValueError(
             f"phone number already belongs to {conflict.owner_display_name()}"
         )
 
-    method, created = ClientContactMethod.objects.get_or_create(
+    method, created = ContactMethod.objects.get_or_create(
         **owner_filter,
-        method_type=ClientContactMethod.MethodType.PHONE,
+        method_type=ContactMethod.MethodType.PHONE,
         normalized_value=normalized,
         defaults={
             "value": phone_number.strip(),
             "label": label.strip(),
             "is_primary": should_be_primary,
-            "source": ClientContactMethod.Source.LOCAL,
+            "source": ContactMethod.Source.LOCAL,
         },
     )
     if not created:
         method.value = phone_number.strip()
         method.label = label.strip()
-        method.source = ClientContactMethod.Source.LOCAL
+        method.source = ContactMethod.Source.LOCAL
         method.is_primary = should_be_primary or method.is_primary
         method.save(
             update_fields=["value", "label", "source", "is_primary", "updated_at"]
@@ -905,12 +881,10 @@ def _build_contact_method_phone_index(
     """
     index: dict[str, set[tuple[str, str, str]]] = {}
     internal_numbers = configured_own_numbers()
-    methods = ClientContactMethod.objects.select_related(
+    methods = ContactMethod.objects.select_related(
         "company",
-        "contact",
-        "contact__company",
         "person",
-    ).filter(method_type=ClientContactMethod.MethodType.PHONE)
+    ).filter(method_type=ContactMethod.MethodType.PHONE)
     if numbers is not None:
         methods = methods.filter(normalized_value__in=numbers)
     for method in methods:
@@ -918,21 +892,21 @@ def _build_contact_method_phone_index(
         if not normalized or normalized in internal_numbers:
             continue
         if method.person_id:
-            if not method.person.is_active:
+            person = method.person
+            if person is None:
+                raise RuntimeError(f"Contact method {method.id} has no person")
+            if not person.is_active:
                 continue
             company_ids = method.owner_company_ids()
             for company_id in company_ids:
                 index.setdefault(normalized, set()).add(
                     ("person", str(method.person_id), str(company_id))
                 )
-        elif method.contact_id:
-            if not method.contact.is_active:
-                continue
-            index.setdefault(normalized, set()).add(
-                ("contact", str(method.contact_id), str(method.contact.company_id))
-            )
         else:
-            if not method.company.allow_jobs:
+            company = method.company
+            if company is None:
+                raise RuntimeError(f"Contact method {method.id} has no company")
+            if not company.allow_jobs:
                 continue
             index.setdefault(normalized, set()).add(
                 ("company", str(method.company_id), str(method.company_id))

@@ -286,10 +286,10 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     for (const [k, v] of changeBuffer.entries()) rawPatch[k] = v
 
     if ('company_id' in rawPatch) {
-      rawPatch['contact_id'] = null
-      rawPatch['contact_name'] = null
-      pendingKeys.value.add('contact_id')
-      pendingKeys.value.add('contact_name')
+      rawPatch['person_id'] = null
+      rawPatch['person_name'] = null
+      pendingKeys.value.add('person_id')
+      pendingKeys.value.add('person_name')
     }
 
     const effectivePatch: Record<string, unknown> = {}
@@ -309,14 +309,14 @@ export function createJobAutosave(opts: JobAutosaveOptions): JobAutosaveApi {
     }
 
     if ('company_id' in effectivePatch) {
-      if (!('contact_id' in effectivePatch)) effectivePatch['contact_id'] = null
-      if (!('contact_name' in effectivePatch)) effectivePatch['contact_name'] = null
+      if (!('person_id' in effectivePatch)) effectivePatch['person_id'] = null
+      if (!('person_name' in effectivePatch)) effectivePatch['person_name'] = null
     }
 
     // completeness rule (example)
     const virtualSnapshot = { ...originalSnapshot, ...effectivePatch }
     if (
-      ('contact_id' in effectivePatch || 'contact_name' in effectivePatch) &&
+      ('person_id' in effectivePatch || 'person_name' in effectivePatch) &&
       !virtualSnapshot['company_id']
     ) {
       log('⛔ canSave=false (contact_* change without company_id)', { reason })

@@ -14,7 +14,7 @@
           type="text"
           :placeholder="placeholder"
           readonly
-          data-automation-id="ContactSelector-display"
+          data-automation-id="PersonSelector-display"
           class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-pointer focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           @click="handleOpenModal"
         />
@@ -22,7 +22,7 @@
 
       <button
         type="button"
-        data-automation-id="ContactSelector-modal-button"
+        data-automation-id="PersonSelector-modal-button"
         class="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition-colors"
         @click="handleOpenModal"
         :disabled="!companyId"
@@ -31,9 +31,9 @@
       </button>
 
       <button
-        v-if="selectedContact"
+        v-if="selectedPerson"
         type="button"
-        data-automation-id="ContactSelector-clear-button"
+        data-automation-id="PersonSelector-clear-button"
         class="px-2 py-2 text-gray-400 hover:text-red-600 transition-colors"
         @click="clearSelection"
         title="Clear selection"
@@ -45,21 +45,21 @@
     <p v-if="!companyId" class="mt-1 text-xs text-gray-500">Please select a company first</p>
   </div>
 
-  <ContactSelectionModal
+  <PersonSelectionModal
     :is-open="isModalOpen"
     :company-id="companyId"
     :company-name="companyName"
-    :contacts="activeContacts"
-    :selected-contact="selectedContact"
+    :people="activePersonLinks"
+    :selected-person="selectedPerson"
     :is-loading="isLoading"
-    :new-contact-form="newContactForm"
-    :editing-contact="editingContact"
+    :person-form="personForm"
+    :editing-person-link="editingPersonLink"
     :is-editing="isEditing"
     @close="closeModal"
-    @select-contact="selectExistingContact"
-    @save-contact="handleSaveContact"
-    @edit-contact="handleEditContact"
-    @delete-contact="handleDeleteContact"
+    @select-person="selectExistingPerson"
+    @save-person="handleSavePerson"
+    @edit-person="handleEditPerson"
+    @delete-person="handleDeletePerson"
     @cancel-edit="cancelEdit"
   />
 </template>
@@ -70,12 +70,12 @@ import { toast } from 'vue-sonner'
 
 import { ref, watch } from 'vue'
 import { Users, X } from 'lucide-vue-next'
-import { useContactManagement } from '../composables/useContactManagement'
-import ContactSelectionModal from './ContactSelectionModal.vue'
+import { usePersonManagement } from '../composables/usePersonManagement'
+import PersonSelectionModal from './PersonSelectionModal.vue'
 import { schemas } from '../api/generated/api'
 import { z } from 'zod'
 
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
 
 const props = withDefaults(
   defineProps<{
@@ -86,88 +86,88 @@ const props = withDefaults(
     companyId: string
     companyName: string
     modelValue?: string
-    initialContactId?: string
+    initialPersonId?: string
   }>(),
   {
-    placeholder: 'No contact selected',
+    placeholder: 'No person selected',
     optional: true,
     modelValue: '',
-    initialContactId: '',
+    initialPersonId: '',
   },
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
-  'update:selectedContact': [contact: ClientContact | null]
+  'update:selectedPerson': [person: CompanyPersonLink | null]
 }>()
 
 const {
   isModalOpen,
-  contacts,
-  selectedContact,
+  people,
+  selectedPerson,
   isLoading,
-  newContactForm,
+  personForm,
   displayValue,
   openModal,
   closeModal,
-  loadContactsOnly,
-  setSelectedContact,
-  selectExistingContact: selectFromComposable,
-  saveContact,
+  loadPeopleOnly,
+  setSelectedPerson,
+  selectExistingPerson: selectFromComposable,
+  savePerson,
   clearSelection: clearFromComposable,
-  findPrimaryContact,
+  findPrimaryPerson,
   // Edit mode state and functions
-  editingContact,
+  editingPersonLink,
   isEditing,
-  activeContacts,
-  startEditContact,
+  activePersonLinks,
+  startEditPerson,
   cancelEdit,
-  updateContact,
-  deleteContact,
-} = useContactManagement()
+  updatePerson,
+  deletePerson,
+} = usePersonManagement()
 
 const suppressEmit = ref(false)
 const isHydrating = ref(true)
 let loadToken = 0
 
 const handleOpenModal = async () => {
-  debugLog('ContactSelector - handleOpenModal called:', {
+  debugLog('PersonSelector - handleOpenModal called:', {
     companyId: props.companyId,
     companyName: props.companyName,
-    initialContactId: props.initialContactId,
-    contacts: contacts.value,
-    selectedContact: selectedContact.value,
-    newContactForm: newContactForm.value,
+    initialPersonId: props.initialPersonId,
+    people: people.value,
+    selectedPerson: selectedPerson.value,
+    personForm: personForm.value,
   })
 
   if (!props.companyId) {
-    debugLog('Cannot open contact modal without company')
+    debugLog('Cannot open person modal without company')
     return
   }
 
   await openModal(props.companyId, props.companyName)
-  debugLog('ContactSelector - after openModal:', {
+  debugLog('PersonSelector - after openModal:', {
     isModalOpen: isModalOpen.value,
-    contacts: contacts.value,
-    selectedContact: selectedContact.value,
-    newContactForm: newContactForm.value,
+    people: people.value,
+    selectedPerson: selectedPerson.value,
+    personForm: personForm.value,
   })
 }
 
-const selectExistingContact = (contact: ClientContact) => {
-  debugLog('ContactSelector - selectExistingContact:', contact)
-  selectFromComposable(contact)
+const selectExistingPerson = (person: CompanyPersonLink) => {
+  debugLog('PersonSelector - selectExistingPerson:', person)
+  selectFromComposable(person)
 }
 
-const handleSaveContact = async () => {
-  debugLog('ContactSelector - handleSaveContact: before save', {
-    newContactForm: newContactForm.value,
-    selectedContact: selectedContact.value,
+const handleSavePerson = async () => {
+  debugLog('PersonSelector - handleSavePerson: before save', {
+    personForm: personForm.value,
+    selectedPerson: selectedPerson.value,
     isEditing: isEditing.value,
   })
 
   // Validate email format before saving
-  const rawEmail = newContactForm.value.email
+  const rawEmail = personForm.value.email
   const emailInput = typeof rawEmail === 'string' ? rawEmail.trim() : ''
   if (emailInput && !isValidEmail(emailInput)) {
     toast.error('Please enter a valid email address')
@@ -175,52 +175,52 @@ const handleSaveContact = async () => {
   }
 
   const actionLabel = isEditing.value ? 'Updating' : 'Creating'
-  toast.info(`${actionLabel} contact...`, { id: 'save-contact' })
+  toast.info(`${actionLabel} person...`, { id: 'save-person' })
 
   let success: boolean
   if (isEditing.value) {
-    success = await updateContact()
+    success = await updatePerson()
   } else {
-    success = await saveContact()
+    success = await savePerson()
   }
 
-  toast.dismiss('save-contact')
+  toast.dismiss('save-person')
 
-  debugLog('ContactSelector - handleSaveContact: after save', {
+  debugLog('PersonSelector - handleSavePerson: after save', {
     success,
-    newContactForm: newContactForm.value,
-    selectedContact: selectedContact.value,
+    personForm: personForm.value,
+    selectedPerson: selectedPerson.value,
   })
 
   if (success) {
-    toast.success(`Contact ${isEditing.value ? 'updated' : 'created'} successfully!`, {
+    toast.success(`Person ${isEditing.value ? 'updated' : 'created'} successfully!`, {
       dismissible: true,
       position: 'top-left',
     })
   } else {
     toast.error(
-      `Failed to ${isEditing.value ? 'update' : 'create'} contact. Please check the form and try again.`,
+      `Failed to ${isEditing.value ? 'update' : 'create'} person. Please check the form and try again.`,
     )
   }
 }
 
-const handleEditContact = (contact: ClientContact) => {
-  debugLog('ContactSelector - handleEditContact:', contact)
-  startEditContact(contact)
+const handleEditPerson = (person: CompanyPersonLink) => {
+  debugLog('PersonSelector - handleEditPerson:', person)
+  startEditPerson(person)
 }
 
-const handleDeleteContact = async (contactId: string) => {
-  debugLog('ContactSelector - handleDeleteContact:', contactId)
-  toast.info('Deleting contact...', { id: 'delete-contact' })
+const handleDeletePerson = async (contactId: string) => {
+  debugLog('PersonSelector - handleDeletePerson:', contactId)
+  toast.info('Deleting person...', { id: 'delete-person' })
 
-  const success = await deleteContact(contactId)
+  const success = await deletePerson(contactId)
 
-  toast.dismiss('delete-contact')
+  toast.dismiss('delete-person')
 
   if (success) {
-    toast.success('Contact removed successfully')
+    toast.success('Person removed successfully')
   } else {
-    toast.error('Failed to remove contact. Please try again.')
+    toast.error('Failed to remove person. Please try again.')
   }
 }
 
@@ -231,75 +231,75 @@ const isValidEmail = (email: string): boolean => {
 }
 
 const clearSelection = () => {
-  debugLog('ContactSelector - clearSelection')
+  debugLog('PersonSelector - clearSelection')
   clearFromComposable()
 }
 
-const selectPrimaryContact = async () => {
-  debugLog('ContactSelector - selectPrimaryContact called', {
+const selectPrimaryPerson = async () => {
+  debugLog('PersonSelector - selectPrimaryPerson called', {
     companyId: props.companyId,
-    contactsLength: contacts.value.length,
+    peopleLength: people.value.length,
   })
 
   if (!props.companyId) {
-    debugLog('Cannot select primary contact without company', {
+    debugLog('Cannot select primary person without company', {
       companyId: props.companyId,
       propsCompanyId: props.companyId,
     })
     return
   }
 
-  // Load contacts if not already loaded
-  if (contacts.value.length === 0) {
-    debugLog('Loading contacts for company:', props.companyId)
-    await loadContactsOnly(props.companyId)
+  // Load people if not already loaded
+  if (people.value.length === 0) {
+    debugLog('Loading people for company:', props.companyId)
+    await loadPeopleOnly(props.companyId)
   }
 
-  // Find and select the primary contact (without closing modal)
-  const primaryContact = findPrimaryContact()
-  debugLog('selectPrimaryContact:', {
-    contactsLength: contacts.value.length,
-    primaryContact,
-    currentSelectedContact: selectedContact.value,
-    sameReference: primaryContact === selectedContact.value,
+  // Find and select the primary person (without closing modal)
+  const primaryPerson = findPrimaryPerson()
+  debugLog('selectPrimaryPerson:', {
+    peopleLength: people.value.length,
+    primaryPerson,
+    currentSelectedPerson: selectedPerson.value,
+    sameReference: primaryPerson === selectedPerson.value,
   })
-  if (primaryContact) {
-    debugLog('Found primary contact:', primaryContact)
-    setSelectedContact(primaryContact)
+  if (primaryPerson) {
+    debugLog('Found primary person:', primaryPerson)
+    setSelectedPerson(primaryPerson)
     // Explicitly emit for JobCreateView - decideAndSelect uses suppressEmit but
-    // selectPrimaryContact is called by parent components that need the emit
+    // selectPrimaryPerson is called by parent components that need the emit
     emitUpdates()
   } else {
-    debugLog('No primary contact found', {
-      totalContacts: contacts.value.length,
-      contacts: contacts.value,
+    debugLog('No primary person found', {
+      totalPeople: people.value.length,
+      people: people.value,
     })
     clearFromComposable()
-    // Also emit for clearing case so parent knows contact was cleared
+    // Also emit for clearing case so parent knows person was cleared
     emitUpdates()
   }
 }
 
 // Expose the method for parent components
 defineExpose({
-  selectPrimaryContact,
+  selectPrimaryPerson,
   clearSelection,
 })
 
 const emitUpdates = () => {
   if (suppressEmit.value) return
-  debugLog('ContactSelector - emitUpdates', {
+  debugLog('PersonSelector - emitUpdates', {
     displayValue: displayValue.get(),
-    selectedContact: selectedContact.value,
+    selectedPerson: selectedPerson.value,
   })
   emit('update:modelValue', displayValue.get())
-  emit('update:selectedContact', selectedContact.value)
+  emit('update:selectedPerson', selectedPerson.value)
 }
 
 watch(
-  selectedContact,
+  selectedPerson,
   () => {
-    debugLog('ContactSelector - selectedContact changed:', selectedContact.value)
+    debugLog('PersonSelector - selectedPerson changed:', selectedPerson.value)
     emitUpdates()
     isHydrating.value = false
   },
@@ -307,15 +307,15 @@ watch(
 )
 
 watch(
-  () => [props.companyId, props.initialContactId],
+  () => [props.companyId, props.initialPersonId],
   async ([companyId, initialId]) => {
-    debugLog('ContactSelector - unified watch:', { companyId, initialId })
+    debugLog('PersonSelector - unified watch:', { companyId, initialId })
 
     // Quando mudar o cliente: limpe estado local (sem emitir)
     suppressEmit.value = true
     displayValue.set('')
-    selectedContact.value = null
-    contacts.value = []
+    selectedPerson.value = null
+    people.value = []
     suppressEmit.value = false
 
     if (!companyId) {
@@ -327,25 +327,25 @@ watch(
     const token = ++loadToken
 
     // Carrega contatos do cliente atual
-    await loadContactsOnly(companyId)
+    await loadPeopleOnly(companyId)
     if (token !== loadToken) return // request antigo, ignora
 
     // Selection priority:
-    // 1) If initialId provided → select that contact
-    // 2) Else if primary contact exists → select primary
+    // 1) If initialId provided → select that person
+    // 2) Else if primary person exists → select primary
     // 3) Else → clear selection
     // NOTE: suppressEmit=true prevents API calls during initialization/company change
     // (auto-selection should not trigger saves - only user actions should)
     const decideAndSelect = () => {
       const choose =
-        (initialId && contacts.value.find((c: ClientContact) => c.id === initialId)) ||
-        (!initialId && findPrimaryContact()) ||
+        (initialId && people.value.find((c: CompanyPersonLink) => c.person === initialId)) ||
+        (!initialId && findPrimaryPerson()) ||
         null
 
       suppressEmit.value = true
       if (choose) {
-        // Use setSelectedContact to avoid closing modal during auto-selection
-        setSelectedContact(choose)
+        // Use setSelectedPerson to avoid closing modal during auto-selection
+        setSelectedPerson(choose)
       } else {
         clearFromComposable()
       }

@@ -70,7 +70,6 @@ class Command(BaseCommand):
                 name=name,
                 status="special",
                 company=company,
-                contact=None,
                 pricing_methodology="time_materials",
                 speed_quality_tradeoff="normal",
                 job_is_valid=True,

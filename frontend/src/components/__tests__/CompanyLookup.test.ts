@@ -29,7 +29,7 @@ function buildComposableStub(suggestions: Company[]) {
     displayValue: ref(''),
     searchCompanies: vi.fn(),
     selectCompany: vi.fn(),
-    loadClientContacts: vi.fn(),
+    loadCompanyPersonLinks: vi.fn(),
     getPrimaryContact: vi.fn(),
     clearSelection: vi.fn(),
     handleInputChange: vi.fn(),

@@ -30,8 +30,8 @@ async function updateJobHeaderPartial(
       'quote_acceptance_date',
       'price_cap',
       'default_xero_pay_item_id',
-      // include 'contact_name' if ever present
-      'contact_name',
+      // include 'person_name' if ever present
+      'person_name',
     ])
     const normalizeBefore = (k: string, v: unknown) => {
       if (v === undefined) return nullableKeys.has(k) ? null : v

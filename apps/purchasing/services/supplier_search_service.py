@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Any, TypedDict
 from django.db.models import Count, Q
 from django.utils import timezone
 
-from apps.company.models import ClientContactMethod, Company, SupplierSearchAlias
+from apps.company.models import Company, ContactMethod, SupplierSearchAlias
 
 if TYPE_CHECKING:
     from django_stubs_ext import WithAnnotations
@@ -181,7 +181,7 @@ def list_suppliers(
                 & ~Q(purchase_orders__status="deleted"),
                 distinct=True,
             ),
-            primary_phone=ClientContactMethod.primary_phone_annotation(
+            primary_phone=ContactMethod.primary_phone_annotation(
                 owner="company", outer_ref="pk"
             ),
         )

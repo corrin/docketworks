@@ -478,17 +478,17 @@ def create_company_contact_in_xero(company):
     return company.xero_contact_id
 
 
-def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
+def bulk_create_contacts_in_xero(companies_to_create, batch_size=50):
     """Create multiple company contacts in Xero in batches of 50"""
-    if not clients_to_create:
+    if not companies_to_create:
         return 0
 
     accounting_api = AccountingApi(api_client)
 
     total_created = 0
 
-    for i in range(0, len(clients_to_create), batch_size):
-        batch = clients_to_create[i : i + batch_size]
+    for i in range(0, len(companies_to_create), batch_size):
+        batch = companies_to_create[i : i + batch_size]
 
         contact_batch = []
         for company in batch:
@@ -527,7 +527,7 @@ def bulk_create_contacts_in_xero(clients_to_create, batch_size=50):
 
             time.sleep(SLEEP_TIME)
 
-            # Map response back to clients by submission order. Verified
+            # Map response back to companies by submission order. Verified
             # against dev Xero by scripts/integration/verify_xero_batch_order.py.
             for idx, (company, created_contact) in enumerate(
                 zip(batch, response.contacts, strict=True)

@@ -1,102 +1,104 @@
-# Test Plan: Client Contact Management Feature
+# Test Plan: Company People Management Feature
 
 ## Overview
 
-This test plan covers the new client contact management system that replaces Xero contact syncing with local contact storage.
+This test plan covers company people management: people are stored locally,
+linked to companies, and selected on jobs without relying on Xero contact-person
+sync for day-to-day job assignment.
 
 ## Prerequisites
 
 - [ ] Ensure migrations have been applied (`python manage.py migrate`)
-- [ ] Have at least one client in the system
+- [ ] Have at least one company in the system
 - [ ] Have access to create and edit jobs
 
 ## Test Cases
 
-### 1. View Existing Contact Data
+### 1. View Existing Person Data
 
-- [ ] Navigate to an existing job that previously had contact_person/contact_phone data
-- [ ] Verify the contact information is displayed in the read-only field
+- [ ] Navigate to an existing job that has person and phone data
+- [ ] Verify the person information is displayed in the read-only field
 - [ ] Verify format is "Name - Phone" or just "Name" if no phone
 
-### 2. Open Contact Management Modal
+### 2. Open Person Management Modal
 
-- [ ] Click the "Manage" button next to Contact Person field
+- [ ] Click the "Manage" button next to the Person field
 - [ ] Verify modal opens with:
-  - [ ] Client name displayed at top
-  - [ ] List of existing contacts (if any)
-  - [ ] Form to add new contact
+  - [ ] Company name displayed at top
+  - [ ] List of existing people (if any)
+  - [ ] Form to add a new person
 
-### 3. Create New Contact
+### 3. Create New Person
 
-- [ ] In the modal, fill in the new contact form:
+- [ ] In the modal, fill in the new person form:
   - Name: "John Smith" (required)
   - Position: "Project Manager" (optional)
   - Email: "john@example.com" (optional)
   - Phone: "555-1234" (optional)
   - Notes: "Primary contact for all orders" (optional)
   - Check "Set as primary contact"
-- [ ] Click "Save Contact"
+- [ ] Click "Save Person"
 - [ ] Verify modal closes
-- [ ] Verify contact display updates to "John Smith - 555-1234"
-- [ ] Verify hidden contact_id field is populated
+- [ ] Verify person display updates to "John Smith - 555-1234"
+- [ ] Verify hidden person_id field is populated
 - [ ] Verify autosave triggers (check network tab or console)
 
-### 4. Select Existing Contact
+### 4. Select Existing Person
 
 - [ ] Open modal again
-- [ ] Verify "John Smith" appears in the existing contacts list with "Primary" badge
-- [ ] Add another contact "Jane Doe" without marking as primary
+- [ ] Verify "John Smith" appears in the existing people list with "Primary" badge
+- [ ] Add another person "Jane Doe" without marking as primary
 - [ ] Close and reopen modal
 - [ ] Click "Select" button next to "Jane Doe"
-- [ ] Click "Save Contact"
-- [ ] Verify contact display updates to "Jane Doe"
+- [ ] Click "Save Person"
+- [ ] Verify person display updates to "Jane Doe"
 
-### 5. Contact Without Client
+### 5. Person Without Company
 
-- [ ] Create a new job or use one without a client selected
-- [ ] Click "Manage" contact button
-- [ ] Verify modal shows warning: "Please select a client first."
+- [ ] Create a new job or use one without a company selected
+- [ ] Click "Manage" person button
+- [ ] Verify modal shows warning: "Please select a company first."
 - [ ] Verify Save button is disabled
 
-### 6. Primary Contact Behavior
+### 6. Primary Person Behavior
 
-- [ ] For a client with multiple contacts, mark a different one as primary
-- [ ] Verify only one contact can be primary at a time
-- [ ] Verify primary contacts appear first in the list
+- [ ] For a company with multiple people, mark a different one as primary
+- [ ] Verify only one person can be primary at a time
+- [ ] Verify primary people appear first in the list
 
 ### 7. Autosave Integration
 
-- [ ] Select/create a contact for a job
+- [ ] Select/create a person for a job
 - [ ] Make another change to the job (e.g., change job name)
 - [ ] Verify both changes are saved
 - [ ] Refresh the page
-- [ ] Verify contact selection persists
+- [ ] Verify person selection persists
 
 ### 8. API Testing (Developer Console)
 
-- [ ] Test fetching contacts:
+- [ ] Test fetching company people:
 
 ```javascript
-// Replace [CLIENT_ID] with actual client UUID
-fetch("/clients/api/client/[CLIENT_ID]/contacts/")
+// Replace [COMPANY_ID] with actual company UUID
+fetch("/api/companies/person-links/?company_id=[COMPANY_ID]")
   .then((r) => r.json())
   .then(console.log);
 ```
 
-- [ ] Test creating contact:
+- [ ] Test creating a person link:
 
 ```javascript
-// Replace [CLIENT_ID] with actual client UUID
-fetch("/clients/api/client/contact/", {
+// Replace [COMPANY_ID] with actual company UUID
+fetch("/api/companies/person-links/", {
   method: "POST",
   headers: {
     "Content-Type": "application/json",
     "X-CSRFToken": document.querySelector("[name=csrfmiddlewaretoken]").value,
   },
   body: JSON.stringify({
-    client: "[CLIENT_ID]",
-    name: "Test Contact",
-    email: "test@example.com",
+    company: "[COMPANY_ID]",
+    person_name: "Test Person",
+    person_email: "test@example.com",
     phone: "555-5555",
     is_primary: false,
   }),
@@ -107,17 +109,17 @@ fetch("/clients/api/client/contact/", {
 
 ### 9. Edge Cases
 
-- [ ] Try to save without selecting any contact (should close modal without changes)
-- [ ] Create contact with only name (minimum required field)
-- [ ] Create contact with very long name/phone/email
-- [ ] Try special characters in contact fields
+- [ ] Try to save without selecting any person (should close modal without changes)
+- [ ] Create a person with only name (minimum required field)
+- [ ] Create a person with very long name/phone/email
+- [ ] Try special characters in person fields
 
-### 10. Legacy Data Compatibility
+### 10. Migrated Data
 
-- [ ] Find a job with old contact_person/contact_phone data
+- [ ] Find a job with migrated person/phone data
 - [ ] Verify it displays correctly
-- [ ] Select a new contact from modal
-- [ ] Verify old fields are updated in background (check hidden fields)
+- [ ] Select a new person from modal
+- [ ] Verify the job stores the selected person_id
 
 ### 11. Multiple Browser Testing
 
@@ -128,31 +130,30 @@ fetch("/clients/api/client/contact/", {
 
 ### 12. Performance Testing
 
-- [ ] Test with a client that has 50+ contacts
+- [ ] Test with a company that has 50+ people
 - [ ] Verify modal loads quickly
-- [ ] Verify contact list is scrollable and responsive
+- [ ] Verify people list is scrollable and responsive
 
 ## Expected Results
 
-- All contact data is stored locally in ClientContact model
-- No API calls to Xero for contact management
+- All person data is stored locally in Person and CompanyPersonLink models
+- No API calls to Xero for person management
 - Smooth user experience with modal interface
-- Backward compatibility with legacy contact fields
-- Primary contact designation works correctly
+- Primary person designation works correctly
 
 ## Known Limitations
 
-- Contact email is not currently displayed in the selection (only name and phone)
-- No search/filter functionality in contact list yet
-- No bulk import of contacts
+- Person email is not currently displayed in the selection (only name and phone)
+- No search/filter functionality in the people list yet
+- No bulk import of people
 
 ## Rollback Plan
 
 If critical issues are found:
 
-1. The migration can be reversed: `python manage.py migrate job 0015`
-2. Legacy contact_person and contact_phone fields are preserved
-3. The modal can be hidden by removing the "Manage" button from template
+1. Reverse to the previous migration checkpoint in a development copy.
+2. Restore the previous branch if production rollout is blocked.
+3. Hide the modal by removing the "Manage" button from the template if needed.
 
 ## Sign-off
 
@@ -163,5 +164,5 @@ If critical issues are found:
 ---
 
 _Test Plan Created: 2025-06-09_
-_Feature: Client Contact Management_
+_Feature: Company People Management_
 _Version: 1.0_

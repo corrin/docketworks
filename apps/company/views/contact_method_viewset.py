@@ -1,4 +1,4 @@
-"""Company/contact contact method ViewSet."""
+"""Company/person contact method ViewSet."""
 
 from typing import cast
 
@@ -7,27 +7,27 @@ from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
 from rest_framework.serializers import BaseSerializer
 
-from apps.company.models import ClientContactMethod
-from apps.company.serializers import ClientContactMethodSerializer
+from apps.company.models import ContactMethod
+from apps.company.serializers import ContactMethodSerializer
 from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.api.pagination import PageSizePagination
 
 
-def _phone_number_for_rematch(method: ClientContactMethod | None) -> str | None:
+def _phone_number_for_rematch(method: ContactMethod | None) -> str | None:
     if method is None:
         return None
-    if method.method_type != ClientContactMethod.MethodType.PHONE:
+    if method.method_type != ContactMethod.MethodType.PHONE:
         return None
     normalized = method.normalized_value
     if normalized:
         return normalized
-    return ClientContactMethod.normalize_phone(method.value)
+    return ContactMethod.normalize_phone(method.value)
 
 
-class ClientContactMethodViewSet(viewsets.ModelViewSet):
-    """CRUD API for canonical company/contact phone and email methods."""
+class ContactMethodViewSet(viewsets.ModelViewSet):
+    """CRUD API for canonical company/person phone and email methods."""
 
-    serializer_class = ClientContactMethodSerializer
+    serializer_class = ContactMethodSerializer
     permission_classes = [permissions.IsAuthenticated]
     pagination_class = PageSizePagination
 
@@ -40,7 +40,7 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
                 required=False,
             ),
             OpenApiParameter(
-                name="contact_id",
+                name="person_id",
                 type=OpenApiTypes.UUID,
                 location=OpenApiParameter.QUERY,
                 required=False,
@@ -69,23 +69,15 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
         return super().list(request, *args, **kwargs)
 
     def get_queryset(self):
-        queryset = ClientContactMethod.objects.select_related(
+        queryset = ContactMethod.objects.select_related(
             "company",
-            "contact",
-            "contact__company",
             "person",
         )
         company_id = self.request.query_params.get("company_id")
         if company_id:
-            queryset = (
-                queryset.filter(company_id=company_id)
-                | queryset.filter(contact__company_id=company_id)
-                | queryset.filter(person__company_links__company_id=company_id)
+            queryset = queryset.filter(company_id=company_id) | queryset.filter(
+                person__company_links__company_id=company_id
             )
-
-        contact_id = self.request.query_params.get("contact_id")
-        if contact_id:
-            queryset = queryset.filter(contact_id=contact_id)
 
         person_id = self.request.query_params.get("person_id")
         if person_id:
@@ -97,14 +89,14 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
 
         return queryset.distinct().order_by("method_type", "-is_primary", "value")
 
-    def perform_create(self, serializer: BaseSerializer[ClientContactMethod]) -> None:
+    def perform_create(self, serializer: BaseSerializer[ContactMethod]) -> None:
         method = serializer.save()
         phone_number = _phone_number_for_rematch(method)
         if phone_number:
             rematch_phone_calls_task.delay([phone_number])
 
-    def perform_update(self, serializer: BaseSerializer[ClientContactMethod]) -> None:
-        old_method = cast(ClientContactMethod, self.get_object())
+    def perform_update(self, serializer: BaseSerializer[ContactMethod]) -> None:
+        old_method = cast(ContactMethod, self.get_object())
         old_phone_number = _phone_number_for_rematch(old_method)
         method = serializer.save()
         new_phone_number = _phone_number_for_rematch(method)
@@ -114,7 +106,7 @@ class ClientContactMethodViewSet(viewsets.ModelViewSet):
         if phone_numbers:
             rematch_phone_calls_task.delay(phone_numbers)
 
-    def perform_destroy(self, instance: ClientContactMethod) -> None:
+    def perform_destroy(self, instance: ContactMethod) -> None:
         phone_number = _phone_number_for_rematch(instance)
         instance.delete()
         if phone_number:

@@ -54,13 +54,13 @@
           </option>
         </select>
         <select
-          v-model="selectedContactId"
+          v-model="selectedPersonId"
           class="rounded-md border border-gray-300 p-2 text-sm"
           :disabled="!selectedCompanyId"
         >
-          <option value="">No specific contact</option>
-          <option v-for="contact in contactOptions" :key="contact.id" :value="contact.id">
-            {{ contact.name }}
+          <option value="">No specific person</option>
+          <option v-for="contact in contactOptions" :key="contact.id" :value="contact.person">
+            {{ contact.person_name }}
           </option>
         </select>
       </div>
@@ -71,7 +71,7 @@
             <tr>
               <th class="p-3 text-left font-semibold text-gray-700">Phone Number</th>
               <th class="p-3 text-left font-semibold text-gray-700">Company</th>
-              <th class="p-3 text-left font-semibold text-gray-700">Contact</th>
+              <th class="p-3 text-left font-semibold text-gray-700">Person</th>
               <th class="p-3 text-left font-semibold text-gray-700">Label</th>
               <th class="p-3 text-left font-semibold text-gray-700">Primary</th>
               <th class="p-3 text-right font-semibold text-gray-700">Actions</th>
@@ -84,7 +84,7 @@
             <tr v-for="method in phoneMethods" :key="method.id" class="border-b last:border-b-0">
               <td class="p-3 font-medium text-gray-900">{{ method.value }}</td>
               <td class="p-3 text-gray-700">{{ method.company_name }}</td>
-              <td class="p-3 text-gray-700">{{ method.contact_name || '-' }}</td>
+              <td class="p-3 text-gray-700">{{ method.person_name || '-' }}</td>
               <td class="p-3 text-gray-700">{{ method.label || '-' }}</td>
               <td class="p-3 text-gray-700">{{ method.is_primary ? 'Yes' : '-' }}</td>
               <td class="p-3">
@@ -123,9 +123,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import type { z } from 'zod'
 
-type ClientContactMethod = z.infer<typeof schemas.ClientContactMethod>
-type ClientContactMethodRequest = z.infer<typeof schemas.ClientContactMethodRequest>
-type PatchedClientContactMethodRequest = z.infer<typeof schemas.PatchedClientContactMethodRequest>
+type ContactMethod = z.infer<typeof schemas.ContactMethod>
+type ContactMethodRequest = z.infer<typeof schemas.ContactMethodRequest>
+type PatchedContactMethodRequest = z.infer<typeof schemas.PatchedContactMethodRequest>
 
 const props = withDefaults(
   defineProps<{
@@ -148,7 +148,7 @@ const emit = defineEmits<{
   changed: []
 }>()
 
-const phoneMethods = ref<ClientContactMethod[]>([])
+const phoneMethods = ref<ContactMethod[]>([])
 const phoneMethodCount = ref(0)
 const editingMethodId = ref('')
 const isSaving = ref(false)
@@ -156,14 +156,14 @@ const phoneNumber = ref(props.initialPhoneNumber)
 const phoneLabel = ref('')
 const isPrimary = ref(false)
 const selectedCompanyId = ref(props.fixedCompanyId)
-const selectedContactId = ref('')
+const selectedPersonId = ref('')
 
 const {
   searchQuery: companySearch,
   suggestions: companyOptions,
   contacts: contactOptions,
   browseCompanies,
-  loadClientContacts: loadContacts,
+  loadCompanyPersonLinks: loadContacts,
   logSelectedCompanyClick,
 } = useCompanyLookup()
 
@@ -185,11 +185,11 @@ function logSelectedCompanySearchClick(): void {
   logSelectedCompanyClick(selectedCompanyId.value, props.searchContext)
 }
 
-function phoneMethodBody(): ClientContactMethodRequest {
-  if (selectedContactId.value) {
+function phoneMethodBody(): ContactMethodRequest {
+  if (selectedPersonId.value) {
     return {
       company: null,
-      contact: selectedContactId.value,
+      person: selectedPersonId.value,
       method_type: 'phone',
       value: phoneNumber.value,
       label: phoneLabel.value,
@@ -199,7 +199,7 @@ function phoneMethodBody(): ClientContactMethodRequest {
   }
   return {
     company: selectedCompanyId.value,
-    contact: null,
+    person: null,
     method_type: 'phone',
     value: phoneNumber.value,
     label: phoneLabel.value,
@@ -213,7 +213,7 @@ async function savePhoneMethod(): Promise<void> {
   isSaving.value = true
   try {
     if (editingMethodId.value) {
-      const body: PatchedClientContactMethodRequest = phoneMethodBody()
+      const body: PatchedContactMethodRequest = phoneMethodBody()
       await api.companies_contact_methods_partial_update(body, {
         params: { id: editingMethodId.value },
       })
@@ -234,17 +234,17 @@ async function savePhoneMethod(): Promise<void> {
   }
 }
 
-async function editMethod(method: ClientContactMethod): Promise<void> {
+async function editMethod(method: ContactMethod): Promise<void> {
   editingMethodId.value = method.id
   phoneNumber.value = method.value
   phoneLabel.value = method.label || ''
   isPrimary.value = Boolean(method.is_primary)
   selectedCompanyId.value = method.owner_company
-  selectedContactId.value = method.contact || ''
+  selectedPersonId.value = method.person || ''
   await loadContacts(method.owner_company)
 }
 
-async function deleteMethod(method: ClientContactMethod): Promise<void> {
+async function deleteMethod(method: ContactMethod): Promise<void> {
   if (!window.confirm(`Remove phone number ${method.value}?`)) return
   try {
     await api.companies_contact_methods_destroy(undefined, { params: { id: method.id } })
@@ -265,7 +265,7 @@ function resetForm(): void {
   phoneLabel.value = ''
   isPrimary.value = false
   selectedCompanyId.value = props.fixedCompanyId
-  selectedContactId.value = ''
+  selectedPersonId.value = ''
   if (!props.fixedCompanyId) {
     companySearch.value = ''
     companyOptions.value = []
@@ -293,7 +293,7 @@ watch(
 
 watch(selectedCompanyId, (companyId) => {
   if (!companyId) {
-    selectedContactId.value = ''
+    selectedPersonId.value = ''
   }
   void loadContacts(companyId)
 })

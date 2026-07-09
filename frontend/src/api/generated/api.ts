@@ -633,9 +633,6 @@ const CompanyDetailResponse = z.object({
   allow_jobs: z.boolean(),
   xero_contact_id: z.string(),
   xero_tenant_id: z.string(),
-  primary_contact_name: z.string(),
-  primary_contact_email: z.string(),
-  additional_contact_persons: z.array(z.unknown()).optional(),
   xero_last_modified: z.string().datetime({ offset: true }).nullable(),
   xero_last_synced: z.string().datetime({ offset: true }).nullable(),
   xero_archived: z.boolean(),
@@ -709,81 +706,48 @@ const PatchedCompanyUpdateRequest = z
   .partial()
 const CompanyNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
 const MethodTypeEnum = z.enum(['phone', 'email'])
-const ClientContactMethodSourceEnum = z.enum(['imported', 'local'])
-const ClientContactMethod = z.object({
+const ContactMethodSourceEnum = z.enum(['imported', 'local'])
+const ContactMethod = z.object({
   id: z.string().uuid(),
   company: z.string().uuid().nullish(),
   owner_company: z.string(),
   company_name: z.string(),
-  contact: z.string().uuid().nullish(),
-  contact_name: z.string(),
+  person: z.string().uuid().nullish(),
+  person_name: z.string(),
   method_type: MethodTypeEnum,
   value: z.string().max(255),
   normalized_value: z.string(),
   label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
-  source: ClientContactMethodSourceEnum.optional(),
+  source: ContactMethodSourceEnum.optional(),
   created_at: z.string().datetime({ offset: true }),
   updated_at: z.string().datetime({ offset: true }),
 })
-const PaginatedClientContactMethodList = z.object({
-  results: z.array(ClientContactMethod),
+const PaginatedContactMethodList = z.object({
+  results: z.array(ContactMethod),
   count: z.number().int(),
   page: z.number().int(),
   page_size: z.number().int(),
   total_pages: z.number().int(),
 })
-const ClientContactMethodRequest = z.object({
+const ContactMethodRequest = z.object({
   company: z.string().uuid().nullish(),
-  contact: z.string().uuid().nullish(),
+  person: z.string().uuid().nullish(),
   method_type: MethodTypeEnum,
   value: z.string().min(1).max(255),
   label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
-  source: ClientContactMethodSourceEnum.optional(),
+  source: ContactMethodSourceEnum.optional(),
 })
-const PatchedClientContactMethodRequest = z
+const PatchedContactMethodRequest = z
   .object({
     company: z.string().uuid().nullable(),
-    contact: z.string().uuid().nullable(),
+    person: z.string().uuid().nullable(),
     method_type: MethodTypeEnum,
     value: z.string().min(1).max(255),
     label: z.string().max(255),
     is_primary: z.boolean().default(false),
-    source: ClientContactMethodSourceEnum,
-  })
-  .partial()
-const ClientContact = z.object({
-  id: z.string().uuid(),
-  company: z.string().uuid(),
-  name: z.string().max(255),
-  email: z.string().max(254).email().nullish(),
-  position: z.string().max(255).nullish(),
-  is_primary: z.boolean().optional(),
-  notes: z.string().nullish(),
-  is_active: z.boolean(),
-  created_at: z.string().datetime({ offset: true }),
-  updated_at: z.string().datetime({ offset: true }),
-  phone: z.string().nullish().default(''),
-})
-const ClientContactRequest = z.object({
-  company: z.string().uuid(),
-  name: z.string().min(1).max(255),
-  email: z.string().max(254).email().nullish(),
-  position: z.string().max(255).nullish(),
-  is_primary: z.boolean().optional(),
-  notes: z.string().nullish(),
-  phone: z.string().nullish().default(''),
-})
-const PatchedClientContactRequest = z
-  .object({
-    company: z.string().uuid(),
-    name: z.string().min(1).max(255),
-    email: z.string().max(254).email().nullable(),
-    position: z.string().max(255).nullable(),
-    is_primary: z.boolean(),
-    notes: z.string().nullable(),
-    phone: z.string().nullable().default(''),
+    source: ContactMethodSourceEnum,
   })
   .partial()
 const CompanyCreateRequest = z.object({
@@ -817,22 +781,53 @@ const CompanyDuplicateErrorResponse = z.object({
   error: z.string(),
   existing_company: z.object({}).partial().passthrough(),
 })
-const JobContactResponse = z.object({
+const JobPersonResponse = z.object({
   id: z.string().uuid(),
   name: z.string(),
   email: z.string().nullable(),
-  position: z.string().nullable(),
-  is_primary: z.boolean(),
-  notes: z.string().nullable(),
 })
-const JobContactUpdateRequest = z.object({
+const JobPersonUpdateRequest = z.object({
   id: z.string().uuid(),
   name: z.string().min(1),
   email: z.string().nullable(),
-  position: z.string().nullable(),
-  is_primary: z.boolean(),
-  notes: z.string().nullable(),
 })
+const CompanyPersonLink = z.object({
+  id: z.string().uuid(),
+  company: z.string().uuid(),
+  person: z.string().uuid(),
+  person_name: z.string(),
+  person_email: z.string().email().nullish(),
+  xero_name: z.string().max(255).nullish(),
+  position: z.string().max(255).nullish(),
+  is_primary: z.boolean().optional(),
+  notes: z.string().nullish(),
+  is_active: z.boolean(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+  phone: z.string().nullish().default(''),
+})
+const CompanyPersonLinkRequest = z.object({
+  company: z.string().uuid(),
+  person_name: z.string().min(1),
+  person_email: z.string().email().nullish(),
+  xero_name: z.string().max(255).nullish(),
+  position: z.string().max(255).nullish(),
+  is_primary: z.boolean().optional(),
+  notes: z.string().nullish(),
+  phone: z.string().nullish().default(''),
+})
+const PatchedCompanyPersonLinkRequest = z
+  .object({
+    company: z.string().uuid(),
+    person_name: z.string().min(1),
+    person_email: z.string().email().nullable(),
+    xero_name: z.string().max(255).nullable(),
+    position: z.string().max(255).nullable(),
+    is_primary: z.boolean(),
+    notes: z.string().nullable(),
+    phone: z.string().nullable().default(''),
+  })
+  .partial()
 const SupplierPickupAddress = z.object({
   id: z.string().uuid(),
   company: z.string().uuid(),
@@ -1141,8 +1136,8 @@ const PhoneCallRecord = z.object({
   charge: z.number().gt(-100000000).lt(100000000).nullable(),
   company: z.string().uuid().nullable(),
   company_name: z.string(),
-  contact: z.string().uuid().nullable(),
-  contact_name: z.string(),
+  person: z.string().uuid().nullable(),
+  person_name: z.string(),
   job: z.string().uuid().nullable(),
   job_number: z.number().int().nullable(),
   job_name: z.string(),
@@ -1162,7 +1157,7 @@ const PaginatedPhoneCallRecordList = z.object({
 })
 const PhoneNumberAssignmentRequest = z.object({
   company: z.string().uuid(),
-  contact: z.string().uuid().nullish(),
+  person: z.string().uuid().nullish(),
   is_primary: z.boolean().optional().default(false),
   label: z.string().max(255).optional().default(''),
 })
@@ -1402,7 +1397,7 @@ const JobCreateRequest = z.object({
   description: z.string().optional(),
   order_number: z.string().optional(),
   notes: z.string().optional(),
-  contact_id: z.string().uuid().nullish(),
+  person_id: z.string().uuid().nullish(),
   pricing_methodology: z.string().nullish(),
   estimated_materials: z.number().gte(0).lt(100000000),
   estimated_time: z.number().gte(0).lt(100000000),
@@ -1497,8 +1492,8 @@ const Job = z.object({
   name: z.string().max(100),
   company_id: z.string().uuid().nullish(),
   company_name: z.string().nullable(),
-  contact_id: z.string().uuid().nullish(),
-  contact_name: z.string().nullable(),
+  person_id: z.string().uuid().nullish(),
+  person_name: z.string().nullable(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
   notes: z.string().nullish(),
   order_number: z.string().max(100).nullish(),
@@ -1710,8 +1705,8 @@ const JobHeaderResponse = z.object({
   job_id: z.string().uuid(),
   company_id: z.string().uuid().nullable(),
   company_name: z.string().nullable(),
-  contact_id: z.string().uuid().nullable(),
-  contact_name: z.string().nullable(),
+  person_id: z.string().uuid().nullable(),
+  person_name: z.string().nullable(),
   quoted: z.boolean(),
   default_xero_pay_item_id: z.string().uuid().nullable(),
   default_xero_pay_item_name: z.string().nullable(),
@@ -1836,8 +1831,8 @@ const JobSummary = z.object({
   name: z.string().max(100),
   company_id: z.string().uuid().nullish(),
   company_name: z.string().nullable(),
-  contact_id: z.string().uuid().nullish(),
-  contact_name: z.string().nullable(),
+  person_id: z.string().uuid().nullish(),
+  person_name: z.string().nullable(),
   job_number: z.number().int().gte(-2147483648).lte(2147483647),
   notes: z.string().nullish(),
   order_number: z.string().max(100).nullish(),
@@ -1977,7 +1972,7 @@ const KanbanJob = z.object({
   description: z.string().nullable(),
   job_number: z.number().int(),
   company_name: z.string(),
-  contact_person: z.string(),
+  person_name: z.string(),
   people: z.array(KanbanJobPerson),
   status: z.string(),
   status_key: z.string(),
@@ -2045,7 +2040,7 @@ const KanbanColumnJob = z.object({
   name: z.string(),
   description: z.string().nullable(),
   company_name: z.string(),
-  contact_person: z.string(),
+  person_name: z.string(),
   people: z.array(KanbanJobPerson),
   status: z.string(),
   status_key: z.string(),
@@ -2116,7 +2111,7 @@ const WorkshopJob = z.object({
   description: z.string().nullable(),
   job_number: z.number().int(),
   company_name: z.string(),
-  contact_person: z.string().nullable(),
+  person_name: z.string().nullable(),
   people: z.array(KanbanJobPerson),
 })
 const LabourSubtype = z.object({
@@ -3061,7 +3056,7 @@ const AppErrorListResponse = z.object({
   previous: z.string().nullish(),
   results: z.array(AppError),
 })
-const DomainEnum = z.enum(['client', 'kanban', 'stock'])
+const DomainEnum = z.enum(['company', 'kanban', 'stock'])
 const SearchTelemetryClickRequestRequest = z.object({
   domain: DomainEnum,
   query: z.string().max(255),
@@ -3604,20 +3599,20 @@ export const schemas = {
   PatchedCompanyUpdateRequest,
   CompanyNameOnly,
   MethodTypeEnum,
-  ClientContactMethodSourceEnum,
-  ClientContactMethod,
-  PaginatedClientContactMethodList,
-  ClientContactMethodRequest,
-  PatchedClientContactMethodRequest,
-  ClientContact,
-  ClientContactRequest,
-  PatchedClientContactRequest,
+  ContactMethodSourceEnum,
+  ContactMethod,
+  PaginatedContactMethodList,
+  ContactMethodRequest,
+  PatchedContactMethodRequest,
   CompanyCreateRequest,
   CompanySearchResult,
   CompanyCreateResponse,
   CompanyDuplicateErrorResponse,
-  JobContactResponse,
-  JobContactUpdateRequest,
+  JobPersonResponse,
+  JobPersonUpdateRequest,
+  CompanyPersonLink,
+  CompanyPersonLinkRequest,
+  PatchedCompanyPersonLinkRequest,
   SupplierPickupAddress,
   SupplierPickupAddressRequest,
   PatchedSupplierPickupAddressRequest,
@@ -4993,16 +4988,11 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
     method: 'get',
     path: '/api/companies/contact-methods/',
     alias: 'companies_contact_methods_list',
-    description: `CRUD API for canonical company/contact phone and email methods.`,
+    description: `CRUD API for canonical company/person phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'company_id',
-        type: 'Query',
-        schema: z.string().uuid().optional(),
-      },
-      {
-        name: 'contact_id',
         type: 'Query',
         schema: z.string().uuid().optional(),
       },
@@ -5021,29 +5011,34 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         type: 'Query',
         schema: z.number().int().optional(),
       },
+      {
+        name: 'person_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
     ],
-    response: PaginatedClientContactMethodList,
+    response: PaginatedContactMethodList,
   },
   {
     method: 'post',
     path: '/api/companies/contact-methods/',
     alias: 'companies_contact_methods_create',
-    description: `CRUD API for canonical company/contact phone and email methods.`,
+    description: `CRUD API for canonical company/person phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: ClientContactMethodRequest,
+        schema: ContactMethodRequest,
       },
     ],
-    response: ClientContactMethod,
+    response: ContactMethod,
   },
   {
     method: 'get',
     path: '/api/companies/contact-methods/:id/',
     alias: 'companies_contact_methods_retrieve',
-    description: `CRUD API for canonical company/contact phone and email methods.`,
+    description: `CRUD API for canonical company/person phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5052,19 +5047,19 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         schema: z.string().uuid(),
       },
     ],
-    response: ClientContactMethod,
+    response: ContactMethod,
   },
   {
     method: 'put',
     path: '/api/companies/contact-methods/:id/',
     alias: 'companies_contact_methods_update',
-    description: `CRUD API for canonical company/contact phone and email methods.`,
+    description: `CRUD API for canonical company/person phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: ClientContactMethodRequest,
+        schema: ContactMethodRequest,
       },
       {
         name: 'id',
@@ -5072,19 +5067,19 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         schema: z.string().uuid(),
       },
     ],
-    response: ClientContactMethod,
+    response: ContactMethod,
   },
   {
     method: 'patch',
     path: '/api/companies/contact-methods/:id/',
     alias: 'companies_contact_methods_partial_update',
-    description: `CRUD API for canonical company/contact phone and email methods.`,
+    description: `CRUD API for canonical company/person phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: PatchedClientContactMethodRequest,
+        schema: PatchedContactMethodRequest,
       },
       {
         name: 'id',
@@ -5092,168 +5087,13 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         schema: z.string().uuid(),
       },
     ],
-    response: ClientContactMethod,
+    response: ContactMethod,
   },
   {
     method: 'delete',
     path: '/api/companies/contact-methods/:id/',
     alias: 'companies_contact_methods_destroy',
-    description: `CRUD API for canonical company/contact phone and email methods.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: z.void(),
-  },
-  {
-    method: 'get',
-    path: '/api/companies/contacts/',
-    alias: 'companies_contacts_list',
-    description: `List all contacts, optionally filtered by company_id.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'company_id',
-        type: 'Query',
-        schema: z.string().uuid().optional(),
-      },
-    ],
-    response: z.array(ClientContact),
-  },
-  {
-    method: 'post',
-    path: '/api/companies/contacts/',
-    alias: 'companies_contacts_create',
-    description: `ViewSet for ClientContact CRUD operations.
-
-Endpoints:
-- GET    /api/companies/contacts/           - list all contacts
-- POST   /api/companies/contacts/           - create contact
-- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter contacts by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: ClientContactRequest,
-      },
-    ],
-    response: ClientContact,
-  },
-  {
-    method: 'get',
-    path: '/api/companies/contacts/:id/',
-    alias: 'companies_contacts_retrieve',
-    description: `ViewSet for ClientContact CRUD operations.
-
-Endpoints:
-- GET    /api/companies/contacts/           - list all contacts
-- POST   /api/companies/contacts/           - create contact
-- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter contacts by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: ClientContact,
-  },
-  {
-    method: 'put',
-    path: '/api/companies/contacts/:id/',
-    alias: 'companies_contacts_update',
-    description: `ViewSet for ClientContact CRUD operations.
-
-Endpoints:
-- GET    /api/companies/contacts/           - list all contacts
-- POST   /api/companies/contacts/           - create contact
-- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter contacts by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: ClientContactRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: ClientContact,
-  },
-  {
-    method: 'patch',
-    path: '/api/companies/contacts/:id/',
-    alias: 'companies_contacts_partial_update',
-    description: `ViewSet for ClientContact CRUD operations.
-
-Endpoints:
-- GET    /api/companies/contacts/           - list all contacts
-- POST   /api/companies/contacts/           - create contact
-- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter contacts by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PatchedClientContactRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: ClientContact,
-  },
-  {
-    method: 'delete',
-    path: '/api/companies/contacts/:id/',
-    alias: 'companies_contacts_destroy',
-    description: `ViewSet for ClientContact CRUD operations.
-
-Endpoints:
-- GET    /api/companies/contacts/           - list all contacts
-- POST   /api/companies/contacts/           - create contact
-- GET    /api/companies/contacts/&lt;id&gt;/      - retrieve contact
-- PUT    /api/companies/contacts/&lt;id&gt;/      - full update
-- PATCH  /api/companies/contacts/&lt;id&gt;/      - partial update
-- DELETE /api/companies/contacts/&lt;id&gt;/      - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter contacts by company UUID`,
+    description: `CRUD API for canonical company/person phone and email methods.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5299,9 +5139,9 @@ Query Parameters:
   },
   {
     method: 'get',
-    path: '/api/companies/jobs/:job_id/contact/',
-    alias: 'companies_jobs_contact_retrieve',
-    description: `Retrieve contact information for a specific job.`,
+    path: '/api/companies/jobs/:job_id/person/',
+    alias: 'companies_jobs_person_retrieve',
+    description: `Retrieve person information for a specific job.`,
     requestFormat: 'json',
     parameters: [
       {
@@ -5310,7 +5150,7 @@ Query Parameters:
         schema: z.string().uuid(),
       },
     ],
-    response: JobContactResponse,
+    response: JobPersonResponse,
     errors: [
       {
         status: 404,
@@ -5324,15 +5164,15 @@ Query Parameters:
   },
   {
     method: 'put',
-    path: '/api/companies/jobs/:job_id/contact/',
-    alias: 'companies_jobs_contact_update',
-    description: `Update the contact person associated with a specific job.`,
+    path: '/api/companies/jobs/:job_id/person/',
+    alias: 'companies_jobs_person_update',
+    description: `Update the person associated with a specific job.`,
     requestFormat: 'json',
     parameters: [
       {
         name: 'body',
         type: 'Body',
-        schema: JobContactUpdateRequest,
+        schema: JobPersonUpdateRequest,
       },
       {
         name: 'job_id',
@@ -5340,7 +5180,7 @@ Query Parameters:
         schema: z.string().uuid(),
       },
     ],
-    response: JobContactResponse,
+    response: JobPersonResponse,
     errors: [
       {
         status: 400,
@@ -5355,6 +5195,161 @@ Query Parameters:
         schema: CompanyErrorResponse,
       },
     ],
+  },
+  {
+    method: 'get',
+    path: '/api/companies/person-links/',
+    alias: 'companies_person_links_list',
+    description: `List all company-person links, optionally filtered by company_id.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'company_id',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
+      },
+    ],
+    response: z.array(CompanyPersonLink),
+  },
+  {
+    method: 'post',
+    path: '/api/companies/person-links/',
+    alias: 'companies_person_links_create',
+    description: `ViewSet for CompanyPersonLink CRUD operations.
+
+Endpoints:
+- GET    /api/companies/person-links/       - list all company-person links
+- POST   /api/companies/person-links/       - create link
+- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
+- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
+- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
+- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
+
+Query Parameters:
+- company_id: Filter links by company UUID`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: CompanyPersonLinkRequest,
+      },
+    ],
+    response: CompanyPersonLink,
+  },
+  {
+    method: 'get',
+    path: '/api/companies/person-links/:id/',
+    alias: 'companies_person_links_retrieve',
+    description: `ViewSet for CompanyPersonLink CRUD operations.
+
+Endpoints:
+- GET    /api/companies/person-links/       - list all company-person links
+- POST   /api/companies/person-links/       - create link
+- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
+- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
+- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
+- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
+
+Query Parameters:
+- company_id: Filter links by company UUID`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: CompanyPersonLink,
+  },
+  {
+    method: 'put',
+    path: '/api/companies/person-links/:id/',
+    alias: 'companies_person_links_update',
+    description: `ViewSet for CompanyPersonLink CRUD operations.
+
+Endpoints:
+- GET    /api/companies/person-links/       - list all company-person links
+- POST   /api/companies/person-links/       - create link
+- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
+- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
+- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
+- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
+
+Query Parameters:
+- company_id: Filter links by company UUID`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: CompanyPersonLinkRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: CompanyPersonLink,
+  },
+  {
+    method: 'patch',
+    path: '/api/companies/person-links/:id/',
+    alias: 'companies_person_links_partial_update',
+    description: `ViewSet for CompanyPersonLink CRUD operations.
+
+Endpoints:
+- GET    /api/companies/person-links/       - list all company-person links
+- POST   /api/companies/person-links/       - create link
+- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
+- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
+- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
+- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
+
+Query Parameters:
+- company_id: Filter links by company UUID`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedCompanyPersonLinkRequest,
+      },
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: CompanyPersonLink,
+  },
+  {
+    method: 'delete',
+    path: '/api/companies/person-links/:id/',
+    alias: 'companies_person_links_destroy',
+    description: `ViewSet for CompanyPersonLink CRUD operations.
+
+Endpoints:
+- GET    /api/companies/person-links/       - list all company-person links
+- POST   /api/companies/person-links/       - create link
+- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
+- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
+- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
+- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
+
+Query Parameters:
+- company_id: Filter links by company UUID`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
   },
   {
     method: 'get',
@@ -5774,11 +5769,6 @@ DELETE: Clear a logo field and remove the file from disk.`,
         schema: z.string().uuid().optional(),
       },
       {
-        name: 'contact',
-        type: 'Query',
-        schema: z.string().uuid().optional(),
-      },
-      {
         name: 'destination_endpoint',
         type: 'Query',
         schema: z.string().uuid().optional(),
@@ -5822,6 +5812,11 @@ DELETE: Clear a logo field and remove the file from disk.`,
         name: 'page_size',
         type: 'Query',
         schema: z.number().int().optional(),
+      },
+      {
+        name: 'person',
+        type: 'Query',
+        schema: z.string().uuid().optional(),
       },
       {
         name: 'q',
@@ -7360,11 +7355,6 @@ Expected JSON:
         schema: z.string().optional(),
       },
       {
-        name: 'contact_person',
-        type: 'Query',
-        schema: z.string().optional(),
-      },
-      {
         name: 'created_after',
         type: 'Query',
         schema: z.string().optional(),
@@ -7401,6 +7391,11 @@ Expected JSON:
       },
       {
         name: 'paid',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+      {
+        name: 'person_name',
         type: 'Query',
         schema: z.string().optional(),
       },

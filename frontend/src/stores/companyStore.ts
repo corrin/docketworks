@@ -8,7 +8,7 @@ import type { z } from 'zod'
 type CompanySearchResult = z.infer<typeof schemas.CompanySearchResult>
 type CompanySearchResponse = z.infer<typeof schemas.CompanySearchResponse>
 type CompanyDetail = z.infer<typeof schemas.CompanyDetailResponse>
-type ClientContact = z.infer<typeof schemas.ClientContact>
+type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
 type CompanyJobsResponse = z.infer<typeof schemas.CompanyJobsResponse>
 
 // Type for company jobs - inferred from generated schema
@@ -35,7 +35,7 @@ export const useCompanyStore = defineStore('companies', () => {
 
   // State - company details and related data
   const detailedCompanies = ref<Record<string, CompanyDetail>>({})
-  const companyContacts = ref<Record<string, ClientContact[]>>({})
+  const companyContacts = ref<Record<string, CompanyPersonLink[]>>({})
   const companyJobs = ref<Record<string, CompanyJob[]>>({})
   const isLoading = ref(false)
   const isLoadingDetail = ref(false)
@@ -107,11 +107,11 @@ export const useCompanyStore = defineStore('companies', () => {
    * Fetch contacts for a specific company
    * @param companyId UUID of the company
    */
-  async function fetchClientContacts(companyId: string) {
+  async function fetchCompanyPersonLinks(companyId: string) {
     isLoadingContacts.value = true
 
     try {
-      const response = await api.companies_contacts_list({
+      const response = await api.companies_person_links_list({
         queries: { company_id: companyId },
       })
       companyContacts.value[companyId] = response
@@ -140,11 +140,11 @@ export const useCompanyStore = defineStore('companies', () => {
    * Get cached company contacts or fetch if not available
    * @param companyId UUID of the company
    */
-  async function getClientContacts(companyId: string): Promise<ClientContact[]> {
+  async function getCompanyPersonLinks(companyId: string): Promise<CompanyPersonLink[]> {
     if (companyContacts.value[companyId]) {
       return companyContacts.value[companyId]
     }
-    return await fetchClientContacts(companyId)
+    return await fetchCompanyPersonLinks(companyId)
   }
 
   /**
@@ -220,10 +220,10 @@ export const useCompanyStore = defineStore('companies', () => {
     // Actions
     fetchCompanies,
     fetchCompanyDetail,
-    fetchClientContacts,
+    fetchCompanyPersonLinks,
     fetchCompanyJobs,
     getCompanyDetail,
-    getClientContacts,
+    getCompanyPersonLinks,
     getCompanyJobs,
     clearCache,
   }

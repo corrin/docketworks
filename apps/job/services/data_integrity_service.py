@@ -17,7 +17,7 @@ from apps.accounting.models import (
     Quote,
 )
 from apps.accounts.models import Staff
-from apps.company.models import ClientContact, Company
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import (
     CostLine,
     CostSet,
@@ -116,7 +116,7 @@ class DataIntegrityService:
         """Check Job FK references."""
         issues = []
         valid_company_ids = set(Company.objects.values_list("id", flat=True))
-        valid_contact_ids = set(ClientContact.objects.values_list("id", flat=True))
+        valid_person_ids = set(Person.objects.values_list("id", flat=True))
         valid_staff_ids = set(Staff.objects.values_list("id", flat=True))
         valid_costset_ids = set(CostSet.objects.values_list("id", flat=True))
 
@@ -131,14 +131,14 @@ class DataIntegrityService:
                         "target_id": str(job.company_id),
                     }
                 )
-            if job.contact_id and job.contact_id not in valid_contact_ids:
+            if job.person_id and job.person_id not in valid_person_ids:
                 issues.append(
                     {
                         "model": "Job",
                         "record_id": str(job.id),
-                        "field": "contact",
-                        "target_model": "ClientContact",
-                        "target_id": str(job.contact_id),
+                        "field": "person",
+                        "target_model": "Person",
+                        "target_id": str(job.person_id),
                     }
                 )
             if job.created_by_id and job.created_by_id not in valid_staff_ids:
@@ -593,19 +593,30 @@ class DataIntegrityService:
 
     @staticmethod
     def _check_clientcontact_fks() -> list[dict[str, Any]]:
-        """Check ClientContact FK references."""
+        """Check CompanyPersonLink FK references."""
         issues = []
         valid_company_ids = set(Company.objects.values_list("id", flat=True))
+        valid_person_ids = set(Person.objects.values_list("id", flat=True))
 
-        for contact in ClientContact.objects.all():
+        for contact in CompanyPersonLink.objects.all():
             if contact.company_id not in valid_company_ids:
                 issues.append(
                     {
-                        "model": "ClientContact",
+                        "model": "CompanyPersonLink",
                         "record_id": str(contact.id),
                         "field": "company",
                         "target_model": "Company",
                         "target_id": str(contact.company_id),
+                    }
+                )
+            if contact.person_id not in valid_person_ids:
+                issues.append(
+                    {
+                        "model": "CompanyPersonLink",
+                        "record_id": str(contact.id),
+                        "field": "person",
+                        "target_model": "Person",
+                        "target_id": str(contact.person_id),
                     }
                 )
 

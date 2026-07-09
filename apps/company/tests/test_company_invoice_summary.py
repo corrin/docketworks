@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from apps.accounting.models import Invoice
-from apps.company.models import ClientContactMethod, Company
+from apps.company.models import Company, ContactMethod
 from apps.company.services.company_rest_service import CompanyRestService
 from apps.company.utils import date_to_datetime
 from apps.company.views.company_rest_views import CompanyCreateRestView
@@ -97,7 +97,7 @@ def test_formatting_annotated_companies_does_not_query_invoice_metrics(db):
     companies = list(
         Company.objects.with_invoice_summary()
         .annotate(
-            phone=ClientContactMethod.primary_phone_annotation(
+            phone=ContactMethod.primary_phone_annotation(
                 owner="company", outer_ref="pk"
             )
         )

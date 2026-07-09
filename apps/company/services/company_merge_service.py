@@ -17,33 +17,17 @@ import logging
 from django.db import transaction
 from django.utils import timezone
 
-from apps.company.models import ClientContact, ClientContactMethod, Company
+from apps.company.models import Company, CompanyPersonLink, ContactMethod
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
 
 
-def _move_contact_methods(
-    *,
-    source_contact: ClientContact | None,
-    source_company: Company | None,
-    destination_contact: ClientContact | None,
-    destination_company: Company | None,
-) -> int:
-    if source_contact is None:
-        source_queryset = ClientContactMethod.objects.filter(
-            company=source_company,
-            contact__isnull=True,
-        )
-        destination_queryset = ClientContactMethod.objects.filter(
-            company=destination_company,
-            contact__isnull=True,
-        )
-    else:
-        source_queryset = ClientContactMethod.objects.filter(contact=source_contact)
-        destination_queryset = ClientContactMethod.objects.filter(
-            contact=destination_contact
-        )
+def _move_company_contact_methods(source: Company, destination: Company) -> int:
+    """Move only company-owned methods during a company merge."""
+
+    source_queryset = ContactMethod.objects.filter(company=source)
+    destination_queryset = ContactMethod.objects.filter(company=destination)
 
     affected = 0
 
@@ -60,11 +44,11 @@ def _move_contact_methods(
         if (method_type, normalized_value) in destination_pairs
     ]
     if duplicate_ids:
-        ClientContactMethod.objects.filter(id__in=duplicate_ids).delete()
+        ContactMethod.objects.filter(id__in=duplicate_ids).delete()
         affected += len(duplicate_ids)
 
     # A moving primary method wins over the destination's existing primary of
-    # the same method_type (mirrors ClientContactMethod.save()'s demotion),
+    # the same method_type (mirrors ContactMethod.save()'s demotion),
     # keeping the partial unique constraints on (owner, method_type, is_primary)
     # satisfied.
     moving_primary_types = list(
@@ -76,24 +60,16 @@ def _move_contact_methods(
             is_primary=True,
         ).update(is_primary=False)
 
-    # queryset.update() bypasses ClientContactMethod.save()'s
+    # queryset.update() bypasses ContactMethod.save()'s
     # one-number-one-company guard DELIBERATELY: a merge moves ALL of the
     # source's methods to the destination, so any cross-company sharing the
     # guard would flag (e.g. the company-level/contact-level twins migration
     # 0023 created) already existed before the merge — the move creates no
     # new conflicting ownership.
-    if destination_contact is None:
-        affected += source_queryset.update(
-            company=destination_company,
-            contact=None,
-            updated_at=timezone.now(),
-        )
-    else:
-        affected += source_queryset.update(
-            company=None,
-            contact=destination_contact,
-            updated_at=timezone.now(),
-        )
+    affected += source_queryset.update(
+        company=destination,
+        updated_at=timezone.now(),
+    )
     return affected
 
 
@@ -110,37 +86,34 @@ def _move_company_contacts_and_methods(
         "phone_calls": 0,
     }
 
-    counts["contact_methods"] += _move_contact_methods(
-        source_contact=None,
-        source_company=source,
-        destination_contact=None,
-        destination_company=destination,
-    )
+    counts["contact_methods"] += _move_company_contact_methods(source, destination)
 
-    destination_contacts_by_name = {
-        existing.name: existing
-        for existing in ClientContact.objects.filter(company=destination)
+    destination_links_by_person = {
+        existing.person_id: existing
+        for existing in CompanyPersonLink.objects.filter(company=destination)
     }
-    for contact in ClientContact.objects.filter(company=source).iterator():
-        destination_contact = destination_contacts_by_name.get(contact.name)
-        if destination_contact is None:
-            contact.company = destination
-            contact.save(update_fields=["company", "updated_at"])
-            destination_contact = contact
+    for link in CompanyPersonLink.objects.filter(company=source).iterator():
+        destination_link = destination_links_by_person.get(link.person_id)
+        if destination_link is None:
+            if (
+                link.xero_name is not None
+                and CompanyPersonLink.objects.filter(
+                    company=destination,
+                    xero_name=link.xero_name,
+                ).exists()
+            ):
+                link.xero_name = None
+            link.company = destination
+            link.save(update_fields=["company", "xero_name", "updated_at"])
+            destination_links_by_person[link.person_id] = link
         else:
-            counts["contact_methods"] += _move_contact_methods(
-                source_contact=contact,
-                source_company=None,
-                destination_contact=destination_contact,
-                destination_company=None,
-            )
             counts["phone_calls"] += PhoneCallRecord.objects.filter(
-                contact=contact
+                person=link.person,
+                company=source,
             ).update(
                 company=destination,
-                contact=destination_contact,
             )
-            contact.delete()
+            link.delete()
 
         counts["contacts"] += 1
 

@@ -51,8 +51,8 @@ class JobHeaderViewTests(BaseAPITestCase):
         payload = response.json()
         self.assertIsNone(payload["company_id"])
         self.assertIsNone(payload["company_name"])
-        self.assertIsNone(payload["contact_id"])
-        self.assertIsNone(payload["contact_name"])
+        self.assertIsNone(payload["person_id"])
+        self.assertIsNone(payload["person_name"])
 
     def test_etag_round_trip_returns_304(self) -> None:
         job_company = Company.objects.create(

@@ -8,7 +8,7 @@ import { logSearchResultClick } from '@/services/searchTelemetry.service'
 
 // Use generated schemas
 export type Company = z.infer<typeof schemas.CompanySearchResult>
-export type ClientContact = z.infer<typeof schemas.ClientContact>
+export type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
 
 type UseCompanyLookupOptions = {
   supplierLookup?: { value: boolean }
@@ -27,7 +27,7 @@ export async function logCompanySearchClick(
 
   try {
     await logSearchResultClick({
-      domain: 'client',
+      domain: 'company',
       query: trimmedQuery,
       selectedResultId: company.id,
       selectedLabel: company.name,
@@ -45,7 +45,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
   const isLoading = ref(false)
   const showSuggestions = ref(false)
   const selectedCompany = ref<Company | null>(null)
-  const contacts = ref<ClientContact[]>([])
+  const contacts = ref<CompanyPersonLink[]>([])
 
   const hasValidXeroId = computed(() => {
     debugLog('Selected company value: ', selectedCompany.value)
@@ -138,17 +138,17 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
 
     contacts.value = []
 
-    await loadClientContacts(company.id)
+    await loadCompanyPersonLinks(company.id)
   }
 
-  const loadClientContacts = async (companyId: string) => {
+  const loadCompanyPersonLinks = async (companyId: string) => {
     if (!companyId) {
       contacts.value = []
       return
     }
 
     try {
-      const response = await api.companies_contacts_list({
+      const response = await api.companies_person_links_list({
         queries: { company_id: companyId },
       })
       contacts.value = response || []
@@ -159,7 +159,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     }
   }
 
-  const getPrimaryContact = (): ClientContact | null => {
+  const getPrimaryContact = (): CompanyPersonLink | null => {
     if (contacts.value.length === 0) {
       return null
     }
@@ -258,7 +258,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     browseCompanies,
     logSelectedCompanyClick,
     selectCompany,
-    loadClientContacts,
+    loadCompanyPersonLinks,
     getPrimaryContact,
     clearSelection,
     handleInputChange,

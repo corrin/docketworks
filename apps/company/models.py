@@ -67,9 +67,6 @@ class Company(models.Model):
         "allow_jobs",
         "xero_contact_id",
         "xero_tenant_id",
-        "primary_contact_name",
-        "primary_contact_email",
-        "additional_contact_persons",
         "xero_last_modified",
         "xero_last_synced",
         "xero_archived",
@@ -109,13 +106,6 @@ class Company(models.Model):
     raw_json = models.JSONField(
         null=True, blank=True
     )  # For debugging, stores the raw JSON from Xero
-
-    # Fields for the primary contact person
-    primary_contact_name = models.CharField(max_length=255, null=True, blank=True)
-    primary_contact_email = models.EmailField(null=True, blank=True)
-
-    # Store all contact persons from the Xero ContactPersons list
-    additional_contact_persons = models.JSONField(null=True, blank=True, default=list)
 
     django_created_at = models.DateTimeField(auto_now_add=True)
     django_updated_at = models.DateTimeField(auto_now=True)
@@ -249,12 +239,10 @@ class Company(models.Model):
         """The company's own primary phone number, or "" when it has none.
 
         Single-object flows only (Xero sync, PO PDFs). Queryset consumers must
-        use ClientContactMethod.primary_phone_annotation instead.
+        use ContactMethod.primary_phone_annotation instead.
         """
         method = (
-            self.contact_methods.filter(
-                method_type=ClientContactMethod.MethodType.PHONE
-            )
+            self.contact_methods.filter(method_type=ContactMethod.MethodType.PHONE)
             .order_by(*PRIMARY_PHONE_ORDERING)
             .first()
         )
@@ -323,28 +311,12 @@ class Person(models.Model):
 
 
 class CompanyPersonLink(models.Model):
-    """
-    Represents a contact person for a company.
-    This model stores contact information that was previously synced with Xero
-    but is now managed entirely within our application.
-    """
+    """A person's role/relationship at a company."""
 
-    # CHECKLIST - when adding a new field or property to ClientContact, check these locations:
-    #   1. CLIENTCONTACT_API_FIELDS or CLIENTCONTACT_INTERNAL_FIELDS below (if it's a model field)
-    #   2. ClientContactSerializer in apps/company/serializers.py (uses CLIENTCONTACT_API_FIELDS)
-    #   3. ClientContactSerializer.to_internal_value() nullable_fields list (converts "" → None)
-    #   4. JobContactResponseSerializer in apps/company/serializers.py (subset for job context)
-    #   5. ClientContactViewSet in apps/company/views/contact_viewset.py (CRUD operations)
-    #   6. Job.contact FK in apps/job/models/job.py (relationship to ClientContact)
-    #   7. reprocess_xero.py in apps/workflow/api/xero/ (Xero sync creates contacts)
-    #
-    # Database fields exposed via API serializers
-    CLIENTCONTACT_API_FIELDS = [
+    COMPANYPERSONLINK_API_FIELDS = [
         "id",
         "company",
         "person",
-        "name",
-        "email",
         "xero_name",
         "position",
         "is_primary",
@@ -354,11 +326,10 @@ class CompanyPersonLink(models.Model):
         "updated_at",
     ]
 
-    # No internal fields for ClientContact - all fields are exposed
-    CLIENTCONTACT_INTERNAL_FIELDS = []
-
-    # All ClientContact model fields (derived)
-    CLIENTCONTACT_ALL_FIELDS = CLIENTCONTACT_API_FIELDS + CLIENTCONTACT_INTERNAL_FIELDS
+    COMPANYPERSONLINK_INTERNAL_FIELDS: list[str] = []
+    COMPANYPERSONLINK_ALL_FIELDS = (
+        COMPANYPERSONLINK_API_FIELDS + COMPANYPERSONLINK_INTERNAL_FIELDS
+    )
 
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(
@@ -370,13 +341,7 @@ class CompanyPersonLink(models.Model):
     person = models.ForeignKey(
         Person,
         on_delete=models.CASCADE,
-        null=True,
-        blank=True,
         related_name="company_links",
-    )
-    name = models.CharField(max_length=255, help_text="Full name of the contact person")
-    email = models.EmailField(
-        null=True, blank=True, help_text="Email address of the contact"
     )
     xero_name = models.CharField(max_length=255, null=True, blank=True)
     position = models.CharField(
@@ -400,18 +365,23 @@ class CompanyPersonLink(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
-        ordering = ["-is_primary", "name"]
+        ordering = ["-is_primary", "person__name"]
         verbose_name = "Company Person Link"
         verbose_name_plural = "Company Person Links"
         constraints = [
             models.UniqueConstraint(
-                fields=["company", "name"],
-                name="unique_company_contact_name",
+                fields=["company", "person"],
+                name="unique_company_person_link",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "xero_name"],
+                condition=models.Q(xero_name__isnull=False),
+                name="unique_company_person_link_xero_name",
             ),
         ]
 
     def __str__(self):
-        return f"{self.name} ({self.company.name})"
+        return f"{self.person.name} ({self.company.name})"
 
     def save(
         self,
@@ -422,18 +392,7 @@ class CompanyPersonLink(models.Model):
         update_fields: Iterable[str] | None = None,
     ) -> None:
         update_fields = _augment_update_fields(update_fields, "updated_at")
-        if self.person_id is None:
-            self.person = Person.objects.create(
-                name=self.name,
-                email=self.email,
-                is_active=self.is_active,
-            )
-            update_fields = _augment_update_fields(update_fields, "person")
-        if self.xero_name is None:
-            self.xero_name = self.name
-            update_fields = _augment_update_fields(update_fields, "xero_name")
-
-        # If this contact is being set as primary, ensure no other contacts
+        # If this link is being set as primary, ensure no other links
         # for this company are marked as primary
         if self.is_primary:
             CompanyPersonLink.objects.filter(
@@ -448,14 +407,14 @@ class CompanyPersonLink(models.Model):
 
 
 class PhoneAssignmentConflictError(Exception):
-    """A phone number cannot be assigned to the proposed company/contact owner.
+    """A phone number cannot be assigned to the proposed company/person owner.
 
-    ``conflict`` is the existing :class:`ClientContactMethod` owned by a
+    ``conflict`` is the existing :class:`ContactMethod` owned by a
     different effective company, or ``None`` when the number is an active
     internal :class:`~apps.crm.models.PhoneEndpoint`.
     """
 
-    def __init__(self, conflict: "ClientContactMethod | None") -> None:
+    def __init__(self, conflict: "ContactMethod | None") -> None:
         self.conflict = conflict
         if conflict is None:
             message = "phone number is an active internal phone endpoint"
@@ -468,11 +427,11 @@ class PhoneAssignmentConflictError(Exception):
 # stable tie-break. Single source — every primary-phone consumer must use it.
 PRIMARY_PHONE_ORDERING: Final[tuple[str, str, str]] = ("-is_primary", "label", "value")
 
-PhoneOwner = Literal["company", "contact", "person"]
+PhoneOwner = Literal["company", "person"]
 
 
 class ContactMethod(models.Model):
-    """Phone or email address owned by a company or one of its contacts."""
+    """Phone or email address owned by a company or person."""
 
     class MethodType(models.TextChoices):
         PHONE = "phone", "Phone"
@@ -485,13 +444,6 @@ class ContactMethod(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
     company = models.ForeignKey(
         Company,
-        on_delete=models.CASCADE,
-        null=True,
-        blank=True,
-        related_name="contact_methods",
-    )
-    contact = models.ForeignKey(
-        CompanyPersonLink,
         on_delete=models.CASCADE,
         null=True,
         blank=True,
@@ -521,10 +473,38 @@ class ContactMethod(models.Model):
         ordering = ["method_type", "-is_primary", "label", "value"]
         verbose_name = "Contact Method"
         verbose_name_plural = "Contact Methods"
-        constraints: list[models.BaseConstraint] = []
+        constraints = [
+            models.CheckConstraint(
+                condition=(
+                    models.Q(company__isnull=False, person__isnull=True)
+                    | models.Q(company__isnull=True, person__isnull=False)
+                ),
+                name="contact_method_one_owner",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "method_type", "normalized_value"],
+                condition=models.Q(company__isnull=False),
+                name="unique_company_contact_method_value",
+            ),
+            models.UniqueConstraint(
+                fields=["person", "method_type", "normalized_value"],
+                condition=models.Q(person__isnull=False),
+                name="unique_person_contact_method_value",
+            ),
+            models.UniqueConstraint(
+                fields=["company", "method_type"],
+                condition=models.Q(company__isnull=False, is_primary=True),
+                name="unique_company_primary_contact_method",
+            ),
+            models.UniqueConstraint(
+                fields=["person", "method_type"],
+                condition=models.Q(person__isnull=False, is_primary=True),
+                name="unique_person_primary_contact_method",
+            ),
+        ]
 
     def __str__(self) -> str:
-        owner = self.person or self.contact or self.company
+        owner = self.person or self.company
         return f"{self.method_type}: {self.value} ({owner})"
 
     @classmethod
@@ -549,13 +529,10 @@ class ContactMethod(models.Model):
 
     @classmethod
     def primary_phone_for_link_annotation(cls) -> Coalesce:
-        """Primary phone for a company-person link during contact→person migration."""
+        """Primary phone for a company-person link."""
         candidates = (
             cls.objects.filter(method_type=cls.MethodType.PHONE)
-            .filter(
-                models.Q(person=models.OuterRef("person_id"))
-                | models.Q(contact=models.OuterRef("pk"))
-            )
+            .filter(person=models.OuterRef("person_id"))
             .order_by(*PRIMARY_PHONE_ORDERING)
             .values("value")[:1]
         )
@@ -587,7 +564,6 @@ class ContactMethod(models.Model):
                 type(self).check_phone_assignment(
                     self.normalized_value,
                     company_id=self.company_id,
-                    contact=self.contact,
                     person=self.person,
                     instance=self,
                     using=db,
@@ -614,12 +590,8 @@ class ContactMethod(models.Model):
             )
             if self.person_id:
                 queryset = queryset.filter(person_id=self.person_id)
-            elif self.contact_id:
-                queryset = queryset.filter(contact_id=self.contact_id)
             else:
-                queryset = queryset.filter(
-                    company_id=self.company_id, contact__isnull=True
-                )
+                queryset = queryset.filter(company_id=self.company_id)
             queryset.update(is_primary=False)
 
         super().save(
@@ -663,8 +635,6 @@ class ContactMethod(models.Model):
             return {self.company_id}
         if self.person is not None:
             return set(self.person.company_links.values_list("company_id", flat=True))
-        if self.contact is not None:
-            return {self.contact.company_id}
         return set()
 
     @classmethod
@@ -683,7 +653,7 @@ class ContactMethod(models.Model):
         """
         queryset = (
             cls.objects.using(using)
-            .select_related("company", "contact")
+            .select_related("company", "person")
             .filter(
                 method_type=cls.MethodType.PHONE,
                 normalized_value=normalized_value,
@@ -706,7 +676,6 @@ class ContactMethod(models.Model):
         normalized_value: str,
         *,
         company_id: uuid.UUID | None,
-        contact: "CompanyPersonLink | None",
         person: "Person | None" = None,
         instance: "ContactMethod | None" = None,
         using: str = DEFAULT_DB_ALIAS,
@@ -728,20 +697,18 @@ class ContactMethod(models.Model):
             PhoneAssignmentConflictError: carrying the conflicting method, or
                 ``conflict=None`` for an internal-endpoint collision.
         """
-        contact_id = contact.pk if contact is not None else None
         person_id = person.pk if person is not None else None
         if instance is not None and not instance._state.adding:
             stored = (
                 cls.objects.using(using)
                 .filter(pk=instance.pk)
-                .values("normalized_value", "company_id", "contact_id", "person_id")
+                .values("normalized_value", "company_id", "person_id")
                 .first()
             )
             if (
                 stored is not None
                 and stored["normalized_value"] == normalized_value
                 and stored["company_id"] == company_id
-                and stored["contact_id"] == contact_id
                 and stored["person_id"] == person_id
             ):
                 return  # unchanged association -> grandfathered
@@ -757,11 +724,11 @@ class ContactMethod(models.Model):
 
         if company_id is not None:
             effective_company_ids = {company_id}
-        elif contact is not None:
-            effective_company_ids = {contact.company_id}
         elif person is not None:
             effective_company_ids = set(
-                person.company_links.using(using).values_list("company_id", flat=True)
+                CompanyPersonLink.objects.using(using)
+                .filter(person_id=person.pk)
+                .values_list("company_id", flat=True)
             )
         else:
             effective_company_ids = set()
@@ -775,18 +742,11 @@ class ContactMethod(models.Model):
             raise PhoneAssignmentConflictError(conflict)
 
     def owner_display_name(self) -> str:
-        if self.contact:
-            return f"contact {self.contact.name} at {self.contact.company.name}"
         if self.person:
             return f"person {self.person.name}"
         if self.company:
             return f"company {self.company.name}"
         return "another CRM owner"
-
-
-# Temporary import aliases while consumers are moved to person naming.
-ClientContact = CompanyPersonLink
-ClientContactMethod = ContactMethod
 
 
 class Supplier(Company):

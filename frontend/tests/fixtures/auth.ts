@@ -307,26 +307,24 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
         'sharedEditJobUrl: select or create contact',
         SHARED_EDIT_JOB_BUDGET_MS.contactSelection,
         async () => {
-          await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
-          await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+          await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
+          await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
-          const selectButtons = autoId(page, 'ContactSelectionModal-select-button')
+          const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
           const selectButtonCount = await selectButtons.count()
 
           if (selectButtonCount > 0) {
             await selectButtons.first().click()
           } else {
-            const submitButton = autoId(page, 'ContactSelectionModal-submit')
-            await autoId(page, 'ContactSelectionModal-name-input').fill(
-              `[TEST] Contact ${timestamp}`,
-            )
-            await autoId(page, 'ContactSelectionModal-email-input').fill(
+            const submitButton = autoId(page, 'PersonSelectionModal-submit')
+            await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${timestamp}`)
+            await autoId(page, 'PersonSelectionModal-email-input').fill(
               `test${timestamp}@example.com`,
             )
             await submitButton.click()
           }
 
-          await autoId(page, 'ContactSelectionModal-container').waitFor({
+          await autoId(page, 'PersonSelectionModal-container').waitFor({
             state: 'hidden',
             timeout: 10000,
           })

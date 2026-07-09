@@ -27,7 +27,7 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/<uuid:company_id>/jobs/` | `company_rest_views.CompanyJobsRestView` | `companies:company_jobs_rest` | REST view for fetching all jobs for a specific company. |
-| `/jobs/<uuid:job_id>/contact/` | `company_rest_views.JobContactRestView` | `companies:job_contact_rest` | REST view for contact information operations for a job. |
+| `/jobs/<uuid:job_id>/person/` | `company_rest_views.JobPersonRestView` | `companies:job_person_rest` | REST view for person information operations for a job. |
 
 ### Other
 | URL Pattern | View | Name | Description |

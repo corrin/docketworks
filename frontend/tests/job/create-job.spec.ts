@@ -11,18 +11,18 @@ import {
 /**
  * Sequential test cases for job creation.
  * These tests MUST run in order as each builds on the previous state:
- * - Test 1: Company has 0 contacts → creates first contact (becomes primary)
+ * - Test 1: Company has 0 contacts → creates first person (becomes primary)
  * - Test 2: Company has 1 contact → creates second contact
- * - Test 3: Company has 2 contacts → selects non-primary contact
+ * - Test 3: Company has 2 contacts → selects non-primary person
  */
 const jobTestCases = [
   {
-    name: 'T&M with first contact',
+    name: 'T&M with first person',
     pricingValue: 'time_materials',
     ballparkMaterials: '500',
     ballparkHours: '4',
     createContact: true,
-    contactToCreate: { name: '[TEST] Contact Person', email: 'test@example.com' },
+    contactToCreate: { name: '[TEST] Person', email: 'test@example.com' },
     expectedTab: 'estimate',
   },
   {
@@ -31,16 +31,16 @@ const jobTestCases = [
     ballparkMaterials: '1000',
     ballparkHours: '8',
     createContact: true,
-    contactToCreate: { name: '[TEST] Another Contact', email: 'another@example.com' },
+    contactToCreate: { name: '[TEST] Another Person', email: 'another@example.com' },
     expectedTab: 'quote',
   },
   {
-    name: 'Fixed Price selecting non-primary contact',
+    name: 'Fixed Price selecting non-primary person',
     pricingValue: 'fixed_price',
     ballparkMaterials: '750',
     ballparkHours: '6',
     createContact: false,
-    contactToSelect: '[TEST] Another Contact', // Select the non-primary contact
+    contactToSelect: '[TEST] Another Person', // Select the non-primary person
     expectedTab: 'quote',
   },
 ] as const
@@ -100,26 +100,26 @@ test.describe.serial('create job', () => {
         'select or create contact person',
         CREATE_JOB_BUDGET_MS.contactSelection,
         async () => {
-          // Click the button to open contact modal
-          console.log('Opening contact modal...')
-          await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
+          // Click the button to open person modal
+          console.log('Opening person modal...')
+          await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
 
           // Wait for modal
           console.log('Waiting for modal...')
-          await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+          await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
           if (tc.createContact && tc.contactToCreate) {
-            console.log(`Creating new contact: ${tc.contactToCreate.name}`)
+            console.log(`Creating new person: ${tc.contactToCreate.name}`)
 
             // Debug: capture button state
-            const submitButton = autoId(page, 'ContactSelectionModal-submit')
+            const submitButton = autoId(page, 'PersonSelectionModal-submit')
             const buttonText = await submitButton.textContent()
             const buttonDisabled = await submitButton.isDisabled()
             console.log(`Button text: "${buttonText}", disabled: ${buttonDisabled}`)
 
-            // Wait for form to be ready - button should show "Create Contact" not "Saving..."
+            // Wait for form to be ready - button should show "Create Person" not "Saving..."
             try {
-              await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
+              await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
             } catch (e) {
               // Capture state on failure
               const finalText = await submitButton.textContent()
@@ -128,34 +128,34 @@ test.describe.serial('create job', () => {
               throw e
             }
 
-            // Fill the Create New Contact form
-            await autoId(page, 'ContactSelectionModal-name-input').fill(tc.contactToCreate.name)
-            await autoId(page, 'ContactSelectionModal-email-input').fill(tc.contactToCreate.email)
+            // Fill the Create New Person form
+            await autoId(page, 'PersonSelectionModal-name-input').fill(tc.contactToCreate.name)
+            await autoId(page, 'PersonSelectionModal-email-input').fill(tc.contactToCreate.email)
 
-            // Click Create Contact
+            // Click Create Person
             await submitButton.click()
           } else if (tc.contactToSelect) {
             console.log(`Selecting existing contact: ${tc.contactToSelect}`)
             // Wait for contacts list
-            await autoId(page, 'ContactSelectionModal-select-button')
+            await autoId(page, 'PersonSelectionModal-select-button')
               .first()
               .waitFor({ timeout: 10000 })
 
-            // Find the contact card by name and click its Select button
+            // Find the person card by name and click its Select button
             const contactCard = page
-              .locator(`[data-automation-id^="ContactSelectionModal-card-"]`)
+              .locator(`[data-automation-id^="PersonSelectionModal-card-"]`)
               .filter({
                 hasText: tc.contactToSelect,
               })
             await contactCard.hover()
             await contactCard
-              .locator('[data-automation-id="ContactSelectionModal-select-button"]')
+              .locator('[data-automation-id="PersonSelectionModal-select-button"]')
               .click()
           }
 
           // Wait for modal to close
           console.log('Waiting for modal to close...')
-          await autoId(page, 'ContactSelectionModal-container').waitFor({
+          await autoId(page, 'PersonSelectionModal-container').waitFor({
             state: 'hidden',
             timeout: 10000,
           })
@@ -225,28 +225,28 @@ test.describe('new job default pay item', () => {
         await autoId(page, 'JobCreateView-name-input').fill(jobName)
 
         // Select contact - open modal and create or select one
-        await autoId(page, 'ContactSelector-modal-button').click({ timeout: 10000 })
-        await autoId(page, 'ContactSelectionModal-container').waitFor({ timeout: 10000 })
+        await autoId(page, 'PersonSelector-modal-button').click({ timeout: 10000 })
+        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
 
         // Check if there are existing contacts to select
-        const selectButtons = autoId(page, 'ContactSelectionModal-select-button')
+        const selectButtons = autoId(page, 'PersonSelectionModal-select-button')
         const hasExistingContacts = (await selectButtons.count()) > 0
 
         if (hasExistingContacts) {
           // Select the first existing contact
           await selectButtons.first().click()
         } else {
-          // Create a new contact
-          const submitButton = autoId(page, 'ContactSelectionModal-submit')
-          await expect(submitButton).toHaveText('Create Contact', { timeout: 10000 })
-          await autoId(page, 'ContactSelectionModal-name-input').fill(`[TEST] Contact ${timestamp}`)
-          await autoId(page, 'ContactSelectionModal-email-input').fill(
+          // Create a new person
+          const submitButton = autoId(page, 'PersonSelectionModal-submit')
+          await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+          await autoId(page, 'PersonSelectionModal-name-input').fill(`[TEST] Person ${timestamp}`)
+          await autoId(page, 'PersonSelectionModal-email-input').fill(
             `test${timestamp}@example.com`,
           )
           await submitButton.click()
         }
 
-        await autoId(page, 'ContactSelectionModal-container').waitFor({
+        await autoId(page, 'PersonSelectionModal-container').waitFor({
           state: 'hidden',
           timeout: 10000,
         })

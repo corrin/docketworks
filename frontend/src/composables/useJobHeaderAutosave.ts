@@ -157,8 +157,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
             const payloadJob: Record<string, unknown> = { ...filteredPatch }
 
             if ('company_id' in (filteredPatch as Partial<Job>)) {
-              payloadJob.contact_id = null
-              payloadJob.contact_name = null
+              payloadJob.person_id = null
+              payloadJob.person_name = null
             }
 
             const fields = Object.keys(payloadJob)
@@ -195,11 +195,11 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
                 case 'quote_acceptance_date':
                   beforeValues[field] = headerSnapshot.quote_acceptance_date
                   break
-                case 'contact_id':
-                  beforeValues[field] = detail?.job?.contact_id ?? null
+                case 'person_id':
+                  beforeValues[field] = detail?.job?.person_id ?? null
                   break
-                case 'contact_name':
-                  beforeValues[field] = detail?.job?.contact_name ?? null
+                case 'person_name':
+                  beforeValues[field] = detail?.job?.person_name ?? null
                   break
                 default:
                   beforeValues[field] = detail?.job
@@ -290,8 +290,8 @@ export function useJobHeaderAutosave(headerRef: Ref<JobHeaderResponse | null>) {
     autosave.queueChanges({
       company_id: company.id,
       company_name: company.name,
-      contact_id: null,
-      contact_name: null,
+      person_id: null,
+      person_name: null,
     })
     void autosave.flush('company-change')
   }

@@ -185,7 +185,7 @@ export function useOptimizedKanban(onJobsLoaded?: () => void) {
         job.description?.toLowerCase().includes(normalizedQuery) ||
         job.company_name?.toLowerCase().includes(normalizedQuery) ||
         String(job.job_number).toLowerCase().includes(normalizedQuery) ||
-        job.contact_person?.toLowerCase().includes(normalizedQuery)
+        job.person_name?.toLowerCase().includes(normalizedQuery)
       )
     })
   }

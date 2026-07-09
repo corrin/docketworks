@@ -70,7 +70,7 @@ async function createUrgentJob(page: Page): Promise<{ jobId: string; jobNumber: 
       description: '',
       order_number: '',
       notes: '',
-      contact_id: null,
+      person_id: null,
       estimated_materials: 0,
       estimated_time: 0,
       is_urgent: true,

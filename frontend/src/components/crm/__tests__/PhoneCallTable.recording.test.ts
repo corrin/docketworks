@@ -24,7 +24,7 @@ function callWithRecording() {
     call_datetime: '2026-06-02T03:13:01Z',
     company: null,
     company_name: '',
-    contact_name: '',
+    person_name: '',
     external_number: '+64272255846',
     our_number: '+6496365131',
     direction: 'outbound',

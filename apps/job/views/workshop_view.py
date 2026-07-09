@@ -30,7 +30,9 @@ class WorkshopKanbanView(ListAPIView):
         """Retrieve jobs for the workshop kanban view."""
         staff = self.request.user
         logger.info(f"Fetching in-progress jobs for staff ID: {staff.id}")
-        jobs = Job.objects.filter(people__id=staff.id, status__in=["in_progress"])
+        jobs = Job.objects.filter(
+            people__id=staff.id, status__in=["in_progress"]
+        ).select_related("company", "person")
         logger.info(f"Retrieved {jobs.count()} jobs for staff ID: {staff.id}")
 
         return [
@@ -40,7 +42,7 @@ class WorkshopKanbanView(ListAPIView):
                 "description": job.description,
                 "job_number": job.job_number,
                 "company_name": job.company.name,
-                "contact_person": job.contact.name if job.contact else None,
+                "person_name": job.person.name if job.person else None,
                 "people": [
                     {
                         "id": staff.id,

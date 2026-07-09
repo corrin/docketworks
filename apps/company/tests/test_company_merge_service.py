@@ -15,7 +15,7 @@ from django.db import IntegrityError
 from django.utils import timezone
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
-from apps.company.models import ClientContact, ClientContactMethod, Company
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services.company_merge_service import reassign_company_fk_records
 from apps.crm.models import PhoneCallRecord
 from apps.job.models import Job, JobEvent
@@ -32,6 +32,15 @@ def make_company(name: str) -> Company:
     return Company.objects.create(
         name=name,
         xero_last_modified=timezone.now(),
+    )
+
+
+def make_link(company: Company, name: str) -> CompanyPersonLink:
+    person = Person.objects.create(name=name)
+    return CompanyPersonLink.objects.create(
+        company=company,
+        person=person,
+        xero_name=name,
     )
 
 
@@ -118,7 +127,7 @@ def make_scrape_job(supplier: Company) -> ScrapeJob:
 
 
 def make_phone_call(
-    company: Company, *, contact: ClientContact | None = None
+    company: Company, *, person: Person | None = None
 ) -> PhoneCallRecord:
     call_datetime = timezone.now()
     return PhoneCallRecord.objects.create(
@@ -130,7 +139,7 @@ def make_phone_call(
         origin="+6421555123",
         destination="+6496365131",
         company=company,
-        contact=contact,
+        person=person,
         raw_json={},
     )
 
@@ -328,18 +337,18 @@ class ReassignAllFKTypesTogetherTests(ReassignFKBaseCase):
 
 class ReassignCrmHistoryTests(ReassignFKBaseCase):
     def test_contact_methods_and_phone_calls_move_to_destination(self) -> None:
-        contact = ClientContact.objects.create(company=self.source, name="Jane Smith")
-        method = ClientContactMethod.objects.create(
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
+        contact = make_link(self.source, "Jane Smith")
+        method = ContactMethod.objects.create(
+            person=contact.person,
+            method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
-        company_method = ClientContactMethod.objects.create(
+        company_method = ContactMethod.objects.create(
             company=self.source,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value="021 555 124",
         )
-        contact_call = make_phone_call(self.source, contact=contact)
+        contact_call = make_phone_call(self.source, person=contact.person)
         company_call = make_phone_call(self.source)
 
         counts = reassign_company_fk_records(
@@ -355,30 +364,24 @@ class ReassignCrmHistoryTests(ReassignFKBaseCase):
         company_call.refresh_from_db()
 
         self.assertEqual(contact.company_id, self.destination.id)
-        self.assertEqual(method.contact_id, contact.id)
+        self.assertEqual(method.person_id, contact.person_id)
         self.assertEqual(company_method.company_id, self.destination.id)
         self.assertEqual(contact_call.company_id, self.destination.id)
-        self.assertEqual(contact_call.contact_id, contact.id)
+        self.assertEqual(contact_call.person_id, contact.person_id)
         self.assertEqual(company_call.company_id, self.destination.id)
         self.assertEqual(counts["contacts"], 1)
         self.assertEqual(counts["contact_methods"], 1)
         self.assertEqual(counts["phone_calls"], 2)
 
     def test_exact_name_contact_conflict_merges_methods_and_calls(self) -> None:
-        source_contact = ClientContact.objects.create(
-            company=self.source,
-            name="Jane Smith",
-        )
-        destination_contact = ClientContact.objects.create(
-            company=self.destination,
-            name="Jane Smith",
-        )
-        method = ClientContactMethod.objects.create(
-            contact=source_contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
+        source_contact = make_link(self.source, "Jane Smith")
+        make_link(self.destination, "Jane Smith")
+        method = ContactMethod.objects.create(
+            person=source_contact.person,
+            method_type=ContactMethod.MethodType.PHONE,
             value="021 555 123",
         )
-        call = make_phone_call(self.source, contact=source_contact)
+        call = make_phone_call(self.source, person=source_contact.person)
 
         counts = reassign_company_fk_records(
             self.source,
@@ -389,12 +392,13 @@ class ReassignCrmHistoryTests(ReassignFKBaseCase):
         method.refresh_from_db()
         call.refresh_from_db()
 
-        self.assertFalse(ClientContact.objects.filter(id=source_contact.id).exists())
-        self.assertEqual(method.contact_id, destination_contact.id)
+        source_contact.refresh_from_db()
+        self.assertEqual(source_contact.company_id, self.destination.id)
+        self.assertEqual(method.person_id, source_contact.person_id)
         self.assertEqual(call.company_id, self.destination.id)
-        self.assertEqual(call.contact_id, destination_contact.id)
+        self.assertEqual(call.person_id, source_contact.person_id)
         self.assertEqual(counts["contacts"], 1)
-        self.assertEqual(counts["contact_methods"], 1)
+        self.assertEqual(counts["contact_methods"], 0)
         self.assertEqual(counts["phone_calls"], 1)
 
 
@@ -407,30 +411,30 @@ class ContactMethodMergeGuardTests(ReassignFKBaseCase):
 
     NUMBER = "021 555 123"
 
-    def _grandfathered_method(self, company: Company) -> ClientContactMethod:
+    def _grandfathered_method(self, company: Company) -> ContactMethod:
         """Insert a cross-company duplicate bypassing the save() guard,
         exactly as pre-guard legacy rows (and migration 0023 twins) exist."""
-        legacy = ClientContactMethod(
+        legacy = ContactMethod(
             company=company,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value=self.NUMBER,
         )
-        legacy.normalized_value = ClientContactMethod.normalize_phone(self.NUMBER)
-        ClientContactMethod.objects.bulk_create([legacy])
+        legacy.normalized_value = ContactMethod.normalize_phone(self.NUMBER)
+        ContactMethod.objects.bulk_create([legacy])
         return legacy
 
     def test_same_number_on_company_and_own_contact_both_move(self) -> None:
         """Migration 0023 creates company-level + contact-level twins; a merge
         must move both without the guard rejecting the not-yet-moved sibling."""
-        contact = ClientContact.objects.create(company=self.source, name="Jane Smith")
-        company_method = ClientContactMethod.objects.create(
+        contact = make_link(self.source, "Jane Smith")
+        company_method = ContactMethod.objects.create(
             company=self.source,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value=self.NUMBER,
         )
-        contact_method = ClientContactMethod.objects.create(
-            contact=contact,
-            method_type=ClientContactMethod.MethodType.PHONE,
+        contact_method = ContactMethod.objects.create(
+            person=contact.person,
+            method_type=ContactMethod.MethodType.PHONE,
             value=self.NUMBER,
         )
 
@@ -443,16 +447,16 @@ class ContactMethodMergeGuardTests(ReassignFKBaseCase):
         contact.refresh_from_db()
         self.assertEqual(company_method.company_id, self.destination.id)
         self.assertEqual(contact.company_id, self.destination.id)
-        self.assertEqual(contact_method.contact_id, contact.id)
+        self.assertEqual(contact_method.person_id, contact.person_id)
         self.assertEqual(counts["contact_methods"], 1)
         self.assertEqual(counts["contacts"], 1)
 
     def test_merge_succeeds_when_third_company_owns_same_number(self) -> None:
         """A grandfathered duplicate on an unrelated company must not block
         merging A into B."""
-        source_method = ClientContactMethod.objects.create(
+        source_method = ContactMethod.objects.create(
             company=self.source,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value=self.NUMBER,
         )
         third = make_company("Third Company")
@@ -467,9 +471,9 @@ class ContactMethodMergeGuardTests(ReassignFKBaseCase):
         self.assertEqual(counts["contact_methods"], 1)
 
     def test_duplicate_of_destination_number_is_dropped_not_duplicated(self) -> None:
-        destination_method = ClientContactMethod.objects.create(
+        destination_method = ContactMethod.objects.create(
             company=self.destination,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value=self.NUMBER,
         )
         source_method = self._grandfathered_method(self.source)
@@ -478,11 +482,9 @@ class ContactMethodMergeGuardTests(ReassignFKBaseCase):
             self.source, self.destination, self.test_staff
         )
 
-        self.assertFalse(
-            ClientContactMethod.objects.filter(id=source_method.id).exists()
-        )
-        remaining = ClientContactMethod.objects.filter(
-            normalized_value=ClientContactMethod.normalize_phone(self.NUMBER)
+        self.assertFalse(ContactMethod.objects.filter(id=source_method.id).exists())
+        remaining = ContactMethod.objects.filter(
+            normalized_value=ContactMethod.normalize_phone(self.NUMBER)
         )
         self.assertEqual(remaining.count(), 1)
         self.assertEqual(remaining.get().id, destination_method.id)
@@ -491,15 +493,15 @@ class ContactMethodMergeGuardTests(ReassignFKBaseCase):
     def test_moving_primary_method_demotes_destination_primary(self) -> None:
         """The bulk move must not violate the single-primary-per-owner
         constraint when both sides have a primary phone."""
-        destination_primary = ClientContactMethod.objects.create(
+        destination_primary = ContactMethod.objects.create(
             company=self.destination,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value="021 555 999",
             is_primary=True,
         )
-        source_primary = ClientContactMethod.objects.create(
+        source_primary = ContactMethod.objects.create(
             company=self.source,
-            method_type=ClientContactMethod.MethodType.PHONE,
+            method_type=ContactMethod.MethodType.PHONE,
             value=self.NUMBER,
             is_primary=True,
         )

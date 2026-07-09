@@ -69,7 +69,7 @@ vi.mock('@/api/client', () => ({
       is_urgent: false,
     }),
     workflow_xero_pay_items_list: vi.fn().mockResolvedValue([]),
-    companies_jobs_contact_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
+    companies_jobs_person_retrieve: vi.fn().mockResolvedValue({ id: null, name: null }),
   },
 }))
 
@@ -153,7 +153,7 @@ const mountTab = () =>
         CardContent: passthrough,
         RichTextEditor: { template: '<div />' },
         CompanyLookup: { template: '<div />' },
-        ContactSelector: { template: '<div />' },
+        PersonSelector: { template: '<div />' },
         CreateCompanyModal: { template: '<div />' },
       },
     },
