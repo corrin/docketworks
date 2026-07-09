@@ -2,11 +2,14 @@ import uuid
 from typing import TYPE_CHECKING
 from unittest.mock import MagicMock, patch
 
+from django.conf import settings
 from django.core.exceptions import ValidationError
 from django.db import connection
 from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
+from nplusone.core.profiler import Profiler
+from nplusone.ext.django.patch import apply_patches
 
 if TYPE_CHECKING:
     from apps.job.models import Job
@@ -1033,6 +1036,41 @@ class ContactMethodApiTests(BaseAPITestCase):
         self.assertEqual(payload["page_size"], 2)
         self.assertEqual(payload["total_pages"], 2)
         self.assertEqual(len(payload["results"]), 2)
+
+    def test_list_serializes_person_owned_phone_methods_without_lazy_links(
+        self,
+    ) -> None:
+        """Catches CRM calls page 500s from person-owned phone numbers."""
+        self.client.force_authenticate(user=self.test_staff)
+        company = self._company("Acme Ltd")
+        contact = _link(company, "Jane Smith")
+        ContactMethod.objects.create(
+            company=company,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 555 100",
+        )
+        ContactMethod.objects.create(
+            person=contact.person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 555 200",
+        )
+
+        apply_patches()
+        with Profiler(whitelist=settings.NPLUSONE_WHITELIST):
+            response = self.client.get(
+                "/api/companies/contact-methods/",
+                {"method_type": "phone", "page_size": "50"},
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        person_method = next(
+            method
+            for method in payload["results"]
+            if method["person_name"] == "Jane Smith"
+        )
+        self.assertEqual(person_method["owner_company"], str(company.id))
+        self.assertEqual(person_method["company_name"], "Acme Ltd")
 
     def test_list_page_size_is_capped(self) -> None:
         """Catches accidental oversized contact-method responses."""

@@ -2,12 +2,13 @@
 
 from typing import cast
 
+from django.db.models import Prefetch
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import OpenApiParameter, extend_schema
 from rest_framework import permissions, viewsets
 from rest_framework.serializers import BaseSerializer
 
-from apps.company.models import ContactMethod
+from apps.company.models import CompanyPersonLink, ContactMethod
 from apps.company.serializers import ContactMethodSerializer
 from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.api.pagination import PageSizePagination
@@ -72,6 +73,11 @@ class ContactMethodViewSet(viewsets.ModelViewSet):
         queryset = ContactMethod.objects.select_related(
             "company",
             "person",
+        ).prefetch_related(
+            Prefetch(
+                "person__company_links",
+                queryset=CompanyPersonLink.objects.select_related("company"),
+            ),
         )
         company_id = self.request.query_params.get("company_id")
         if company_id:

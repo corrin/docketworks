@@ -634,6 +634,8 @@ class ContactMethod(models.Model):
         if self.company_id:
             return {self.company_id}
         if self.person is not None:
+            if "company_links" in getattr(self.person, "_prefetched_objects_cache", {}):
+                return {link.company_id for link in self.person.company_links.all()}
             return set(self.person.company_links.values_list("company_id", flat=True))
         return set()
 

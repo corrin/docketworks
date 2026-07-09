@@ -15,6 +15,22 @@ from apps.company.models import (
 )
 
 
+def _ordered_company_links(person: Person) -> list[CompanyPersonLink]:
+    prefetched_links = getattr(person, "_prefetched_objects_cache", {}).get(
+        "company_links"
+    )
+    if prefetched_links is not None:
+        return sorted(
+            prefetched_links,
+            key=lambda link: (not link.is_primary, link.company.name),
+        )
+    return list(
+        person.company_links.select_related("company").order_by(
+            "-is_primary", "company__name"
+        )
+    )
+
+
 def set_primary_phone(owner: Company | Person, raw_value: str) -> None:
     """Point the owner's primary phone at ``raw_value`` (non-blank).
 
@@ -215,11 +231,7 @@ class ContactMethodSerializer(serializers.ModelSerializer):
             person = obj.person
             if person is None:
                 raise RuntimeError(f"Contact method {obj.id} has no person")
-            link = (
-                person.company_links.select_related("company")
-                .order_by("-is_primary", "company__name")
-                .first()
-            )
+            link = next(iter(_ordered_company_links(person)), None)
             return link.company.name if link else ""
         return ""
 
