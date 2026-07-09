@@ -13,9 +13,10 @@ import logging
 
 from django.core.management.base import BaseCommand
 from django.db import transaction
+from django.db.models import Model, Q, QuerySet
 
 from apps.accounting.models import Invoice, Quote
-from apps.company.models import Company, CompanyPersonLink
+from apps.company.models import Company, CompanyPersonLink, Person
 from apps.job.models import Job, QuoteSpreadsheet
 from apps.purchasing.models import PurchaseOrder, PurchaseOrderLine
 
@@ -50,9 +51,7 @@ class Command(BaseCommand):
         test_prefix_company_people = CompanyPersonLink.objects.filter(
             company__in=test_companies
         )
-
-        # Legacy E2E-prefixed companies and their data
-        from django.db.models import Q
+        test_person_records = Person.objects.filter(name__startswith=TEST_DATA_PREFIX)
 
         legacy_q = Q()
         for prefix in LEGACY_E2E_PREFIXES:
@@ -75,6 +74,11 @@ class Command(BaseCommand):
 
         self._report_queryset("[TEST]-prefixed jobs", test_jobs, "name")
         self._report_queryset("[TEST]-prefixed people", test_people, "person__name")
+        self._report_queryset(
+            "Underlying [TEST]-prefixed person records",
+            test_person_records,
+            "name",
+        )
         self._report_queryset("[TEST]-prefixed companies", test_companies, "name")
         self._report_queryset("Legacy E2E companies", legacy_companies, "name")
         self._report_queryset("Legacy E2E company jobs", legacy_company_jobs, "name")
@@ -98,9 +102,21 @@ class Command(BaseCommand):
             "person__name",
         )
 
+        all_companies_to_delete = (test_companies | legacy_companies).distinct()
+        all_people_links_to_delete = (
+            test_company_people
+            | legacy_company_people
+            | test_people
+            | test_prefix_company_people
+        ).distinct()
+        people_ids_to_delete = set(
+            all_people_links_to_delete.values_list("person_id", flat=True)
+        ) | set(test_person_records.values_list("id", flat=True))
+
         total = (
             test_jobs.count()
             + test_people.count()
+            + test_person_records.count()
             + test_companies.count()
             + legacy_companies.count()
             + legacy_company_jobs.count()
@@ -170,9 +186,6 @@ class Command(BaseCommand):
                 linked_quote_sheets,
                 "sheet_id",
             )
-
-        # Collect all companies to delete
-        all_companies_to_delete = (test_companies | legacy_companies).distinct()
 
         # Find POs referencing these companies (PROTECTED FK on supplier)
         linked_pos = PurchaseOrder.objects.filter(supplier__in=all_companies_to_delete)
@@ -248,12 +261,23 @@ class Command(BaseCommand):
                 f"  People on [TEST] companies: {count} objects ({details})"
             )
 
+            remaining_non_test_people_links = CompanyPersonLink.objects.exclude(
+                company__in=all_companies_to_delete
+            ).values_list("person_id", flat=True)
+            orphaned_test_people = Person.objects.filter(
+                id__in=people_ids_to_delete
+            ).exclude(id__in=remaining_non_test_people_links)
+            count, details = orphaned_test_people.delete()
+            self.stdout.write(
+                f"  Underlying test person records: {count} objects ({details})"
+            )
+
             count, details = test_companies.delete()
             self.stdout.write(f"  [TEST] companies: {count} objects ({details})")
 
         self.stdout.write("\nDone.")
 
-    def _report_queryset(self, label, qs, field):
+    def _report_queryset(self, label: str, qs: QuerySet[Model], field: str) -> None:
         count = qs.count()
         if count == 0:
             return

@@ -362,6 +362,17 @@ class UpdateJobContactTests(BaseTestCase):
         job.refresh_from_db()
         self.assertEqual(job.person_id, new_contact.person_id)
 
+    def test_update_job_person_missing_person_is_business_error(self) -> None:
+        job, _company, _ = self._job_with_contact()
+        app_error_count = AppError.objects.count()
+
+        with self.assertRaises(ValueError):
+            CompanyRestService.update_job_person(
+                job.id, {"id": str(uuid.uuid4())}, self.test_staff
+            )
+
+        self.assertEqual(AppError.objects.count(), app_error_count)
+
 
 class CompanyListPhoneTests(TestCase):
     """Guards the Phone column of the companies list (restored after the
@@ -381,7 +392,7 @@ class CompanyListPhoneTests(TestCase):
         return [
             q["sql"]
             for q in captured.captured_queries
-            if q["sql"].startswith('SELECT "company_clientcontactmethod"')
+            if q["sql"].startswith('SELECT "company_contactmethod"')
         ]
 
     def test_list_companies_rows_include_phone(self) -> None:
@@ -446,7 +457,7 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         lazy = [
             q["sql"]
             for q in captured.captured_queries
-            if q["sql"].startswith('SELECT "company_clientcontactmethod"')
+            if q["sql"].startswith('SELECT "company_contactmethod"')
         ]
         self.assertEqual(lazy, [])
 

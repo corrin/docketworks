@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Mapping
 
 from django.core.exceptions import ValidationError
-from django.db import transaction
+from django.db import IntegrityError, transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -370,7 +370,13 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
         "_is_customer", company.is_account_customer
     )
 
-    for person_payload in raw_json.get("_contact_persons", []):
+    contact_persons_payload = raw_json.get("_contact_persons")
+    if isinstance(contact_persons_payload, list):
+        contact_persons = contact_persons_payload
+    else:
+        contact_persons = []
+
+    for person_payload in contact_persons:
         if not isinstance(person_payload, dict):
             continue
         first_name = person_payload.get("_first_name") or ""
@@ -396,13 +402,39 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
                 link.person.email = email
                 link.person.save(update_fields=["email", "updated_at"])
         except CompanyPersonLink.DoesNotExist:
-            person = Person.objects.create(name=xero_name, email=email)
-            CompanyPersonLink.objects.create(
-                company=company,
-                person=person,
-                xero_name=xero_name,
-                is_active=True,
-            )
+            try:
+                with transaction.atomic():
+                    person = Person.objects.create(name=xero_name, email=email)
+                    CompanyPersonLink.objects.create(
+                        company=company,
+                        person=person,
+                        xero_name=xero_name,
+                        is_active=True,
+                    )
+            except IntegrityError as exc:
+                try:
+                    CompanyPersonLink.objects.filter(
+                        company=company,
+                        xero_name=xero_name,
+                    ).select_related("person").get()
+                except CompanyPersonLink.DoesNotExist:
+                    persist_and_raise(
+                        exc,
+                        additional_context={
+                            "operation": "set_company_fields_person_link_race",
+                            "client_id": str(company.id),
+                            "xero_name": xero_name,
+                        },
+                    )
+                except CompanyPersonLink.MultipleObjectsReturned:
+                    persist_and_raise(
+                        exc,
+                        additional_context={
+                            "operation": "set_company_fields_person_link_race",
+                            "client_id": str(company.id),
+                            "xero_name": xero_name,
+                        },
+                    )
         except CompanyPersonLink.MultipleObjectsReturned as exc:
             persist_and_raise(
                 exc,

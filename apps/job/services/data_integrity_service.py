@@ -94,7 +94,7 @@ class DataIntegrityService:
 
         # Company App
         issues.extend(DataIntegrityService._check_company_fks())
-        issues.extend(DataIntegrityService._check_clientcontact_fks())
+        issues.extend(DataIntegrityService._check_companypersonlink_fks())
 
         # Purchasing App
         issues.extend(DataIntegrityService._check_purchaseorder_fks())
@@ -592,7 +592,7 @@ class DataIntegrityService:
         return issues
 
     @staticmethod
-    def _check_clientcontact_fks() -> list[dict[str, Any]]:
+    def _check_companypersonlink_fks() -> list[dict[str, Any]]:
         """Check CompanyPersonLink FK references."""
         issues = []
         valid_company_ids = set(Company.objects.values_list("id", flat=True))

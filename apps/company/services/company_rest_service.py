@@ -552,8 +552,8 @@ class CompanyRestService:
 
             try:
                 person = Person.objects.get(id=person_id)
-            except Person.DoesNotExist:
-                raise ValueError(f"Person with id {person_id} not found")
+            except Person.DoesNotExist as exc:
+                raise ValueError(f"Person with id {person_id} not found") from exc
 
             job.person = person
             job.save(staff=user)
@@ -575,6 +575,8 @@ class CompanyRestService:
             }
 
         except AlreadyLoggedException:
+            raise
+        except ValueError:
             raise
         except Exception as exc:
             persist_and_raise(

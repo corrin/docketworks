@@ -10,7 +10,7 @@
       <div class="flex-1">
         <input
           :id="id"
-          :value="displayValue.get()"
+          :value="displayValue"
           type="text"
           :placeholder="placeholder"
           readonly
@@ -61,6 +61,7 @@
     @edit-person="handleEditPerson"
     @delete-person="handleDeletePerson"
     @cancel-edit="cancelEdit"
+    @update:person-form="updatePersonForm"
   />
 </template>
 
@@ -70,7 +71,7 @@ import { toast } from 'vue-sonner'
 
 import { ref, watch } from 'vue'
 import { Users, X } from 'lucide-vue-next'
-import { usePersonManagement } from '../composables/usePersonManagement'
+import { usePersonManagement, type PersonFormData } from '../composables/usePersonManagement'
 import PersonSelectionModal from './PersonSelectionModal.vue'
 import { schemas } from '../api/generated/api'
 import { z } from 'zod'
@@ -235,6 +236,10 @@ const clearSelection = () => {
   clearFromComposable()
 }
 
+const updatePersonForm = (updatedPersonForm: PersonFormData) => {
+  personForm.value = updatedPersonForm
+}
+
 const selectPrimaryPerson = async () => {
   debugLog('PersonSelector - selectPrimaryPerson called', {
     companyId: props.companyId,
@@ -289,10 +294,10 @@ defineExpose({
 const emitUpdates = () => {
   if (suppressEmit.value) return
   debugLog('PersonSelector - emitUpdates', {
-    displayValue: displayValue.get(),
+    displayValue: displayValue.value,
     selectedPerson: selectedPerson.value,
   })
-  emit('update:modelValue', displayValue.get())
+  emit('update:modelValue', displayValue.value)
   emit('update:selectedPerson', selectedPerson.value)
 }
 
@@ -313,7 +318,7 @@ watch(
 
     // Quando mudar o cliente: limpe estado local (sem emitir)
     suppressEmit.value = true
-    displayValue.set('')
+    displayValue.value = ''
     selectedPerson.value = null
     people.value = []
     suppressEmit.value = false

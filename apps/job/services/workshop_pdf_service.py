@@ -1314,17 +1314,21 @@ def add_delivery_docket_details_table(
     person_name = job.person.name if job.person else ""
 
     person_phone = _primary_phone_for_job(job)
-    person_info = f"{person_name}<br/>{person_phone}" if person_phone else person_name
+    person_info = (
+        f"{escape(person_name)}<br/>{escape(person_phone)}"
+        if person_phone
+        else escape(person_name or "N/A")
+    )
 
     # Delivery docket details - no workshop time or internal notes
     job_details = [
         [
-            Paragraph(company_name, header_company_style),
+            _plain_paragraph(company_name, header_company_style),
             Paragraph(person_info, header_contact_style),
         ],
         [
             Paragraph("DESCRIPTION", label_style),
-            Paragraph(job.description or "N/A", body_style),
+            _plain_paragraph(job.description, body_style),
         ],
         [
             Paragraph("ENTRY DATE", label_style),
@@ -1342,7 +1346,7 @@ def add_delivery_docket_details_table(
         ],
         [
             Paragraph("ORDER NUMBER", label_style),
-            Paragraph(job.order_number or "N/A", body_style),
+            _plain_paragraph(job.order_number, body_style),
         ],
     ]
 

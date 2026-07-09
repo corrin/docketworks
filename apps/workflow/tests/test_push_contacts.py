@@ -96,7 +96,7 @@ class SyncClientToXeroPushTests(TestCase):
 @patch("time.sleep")
 @patch("apps.workflow.api.xero.push.get_tenant_id", return_value="tenant-1")
 @patch("apps.workflow.api.xero.push.AccountingApi")
-class CreateCompanyPersonLinkInXeroTests(TestCase):
+class CreateCompanyContactInXeroTests(TestCase):
     """create_company_contact_in_xero — passes Contact, saves xero_contact_id."""
 
     def test_passes_sdk_contact_and_saves_id(

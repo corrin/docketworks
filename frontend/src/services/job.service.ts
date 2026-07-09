@@ -30,7 +30,7 @@ async function updateJobHeaderPartial(
       'quote_acceptance_date',
       'price_cap',
       'default_xero_pay_item_id',
-      // include 'person_name' if ever present
+      'person_id',
       'person_name',
     ])
     const normalizeBefore = (k: string, v: unknown) => {

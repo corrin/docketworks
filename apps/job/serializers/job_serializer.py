@@ -1136,8 +1136,8 @@ class JobPatchSerializer(serializers.Serializer):
         if value:
             try:
                 Person.objects.get(id=value)
-            except Person.DoesNotExist:
-                raise serializers.ValidationError("Person not found")
+            except Person.DoesNotExist as exc:
+                raise serializers.ValidationError("Person not found") from exc
         return value
 
     def validate(self, attrs):

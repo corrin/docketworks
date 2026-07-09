@@ -580,7 +580,7 @@ class WorkshopHourBreakdownTests(BaseTestCase):
         contact_method_queries = [
             query["sql"]
             for query in captured
-            if 'FROM "company_clientcontactmethod"' in query["sql"]
+            if 'FROM "company_contactmethod"' in query["sql"]
         ]
         self.assertEqual(cost_line_queries, [])
         self.assertEqual(contact_method_queries, [])

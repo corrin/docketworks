@@ -139,4 +139,34 @@ describe('jobs store kanban cache', () => {
 
     expect(store.kanbanColumnCache.in_progress).toBeUndefined()
   })
+
+  it('clears stale kanban person name when detailed job has no person', () => {
+    const store = useJobsStore()
+
+    store.setKanbanJob(buildKanbanJob({ id: 'job-1', person_name: 'Stale Person' }))
+    store.setDetailedJob({
+      job: {
+        id: 'job-1',
+        job_number: 9001,
+        name: 'Detailed Job',
+        job_status: 'in_progress',
+        company_name: 'Company',
+        company_id: null,
+        person_id: null,
+        person_name: null,
+        paid: false,
+        fully_invoiced: false,
+        quoted: false,
+        quote_acceptance_date: null,
+        pricing_methodology: 'time_materials',
+        price_cap: null,
+        default_xero_pay_item_id: null,
+        default_xero_pay_item_name: null,
+      },
+      events: [],
+      company_defaults: {},
+    })
+
+    expect(store.getKanbanJobById('job-1')?.person_name).toBe('')
+  })
 })

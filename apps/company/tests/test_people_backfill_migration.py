@@ -1,4 +1,5 @@
 import uuid
+from typing import ClassVar
 
 from django.db import connection, transaction
 from django.db.migrations.executor import MigrationExecutor
@@ -7,18 +8,25 @@ from django.utils import timezone
 
 
 class PeopleBackfillMigrationTests(TransactionTestCase):
-    migrate_from = [
+    migrate_from: ClassVar[tuple[tuple[str, str], ...]] = (
         ("company", "0004_person_link_structure"),
         ("job", "0004_job_person_alter_job_contact"),
         ("crm", "0005_phonecallrecord_person_alter_phonecallrecord_contact"),
-    ]
-    migrate_to = [("company", "0005_backfill_person")]
+    )
+    migrate_to: ClassVar[tuple[tuple[str, str], ...]] = (
+        ("company", "0005_backfill_person"),
+    )
 
     def setUp(self) -> None:
         super().setUp()
         self.executor = MigrationExecutor(connection)
         self.executor.migrate(self.migrate_from)
         self.old_apps = self.executor.loader.project_state(self.migrate_from).apps
+
+    def tearDown(self) -> None:
+        self.executor.loader.build_graph()
+        self.executor.migrate(self.executor.loader.graph.leaf_nodes())
+        super().tearDown()
 
     def test_backfill_and_reverse_restore_legacy_contact_ownership(self) -> None:
         Company = self.old_apps.get_model("company", "Company")

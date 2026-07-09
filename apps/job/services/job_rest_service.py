@@ -287,8 +287,8 @@ class JobRestService:
             try:
                 person = Person.objects.get(id=person_id)
                 job_data["person"] = person
-            except Person.DoesNotExist:
-                raise ValueError(f"Person with id {person_id} not found")
+            except Person.DoesNotExist as exc:
+                raise ValueError(f"Person with id {person_id} not found") from exc
 
         if "is_urgent" in data:
             job_data["is_urgent"] = data["is_urgent"]

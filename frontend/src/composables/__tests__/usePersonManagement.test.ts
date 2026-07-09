@@ -14,6 +14,12 @@ vi.mock('@/utils/debug', () => ({
   debugLog: vi.fn(),
 }))
 
+vi.mock('vue-sonner', () => ({
+  toast: {
+    error: vi.fn(),
+  },
+}))
+
 import { usePersonManagement } from '../usePersonManagement'
 import { schemas } from '@/api/generated/api'
 
@@ -43,38 +49,38 @@ describe('usePersonManagement displayValue (KAN-281)', () => {
 
   it('returns empty string when no person is selected', () => {
     const { displayValue } = usePersonManagement()
-    expect(displayValue.get()).toBe('')
+    expect(displayValue.value).toBe('')
   })
 
   it('formats the selected person as "name - phone - email"', () => {
     const { displayValue, setSelectedPerson } = usePersonManagement()
     setSelectedPerson(buildPerson())
-    expect(displayValue.get()).toBe('Jane Doe - +64 21 555 0100 - jane@example.com')
+    expect(displayValue.value).toBe('Jane Doe - +64 21 555 0100 - jane@example.com')
   })
 
   it('skips the phone segment when the person has no phone', () => {
     const { displayValue, setSelectedPerson } = usePersonManagement()
     setSelectedPerson(buildPerson({ phone: '' }))
-    expect(displayValue.get()).toBe('Jane Doe - jane@example.com')
+    expect(displayValue.value).toBe('Jane Doe - jane@example.com')
   })
 
   it('skips the email segment when the person has no email', () => {
     const { displayValue, setSelectedPerson } = usePersonManagement()
     setSelectedPerson(buildPerson({ person_email: null }))
-    expect(displayValue.get()).toBe('Jane Doe - +64 21 555 0100')
+    expect(displayValue.value).toBe('Jane Doe - +64 21 555 0100')
   })
 
   it('shows only the name when the person has neither phone nor email', () => {
     const { displayValue, setSelectedPerson } = usePersonManagement()
     setSelectedPerson(buildPerson({ phone: '', person_email: null }))
-    expect(displayValue.get()).toBe('Jane Doe')
+    expect(displayValue.value).toBe('Jane Doe')
   })
 
   it('set() splits "name - phone - email" into the selected person', () => {
     const { displayValue, setSelectedPerson, selectedPerson } = usePersonManagement()
     setSelectedPerson(buildPerson())
 
-    displayValue.set('Bob Smith - 09 555 1234 - bob@example.com')
+    displayValue.value = 'Bob Smith - 09 555 1234 - bob@example.com'
 
     expect(selectedPerson.value).toMatchObject({
       person_name: 'Bob Smith',
@@ -86,7 +92,7 @@ describe('usePersonManagement displayValue (KAN-281)', () => {
   it('set() populates the new-person form when nothing is selected', () => {
     const { displayValue, personForm } = usePersonManagement()
 
-    displayValue.set('Bob Smith - 09 555 1234 - bob@example.com')
+    displayValue.value = 'Bob Smith - 09 555 1234 - bob@example.com'
 
     expect(personForm.value).toMatchObject({
       name: 'Bob Smith',
@@ -98,7 +104,7 @@ describe('usePersonManagement displayValue (KAN-281)', () => {
   it('set() with a blank value clears name, phone and email on the form', () => {
     const { displayValue, personForm } = usePersonManagement()
 
-    displayValue.set('')
+    displayValue.value = ''
 
     expect(personForm.value).toMatchObject({
       name: '',

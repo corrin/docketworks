@@ -856,15 +856,31 @@ watch(
         localJobData.value.person_id = personResponse.id
         localJobData.value.person_name = personResponse.name
         personDisplayValue.value = personResponse.name || ''
+        serverBaseline.value.person_id = personResponse.id ?? null
+        serverBaseline.value.person_name = personResponse.name ?? null
+        if (newJobData.job_id) {
+          jobsStore.patchHeader(newJobData.job_id, {
+            person_id: personResponse.id ?? null,
+            person_name: personResponse.name ?? null,
+          })
+        }
       }
     } catch (error: unknown) {
       // Handle 404 when no person is associated with the job - simply ignore
       const axiosError = error as { response?: { status?: number } }
       if (axiosError?.response?.status === 404) {
         debugLog('No person associated with this job - ignoring 404')
-        localJobData.value.person_id = undefined
-        localJobData.value.person_name = undefined
+        localJobData.value.person_id = null
+        localJobData.value.person_name = null
         personDisplayValue.value = ''
+        serverBaseline.value.person_id = null
+        serverBaseline.value.person_name = null
+        if (newJobData.job_id) {
+          jobsStore.patchHeader(newJobData.job_id, {
+            person_id: null,
+            person_name: null,
+          })
+        }
       } else {
         console.error('Failed to load person information:', error)
         toast.error('Failed to load person information')
@@ -1149,6 +1165,10 @@ const handlePersonSelected = async (personLink: CompanyPersonLink | null) => {
       // Still update display value in case it's stale
       localJobData.value.person_name = personLink.person_name
       personDisplayValue.value = personLink.person_name
+      jobsStore.patchHeader(props.jobId, {
+        person_id: personLink.person,
+        person_name: personLink.person_name,
+      })
       return
     }
 
@@ -1168,16 +1188,29 @@ const handlePersonSelected = async (personLink: CompanyPersonLink | null) => {
       await api.companies_jobs_person_update(personToSend, {
         params: { job_id: props.jobId },
       })
+      serverBaseline.value.person_id = personLink.person
+      serverBaseline.value.person_name = personLink.person_name
+      jobsStore.patchHeader(props.jobId, {
+        person_id: personLink.person,
+        person_name: personLink.person_name,
+      })
       toast.success('Person updated successfully')
     } catch (error) {
       toast.error('Failed to update person')
       console.error('Failed to update person:', error)
     }
   } else {
-    // Clear person locally - no API call needed since clearing means no person association
-    localJobData.value.person_id = undefined
-    localJobData.value.person_name = undefined
+    localJobData.value.person_id = null
+    localJobData.value.person_name = null
     personDisplayValue.value = ''
+
+    if (!isInitializing.value && !isHydratingBasicInfo.value && !isSyncingFromStore.value) {
+      autosave.queueChanges({
+        person_id: null,
+        person_name: null,
+      })
+      void autosave.flush('person-clear')
+    }
   }
 }
 
@@ -1313,6 +1346,8 @@ const autosave = createJobAutosave({
         }
         if ('company_id' in payload) next.company_id = payload.company_id as string | null
         if ('company_name' in payload) next.company_name = payload.company_name as string | null
+        if ('person_id' in payload) next.person_id = payload.person_id as string | null
+        if ('person_name' in payload) next.person_name = payload.person_name as string | null
         if ('description' in payload)
           next.description = (payload.description as string | null) ?? null
         if ('delivery_date' in payload)
@@ -1448,10 +1483,13 @@ const autosave = createJobAutosave({
         if (touchedKeys.includes('person_id')) {
           nextBaseline.person_id = serverJobDetail.person_id ?? null
           localJobData.value.person_id = serverJobDetail.person_id ?? null
+          headerPatch.person_id = serverJobDetail.person_id ?? null
         }
         if (touchedKeys.includes('person_name')) {
           nextBaseline.person_name = serverJobDetail.person_name ?? null
           localJobData.value.person_name = serverJobDetail.person_name ?? null
+          personDisplayValue.value = serverJobDetail.person_name ?? ''
+          headerPatch.person_name = serverJobDetail.person_name ?? null
         }
       } else {
         if (touchedKeys.includes('description')) {
@@ -1568,12 +1606,14 @@ const autosave = createJobAutosave({
           const personId = coerceNullableString(partialPayload.person_id)
           nextBaseline.person_id = personId
           localJobData.value.person_id = personId
+          headerPatch.person_id = personId
         }
         if (touchedKeys.includes('person_name')) {
           const personName = coerceNullableString(partialPayload.person_name)
           nextBaseline.person_name = personName
           localJobData.value.person_name = personName
           personDisplayValue.value = personName ?? ''
+          headerPatch.person_name = personName
         }
       }
 

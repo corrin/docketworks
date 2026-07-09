@@ -11142,7 +11142,7 @@ components:
         company:
           type: string
           format: uuid
-          description: The company this contact belongs to
+          description: The company this person is linked to
         person:
           type: string
           format: uuid
@@ -11164,11 +11164,11 @@ components:
           maxLength: 255
         is_primary:
           type: boolean
-          description: Indicates if this is the primary contact for the company
+          description: Indicates if this is the primary person for the company
         notes:
           type: string
           nullable: true
-          description: Additional notes about this contact
+          description: Additional notes about this person
         is_active:
           type: boolean
           readOnly: true
@@ -11201,7 +11201,7 @@ components:
         company:
           type: string
           format: uuid
-          description: The company this contact belongs to
+          description: The company this person is linked to
         person_name:
           type: string
           minLength: 1
@@ -11220,11 +11220,11 @@ components:
           maxLength: 255
         is_primary:
           type: boolean
-          description: Indicates if this is the primary contact for the company
+          description: Indicates if this is the primary person for the company
         notes:
           type: string
           nullable: true
-          description: Additional notes about this contact
+          description: Additional notes about this person
         phone:
           type: string
           nullable: true
@@ -16471,7 +16471,7 @@ components:
         company:
           type: string
           format: uuid
-          description: The company this contact belongs to
+          description: The company this person is linked to
         person_name:
           type: string
           minLength: 1
@@ -16490,11 +16490,11 @@ components:
           maxLength: 255
         is_primary:
           type: boolean
-          description: Indicates if this is the primary contact for the company
+          description: Indicates if this is the primary person for the company
         notes:
           type: string
           nullable: true
-          description: Additional notes about this contact
+          description: Additional notes about this person
         phone:
           type: string
           nullable: true

@@ -49,24 +49,49 @@ def backwards(apps: Any, schema_editor: Any) -> None:
     Job = apps.get_model("job", "Job")
     PhoneCallRecord = apps.get_model("crm", "PhoneCallRecord")
 
-    link_by_person_id = dict(
-        CompanyPersonLink.objects.exclude(person__isnull=True).values_list(
-            "person_id", "id"
+    def link_id_for_person(
+        *, person_id: Any, company_id: Any | None, owner: str
+    ) -> Any:
+        links = CompanyPersonLink.objects.filter(person_id=person_id)
+        if company_id is not None:
+            links = links.filter(company_id=company_id)
+        link_ids = list(links.order_by("id").values_list("id", flat=True)[:2])
+        if len(link_ids) == 1:
+            return link_ids[0]
+        if len(link_ids) == 0:
+            raise RuntimeError(
+                f"Cannot reverse people backfill for {owner}: "
+                f"person_id={person_id} has no matching company link"
+            )
+        raise RuntimeError(
+            f"Cannot reverse people backfill for {owner}: "
+            f"person_id={person_id} maps to multiple company links"
         )
-    )
 
     for call in PhoneCallRecord.objects.exclude(person__isnull=True).order_by("id"):
-        call.contact_id = link_by_person_id[call.person_id]
+        call.contact_id = link_id_for_person(
+            person_id=call.person_id,
+            company_id=call.company_id,
+            owner=f"PhoneCallRecord {call.id}",
+        )
         call.person_id = None
         call.save(update_fields=["contact", "person", "updated_at"])
 
     for job in Job.objects.exclude(person__isnull=True).order_by("id"):
-        job.contact_id = link_by_person_id[job.person_id]
+        job.contact_id = link_id_for_person(
+            person_id=job.person_id,
+            company_id=job.company_id,
+            owner=f"Job {job.id}",
+        )
         job.person_id = None
         job.save(update_fields=["contact", "person"])
 
     for method in ContactMethod.objects.exclude(person__isnull=True).order_by("id"):
-        method.contact_id = link_by_person_id[method.person_id]
+        method.contact_id = link_id_for_person(
+            person_id=method.person_id,
+            company_id=None,
+            owner=f"ContactMethod {method.id}",
+        )
         method.person_id = None
         method.save(update_fields=["contact", "person", "updated_at"])
 

@@ -107,18 +107,23 @@ export const useCompanyStore = defineStore('companies', () => {
    * Fetch people for a specific company
    * @param companyId UUID of the company
    */
-  async function fetchCompanyPersonLinks(companyId: string) {
+  async function fetchCompanyPersonLinks(companyId: string): Promise<void> {
     isLoadingPeople.value = true
 
     try {
       const response = await api.companies_person_links_list({
         queries: { company_id: companyId },
       })
-      companyPeople.value[companyId] = response
-      return response
+      companyPeople.value = {
+        ...companyPeople.value,
+        [companyId]: response,
+      }
     } catch (error) {
       console.error('Failed to fetch company people:', error)
-      companyPeople.value[companyId] = []
+      companyPeople.value = {
+        ...companyPeople.value,
+        [companyId]: [],
+      }
       throw error
     } finally {
       isLoadingPeople.value = false
@@ -140,11 +145,11 @@ export const useCompanyStore = defineStore('companies', () => {
    * Get cached company people or fetch if not available
    * @param companyId UUID of the company
    */
-  async function getCompanyPersonLinks(companyId: string): Promise<CompanyPersonLink[]> {
+  async function getCompanyPersonLinks(companyId: string): Promise<void> {
     if (companyPeople.value[companyId]) {
-      return companyPeople.value[companyId]
+      return
     }
-    return await fetchCompanyPersonLinks(companyId)
+    await fetchCompanyPersonLinks(companyId)
   }
 
   /**

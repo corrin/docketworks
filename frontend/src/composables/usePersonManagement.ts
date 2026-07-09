@@ -3,6 +3,7 @@ import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { z } from 'zod'
 import { debugLog } from '@/utils/debug'
+import { toast } from 'vue-sonner'
 
 // Schema-derived types (no custom interfaces)
 type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
@@ -54,7 +55,7 @@ export function usePersonManagement() {
 
   const hasPeople = computed(() => people.value.length > 0)
 
-  const displayValue = {
+  const displayValue = computed({
     get() {
       if (!selectedPerson.value) return ''
       const person = selectedPerson.value
@@ -82,7 +83,7 @@ export function usePersonManagement() {
         }
       }
     },
-  }
+  })
 
   /**
    * Opens the person selection modal for a specific company
@@ -135,6 +136,7 @@ export function usePersonManagement() {
       personForm.value.is_primary = people.value.length === 0
     } catch (error) {
       debugLog('Error loading people:', error)
+      toast.error('Failed to load people for this company')
       people.value = []
       personForm.value.is_primary = true
     } finally {

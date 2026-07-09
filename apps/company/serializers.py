@@ -114,6 +114,13 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
             "phone",
         ]
         read_only_fields = ["id", "is_active", "created_at", "updated_at"]
+        extra_kwargs = {
+            "company": {"help_text": "The company this person is linked to"},
+            "is_primary": {
+                "help_text": "Indicates if this is the primary person for the company"
+            },
+            "notes": {"help_text": "Additional notes about this person"},
+        }
 
     def to_internal_value(self, data: Any) -> Any:
         """Convert empty strings to None for nullable fields before validation."""

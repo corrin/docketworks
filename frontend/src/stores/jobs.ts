@@ -321,7 +321,7 @@ export const useJobsStore = defineStore('jobs', () => {
           name: detailedJob.job.name,
           status: detailedJob.job.job_status,
           company_name: detailedJob.job.company_name || '',
-          person_name: detailedJob.job.person_name || kanbanJob.person_name,
+          person_name: detailedJob.job.person_name ?? '',
           paid: detailedJob.job.paid || false,
         },
       }

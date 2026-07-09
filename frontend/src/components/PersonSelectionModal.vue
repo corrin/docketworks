@@ -344,6 +344,7 @@ const emit = defineEmits<{
   'edit-person': [person: CompanyPersonLink]
   'delete-person': [personLinkId: string]
   'cancel-edit': []
+  'update:personForm': [personForm: PersonFormData]
 }>()
 
 const nameError = ref('')
@@ -363,7 +364,6 @@ watch(
 watch(
   () => props.people.length,
   (peopleLength) => {
-    console.log('[PEOPLE] Modal received:', peopleLength, 'people')
     if (peopleLength === 0) {
       // Automatically set as primary if this is the first person
       localPersonForm.is_primary = true
@@ -376,12 +376,7 @@ watch(
 watch(
   localPersonForm,
   (val) => {
-    // Update the parent's form data
-    Object.keys(val).forEach((key) => {
-      if (key in props.personForm) {
-        ;(props.personForm as Record<string, unknown>)[key] = val[key as keyof typeof val]
-      }
-    })
+    emit('update:personForm', { ...val })
   },
   { deep: true },
 )
