@@ -481,6 +481,44 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         self.assertTrue(method.is_primary)
         rematch.assert_called_once_with(["+6421222222"])
 
+    def test_create_contact_sets_person_fields_and_ignores_is_active(self) -> None:
+        response = self.client.post(
+            self.URL,
+            {
+                "company": str(self.job_client.id),
+                "person_name": "Bob Brown",
+                "person_email": "bob@example.com",
+                "is_active": False,
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 201)
+        link = CompanyPersonLink.objects.select_related("person").get(
+            pk=response.json()["id"]
+        )
+        self.assertEqual(link.person.name, "Bob Brown")
+        self.assertEqual(link.person.email, "bob@example.com")
+        self.assertTrue(link.person.is_active)
+        self.assertTrue(link.is_active)
+
+    def test_update_contact_updates_person_name_and_email(self) -> None:
+        contact = self._contact("Jane Smith")
+
+        response = self.client.patch(
+            f"{self.URL}{contact.id}/",
+            {
+                "person_name": "Jane Brown",
+                "person_email": "jane@example.com",
+            },
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        contact.person.refresh_from_db()
+        self.assertEqual(contact.person.name, "Jane Brown")
+        self.assertEqual(contact.person.email, "jane@example.com")
+
     def test_update_phone_updates_existing_primary_method(self) -> None:
         contact = self._contact("Jane Smith", phone="021 111 111")
         method = contact.person.contact_methods.get()

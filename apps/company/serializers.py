@@ -1,4 +1,4 @@
-from typing import Any, TypedDict
+from typing import Any, NotRequired, TypedDict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -82,23 +82,52 @@ def set_primary_phone(owner: Company | Person, raw_value: str) -> None:
     transaction.on_commit(lambda: rematch_phone_calls_task.delay(numbers))
 
 
-class CompanyPersonAttrs(TypedDict, total=False):
-    """DRF-normalized nested attrs from person_name/person_email."""
+class CompanyPersonCreateAttrs(TypedDict):
+    """DRF-normalized person attrs required when creating a company link."""
+
+    name: str
+    email: NotRequired[str | None]
+
+
+class CompanyPersonUpdateAttrs(TypedDict, total=False):
+    """DRF-normalized person attrs accepted when updating a company link."""
 
     name: str
     email: str | None
 
 
-class CompanyPersonLinkAttrs(TypedDict, total=False):
-    """DRF-normalized writable attrs for CompanyPersonLinkSerializer."""
+class CompanyPersonLinkCreateAttrs(TypedDict):
+    """DRF-normalized writable attrs for CompanyPersonLinkSerializer.create."""
 
     company: Company
-    person: CompanyPersonAttrs
+    person: CompanyPersonCreateAttrs
+    xero_name: NotRequired[str | None]
+    position: NotRequired[str | None]
+    is_primary: NotRequired[bool]
+    notes: NotRequired[str | None]
+    phone: NotRequired[str | None]
+
+
+class CompanyPersonLinkModelCreateAttrs(TypedDict):
+    """Model attrs passed to DRF after the nested person attrs are persisted."""
+
+    company: Company
+    person: Person
+    xero_name: NotRequired[str | None]
+    position: NotRequired[str | None]
+    is_primary: NotRequired[bool]
+    notes: NotRequired[str | None]
+
+
+class CompanyPersonLinkUpdateAttrs(TypedDict, total=False):
+    """DRF-normalized writable attrs for CompanyPersonLinkSerializer.update."""
+
+    company: Company
+    person: CompanyPersonUpdateAttrs
     xero_name: str | None
     position: str | None
     is_primary: bool
     notes: str | None
-    is_active: bool
     phone: str | None
 
 
@@ -153,27 +182,32 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
 
         return super().to_internal_value(data)
 
-    def create(self, validated_data: CompanyPersonLinkAttrs) -> CompanyPersonLink:
-        raw_phone = validated_data.pop("phone", None)  # not a model field
-        person_value = validated_data.pop("person", None)
+    def create(self, validated_data: CompanyPersonLinkCreateAttrs) -> CompanyPersonLink:
+        raw_phone = validated_data.get("phone")  # not a model field
+        person_value = validated_data["person"]
         with transaction.atomic():
-            if person_value is not None and "name" in person_value:
-                person = Person.objects.create(
-                    name=person_value["name"],
-                    email=person_value.get("email"),
-                    is_active=validated_data.get("is_active", True),
-                )
-            else:
-                raise serializers.ValidationError(
-                    {"person_name": "This field is required."}
-                )
-            if validated_data.get("xero_name") is None:
-                validated_data["xero_name"] = person.name
-            link = super().create({**validated_data, "person": person})
+            person = Person.objects.create(
+                name=person_value["name"],
+                email=person_value.get("email"),
+                is_active=True,
+            )
+            xero_name = validated_data.get("xero_name")
+            link_data: CompanyPersonLinkModelCreateAttrs = {
+                "company": validated_data["company"],
+                "person": person,
+                "xero_name": xero_name if xero_name is not None else person.name,
+            }
+            if "position" in validated_data:
+                link_data["position"] = validated_data["position"]
+            if "is_primary" in validated_data:
+                link_data["is_primary"] = validated_data["is_primary"]
+            if "notes" in validated_data:
+                link_data["notes"] = validated_data["notes"]
+            link = super().create(link_data)
             return self._apply_phone(link, raw_phone)
 
     def update(
-        self, instance: CompanyPersonLink, validated_data: CompanyPersonLinkAttrs
+        self, instance: CompanyPersonLink, validated_data: CompanyPersonLinkUpdateAttrs
     ) -> CompanyPersonLink:
         raw_phone = validated_data.pop("phone", None)  # not a model field
         person_data = validated_data.pop("person", None)
