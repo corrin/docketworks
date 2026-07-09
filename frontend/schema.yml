@@ -23266,8 +23266,11 @@ components:
           type: boolean
         xero_readonly:
           type: boolean
+        xero_production_client:
+          type: boolean
       required:
         - connected
+        - xero_production_client
         - xero_readonly
     XeroQuote:
       type: object

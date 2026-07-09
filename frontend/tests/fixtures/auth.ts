@@ -176,6 +176,10 @@ export const test = base.extend<AuthFixtures, WorkerFixtures>({
   // Every test's page fails on unexpected browser console errors and uncaught
   // page exceptions. authenticatedPage wraps this fixture, so login is covered too.
   page: async ({ page, expectedConsoleErrors, sessionCheckConsoleAllowance }, use) => {
+    await page.addInitScript(() => {
+      window.localStorage.setItem('e2e:disable-session-replay', 'true')
+    })
+
     const captured: CapturedBrowserError[] = []
     page.on('response', (response) => {
       const url = new URL(response.url())

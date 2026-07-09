@@ -10,12 +10,22 @@ import {
 type StopRecording = () => void
 
 const FLUSH_INTERVAL_MS = 10_000
+const E2E_DISABLE_SESSION_REPLAY_KEY = 'e2e:disable-session-replay'
 
 let stopRecording: StopRecording | null = null
 let flushTimer: number | null = null
 let sequence = 0
 let bufferedEvents: eventWithTime[] = []
 let isFlushing = false
+
+function sessionReplayDisabledForE2E(): boolean {
+  const isPlaywrightNgrokRun =
+    navigator.webdriver && window.location.hostname.endsWith('.ngrok-free.app')
+  return (
+    import.meta.env.DEV &&
+    (isPlaywrightNgrokRun || window.localStorage.getItem(E2E_DISABLE_SESSION_REPLAY_KEY) === 'true')
+  )
+}
 
 function responseStatus(error: unknown): number | null {
   if (typeof error !== 'object' || error === null || !('response' in error)) return null
@@ -61,6 +71,7 @@ function viewport() {
 }
 
 export async function startSessionReplay(): Promise<void> {
+  if (sessionReplayDisabledForE2E()) return
   if (getCurrentSessionReplayId() || stopRecording) return
 
   const recording = await api.session_replay_recordings_create({

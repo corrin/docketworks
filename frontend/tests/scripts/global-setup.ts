@@ -52,21 +52,35 @@ async function getAuthCookie(frontendUrl: string): Promise<string> {
 }
 
 /**
- * Read-only check: verify Xero is connected and the backend is in
- * XERO_READONLY mode by hitting the ping endpoint.
+ * Safety check: verify Xero is connected and whether the backend is pointing at
+ * the production Xero app. Production Xero writes require XERO_READONLY.
  * Does NOT attempt to connect or refresh tokens.
  */
-async function checkXeroStatus(): Promise<{ connected: boolean; xeroReadonly: boolean }> {
+async function checkXeroStatus(): Promise<{
+  connected: boolean
+  xeroReadonly: boolean
+  productionClient: boolean | null
+}> {
   const frontendUrl = getFrontendUrl()
   const cookieValue = await getAuthCookie(frontendUrl)
 
   const response = await fetch(`${frontendUrl}/api/xero/ping/`, {
     headers: { Cookie: cookieValue },
   })
-  if (!response.ok) return { connected: false, xeroReadonly: false }
-  const data = (await response.json()) as { connected?: boolean; xero_readonly?: boolean }
-  // A missing xero_readonly field (old backend) must fail, not pass silently.
-  return { connected: data.connected === true, xeroReadonly: data.xero_readonly === true }
+  if (!response.ok) return { connected: false, xeroReadonly: false, productionClient: null }
+  const data = (await response.json()) as {
+    connected?: boolean
+    xero_readonly?: boolean
+    xero_production_client?: boolean
+  }
+  return {
+    connected: data.connected === true,
+    // Missing xero_readonly (old backend) must fail, not pass silently.
+    xeroReadonly: data.xero_readonly === true,
+    // Missing production-client classification must fail closed when connected.
+    productionClient:
+      typeof data.xero_production_client === 'boolean' ? data.xero_production_client : null,
+  }
 }
 
 export default async function globalSetup() {
@@ -87,13 +101,21 @@ export default async function globalSetup() {
   } else {
     console.log('[xero] Xero is connected.')
   }
-  if (!xeroStatus.xeroReadonly) {
+  if (xeroStatus.connected && xeroStatus.productionClient === null) {
     issues.push(
-      'Backend is not running in XERO_READONLY mode — E2E would write to PROD Xero. ' +
-        'Restart the backend (and any celery worker) with XERO_READONLY=True.',
+      'Backend did not report whether the active Xero app is production. ' +
+        'Deploy the backend ping update before running E2E.',
     )
+  } else if (xeroStatus.productionClient && !xeroStatus.xeroReadonly) {
+    issues.push(
+      'Backend is using the production Xero app with writes enabled. ' +
+        'Restart the backend and any celery worker with XERO_READONLY=True, ' +
+        'or switch the active Xero app to a non-production client.',
+    )
+  } else if (xeroStatus.productionClient) {
+    console.log('[xero] Backend is using the production Xero app in XERO_READONLY mode.')
   } else {
-    console.log('[xero] Backend is in XERO_READONLY mode.')
+    console.log('[xero] Backend is using a non-production Xero app.')
   }
 
   // Check database is clean

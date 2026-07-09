@@ -3499,6 +3499,7 @@ const XeroQuoteCreateRequest = z.object({ breakdown: z.boolean() })
 const XeroPingResponse = z.object({
   connected: z.boolean(),
   xero_readonly: z.boolean(),
+  xero_production_client: z.boolean(),
 })
 const XeroSyncStartResponse = z.object({
   status: z.string(),

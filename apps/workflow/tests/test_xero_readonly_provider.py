@@ -20,7 +20,7 @@ from apps.workflow.accounting.registry import get_provider
 from apps.workflow.accounting.types import DocumentLineItem, POPayload
 from apps.workflow.accounting.xero.provider import XeroAccountingProvider
 from apps.workflow.accounting.xero.readonly_provider import XeroReadOnlyProvider
-from apps.workflow.models import AppError, XeroAccount
+from apps.workflow.models import AppError, XeroAccount, XeroApp
 from apps.workflow.views.xero.xero_invoice_manager import XeroInvoiceManager
 from apps.workflow.views.xero.xero_quote_manager import XeroQuoteManager
 
@@ -67,6 +67,36 @@ class XeroPingReadonlyFieldTests(BaseTestCase):
     @override_settings(XERO_READONLY=False)
     def test_ping_reports_readonly_false(self) -> None:
         self.assertIs(self._ping_data()["xero_readonly"], False)
+
+    @override_settings(
+        PRODUCTION_XERO_CLIENT_IDS=["prod-client"],
+        XERO_READONLY=False,
+    )
+    def test_ping_reports_production_xero_client_true(self) -> None:
+        XeroApp.objects.create(
+            label="Production",
+            client_id="prod-client",
+            client_secret="secret",
+            redirect_uri="https://example.test/callback",
+            is_active=True,
+        )
+
+        self.assertIs(self._ping_data()["xero_production_client"], True)
+
+    @override_settings(
+        PRODUCTION_XERO_CLIENT_IDS=["prod-client"],
+        XERO_READONLY=False,
+    )
+    def test_ping_reports_production_xero_client_false(self) -> None:
+        XeroApp.objects.create(
+            label="Development",
+            client_id="dev-client",
+            client_secret="secret",
+            redirect_uri="https://example.test/callback",
+            is_active=True,
+        )
+
+        self.assertIs(self._ping_data()["xero_production_client"], False)
 
 
 @override_settings(XERO_READONLY=True)
