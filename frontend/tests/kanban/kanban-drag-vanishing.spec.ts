@@ -195,7 +195,9 @@ test.describe('kanban drag vanishing', () => {
     // job's card can legitimately be absent until the search below filters
     // the board.
     await page.goto(sharedEditJobUrl)
-    const jobNumberText = await autoId(page, 'JobView-job-number').first().innerText()
+    const jobNumberLocator = autoId(page, 'JobView-job-number').first()
+    await expect(jobNumberLocator).toContainText(/\d+/)
+    const jobNumberText = await jobNumberLocator.innerText()
     const jobNumber = jobNumberText.match(/#(\d+)/)?.[1] ?? ''
     expect(jobNumber).not.toBe('')
 
