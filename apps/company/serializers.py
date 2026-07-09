@@ -133,7 +133,7 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
 
         return super().to_internal_value(data)
 
-    def create(self, validated_data):
+    def create(self, validated_data: dict[str, Any]) -> CompanyPersonLink:
         raw_phone = validated_data.pop("phone", None)  # not a model field
         person_value = validated_data.pop("person", None)
         with transaction.atomic():
@@ -153,7 +153,9 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
             link = super().create(validated_data)
             return self._apply_phone(link, raw_phone)
 
-    def update(self, instance, validated_data):
+    def update(
+        self, instance: CompanyPersonLink, validated_data: dict[str, Any]
+    ) -> CompanyPersonLink:
         raw_phone = validated_data.pop("phone", None)  # not a model field
         person_data = validated_data.pop("person", None)
         with transaction.atomic():
