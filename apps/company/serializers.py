@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TypedDict
 
 from django.core.exceptions import ValidationError as DjangoValidationError
 from django.db import transaction
@@ -82,6 +82,26 @@ def set_primary_phone(owner: Company | Person, raw_value: str) -> None:
     transaction.on_commit(lambda: rematch_phone_calls_task.delay(numbers))
 
 
+class CompanyPersonAttrs(TypedDict, total=False):
+    """DRF-normalized nested attrs from person_name/person_email."""
+
+    name: str
+    email: str | None
+
+
+class CompanyPersonLinkAttrs(TypedDict, total=False):
+    """DRF-normalized writable attrs for CompanyPersonLinkSerializer."""
+
+    company: Company
+    person: CompanyPersonAttrs
+    xero_name: str | None
+    position: str | None
+    is_primary: bool
+    notes: str | None
+    is_active: bool
+    phone: str | None
+
+
 class CompanyPersonLinkSerializer(serializers.ModelSerializer):
     """Serializer for a person's relationship to a company."""
 
@@ -133,34 +153,33 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
 
         return super().to_internal_value(data)
 
-    def create(self, validated_data: dict[str, Any]) -> CompanyPersonLink:
+    def create(self, validated_data: CompanyPersonLinkAttrs) -> CompanyPersonLink:
         raw_phone = validated_data.pop("phone", None)  # not a model field
         person_value = validated_data.pop("person", None)
         with transaction.atomic():
-            if isinstance(person_value, dict):
+            if person_value is not None and "name" in person_value:
                 person = Person.objects.create(
                     name=person_value["name"],
                     email=person_value.get("email"),
                     is_active=validated_data.get("is_active", True),
                 )
-                validated_data["person"] = person
             else:
                 raise serializers.ValidationError(
                     {"person_name": "This field is required."}
                 )
             if validated_data.get("xero_name") is None:
                 validated_data["xero_name"] = person.name
-            link = super().create(validated_data)
+            link = super().create({**validated_data, "person": person})
             return self._apply_phone(link, raw_phone)
 
     def update(
-        self, instance: CompanyPersonLink, validated_data: dict[str, Any]
+        self, instance: CompanyPersonLink, validated_data: CompanyPersonLinkAttrs
     ) -> CompanyPersonLink:
         raw_phone = validated_data.pop("phone", None)  # not a model field
         person_data = validated_data.pop("person", None)
         with transaction.atomic():
             link = super().update(instance, validated_data)
-            if isinstance(person_data, dict):
+            if person_data is not None:
                 person_update_fields = ["updated_at"]
                 if "name" in person_data:
                     link.person.name = person_data["name"]
