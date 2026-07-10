@@ -117,13 +117,13 @@ def _query_date(value: str | None, field_name: str) -> date | None:
     return parsed
 
 
-def _apply_client_match_filter(
+def _apply_company_match_filter(
     queryset: QuerySet[PhoneCallRecord],
-    client_match: str,
+    company_match: str,
 ) -> QuerySet[PhoneCallRecord]:
-    if client_match == "matched":
+    if company_match == "matched":
         return queryset.filter(company_id__isnull=False)
-    if client_match == "unmatched":
+    if company_match == "unmatched":
         return queryset.filter(company_id__isnull=True)
     return queryset
 
@@ -207,9 +207,11 @@ def _filter_phone_call_queryset(
     queryset: QuerySet[PhoneCallRecord],
     request: Request,
 ) -> QuerySet[PhoneCallRecord]:
-    client_match = _query_choice(
-        request.query_params.get("client_match"),
-        "client_match",
+    if "client_match" in request.query_params:
+        raise ValidationError({"client_match": ["Use company_match."]})
+    company_match = _query_choice(
+        request.query_params.get("company_match"),
+        "company_match",
         {"all", "matched", "unmatched"},
     )
     job_link = _query_choice(
@@ -226,7 +228,7 @@ def _filter_phone_call_queryset(
         request.query_params.get("has_recording"), "has_recording"
     )
 
-    queryset = _apply_client_match_filter(queryset, client_match)
+    queryset = _apply_company_match_filter(queryset, company_match)
     queryset = _apply_job_link_filter(queryset, job_link)
     queryset = _apply_direction_filter(queryset, direction)
     queryset = _apply_recording_filter(queryset, has_recording)
@@ -250,7 +252,7 @@ class PhoneCallRecordViewSet(viewsets.ReadOnlyModelViewSet[PhoneCallRecord]):
             OpenApiParameter(
                 "destination_endpoint", OpenApiTypes.UUID, OpenApiParameter.QUERY
             ),
-            OpenApiParameter("client_match", OpenApiTypes.STR, OpenApiParameter.QUERY),
+            OpenApiParameter("company_match", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("job_link", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter("direction", OpenApiTypes.STR, OpenApiParameter.QUERY),
             OpenApiParameter(

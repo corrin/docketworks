@@ -942,7 +942,7 @@ class Job(models.Model):
                 self_job.company.name if self_job.company else "Unknown Company"
             )
         return (
-            "client_changed",
+            "company_changed",
             {
                 "field_name": "Company",
                 "old_value": old_company,
@@ -964,7 +964,7 @@ class Job(models.Model):
         if new_person_id:
             new_person = self_job.person.name if self_job.person else "Unknown Person"
         return (
-            "contact_changed",
+            "person_changed",
             {
                 "field_name": "Person",
                 "old_value": old_person,

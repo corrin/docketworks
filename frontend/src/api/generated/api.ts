@@ -1347,7 +1347,7 @@ const DuplicatePhoneOwner = z.object({
   method_id: z.string(),
   owner_kind: z.string(),
   owner_name: z.string(),
-  effective_client_id: z.string().nullable(),
+  effective_company_id: z.string().nullable(),
 })
 const DuplicatePhoneIssue = z.object({
   normalized_value: z.string(),
@@ -1356,7 +1356,7 @@ const DuplicatePhoneIssue = z.object({
   owners: z.array(DuplicatePhoneOwner),
 })
 const DuplicatePhoneSummary = z.object({
-  cross_client: z.number().int(),
+  cross_company: z.number().int(),
   internal_line: z.number().int(),
 })
 const DuplicatePhonesResponse = z.object({
@@ -5760,14 +5760,14 @@ DELETE: Clear a logo field and remove the file from disk.`,
     requestFormat: 'json',
     parameters: [
       {
-        name: 'client_match',
-        type: 'Query',
-        schema: z.string().optional(),
-      },
-      {
         name: 'company',
         type: 'Query',
         schema: z.string().uuid().optional(),
+      },
+      {
+        name: 'company_match',
+        type: 'Query',
+        schema: z.string().optional(),
       },
       {
         name: 'destination_endpoint',

@@ -182,7 +182,7 @@ class PhoneMatcherDatabaseTests(TestCase):
         self.assertEqual(matched_company, company)
         self.assertIsNone(matched_contact)
 
-    def test_same_number_across_clients_is_rejected(self) -> None:
+    def test_same_number_across_companies_is_rejected(self) -> None:
         first = self._client("Acme Ltd")
         second = self._client("Beta Ltd")
         ContactMethod.objects.create(
@@ -614,11 +614,11 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
 
         unmatched_response = self.api.get(
             "/api/crm/phone-calls/",
-            {"client_match": "unmatched"},
+            {"company_match": "unmatched"},
         )
         unlinked_response = self.api.get(
             "/api/crm/phone-calls/",
-            {"client_match": "matched", "job_link": "unlinked"},
+            {"company_match": "matched", "job_link": "unlinked"},
         )
 
         self.assertEqual(unmatched_response.status_code, 200)
@@ -631,6 +631,15 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
             [row["id"] for row in unlinked_response.data["results"]],
             [str(unlinked.id)],
         )
+
+    def test_list_rejects_legacy_client_match_filter(self) -> None:
+        response = self.api.get(
+            "/api/crm/phone-calls/",
+            {"client_match": "matched"},
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.data["client_match"], ["Use company_match."])
 
     def test_list_filters_by_direction_recording_date_and_search(self) -> None:
         """Catches recent-call filters drifting from provider call fields."""
@@ -819,7 +828,7 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn("assigned to a company", response.data["message"])
 
-    def test_link_rejects_cross_client_job(self) -> None:
+    def test_link_rejects_cross_company_job(self) -> None:
         response = self.api.post(
             f"/api/crm/phone-calls/{self.call.id}/job-link/",
             {"job": str(self.other_job.id)},

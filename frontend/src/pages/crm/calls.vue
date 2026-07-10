@@ -183,7 +183,7 @@ type DirectionFilter = 'all' | 'inbound' | 'outbound' | 'internal' | 'unknown'
 type PhoneCallQuery = {
   page: number
   page_size: number
-  client_match?: string
+  company_match?: string
   job_link?: string
   direction?: string
   has_recording?: boolean
@@ -240,12 +240,12 @@ const activeQueue = computed(() => QUEUE_META[activeTab.value])
 function queryForActiveTab(): PhoneCallQuery {
   const query: PhoneCallQuery = { page: 1, page_size: 50 }
   if (activeTab.value === 'unmatched') {
-    query.client_match = 'unmatched'
+    query.company_match = 'unmatched'
   } else if (activeTab.value === 'unlinked') {
-    query.client_match = 'matched'
+    query.company_match = 'matched'
     query.job_link = 'unlinked'
   } else {
-    query.client_match = 'all'
+    query.company_match = 'all'
     query.job_link = 'all'
   }
   if (directionFilter.value !== 'all') query.direction = directionFilter.value

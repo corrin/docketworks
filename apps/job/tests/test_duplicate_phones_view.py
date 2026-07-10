@@ -36,7 +36,7 @@ class DuplicatePhonesViewTests(BaseAPITestCase):
         response = self.client.get(URL)
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.data["summary"]["cross_client"], 1)
+        self.assertEqual(response.data["summary"]["cross_company"], 1)
         self.assertEqual(len(response.data["duplicate_phones"]), 1)
         self.assertEqual(len(response.data["duplicate_phones"][0]["owners"]), 2)
 

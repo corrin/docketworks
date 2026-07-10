@@ -71,9 +71,9 @@ class DuplicatePhoneOwnerSerializer(serializers.Serializer[DuplicatePhoneOwner])
     """One owner of a mis-owned phone number."""
 
     method_id = serializers.CharField(help_text="Contact-method id")
-    owner_kind = serializers.CharField(help_text="'company' or 'contact'")
+    owner_kind = serializers.CharField(help_text="'company' or 'person'")
     owner_name = serializers.CharField(help_text="Human-readable owner")
-    effective_client_id = serializers.CharField(
+    effective_company_id = serializers.CharField(
         allow_null=True, help_text="Company the number resolves to"
     )
 
@@ -81,7 +81,7 @@ class DuplicatePhoneOwnerSerializer(serializers.Serializer[DuplicatePhoneOwner])
 class DuplicatePhoneSummarySerializer(serializers.Serializer[DuplicatePhoneSummary]):
     """Summary of duplicate-phone issues."""
 
-    cross_client = serializers.IntegerField(
+    cross_company = serializers.IntegerField(
         help_text="Numbers owned by more than one company"
     )
     internal_line = serializers.IntegerField(
@@ -93,7 +93,7 @@ class DuplicatePhoneIssueSerializer(serializers.Serializer[DuplicatePhoneIssue])
     """One problematic phone number and its owners."""
 
     normalized_value = serializers.CharField(help_text="Normalized phone number")
-    issue = serializers.CharField(help_text="'cross_client' or 'internal_line'")
+    issue = serializers.CharField(help_text="'cross_company' or 'internal_line'")
     endpoint_label = serializers.CharField(
         required=False,
         allow_null=True,

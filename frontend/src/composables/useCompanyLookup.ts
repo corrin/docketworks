@@ -18,7 +18,7 @@ export async function logCompanySearchClick(
   company: Company,
   query: string,
   rank: number | null,
-  source = 'client_lookup',
+  source = 'company_lookup',
 ) {
   const trimmedQuery = query.trim()
   if (trimmedQuery.length < 3) {

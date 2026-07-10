@@ -92,7 +92,7 @@ class KanbanService:
                 "company__name", Value(""), output_field=TextField()
             ),
             "score": SEARCH_SCORE_COMPANY_CONTAINS,
-            "reason": "client_contains",
+            "reason": "company_contains",
         },
         {
             "db_path": "person__name",
