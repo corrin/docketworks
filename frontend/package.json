@@ -36,7 +36,7 @@
     "@internationalized/date": "^3.12.2",
     "@kodeglot/vue-calendar": "^1.5.0",
     "@rrweb/record": "^2.0.0-alpha.20",
-    "@tailwindcss/vite": "^4.3.1",
+    "@tailwindcss/vite": "^4.3.2",
     "@tanstack/vue-table": "^8.21.3",
     "@types/event-source-polyfill": "^1.0.5",
     "@types/quill": "^2.0.14",
