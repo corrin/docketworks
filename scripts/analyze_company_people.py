@@ -23,14 +23,14 @@ from django.db.models import Count, Q
 from apps.company.models import Company, CompanyPersonLink
 from apps.job.models import Job
 
+EMPTY_PERSON_NAME_Q = Q(person__name="") | Q(person__name__regex=r"^\s+$")
+
 
 def analyze_empty_names(verbose: bool) -> int:
     """Analyze linked Person records with empty/whitespace names."""
     logging.info("1. EMPTY PERSON NAME ANALYSIS")
 
-    empty_name_links = CompanyPersonLink.objects.filter(
-        Q(person__name="") | Q(person__name__regex=r"^\s+$")
-    )
+    empty_name_links = CompanyPersonLink.objects.filter(EMPTY_PERSON_NAME_Q)
     count = empty_name_links.count()
 
     logging.info("Total company/person links with empty person names: %d", count)
@@ -59,25 +59,30 @@ def analyze_empty_names(verbose: bool) -> int:
 def flagged_link_ids() -> set[UUID]:
     """Return company/person link IDs that need manual review."""
     empty_name_ids = set(
-        CompanyPersonLink.objects.filter(
-            Q(person__name="") | Q(person__name__regex=r"^\s+$")
-        ).values_list("id", flat=True)
+        CompanyPersonLink.objects.filter(EMPTY_PERSON_NAME_Q).values_list(
+            "id",
+            flat=True,
+        )
     )
 
-    duplicate_groups = (
+    duplicate_groups = list(
         CompanyPersonLink.objects.values("company", "person__name")
         .annotate(count=Count("id"))
         .filter(count__gt=1)
     )
-    duplicate_ids: set[UUID] = set()
+    if not duplicate_groups:
+        return empty_name_ids
+
+    duplicate_filter = Q()
     for duplicate in duplicate_groups:
-        duplicate_ids.update(
-            CompanyPersonLink.objects.filter(
-                company_id=duplicate["company"],
-                person__name=duplicate["person__name"],
-            ).values_list("id", flat=True)
+        duplicate_filter |= Q(
+            company_id=duplicate["company"],
+            person__name=duplicate["person__name"],
         )
 
+    duplicate_ids: set[UUID] = set(
+        CompanyPersonLink.objects.filter(duplicate_filter).values_list("id", flat=True)
+    )
     return empty_name_ids | duplicate_ids
 
 
