@@ -10,6 +10,7 @@ Usage:
 import argparse
 import logging
 import os
+from uuid import UUID
 
 os.environ.setdefault("DJANGO_SETTINGS_MODULE", "docketworks.settings")
 
@@ -17,7 +18,7 @@ import django
 
 django.setup()
 
-from django.db.models import Count
+from django.db.models import Count, Q
 
 from apps.company.models import Company, CompanyPersonLink
 from apps.job.models import Job
@@ -28,8 +29,8 @@ def analyze_empty_names(verbose: bool) -> int:
     logging.info("1. EMPTY PERSON NAME ANALYSIS")
 
     empty_name_links = CompanyPersonLink.objects.filter(
-        person__name=""
-    ) | CompanyPersonLink.objects.filter(person__name__regex=r"^\s+$")
+        Q(person__name="") | Q(person__name__regex=r"^\s+$")
+    )
     count = empty_name_links.count()
 
     logging.info("Total company/person links with empty person names: %d", count)
@@ -53,6 +54,31 @@ def analyze_empty_names(verbose: bool) -> int:
                 logging.warning("    Referenced by %d jobs at this company", job_count)
 
     return count
+
+
+def flagged_link_ids() -> set[UUID]:
+    """Return company/person link IDs that need manual review."""
+    empty_name_ids = set(
+        CompanyPersonLink.objects.filter(
+            Q(person__name="") | Q(person__name__regex=r"^\s+$")
+        ).values_list("id", flat=True)
+    )
+
+    duplicate_groups = (
+        CompanyPersonLink.objects.values("company", "person__name")
+        .annotate(count=Count("id"))
+        .filter(count__gt=1)
+    )
+    duplicate_ids: set[UUID] = set()
+    for duplicate in duplicate_groups:
+        duplicate_ids.update(
+            CompanyPersonLink.objects.filter(
+                company_id=duplicate["company"],
+                person__name=duplicate["person__name"],
+            ).values_list("id", flat=True)
+        )
+
+    return empty_name_ids | duplicate_ids
 
 
 def analyze_duplicates(verbose: bool) -> int:
@@ -132,9 +158,10 @@ def main() -> None:
     logging.info("--- SUMMARY ---")
     logging.info("Empty/whitespace person-name links: %d", empty_count)
     logging.info("Duplicate company/person-name links to review: %d", duplicate_count)
+    logging.info("Total company/person links: %d", CompanyPersonLink.objects.count())
     logging.info(
-        "Total links after cleanup: %d",
-        CompanyPersonLink.objects.count() - empty_count - duplicate_count,
+        "Unique company/person links flagged for review: %d",
+        len(flagged_link_ids()),
     )
 
 
