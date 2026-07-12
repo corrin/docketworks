@@ -13,7 +13,7 @@ class DuplicatePhoneOwner(TypedDict):
     method_id: str
     owner_kind: str
     owner_name: str
-    effective_client_id: str | None
+    effective_company_id: str | None
 
 
 class DuplicatePhoneIssue(TypedDict):
@@ -24,7 +24,7 @@ class DuplicatePhoneIssue(TypedDict):
 
 
 class DuplicatePhoneSummary(TypedDict):
-    cross_client: int
+    cross_company: int
     internal_line: int
 
 
@@ -43,7 +43,7 @@ class DuplicatePhoneReportService:
         return {
             "duplicate_phones": cross_company + internal_line,
             "summary": {
-                "cross_client": len(cross_company),
+                "cross_company": len(cross_company),
                 "internal_line": len(internal_line),
             },
             "checked_at": timezone.now(),
@@ -78,7 +78,7 @@ class DuplicatePhoneReportService:
         return [
             {
                 "normalized_value": number,
-                "issue": "cross_client",
+                "issue": "cross_company",
                 "endpoint_label": None,
                 "owners": owners,
             }
@@ -118,7 +118,7 @@ class DuplicatePhoneReportService:
             "method_id": str(method.id),
             "owner_kind": "company" if method.company_id else "person",
             "owner_name": method.owner_display_name(),
-            "effective_client_id": (
+            "effective_company_id": (
                 str(effective_company_id) if effective_company_id else None
             ),
         }

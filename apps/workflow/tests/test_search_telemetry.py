@@ -29,7 +29,7 @@ def test_search_click_endpoint_records_generic_event(db):
             "selected_label": "Fumecare Ltd",
             "selected_rank": 1,
             "result_count": 7,
-            "source": "client_lookup",
+            "source": "company_lookup",
             "metadata": {"extra": "future-safe"},
         },
         format="json",
@@ -45,6 +45,7 @@ def test_search_click_endpoint_records_generic_event(db):
     assert event.selected_label == "Fumecare Ltd"
     assert event.selected_rank == 1
     assert event.result_count == 7
+    assert event.source == "company_lookup"
     assert event.metadata == {"extra": "future-safe"}
 
 

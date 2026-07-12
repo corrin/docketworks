@@ -558,10 +558,10 @@ class JobEventTests(ReassignFKBaseCase):
         self.assertEqual(
             events_after,
             events_before + 1,
-            "Job reassignment should create a client_changed JobEvent",
+            "Job reassignment should create a company_changed JobEvent",
         )
         latest = JobEvent.objects.filter(job=job).latest("timestamp")
-        self.assertEqual(latest.event_type, "client_changed")
+        self.assertEqual(latest.event_type, "company_changed")
         self.assertEqual(latest.delta_after["company_id"], str(self.destination.id))
 
 

@@ -212,7 +212,7 @@ const selectCompany = (company: Company, rank: number | null = null) => {
   const query = searchQuery.value
   preserveSelectedCompany()
   selectCompanyFromComposable(company)
-  logCompanySearchClick(company, query, rank, 'client_lookup')
+  logCompanySearchClick(company, query, rank, 'company_lookup')
   emit('update:modelValue', company.name)
   emit('update:selectedCompany', company)
   emit('update:selectedId', company.id)

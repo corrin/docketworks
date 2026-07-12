@@ -43,14 +43,14 @@ class DuplicatePhoneReportTests(TestCase):
 
         report = DuplicatePhoneReportService().get_report()
 
-        cross = [i for i in report["duplicate_phones"] if i["issue"] == "cross_client"]
+        cross = [i for i in report["duplicate_phones"] if i["issue"] == "cross_company"]
         self.assertEqual(len(cross), 1)
         self.assertEqual(
             cross[0]["normalized_value"],
             ContactMethod.normalize_phone("021 111 111"),
         )
         self.assertEqual(len(cross[0]["owners"]), 2)
-        self.assertEqual(report["summary"]["cross_client"], 1)
+        self.assertEqual(report["summary"]["cross_company"], 1)
 
     def test_detects_internal_line_collision(self) -> None:
         company = self._company("Acme Ltd")
@@ -83,5 +83,5 @@ class DuplicatePhoneReportTests(TestCase):
         report = DuplicatePhoneReportService().get_report()
 
         self.assertEqual(report["duplicate_phones"], [])
-        self.assertEqual(report["summary"], {"cross_client": 0, "internal_line": 0})
+        self.assertEqual(report["summary"], {"cross_company": 0, "internal_line": 0})
         self.assertIn("checked_at", report)
