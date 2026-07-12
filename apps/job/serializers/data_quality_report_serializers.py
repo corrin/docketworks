@@ -2,6 +2,15 @@
 
 from rest_framework import serializers
 
+from apps.company.services.duplicate_person_report import (
+    DuplicatePersonCandidate,
+    DuplicatePersonCompanyLink,
+    DuplicatePersonContactMethod,
+    DuplicatePersonMatch,
+    DuplicatePersonReport,
+    DuplicatePersonReportSummary,
+    DuplicatePersonSummary,
+)
 from apps.company.services.duplicate_phone_report import (
     DuplicatePhoneIssue,
     DuplicatePhoneOwner,
@@ -111,3 +120,69 @@ class DuplicatePhonesResponseSerializer(serializers.Serializer[DuplicatePhonesRe
     )
     summary = DuplicatePhoneSummarySerializer(help_text="Summary of issues")
     checked_at = serializers.DateTimeField(help_text="When the check was performed")
+
+
+class DuplicatePersonCompanyLinkSerializer(
+    serializers.Serializer[DuplicatePersonCompanyLink]
+):
+    link_id = serializers.UUIDField()
+    company_id = serializers.UUIDField()
+    company_name = serializers.CharField()
+    position = serializers.CharField(allow_null=True)
+    is_primary = serializers.BooleanField()
+    is_active = serializers.BooleanField()
+
+
+class DuplicatePersonContactMethodSerializer(
+    serializers.Serializer[DuplicatePersonContactMethod]
+):
+    method_id = serializers.UUIDField()
+    method_type = serializers.ChoiceField(choices=["phone", "email"])
+    value = serializers.CharField()
+    normalized_value = serializers.CharField()
+    contact_label = serializers.CharField()
+    is_primary = serializers.BooleanField()
+
+
+class DuplicatePersonSummarySerializer(serializers.Serializer[DuplicatePersonSummary]):
+    person_id = serializers.UUIDField()
+    name = serializers.CharField()
+    email = serializers.EmailField(allow_null=True)
+    is_active = serializers.BooleanField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    company_links = DuplicatePersonCompanyLinkSerializer(many=True)
+    contact_methods = DuplicatePersonContactMethodSerializer(many=True)
+    job_count = serializers.IntegerField()
+    phone_call_count = serializers.IntegerField()
+
+
+class DuplicatePersonMatchSerializer(serializers.Serializer[DuplicatePersonMatch]):
+    kind = serializers.ChoiceField(choices=["name", "email", "phone"])
+    normalized_value = serializers.CharField()
+
+
+class DuplicatePersonCandidateSerializer(
+    serializers.Serializer[DuplicatePersonCandidate]
+):
+    confidence = serializers.ChoiceField(choices=["high", "medium", "low"])
+    matches = DuplicatePersonMatchSerializer(many=True)
+    shared_company_ids = serializers.ListField(child=serializers.UUIDField())
+    first_person = DuplicatePersonSummarySerializer()
+    second_person = DuplicatePersonSummarySerializer()
+
+
+class DuplicatePersonReportSummarySerializer(
+    serializers.Serializer[DuplicatePersonReportSummary]
+):
+    candidate_pairs = serializers.IntegerField()
+    people_flagged = serializers.IntegerField()
+    high = serializers.IntegerField()
+    medium = serializers.IntegerField()
+    low = serializers.IntegerField()
+
+
+class DuplicatePeopleResponseSerializer(serializers.Serializer[DuplicatePersonReport]):
+    duplicate_people = DuplicatePersonCandidateSerializer(many=True)
+    summary = DuplicatePersonReportSummarySerializer()
+    checked_at = serializers.DateTimeField()

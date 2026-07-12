@@ -206,7 +206,6 @@ def test_related_display_changes_change_kanban_version(
     CompanyPersonLink.objects.create(
         company=company,
         person=person,
-        xero_name=person.name,
     )
     _job(office_staff, company=company, person=person)
     before = auth_client.get("/api/data-versions/").json()["kanban"]

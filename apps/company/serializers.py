@@ -101,7 +101,6 @@ class CompanyPersonLinkCreateAttrs(TypedDict):
 
     company: Company
     person: CompanyPersonCreateAttrs
-    xero_name: NotRequired[str | None]
     position: NotRequired[str | None]
     is_primary: NotRequired[bool]
     notes: NotRequired[str | None]
@@ -113,7 +112,6 @@ class CompanyPersonLinkModelCreateAttrs(TypedDict):
 
     company: Company
     person: Person
-    xero_name: NotRequired[str | None]
     position: NotRequired[str | None]
     is_primary: NotRequired[bool]
     notes: NotRequired[str | None]
@@ -124,7 +122,6 @@ class CompanyPersonLinkUpdateAttrs(TypedDict, total=False):
 
     company: Company
     person: CompanyPersonUpdateAttrs
-    xero_name: str | None
     position: str | None
     is_primary: bool
     notes: str | None
@@ -153,7 +150,6 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
             "person",
             "person_name",
             "person_email",
-            "xero_name",
             "position",
             "is_primary",
             "notes",
@@ -191,11 +187,9 @@ class CompanyPersonLinkSerializer(serializers.ModelSerializer):
                 email=person_value.get("email"),
                 is_active=True,
             )
-            xero_name = validated_data.get("xero_name")
             link_data: CompanyPersonLinkModelCreateAttrs = {
                 "company": validated_data["company"],
                 "person": person,
-                "xero_name": xero_name if xero_name is not None else person.name,
             }
             if "position" in validated_data:
                 link_data["position"] = validated_data["position"]

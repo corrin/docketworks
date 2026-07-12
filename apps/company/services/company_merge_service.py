@@ -95,16 +95,8 @@ def _move_company_contacts_and_methods(
     for link in CompanyPersonLink.objects.filter(company=source).iterator():
         destination_link = destination_links_by_person.get(link.person_id)
         if destination_link is None:
-            if (
-                link.xero_name is not None
-                and CompanyPersonLink.objects.filter(
-                    company=destination,
-                    xero_name=link.xero_name,
-                ).exists()
-            ):
-                link.xero_name = None
             link.company = destination
-            link.save(update_fields=["company", "xero_name", "updated_at"])
+            link.save(update_fields=["company", "updated_at"])
             destination_links_by_person[link.person_id] = link
         else:
             counts["phone_calls"] += PhoneCallRecord.objects.filter(

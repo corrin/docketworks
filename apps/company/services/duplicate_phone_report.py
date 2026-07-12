@@ -53,17 +53,26 @@ class DuplicatePhoneReportService:
         phones = ContactMethod.objects.filter(
             method_type=ContactMethod.MethodType.PHONE
         )
-        companies_by_number: dict[str, set[str]] = {}
+        companies_by_owner_by_number: dict[str, dict[tuple[str, str], set[str]]] = {}
         for method in phones.select_related("company", "person").prefetch_related(
             "person__company_links"
         ):
-            companies_by_number.setdefault(method.normalized_value, set()).update(
+            if method.person_id is not None:
+                owner_key = ("person", str(method.person_id))
+            elif method.company_id is not None:
+                owner_key = ("company", str(method.company_id))
+            else:
+                raise RuntimeError(f"Contact method {method.id} has no owner")
+            owners = companies_by_owner_by_number.setdefault(
+                method.normalized_value, {}
+            )
+            owners.setdefault(owner_key, set()).update(
                 str(company_id) for company_id in method.owner_company_ids()
             )
         conflict_numbers = [
             number
-            for number, company_ids in companies_by_number.items()
-            if len(company_ids) > 1
+            for number, owners in companies_by_owner_by_number.items()
+            if self._owners_have_no_common_company(owners)
         ]
         if not conflict_numbers:
             return []
@@ -84,6 +93,18 @@ class DuplicatePhoneReportService:
             }
             for number, owners in grouped.items()
         ]
+
+    @staticmethod
+    def _owners_have_no_common_company(
+        companies_by_owner: dict[tuple[str, str], set[str]],
+    ) -> bool:
+        if len(companies_by_owner) < 2:
+            return False
+        owner_company_sets = iter(companies_by_owner.values())
+        common_companies = set(next(owner_company_sets))
+        for company_ids in owner_company_sets:
+            common_companies.intersection_update(company_ids)
+        return not common_companies
 
     def _internal_line_collisions(self) -> list[DuplicatePhoneIssue]:
         endpoint_labels = dict(

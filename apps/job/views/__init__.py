@@ -6,7 +6,11 @@ from .archive_completed_jobs_view import (
 )
 from .assign_job_view import JobAssignmentCreateView, JobAssignmentDeleteView
 from .data_integrity_views import DataIntegrityReportView
-from .data_quality_report_views import ArchivedJobsComplianceView, DuplicatePhonesView
+from .data_quality_report_views import (
+    ArchivedJobsComplianceView,
+    DuplicatePeopleView,
+    DuplicatePhonesView,
+)
 from .delivery_docket_view import DeliveryDocketView
 from .job_costing_views import JobCostSetView, JobQuoteRevisionView
 from .job_costline_views import (
@@ -109,6 +113,7 @@ __all__ = [
     "CostLineUpdateView",
     "DataIntegrityReportView",
     "DeliveryDocketView",
+    "DuplicatePeopleView",
     "DuplicatePhonesView",
     "FetchAllJobsAPIView",
     "FetchJobsAPIView",

@@ -33,7 +33,6 @@ def _link(company: Company, name: str) -> CompanyPersonLink:
     return CompanyPersonLink.objects.create(
         company=company,
         person=person,
-        xero_name=name,
     )
 
 

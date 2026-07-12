@@ -27,7 +27,6 @@ describe('company store people links', () => {
         person: 'person-1',
         person_name: 'Jane Doe',
         person_email: 'jane@example.com',
-        xero_name: 'Jane Doe',
         position: null,
         is_primary: true,
         notes: null,

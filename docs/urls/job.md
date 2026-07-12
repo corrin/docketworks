@@ -23,6 +23,7 @@
 | URL Pattern | View | Name | Description |
 |-------------|------|------|-------------|
 | `/data-quality/archived-jobs-compliance/` | `data_quality_report_views.ArchivedJobsComplianceView` | `jobs:data_quality_archived_jobs_compliance` | API view for checking archived jobs compliance. |
+| `/data-quality/duplicate-people/` | `data_quality_report_views.DuplicatePeopleView` | `jobs:data_quality_duplicate_people` | API view for exact-signal duplicate Person candidates. |
 | `/data-quality/duplicate-phones/` | `data_quality_report_views.DuplicatePhonesView` | `jobs:data_quality_duplicate_phones` | API view for the duplicate phones data-quality check. |
 
 ### Job Management

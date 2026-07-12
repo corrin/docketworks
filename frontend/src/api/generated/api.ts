@@ -705,7 +705,7 @@ const PatchedCompanyUpdateRequest = z
   })
   .partial()
 const CompanyNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
-const MethodTypeEnum = z.enum(['phone', 'email'])
+const ContactMethodMethodTypeEnum = z.enum(['phone', 'email'])
 const ContactMethodSourceEnum = z.enum(['imported', 'local'])
 const ContactMethod = z.object({
   id: z.string().uuid(),
@@ -714,7 +714,7 @@ const ContactMethod = z.object({
   company_name: z.string(),
   person: z.string().uuid().nullish(),
   person_name: z.string(),
-  method_type: MethodTypeEnum,
+  method_type: ContactMethodMethodTypeEnum,
   value: z.string().max(255),
   normalized_value: z.string(),
   label: z.string().max(255).optional(),
@@ -733,7 +733,7 @@ const PaginatedContactMethodList = z.object({
 const ContactMethodRequest = z.object({
   company: z.string().uuid().nullish(),
   person: z.string().uuid().nullish(),
-  method_type: MethodTypeEnum,
+  method_type: ContactMethodMethodTypeEnum,
   value: z.string().min(1).max(255),
   label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
@@ -743,7 +743,7 @@ const PatchedContactMethodRequest = z
   .object({
     company: z.string().uuid().nullable(),
     person: z.string().uuid().nullable(),
-    method_type: MethodTypeEnum,
+    method_type: ContactMethodMethodTypeEnum,
     value: z.string().min(1).max(255),
     label: z.string().max(255),
     is_primary: z.boolean().default(false),
@@ -797,7 +797,6 @@ const CompanyPersonLink = z.object({
   person: z.string().uuid(),
   person_name: z.string(),
   person_email: z.string().email().nullish(),
-  xero_name: z.string().max(255).nullish(),
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
@@ -810,7 +809,6 @@ const CompanyPersonLinkRequest = z.object({
   company: z.string().uuid(),
   person_name: z.string().min(1),
   person_email: z.string().email().nullish(),
-  xero_name: z.string().max(255).nullish(),
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
@@ -821,7 +819,6 @@ const PatchedCompanyPersonLinkRequest = z
     company: z.string().uuid(),
     person_name: z.string().min(1),
     person_email: z.string().email().nullable(),
-    xero_name: z.string().max(255).nullable(),
     position: z.string().max(255).nullable(),
     is_primary: z.boolean(),
     notes: z.string().nullable(),
@@ -1341,6 +1338,60 @@ const ArchivedJobsComplianceResponse = z.object({
   total_archived_jobs: z.number().int(),
   non_compliant_jobs: z.array(ArchivedJobIssue),
   summary: ComplianceSummary,
+  checked_at: z.string().datetime({ offset: true }),
+})
+const ConfidenceEnum = z.enum(['high', 'medium', 'low'])
+const DuplicatePersonMatchKindEnum = z.enum(['name', 'email', 'phone'])
+const DuplicatePersonMatch = z.object({
+  kind: DuplicatePersonMatchKindEnum,
+  normalized_value: z.string(),
+})
+const DuplicatePersonCompanyLink = z.object({
+  link_id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  company_name: z.string(),
+  position: z.string().nullable(),
+  is_primary: z.boolean(),
+  is_active: z.boolean(),
+})
+const DuplicatePersonContactMethodMethodTypeEnum = z.enum(['phone', 'email'])
+const DuplicatePersonContactMethod = z.object({
+  method_id: z.string().uuid(),
+  method_type: DuplicatePersonContactMethodMethodTypeEnum,
+  value: z.string(),
+  normalized_value: z.string(),
+  contact_label: z.string(),
+  is_primary: z.boolean(),
+})
+const DuplicatePersonSummary = z.object({
+  person_id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+  company_links: z.array(DuplicatePersonCompanyLink),
+  contact_methods: z.array(DuplicatePersonContactMethod),
+  job_count: z.number().int(),
+  phone_call_count: z.number().int(),
+})
+const DuplicatePersonCandidate = z.object({
+  confidence: ConfidenceEnum,
+  matches: z.array(DuplicatePersonMatch),
+  shared_company_ids: z.array(z.string().uuid()),
+  first_person: DuplicatePersonSummary,
+  second_person: DuplicatePersonSummary,
+})
+const DuplicatePersonReportSummary = z.object({
+  candidate_pairs: z.number().int(),
+  people_flagged: z.number().int(),
+  high: z.number().int(),
+  medium: z.number().int(),
+  low: z.number().int(),
+})
+const DuplicatePeopleResponse = z.object({
+  duplicate_people: z.array(DuplicatePersonCandidate),
+  summary: DuplicatePersonReportSummary,
   checked_at: z.string().datetime({ offset: true }),
 })
 const DuplicatePhoneOwner = z.object({
@@ -3599,7 +3650,7 @@ export const schemas = {
   CompanyUpdateResponse,
   PatchedCompanyUpdateRequest,
   CompanyNameOnly,
-  MethodTypeEnum,
+  ContactMethodMethodTypeEnum,
   ContactMethodSourceEnum,
   ContactMethod,
   PaginatedContactMethodList,
@@ -3653,6 +3704,16 @@ export const schemas = {
   ArchivedJobIssue,
   ComplianceSummary,
   ArchivedJobsComplianceResponse,
+  ConfidenceEnum,
+  DuplicatePersonMatchKindEnum,
+  DuplicatePersonMatch,
+  DuplicatePersonCompanyLink,
+  DuplicatePersonContactMethodMethodTypeEnum,
+  DuplicatePersonContactMethod,
+  DuplicatePersonSummary,
+  DuplicatePersonCandidate,
+  DuplicatePersonReportSummary,
+  DuplicatePeopleResponse,
   DuplicatePhoneOwner,
   DuplicatePhoneIssue,
   DuplicatePhoneSummary,
@@ -6137,6 +6198,20 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
     description: `Verify that all archived jobs are either cancelled or fully invoiced and paid.`,
     requestFormat: 'json',
     response: ArchivedJobsComplianceResponse,
+    errors: [
+      {
+        status: 500,
+        schema: z.object({}).partial().passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/api/job/data-quality/duplicate-people/',
+    alias: 'check_duplicate_people',
+    description: `List pairs of distinct Person rows sharing exact normalized name, email, or person-owned phone signals.`,
+    requestFormat: 'json',
+    response: DuplicatePeopleResponse,
     errors: [
       {
         status: 500,

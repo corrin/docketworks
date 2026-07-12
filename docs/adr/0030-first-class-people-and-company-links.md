@@ -16,8 +16,7 @@ Xero import key).
 ## Decision
 
 People are first-class records. `Person` owns human identity and person-owned
-contact methods. `CompanyPersonLink` owns relationship-at-company data and the
-stable `xero_name` key used to reconcile Xero contact persons for one company.
+contact methods. `CompanyPersonLink` owns relationship-at-company data.
 
 Jobs and phone call records point to `Person`. Company contact APIs expose link
 rows with embedded person identity fields. Contact methods are owned by exactly
@@ -32,8 +31,9 @@ because those are external Xero identifiers, not CRM people.
 
 - A person may have links to multiple companies; deduplicating equivalent people
   remains a separate data-quality task.
-- Xero may create or reactivate links keyed by `(company, xero_name)`, but
-  `Person.name` is user-owned after the initial seed.
+- DocketWorks owns Person identity. Xero company contact-person payloads do not
+  create, reactivate, or update Person rows, and Person identity is not written
+  back to Xero.
 - Company merge moves company-owned contact methods, company links, jobs, and
   call company ownership. It does not move person-owned contact methods.
 - API callers use `person_id` and `person_name` for jobs, calls, Kanban, and

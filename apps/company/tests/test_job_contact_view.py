@@ -32,7 +32,6 @@ class JobPersonViewTests(BaseAPITestCase):
         return CompanyPersonLink.objects.create(
             company=self.job_company,
             person=person,
-            xero_name=name,
         )
 
     def _job(self, link: CompanyPersonLink) -> Job:

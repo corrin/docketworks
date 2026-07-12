@@ -7,6 +7,18 @@ try:
     if apps.ready:
         from .company_merge_service import reassign_company_fk_records
         from .company_rest_service import CompanyPhoneAnnotations, CompanyRestService
+        from .duplicate_person_report import (
+            DuplicatePersonCandidate,
+            DuplicatePersonCompanyLink,
+            DuplicatePersonContactMethod,
+            DuplicatePersonMatch,
+            DuplicatePersonReport,
+            DuplicatePersonReportService,
+            DuplicatePersonReportSummary,
+            DuplicatePersonSummary,
+            normalize_person_email,
+            normalize_person_name,
+        )
         from .duplicate_phone_report import (
             DuplicatePhoneIssue,
             DuplicatePhoneOwner,
@@ -21,6 +33,7 @@ try:
             geocode_address,
             get_api_key,
         )
+        from .person_merge_service import PersonMergeCounts, merge_people
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
@@ -28,6 +41,14 @@ except (ImportError, RuntimeError):
 __all__ = [
     "CompanyPhoneAnnotations",
     "CompanyRestService",
+    "DuplicatePersonCandidate",
+    "DuplicatePersonCompanyLink",
+    "DuplicatePersonContactMethod",
+    "DuplicatePersonMatch",
+    "DuplicatePersonReport",
+    "DuplicatePersonReportService",
+    "DuplicatePersonReportSummary",
+    "DuplicatePersonSummary",
     "DuplicatePhoneIssue",
     "DuplicatePhoneOwner",
     "DuplicatePhoneReportService",
@@ -36,7 +57,11 @@ __all__ = [
     "GeocodingError",
     "GeocodingNotConfiguredError",
     "GeocodingResult",
+    "PersonMergeCounts",
     "geocode_address",
     "get_api_key",
+    "merge_people",
+    "normalize_person_email",
+    "normalize_person_name",
     "reassign_company_fk_records",
 ]

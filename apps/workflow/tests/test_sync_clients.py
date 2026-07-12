@@ -8,7 +8,7 @@ from django.test import TestCase
 from django.test.utils import CaptureQueriesContext
 from django.utils import timezone
 
-from apps.company.models import Company, ContactMethod
+from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.crm.models import PhoneCallRecord
 from apps.crm.services.phone_call_service import rematch_calls_for_numbers
 from apps.workflow.api.xero.reprocess_xero import (
@@ -20,7 +20,12 @@ from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import AppError
 
 
-def _make_raw_json(contact_id, name, status="ACTIVE", merged_to=None):
+def _make_raw_json(
+    contact_id: str,
+    name: str,
+    status: str = "ACTIVE",
+    merged_to: str | None = None,
+) -> dict[str, object]:
     """Return raw_json shaped like real Xero contact data stored in the DB.
 
     Based on actual production records — includes the full set of underscore-
@@ -255,6 +260,39 @@ class SyncClientsArchivedContactTests(TestCase):
 
         self.existing_client.refresh_from_db()
         self.assertTrue(self.existing_client.xero_archived)
+
+
+class XeroPersonIdentityTests(TestCase):
+    def test_contact_person_payload_does_not_create_or_update_people(self) -> None:
+        """Xero reads must not undo DocketWorks-owned Person cleanup."""
+        raw_json = _make_raw_json("xero-company", "Acme")
+        raw_json["_contact_persons"] = [
+            {
+                "_first_name": "Jane",
+                "_last_name": "Smith",
+                "_email_address": "xero@example.com",
+            }
+        ]
+        company = Company.objects.create(
+            name="Acme",
+            xero_last_modified=timezone.now(),
+            raw_json=raw_json,
+        )
+        person = Person.objects.create(
+            name="Jane Smith", email="local@example.com", is_active=False
+        )
+        link = CompanyPersonLink.objects.create(
+            company=company, person=person, is_active=False
+        )
+
+        set_company_fields(company)
+
+        person.refresh_from_db()
+        link.refresh_from_db()
+        self.assertEqual(Person.objects.count(), 1)
+        self.assertEqual(person.email, "local@example.com")
+        self.assertFalse(person.is_active)
+        self.assertFalse(link.is_active)
 
 
 class XeroPhoneMethodSyncTests(TestCase):

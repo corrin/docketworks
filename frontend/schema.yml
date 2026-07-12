@@ -3144,6 +3144,30 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/job/data-quality/duplicate-people/:
+    get:
+      operationId: check_duplicate_people
+      description: List pairs of distinct Person rows sharing exact normalized name,
+        email, or person-owned phone signals.
+      summary: Check for duplicate people
+      tags:
+        - Data Quality
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicatePeopleResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/job/data-quality/duplicate-phones/:
     get:
       operationId: check_duplicate_phones
@@ -11153,10 +11177,6 @@ components:
           type: string
           format: email
           nullable: true
-        xero_name:
-          type: string
-          nullable: true
-          maxLength: 255
         position:
           type: string
           nullable: true
@@ -11209,10 +11229,6 @@ components:
           type: string
           format: email
           nullable: true
-        xero_name:
-          type: string
-          nullable: true
-          maxLength: 255
         position:
           type: string
           nullable: true
@@ -11379,6 +11395,16 @@ components:
         - not_cancelled
         - not_invoiced
         - not_paid
+    ConfidenceEnum:
+      enum:
+        - high
+        - medium
+        - low
+      type: string
+      description: |-
+        * `high` - high
+        * `medium` - medium
+        * `low` - low
     ContactMethod:
       type: object
       description: Serializer for canonical company/person phone and email methods.
@@ -11405,7 +11431,7 @@ components:
           type: string
           readOnly: true
         method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
         value:
           type: string
           maxLength: 255
@@ -11438,6 +11464,14 @@ components:
         - person_name
         - updated_at
         - value
+    ContactMethodMethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - Phone
+        * `email` - Email
     ContactMethodRequest:
       type: object
       description: Serializer for canonical company/person phone and email methods.
@@ -11451,7 +11485,7 @@ components:
           format: uuid
           nullable: true
         method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
         value:
           type: string
           minLength: 1
@@ -12212,6 +12246,184 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
+    DuplicatePeopleResponse:
+      type: object
+      properties:
+        duplicate_people:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonCandidate'
+        summary:
+          $ref: '#/components/schemas/DuplicatePersonReportSummary'
+        checked_at:
+          type: string
+          format: date-time
+      required:
+        - checked_at
+        - duplicate_people
+        - summary
+    DuplicatePersonCandidate:
+      type: object
+      properties:
+        confidence:
+          $ref: '#/components/schemas/ConfidenceEnum'
+        matches:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonMatch'
+        shared_company_ids:
+          type: array
+          items:
+            type: string
+            format: uuid
+        first_person:
+          $ref: '#/components/schemas/DuplicatePersonSummary'
+        second_person:
+          $ref: '#/components/schemas/DuplicatePersonSummary'
+      required:
+        - confidence
+        - first_person
+        - matches
+        - second_person
+        - shared_company_ids
+    DuplicatePersonCompanyLink:
+      type: object
+      properties:
+        link_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+        position:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+        is_active:
+          type: boolean
+      required:
+        - company_id
+        - company_name
+        - is_active
+        - is_primary
+        - link_id
+        - position
+    DuplicatePersonContactMethod:
+      type: object
+      properties:
+        method_id:
+          type: string
+          format: uuid
+        method_type:
+          $ref: '#/components/schemas/DuplicatePersonContactMethodMethodTypeEnum'
+        value:
+          type: string
+        normalized_value:
+          type: string
+        contact_label:
+          type: string
+        is_primary:
+          type: boolean
+      required:
+        - contact_label
+        - is_primary
+        - method_id
+        - method_type
+        - normalized_value
+        - value
+    DuplicatePersonContactMethodMethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - phone
+        * `email` - email
+    DuplicatePersonMatch:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/DuplicatePersonMatchKindEnum'
+        normalized_value:
+          type: string
+      required:
+        - kind
+        - normalized_value
+    DuplicatePersonMatchKindEnum:
+      enum:
+        - name
+        - email
+        - phone
+      type: string
+      description: |-
+        * `name` - name
+        * `email` - email
+        * `phone` - phone
+    DuplicatePersonReportSummary:
+      type: object
+      properties:
+        candidate_pairs:
+          type: integer
+        people_flagged:
+          type: integer
+        high:
+          type: integer
+        medium:
+          type: integer
+        low:
+          type: integer
+      required:
+        - candidate_pairs
+        - high
+        - low
+        - medium
+        - people_flagged
+    DuplicatePersonSummary:
+      type: object
+      properties:
+        person_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        company_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonCompanyLink'
+        contact_methods:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonContactMethod'
+        job_count:
+          type: integer
+        phone_call_count:
+          type: integer
+      required:
+        - company_links
+        - contact_methods
+        - created_at
+        - email
+        - is_active
+        - job_count
+        - name
+        - person_id
+        - phone_call_count
+        - updated_at
     DuplicatePhoneIssue:
       type: object
       description: One problematic phone number and its owners.
@@ -15523,14 +15735,6 @@ components:
         * `galvanized` - Galvanized
         * `unspecified` - Unspecified
         * `other` - Other
-    MethodTypeEnum:
-      enum:
-        - phone
-        - email
-      type: string
-      description: |-
-        * `phone` - Phone
-        * `email` - Email
     ModernStaff:
       type: object
       description: Serializer for staff in timesheet context
@@ -16479,10 +16683,6 @@ components:
           type: string
           format: email
           nullable: true
-        xero_name:
-          type: string
-          nullable: true
-          maxLength: 255
         position:
           type: string
           nullable: true
@@ -16532,7 +16732,7 @@ components:
           format: uuid
           nullable: true
         method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
         value:
           type: string
           minLength: 1
