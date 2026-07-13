@@ -106,6 +106,22 @@ def _alias_groups() -> dict[str, set[str]]:
     return groups
 
 
+def _build_alias_index(groups: dict[str, set[str]]) -> dict[str, frozenset[str]]:
+    canonical_by_name: dict[str, set[str]] = defaultdict(set)
+    for canonical, names in groups.items():
+        for name in names:
+            canonical_by_name[name].add(canonical)
+    return {
+        name: frozenset(canonical_names)
+        for name, canonical_names in canonical_by_name.items()
+    }
+
+
+@lru_cache(maxsize=1)
+def _default_alias_index() -> dict[str, frozenset[str]]:
+    return _build_alias_index(_alias_groups())
+
+
 def person_names_compatible(
     first_name: str,
     second_name: str,
@@ -120,14 +136,14 @@ def person_names_compatible(
     if first_tokens == second_tokens:
         return True
 
-    groups = _alias_groups() if alias_groups is None else alias_groups
+    alias_index = (
+        _default_alias_index()
+        if alias_groups is None
+        else _build_alias_index(alias_groups)
+    )
     first_names_match = first_tokens[0] == second_tokens[0]
-    first_canonical = {
-        canonical for canonical, names in groups.items() if first_tokens[0] in names
-    }
-    second_canonical = {
-        canonical for canonical, names in groups.items() if second_tokens[0] in names
-    }
+    first_canonical = alias_index.get(first_tokens[0], frozenset())
+    second_canonical = alias_index.get(second_tokens[0], frozenset())
     if not first_names_match and not first_canonical & second_canonical:
         return False
 

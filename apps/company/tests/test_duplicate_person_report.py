@@ -106,3 +106,24 @@ class DuplicatePersonReportTests(TestCase):
 
     def test_nickname_does_not_override_conflicting_surnames(self) -> None:
         self.assertFalse(person_names_compatible("Robert Grant", "Rob Smith"))
+
+    def test_custom_overlapping_alias_groups_preserve_any_canonical_match(self) -> None:
+        alias_groups = {
+            "robert": {"rob"},
+            "robin": {"rob", "bob"},
+        }
+
+        self.assertTrue(
+            person_names_compatible(
+                "Rob Grant",
+                "Bob Grant",
+                alias_groups=alias_groups,
+            )
+        )
+        self.assertFalse(
+            person_names_compatible(
+                "Rob Grant",
+                "Bob Smith",
+                alias_groups=alias_groups,
+            )
+        )

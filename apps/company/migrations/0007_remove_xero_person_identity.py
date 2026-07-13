@@ -7,7 +7,8 @@ from django.db import migrations
 
 def delete_unreferenced_people(apps: Any, schema_editor: Any) -> None:
     Person = apps.get_model("company", "Person")
-    Person.objects.filter(
+    database_alias = schema_editor.connection.alias
+    Person.objects.using(database_alias).filter(
         company_links__isnull=True,
         contact_methods__isnull=True,
         jobs__isnull=True,

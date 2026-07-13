@@ -7,6 +7,7 @@ human-readable evidence has been checked against the database.
 """
 
 from dataclasses import dataclass
+from uuid import UUID
 
 from django.db import transaction
 from django.db.models import Q
@@ -3001,16 +3002,38 @@ def _assert_residuals_are_defended() -> None:
 
 
 def _flatten_existing_company_merges(staff: Staff) -> None:
-    existing = list(
-        Company.objects.filter(
-            merged_into__isnull=False,
-            merged_into__merged_into__isnull=True,
-        ).values_list("id", "merged_into_id")
-    )
-    for source_id, destination_id in existing:
-        if destination_id is None:
-            raise RuntimeError(f"Merged Company {source_id} has no destination")
-        merge_companies(source_id, destination_id, staff)
+    company_rows = list(Company.objects.values_list("id", "merged_into_id"))
+    company_ids = {company_id for company_id, _destination_id in company_rows}
+    destinations = {
+        company_id: destination_id
+        for company_id, destination_id in company_rows
+        if destination_id is not None
+    }
+
+    for destination_id in destinations.values():
+        if destination_id not in company_ids:
+            raise RuntimeError(
+                f"Merged Company destination {destination_id} does not exist"
+            )
+
+    terminal_destinations: dict[UUID, UUID] = {}
+    for source_id, direct_destination_id in destinations.items():
+        visited = {source_id}
+        terminal_id = direct_destination_id
+        while terminal_id in destinations:
+            if terminal_id in visited:
+                raise RuntimeError(f"Company merge cycle includes {terminal_id}")
+            visited.add(terminal_id)
+            terminal_id = destinations[terminal_id]
+        terminal_destinations[source_id] = terminal_id
+
+    for source_id, terminal_id in terminal_destinations.items():
+        if destinations[source_id] != terminal_id:
+            Company.objects.filter(id=source_id).update(merged_into_id=terminal_id)
+        merge_companies(source_id, terminal_id, staff)
+
+    if Company.objects.filter(merged_into__merged_into__isnull=False).exists():
+        raise RuntimeError("KAN-278 cleanup left a multi-hop Company merge")
 
 
 def apply_reviewed_duplicate_cleanup() -> tuple[int, int]:
@@ -3040,6 +3063,7 @@ def apply_reviewed_duplicate_cleanup() -> tuple[int, int]:
             for source_company in source_companies:
                 merge_companies(source_company.id, canonical_company.id, staff)
                 company_count += 1
+        _flatten_existing_company_merges(staff)
 
         for canonical_person, source_people in person_groups:
             for source_person in source_people:
