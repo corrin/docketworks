@@ -134,6 +134,15 @@ def merge_people(
             if destination is None:
                 raise ValueError(f"Destination Person {destination_id} does not exist")
 
+            update_fields = ["updated_at"]
+            if not destination.email and source.email:
+                destination.email = source.email
+                update_fields.append("email")
+            if source.is_active and not destination.is_active:
+                destination.is_active = True
+                update_fields.append("is_active")
+            destination.save(update_fields=update_fields)
+
             links_moved, links_collapsed = _merge_links(source, destination)
             methods_moved, methods_collapsed = _merge_contact_methods(
                 source, destination

@@ -15,6 +15,7 @@ class Migration(migrations.Migration):
 
     dependencies = [
         ("company", "0007_remove_xero_person_identity"),
+        ("accounting", "0003_rename_client_company"),
     ]
 
     operations = [

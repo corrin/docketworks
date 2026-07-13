@@ -51,7 +51,14 @@ try:
             geocode_address,
             get_api_key,
         )
-        from .kan278_duplicate_cleanup import apply_reviewed_duplicate_cleanup
+        from .kan278_duplicate_cleanup import (
+            CompanyMergeDecision,
+            InvalidLinkDecision,
+            PersonMergeDecision,
+            PersonSelector,
+            RetainedDecision,
+            apply_reviewed_duplicate_cleanup,
+        )
         from .person_merge_service import PersonMergeCounts, merge_people
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
@@ -59,6 +66,7 @@ except (ImportError, RuntimeError):
 
 __all__ = [
     "CompanyMergeCounts",
+    "CompanyMergeDecision",
     "CompanyPhoneAnnotations",
     "CompanyRestService",
     "DuplicateCompanyGroup",
@@ -85,7 +93,11 @@ __all__ = [
     "GeocodingError",
     "GeocodingNotConfiguredError",
     "GeocodingResult",
+    "InvalidLinkDecision",
     "PersonMergeCounts",
+    "PersonMergeDecision",
+    "PersonSelector",
+    "RetainedDecision",
     "apply_reviewed_duplicate_cleanup",
     "geocode_address",
     "get_api_key",

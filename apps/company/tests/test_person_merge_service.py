@@ -120,6 +120,20 @@ class PersonMergeServiceTests(BaseTestCase):
         self.assertEqual(counts["links_collapsed"], 1)
         self.assertEqual(counts["contact_methods_collapsed"], 1)
 
+    def test_preserves_source_scalar_fields_missing_from_destination(self) -> None:
+        source = Person.objects.create(
+            name="Jane Smith",
+            email="jane@example.com",
+            is_active=True,
+        )
+        destination = Person.objects.create(name="J Smith", is_active=False)
+
+        merge_people(source.id, destination.id, self.test_staff)
+
+        destination.refresh_from_db()
+        self.assertEqual(destination.email, "jane@example.com")
+        self.assertTrue(destination.is_active)
+
     def test_unexpected_failure_rolls_back_and_persists_once(self) -> None:
         """A mid-merge failure must not strand links or create duplicate AppErrors."""
         source = Person.objects.create(name="J Smith")

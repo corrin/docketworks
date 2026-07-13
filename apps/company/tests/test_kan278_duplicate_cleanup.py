@@ -1,3 +1,5 @@
+import re
+from pathlib import Path
 from unittest.mock import patch
 
 from django.utils import timezone
@@ -5,6 +7,9 @@ from django.utils import timezone
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
 from apps.company.services import kan278_duplicate_cleanup
 from apps.company.services.kan278_duplicate_cleanup import (
+    CompanyMergeDecision,
+    PersonMergeDecision,
+    PersonSelector,
     apply_reviewed_duplicate_cleanup,
 )
 from apps.job.models import Job
@@ -12,7 +17,7 @@ from apps.testing import BaseTestCase
 
 
 class ReviewedDuplicateCleanupTests(BaseTestCase):
-    def test_applies_company_first_then_person_merge(self) -> None:
+    def test_applies_named_company_then_person_decisions(self) -> None:
         destination_company = Company.objects.create(
             name="Northland Roofs NZ",
             xero_last_modified=timezone.now(),
@@ -26,11 +31,11 @@ class ReviewedDuplicateCleanupTests(BaseTestCase):
             name="ACE PUNIA", email="ace@example.com"
         )
         source_person = Person.objects.create(name="Ace Punia", email="ACE@example.com")
-        destination_link = CompanyPersonLink.objects.create(
+        CompanyPersonLink.objects.create(
             company=destination_company,
             person=destination_person,
         )
-        source_link = CompanyPersonLink.objects.create(
+        CompanyPersonLink.objects.create(
             company=source_company,
             person=source_person,
         )
@@ -47,26 +52,44 @@ class ReviewedDuplicateCleanupTests(BaseTestCase):
         )
         job.save(staff=self.test_staff)
 
+        company_decision = CompanyMergeDecision(
+            canonical_name="Northland Roofs NZ",
+            names=("CASH SALE - Northland Roofs NZ", "Northland Roofs NZ"),
+            expected_rows=2,
+            evidence="same production email, phone and Ace Punia",
+        )
+        person_decision = PersonMergeDecision(
+            canonical=PersonSelector(
+                "ACE PUNIA", "ace@example.com", "Northland Roofs NZ"
+            ),
+            members=(
+                PersonSelector("ACE PUNIA", "ace@example.com", "Northland Roofs NZ"),
+                PersonSelector(
+                    "Ace Punia",
+                    "ACE@example.com",
+                    "CASH SALE - Northland Roofs NZ",
+                ),
+            ),
+            expected_people=2,
+            evidence="same production email and phone",
+        )
+
         with (
             patch.object(
                 kan278_duplicate_cleanup,
                 "REVIEWED_COMPANY_MERGES",
-                ((str(source_company.id), str(destination_company.id)),),
+                (company_decision,),
             ),
             patch.object(
                 kan278_duplicate_cleanup,
-                "REVIEWED_PERSON_LINK_EDGES",
-                ((str(source_link.id), str(destination_link.id)),),
+                "REVIEWED_PERSON_MERGES",
+                (person_decision,),
             ),
+            patch.object(kan278_duplicate_cleanup, "INVALID_LINKS", ()),
+            patch.object(kan278_duplicate_cleanup, "_repair_matt_green"),
             patch.object(
                 kan278_duplicate_cleanup,
-                "MATT_GREEN_LINK_ID",
-                source_link.id,
-            ),
-            patch.object(
-                kan278_duplicate_cleanup,
-                "MATT_WRONG_METHOD_VALUES",
-                set(),
+                "_assert_residuals_are_defended",
             ),
         ):
             company_count, person_count = apply_reviewed_duplicate_cleanup()
@@ -79,27 +102,39 @@ class ReviewedDuplicateCleanupTests(BaseTestCase):
         self.assertFalse(source_company.allow_jobs)
         self.assertEqual(source_company.xero_contact_id, "source-xero-id")
         self.assertEqual(job.company_id, destination_company.id)
-        self.assertIn(job.person_id, {source_person.id, destination_person.id})
-        self.assertEqual(
-            Person.objects.filter(
-                id__in=[source_person.id, destination_person.id]
-            ).count(),
-            1,
-        )
-        self.assertEqual(
-            CompanyPersonLink.objects.filter(company=destination_company).count(), 1
-        )
+        self.assertEqual(job.person_id, destination_person.id)
+        self.assertFalse(Person.objects.filter(id=source_person.id).exists())
 
-    def test_rejects_partially_present_company_evidence(self) -> None:
+    def test_changed_named_evidence_aborts_before_writes(self) -> None:
         destination = Company.objects.create(
             name="Destination",
             xero_last_modified=timezone.now(),
         )
+        decision = CompanyMergeDecision(
+            canonical_name="Destination",
+            names=("Missing source", "Destination"),
+            expected_rows=2,
+            evidence="fixture evidence",
+        )
 
-        with patch.object(
-            kan278_duplicate_cleanup,
-            "REVIEWED_COMPANY_MERGES",
-            (("00000000-0000-0000-0000-000000000278", str(destination.id)),),
+        with (
+            patch.object(
+                kan278_duplicate_cleanup,
+                "REVIEWED_COMPANY_MERGES",
+                (decision,),
+            ),
+            patch.object(kan278_duplicate_cleanup, "REVIEWED_PERSON_MERGES", ()),
+            patch.object(kan278_duplicate_cleanup, "INVALID_LINKS", ()),
         ):
-            with self.assertRaisesRegex(RuntimeError, "Company merge evidence"):
+            with self.assertRaisesRegex(RuntimeError, "Company evidence changed"):
                 apply_reviewed_duplicate_cleanup()
+
+        destination.refresh_from_db()
+        self.assertIsNone(destination.merged_into_id)
+
+    def test_cleanup_manifest_contains_no_uuid_literals(self) -> None:
+        source = Path(kan278_duplicate_cleanup.__file__).read_text()
+        uuid_literal = re.compile(
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+        )
+        self.assertIsNone(uuid_literal.search(source))
