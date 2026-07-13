@@ -2975,8 +2975,10 @@ def _assert_residuals_are_defended() -> None:
             USER_APPROVED_RETAINED_COMPANY_DECISIONS + AGENT_RETAINED_COMPANY_DECISIONS
         )
     }
-    for group in report["company_groups"]:
-        names = _normalised_names([member["name"] for member in group["members"]])
+    for company_group in report["company_groups"]:
+        names = _normalised_names(
+            [member["name"] for member in company_group["members"]]
+        )
         if not any(names <= retained for retained in retained_companies):
             raise RuntimeError(
                 f"KAN-278 has an undefended retained Company group: {sorted(names)}"
@@ -2988,8 +2990,10 @@ def _assert_residuals_are_defended() -> None:
             USER_APPROVED_RETAINED_PERSON_DECISIONS + AGENT_RETAINED_PERSON_DECISIONS
         )
     }
-    for group in report["person_groups"]:
-        names = _normalised_names([member["name"] for member in group["members"]])
+    for person_group in report["person_groups"]:
+        names = _normalised_names(
+            [member["name"] for member in person_group["members"]]
+        )
         if not any(names <= retained for retained in retained_people):
             raise RuntimeError(
                 f"KAN-278 has an undefended retained Person group: {sorted(names)}"
@@ -3032,14 +3036,14 @@ def apply_reviewed_duplicate_cleanup() -> tuple[int, int]:
         _repair_matt_green()
 
         _flatten_existing_company_merges(staff)
-        for canonical, sources in company_groups:
-            for source in sources:
-                merge_companies(source.id, canonical.id, staff)
+        for canonical_company, source_companies in company_groups:
+            for source_company in source_companies:
+                merge_companies(source_company.id, canonical_company.id, staff)
                 company_count += 1
 
-        for canonical, sources in person_groups:
-            for source in sources:
-                merge_people(source.id, canonical.id, staff)
+        for canonical_person, source_people in person_groups:
+            for source_person in source_people:
+                merge_people(source_person.id, canonical_person.id, staff)
                 person_count += 1
 
         _assert_residuals_are_defended()

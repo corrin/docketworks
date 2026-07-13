@@ -1,7 +1,11 @@
+from django.apps.registry import Apps
 from django.db import migrations
+from django.db.backends.base.schema import BaseDatabaseSchemaEditor
 
 
-def apply_reviewed_cleanup(apps, schema_editor) -> None:
+def apply_reviewed_cleanup(
+    apps: Apps, schema_editor: BaseDatabaseSchemaEditor
+) -> None:
     # This installation-specific cleanup intentionally uses the tested merge
     # services so JobEvents and every cross-app Company FK remain consistent.
     from apps.company.services.kan278_duplicate_cleanup import (

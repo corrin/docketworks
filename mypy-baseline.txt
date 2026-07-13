@@ -484,7 +484,6 @@ apps/accounting/services/sales_pipeline_service.py:0: error: Incompatible types 
 apps/accounting/services/sales_pipeline_service.py:0: error: Incompatible types in assignment (expression has type "float | None", target has type "float")  [assignment]
 apps/accounting/services/sales_pipeline_service.py:0: error: Item "None" of "Company | None" has no attribute "name"  [union-attr]
 apps/accounting/services/invoice_calculation.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
-apps/company/services/company_merge_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/company/management/commands/merge_companies.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/company/management/commands/merge_companies.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/quoting/services/providers/gemini_provider.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
