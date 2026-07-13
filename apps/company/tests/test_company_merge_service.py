@@ -16,7 +16,10 @@ from django.utils import timezone
 
 from apps.accounting.models import Bill, CreditNote, Invoice, Quote
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
-from apps.company.services.company_merge_service import reassign_company_fk_records
+from apps.company.services.company_merge_service import (
+    merge_companies,
+    reassign_company_fk_records,
+)
 from apps.crm.models import PhoneCallRecord
 from apps.job.models import Job, JobEvent
 from apps.purchasing.models import PurchaseOrder
@@ -689,3 +692,60 @@ class NoRecordsToMoveTests(ReassignFKBaseCase):
                 "scrape_jobs": 0,
             },
         )
+
+
+class MergeCompaniesTests(ReassignFKBaseCase):
+    def test_preserves_source_classification_and_blank_destination_details(
+        self,
+    ) -> None:
+        self.source.is_account_customer = True
+        self.source.is_supplier = True
+        self.source.email = "accounts@example.com"
+        self.source.address = "1 Example Street"
+        self.source.save(
+            update_fields=["is_account_customer", "is_supplier", "email", "address"]
+        )
+
+        merge_companies(self.source.id, self.destination.id, self.test_staff)
+
+        self.destination.refresh_from_db()
+        self.assertTrue(self.destination.is_account_customer)
+        self.assertTrue(self.destination.is_supplier)
+        self.assertEqual(self.destination.email, "accounts@example.com")
+        self.assertEqual(self.destination.address, "1 Example Street")
+
+    def test_retains_disabled_xero_tombstone_and_moves_history(self) -> None:
+        self.source.xero_contact_id = "source-xero-id"
+        self.source.save(update_fields=["xero_contact_id"])
+        job = make_job(self.source, self.test_staff)
+
+        counts = merge_companies(
+            self.source.id,
+            self.destination.id,
+            self.test_staff,
+        )
+
+        self.source.refresh_from_db()
+        job.refresh_from_db()
+        self.assertEqual(self.source.merged_into_id, self.destination.id)
+        self.assertFalse(self.source.allow_jobs)
+        self.assertEqual(self.source.xero_contact_id, "source-xero-id")
+        self.assertEqual(job.company_id, self.destination.id)
+        self.assertEqual(counts["jobs"], 1)
+
+    def test_rolls_back_tombstone_when_reassignment_fails(self) -> None:
+        with patch(
+            "apps.company.services.company_merge_service."
+            "reassign_company_fk_records",
+            side_effect=RuntimeError("failed"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "failed"):
+                merge_companies(
+                    self.source.id,
+                    self.destination.id,
+                    self.test_staff,
+                )
+
+        self.source.refresh_from_db()
+        self.assertIsNone(self.source.merged_into_id)
+        self.assertTrue(self.source.allow_jobs)

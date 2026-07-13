@@ -355,6 +355,13 @@
                 >
                   <PhoneCall class="w-4 h-4 mr-2" /> Duplicate Phones
                 </router-link>
+                <router-link
+                  to="/reports/data-quality/duplicate-identities"
+                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                  data-automation-id="AppNavbar-duplicate-identities"
+                >
+                  <Fingerprint class="w-4 h-4 mr-2" /> Duplicate Identities
+                </router-link>
               </div>
             </Transition>
           </div>
@@ -886,6 +893,14 @@
                       >
                         <PhoneCall class="w-4 h-4 mr-2" /> Duplicate Phones
                       </router-link>
+                      <router-link
+                        to="/reports/data-quality/duplicate-identities"
+                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                        data-automation-id="AppNavbar-duplicate-identities-mobile"
+                        @click="closeMobileMenu"
+                      >
+                        <Fingerprint class="w-4 h-4 mr-2" /> Duplicate Identities
+                      </router-link>
                     </div>
                   </div>
                 </Transition>
@@ -987,6 +1002,7 @@ import {
   FlaskConical,
   Activity,
   PhoneCall,
+  Fingerprint,
 } from 'lucide-vue-next'
 import { useAppLayout } from '@/composables/useAppLayout'
 import { adminPages, adminExternalLinks } from '@/config/adminPages'

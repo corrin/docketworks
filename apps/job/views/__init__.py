@@ -8,7 +8,7 @@ from .assign_job_view import JobAssignmentCreateView, JobAssignmentDeleteView
 from .data_integrity_views import DataIntegrityReportView
 from .data_quality_report_views import (
     ArchivedJobsComplianceView,
-    DuplicatePeopleView,
+    DuplicateIdentitiesView,
     DuplicatePhonesView,
 )
 from .delivery_docket_view import DeliveryDocketView
@@ -113,7 +113,7 @@ __all__ = [
     "CostLineUpdateView",
     "DataIntegrityReportView",
     "DeliveryDocketView",
-    "DuplicatePeopleView",
+    "DuplicateIdentitiesView",
     "DuplicatePhonesView",
     "FetchAllJobsAPIView",
     "FetchJobsAPIView",

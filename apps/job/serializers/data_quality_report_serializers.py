@@ -2,13 +2,17 @@
 
 from rest_framework import serializers
 
+from apps.company.services.duplicate_identity_report import (
+    DuplicateCompanyGroup,
+    DuplicateCompanyMember,
+    DuplicateIdentityEvidence,
+    DuplicateIdentityReport,
+    DuplicateIdentityReportSummary,
+    DuplicatePersonGroup,
+)
 from apps.company.services.duplicate_person_report import (
-    DuplicatePersonCandidate,
     DuplicatePersonCompanyLink,
     DuplicatePersonContactMethod,
-    DuplicatePersonMatch,
-    DuplicatePersonReport,
-    DuplicatePersonReportSummary,
     DuplicatePersonSummary,
 )
 from apps.company.services.duplicate_phone_report import (
@@ -157,32 +161,62 @@ class DuplicatePersonSummarySerializer(serializers.Serializer[DuplicatePersonSum
     phone_call_count = serializers.IntegerField()
 
 
-class DuplicatePersonMatchSerializer(serializers.Serializer[DuplicatePersonMatch]):
-    kind = serializers.ChoiceField(choices=["name", "email", "phone"])
+class DuplicateIdentityEvidenceSerializer(
+    serializers.Serializer[DuplicateIdentityEvidence]
+):
+    kind = serializers.ChoiceField(
+        choices=["name", "email", "email_domain", "phone", "address", "shared_person"]
+    )
     normalized_value = serializers.CharField()
+    owner_count = serializers.IntegerField()
 
 
-class DuplicatePersonCandidateSerializer(
-    serializers.Serializer[DuplicatePersonCandidate]
+class DuplicateCompanyMemberSerializer(serializers.Serializer[DuplicateCompanyMember]):
+    company_id = serializers.UUIDField()
+    name = serializers.CharField()
+    email = serializers.EmailField(allow_null=True)
+    address = serializers.CharField(allow_null=True)
+    allow_jobs = serializers.BooleanField()
+    is_account_customer = serializers.BooleanField()
+    is_supplier = serializers.BooleanField()
+    xero_archived = serializers.BooleanField()
+    job_count = serializers.IntegerField()
+    contact_names = serializers.ListField(child=serializers.CharField())
+
+
+class DuplicateCompanyGroupSerializer(serializers.Serializer[DuplicateCompanyGroup]):
+    group_id = serializers.CharField()
+    fingerprint = serializers.CharField()
+    recommendation = serializers.ChoiceField(choices=["merge", "review"])
+    reason_codes = serializers.ListField(child=serializers.CharField())
+    canonical_id = serializers.UUIDField(allow_null=True)
+    members = DuplicateCompanyMemberSerializer(many=True)
+    evidence = DuplicateIdentityEvidenceSerializer(many=True)
+
+
+class DuplicatePersonGroupSerializer(serializers.Serializer[DuplicatePersonGroup]):
+    group_id = serializers.CharField()
+    fingerprint = serializers.CharField()
+    recommendation = serializers.ChoiceField(choices=["merge", "review"])
+    reason_codes = serializers.ListField(child=serializers.CharField())
+    canonical_id = serializers.UUIDField(allow_null=True)
+    members = DuplicatePersonSummarySerializer(many=True)
+    evidence = DuplicateIdentityEvidenceSerializer(many=True)
+
+
+class DuplicateIdentityReportSummarySerializer(
+    serializers.Serializer[DuplicateIdentityReportSummary]
 ):
-    confidence = serializers.ChoiceField(choices=["high", "medium", "low"])
-    matches = DuplicatePersonMatchSerializer(many=True)
-    shared_company_ids = serializers.ListField(child=serializers.UUIDField())
-    first_person = DuplicatePersonSummarySerializer()
-    second_person = DuplicatePersonSummarySerializer()
+    company_merge_groups = serializers.IntegerField()
+    company_review_groups = serializers.IntegerField()
+    person_merge_groups = serializers.IntegerField()
+    person_review_groups = serializers.IntegerField()
 
 
-class DuplicatePersonReportSummarySerializer(
-    serializers.Serializer[DuplicatePersonReportSummary]
+class DuplicateIdentitiesResponseSerializer(
+    serializers.Serializer[DuplicateIdentityReport]
 ):
-    candidate_pairs = serializers.IntegerField()
-    people_flagged = serializers.IntegerField()
-    high = serializers.IntegerField()
-    medium = serializers.IntegerField()
-    low = serializers.IntegerField()
-
-
-class DuplicatePeopleResponseSerializer(serializers.Serializer[DuplicatePersonReport]):
-    duplicate_people = DuplicatePersonCandidateSerializer(many=True)
-    summary = DuplicatePersonReportSummarySerializer()
+    company_groups = DuplicateCompanyGroupSerializer(many=True)
+    person_groups = DuplicatePersonGroupSerializer(many=True)
+    summary = DuplicateIdentityReportSummarySerializer()
     checked_at = serializers.DateTimeField()

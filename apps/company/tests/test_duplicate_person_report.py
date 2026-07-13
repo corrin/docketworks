@@ -2,7 +2,10 @@ from django.test import TestCase
 from django.utils import timezone
 
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
-from apps.company.services.duplicate_person_report import DuplicatePersonReportService
+from apps.company.services.duplicate_person_report import (
+    DuplicatePersonReportService,
+    person_names_compatible,
+)
 
 
 class DuplicatePersonReportTests(TestCase):
@@ -72,3 +75,34 @@ class DuplicatePersonReportTests(TestCase):
         candidate = DuplicatePersonReportService().get_report()["duplicate_people"][0]
 
         self.assertEqual(candidate["confidence"], "low")
+
+    def test_nickname_and_phone_is_high_confidence(self) -> None:
+        first = Person.objects.create(name="Christopher Watt")
+        second = Person.objects.create(name="Chris Watt")
+        self._legacy_phone(first, "021 555 123")
+        self._legacy_phone(second, "+64 21 555 123")
+
+        candidate = DuplicatePersonReportService().get_report()["duplicate_people"][0]
+
+        self.assertEqual(candidate["confidence"], "high")
+        self.assertEqual(
+            {match["kind"] for match in candidate["matches"]}, {"name", "phone"}
+        )
+
+    def test_two_contact_signals_with_incompatible_names_is_medium(self) -> None:
+        first = Person.objects.create(name="Brian")
+        second = Person.objects.create(name="Brent")
+        for person in (first, second):
+            ContactMethod.objects.create(
+                person=person,
+                method_type=ContactMethod.MethodType.EMAIL,
+                value="office@example.com",
+            )
+            self._legacy_phone(person, "021 555 123")
+
+        candidate = DuplicatePersonReportService().get_report()["duplicate_people"][0]
+
+        self.assertEqual(candidate["confidence"], "medium")
+
+    def test_nickname_does_not_override_conflicting_surnames(self) -> None:
+        self.assertFalse(person_names_compatible("Robert Grant", "Rob Smith"))

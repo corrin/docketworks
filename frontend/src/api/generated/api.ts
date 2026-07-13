@@ -1340,11 +1340,40 @@ const ArchivedJobsComplianceResponse = z.object({
   summary: ComplianceSummary,
   checked_at: z.string().datetime({ offset: true }),
 })
-const ConfidenceEnum = z.enum(['high', 'medium', 'low'])
-const DuplicatePersonMatchKindEnum = z.enum(['name', 'email', 'phone'])
-const DuplicatePersonMatch = z.object({
-  kind: DuplicatePersonMatchKindEnum,
+const RecommendationEnum = z.enum(['merge', 'review'])
+const DuplicateCompanyMember = z.object({
+  company_id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email().nullable(),
+  address: z.string().nullable(),
+  allow_jobs: z.boolean(),
+  is_account_customer: z.boolean(),
+  is_supplier: z.boolean(),
+  xero_archived: z.boolean(),
+  job_count: z.number().int(),
+  contact_names: z.array(z.string()),
+})
+const DuplicateIdentityEvidenceKindEnum = z.enum([
+  'name',
+  'email',
+  'email_domain',
+  'phone',
+  'address',
+  'shared_person',
+])
+const DuplicateIdentityEvidence = z.object({
+  kind: DuplicateIdentityEvidenceKindEnum,
   normalized_value: z.string(),
+  owner_count: z.number().int(),
+})
+const DuplicateCompanyGroup = z.object({
+  group_id: z.string(),
+  fingerprint: z.string(),
+  recommendation: RecommendationEnum,
+  reason_codes: z.array(z.string()),
+  canonical_id: z.string().uuid().nullable(),
+  members: z.array(DuplicateCompanyMember),
+  evidence: z.array(DuplicateIdentityEvidence),
 })
 const DuplicatePersonCompanyLink = z.object({
   link_id: z.string().uuid(),
@@ -1375,23 +1404,25 @@ const DuplicatePersonSummary = z.object({
   job_count: z.number().int(),
   phone_call_count: z.number().int(),
 })
-const DuplicatePersonCandidate = z.object({
-  confidence: ConfidenceEnum,
-  matches: z.array(DuplicatePersonMatch),
-  shared_company_ids: z.array(z.string().uuid()),
-  first_person: DuplicatePersonSummary,
-  second_person: DuplicatePersonSummary,
+const DuplicatePersonGroup = z.object({
+  group_id: z.string(),
+  fingerprint: z.string(),
+  recommendation: RecommendationEnum,
+  reason_codes: z.array(z.string()),
+  canonical_id: z.string().uuid().nullable(),
+  members: z.array(DuplicatePersonSummary),
+  evidence: z.array(DuplicateIdentityEvidence),
 })
-const DuplicatePersonReportSummary = z.object({
-  candidate_pairs: z.number().int(),
-  people_flagged: z.number().int(),
-  high: z.number().int(),
-  medium: z.number().int(),
-  low: z.number().int(),
+const DuplicateIdentityReportSummary = z.object({
+  company_merge_groups: z.number().int(),
+  company_review_groups: z.number().int(),
+  person_merge_groups: z.number().int(),
+  person_review_groups: z.number().int(),
 })
-const DuplicatePeopleResponse = z.object({
-  duplicate_people: z.array(DuplicatePersonCandidate),
-  summary: DuplicatePersonReportSummary,
+const DuplicateIdentitiesResponse = z.object({
+  company_groups: z.array(DuplicateCompanyGroup),
+  person_groups: z.array(DuplicatePersonGroup),
+  summary: DuplicateIdentityReportSummary,
   checked_at: z.string().datetime({ offset: true }),
 })
 const DuplicatePhoneOwner = z.object({
@@ -3704,16 +3735,18 @@ export const schemas = {
   ArchivedJobIssue,
   ComplianceSummary,
   ArchivedJobsComplianceResponse,
-  ConfidenceEnum,
-  DuplicatePersonMatchKindEnum,
-  DuplicatePersonMatch,
+  RecommendationEnum,
+  DuplicateCompanyMember,
+  DuplicateIdentityEvidenceKindEnum,
+  DuplicateIdentityEvidence,
+  DuplicateCompanyGroup,
   DuplicatePersonCompanyLink,
   DuplicatePersonContactMethodMethodTypeEnum,
   DuplicatePersonContactMethod,
   DuplicatePersonSummary,
-  DuplicatePersonCandidate,
-  DuplicatePersonReportSummary,
-  DuplicatePeopleResponse,
+  DuplicatePersonGroup,
+  DuplicateIdentityReportSummary,
+  DuplicateIdentitiesResponse,
   DuplicatePhoneOwner,
   DuplicatePhoneIssue,
   DuplicatePhoneSummary,
@@ -6207,11 +6240,11 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
   },
   {
     method: 'get',
-    path: '/api/job/data-quality/duplicate-people/',
-    alias: 'check_duplicate_people',
-    description: `List pairs of distinct Person rows sharing exact normalized name, email, or person-owned phone signals.`,
+    path: '/api/job/data-quality/duplicate-identities/',
+    alias: 'check_duplicate_identities',
+    description: `List compact groups of Company and Person identities that are safe to merge automatically or require review.`,
     requestFormat: 'json',
-    response: DuplicatePeopleResponse,
+    response: DuplicateIdentitiesResponse,
     errors: [
       {
         status: 500,

@@ -5,8 +5,25 @@ try:
     from django.apps import apps
 
     if apps.ready:
-        from .company_merge_service import reassign_company_fk_records
+        from .company_merge_service import (
+            CompanyMergeCounts,
+            merge_companies,
+            reassign_company_fk_records,
+        )
         from .company_rest_service import CompanyPhoneAnnotations, CompanyRestService
+        from .duplicate_identity_report import (
+            DuplicateCompanyGroup,
+            DuplicateCompanyMember,
+            DuplicateIdentityEvidence,
+            DuplicateIdentityReport,
+            DuplicateIdentityReportService,
+            DuplicateIdentityReportSummary,
+            DuplicatePersonGroup,
+            DuplicatePersonMember,
+            normalize_company_address,
+            normalize_company_name,
+            person_names_strongly_compatible,
+        )
         from .duplicate_person_report import (
             DuplicatePersonCandidate,
             DuplicatePersonCompanyLink,
@@ -18,6 +35,7 @@ try:
             DuplicatePersonSummary,
             normalize_person_email,
             normalize_person_name,
+            person_names_compatible,
         )
         from .duplicate_phone_report import (
             DuplicatePhoneIssue,
@@ -33,18 +51,28 @@ try:
             geocode_address,
             get_api_key,
         )
+        from .kan278_duplicate_cleanup import apply_reviewed_duplicate_cleanup
         from .person_merge_service import PersonMergeCounts, merge_people
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
 
 __all__ = [
+    "CompanyMergeCounts",
     "CompanyPhoneAnnotations",
     "CompanyRestService",
+    "DuplicateCompanyGroup",
+    "DuplicateCompanyMember",
+    "DuplicateIdentityEvidence",
+    "DuplicateIdentityReport",
+    "DuplicateIdentityReportService",
+    "DuplicateIdentityReportSummary",
     "DuplicatePersonCandidate",
     "DuplicatePersonCompanyLink",
     "DuplicatePersonContactMethod",
+    "DuplicatePersonGroup",
     "DuplicatePersonMatch",
+    "DuplicatePersonMember",
     "DuplicatePersonReport",
     "DuplicatePersonReportService",
     "DuplicatePersonReportSummary",
@@ -58,10 +86,16 @@ __all__ = [
     "GeocodingNotConfiguredError",
     "GeocodingResult",
     "PersonMergeCounts",
+    "apply_reviewed_duplicate_cleanup",
     "geocode_address",
     "get_api_key",
+    "merge_companies",
     "merge_people",
+    "normalize_company_address",
+    "normalize_company_name",
     "normalize_person_email",
     "normalize_person_name",
+    "person_names_compatible",
+    "person_names_strongly_compatible",
     "reassign_company_fk_records",
 ]

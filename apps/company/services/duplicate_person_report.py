@@ -1,12 +1,15 @@
 """Find distinct Person rows that share exact identity signals."""
 
+import re
 from collections import defaultdict
 from datetime import datetime
+from functools import lru_cache
 from typing import Literal, TypedDict
 from uuid import UUID
 
 from django.db.models import Count
 from django.utils import timezone
+from nicknames import name_triplets
 
 from apps.company.models import CompanyPersonLink, ContactMethod, Person
 
@@ -74,7 +77,7 @@ class DuplicatePersonReport(TypedDict):
 
 def normalize_person_name(value: str) -> str:
     """Normalize an exact-name signal without introducing fuzzy matching."""
-    return " ".join(value.split()).casefold()
+    return " ".join(re.sub(r"[^\w]+", " ", value.casefold()).split())
 
 
 def normalize_person_email(value: str | None) -> str:
@@ -82,11 +85,57 @@ def normalize_person_email(value: str | None) -> str:
 
 
 def _confidence(match_kinds: set[MatchKind]) -> Confidence:
-    if len(match_kinds) >= 2:
+    if "name" in match_kinds and match_kinds & {"email", "phone"}:
         return "high"
     if "phone" in match_kinds or "email" in match_kinds:
         return "medium"
     return "low"
+
+
+def _name_tokens(value: str) -> list[str]:
+    return normalize_person_name(value).split()
+
+
+@lru_cache(maxsize=1)
+def _alias_groups() -> dict[str, set[str]]:
+    groups: dict[str, set[str]] = defaultdict(set)
+    for triplet in name_triplets():
+        canonical = normalize_person_name(triplet.name1)
+        groups[canonical].add(canonical)
+        groups[canonical].add(normalize_person_name(triplet.name2))
+    return groups
+
+
+def person_names_compatible(
+    first_name: str,
+    second_name: str,
+    *,
+    alias_groups: dict[str, set[str]] | None = None,
+) -> bool:
+    """Return whether two names can support an exact contact-method match."""
+    first_tokens = _name_tokens(first_name)
+    second_tokens = _name_tokens(second_name)
+    if not first_tokens or not second_tokens:
+        return False
+    if first_tokens == second_tokens:
+        return True
+
+    groups = _alias_groups() if alias_groups is None else alias_groups
+    first_names_match = first_tokens[0] == second_tokens[0]
+    first_canonical = {
+        canonical for canonical, names in groups.items() if first_tokens[0] in names
+    }
+    second_canonical = {
+        canonical for canonical, names in groups.items() if second_tokens[0] in names
+    }
+    if not first_names_match and not first_canonical & second_canonical:
+        return False
+
+    first_surname = first_tokens[1:]
+    second_surname = second_tokens[1:]
+    if first_surname and second_surname:
+        return first_surname == second_surname
+    return True
 
 
 class DuplicatePersonReportService:
@@ -148,6 +197,26 @@ class DuplicatePersonReportService:
             for first_index, first_id in enumerate(ordered_owners):
                 for second_id in ordered_owners[first_index + 1 :]:
                     pair_matches[(first_id, second_id)][kind].add(normalized_value)
+
+        aliases = _alias_groups()
+        for pair, matches in pair_matches.items():
+            if "name" in matches:
+                continue
+            first_id, second_id = pair
+            if not matches.keys() & {"email", "phone"}:
+                continue
+            if person_names_compatible(
+                summaries[first_id]["name"],
+                summaries[second_id]["name"],
+                alias_groups=aliases,
+            ):
+                normalized_names = sorted(
+                    {
+                        normalize_person_name(summaries[first_id]["name"]),
+                        normalize_person_name(summaries[second_id]["name"]),
+                    }
+                )
+                matches["name"].add(" ~ ".join(normalized_names))
 
         candidates = [
             self._candidate(pair, matches, summaries)

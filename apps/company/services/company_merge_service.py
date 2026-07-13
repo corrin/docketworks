@@ -13,14 +13,32 @@ Callers pick the destination explicitly:
 """
 
 import logging
+from typing import TypedDict
+from uuid import UUID
 
 from django.db import transaction
 from django.utils import timezone
 
+from apps.accounts.models import Staff
 from apps.company.models import Company, CompanyPersonLink, ContactMethod
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
+
+
+class CompanyMergeCounts(TypedDict):
+    jobs: int
+    contacts: int
+    contact_methods: int
+    phone_calls: int
+    invoices: int
+    bills: int
+    credit_notes: int
+    quotes: int
+    purchase_orders: int
+    supplier_products: int
+    supplier_price_lists: int
+    scrape_jobs: int
 
 
 def _move_company_contact_methods(source: Company, destination: Company) -> int:
@@ -118,10 +136,10 @@ def _move_company_contacts_and_methods(
 def reassign_company_fk_records(
     source: Company,
     destination: Company,
-    staff,
+    staff: Staff,
     *,
     logger_prefix: str = "",
-) -> dict[str, int]:
+) -> CompanyMergeCounts:
     """
     Move every company-referencing FK record from ``source`` to ``destination``.
 
@@ -160,7 +178,7 @@ def reassign_company_fk_records(
                 jobs_moved += 1
 
             crm_counts = _move_company_contacts_and_methods(source, destination)
-            counts = {
+            counts: CompanyMergeCounts = {
                 "jobs": jobs_moved,
                 "contacts": crm_counts["contacts"],
                 "contact_methods": crm_counts["contact_methods"],
@@ -217,3 +235,58 @@ def reassign_company_fk_records(
     except Exception as exc:
         persist_app_error(exc)
         raise
+
+
+def merge_companies(
+    source_id: UUID,
+    destination_id: UUID,
+    staff: Staff,
+) -> CompanyMergeCounts:
+    """Merge a Company while retaining its Xero-linked tombstone row."""
+    if source_id == destination_id:
+        raise ValueError("Source and destination Company must be different")
+
+    with transaction.atomic():
+        companies = {
+            company.id: company
+            for company in Company.objects.select_for_update()
+            .filter(id__in=[source_id, destination_id])
+            .order_by("id")
+        }
+        source = companies.get(source_id)
+        if source is None:
+            raise ValueError(f"Source Company {source_id} does not exist")
+        destination = companies.get(destination_id)
+        if destination is None:
+            raise ValueError(f"Destination Company {destination_id} does not exist")
+        if destination.merged_into_id is not None:
+            raise ValueError(f"Destination Company {destination_id} is already merged")
+        if source.merged_into_id not in (None, destination_id):
+            raise ValueError(
+                f"Source Company {source_id} is already merged into "
+                f"{source.merged_into_id}"
+            )
+
+        destination.is_account_customer = (
+            destination.is_account_customer or source.is_account_customer
+        )
+        destination.is_supplier = destination.is_supplier or source.is_supplier
+        destination.allow_jobs = destination.allow_jobs or source.allow_jobs
+        if not destination.email and source.email:
+            destination.email = source.email
+        if not destination.address and source.address:
+            destination.address = source.address
+        destination.save(
+            update_fields=[
+                "is_account_customer",
+                "is_supplier",
+                "allow_jobs",
+                "email",
+                "address",
+            ]
+        )
+
+        source.merged_into = destination
+        source.allow_jobs = False
+        source.save(update_fields=["merged_into", "allow_jobs"])
+        return reassign_company_fk_records(source, destination, staff)

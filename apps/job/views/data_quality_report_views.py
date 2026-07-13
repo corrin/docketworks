@@ -12,12 +12,14 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from apps.company.services.duplicate_person_report import DuplicatePersonReportService
+from apps.company.services.duplicate_identity_report import (
+    DuplicateIdentityReportService,
+)
 from apps.company.services.duplicate_phone_report import DuplicatePhoneReportService
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.data_quality_report_serializers import (
     ArchivedJobsComplianceResponseSerializer,
-    DuplicatePeopleResponseSerializer,
+    DuplicateIdentitiesResponseSerializer,
     DuplicatePhonesResponseSerializer,
 )
 from apps.job.services.data_quality_report import ArchivedJobsComplianceService
@@ -98,25 +100,25 @@ class DuplicatePhonesView(APIView):
             raise AlreadyLoggedException(exc, err.id) from exc
 
 
-class DuplicatePeopleView(APIView):
-    """API view for exact-signal duplicate Person candidates."""
+class DuplicateIdentitiesView(APIView):
+    """API view for grouped Company and Person duplicate exceptions."""
 
     permission_classes = [IsAuthenticated, IsOfficeStaff]
 
     @extend_schema(
-        operation_id="check_duplicate_people",
-        summary="Check for duplicate people",
+        operation_id="check_duplicate_identities",
+        summary="Check for duplicate companies and people",
         description=(
-            "List pairs of distinct Person rows sharing exact normalized name, "
-            "email, or person-owned phone signals."
+            "List compact groups of Company and Person identities that are safe "
+            "to merge automatically or require review."
         ),
-        responses={200: DuplicatePeopleResponseSerializer, 500: dict},
+        responses={200: DuplicateIdentitiesResponseSerializer, 500: dict},
         tags=["Data Quality"],
     )
     def get(self, request: Request) -> Response:
         try:
-            result = DuplicatePersonReportService().get_report()
-            serializer = DuplicatePeopleResponseSerializer(data=result)
+            result = DuplicateIdentityReportService().get_report()
+            serializer = DuplicateIdentitiesResponseSerializer(data=result)
             serializer.is_valid(raise_exception=True)
             return Response(serializer.data, status=status.HTTP_200_OK)
         except AlreadyLoggedException:

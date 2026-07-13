@@ -3144,12 +3144,12 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
-  /api/job/data-quality/duplicate-people/:
+  /api/job/data-quality/duplicate-identities/:
     get:
-      operationId: check_duplicate_people
-      description: List pairs of distinct Person rows sharing exact normalized name,
-        email, or person-owned phone signals.
-      summary: Check for duplicate people
+      operationId: check_duplicate_identities
+      description: List compact groups of Company and Person identities that are safe
+        to merge automatically or require review.
+      summary: Check for duplicate companies and people
       tags:
         - Data Quality
       security:
@@ -3159,7 +3159,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DuplicatePeopleResponse'
+                $ref: '#/components/schemas/DuplicateIdentitiesResponse'
           description: ''
         '500':
           content:
@@ -11395,16 +11395,6 @@ components:
         - not_cancelled
         - not_invoiced
         - not_paid
-    ConfidenceEnum:
-      enum:
-        - high
-        - medium
-        - low
-      type: string
-      description: |-
-        * `high` - high
-        * `medium` - medium
-        * `low` - low
     ContactMethod:
       type: object
       description: Serializer for canonical company/person phone and email methods.
@@ -12246,46 +12236,145 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
-    DuplicatePeopleResponse:
+    DuplicateCompanyGroup:
       type: object
       properties:
-        duplicate_people:
+        group_id:
+          type: string
+        fingerprint:
+          type: string
+        recommendation:
+          $ref: '#/components/schemas/RecommendationEnum'
+        reason_codes:
           type: array
           items:
-            $ref: '#/components/schemas/DuplicatePersonCandidate'
+            type: string
+        canonical_id:
+          type: string
+          format: uuid
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateCompanyMember'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateIdentityEvidence'
+      required:
+        - canonical_id
+        - evidence
+        - fingerprint
+        - group_id
+        - members
+        - reason_codes
+        - recommendation
+    DuplicateCompanyMember:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        allow_jobs:
+          type: boolean
+        is_account_customer:
+          type: boolean
+        is_supplier:
+          type: boolean
+        xero_archived:
+          type: boolean
+        job_count:
+          type: integer
+        contact_names:
+          type: array
+          items:
+            type: string
+      required:
+        - address
+        - allow_jobs
+        - company_id
+        - contact_names
+        - email
+        - is_account_customer
+        - is_supplier
+        - job_count
+        - name
+        - xero_archived
+    DuplicateIdentitiesResponse:
+      type: object
+      properties:
+        company_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateCompanyGroup'
+        person_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonGroup'
         summary:
-          $ref: '#/components/schemas/DuplicatePersonReportSummary'
+          $ref: '#/components/schemas/DuplicateIdentityReportSummary'
         checked_at:
           type: string
           format: date-time
       required:
         - checked_at
-        - duplicate_people
+        - company_groups
+        - person_groups
         - summary
-    DuplicatePersonCandidate:
+    DuplicateIdentityEvidence:
       type: object
       properties:
-        confidence:
-          $ref: '#/components/schemas/ConfidenceEnum'
-        matches:
-          type: array
-          items:
-            $ref: '#/components/schemas/DuplicatePersonMatch'
-        shared_company_ids:
-          type: array
-          items:
-            type: string
-            format: uuid
-        first_person:
-          $ref: '#/components/schemas/DuplicatePersonSummary'
-        second_person:
-          $ref: '#/components/schemas/DuplicatePersonSummary'
+        kind:
+          $ref: '#/components/schemas/DuplicateIdentityEvidenceKindEnum'
+        normalized_value:
+          type: string
+        owner_count:
+          type: integer
       required:
-        - confidence
-        - first_person
-        - matches
-        - second_person
-        - shared_company_ids
+        - kind
+        - normalized_value
+        - owner_count
+    DuplicateIdentityEvidenceKindEnum:
+      enum:
+        - name
+        - email
+        - email_domain
+        - phone
+        - address
+        - shared_person
+      type: string
+      description: |-
+        * `name` - name
+        * `email` - email
+        * `email_domain` - email_domain
+        * `phone` - phone
+        * `address` - address
+        * `shared_person` - shared_person
+    DuplicateIdentityReportSummary:
+      type: object
+      properties:
+        company_merge_groups:
+          type: integer
+        company_review_groups:
+          type: integer
+        person_merge_groups:
+          type: integer
+        person_review_groups:
+          type: integer
+      required:
+        - company_merge_groups
+        - company_review_groups
+        - person_merge_groups
+        - person_review_groups
     DuplicatePersonCompanyLink:
       type: object
       properties:
@@ -12342,45 +12431,39 @@ components:
       description: |-
         * `phone` - phone
         * `email` - email
-    DuplicatePersonMatch:
+    DuplicatePersonGroup:
       type: object
       properties:
-        kind:
-          $ref: '#/components/schemas/DuplicatePersonMatchKindEnum'
-        normalized_value:
+        group_id:
           type: string
+        fingerprint:
+          type: string
+        recommendation:
+          $ref: '#/components/schemas/RecommendationEnum'
+        reason_codes:
+          type: array
+          items:
+            type: string
+        canonical_id:
+          type: string
+          format: uuid
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonSummary'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateIdentityEvidence'
       required:
-        - kind
-        - normalized_value
-    DuplicatePersonMatchKindEnum:
-      enum:
-        - name
-        - email
-        - phone
-      type: string
-      description: |-
-        * `name` - name
-        * `email` - email
-        * `phone` - phone
-    DuplicatePersonReportSummary:
-      type: object
-      properties:
-        candidate_pairs:
-          type: integer
-        people_flagged:
-          type: integer
-        high:
-          type: integer
-        medium:
-          type: integer
-        low:
-          type: integer
-      required:
-        - candidate_pairs
-        - high
-        - low
-        - medium
-        - people_flagged
+        - canonical_id
+        - evidence
+        - fingerprint
+        - group_id
+        - members
+        - reason_codes
+        - recommendation
     DuplicatePersonSummary:
       type: object
       properties:
@@ -19490,6 +19573,14 @@ components:
         * `non_rd` - Non-R&D
         * `core_rd` - Core R&D
         * `supporting_rd` - Supporting R&D
+    RecommendationEnum:
+      enum:
+        - merge
+        - review
+      type: string
+      description: |-
+        * `merge` - merge
+        * `review` - review
     RoleEnum:
       enum:
         - user
