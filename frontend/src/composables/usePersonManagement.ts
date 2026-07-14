@@ -1,4 +1,5 @@
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { isAxiosError } from 'axios'
 import { schemas } from '@/api/generated/api'
 import { api } from '@/api/client'
 import { z } from 'zod'
@@ -6,13 +7,14 @@ import { debugLog } from '@/utils/debug'
 import { toast } from 'vue-sonner'
 
 // Schema-derived types (no custom interfaces)
-type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
-type PersonCreateRequest = z.input<typeof schemas.CompanyPersonLinkRequest>
-type PersonUpdateRequest = z.input<typeof schemas.PatchedCompanyPersonLinkRequest>
+type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
+type PersonCreateRequest = z.input<typeof schemas.CompanyPersonCreateRequest>
+type PhoneOwnership = z.infer<typeof schemas.PhoneOwnership>
+type PhonePersonMatch = z.infer<typeof schemas.PhonePersonMatch>
 type PersonFormFields = {
-  name: PersonCreateRequest['person_name']
+  name: PersonCreateRequest['name']
   position: PersonCreateRequest['position']
-  email: PersonCreateRequest['person_email']
+  email: PersonCreateRequest['email']
   phone: PersonCreateRequest['phone']
   notes: PersonCreateRequest['notes']
   is_primary: boolean
@@ -29,11 +31,12 @@ export type PersonFormData = PersonFormFields
  */
 export function usePersonManagement() {
   const isModalOpen = ref(false)
-  const people = ref<CompanyPersonLink[]>([])
-  const selectedPerson = ref<CompanyPersonLink | null>(null)
+  const people = ref<CompanyPerson[]>([])
+  const selectedPerson = ref<CompanyPerson | null>(null)
   const isLoading = ref(false)
   const currentCompanyId = ref<string>('')
   const currentCompanyName = ref<string>('')
+  const phoneOwnership = ref<PhoneOwnership | null>(null)
 
   const personForm = ref<PersonFormData>({
     name: '',
@@ -45,22 +48,27 @@ export function usePersonManagement() {
   })
 
   // Edit mode state
-  const editingPersonLink = ref<CompanyPersonLink | null>(null)
-  const isEditing = computed(() => editingPersonLink.value !== null)
-
-  // Filter out inactive people for display
-  const activePersonLinks = computed(() =>
-    people.value.filter((person) => person.is_active !== false),
-  )
+  const activePeople = computed(() => people.value)
 
   const hasPeople = computed(() => people.value.length > 0)
+
+  const beginCreatePerson = () => {
+    phoneOwnership.value = null
+  }
+
+  watch(
+    () => personForm.value.phone,
+    () => {
+      phoneOwnership.value = null
+    },
+  )
 
   const displayValue = computed({
     get() {
       if (!selectedPerson.value) return ''
       const person = selectedPerson.value
       const parts = [person.person_name]
-      if (person.phone) parts.push(person.phone)
+      if (person.primary_phone) parts.push(person.primary_phone)
       if (person.person_email) parts.push(person.person_email)
       return parts.join(' - ')
     },
@@ -71,7 +79,7 @@ export function usePersonManagement() {
         selectedPerson.value = {
           ...selectedPerson.value,
           person_name: name,
-          phone: phone || '',
+          primary_phone: phone || '',
           person_email: email || '',
         }
       } else {
@@ -111,7 +119,7 @@ export function usePersonManagement() {
    */
   const closeModal = () => {
     isModalOpen.value = false
-    editingPersonLink.value = null
+    phoneOwnership.value = null
     resetPersonForm()
   }
 
@@ -129,8 +137,8 @@ export function usePersonManagement() {
 
     isLoading.value = true
     try {
-      const response = await api.companies_person_links_list({
-        queries: { company_id: companyId },
+      const response = await api.companies_people_list({
+        params: { company_id: companyId },
       })
       people.value = response || []
       personForm.value.is_primary = people.value.length === 0
@@ -159,7 +167,7 @@ export function usePersonManagement() {
    *
    * @param person - The person to select
    */
-  const setSelectedPerson = (person: CompanyPersonLink) => {
+  const setSelectedPerson = (person: CompanyPerson) => {
     selectedPerson.value = person
   }
 
@@ -169,7 +177,7 @@ export function usePersonManagement() {
    *
    * @param person - The person to select
    */
-  const selectExistingPerson = (person: CompanyPersonLink) => {
+  const selectExistingPerson = (person: CompanyPerson) => {
     selectedPerson.value = person
     closeModal()
   }
@@ -182,7 +190,7 @@ export function usePersonManagement() {
    *
    * @returns Promise<boolean> - True if person was created successfully, false otherwise
    */
-  const createNewPerson = async (): Promise<boolean> => {
+  const createNewPerson = async (createSeparate = false): Promise<boolean> => {
     if (!currentCompanyId.value) {
       debugLog('Cannot create person without company ID')
       return false
@@ -204,12 +212,26 @@ export function usePersonManagement() {
       const trimmedPhone = personForm.value.phone?.trim()
       const trimmedNotes = personForm.value.notes?.trim()
 
+      if (trimmedPhone && !createSeparate) {
+        const ownership = await api.companies_people_phone_ownership_create(
+          { phone: trimmedPhone },
+          { params: { company_id: currentCompanyId.value } },
+        )
+        if (ownership.status !== 'available') {
+          phoneOwnership.value = ownership
+          return false
+        }
+      }
+
+      if (createSeparate && !phoneOwnership.value?.can_create_person) {
+        throw new Error('This phone number cannot be assigned to a separate person')
+      }
+
       const personData: PersonCreateRequest = {
-        company: currentCompanyId.value,
-        person_name: personForm.value.name.trim(),
+        name: personForm.value.name.trim(),
         is_primary: shouldBePrimary,
         position: trimmedPosition || undefined,
-        person_email: trimmedEmail || undefined,
+        email: trimmedEmail || undefined,
         notes: trimmedNotes || undefined,
         // Omit phone entirely when blank so the backend leaves person methods untouched
         ...(trimmedPhone ? { phone: trimmedPhone } : {}),
@@ -217,13 +239,15 @@ export function usePersonManagement() {
 
       debugLog('Creating new person:', personData)
 
-      const response = await api.companies_person_links_create(personData)
+      const response = await api.companies_people_create(personData, {
+        params: { company_id: currentCompanyId.value },
+      })
 
-      if (!response || !response.id) {
+      if (!response || !response.person_id) {
         throw new Error('Invalid response from server')
       }
 
-      const newPerson = response as CompanyPersonLink
+      const newPerson = response
 
       debugLog('Person created successfully:', newPerson)
 
@@ -231,7 +255,7 @@ export function usePersonManagement() {
       await loadPeople(currentCompanyId.value)
 
       // Then find and select the newly created person
-      const createdPerson = people.value.find((person) => person.id === newPerson.id)
+      const createdPerson = people.value.find((person) => person.person_id === newPerson.person_id)
       if (createdPerson) {
         selectedPerson.value = createdPerson
         debugLog('New person selected:', createdPerson)
@@ -243,7 +267,52 @@ export function usePersonManagement() {
       closeModal()
       return true
     } catch (error) {
+      if (isAxiosError(error) && error.response?.status === 409) {
+        const parsed = schemas.PhoneOwnershipConflict.safeParse(error.response.data)
+        if (parsed.success) {
+          phoneOwnership.value = parsed.data
+          return false
+        }
+      }
       debugLog('Error creating person:', error)
+      return false
+    } finally {
+      isLoading.value = false
+    }
+  }
+
+  const linkExistingPerson = async (match: PhonePersonMatch): Promise<boolean> => {
+    if (!currentCompanyId.value) return false
+    isLoading.value = true
+    try {
+      const existingLink = match.company_links.find(
+        (link) => link.company_id === currentCompanyId.value,
+      )
+      if (!existingLink?.is_active) {
+        await api.people_company_links_update(
+          {
+            position: personForm.value.position?.trim() || null,
+            notes: personForm.value.notes?.trim() || null,
+            is_primary: personForm.value.is_primary || people.value.length === 0,
+          },
+          {
+            params: {
+              person_id: match.person_id,
+              company_id: currentCompanyId.value,
+            },
+          },
+        )
+      }
+
+      await loadPeople(currentCompanyId.value)
+      const linked = people.value.find((person) => person.person_id === match.person_id)
+      if (!linked) throw new Error('Linked person was not returned for the company')
+      selectedPerson.value = linked
+      closeModal()
+      return true
+    } catch (error) {
+      debugLog('Error linking existing person:', error)
+      toast.error('Failed to link the existing person')
       return false
     } finally {
       isLoading.value = false
@@ -261,138 +330,6 @@ export function usePersonManagement() {
       phone: '',
       notes: '',
       is_primary: people.value.length === 0,
-    }
-  }
-
-  /**
-   * Starts editing an existing person
-   * Populates the form with the person's current data
-   *
-   * @param person - The person to edit
-   */
-  const startEditPerson = (person: CompanyPersonLink) => {
-    editingPersonLink.value = person
-    personForm.value = {
-      name: person.person_name,
-      position: person.position || '',
-      email: person.person_email || '',
-      phone: person.phone || '',
-      notes: person.notes || '',
-      is_primary: person.is_primary || false,
-    }
-  }
-
-  /**
-   * Cancels the current edit operation and resets the form
-   */
-  const cancelEdit = () => {
-    editingPersonLink.value = null
-    resetPersonForm()
-  }
-
-  /**
-   * Updates an existing person with the current form data
-   *
-   * @returns Promise<boolean> - True if update was successful, false otherwise
-   */
-  const updatePerson = async (): Promise<boolean> => {
-    if (!editingPersonLink.value?.id) {
-      debugLog('Cannot update person without ID')
-      return false
-    }
-
-    if (!personForm.value.name.trim()) {
-      debugLog('Person name is required')
-      return false
-    }
-
-    isLoading.value = true
-
-    try {
-      const trimmedPhone = personForm.value.phone?.trim()
-
-      const personData: PersonUpdateRequest = {
-        person_name: personForm.value.name.trim(),
-        is_primary: personForm.value.is_primary,
-        position: personForm.value.position?.trim() || null,
-        person_email: personForm.value.email?.trim() || null,
-        notes: personForm.value.notes?.trim() || null,
-        // Omit phone entirely when blank so the backend leaves person methods untouched
-        ...(trimmedPhone ? { phone: trimmedPhone } : {}),
-      }
-
-      debugLog('Updating person:', editingPersonLink.value.id, personData)
-
-      await api.companies_person_links_partial_update(personData, {
-        params: { id: editingPersonLink.value.id },
-      })
-
-      debugLog('Person updated successfully')
-
-      // Reload people to get updated list
-      await loadPeople(currentCompanyId.value)
-
-      // If the updated person was selected, update the selection
-      if (selectedPerson.value?.id === editingPersonLink.value.id) {
-        const updated = people.value.find((c) => c.id === editingPersonLink.value!.id)
-        if (updated) {
-          selectedPerson.value = updated
-        }
-      }
-
-      cancelEdit()
-      closeModal()
-      return true
-    } catch (error) {
-      debugLog('Error updating person:', error)
-      return false
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  /**
-   * Soft deletes a person (sets is_active=false)
-   *
-   * @param personLinkId - The ID of the person to delete
-   * @returns Promise<boolean> - True if delete was successful, false otherwise
-   */
-  const deletePerson = async (personLinkId: string): Promise<boolean> => {
-    if (!personLinkId) {
-      debugLog('Cannot delete person without ID')
-      return false
-    }
-
-    isLoading.value = true
-
-    try {
-      debugLog('Deleting person:', personLinkId)
-
-      await api.companies_person_links_destroy(undefined, {
-        params: { id: personLinkId },
-      })
-
-      debugLog('Person deleted successfully')
-
-      // Reload people to get updated list (inactive people filtered out)
-      await loadPeople(currentCompanyId.value)
-
-      // Clear selection if deleted person was selected
-      if (selectedPerson.value?.id === personLinkId) {
-        selectedPerson.value = null
-      }
-
-      // Clear editing state if we were editing the deleted person
-      if (editingPersonLink.value?.id === personLinkId) {
-        cancelEdit()
-      }
-
-      return true
-    } catch (error) {
-      debugLog('Error deleting person:', error)
-      return false
-    } finally {
-      isLoading.value = false
     }
   }
 
@@ -433,16 +370,16 @@ export function usePersonManagement() {
    *
    * @param newPeople - Array of people to replace the current list
    */
-  const updatePersonsList = (newPeople: CompanyPersonLink[]) => {
+  const updatePersonsList = (newPeople: CompanyPerson[]) => {
     people.value = newPeople
   }
 
   /**
    * Finds the primary person from the current people list
    *
-   * @returns CompanyPersonLink | null - The primary person if found, null otherwise
+   * @returns CompanyPerson | null - The primary person if found, null otherwise
    */
-  const findPrimaryPerson = (): CompanyPersonLink | null => {
+  const findPrimaryPerson = (): CompanyPerson | null => {
     if (people.value.length === 0) {
       return null
     }
@@ -457,11 +394,10 @@ export function usePersonManagement() {
     isLoading,
     currentCompanyName,
     personForm,
+    phoneOwnership,
 
     // Edit mode state
-    editingPersonLink,
-    isEditing,
-    activePersonLinks,
+    activePeople,
 
     hasPeople,
     displayValue,
@@ -473,16 +409,12 @@ export function usePersonManagement() {
     setSelectedPerson,
     selectExistingPerson,
     createNewPerson,
+    beginCreatePerson,
+    linkExistingPerson,
     savePerson,
     clearSelection,
     updatePersonsList,
     findPrimaryPerson,
     resetPersonForm,
-
-    // Edit/delete functions
-    startEditPerson,
-    cancelEdit,
-    updatePerson,
-    deletePerson,
   }
 }

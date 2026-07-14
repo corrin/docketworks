@@ -15,50 +15,72 @@
         </DialogHeader>
 
         <div
+          v-if="phoneOwnership"
+          class="mt-4 max-h-64 overflow-y-auto rounded-lg border p-4"
+          :class="
+            phoneOwnership.status === 'people'
+              ? 'border-amber-300 bg-amber-50'
+              : 'border-red-300 bg-red-50'
+          "
+          data-automation-id="PersonSelectionModal-phone-conflict"
+        >
+          <h4 class="font-semibold text-gray-900">This phone number is already in use</h4>
+          <p v-if="phoneOwnership.status === 'people'" class="mt-1 text-sm text-gray-700">
+            Choose the matching person. Their identity and contact details will be preserved.
+          </p>
+          <p v-else-if="phoneOwnership.status === 'company'" class="mt-1 text-sm text-red-800">
+            It belongs to
+            {{ phoneOwnership.companies.map((company) => company.company_name).join(', ') }} and
+            cannot be assigned to a person.
+          </p>
+          <p v-else class="mt-1 text-sm text-red-800">
+            It is an internal phone endpoint and cannot be assigned to a person.
+          </p>
+
+          <div v-if="phoneOwnership.status === 'people'" class="mt-3 space-y-2">
+            <div
+              v-for="match in phoneOwnership.people"
+              :key="match.person_id"
+              class="flex flex-col gap-2 rounded-md border border-amber-200 bg-white p-3 sm:flex-row sm:items-center sm:justify-between"
+              :data-automation-id="`PersonSelectionModal-phone-match-${match.person_id}`"
+            >
+              <div>
+                <p class="font-medium text-gray-900">{{ match.person_name }}</p>
+                <p class="text-xs text-gray-600">{{ match.person_email || 'No email' }}</p>
+                <p class="mt-1 text-xs text-gray-500">
+                  {{
+                    match.company_links
+                      .map((link) => `${link.company_name}${link.is_active ? '' : ' (inactive)'}`)
+                      .join(', ') || 'No company links'
+                  }}
+                </p>
+              </div>
+              <button
+                type="button"
+                class="rounded-md bg-amber-700 px-3 py-2 text-sm font-medium text-white hover:bg-amber-800"
+                :data-automation-id="`PersonSelectionModal-link-match-${match.person_id}`"
+                @click="emit('link-person', match)"
+              >
+                {{ matchAction(match) }}
+              </button>
+            </div>
+            <button
+              v-if="phoneOwnership.can_create_person"
+              type="button"
+              class="text-sm font-medium text-amber-900 underline"
+              data-automation-id="PersonSelectionModal-create-separate"
+              @click="emit('create-separate-person')"
+            >
+              Create a separate person with this shared number
+            </button>
+          </div>
+        </div>
+
+        <div
           class="modal-body flex-1 overflow-hidden flex flex-col xl:flex-row gap-4 lg:gap-6 py-4"
         >
           <!-- Existing People Section -->
           <div class="people-section flex-1 min-h-0 flex flex-col relative">
-            <!-- Delete Confirmation Overlay -->
-            <div
-              v-if="showDeleteConfirm"
-              class="absolute inset-0 bg-white/95 z-30 flex items-center justify-center rounded-lg"
-            >
-              <div class="text-center p-6 max-w-sm">
-                <div
-                  class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4"
-                >
-                  <AlertTriangle class="w-6 h-6 text-red-600" />
-                </div>
-                <h4 class="text-lg font-semibold text-gray-900 mb-2">Delete Person?</h4>
-                <p class="text-sm text-gray-600 mb-4">
-                  Are you sure you want to remove
-                  <strong>{{ personToDelete?.person_name }}</strong
-                  >? The person will be marked as inactive.
-                </p>
-                <p
-                  v-if="personToDelete?.is_primary"
-                  class="text-sm text-amber-600 font-medium mb-4"
-                >
-                  This is the primary person for this company.
-                </p>
-                <div class="flex gap-3 justify-center">
-                  <button
-                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
-                    @click="cancelDelete"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
-                    @click="executeDelete"
-                  >
-                    Delete
-                  </button>
-                </div>
-              </div>
-            </div>
-
             <div v-if="isLoading" class="flex-1 flex items-center justify-center">
               <div class="text-center">
                 <div
@@ -81,16 +103,13 @@
                   <div class="people-grid grid gap-3 pb-2">
                     <div
                       v-for="person in people || []"
-                      :key="person?.id || ''"
-                      :data-automation-id="`PersonSelectionModal-card-${person?.id}`"
+                      :key="person.person_id"
+                      :data-automation-id="`PersonSelectionModal-card-${person.person_id}`"
                       class="group relative bg-white border border-gray-200 rounded-lg p-2 cursor-pointer transition-all duration-200 hover:shadow-md hover:border-blue-300 hover:-translate-y-0.5"
                       :class="{
                         'ring-2 ring-blue-500 bg-blue-50 border-blue-500 shadow-md mt-1':
-                          selectedPerson?.id === person?.id,
-                        'ring-2 ring-amber-500 bg-amber-50 border-amber-500':
-                          editingPersonLink?.id === person?.id,
-                        'hover:bg-gray-50':
-                          selectedPerson?.id !== person?.id && editingPersonLink?.id !== person?.id,
+                          selectedPerson?.person_id === person.person_id,
+                        'hover:bg-gray-50': selectedPerson?.person_id !== person.person_id,
                       }"
                       @click="selectPerson(person)"
                     >
@@ -106,7 +125,7 @@
                       <!-- Person Info -->
                       <div class="space-y-1">
                         <div class="font-medium text-gray-900 text-sm truncate pr-4">
-                          {{ person?.person_name || '' }}
+                          {{ person.person_name }}
                         </div>
 
                         <div v-if="person?.position" class="text-xs text-gray-600 truncate">
@@ -132,7 +151,7 @@
                           </div>
 
                           <div
-                            v-if="person?.phone"
+                            v-if="person.primary_phone"
                             class="text-xs text-gray-500 truncate flex items-center"
                           >
                             <svg
@@ -144,7 +163,7 @@
                                 d="M2 3a1 1 0 011-1h2.153a1 1 0 01.986.836l.74 4.435a1 1 0 01-.54 1.06l-1.548.773a11.037 11.037 0 006.105 6.105l.774-1.548a1 1 0 011.059-.54l4.435.74a1 1 0 01.836.986V17a1 1 0 01-1 1h-2C7.82 18 2 12.18 2 5V3z"
                               />
                             </svg>
-                            {{ person?.phone }}
+                            {{ person.primary_phone }}
                           </div>
                         </div>
                       </div>
@@ -160,20 +179,6 @@
                           title="Select this person"
                         >
                           Select
-                        </button>
-                        <button
-                          class="p-1.5 text-xs font-medium bg-gray-600 text-white rounded-md shadow-sm hover:bg-gray-700 transition-colors"
-                          @click.stop="emit('edit-person', person)"
-                          title="Edit person"
-                        >
-                          <PencilLine class="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          class="p-1.5 text-xs font-medium bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700 transition-colors"
-                          @click.stop="confirmDeletePerson(person)"
-                          title="Delete person"
-                        >
-                          <Trash2 class="w-3.5 h-3.5" />
                         </button>
                       </div>
                     </div>
@@ -196,17 +201,7 @@
             class="create-person-section w-full xl:w-80 2xl:w-96 flex-shrink-0 border-t xl:border-t-0 xl:border-l border-gray-200 pt-4 xl:pt-0 xl:pl-6"
           >
             <div class="flex items-center justify-between mb-4">
-              <h4 class="section-title text-sm font-semibold text-gray-900">
-                {{ isEditing ? 'Edit Person' : 'Create New Person' }}
-              </h4>
-              <button
-                v-if="isEditing"
-                type="button"
-                class="text-xs text-gray-500 hover:text-gray-700 underline"
-                @click="emit('cancel-edit')"
-              >
-                Cancel edit
-              </button>
+              <h4 class="section-title text-sm font-semibold text-gray-900">Create New Person</h4>
             </div>
 
             <div class="space-y-4">
@@ -300,7 +295,7 @@
             @click="handleSave"
             :disabled="isLoading || !localPersonForm.name.trim()"
           >
-            {{ isLoading ? 'Saving...' : isEditing ? 'Update Person' : 'Create Person' }}
+            {{ isLoading ? 'Saving...' : 'Create Person' }}
           </button>
         </DialogFooter>
       </div>
@@ -310,7 +305,7 @@
 
 <script setup lang="ts">
 import { ref, watch, reactive } from 'vue'
-import { Users, PencilLine, Trash2, AlertTriangle } from 'lucide-vue-next'
+import { Users } from 'lucide-vue-next'
 import { schemas } from '../api/generated/api'
 import { z } from 'zod'
 import type { PersonFormData } from '@/composables/usePersonManagement'
@@ -324,26 +319,26 @@ import {
 } from '../components/ui/dialog'
 
 // Type aliases for schema-based types
-type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
+type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
+type PhoneOwnership = z.infer<typeof schemas.PhoneOwnership>
+type PhonePersonMatch = z.infer<typeof schemas.PhonePersonMatch>
 
 const props = defineProps<{
   isOpen: boolean
   companyId: string
   companyName: string
-  people: CompanyPersonLink[]
-  selectedPerson: CompanyPersonLink | null
+  people: CompanyPerson[]
+  selectedPerson: CompanyPerson | null
   isLoading: boolean
   personForm: PersonFormData
-  editingPersonLink: CompanyPersonLink | null
-  isEditing: boolean
+  phoneOwnership: PhoneOwnership | null
 }>()
 const emit = defineEmits<{
   close: []
-  'select-person': [person: CompanyPersonLink]
+  'select-person': [person: CompanyPerson]
   'save-person': [newPerson: PersonFormData]
-  'edit-person': [person: CompanyPersonLink]
-  'delete-person': [personLinkId: string]
-  'cancel-edit': []
+  'link-person': [person: PhonePersonMatch]
+  'create-separate-person': []
   'update:personForm': [personForm: PersonFormData]
 }>()
 
@@ -390,29 +385,15 @@ const handleSave = () => {
   emit('save-person', { ...localPersonForm })
 }
 
-const selectPerson = (person: CompanyPersonLink) => {
+const selectPerson = (person: CompanyPerson) => {
   emit('select-person', person)
 }
 
-// Delete confirmation state
-const personToDelete = ref<CompanyPersonLink | null>(null)
-const showDeleteConfirm = ref(false)
-
-const confirmDeletePerson = (person: CompanyPersonLink) => {
-  personToDelete.value = person
-  showDeleteConfirm.value = true
-}
-
-const cancelDelete = () => {
-  personToDelete.value = null
-  showDeleteConfirm.value = false
-}
-
-const executeDelete = () => {
-  if (personToDelete.value?.id) {
-    emit('delete-person', personToDelete.value.id)
-  }
-  cancelDelete()
+const matchAction = (match: PhonePersonMatch): string => {
+  const link = match.company_links.find((item) => item.company_id === props.companyId)
+  if (link?.is_active) return 'Select person'
+  if (link) return 'Restore company link'
+  return 'Link to this company'
 }
 </script>
 

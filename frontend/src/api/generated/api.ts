@@ -668,6 +668,57 @@ const CompanyJobHeader = z.object({
   max_people: z.number().int(),
 })
 const CompanyJobsResponse = z.object({ results: z.array(CompanyJobHeader) })
+const CompanyPerson = z.object({
+  person_id: z.string().uuid(),
+  person_name: z.string(),
+  person_email: z.string().email().nullable(),
+  primary_phone: z.string(),
+  position: z.string().max(255).nullish(),
+  is_primary: z.boolean().optional(),
+  notes: z.string().nullish(),
+})
+const CompanyPersonCreateRequest = z.object({
+  name: z.string().min(1).max(255),
+  email: z.string().email().nullish(),
+  phone: z.string().nullish(),
+  position: z.string().max(255).nullish(),
+  notes: z.string().nullish(),
+  is_primary: z.boolean().optional().default(false),
+})
+const PhoneOwnershipStatusEnum = z.enum(['available', 'people', 'company', 'internal'])
+const PersonCompanyLink = z.object({
+  company_id: z.string().uuid(),
+  company_name: z.string(),
+  position: z.string().nullable(),
+  is_primary: z.boolean(),
+  notes: z.string().nullable(),
+  is_active: z.boolean(),
+})
+const PhonePersonMatch = z.object({
+  person_id: z.string().uuid(),
+  person_name: z.string(),
+  person_email: z.string().email().nullable(),
+  company_links: z.array(PersonCompanyLink),
+})
+const PhoneCompanyOwner = z.object({
+  company_id: z.string().uuid(),
+  company_name: z.string(),
+})
+const PhoneOwnershipConflict = z.object({
+  status: PhoneOwnershipStatusEnum,
+  normalized_phone: z.string(),
+  can_create_person: z.boolean(),
+  people: z.array(PhonePersonMatch),
+  companies: z.array(PhoneCompanyOwner),
+})
+const PhoneOwnershipRequestRequest = z.object({ phone: z.string().min(1) })
+const PhoneOwnership = z.object({
+  status: PhoneOwnershipStatusEnum,
+  normalized_phone: z.string(),
+  can_create_person: z.boolean(),
+  people: z.array(PhonePersonMatch),
+  companies: z.array(PhoneCompanyOwner),
+})
 const SupplierSearchAlias = z.object({
   id: z.string().uuid(),
   company: z.string().uuid(),
@@ -705,7 +756,7 @@ const PatchedCompanyUpdateRequest = z
   })
   .partial()
 const CompanyNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
-const ContactMethodMethodTypeEnum = z.enum(['phone', 'email'])
+const ContactMethodTypeEnum = z.enum(['phone', 'email'])
 const ContactMethodSourceEnum = z.enum(['imported', 'local'])
 const ContactMethod = z.object({
   id: z.string().uuid(),
@@ -714,7 +765,7 @@ const ContactMethod = z.object({
   company_name: z.string(),
   person: z.string().uuid().nullish(),
   person_name: z.string(),
-  method_type: ContactMethodMethodTypeEnum,
+  method_type: ContactMethodTypeEnum,
   value: z.string().max(255),
   normalized_value: z.string(),
   label: z.string().max(255).optional(),
@@ -733,7 +784,7 @@ const PaginatedContactMethodList = z.object({
 const ContactMethodRequest = z.object({
   company: z.string().uuid().nullish(),
   person: z.string().uuid().nullish(),
-  method_type: ContactMethodMethodTypeEnum,
+  method_type: ContactMethodTypeEnum,
   value: z.string().min(1).max(255),
   label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
@@ -743,7 +794,7 @@ const PatchedContactMethodRequest = z
   .object({
     company: z.string().uuid().nullable(),
     person: z.string().uuid().nullable(),
-    method_type: ContactMethodMethodTypeEnum,
+    method_type: ContactMethodTypeEnum,
     value: z.string().min(1).max(255),
     label: z.string().max(255),
     is_primary: z.boolean().default(false),
@@ -791,40 +842,6 @@ const JobPersonUpdateRequest = z.object({
   name: z.string().min(1),
   email: z.string().nullable(),
 })
-const CompanyPersonLink = z.object({
-  id: z.string().uuid(),
-  company: z.string().uuid(),
-  person: z.string().uuid(),
-  person_name: z.string(),
-  person_email: z.string().email().nullish(),
-  position: z.string().max(255).nullish(),
-  is_primary: z.boolean().optional(),
-  notes: z.string().nullish(),
-  is_active: z.boolean(),
-  created_at: z.string().datetime({ offset: true }),
-  updated_at: z.string().datetime({ offset: true }),
-  phone: z.string().nullish().default(''),
-})
-const CompanyPersonLinkRequest = z.object({
-  company: z.string().uuid(),
-  person_name: z.string().min(1),
-  person_email: z.string().email().nullish(),
-  position: z.string().max(255).nullish(),
-  is_primary: z.boolean().optional(),
-  notes: z.string().nullish(),
-  phone: z.string().nullish().default(''),
-})
-const PatchedCompanyPersonLinkRequest = z
-  .object({
-    company: z.string().uuid(),
-    person_name: z.string().min(1),
-    person_email: z.string().email().nullable(),
-    position: z.string().max(255).nullable(),
-    is_primary: z.boolean(),
-    notes: z.string().nullable(),
-    phone: z.string().nullable().default(''),
-  })
-  .partial()
 const SupplierPickupAddress = z.object({
   id: z.string().uuid(),
   company: z.string().uuid(),
@@ -2483,6 +2500,74 @@ const WorkshopScheduleResponse = z.object({
   jobs: z.array(ScheduledJob),
   unscheduled_jobs: z.array(UnscheduledJob),
 })
+const PersonCompanySummary = z.object({
+  company_id: z.string().uuid(),
+  company_name: z.string(),
+})
+const PersonSummary = z.object({
+  id: z.string().uuid(),
+  name: z.string().max(255),
+  email: z.string().max(254).email().nullish(),
+  primary_phone: z.string(),
+  companies: z.array(PersonCompanySummary),
+})
+const PaginatedPersonSummaryList = z.object({
+  results: z.array(PersonSummary),
+  count: z.number().int(),
+  page: z.number().int(),
+  page_size: z.number().int(),
+  total_pages: z.number().int(),
+})
+const PersonDetail = z.object({
+  id: z.string().uuid(),
+  name: z.string().max(255),
+  email: z.string().max(254).email().nullish(),
+  is_active: z.boolean().optional(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+  primary_phone: z.string(),
+  companies: z.array(PersonCompanySummary),
+  company_links: z.array(PersonCompanyLink),
+})
+const PersonIdentityUpdateRequest = z
+  .object({
+    name: z.string().min(1).max(255),
+    email: z.string().max(254).email().nullable(),
+  })
+  .partial()
+const PersonIdentityUpdate = z
+  .object({
+    name: z.string().max(255),
+    email: z.string().max(254).email().nullable(),
+  })
+  .partial()
+const PatchedPersonIdentityUpdateRequest = z
+  .object({
+    name: z.string().min(1).max(255),
+    email: z.string().max(254).email().nullable(),
+  })
+  .partial()
+const CompanyLinkWriteRequest = z
+  .object({
+    position: z.string().max(255).nullable(),
+    notes: z.string().nullable(),
+    is_primary: z.boolean().default(false),
+  })
+  .partial()
+const PersonContactMethodWriteRequest = z.object({
+  method_type: ContactMethodTypeEnum,
+  value: z.string().min(1).max(255),
+  label: z.string().optional().default(''),
+  is_primary: z.boolean().optional().default(false),
+})
+const PatchedPersonContactMethodWriteRequest = z
+  .object({
+    method_type: ContactMethodTypeEnum,
+    value: z.string().min(1).max(255),
+    label: z.string().default(''),
+    is_primary: z.boolean().default(false),
+  })
+  .partial()
 const CategoriesResponse = z.object({
   procedures: z.array(z.string()),
   forms: z.array(z.string()),
@@ -3675,13 +3760,22 @@ export const schemas = {
   CompanyErrorResponse,
   CompanyJobHeader,
   CompanyJobsResponse,
+  CompanyPerson,
+  CompanyPersonCreateRequest,
+  PhoneOwnershipStatusEnum,
+  PersonCompanyLink,
+  PhonePersonMatch,
+  PhoneCompanyOwner,
+  PhoneOwnershipConflict,
+  PhoneOwnershipRequestRequest,
+  PhoneOwnership,
   SupplierSearchAlias,
   SupplierSearchAliasCreateRequest,
   CompanyUpdateRequest,
   CompanyUpdateResponse,
   PatchedCompanyUpdateRequest,
   CompanyNameOnly,
-  ContactMethodMethodTypeEnum,
+  ContactMethodTypeEnum,
   ContactMethodSourceEnum,
   ContactMethod,
   PaginatedContactMethodList,
@@ -3693,9 +3787,6 @@ export const schemas = {
   CompanyDuplicateErrorResponse,
   JobPersonResponse,
   JobPersonUpdateRequest,
-  CompanyPersonLink,
-  CompanyPersonLinkRequest,
-  PatchedCompanyPersonLinkRequest,
   SupplierPickupAddress,
   SupplierPickupAddressRequest,
   PatchedSupplierPickupAddressRequest,
@@ -3895,6 +3986,16 @@ export const schemas = {
   ScheduledJob,
   UnscheduledJob,
   WorkshopScheduleResponse,
+  PersonCompanySummary,
+  PersonSummary,
+  PaginatedPersonSummaryList,
+  PersonDetail,
+  PersonIdentityUpdateRequest,
+  PersonIdentityUpdate,
+  PatchedPersonIdentityUpdateRequest,
+  CompanyLinkWriteRequest,
+  PersonContactMethodWriteRequest,
+  PatchedPersonContactMethodWriteRequest,
   CategoriesResponse,
   FormDocumentTypeEnum,
   FormStatusEnum,
@@ -4920,6 +5021,67 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
   },
   {
     method: 'get',
+    path: '/api/companies/:company_id/people/',
+    alias: 'companies_people_list',
+    description: `List a company&#x27;s people or create a Person with its initial link.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'company_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.array(CompanyPerson),
+  },
+  {
+    method: 'post',
+    path: '/api/companies/:company_id/people/',
+    alias: 'companies_people_create',
+    description: `List a company&#x27;s people or create a Person with its initial link.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: CompanyPersonCreateRequest,
+      },
+      {
+        name: 'company_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: CompanyPerson,
+    errors: [
+      {
+        status: 409,
+        schema: PhoneOwnershipConflict,
+      },
+    ],
+  },
+  {
+    method: 'post',
+    path: '/api/companies/:company_id/people/phone-ownership/',
+    alias: 'companies_people_phone_ownership_create',
+    description: `Classify a phone before creating a Person for a company.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: z.object({ phone: z.string().min(1) }),
+      },
+      {
+        name: 'company_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PhoneOwnership,
+  },
+  {
+    method: 'get',
     path: '/api/companies/:company_id/supplier-aliases/',
     alias: 'companies_supplier_aliases_list',
     description: `List and create search aliases for a company/supplier contact.`,
@@ -5290,161 +5452,6 @@ Endpoint: /api/app-errors/&lt;id&gt;/`,
         schema: CompanyErrorResponse,
       },
     ],
-  },
-  {
-    method: 'get',
-    path: '/api/companies/person-links/',
-    alias: 'companies_person_links_list',
-    description: `List all company-person links, optionally filtered by company_id.`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'company_id',
-        type: 'Query',
-        schema: z.string().uuid().optional(),
-      },
-    ],
-    response: z.array(CompanyPersonLink),
-  },
-  {
-    method: 'post',
-    path: '/api/companies/person-links/',
-    alias: 'companies_person_links_create',
-    description: `ViewSet for CompanyPersonLink CRUD operations.
-
-Endpoints:
-- GET    /api/companies/person-links/       - list all company-person links
-- POST   /api/companies/person-links/       - create link
-- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
-- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
-- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
-- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter links by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: CompanyPersonLinkRequest,
-      },
-    ],
-    response: CompanyPersonLink,
-  },
-  {
-    method: 'get',
-    path: '/api/companies/person-links/:id/',
-    alias: 'companies_person_links_retrieve',
-    description: `ViewSet for CompanyPersonLink CRUD operations.
-
-Endpoints:
-- GET    /api/companies/person-links/       - list all company-person links
-- POST   /api/companies/person-links/       - create link
-- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
-- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
-- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
-- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter links by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: CompanyPersonLink,
-  },
-  {
-    method: 'put',
-    path: '/api/companies/person-links/:id/',
-    alias: 'companies_person_links_update',
-    description: `ViewSet for CompanyPersonLink CRUD operations.
-
-Endpoints:
-- GET    /api/companies/person-links/       - list all company-person links
-- POST   /api/companies/person-links/       - create link
-- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
-- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
-- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
-- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter links by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: CompanyPersonLinkRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: CompanyPersonLink,
-  },
-  {
-    method: 'patch',
-    path: '/api/companies/person-links/:id/',
-    alias: 'companies_person_links_partial_update',
-    description: `ViewSet for CompanyPersonLink CRUD operations.
-
-Endpoints:
-- GET    /api/companies/person-links/       - list all company-person links
-- POST   /api/companies/person-links/       - create link
-- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
-- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
-- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
-- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter links by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'body',
-        type: 'Body',
-        schema: PatchedCompanyPersonLinkRequest,
-      },
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: CompanyPersonLink,
-  },
-  {
-    method: 'delete',
-    path: '/api/companies/person-links/:id/',
-    alias: 'companies_person_links_destroy',
-    description: `ViewSet for CompanyPersonLink CRUD operations.
-
-Endpoints:
-- GET    /api/companies/person-links/       - list all company-person links
-- POST   /api/companies/person-links/       - create link
-- GET    /api/companies/person-links/&lt;id&gt;/  - retrieve link
-- PUT    /api/companies/person-links/&lt;id&gt;/  - full update
-- PATCH  /api/companies/person-links/&lt;id&gt;/  - partial update
-- DELETE /api/companies/person-links/&lt;id&gt;/  - soft delete (sets is_active&#x3D;False)
-
-Query Parameters:
-- company_id: Filter links by company UUID`,
-    requestFormat: 'json',
-    parameters: [
-      {
-        name: 'id',
-        type: 'Path',
-        schema: z.string().uuid(),
-      },
-    ],
-    response: z.void(),
   },
   {
     method: 'get',
@@ -8119,6 +8126,226 @@ POST: Processes selected jobs for month-end archiving and status updates`,
       },
     ],
     response: WorkshopScheduleResponse,
+  },
+  {
+    method: 'get',
+    path: '/api/people/',
+    alias: 'people_list',
+    description: `List and search active people across company relationships.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'page',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'page_size',
+        type: 'Query',
+        schema: z.number().int().optional(),
+      },
+      {
+        name: 'q',
+        type: 'Query',
+        schema: z.string().optional(),
+      },
+    ],
+    response: PaginatedPersonSummaryList,
+  },
+  {
+    method: 'get',
+    path: '/api/people/:person_id/',
+    alias: 'people_retrieve',
+    description: `Retrieve or update a Person&#x27;s identity fields.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PersonDetail,
+  },
+  {
+    method: 'put',
+    path: '/api/people/:person_id/',
+    alias: 'people_update',
+    description: `Retrieve or update a Person&#x27;s identity fields.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PersonIdentityUpdateRequest,
+      },
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PersonIdentityUpdate,
+  },
+  {
+    method: 'patch',
+    path: '/api/people/:person_id/',
+    alias: 'people_partial_update',
+    description: `Retrieve or update a Person&#x27;s identity fields.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedPersonIdentityUpdateRequest,
+      },
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PersonIdentityUpdate,
+  },
+  {
+    method: 'get',
+    path: '/api/people/:person_id/company-links/',
+    alias: 'people_company_links_list',
+    description: `List all active company relationships for a Person.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.array(PersonCompanyLink),
+  },
+  {
+    method: 'put',
+    path: '/api/people/:person_id/company-links/:company_id/',
+    alias: 'people_company_links_update',
+    description: `Create, update, reactivate, or remove a Person-company relationship.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: CompanyLinkWriteRequest,
+      },
+      {
+        name: 'company_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: PersonCompanyLink,
+  },
+  {
+    method: 'delete',
+    path: '/api/people/:person_id/company-links/:company_id/',
+    alias: 'people_company_links_destroy',
+    description: `Create, update, reactivate, or remove a Person-company relationship.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'company_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
+  },
+  {
+    method: 'get',
+    path: '/api/people/:person_id/contact-methods/',
+    alias: 'people_contact_methods_list',
+    description: `List or create a Person&#x27;s contact methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.array(ContactMethod),
+  },
+  {
+    method: 'post',
+    path: '/api/people/:person_id/contact-methods/',
+    alias: 'people_contact_methods_create',
+    description: `List or create a Person&#x27;s contact methods.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PersonContactMethodWriteRequest,
+      },
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ContactMethod,
+  },
+  {
+    method: 'patch',
+    path: '/api/people/:person_id/contact-methods/:method_id/',
+    alias: 'people_contact_methods_partial_update',
+    description: `Update or delete one Person contact method.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'body',
+        type: 'Body',
+        schema: PatchedPersonContactMethodWriteRequest,
+      },
+      {
+        name: 'method_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: ContactMethod,
+  },
+  {
+    method: 'delete',
+    path: '/api/people/:person_id/contact-methods/:method_id/',
+    alias: 'people_contact_methods_destroy',
+    description: `Update or delete one Person contact method.`,
+    requestFormat: 'json',
+    parameters: [
+      {
+        name: 'method_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+      {
+        name: 'person_id',
+        type: 'Path',
+        schema: z.string().uuid(),
+      },
+    ],
+    response: z.void(),
   },
   {
     method: 'get',

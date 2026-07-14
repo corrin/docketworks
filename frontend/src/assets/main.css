@@ -366,10 +366,6 @@ body {
   @apply text-xs text-gray-500 font-mono;
 }
 
-.job-card-client {
-  @apply text-xs text-gray-600 mb-2 truncate;
-}
-
 .job-card-meta {
   @apply flex items-center justify-between text-xs text-gray-500;
 }

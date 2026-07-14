@@ -207,8 +207,6 @@ def _filter_phone_call_queryset(
     queryset: QuerySet[PhoneCallRecord],
     request: Request,
 ) -> QuerySet[PhoneCallRecord]:
-    if "client_match" in request.query_params:
-        raise ValidationError({"client_match": ["Use company_match."]})
     company_match = _query_choice(
         request.query_params.get("company_match"),
         "company_match",

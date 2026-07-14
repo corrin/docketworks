@@ -60,11 +60,26 @@ try:
             apply_reviewed_duplicate_cleanup,
         )
         from .person_merge_service import PersonMergeCounts, merge_people
+        from .person_service import (
+            CompanyLinkData,
+            NewPersonData,
+            PersonCompanyLinkData,
+            PersonDirectoryService,
+            PersonPhoneConflictError,
+            PhoneCompanyOwner,
+            PhoneOwnershipResult,
+            PhonePersonMatch,
+            classify_phone_ownership,
+            create_person_for_company,
+            put_company_link,
+            remove_company_link,
+        )
 except (ImportError, RuntimeError):
     # Django not ready or circular import, skip conditional imports
     pass
 
 __all__ = [
+    "CompanyLinkData",
     "CompanyMergeCounts",
     "CompanyMergeDecision",
     "CompanyPhoneAnnotations",
@@ -94,11 +109,20 @@ __all__ = [
     "GeocodingNotConfiguredError",
     "GeocodingResult",
     "InvalidLinkDecision",
+    "NewPersonData",
+    "PersonCompanyLinkData",
+    "PersonDirectoryService",
     "PersonMergeCounts",
     "PersonMergeDecision",
+    "PersonPhoneConflictError",
     "PersonSelector",
+    "PhoneCompanyOwner",
+    "PhoneOwnershipResult",
+    "PhonePersonMatch",
     "RetainedDecision",
     "apply_reviewed_duplicate_cleanup",
+    "classify_phone_ownership",
+    "create_person_for_company",
     "geocode_address",
     "get_api_key",
     "merge_companies",
@@ -109,5 +133,7 @@ __all__ = [
     "normalize_person_name",
     "person_names_compatible",
     "person_names_strongly_compatible",
+    "put_company_link",
     "reassign_company_fk_records",
+    "remove_company_link",
 ]

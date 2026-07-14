@@ -227,6 +227,13 @@
                   <Users class="w-4 h-4 mr-2" /> Companies
                 </router-link>
                 <router-link
+                  to="/crm/people"
+                  class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
+                  data-automation-id="AppNavbar-people"
+                >
+                  <ContactRound class="w-4 h-4 mr-2" /> People
+                </router-link>
+                <router-link
                   v-if="userInfo.is_superuser"
                   to="/crm/calls"
                   class="flex items-center px-4 py-2 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 font-medium transition-all"
@@ -744,6 +751,14 @@
                         <Users class="w-4 h-4 mr-2" /> Companies
                       </router-link>
                       <router-link
+                        to="/crm/people"
+                        class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
+                        data-automation-id="AppNavbar-people-mobile"
+                        @click="closeMobileMenu"
+                      >
+                        <ContactRound class="w-4 h-4 mr-2" /> People
+                      </router-link>
+                      <router-link
                         v-if="userInfo.is_superuser"
                         to="/crm/calls"
                         class="flex items-center px-2 py-1.5 text-sm text-gray-600 hover:text-blue-600 hover:bg-blue-50 rounded transition-all"
@@ -1003,6 +1018,7 @@ import {
   Activity,
   PhoneCall,
   Fingerprint,
+  ContactRound,
 } from 'lucide-vue-next'
 import { useAppLayout } from '@/composables/useAppLayout'
 import { adminPages, adminExternalLinks } from '@/config/adminPages'

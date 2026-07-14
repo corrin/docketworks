@@ -8,7 +8,7 @@ import { logSearchResultClick } from '@/services/searchTelemetry.service'
 
 // Use generated schemas
 export type Company = z.infer<typeof schemas.CompanySearchResult>
-export type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
+export type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
 
 type UseCompanyLookupOptions = {
   supplierLookup?: { value: boolean }
@@ -45,7 +45,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
   const isLoading = ref(false)
   const showSuggestions = ref(false)
   const selectedCompany = ref<Company | null>(null)
-  const people = ref<CompanyPersonLink[]>([])
+  const people = ref<CompanyPerson[]>([])
 
   const hasValidXeroId = computed(() => {
     debugLog('Selected company value: ', selectedCompany.value)
@@ -138,18 +138,18 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
 
     people.value = []
 
-    await loadCompanyPersonLinks(company.id)
+    await loadCompanyPeople(company.id)
   }
 
-  const loadCompanyPersonLinks = async (companyId: string) => {
+  const loadCompanyPeople = async (companyId: string) => {
     if (!companyId) {
       people.value = []
       return
     }
 
     try {
-      const response = await api.companies_person_links_list({
-        queries: { company_id: companyId },
+      const response = await api.companies_people_list({
+        params: { company_id: companyId },
       })
       people.value = response || []
     } catch (error) {
@@ -159,7 +159,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     }
   }
 
-  const getPrimaryPerson = (): CompanyPersonLink | null => {
+  const getPrimaryPerson = (): CompanyPerson | null => {
     if (people.value.length === 0) {
       return null
     }
@@ -258,7 +258,7 @@ export function useCompanyLookup(options: UseCompanyLookupOptions = {}) {
     browseCompanies,
     logSelectedCompanyClick,
     selectCompany,
-    loadCompanyPersonLinks,
+    loadCompanyPeople,
     getPrimaryPerson,
     clearSelection,
     handleInputChange,

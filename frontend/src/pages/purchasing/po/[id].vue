@@ -166,7 +166,7 @@ type Job = z.infer<typeof schemas.JobForPurchasing>
 type AllocationItem = z.infer<typeof schemas.AllocationItem>
 type DeliveryAllocation = z.infer<typeof schemas.DeliveryReceiptAllocationRequest>
 type PurchaseOrderEmailResponse = z.infer<typeof schemas.PurchaseOrderEmailResponse>
-type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
+type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
 type PurchaseOrderEmailResponseWithLegacy = PurchaseOrderEmailResponse & { email?: string }
 type PurchaseOrderStatus = z.infer<typeof schemas.PurchaseOrderDetailStatusEnum>
 
@@ -811,11 +811,11 @@ async function resolveSupplierEmail(): Promise<string | null> {
   }
 
   try {
-    const people = await api.companies_person_links_list({
-      queries: { company_id: supplierId },
+    const people = await api.companies_people_list({
+      params: { company_id: supplierId },
     })
 
-    const peopleArray: CompanyPersonLink[] = Array.isArray(people) ? people : []
+    const peopleArray: CompanyPerson[] = Array.isArray(people) ? people : []
     const primaryPerson = peopleArray.find((person) => person.is_primary && !!person.person_email)
     const fallbackPerson = peopleArray.find((person) => !!person.person_email)
     const resolvedEmail = primaryPerson?.person_email ?? fallbackPerson?.person_email ?? null

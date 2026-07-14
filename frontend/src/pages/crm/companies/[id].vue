@@ -161,9 +161,21 @@
           <!-- People -->
           <Card>
             <CardHeader>
-              <CardTitle>People</CardTitle>
+              <div class="flex items-center justify-between gap-3">
+                <CardTitle>People</CardTitle>
+                <span class="text-sm text-gray-500">{{ people.length }} linked</span>
+              </div>
             </CardHeader>
-            <CardContent>
+            <CardContent class="space-y-4">
+              <PersonSelector
+                id="company-person"
+                label="Add or link person"
+                :optional="true"
+                :company-id="props.id"
+                :company-name="company.name"
+                placeholder="Select, create, or link a person"
+                @update:selected-person="onCompanyPersonSelected"
+              />
               <div
                 v-if="companyStore.isLoadingPeople"
                 class="flex items-center justify-center py-8"
@@ -177,7 +189,7 @@
               <div v-else class="space-y-3">
                 <div
                   v-for="person in people"
-                  :key="person.id"
+                  :key="person.person_id"
                   class="flex items-start gap-3 p-3 border border-gray-200 rounded-lg"
                 >
                   <UserCircle class="w-5 h-5 text-gray-400 mt-0.5" />
@@ -193,9 +205,18 @@
                     </p>
                     <div class="flex flex-col gap-1 mt-1 text-sm text-gray-600">
                       <span v-if="person.person_email">{{ person.person_email }}</span>
-                      <span v-if="person.phone">{{ person.phone }}</span>
+                      <span v-if="person.primary_phone">{{ person.primary_phone }}</span>
                     </div>
                   </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    :data-automation-id="`CompanyDetail-manage-person-${person.person_id}`"
+                    @click="navigateToPerson(person.person_id)"
+                  >
+                    Manage
+                  </Button>
                 </div>
               </div>
             </CardContent>
@@ -205,7 +226,7 @@
             title="Phone Numbers"
             :fixed-company-id="props.id"
             :fixed-company-name="company.name"
-            search-context="crm_client_detail_phone_numbers"
+            search-context="crm_company_detail_phone_numbers"
             @changed="loadPhoneCalls"
           />
 
@@ -406,6 +427,7 @@ import { useCompanyStore } from '@/stores/companyStore'
 import AppLayout from '@/components/AppLayout.vue'
 import PhoneCallTable from '@/components/crm/PhoneCallTable.vue'
 import PhoneNumberManager from '@/components/crm/PhoneNumberManager.vue'
+import PersonSelector from '@/components/PersonSelector.vue'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Badge } from '@/components/ui/badge'
@@ -616,7 +638,7 @@ async function loadCompanyData() {
 
     // Load people
     try {
-      await companyStore.fetchCompanyPersonLinks(props.id)
+      await companyStore.fetchCompanyPeople(props.id)
     } catch (err) {
       console.error('Failed to load people:', err)
       // Don't show error for people, just log it
@@ -649,6 +671,15 @@ function goBack() {
 
 function navigateToJob(jobId: string) {
   router.push({ name: '/jobs/[id]/(index)', params: { id: jobId } })
+}
+
+async function onCompanyPersonSelected(person: z.infer<typeof schemas.CompanyPerson> | null) {
+  if (!person) return
+  await companyStore.fetchCompanyPeople(props.id)
+}
+
+function navigateToPerson(personId: string) {
+  router.push({ name: '/crm/people/[id]', params: { id: personId } })
 }
 
 // Lifecycle

@@ -338,8 +338,7 @@ SPECTACULAR_SETTINGS = {
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
     # Split request/response schemas so code generators don't require readOnly fields
-    # on request bodies. This creates e.g. ClientContact (response) and
-    # ClientContactRequest (request) schemas automatically.
+    # on request bodies. This creates separate response/request schemas automatically.
     "COMPONENT_SPLIT_REQUEST": True,
     # ENUM_NAME_OVERRIDES: key = desired schema name, value = choices tuple.
     # Resolves collisions where multiple models share a field name (e.g. "kind",
@@ -358,6 +357,16 @@ SPECTACULAR_SETTINGS = {
             ("estimate", "Estimate"),
             ("quote", "Quote"),
             ("actual", "Actual"),
+        ),
+        "ContactMethodTypeEnum": (
+            ("phone", "Phone"),
+            ("email", "Email"),
+        ),
+        "PhoneOwnershipStatusEnum": (
+            ("available", "available"),
+            ("people", "people"),
+            ("company", "company"),
+            ("internal", "internal"),
         ),
         "InvoiceStatusEnum": (
             ("DRAFT", "Draft"),
