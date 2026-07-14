@@ -222,6 +222,7 @@ class ReviewedDuplicateCleanupTests(BaseTestCase):
     def test_cleanup_manifest_contains_no_uuid_literals(self) -> None:
         source = Path(kan278_duplicate_cleanup.__file__).read_text()
         uuid_literal = re.compile(
-            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}"
+            r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+            re.IGNORECASE,
         )
         self.assertIsNone(uuid_literal.search(source))
