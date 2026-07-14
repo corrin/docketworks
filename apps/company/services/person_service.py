@@ -8,6 +8,7 @@ from django.db import transaction
 from django.db.models import Prefetch, Q, QuerySet
 
 from apps.company.models import Company, CompanyPersonLink, ContactMethod, Person
+from apps.workflow.services.error_persistence import persist_app_error
 
 
 class PersonCompanyLinkData(TypedDict):
@@ -230,16 +231,11 @@ def _schedule_person_phone_rematch(person: Person) -> None:
     transaction.on_commit(lambda: rematch_phone_calls_task.delay(numbers))
 
 
-def create_person_for_company(
-    *, company: Company, data: NewPersonData
+def _create_person_link(
+    *, company: Company, data: NewPersonData, raw_phone: str | None
 ) -> CompanyPersonLink:
-    raw_phone = data.get("phone")
-    if raw_phone:
-        ownership = classify_phone_ownership(company=company, raw_phone=raw_phone)
-        if not ownership["can_create_person"]:
-            raise PersonPhoneConflictError(ownership)
-
     with transaction.atomic():
+        Company.objects.select_for_update().only("id").get(pk=company.pk)
         person = Person.objects.create(
             name=data["name"].strip(),
             email=data.get("email"),
@@ -256,23 +252,37 @@ def create_person_for_company(
             is_primary=data.get("is_primary", False) or not has_active_people,
             is_active=True,
         )
-        if raw_phone:
+        if raw_phone is not None:
             from apps.company.serializers import set_primary_phone
 
-            try:
-                set_primary_phone(person, raw_phone)
-            except DjangoValidationError as exc:
-                ownership = classify_phone_ownership(
-                    company=company, raw_phone=raw_phone
-                )
-                raise PersonPhoneConflictError(ownership) from exc
+            set_primary_phone(person, raw_phone)
         return link
+
+
+def create_person_for_company(
+    *, company: Company, data: NewPersonData
+) -> CompanyPersonLink:
+    raw_phone = data.get("phone")
+    if not raw_phone:
+        return _create_person_link(company=company, data=data, raw_phone=None)
+
+    ownership = classify_phone_ownership(company=company, raw_phone=raw_phone)
+    if not ownership["can_create_person"]:
+        raise PersonPhoneConflictError(ownership)
+
+    try:
+        return _create_person_link(company=company, data=data, raw_phone=raw_phone)
+    except DjangoValidationError as exc:
+        persist_app_error(exc)
+        ownership = classify_phone_ownership(company=company, raw_phone=raw_phone)
+        raise PersonPhoneConflictError(ownership) from exc
 
 
 def put_company_link(
     *, person: Person, company: Company, data: CompanyLinkData
 ) -> CompanyPersonLink:
     with transaction.atomic():
+        Company.objects.select_for_update().only("id").get(pk=company.pk)
         existing = (
             CompanyPersonLink.objects.select_for_update()
             .filter(person=person, company=company)

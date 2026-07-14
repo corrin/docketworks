@@ -137,6 +137,29 @@ class PersonApiTests(BaseAPITestCase):
         self.assertIsNone(method.company_id)
         self.assertEqual(method.label, "Mobile")
 
+    def test_changing_phone_to_email_rematches_the_old_phone(self) -> None:
+        """Changing method type must clear calls matched to the former phone."""
+        person = self._person(company=self.company_a)
+        method = ContactMethod.objects.create(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 222 3333",
+        )
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
+            with self.captureOnCommitCallbacks(execute=True):
+                response = self.client.patch(
+                    f"/api/people/{person.id}/contact-methods/{method.id}/",
+                    {
+                        "method_type": ContactMethod.MethodType.EMAIL,
+                        "value": "jane@example.com",
+                    },
+                    format="json",
+                )
+
+        self.assertEqual(response.status_code, 200)
+        rematch.assert_called_once_with(["+64212223333"])
+
     def test_put_reactivates_existing_company_link_without_duplication(self) -> None:
         """Restoring employment must reuse the soft-deleted unique link row."""
         person = self._person()

@@ -115,6 +115,7 @@ const {
   setSelectedPerson,
   selectExistingPerson: selectFromComposable,
   savePerson,
+  beginCreatePerson,
   createNewPerson,
   linkExistingPerson,
   clearSelection: clearFromComposable,
@@ -156,6 +157,7 @@ const selectExistingPerson = (person: CompanyPerson) => {
 }
 
 const handleSavePerson = async () => {
+  beginCreatePerson()
   debugLog('PersonSelector - handleSavePerson: before save', {
     personForm: personForm.value,
     selectedPerson: selectedPerson.value,

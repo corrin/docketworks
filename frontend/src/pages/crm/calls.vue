@@ -351,6 +351,7 @@ watch([activeTab, directionFilter, recordingsOnly], () => {
 watch(selectedCompanyId, (companyId) => {
   if (!companyId) {
     selectedPersonId.value = ''
+    return
   }
   void loadCompanyPeople(companyId)
 })

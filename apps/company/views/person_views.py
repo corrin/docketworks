@@ -265,10 +265,18 @@ class PersonContactMethodDetailView(APIView):
         )
         serializer.is_valid(raise_exception=True)
         old_normalized = method.normalized_value
+        old_method_type = method.method_type
         updated = serializer.save()
+        numbers: set[str] = set()
+        if old_method_type == ContactMethod.MethodType.PHONE:
+            numbers.add(old_normalized)
         if updated.method_type == ContactMethod.MethodType.PHONE:
-            numbers = sorted({old_normalized, updated.normalized_value})
-            transaction.on_commit(lambda: rematch_phone_calls_task.delay(numbers))
+            numbers.add(updated.normalized_value)
+        if numbers:
+            sorted_numbers = sorted(numbers)
+            transaction.on_commit(
+                lambda: rematch_phone_calls_task.delay(sorted_numbers)
+            )
         return Response(ContactMethodSerializer(updated).data)
 
     @extend_schema(responses={204: None})

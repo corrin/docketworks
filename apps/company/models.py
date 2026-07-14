@@ -388,8 +388,9 @@ class CompanyPersonLink(models.Model):
         # If this link is being set as primary, ensure no other links
         # for this company are marked as primary
         if self.is_primary and self.is_active:
-            CompanyPersonLink.objects.filter(
-                company=self.company, is_primary=True, is_active=True
+            db = using or self._state.db or DEFAULT_DB_ALIAS
+            CompanyPersonLink.objects.using(db).filter(
+                company_id=self.company_id, is_primary=True, is_active=True
             ).exclude(id=self.id).update(is_primary=False)
         super().save(
             force_insert=force_insert,

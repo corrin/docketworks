@@ -52,6 +52,10 @@ export function usePersonManagement() {
 
   const hasPeople = computed(() => people.value.length > 0)
 
+  const beginCreatePerson = () => {
+    phoneOwnership.value = null
+  }
+
   watch(
     () => personForm.value.phone,
     () => {
@@ -405,6 +409,7 @@ export function usePersonManagement() {
     setSelectedPerson,
     selectExistingPerson,
     createNewPerson,
+    beginCreatePerson,
     linkExistingPerson,
     savePerson,
     clearSelection,

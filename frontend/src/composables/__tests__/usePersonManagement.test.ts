@@ -160,6 +160,40 @@ describe('usePersonManagement duplicate phone prevention', () => {
     expect(api.companies_people_create).not.toHaveBeenCalled()
   })
 
+  it('clears stale ownership before a fresh save attempt', async () => {
+    vi.mocked(api.companies_people_phone_ownership_create).mockResolvedValue({
+      status: 'company',
+      normalized_phone: '+6495550100',
+      can_create_person: false,
+      people: [],
+      companies: [{ company_id: otherCompanyId, company_name: 'Other Company' }],
+    })
+    const manager = usePersonManagement()
+    await manager.openModal(companyId, 'Current Company')
+    manager.personForm.value = {
+      ...manager.personForm.value,
+      name: 'Fresh Attempt',
+      phone: '09 555 0100',
+    }
+    await manager.createNewPerson()
+    expect(manager.phoneOwnership.value?.status).toBe('company')
+
+    manager.beginCreatePerson()
+    expect(manager.phoneOwnership.value).toBeNull()
+
+    vi.mocked(api.companies_people_phone_ownership_create).mockResolvedValue({
+      status: 'available',
+      normalized_phone: '+6495550100',
+      can_create_person: true,
+      people: [],
+      companies: [],
+    })
+    vi.mocked(api.companies_people_create).mockRejectedValue(new Error('Network failure'))
+
+    expect(await manager.createNewPerson()).toBe(false)
+    expect(manager.phoneOwnership.value).toBeNull()
+  })
+
   it('allows an explicit separate identity only when the ownership result permits it', async () => {
     vi.mocked(api.companies_people_phone_ownership_create).mockResolvedValue({
       status: 'people',
