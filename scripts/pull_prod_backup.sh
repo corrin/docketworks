@@ -43,7 +43,7 @@ TMP_PATH="/tmp/$DUMP_NAME"
 echo ">> Generating $DUMP_NAME on $REMOTE_HOST as $INSTANCE_USER..."
 # shellcheck disable=SC2029  # $INSTANCE_USER and $TMP_PATH are meant to expand client-side
 ssh "$REMOTE_USER@$REMOTE_HOST" \
-    "sudo -iu $INSTANCE_USER bash -lc 'python manage.py backport_data_backup --output $TMP_PATH'"
+    "sudo -iu $INSTANCE_USER bash -lc 'cd app && python manage.py backport_data_backup --output $TMP_PATH'"
 
 echo ">> Copying $DUMP_NAME to $LOCAL_DIR/..."
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
