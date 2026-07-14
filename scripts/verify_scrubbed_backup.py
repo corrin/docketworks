@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import argparse
 import subprocess
 import sys
 from pathlib import Path
@@ -55,28 +56,55 @@ def _table_rows(archive: Path, table: str) -> list[str]:
     return _copy_rows(sql)
 
 
-def _has_squashed_baseline(rows: list[str]) -> bool:
+def _squashed_baseline_apps(rows: list[str]) -> set[str]:
+    found: set[str] = set()
     for row in rows:
         columns = row.split("\t")
         if len(columns) < 3:
             continue
         app, migration = columns[1:3]
         if app in {"client", "company"} and migration == "0001_baseline":
-            return True
-    return False
+            found.add(app)
+    return found
 
 
-def verify_backup(archive: Path) -> None:
+def _assert_squashed_baseline(
+    rows: list[str], *, allow_legacy_client_baseline: bool
+) -> None:
+    found = _squashed_baseline_apps(rows)
+    if found == {"company"}:
+        return
+    if found == {"client"} and allow_legacy_client_baseline:
+        return
+    if found == {"client"}:
+        raise RuntimeError(
+            "Backup uses the temporary pre-KAN-278 client migration label; "
+            "pass --allow-legacy-client-baseline only for the controlled "
+            "client-to-company cutover rehearsal"
+        )
+    if found == {"client", "company"}:
+        raise RuntimeError(
+            "Backup has mixed client/company 0001_baseline migration labels"
+        )
+    raise RuntimeError(
+        "Backup predates the July migration squash: no company "
+        "0001_baseline ledger entry"
+    )
+
+
+def verify_backup(archive: Path, *, allow_legacy_client_baseline: bool = False) -> None:
     if not archive.is_file():
         raise RuntimeError(f"Backup not found: {archive}")
 
-    _pg_restore(archive, "--list")
+    # A catalogue read does not decompress every archive entry. Rendering the
+    # complete restore stream to /dev/null catches corruption anywhere in the
+    # archive without creating or modifying a database.
+    _pg_restore(archive, "--file=/dev/null")
     migration_rows = _table_rows(archive, "django_migrations")
-    if not _has_squashed_baseline(migration_rows):
-        raise RuntimeError(
-            "Backup predates the July migration squash: no client/company "
-            "0001_baseline ledger entry"
-        )
+    _assert_squashed_baseline(
+        migration_rows,
+        allow_legacy_client_baseline=allow_legacy_client_baseline,
+    )
 
     populated: list[str] = []
     for table in PRIVATE_CONFIG_TABLES:
@@ -91,13 +119,25 @@ def verify_backup(archive: Path) -> None:
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print(f"Usage: {argv[0]} <scrubbed.dump>", file=sys.stderr)
-        return 2
-
-    archive = Path(argv[1])
-    verify_backup(archive)
-    print(f"Verified scrubbed backup: {archive}")
+    parser = argparse.ArgumentParser(
+        prog=argv[0],
+        description=__doc__,
+    )
+    parser.add_argument(
+        "--allow-legacy-client-baseline",
+        action="store_true",
+        help=(
+            "TEMPORARY KAN-278: accept a pre-cutover client.0001_baseline "
+            "ledger instead of the permanent company baseline"
+        ),
+    )
+    parser.add_argument("archive", type=Path)
+    args = parser.parse_args(argv[1:])
+    verify_backup(
+        args.archive,
+        allow_legacy_client_baseline=args.allow_legacy_client_baseline,
+    )
+    print(f"Verified scrubbed backup: {args.archive}")
     return 0
 
 

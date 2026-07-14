@@ -23,11 +23,17 @@ Sections must run in the order written. The Connect to Xero OAuth section is a h
   ```
 - The fetched archive must pass the credential and migration-ledger verifier:
   ```bash
-  python scripts/verify_scrubbed_backup.py restore/scrubbed_<DB_NAME>_<ts>.dump
+  python scripts/verify_scrubbed_backup.py \
+    --allow-legacy-client-baseline \
+    restore/scrubbed_<DB_NAME>_<ts>.dump
   ```
   This fails if the archive is unreadable, predates the July migration squash,
   or contains DB-backed external-system credentials. Do not restore a failing
   archive.
+- **TEMPORARY KAN-278:** `--allow-legacy-client-baseline` exists only while
+  production still uses the pre-cutover `client` app label. Remove this flag and
+  the pre-migration cutover sections below after every production instance has
+  migrated and produced a verified company-schema backup.
 - The dump must be from a prod release at or after the July 2026 migration squash (baseline `*_baseline` migrations). Older dumps carry a `django_migrations` ledger the current graph cannot migrate — restore those under a matching pre-squash checkout instead (see `docs/updating.md`).
 - Celery Beat stopped. Beat ticks against the DB and Xero on a timer; if it fires during the reset/restore it will block `DROP SCHEMA` or race `seed_xero_from_database`. Stop it before Reset Database; the Celery Beat section restarts it. The worker can stay running — it has nothing to do without Beat dispatches.
   - Dev: kill the `Celery Beat` task in its VS Code terminal.
@@ -93,6 +99,10 @@ PGPASSWORD="$DB_PASSWORD" pg_restore --no-owner --no-privileges --exit-on-error 
 
 #### Capture Pre-Migration State
 
+**TEMPORARY KAN-278 CUTOVER STEP:** Remove this section after every production
+instance has completed the client-to-company migration and produced a verified
+company-schema backup.
+
 The restored dump may use the schema of the production release while the
 checkout contains newer models. Do not run current ORM code against that old
 schema. Capture count-only evidence through raw SQL instead:
@@ -105,6 +115,20 @@ This requires the pre-KAN-278 `client_*` schema, verifies the squashed migration
 ledger, and writes only aggregate counts to
 `restore/pre_migration_state.json`. A missing table, unexpected new-schema
 table, or empty production dataset is a hard stop.
+
+#### Relabel the Legacy Client App
+
+**TEMPORARY KAN-278 CUTOVER STEP:** The restored ledger and tables still use the
+legacy `client` app label. Apply the same one-time, idempotent surgery that the
+deployment workflow runs before Django migrations:
+
+```bash
+python manage.py relabel_client_app
+```
+
+This must complete successfully before `migrate`. It keeps the squashed
+baseline, removes obsolete pre-squash ledger rows, and changes the app label and
+table prefixes without creating a second baseline.
 
 #### Apply Django Migrations
 
@@ -361,7 +385,7 @@ does not. All three processes must use the flag because it is process-scoped.
 
 ```bash
 cd frontend
-PATH=/home/corrin/src/docketworks/.venv/bin:$PATH npm run test:e2e
+PATH="$PWD/../.venv/bin:$PATH" npm run test:e2e
 ```
 
 Run in the foreground without a shell timeout or SIGTERM. Global teardown must

@@ -32,6 +32,7 @@ from apps.accounting.models import (
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.staff_anonymization import create_staff_profile
 from apps.company.models import Company, ContactMethod, Person
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -323,6 +324,8 @@ def scrub() -> None:
             _delete_unlinked_accounting()
             _truncate_excluded_tables()
             _assert_private_config_removed()
-    except Exception as exc:
-        persist_app_error(exc)
+    except AlreadyLoggedException:
         raise
+    except Exception as exc:
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc

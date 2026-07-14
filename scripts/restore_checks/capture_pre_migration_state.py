@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Capture count-only evidence from a restored pre-KAN-278 database."""
+"""Capture count-only evidence from a restored pre-KAN-278 database.
+
+TEMPORARY KAN-278: remove this script after every production instance has
+completed the client-to-company cutover and produced a verified company-schema
+backup.
+"""
 
 import json
 import os

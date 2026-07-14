@@ -82,7 +82,12 @@ LOCAL_COPIED=true
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
 
 echo ">> Verifying scrubbed backup..."
-python "$REPO_ROOT/scripts/verify_scrubbed_backup.py" "$LOCAL_PATH"
+# TEMPORARY KAN-278: production still emits the legacy client migration label.
+# Remove this flag as soon as every production instance has completed the
+# client-to-company cutover and produced a verified company-schema backup.
+python "$REPO_ROOT/scripts/verify_scrubbed_backup.py" \
+    --allow-legacy-client-baseline "$LOCAL_PATH"
 
-echo ">> SHA-256: $(sha256sum "$LOCAL_PATH" | cut -d' ' -f1)"
+CHECKSUM="$(sha256sum "$LOCAL_PATH" | cut -d' ' -f1)"
+echo ">> SHA-256: $CHECKSUM"
 echo ">> Done: $LOCAL_PATH"

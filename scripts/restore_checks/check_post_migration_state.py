@@ -1,5 +1,10 @@
 #!/usr/bin/env python3
-"""Verify KAN-278 preserved production-shaped data across its schema cutover."""
+"""Verify KAN-278 preserved production-shaped data across its schema cutover.
+
+TEMPORARY KAN-278: remove this script after every production instance has
+completed the client-to-company cutover and produced a verified company-schema
+backup.
+"""
 
 import json
 import os

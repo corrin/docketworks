@@ -36,12 +36,10 @@ class VerifyScrubbedBackupTests(SimpleTestCase):
     def successful_pg_restore(
         self, args: list[str], **kwargs: object
     ) -> subprocess.CompletedProcess[str]:
-        if "--list" in args:
-            return self.completed(args, "; archive list")
         if "--table=django_migrations" in args:
             return self.completed(
                 args,
-                copy_sql("1\tclient\t0001_baseline\t2026-07-06 00:00:00+12"),
+                copy_sql("1\tcompany\t0001_baseline\t2026-07-06 00:00:00+12"),
             )
         return self.completed(args, copy_sql())
 
@@ -55,6 +53,8 @@ class VerifyScrubbedBackupTests(SimpleTestCase):
         run.side_effect = self.successful_pg_restore
 
         self.verifier.verify_backup(self.archive)
+
+        self.assertIn("--file=/dev/null", run.call_args_list[0].args[0])
 
     @patch.object(Path, "is_file", return_value=True)
     @patch("subprocess.run")
@@ -89,14 +89,63 @@ class VerifyScrubbedBackupTests(SimpleTestCase):
         def pg_restore(
             args: list[str], **kwargs: object
         ) -> subprocess.CompletedProcess[str]:
-            if "--list" in args:
-                return self.completed(args, "; archive list")
             return self.completed(args, copy_sql())
 
         run.side_effect = pg_restore
 
         with self.assertRaisesRegex(RuntimeError, "predates the July migration squash"):
             self.verifier.verify_backup(self.archive)
+
+    @patch.object(Path, "is_file", return_value=True)
+    @patch("subprocess.run")
+    def test_legacy_baseline_requires_temporary_cutover_flag(
+        self, run: MagicMock, _is_file: object
+    ) -> None:
+        def pg_restore(
+            args: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            if "--table=django_migrations" in args:
+                return self.completed(
+                    args,
+                    copy_sql("1\tclient\t0001_baseline\t2026-07-06 00:00:00+12"),
+                )
+            return self.completed(args, copy_sql())
+
+        run.side_effect = pg_restore
+
+        with self.assertRaisesRegex(RuntimeError, "temporary pre-KAN-278"):
+            self.verifier.verify_backup(self.archive)
+
+        self.verifier.verify_backup(
+            self.archive,
+            allow_legacy_client_baseline=True,
+        )
+
+    @patch.object(Path, "is_file", return_value=True)
+    @patch("subprocess.run")
+    def test_rejects_mixed_client_and_company_baselines(
+        self, run: MagicMock, _is_file: object
+    ) -> None:
+        def pg_restore(
+            args: list[str], **kwargs: object
+        ) -> subprocess.CompletedProcess[str]:
+            if "--table=django_migrations" in args:
+                return self.completed(
+                    args,
+                    copy_sql(
+                        "1\tclient\t0001_baseline\t2026-07-06 00:00:00+12",
+                        "2\tcompany\t0001_baseline\t2026-07-06 00:01:00+12",
+                    ),
+                )
+            return self.completed(args, copy_sql())
+
+        run.side_effect = pg_restore
+
+        with self.assertRaisesRegex(RuntimeError, "mixed client/company"):
+            self.verifier.verify_backup(
+                self.archive,
+                allow_legacy_client_baseline=True,
+            )
 
     @patch.object(Path, "is_file", return_value=True)
     @patch("subprocess.run")
@@ -112,3 +161,4 @@ class VerifyScrubbedBackupTests(SimpleTestCase):
             self.verifier.verify_backup(self.archive)
 
         self.assertNotIn(secret, str(raised.exception))
+        self.assertIn("--file=/dev/null", run.call_args.args[0])
