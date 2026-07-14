@@ -705,7 +705,7 @@ const PatchedCompanyUpdateRequest = z
   })
   .partial()
 const CompanyNameOnly = z.object({ id: z.string().uuid(), name: z.string() })
-const MethodTypeEnum = z.enum(['phone', 'email'])
+const ContactMethodMethodTypeEnum = z.enum(['phone', 'email'])
 const ContactMethodSourceEnum = z.enum(['imported', 'local'])
 const ContactMethod = z.object({
   id: z.string().uuid(),
@@ -714,7 +714,7 @@ const ContactMethod = z.object({
   company_name: z.string(),
   person: z.string().uuid().nullish(),
   person_name: z.string(),
-  method_type: MethodTypeEnum,
+  method_type: ContactMethodMethodTypeEnum,
   value: z.string().max(255),
   normalized_value: z.string(),
   label: z.string().max(255).optional(),
@@ -733,7 +733,7 @@ const PaginatedContactMethodList = z.object({
 const ContactMethodRequest = z.object({
   company: z.string().uuid().nullish(),
   person: z.string().uuid().nullish(),
-  method_type: MethodTypeEnum,
+  method_type: ContactMethodMethodTypeEnum,
   value: z.string().min(1).max(255),
   label: z.string().max(255).optional(),
   is_primary: z.boolean().optional().default(false),
@@ -743,7 +743,7 @@ const PatchedContactMethodRequest = z
   .object({
     company: z.string().uuid().nullable(),
     person: z.string().uuid().nullable(),
-    method_type: MethodTypeEnum,
+    method_type: ContactMethodMethodTypeEnum,
     value: z.string().min(1).max(255),
     label: z.string().max(255),
     is_primary: z.boolean().default(false),
@@ -797,7 +797,6 @@ const CompanyPersonLink = z.object({
   person: z.string().uuid(),
   person_name: z.string(),
   person_email: z.string().email().nullish(),
-  xero_name: z.string().max(255).nullish(),
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
@@ -810,7 +809,6 @@ const CompanyPersonLinkRequest = z.object({
   company: z.string().uuid(),
   person_name: z.string().min(1),
   person_email: z.string().email().nullish(),
-  xero_name: z.string().max(255).nullish(),
   position: z.string().max(255).nullish(),
   is_primary: z.boolean().optional(),
   notes: z.string().nullish(),
@@ -821,7 +819,6 @@ const PatchedCompanyPersonLinkRequest = z
     company: z.string().uuid(),
     person_name: z.string().min(1),
     person_email: z.string().email().nullable(),
-    xero_name: z.string().max(255).nullable(),
     position: z.string().max(255).nullable(),
     is_primary: z.boolean(),
     notes: z.string().nullable(),
@@ -1341,6 +1338,91 @@ const ArchivedJobsComplianceResponse = z.object({
   total_archived_jobs: z.number().int(),
   non_compliant_jobs: z.array(ArchivedJobIssue),
   summary: ComplianceSummary,
+  checked_at: z.string().datetime({ offset: true }),
+})
+const RecommendationEnum = z.enum(['merge', 'review'])
+const DuplicateCompanyMember = z.object({
+  company_id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email().nullable(),
+  address: z.string().nullable(),
+  allow_jobs: z.boolean(),
+  is_account_customer: z.boolean(),
+  is_supplier: z.boolean(),
+  xero_archived: z.boolean(),
+  job_count: z.number().int(),
+  contact_names: z.array(z.string()),
+})
+const DuplicateIdentityEvidenceKindEnum = z.enum([
+  'name',
+  'email',
+  'email_domain',
+  'phone',
+  'address',
+  'shared_person',
+])
+const DuplicateIdentityEvidence = z.object({
+  kind: DuplicateIdentityEvidenceKindEnum,
+  normalized_value: z.string(),
+  owner_count: z.number().int(),
+})
+const DuplicateCompanyGroup = z.object({
+  group_id: z.string(),
+  fingerprint: z.string(),
+  recommendation: RecommendationEnum,
+  reason_codes: z.array(z.string()),
+  canonical_id: z.string().uuid().nullable(),
+  members: z.array(DuplicateCompanyMember),
+  evidence: z.array(DuplicateIdentityEvidence),
+})
+const DuplicatePersonCompanyLink = z.object({
+  link_id: z.string().uuid(),
+  company_id: z.string().uuid(),
+  company_name: z.string(),
+  position: z.string().nullable(),
+  is_primary: z.boolean(),
+  is_active: z.boolean(),
+})
+const DuplicatePersonContactMethodMethodTypeEnum = z.enum(['phone', 'email'])
+const DuplicatePersonContactMethod = z.object({
+  method_id: z.string().uuid(),
+  method_type: DuplicatePersonContactMethodMethodTypeEnum,
+  value: z.string(),
+  normalized_value: z.string(),
+  contact_label: z.string(),
+  is_primary: z.boolean(),
+})
+const DuplicatePersonSummary = z.object({
+  person_id: z.string().uuid(),
+  name: z.string(),
+  email: z.string().email().nullable(),
+  is_active: z.boolean(),
+  created_at: z.string().datetime({ offset: true }),
+  updated_at: z.string().datetime({ offset: true }),
+  company_links: z.array(DuplicatePersonCompanyLink),
+  contact_methods: z.array(DuplicatePersonContactMethod),
+  job_count: z.number().int(),
+  phone_call_count: z.number().int(),
+})
+const DuplicatePersonGroup = z.object({
+  group_id: z.string(),
+  fingerprint: z.string(),
+  recommendation: RecommendationEnum,
+  reason_codes: z.array(z.string()),
+  canonical_id: z.string().uuid().nullable(),
+  members: z.array(DuplicatePersonSummary),
+  evidence: z.array(DuplicateIdentityEvidence),
+})
+const DuplicateIdentityReportSummary = z.object({
+  company_merge_groups: z.number().int(),
+  company_review_groups: z.number().int(),
+  person_merge_groups: z.number().int(),
+  person_review_groups: z.number().int(),
+})
+const DuplicateIdentitiesResponse = z.object({
+  company_groups: z.array(DuplicateCompanyGroup),
+  person_groups: z.array(DuplicatePersonGroup),
+  summary: DuplicateIdentityReportSummary,
   checked_at: z.string().datetime({ offset: true }),
 })
 const DuplicatePhoneOwner = z.object({
@@ -3599,7 +3681,7 @@ export const schemas = {
   CompanyUpdateResponse,
   PatchedCompanyUpdateRequest,
   CompanyNameOnly,
-  MethodTypeEnum,
+  ContactMethodMethodTypeEnum,
   ContactMethodSourceEnum,
   ContactMethod,
   PaginatedContactMethodList,
@@ -3653,6 +3735,18 @@ export const schemas = {
   ArchivedJobIssue,
   ComplianceSummary,
   ArchivedJobsComplianceResponse,
+  RecommendationEnum,
+  DuplicateCompanyMember,
+  DuplicateIdentityEvidenceKindEnum,
+  DuplicateIdentityEvidence,
+  DuplicateCompanyGroup,
+  DuplicatePersonCompanyLink,
+  DuplicatePersonContactMethodMethodTypeEnum,
+  DuplicatePersonContactMethod,
+  DuplicatePersonSummary,
+  DuplicatePersonGroup,
+  DuplicateIdentityReportSummary,
+  DuplicateIdentitiesResponse,
   DuplicatePhoneOwner,
   DuplicatePhoneIssue,
   DuplicatePhoneSummary,
@@ -6137,6 +6231,20 @@ POST /job/rest/cost_lines/&lt;cost_line_id&gt;/approve`,
     description: `Verify that all archived jobs are either cancelled or fully invoiced and paid.`,
     requestFormat: 'json',
     response: ArchivedJobsComplianceResponse,
+    errors: [
+      {
+        status: 500,
+        schema: z.object({}).partial().passthrough(),
+      },
+    ],
+  },
+  {
+    method: 'get',
+    path: '/api/job/data-quality/duplicate-identities/',
+    alias: 'check_duplicate_identities',
+    description: `List compact groups of Company and Person identities that are safe to merge automatically or require review.`,
+    requestFormat: 'json',
+    response: DuplicateIdentitiesResponse,
     errors: [
       {
         status: 500,

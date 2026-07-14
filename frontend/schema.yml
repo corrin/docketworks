@@ -3144,6 +3144,30 @@ paths:
                 type: object
                 additionalProperties: {}
           description: ''
+  /api/job/data-quality/duplicate-identities/:
+    get:
+      operationId: check_duplicate_identities
+      description: List compact groups of Company and Person identities that are safe
+        to merge automatically or require review.
+      summary: Check for duplicate companies and people
+      tags:
+        - Data Quality
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DuplicateIdentitiesResponse'
+          description: ''
+        '500':
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: {}
+          description: ''
   /api/job/data-quality/duplicate-phones/:
     get:
       operationId: check_duplicate_phones
@@ -11153,10 +11177,6 @@ components:
           type: string
           format: email
           nullable: true
-        xero_name:
-          type: string
-          nullable: true
-          maxLength: 255
         position:
           type: string
           nullable: true
@@ -11209,10 +11229,6 @@ components:
           type: string
           format: email
           nullable: true
-        xero_name:
-          type: string
-          nullable: true
-          maxLength: 255
         position:
           type: string
           nullable: true
@@ -11405,7 +11421,7 @@ components:
           type: string
           readOnly: true
         method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
         value:
           type: string
           maxLength: 255
@@ -11438,6 +11454,14 @@ components:
         - person_name
         - updated_at
         - value
+    ContactMethodMethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - Phone
+        * `email` - Email
     ContactMethodRequest:
       type: object
       description: Serializer for canonical company/person phone and email methods.
@@ -11451,7 +11475,7 @@ components:
           format: uuid
           nullable: true
         method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
         value:
           type: string
           minLength: 1
@@ -12212,6 +12236,277 @@ components:
         - total_rev
         - unit_cost
         - unit_rev
+    DuplicateCompanyGroup:
+      type: object
+      properties:
+        group_id:
+          type: string
+        fingerprint:
+          type: string
+        recommendation:
+          $ref: '#/components/schemas/RecommendationEnum'
+        reason_codes:
+          type: array
+          items:
+            type: string
+        canonical_id:
+          type: string
+          format: uuid
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateCompanyMember'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateIdentityEvidence'
+      required:
+        - canonical_id
+        - evidence
+        - fingerprint
+        - group_id
+        - members
+        - reason_codes
+        - recommendation
+    DuplicateCompanyMember:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        address:
+          type: string
+          nullable: true
+        allow_jobs:
+          type: boolean
+        is_account_customer:
+          type: boolean
+        is_supplier:
+          type: boolean
+        xero_archived:
+          type: boolean
+        job_count:
+          type: integer
+        contact_names:
+          type: array
+          items:
+            type: string
+      required:
+        - address
+        - allow_jobs
+        - company_id
+        - contact_names
+        - email
+        - is_account_customer
+        - is_supplier
+        - job_count
+        - name
+        - xero_archived
+    DuplicateIdentitiesResponse:
+      type: object
+      properties:
+        company_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateCompanyGroup'
+        person_groups:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonGroup'
+        summary:
+          $ref: '#/components/schemas/DuplicateIdentityReportSummary'
+        checked_at:
+          type: string
+          format: date-time
+      required:
+        - checked_at
+        - company_groups
+        - person_groups
+        - summary
+    DuplicateIdentityEvidence:
+      type: object
+      properties:
+        kind:
+          $ref: '#/components/schemas/DuplicateIdentityEvidenceKindEnum'
+        normalized_value:
+          type: string
+        owner_count:
+          type: integer
+      required:
+        - kind
+        - normalized_value
+        - owner_count
+    DuplicateIdentityEvidenceKindEnum:
+      enum:
+        - name
+        - email
+        - email_domain
+        - phone
+        - address
+        - shared_person
+      type: string
+      description: |-
+        * `name` - name
+        * `email` - email
+        * `email_domain` - email_domain
+        * `phone` - phone
+        * `address` - address
+        * `shared_person` - shared_person
+    DuplicateIdentityReportSummary:
+      type: object
+      properties:
+        company_merge_groups:
+          type: integer
+        company_review_groups:
+          type: integer
+        person_merge_groups:
+          type: integer
+        person_review_groups:
+          type: integer
+      required:
+        - company_merge_groups
+        - company_review_groups
+        - person_merge_groups
+        - person_review_groups
+    DuplicatePersonCompanyLink:
+      type: object
+      properties:
+        link_id:
+          type: string
+          format: uuid
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+        position:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+        is_active:
+          type: boolean
+      required:
+        - company_id
+        - company_name
+        - is_active
+        - is_primary
+        - link_id
+        - position
+    DuplicatePersonContactMethod:
+      type: object
+      properties:
+        method_id:
+          type: string
+          format: uuid
+        method_type:
+          $ref: '#/components/schemas/DuplicatePersonContactMethodMethodTypeEnum'
+        value:
+          type: string
+        normalized_value:
+          type: string
+        contact_label:
+          type: string
+        is_primary:
+          type: boolean
+      required:
+        - contact_label
+        - is_primary
+        - method_id
+        - method_type
+        - normalized_value
+        - value
+    DuplicatePersonContactMethodMethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - phone
+        * `email` - email
+    DuplicatePersonGroup:
+      type: object
+      properties:
+        group_id:
+          type: string
+        fingerprint:
+          type: string
+        recommendation:
+          $ref: '#/components/schemas/RecommendationEnum'
+        reason_codes:
+          type: array
+          items:
+            type: string
+        canonical_id:
+          type: string
+          format: uuid
+          nullable: true
+        members:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonSummary'
+        evidence:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicateIdentityEvidence'
+      required:
+        - canonical_id
+        - evidence
+        - fingerprint
+        - group_id
+        - members
+        - reason_codes
+        - recommendation
+    DuplicatePersonSummary:
+      type: object
+      properties:
+        person_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+          nullable: true
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        company_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonCompanyLink'
+        contact_methods:
+          type: array
+          items:
+            $ref: '#/components/schemas/DuplicatePersonContactMethod'
+        job_count:
+          type: integer
+        phone_call_count:
+          type: integer
+      required:
+        - company_links
+        - contact_methods
+        - created_at
+        - email
+        - is_active
+        - job_count
+        - name
+        - person_id
+        - phone_call_count
+        - updated_at
     DuplicatePhoneIssue:
       type: object
       description: One problematic phone number and its owners.
@@ -15523,14 +15818,6 @@ components:
         * `galvanized` - Galvanized
         * `unspecified` - Unspecified
         * `other` - Other
-    MethodTypeEnum:
-      enum:
-        - phone
-        - email
-      type: string
-      description: |-
-        * `phone` - Phone
-        * `email` - Email
     ModernStaff:
       type: object
       description: Serializer for staff in timesheet context
@@ -16479,10 +16766,6 @@ components:
           type: string
           format: email
           nullable: true
-        xero_name:
-          type: string
-          nullable: true
-          maxLength: 255
         position:
           type: string
           nullable: true
@@ -16532,7 +16815,7 @@ components:
           format: uuid
           nullable: true
         method_type:
-          $ref: '#/components/schemas/MethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
         value:
           type: string
           minLength: 1
@@ -19290,6 +19573,14 @@ components:
         * `non_rd` - Non-R&D
         * `core_rd` - Core R&D
         * `supporting_rd` - Supporting R&D
+    RecommendationEnum:
+      enum:
+        - merge
+        - review
+      type: string
+      description: |-
+        * `merge` - merge
+        * `review` - review
     RoleEnum:
       enum:
         - user

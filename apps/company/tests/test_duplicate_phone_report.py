@@ -32,7 +32,6 @@ class DuplicatePhoneReportTests(TestCase):
         return CompanyPersonLink.objects.create(
             company=company,
             person=person,
-            xero_name=name,
         )
 
     def test_detects_cross_company_number(self) -> None:
@@ -85,3 +84,16 @@ class DuplicatePhoneReportTests(TestCase):
         self.assertEqual(report["duplicate_phones"], [])
         self.assertEqual(report["summary"], {"cross_company": 0, "internal_line": 0})
         self.assertIn("checked_at", report)
+
+    def test_one_person_linked_to_two_companies_is_one_phone_owner(self) -> None:
+        """A Person may span companies; unioning their company ids caused a false alert."""
+        acme = self._company("Acme Ltd")
+        beta = self._company("Beta Ltd")
+        person = Person.objects.create(name="Jane Smith")
+        first_link = CompanyPersonLink.objects.create(company=acme, person=person)
+        CompanyPersonLink.objects.create(company=beta, person=person)
+        self._phone("021 111 111", contact=first_link)
+
+        report = DuplicatePhoneReportService().get_report()
+
+        self.assertEqual(report["duplicate_phones"], [])

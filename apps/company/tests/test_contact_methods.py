@@ -29,7 +29,6 @@ def _link(company: Company, name: str, email: str | None = None) -> CompanyPerso
     return CompanyPersonLink.objects.create(
         company=company,
         person=person,
-        xero_name=name,
     )
 
 

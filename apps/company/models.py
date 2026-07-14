@@ -317,7 +317,6 @@ class CompanyPersonLink(models.Model):
         "id",
         "company",
         "person",
-        "xero_name",
         "position",
         "is_primary",
         "notes",
@@ -343,7 +342,6 @@ class CompanyPersonLink(models.Model):
         on_delete=models.CASCADE,
         related_name="company_links",
     )
-    xero_name = models.CharField(max_length=255, null=True, blank=True)
     position = models.CharField(
         max_length=255,
         null=True,
@@ -372,11 +370,6 @@ class CompanyPersonLink(models.Model):
             models.UniqueConstraint(
                 fields=["company", "person"],
                 name="unique_company_person_link",
-            ),
-            models.UniqueConstraint(
-                fields=["company", "xero_name"],
-                condition=models.Q(xero_name__isnull=False),
-                name="unique_company_person_link_xero_name",
             ),
         ]
 

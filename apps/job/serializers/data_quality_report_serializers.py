@@ -2,6 +2,19 @@
 
 from rest_framework import serializers
 
+from apps.company.services.duplicate_identity_report import (
+    DuplicateCompanyGroup,
+    DuplicateCompanyMember,
+    DuplicateIdentityEvidence,
+    DuplicateIdentityReport,
+    DuplicateIdentityReportSummary,
+    DuplicatePersonGroup,
+)
+from apps.company.services.duplicate_person_report import (
+    DuplicatePersonCompanyLink,
+    DuplicatePersonContactMethod,
+    DuplicatePersonSummary,
+)
 from apps.company.services.duplicate_phone_report import (
     DuplicatePhoneIssue,
     DuplicatePhoneOwner,
@@ -111,3 +124,99 @@ class DuplicatePhonesResponseSerializer(serializers.Serializer[DuplicatePhonesRe
     )
     summary = DuplicatePhoneSummarySerializer(help_text="Summary of issues")
     checked_at = serializers.DateTimeField(help_text="When the check was performed")
+
+
+class DuplicatePersonCompanyLinkSerializer(
+    serializers.Serializer[DuplicatePersonCompanyLink]
+):
+    link_id = serializers.UUIDField()
+    company_id = serializers.UUIDField()
+    company_name = serializers.CharField()
+    position = serializers.CharField(allow_null=True)
+    is_primary = serializers.BooleanField()
+    is_active = serializers.BooleanField()
+
+
+class DuplicatePersonContactMethodSerializer(
+    serializers.Serializer[DuplicatePersonContactMethod]
+):
+    method_id = serializers.UUIDField()
+    method_type = serializers.ChoiceField(choices=["phone", "email"])
+    value = serializers.CharField()
+    normalized_value = serializers.CharField()
+    contact_label = serializers.CharField()
+    is_primary = serializers.BooleanField()
+
+
+class DuplicatePersonSummarySerializer(serializers.Serializer[DuplicatePersonSummary]):
+    person_id = serializers.UUIDField()
+    name = serializers.CharField()
+    email = serializers.EmailField(allow_null=True)
+    is_active = serializers.BooleanField()
+    created_at = serializers.DateTimeField()
+    updated_at = serializers.DateTimeField()
+    company_links = DuplicatePersonCompanyLinkSerializer(many=True)
+    contact_methods = DuplicatePersonContactMethodSerializer(many=True)
+    job_count = serializers.IntegerField()
+    phone_call_count = serializers.IntegerField()
+
+
+class DuplicateIdentityEvidenceSerializer(
+    serializers.Serializer[DuplicateIdentityEvidence]
+):
+    kind = serializers.ChoiceField(
+        choices=["name", "email", "email_domain", "phone", "address", "shared_person"]
+    )
+    normalized_value = serializers.CharField()
+    owner_count = serializers.IntegerField()
+
+
+class DuplicateCompanyMemberSerializer(serializers.Serializer[DuplicateCompanyMember]):
+    company_id = serializers.UUIDField()
+    name = serializers.CharField()
+    email = serializers.EmailField(allow_null=True)
+    address = serializers.CharField(allow_null=True)
+    allow_jobs = serializers.BooleanField()
+    is_account_customer = serializers.BooleanField()
+    is_supplier = serializers.BooleanField()
+    xero_archived = serializers.BooleanField()
+    job_count = serializers.IntegerField()
+    contact_names = serializers.ListField(child=serializers.CharField())
+
+
+class DuplicateCompanyGroupSerializer(serializers.Serializer[DuplicateCompanyGroup]):
+    group_id = serializers.CharField()
+    fingerprint = serializers.CharField()
+    recommendation = serializers.ChoiceField(choices=["merge", "review"])
+    reason_codes = serializers.ListField(child=serializers.CharField())
+    canonical_id = serializers.UUIDField(allow_null=True)
+    members = DuplicateCompanyMemberSerializer(many=True)
+    evidence = DuplicateIdentityEvidenceSerializer(many=True)
+
+
+class DuplicatePersonGroupSerializer(serializers.Serializer[DuplicatePersonGroup]):
+    group_id = serializers.CharField()
+    fingerprint = serializers.CharField()
+    recommendation = serializers.ChoiceField(choices=["merge", "review"])
+    reason_codes = serializers.ListField(child=serializers.CharField())
+    canonical_id = serializers.UUIDField(allow_null=True)
+    members = DuplicatePersonSummarySerializer(many=True)
+    evidence = DuplicateIdentityEvidenceSerializer(many=True)
+
+
+class DuplicateIdentityReportSummarySerializer(
+    serializers.Serializer[DuplicateIdentityReportSummary]
+):
+    company_merge_groups = serializers.IntegerField()
+    company_review_groups = serializers.IntegerField()
+    person_merge_groups = serializers.IntegerField()
+    person_review_groups = serializers.IntegerField()
+
+
+class DuplicateIdentitiesResponseSerializer(
+    serializers.Serializer[DuplicateIdentityReport]
+):
+    company_groups = DuplicateCompanyGroupSerializer(many=True)
+    person_groups = DuplicatePersonGroupSerializer(many=True)
+    summary = DuplicateIdentityReportSummarySerializer()
+    checked_at = serializers.DateTimeField()

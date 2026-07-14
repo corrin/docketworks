@@ -4,7 +4,7 @@ import uuid
 from collections.abc import Mapping
 
 from django.core.exceptions import ValidationError
-from django.db import IntegrityError, transaction
+from django.db import transaction
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 
@@ -18,16 +18,13 @@ from apps.accounting.models import (
 )
 from apps.company.models import (
     Company,
-    CompanyPersonLink,
     ContactMethod,
-    Person,
     SupplierPickupAddress,
 )
 from apps.crm.tasks import rematch_phone_calls_task
 from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import XeroAccount
 from apps.workflow.services.error_persistence import (
-    persist_and_raise,
     persist_app_error,
 )
 
@@ -369,81 +366,6 @@ def set_company_fields(company: Company, new_from_xero: bool = False) -> None:
     company.is_account_customer = raw_json.get(
         "_is_customer", company.is_account_customer
     )
-
-    contact_persons_payload = raw_json.get("_contact_persons")
-    if isinstance(contact_persons_payload, list):
-        contact_persons = contact_persons_payload
-    else:
-        contact_persons = []
-
-    for person_payload in contact_persons:
-        if not isinstance(person_payload, dict):
-            continue
-        first_name = person_payload.get("_first_name") or ""
-        last_name = person_payload.get("_last_name") or ""
-        xero_name = (first_name + (" " + last_name if last_name else "")).strip()
-        if not xero_name:
-            logger.debug("Skipping Xero contact person with empty name for %s", company)
-            continue
-        email = person_payload.get("_email_address") or None
-        try:
-            link = (
-                CompanyPersonLink.objects.filter(
-                    company=company,
-                    xero_name=xero_name,
-                )
-                .select_related("person")
-                .get()
-            )
-            if not link.is_active:
-                link.is_active = True
-                link.save(update_fields=["is_active", "updated_at"])
-            if link.person.email != email:
-                link.person.email = email
-                link.person.save(update_fields=["email", "updated_at"])
-        except CompanyPersonLink.DoesNotExist:
-            try:
-                with transaction.atomic():
-                    person = Person.objects.create(name=xero_name, email=email)
-                    CompanyPersonLink.objects.create(
-                        company=company,
-                        person=person,
-                        xero_name=xero_name,
-                        is_active=True,
-                    )
-            except IntegrityError as exc:
-                try:
-                    CompanyPersonLink.objects.filter(
-                        company=company,
-                        xero_name=xero_name,
-                    ).select_related("person").get()
-                except CompanyPersonLink.DoesNotExist:
-                    persist_and_raise(
-                        exc,
-                        additional_context={
-                            "operation": "set_company_fields_person_link_race",
-                            "client_id": str(company.id),
-                            "xero_name": xero_name,
-                        },
-                    )
-                except CompanyPersonLink.MultipleObjectsReturned:
-                    persist_and_raise(
-                        exc,
-                        additional_context={
-                            "operation": "set_company_fields_person_link_race",
-                            "client_id": str(company.id),
-                            "xero_name": xero_name,
-                        },
-                    )
-        except CompanyPersonLink.MultipleObjectsReturned as exc:
-            persist_and_raise(
-                exc,
-                additional_context={
-                    "operation": "set_company_fields_duplicate_person_link",
-                    "client_id": str(company.id),
-                    "xero_name": xero_name,
-                },
-            )
 
     # Handle xero_last_modified
     updated_date_utc_str = raw_json.get("_updated_date_utc")

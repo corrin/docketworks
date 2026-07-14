@@ -484,7 +484,6 @@ apps/accounting/services/sales_pipeline_service.py:0: error: Incompatible types 
 apps/accounting/services/sales_pipeline_service.py:0: error: Incompatible types in assignment (expression has type "float | None", target has type "float")  [assignment]
 apps/accounting/services/sales_pipeline_service.py:0: error: Item "None" of "Company | None" has no attribute "name"  [union-attr]
 apps/accounting/services/invoice_calculation.py:0: error: Returning Any from function declared to return "Job"  [no-any-return]
-apps/company/services/company_merge_service.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
 apps/company/management/commands/merge_companies.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/company/management/commands/merge_companies.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/quoting/services/providers/gemini_provider.py:0: error: Function is missing a type annotation for one or more parameters  [no-untyped-def]
@@ -3736,7 +3735,6 @@ apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type an
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_sync_clients.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
-apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "_make_raw_json" in typed context  [no-untyped-call]
 apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "_make_xero_contact" in typed context  [no-untyped-call]
 apps/workflow/tests/test_sync_clients.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_companies"  [attr-defined]
@@ -3745,7 +3743,6 @@ apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type an
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "_make_xero_contact" in typed context  [no-untyped-call]
 apps/workflow/tests/test_sync_clients.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_companies"  [attr-defined]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "sync_companies" in typed context  [no-untyped-call]
-apps/workflow/tests/test_sync_clients.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "_make_xero_contact" in typed context  [no-untyped-call]
 apps/workflow/tests/test_sync_clients.py:0: error: Module "apps.workflow.api.xero.sync" does not explicitly export attribute "sync_companies"  [attr-defined]
 apps/workflow/tests/test_sync_clients.py:0: error: Call to untyped function "sync_companies" in typed context  [no-untyped-call]

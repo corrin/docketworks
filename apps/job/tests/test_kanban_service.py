@@ -48,7 +48,6 @@ class TestSerializeJobForApi(BaseTestCase):
         return CompanyPersonLink.objects.create(
             company=self.client_obj,
             person=person,
-            xero_name=name,
         )
 
     def test_over_budget_when_tm_actual_exceeds_price_cap(self):

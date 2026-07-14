@@ -94,7 +94,6 @@ class PhoneMatcherDatabaseTests(TestCase):
         return CompanyPersonLink.objects.create(
             company=company,
             person=person,
-            xero_name=name,
         )
 
     def test_assign_phone_number_creates_primary_contact_method_and_matches_client(
@@ -797,7 +796,6 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
         CompanyPersonLink.objects.create(
             company=self.other_company,
             person=person,
-            xero_name=person.name,
         )
         before = AppError.objects.count()
 

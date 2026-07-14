@@ -44,6 +44,7 @@ def forwards(apps: Any, schema_editor: Any) -> None:
 
 
 def backwards(apps: Any, schema_editor: Any) -> None:
+    Person = apps.get_model("company", "Person")
     CompanyPersonLink = apps.get_model("company", "CompanyPersonLink")
     ContactMethod = apps.get_model("company", "ContactMethod")
     Job = apps.get_model("job", "Job")
@@ -95,6 +96,11 @@ def backwards(apps: Any, schema_editor: Any) -> None:
         method.person_id = None
         method.save(update_fields=["contact", "person", "updated_at"])
 
+    linked_person_ids = list(
+        CompanyPersonLink.objects.exclude(person__isnull=True).values_list(
+            "person_id", flat=True
+        )
+    )
     for link in CompanyPersonLink.objects.exclude(person__isnull=True).select_related(
         "person"
     ):
@@ -113,6 +119,11 @@ def backwards(apps: Any, schema_editor: Any) -> None:
                 "updated_at",
             ]
         )
+
+    # These Person rows were created by forwards(). Removing them makes a
+    # reverse/forward rehearsal return to the same row count instead of leaving
+    # one unreferenced duplicate for every legacy contact.
+    Person.objects.filter(id__in=linked_person_ids).delete()
 
 
 class Migration(migrations.Migration):

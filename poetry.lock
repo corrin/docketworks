@@ -4041,6 +4041,18 @@ files = [
 ]
 
 [[package]]
+name = "nicknames"
+version = "1.0.1"
+description = "Hand-curated dataset of English names and nicknames."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "nicknames-1.0.1-py3-none-any.whl", hash = "sha256:30608a6a50086bb508e6d5f4fb618ef4f988d5604f73ec1ebcccbc92952f9de9"},
+    {file = "nicknames-1.0.1.tar.gz", hash = "sha256:0b599c1ebf6844c5a65659d46d024c46e9c2cf66b3046e119107e82a14598e6a"},
+]
+
+[[package]]
 name = "nodeenv"
 version = "1.10.0"
 description = "Node.js virtual environment builder"
@@ -7271,4 +7283,4 @@ type = ["pytest-mypy"]
 [metadata]
 lock-version = "2.1"
 python-versions = "^3.12"
-content-hash = "416dcd10b5d9cee885f6079892220488b7e97bd0e31fc3451b4d0fdac6b60d94"
+content-hash = "3ffb13f7b3b981d3048908a0251d65e480083d72adadb91c69623928263a245d"

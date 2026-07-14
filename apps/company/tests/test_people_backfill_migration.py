@@ -116,6 +116,7 @@ class PeopleBackfillMigrationTests(TransactionTestCase):
         self.executor.loader.build_graph()
         self.executor.migrate(self.migrate_from)
         reversed_apps = self.executor.loader.project_state(self.migrate_from).apps
+        Person = reversed_apps.get_model("company", "Person")
         CompanyPersonLink = reversed_apps.get_model("company", "CompanyPersonLink")
         ContactMethod = reversed_apps.get_model("company", "ContactMethod")
         Job = reversed_apps.get_model("job", "Job")
@@ -135,3 +136,4 @@ class PeopleBackfillMigrationTests(TransactionTestCase):
         self.assertIsNone(job.person_id)
         self.assertEqual(call.contact_id, link.pk)
         self.assertIsNone(call.person_id)
+        self.assertEqual(Person.objects.count(), 0)

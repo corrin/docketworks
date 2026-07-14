@@ -31,7 +31,6 @@ const buildPerson = (overrides: Partial<CompanyPersonLink> = {}): CompanyPersonL
   person: 'f6b4a1e2-0f7c-4b7d-9c65-3f2f9a1c0003',
   person_name: 'Jane Doe',
   person_email: 'jane@example.com',
-  xero_name: 'Jane Doe',
   position: null,
   is_primary: true,
   notes: null,

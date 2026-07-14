@@ -35,6 +35,7 @@ const TITLES: Record<string, string> = {
   '/reports/profit-and-loss': 'Profit & Loss Report - DocketWorks',
   '/reports/job-movement': 'Job Movement Report - DocketWorks',
   '/reports/data-quality/archived-jobs': 'Archived Jobs Validation - DocketWorks',
+  '/reports/data-quality/duplicate-identities': 'Duplicate Identities - DocketWorks',
   '/reports/job-profitability': 'Job Profitability Report - DocketWorks',
   '/reports/rdti-spend': 'RDTI Spend Report - DocketWorks',
   '/reports/wip': 'WIP Report - DocketWorks',

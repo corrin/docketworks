@@ -48,7 +48,6 @@ class KanbanSearchTest(BaseTestCase):
             CompanyPersonLink.objects.create(
                 company=company,
                 person=person,
-                xero_name=person_name,
             )
 
         self.job_number += 1

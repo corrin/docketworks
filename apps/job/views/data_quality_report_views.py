@@ -12,10 +12,14 @@ from rest_framework.request import Request
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
+from apps.company.services.duplicate_identity_report import (
+    DuplicateIdentityReportService,
+)
 from apps.company.services.duplicate_phone_report import DuplicatePhoneReportService
 from apps.job.permissions import IsOfficeStaff
 from apps.job.serializers.data_quality_report_serializers import (
     ArchivedJobsComplianceResponseSerializer,
+    DuplicateIdentitiesResponseSerializer,
     DuplicatePhonesResponseSerializer,
 )
 from apps.job.services.data_quality_report import ArchivedJobsComplianceService
@@ -91,6 +95,34 @@ class DuplicatePhonesView(APIView):
             return Response(serializer.data, status=status.HTTP_200_OK)
         except AlreadyLoggedException:
             raise  # already persisted upstream — pass through unchanged
+        except Exception as exc:
+            err = persist_app_error(exc)
+            raise AlreadyLoggedException(exc, err.id) from exc
+
+
+class DuplicateIdentitiesView(APIView):
+    """API view for grouped Company and Person duplicate exceptions."""
+
+    permission_classes = [IsAuthenticated, IsOfficeStaff]
+
+    @extend_schema(
+        operation_id="check_duplicate_identities",
+        summary="Check for duplicate companies and people",
+        description=(
+            "List compact groups of Company and Person identities that are safe "
+            "to merge automatically or require review."
+        ),
+        responses={200: DuplicateIdentitiesResponseSerializer, 500: dict},
+        tags=["Data Quality"],
+    )
+    def get(self, request: Request) -> Response:
+        try:
+            result = DuplicateIdentityReportService().get_report()
+            serializer = DuplicateIdentitiesResponseSerializer(data=result)
+            serializer.is_valid(raise_exception=True)
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
             err = persist_app_error(exc)
             raise AlreadyLoggedException(exc, err.id) from exc
