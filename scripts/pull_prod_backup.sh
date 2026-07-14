@@ -39,19 +39,50 @@ fi
 TS="$(date +%Y%m%d_%H%M%S)"
 DUMP_NAME="scrubbed_${INSTANCE_USER}_${TS}.dump"
 TMP_PATH="/tmp/$DUMP_NAME"
+LOCAL_PATH="$LOCAL_DIR/$DUMP_NAME"
+REMOTE_STAGED=false
+LOCAL_COPIED=false
+
+cleanup() {
+    local command_status=$?
+    local cleanup_status=0
+    trap - EXIT
+    set +e
+
+    if [[ "$REMOTE_STAGED" == true ]]; then
+        echo ">> Removing remote staging file..."
+        # Dump is owned by $INSTANCE_USER and /tmp has the sticky bit, so the
+        # delete has to run as the same user that created it.
+        # shellcheck disable=SC2029  # values are meant to expand client-side
+        ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -u $INSTANCE_USER rm -f '$TMP_PATH'"
+        cleanup_status=$?
+    fi
+
+    if [[ $command_status -ne 0 && "$LOCAL_COPIED" == true ]]; then
+        echo ">> Removing failed local backup..." >&2
+        rm -f "$LOCAL_PATH"
+    fi
+
+    if [[ $command_status -ne 0 ]]; then
+        exit "$command_status"
+    fi
+    exit "$cleanup_status"
+}
+
+trap cleanup EXIT
 
 echo ">> Generating $DUMP_NAME on $REMOTE_HOST as $INSTANCE_USER..."
-# shellcheck disable=SC2029  # $INSTANCE_USER and $TMP_PATH are meant to expand client-side
+REMOTE_STAGED=true
+# shellcheck disable=SC2029  # values are meant to expand client-side
 ssh "$REMOTE_USER@$REMOTE_HOST" \
     "sudo -iu $INSTANCE_USER bash -lc 'cd app && python manage.py backport_data_backup --output $TMP_PATH'"
 
 echo ">> Copying $DUMP_NAME to $LOCAL_DIR/..."
+LOCAL_COPIED=true
 scp "$REMOTE_USER@$REMOTE_HOST:$TMP_PATH" "$LOCAL_DIR/"
 
-echo ">> Removing remote staging file..."
-# Dump is owned by $INSTANCE_USER and /tmp has the sticky bit, so the
-# delete has to run as the same user that created it.
-# shellcheck disable=SC2029  # $INSTANCE_USER and $TMP_PATH are meant to expand client-side
-ssh "$REMOTE_USER@$REMOTE_HOST" "sudo -u $INSTANCE_USER rm -f '$TMP_PATH'"
+echo ">> Verifying scrubbed backup..."
+python "$REPO_ROOT/scripts/verify_scrubbed_backup.py" "$LOCAL_PATH"
 
-echo ">> Done: $LOCAL_DIR/$DUMP_NAME"
+echo ">> SHA-256: $(sha256sum "$LOCAL_PATH" | cut -d' ' -f1)"
+echo ">> Done: $LOCAL_PATH"

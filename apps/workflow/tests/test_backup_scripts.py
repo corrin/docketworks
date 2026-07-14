@@ -11,6 +11,7 @@ from django.test import SimpleTestCase
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CLEANUP_BACKUPS = REPO_ROOT / "scripts" / "cleanup_backups.py"
 BACKUP_INSTANCE_FILES = REPO_ROOT / "scripts" / "backup_instance_files.sh"
+PULL_PROD_BACKUP = REPO_ROOT / "scripts" / "pull_prod_backup.sh"
 
 
 def load_cleanup_module() -> types.ModuleType:
@@ -23,6 +24,15 @@ def load_cleanup_module() -> types.ModuleType:
 
 
 class BackupScriptTests(SimpleTestCase):
+    def test_prod_pull_verifies_archive_and_cleans_failed_artifacts(self) -> None:
+        content = PULL_PROD_BACKUP.read_text()
+
+        self.assertIn("trap cleanup EXIT", content)
+        self.assertIn("verify_scrubbed_backup.py", content)
+        self.assertIn('rm -f "$LOCAL_PATH"', content)
+        self.assertIn("sha256sum", content)
+        self.assertIn("cd app && python manage.py backport_data_backup", content)
+
     def test_cleanup_copies_remote_before_pruning_expired_backups(self) -> None:
         cleanup = load_cleanup_module()
 
