@@ -76,13 +76,16 @@ class ContactMethodViewSet(viewsets.ModelViewSet):
         ).prefetch_related(
             Prefetch(
                 "person__company_links",
-                queryset=CompanyPersonLink.objects.select_related("company"),
+                queryset=CompanyPersonLink.objects.filter(
+                    is_active=True
+                ).select_related("company"),
             ),
         )
         company_id = self.request.query_params.get("company_id")
         if company_id:
             queryset = queryset.filter(company_id=company_id) | queryset.filter(
-                person__company_links__company_id=company_id
+                person__company_links__company_id=company_id,
+                person__company_links__is_active=True,
             )
 
         person_id = self.request.query_params.get("person_id")

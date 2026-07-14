@@ -415,13 +415,12 @@ class CompanyListPhoneTests(TestCase):
 
 
 class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
-    """Guards the contact phone read/write restored on the contacts endpoint
-    (company detail People card, PersonSelectionModal, person picker)."""
-
-    URL = "/api/companies/person-links/"
+    """Guards company People and Person contact-method API integration."""
 
     def setUp(self) -> None:
         super().setUp()
+        self.test_staff.is_office_staff = True
+        self.test_staff.save(update_fields=["is_office_staff"])
         self.client.force_authenticate(user=self.test_staff)
         self.job_client = Company.objects.create(
             name="Acme Ltd", xero_last_modified=timezone.now()
@@ -445,12 +444,10 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         self._contact("No Phone")
 
         with CaptureQueriesContext(connection) as captured:
-            response = self.client.get(
-                self.URL, {"company_id": str(self.job_client.id)}
-            )
+            response = self.client.get(f"/api/companies/{self.job_client.id}/people/")
 
         self.assertEqual(response.status_code, 200)
-        phones = {row["person_name"]: row["phone"] for row in response.json()}
+        phones = {row["person_name"]: row["primary_phone"] for row in response.json()}
         self.assertEqual(phones["Jane Smith"], "021 111 111")
         self.assertEqual(phones["No Phone"], "")
         lazy = [
@@ -464,37 +461,34 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
             with self.captureOnCommitCallbacks(execute=True):
                 response = self.client.post(
-                    self.URL,
+                    f"/api/companies/{self.job_client.id}/people/",
                     {
-                        "company": str(self.job_client.id),
-                        "person_name": "Bob Brown",
+                        "name": "Bob Brown",
                         "phone": "021 222 222",
                     },
                     format="json",
                 )
 
         self.assertEqual(response.status_code, 201)
-        self.assertEqual(response.json()["phone"], "021 222 222")
+        self.assertEqual(response.json()["primary_phone"], "021 222 222")
         method = ContactMethod.objects.get(person__name="Bob Brown")
         self.assertEqual(method.method_type, ContactMethod.MethodType.PHONE)
         self.assertTrue(method.is_primary)
         rematch.assert_called_once_with(["+6421222222"])
 
-    def test_create_contact_sets_person_fields_and_ignores_is_active(self) -> None:
+    def test_create_contact_sets_person_fields_and_active_link(self) -> None:
         response = self.client.post(
-            self.URL,
+            f"/api/companies/{self.job_client.id}/people/",
             {
-                "company": str(self.job_client.id),
-                "person_name": "Bob Brown",
-                "person_email": "bob@example.com",
-                "is_active": False,
+                "name": "Bob Brown",
+                "email": "bob@example.com",
             },
             format="json",
         )
 
         self.assertEqual(response.status_code, 201)
         link = CompanyPersonLink.objects.select_related("person").get(
-            pk=response.json()["id"]
+            person_id=response.json()["person_id"], company=self.job_client
         )
         self.assertEqual(link.person.name, "Bob Brown")
         self.assertEqual(link.person.email, "bob@example.com")
@@ -505,10 +499,10 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         contact = self._contact("Jane Smith")
 
         response = self.client.patch(
-            f"{self.URL}{contact.id}/",
+            f"/api/people/{contact.person_id}/",
             {
-                "person_name": "Jane Brown",
-                "person_email": "jane@example.com",
+                "name": "Jane Brown",
+                "email": "jane@example.com",
             },
             format="json",
         )
@@ -525,19 +519,19 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         with patch("apps.crm.tasks.rematch_phone_calls_task.delay") as rematch:
             with self.captureOnCommitCallbacks(execute=True):
                 response = self.client.patch(
-                    f"{self.URL}{contact.id}/",
-                    {"phone": "021 333 333"},
+                    f"/api/people/{contact.person_id}/contact-methods/{method.id}/",
+                    {"value": "021 333 333"},
                     format="json",
                 )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["phone"], "021 333 333")
+        self.assertEqual(response.json()["value"], "021 333 333")
         method.refresh_from_db()
         self.assertEqual(method.value, "021 333 333")
         self.assertEqual(contact.person.contact_methods.count(), 1)
         rematch.assert_called_once_with(["+6421111111", "+6421333333"])
 
-    def test_update_phone_matching_secondary_promotes_it(self) -> None:
+    def test_update_secondary_phone_promotes_it(self) -> None:
         contact = self._contact("Jane Smith", phone="021 111 111")
         secondary = ContactMethod.objects.create(
             person=contact.person,
@@ -546,8 +540,8 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         )
 
         response = self.client.patch(
-            f"{self.URL}{contact.id}/",
-            {"phone": "021 444 444"},
+            f"/api/people/{contact.person_id}/contact-methods/{secondary.id}/",
+            {"is_primary": True},
             format="json",
         )
 
@@ -558,17 +552,16 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
             contact.person.contact_methods.filter(is_primary=True).count(), 1
         )
 
-    def test_blank_phone_leaves_methods_untouched(self) -> None:
+    def test_relationship_update_leaves_phone_methods_untouched(self) -> None:
         contact = self._contact("Jane Smith", phone="021 111 111")
 
-        response = self.client.patch(
-            f"{self.URL}{contact.id}/",
-            {"phone": "", "position": "Manager"},
+        response = self.client.put(
+            f"/api/people/{contact.person_id}/company-links/{self.job_client.id}/",
+            {"position": "Manager", "notes": None, "is_primary": False},
             format="json",
         )
 
         self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json()["phone"], "021 111 111")
         self.assertEqual(contact.person.contact_methods.count(), 1)
 
     def test_conflicting_phone_returns_400_and_creates_nothing(self) -> None:
@@ -582,14 +575,17 @@ class CompanyPersonLinkApiPhoneTests(BaseAPITestCase):
         )
         contact = self._contact("Jane Smith")
 
-        response = self.client.patch(
-            f"{self.URL}{contact.id}/",
-            {"phone": "021 555 555"},
+        response = self.client.post(
+            f"/api/people/{contact.person_id}/contact-methods/",
+            {
+                "method_type": "phone",
+                "value": "021 555 555",
+                "is_primary": True,
+            },
             format="json",
         )
 
         self.assertEqual(response.status_code, 400)
-        self.assertIn("phone", response.json())
         self.assertEqual(contact.person.contact_methods.count(), 0)
 
 

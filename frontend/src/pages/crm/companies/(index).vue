@@ -252,7 +252,7 @@ watch(currentPage, async (newPage) => {
 })
 
 function navigateToCompany(company: Company, rank: number) {
-  logCompanySearchClick(company, companyStore.searchQuery, rank, 'crm_clients_table')
+  logCompanySearchClick(company, companyStore.searchQuery, rank, 'crm_companies_table')
   router.push({ name: '/crm/companies/[id]', params: { id: company.id } })
 }
 

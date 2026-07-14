@@ -387,9 +387,9 @@ class CompanyPersonLink(models.Model):
         update_fields = _augment_update_fields(update_fields, "updated_at")
         # If this link is being set as primary, ensure no other links
         # for this company are marked as primary
-        if self.is_primary:
+        if self.is_primary and self.is_active:
             CompanyPersonLink.objects.filter(
-                company=self.company, is_primary=True
+                company=self.company, is_primary=True, is_active=True
             ).exclude(id=self.id).update(is_primary=False)
         super().save(
             force_insert=force_insert,
@@ -628,8 +628,16 @@ class ContactMethod(models.Model):
             return {self.company_id}
         if self.person is not None:
             if "company_links" in getattr(self.person, "_prefetched_objects_cache", {}):
-                return {link.company_id for link in self.person.company_links.all()}
-            return set(self.person.company_links.values_list("company_id", flat=True))
+                return {
+                    link.company_id
+                    for link in self.person.company_links.all()
+                    if link.is_active
+                }
+            return set(
+                self.person.company_links.filter(is_active=True).values_list(
+                    "company_id", flat=True
+                )
+            )
         return set()
 
     @classmethod
@@ -649,6 +657,14 @@ class ContactMethod(models.Model):
         queryset = (
             cls.objects.using(using)
             .select_related("company", "person")
+            .prefetch_related(
+                models.Prefetch(
+                    "person__company_links",
+                    queryset=CompanyPersonLink.objects.using(using).filter(
+                        is_active=True
+                    ),
+                )
+            )
             .filter(
                 method_type=cls.MethodType.PHONE,
                 normalized_value=normalized_value,
@@ -722,7 +738,7 @@ class ContactMethod(models.Model):
         elif person is not None:
             effective_company_ids = set(
                 CompanyPersonLink.objects.using(using)
-                .filter(person_id=person.pk)
+                .filter(person_id=person.pk, is_active=True)
                 .values_list("company_id", flat=True)
             )
         else:

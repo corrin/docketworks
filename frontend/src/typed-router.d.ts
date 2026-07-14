@@ -59,6 +59,20 @@ declare module 'vue-router/auto-routes' {
       { id: ParamValue<false> },
       | never
     >,
+    '/crm/people/(index)': RouteRecordInfo<
+      '/crm/people/(index)',
+      '/crm/people',
+      Record<never, never>,
+      Record<never, never>,
+      | never
+    >,
+    '/crm/people/[id]': RouteRecordInfo<
+      '/crm/people/[id]',
+      '/crm/people/:id',
+      { id: ParamValue<true> },
+      { id: ParamValue<false> },
+      | never
+    >,
     '/jobs/[id]/(index)': RouteRecordInfo<
       '/jobs/[id]/(index)',
       '/jobs/:id',
@@ -331,6 +345,18 @@ declare module 'vue-router/auto-routes' {
     'src/pages/crm/companies/[id].vue': {
       routes:
         | '/crm/companies/[id]'
+      views:
+        | never
+    }
+    'src/pages/crm/people/(index).vue': {
+      routes:
+        | '/crm/people/(index)'
+      views:
+        | never
+    }
+    'src/pages/crm/people/[id].vue': {
+      routes:
+        | '/crm/people/[id]'
       views:
         | never
     }

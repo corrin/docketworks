@@ -1206,6 +1206,103 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
+  /api/companies/{company_id}/people/:
+    get:
+      operationId: companies_people_list
+      description: List a company's people or create a Person with its initial link.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - companies
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/CompanyPerson'
+          description: ''
+    post:
+      operationId: companies_people_create
+      description: List a company's people or create a Person with its initial link.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - companies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyPersonCreateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyPersonCreateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyPersonCreateRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CompanyPerson'
+          description: ''
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneOwnershipConflict'
+          description: ''
+  /api/companies/{company_id}/people/phone-ownership/:
+    post:
+      operationId: companies_people_phone_ownership_create
+      description: Classify a phone before creating a Person for a company.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - companies
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PhoneOwnershipRequestRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PhoneOwnershipRequestRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PhoneOwnershipRequestRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PhoneOwnership'
+          description: ''
   /api/companies/{company_id}/supplier-aliases/:
     get:
       operationId: companies_supplier_aliases_list
@@ -1773,224 +1870,6 @@ paths:
               schema:
                 $ref: '#/components/schemas/CompanyErrorResponse'
           description: ''
-  /api/companies/person-links/:
-    get:
-      operationId: companies_person_links_list
-      description: List all company-person links, optionally filtered by company_id.
-      parameters:
-        - in: query
-          name: company_id
-          schema:
-            type: string
-            format: uuid
-          description: Filter links by company UUID
-      tags:
-        - companies
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/CompanyPersonLink'
-          description: ''
-    post:
-      operationId: companies_person_links_create
-      description: |-
-        ViewSet for CompanyPersonLink CRUD operations.
-
-        Endpoints:
-        - GET    /api/companies/person-links/       - list all company-person links
-        - POST   /api/companies/person-links/       - create link
-        - GET    /api/companies/person-links/<id>/  - retrieve link
-        - PUT    /api/companies/person-links/<id>/  - full update
-        - PATCH  /api/companies/person-links/<id>/  - partial update
-        - DELETE /api/companies/person-links/<id>/  - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - company_id: Filter links by company UUID
-      tags:
-        - companies
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CompanyPersonLinkRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CompanyPersonLinkRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CompanyPersonLinkRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '201':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyPersonLink'
-          description: ''
-  /api/companies/person-links/{id}/:
-    get:
-      operationId: companies_person_links_retrieve
-      description: |-
-        ViewSet for CompanyPersonLink CRUD operations.
-
-        Endpoints:
-        - GET    /api/companies/person-links/       - list all company-person links
-        - POST   /api/companies/person-links/       - create link
-        - GET    /api/companies/person-links/<id>/  - retrieve link
-        - PUT    /api/companies/person-links/<id>/  - full update
-        - PATCH  /api/companies/person-links/<id>/  - partial update
-        - DELETE /api/companies/person-links/<id>/  - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - company_id: Filter links by company UUID
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Company Person Link.
-          required: true
-      tags:
-        - companies
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyPersonLink'
-          description: ''
-    put:
-      operationId: companies_person_links_update
-      description: |-
-        ViewSet for CompanyPersonLink CRUD operations.
-
-        Endpoints:
-        - GET    /api/companies/person-links/       - list all company-person links
-        - POST   /api/companies/person-links/       - create link
-        - GET    /api/companies/person-links/<id>/  - retrieve link
-        - PUT    /api/companies/person-links/<id>/  - full update
-        - PATCH  /api/companies/person-links/<id>/  - partial update
-        - DELETE /api/companies/person-links/<id>/  - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - company_id: Filter links by company UUID
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Company Person Link.
-          required: true
-      tags:
-        - companies
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/CompanyPersonLinkRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/CompanyPersonLinkRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/CompanyPersonLinkRequest'
-        required: true
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyPersonLink'
-          description: ''
-    patch:
-      operationId: companies_person_links_partial_update
-      description: |-
-        ViewSet for CompanyPersonLink CRUD operations.
-
-        Endpoints:
-        - GET    /api/companies/person-links/       - list all company-person links
-        - POST   /api/companies/person-links/       - create link
-        - GET    /api/companies/person-links/<id>/  - retrieve link
-        - PUT    /api/companies/person-links/<id>/  - full update
-        - PATCH  /api/companies/person-links/<id>/  - partial update
-        - DELETE /api/companies/person-links/<id>/  - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - company_id: Filter links by company UUID
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Company Person Link.
-          required: true
-      tags:
-        - companies
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/PatchedCompanyPersonLinkRequest'
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/PatchedCompanyPersonLinkRequest'
-          multipart/form-data:
-            schema:
-              $ref: '#/components/schemas/PatchedCompanyPersonLinkRequest'
-      security:
-        - cookieAuth: []
-      responses:
-        '200':
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/CompanyPersonLink'
-          description: ''
-    delete:
-      operationId: companies_person_links_destroy
-      description: |-
-        ViewSet for CompanyPersonLink CRUD operations.
-
-        Endpoints:
-        - GET    /api/companies/person-links/       - list all company-person links
-        - POST   /api/companies/person-links/       - create link
-        - GET    /api/companies/person-links/<id>/  - retrieve link
-        - PUT    /api/companies/person-links/<id>/  - full update
-        - PATCH  /api/companies/person-links/<id>/  - partial update
-        - DELETE /api/companies/person-links/<id>/  - soft delete (sets is_active=False)
-
-        Query Parameters:
-        - company_id: Filter links by company UUID
-      parameters:
-        - in: path
-          name: id
-          schema:
-            type: string
-            format: uuid
-          description: A UUID string identifying this Company Person Link.
-          required: true
-      tags:
-        - companies
-      security:
-        - cookieAuth: []
-      responses:
-        '204':
-          description: No response body
   /api/companies/pickup-addresses/:
     get:
       operationId: companies_pickup_addresses_list
@@ -5895,6 +5774,330 @@ paths:
               schema:
                 $ref: '#/components/schemas/WorkshopScheduleResponse'
           description: ''
+  /api/people/:
+    get:
+      operationId: people_list
+      description: List and search active people across company relationships.
+      parameters:
+        - name: page
+          required: false
+          in: query
+          description: A page number within the paginated result set.
+          schema:
+            type: integer
+        - name: page_size
+          required: false
+          in: query
+          description: Number of results to return per page.
+          schema:
+            type: integer
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search people by name, email, phone, or company.
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedPersonSummaryList'
+          description: ''
+  /api/people/{person_id}/:
+    get:
+      operationId: people_retrieve
+      description: Retrieve or update a Person's identity fields.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonDetail'
+          description: ''
+    put:
+      operationId: people_update
+      description: Retrieve or update a Person's identity fields.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonIdentityUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PersonIdentityUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PersonIdentityUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonIdentityUpdate'
+          description: ''
+    patch:
+      operationId: people_partial_update
+      description: Retrieve or update a Person's identity fields.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonIdentityUpdateRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonIdentityUpdateRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonIdentityUpdateRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonIdentityUpdate'
+          description: ''
+  /api/people/{person_id}/company-links/:
+    get:
+      operationId: people_company_links_list
+      description: List all active company relationships for a Person.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PersonCompanyLink'
+          description: ''
+  /api/people/{person_id}/company-links/{company_id}/:
+    put:
+      operationId: people_company_links_update
+      description: Create, update, reactivate, or remove a Person-company relationship.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompanyLinkWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/CompanyLinkWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/CompanyLinkWriteRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PersonCompanyLink'
+          description: ''
+    delete:
+      operationId: people_company_links_destroy
+      description: Create, update, reactivate, or remove a Person-company relationship.
+      parameters:
+        - in: path
+          name: company_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
+  /api/people/{person_id}/contact-methods/:
+    get:
+      operationId: people_contact_methods_list
+      description: List or create a Person's contact methods.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ContactMethod'
+          description: ''
+    post:
+      operationId: people_contact_methods_create
+      description: List or create a Person's contact methods.
+      parameters:
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PersonContactMethodWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PersonContactMethodWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PersonContactMethodWriteRequest'
+        required: true
+      security:
+        - cookieAuth: []
+      responses:
+        '201':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactMethod'
+          description: ''
+  /api/people/{person_id}/contact-methods/{method_id}/:
+    patch:
+      operationId: people_contact_methods_partial_update
+      description: Update or delete one Person contact method.
+      parameters:
+        - in: path
+          name: method_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonContactMethodWriteRequest'
+          application/x-www-form-urlencoded:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonContactMethodWriteRequest'
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/PatchedPersonContactMethodWriteRequest'
+      security:
+        - cookieAuth: []
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactMethod'
+          description: ''
+    delete:
+      operationId: people_contact_methods_destroy
+      description: Update or delete one Person contact method.
+      parameters:
+        - in: path
+          name: method_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: path
+          name: person_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      tags:
+        - people
+      security:
+        - cookieAuth: []
+      responses:
+        '204':
+          description: No response body
   /api/process/categories/:
     get:
       operationId: process_categories_retrieve
@@ -11142,6 +11345,19 @@ components:
             $ref: '#/components/schemas/CompanyJobHeader'
       required:
         - results
+    CompanyLinkWriteRequest:
+      type: object
+      properties:
+        position:
+          type: string
+          nullable: true
+          maxLength: 255
+        notes:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+          default: false
     CompanyNameOnly:
       type: object
       properties:
@@ -11155,28 +11371,24 @@ components:
       required:
         - id
         - name
-    CompanyPersonLink:
+    CompanyPerson:
       type: object
-      description: Serializer for a person's relationship to a company.
       properties:
-        id:
-          type: string
-          format: uuid
-          readOnly: true
-        company:
-          type: string
-          format: uuid
-          description: The company this person is linked to
-        person:
+        person_id:
           type: string
           format: uuid
           readOnly: true
         person_name:
           type: string
+          readOnly: true
         person_email:
           type: string
           format: email
+          readOnly: true
           nullable: true
+        primary_phone:
+          type: string
+          readOnly: true
         position:
           type: string
           nullable: true
@@ -11184,70 +11396,42 @@ components:
           maxLength: 255
         is_primary:
           type: boolean
-          description: Indicates if this is the primary person for the company
+          description: Indicates if this is the primary contact for the company
         notes:
           type: string
           nullable: true
-          description: Additional notes about this person
-        is_active:
-          type: boolean
-          readOnly: true
-          description: Soft delete flag - inactive contacts are hidden from normal
-            queries
-        created_at:
-          type: string
-          format: date-time
-          readOnly: true
-        updated_at:
-          type: string
-          format: date-time
-          readOnly: true
-        phone:
-          type: string
-          nullable: true
-          default: ''
+          description: Additional notes about this contact
       required:
-        - company
-        - created_at
-        - id
-        - is_active
-        - person
+        - person_email
+        - person_id
         - person_name
-        - updated_at
-    CompanyPersonLinkRequest:
+        - primary_phone
+    CompanyPersonCreateRequest:
       type: object
-      description: Serializer for a person's relationship to a company.
       properties:
-        company:
-          type: string
-          format: uuid
-          description: The company this person is linked to
-        person_name:
+        name:
           type: string
           minLength: 1
-        person_email:
+          maxLength: 255
+        email:
           type: string
           format: email
+          nullable: true
+        phone:
+          type: string
           nullable: true
         position:
           type: string
           nullable: true
-          description: Job title if it's helpful - else leave blank
           maxLength: 255
-        is_primary:
-          type: boolean
-          description: Indicates if this is the primary person for the company
         notes:
           type: string
           nullable: true
-          description: Additional notes about this person
-        phone:
-          type: string
-          nullable: true
-          default: ''
+        is_primary:
+          type: boolean
+          default: false
       required:
-        - company
-        - person_name
+        - name
     CompanySearchResponse:
       type: object
       description: Serializer for paginated company search response
@@ -11421,7 +11605,7 @@ components:
           type: string
           readOnly: true
         method_type:
-          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
         value:
           type: string
           maxLength: 255
@@ -11454,14 +11638,6 @@ components:
         - person_name
         - updated_at
         - value
-    ContactMethodMethodTypeEnum:
-      enum:
-        - phone
-        - email
-      type: string
-      description: |-
-        * `phone` - Phone
-        * `email` - Email
     ContactMethodRequest:
       type: object
       description: Serializer for canonical company/person phone and email methods.
@@ -11475,7 +11651,7 @@ components:
           format: uuid
           nullable: true
         method_type:
-          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
         value:
           type: string
           minLength: 1
@@ -11499,6 +11675,14 @@ components:
       description: |-
         * `imported` - Imported
         * `local` - Local
+    ContactMethodTypeEnum:
+      enum:
+        - phone
+        - email
+      type: string
+      description: |-
+        * `phone` - Phone
+        * `email` - Email
     CostLine:
       type: object
       description: Serializer for CostLine model - read-only with basic depth
@@ -16282,6 +16466,31 @@ components:
         total_pages:
           type: integer
           example: 3
+    PaginatedPersonSummaryList:
+      type: object
+      required:
+        - results
+        - count
+        - page
+        - page_size
+        - total_pages
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonSummary'
+        count:
+          type: integer
+          example: 123
+        page:
+          type: integer
+          example: 1
+        page_size:
+          type: integer
+          example: 50
+        total_pages:
+          type: integer
+          example: 3
     PaginatedPhoneCallRecordList:
       type: object
       required:
@@ -16751,37 +16960,6 @@ components:
           type: string
           format: uuid
           description: Internal company used for tracking shop work.
-    PatchedCompanyPersonLinkRequest:
-      type: object
-      description: Serializer for a person's relationship to a company.
-      properties:
-        company:
-          type: string
-          format: uuid
-          description: The company this person is linked to
-        person_name:
-          type: string
-          minLength: 1
-        person_email:
-          type: string
-          format: email
-          nullable: true
-        position:
-          type: string
-          nullable: true
-          description: Job title if it's helpful - else leave blank
-          maxLength: 255
-        is_primary:
-          type: boolean
-          description: Indicates if this is the primary person for the company
-        notes:
-          type: string
-          nullable: true
-          description: Additional notes about this person
-        phone:
-          type: string
-          nullable: true
-          default: ''
     PatchedCompanyUpdateRequest:
       type: object
       description: Serializer for company update request
@@ -16815,7 +16993,7 @@ components:
           format: uuid
           nullable: true
         method_type:
-          $ref: '#/components/schemas/ContactMethodMethodTypeEnum'
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
         value:
           type: string
           minLength: 1
@@ -17009,6 +17187,33 @@ components:
           minimum: 0
           exclusiveMaximum: true
           description: Company-level rate used to seed JobLabourRate on new jobs
+    PatchedPersonContactMethodWriteRequest:
+      type: object
+      properties:
+        method_type:
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        label:
+          type: string
+          default: ''
+    PatchedPersonIdentityUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
     PatchedPhoneEndpointRequest:
       type: object
       properties:
@@ -17805,6 +18010,157 @@ components:
         - jm_hours
         - xero_gross
         - xero_hours
+    PersonCompanyLink:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+        position:
+          type: string
+          nullable: true
+        is_primary:
+          type: boolean
+        notes:
+          type: string
+          nullable: true
+        is_active:
+          type: boolean
+      required:
+        - company_id
+        - company_name
+        - is_active
+        - is_primary
+        - notes
+        - position
+    PersonCompanySummary:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+      required:
+        - company_id
+        - company_name
+    PersonContactMethodWriteRequest:
+      type: object
+      properties:
+        method_type:
+          $ref: '#/components/schemas/ContactMethodTypeEnum'
+        value:
+          type: string
+          minLength: 1
+          maxLength: 255
+        is_primary:
+          type: boolean
+          default: false
+        label:
+          type: string
+          default: ''
+      required:
+        - method_type
+        - value
+    PersonDetail:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        primary_phone:
+          type: string
+          readOnly: true
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanySummary'
+          readOnly: true
+        company_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanyLink'
+          readOnly: true
+      required:
+        - companies
+        - company_links
+        - created_at
+        - id
+        - name
+        - primary_phone
+        - updated_at
+    PersonIdentityUpdate:
+      type: object
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+    PersonIdentityUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+    PersonSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          maxLength: 255
+        email:
+          type: string
+          format: email
+          nullable: true
+          maxLength: 254
+        primary_phone:
+          type: string
+          readOnly: true
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanySummary'
+          readOnly: true
+      required:
+        - companies
+        - id
+        - name
+        - primary_phone
     PhoneCallJobLinkRequest:
       type: object
       description: Request body for linking a phone call to a job.
@@ -18055,6 +18411,17 @@ components:
         - provider_recording_id
         - sha256
         - updated_at
+    PhoneCompanyOwner:
+      type: object
+      properties:
+        company_id:
+          type: string
+          format: uuid
+        company_name:
+          type: string
+      required:
+        - company_id
+        - company_name
     PhoneEndpoint:
       type: object
       properties:
@@ -18150,6 +18517,93 @@ components:
           maxLength: 255
       required:
         - company
+    PhoneOwnership:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/PhoneOwnershipStatusEnum'
+        normalized_phone:
+          type: string
+        can_create_person:
+          type: boolean
+        people:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhonePersonMatch'
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhoneCompanyOwner'
+      required:
+        - can_create_person
+        - companies
+        - normalized_phone
+        - people
+        - status
+    PhoneOwnershipConflict:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/PhoneOwnershipStatusEnum'
+        normalized_phone:
+          type: string
+        can_create_person:
+          type: boolean
+        people:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhonePersonMatch'
+        companies:
+          type: array
+          items:
+            $ref: '#/components/schemas/PhoneCompanyOwner'
+      required:
+        - can_create_person
+        - companies
+        - normalized_phone
+        - people
+        - status
+    PhoneOwnershipRequestRequest:
+      type: object
+      properties:
+        phone:
+          type: string
+          minLength: 1
+      required:
+        - phone
+    PhoneOwnershipStatusEnum:
+      enum:
+        - available
+        - people
+        - company
+        - internal
+      type: string
+      description: |-
+        * `available` - available
+        * `people` - people
+        * `company` - company
+        * `internal` - internal
+    PhonePersonMatch:
+      type: object
+      properties:
+        person_id:
+          type: string
+          format: uuid
+        person_name:
+          type: string
+        person_email:
+          type: string
+          format: email
+          nullable: true
+        company_links:
+          type: array
+          items:
+            $ref: '#/components/schemas/PersonCompanyLink'
+      required:
+        - company_links
+        - person_email
+        - person_id
+        - person_name
     PhoneProviderSettings:
       type: object
       properties:

@@ -49,18 +49,16 @@
     :is-open="isModalOpen"
     :company-id="companyId"
     :company-name="companyName"
-    :people="activePersonLinks"
+    :people="activePeople"
     :selected-person="selectedPerson"
     :is-loading="isLoading"
     :person-form="personForm"
-    :editing-person-link="editingPersonLink"
-    :is-editing="isEditing"
+    :phone-ownership="phoneOwnership"
     @close="closeModal"
     @select-person="selectExistingPerson"
     @save-person="handleSavePerson"
-    @edit-person="handleEditPerson"
-    @delete-person="handleDeletePerson"
-    @cancel-edit="cancelEdit"
+    @link-person="handleLinkPerson"
+    @create-separate-person="handleCreateSeparatePerson"
     @update:person-form="updatePersonForm"
   />
 </template>
@@ -76,7 +74,8 @@ import PersonSelectionModal from './PersonSelectionModal.vue'
 import { schemas } from '../api/generated/api'
 import { z } from 'zod'
 
-type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
+type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
+type PhonePersonMatch = z.infer<typeof schemas.PhonePersonMatch>
 
 const props = withDefaults(
   defineProps<{
@@ -99,7 +98,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
-  'update:selectedPerson': [person: CompanyPersonLink | null]
+  'update:selectedPerson': [person: CompanyPerson | null]
 }>()
 
 const {
@@ -108,6 +107,7 @@ const {
   selectedPerson,
   isLoading,
   personForm,
+  phoneOwnership,
   displayValue,
   openModal,
   closeModal,
@@ -115,16 +115,11 @@ const {
   setSelectedPerson,
   selectExistingPerson: selectFromComposable,
   savePerson,
+  createNewPerson,
+  linkExistingPerson,
   clearSelection: clearFromComposable,
   findPrimaryPerson,
-  // Edit mode state and functions
-  editingPersonLink,
-  isEditing,
-  activePersonLinks,
-  startEditPerson,
-  cancelEdit,
-  updatePerson,
-  deletePerson,
+  activePeople,
 } = usePersonManagement()
 
 const suppressEmit = ref(false)
@@ -155,7 +150,7 @@ const handleOpenModal = async () => {
   })
 }
 
-const selectExistingPerson = (person: CompanyPersonLink) => {
+const selectExistingPerson = (person: CompanyPerson) => {
   debugLog('PersonSelector - selectExistingPerson:', person)
   selectFromComposable(person)
 }
@@ -164,7 +159,6 @@ const handleSavePerson = async () => {
   debugLog('PersonSelector - handleSavePerson: before save', {
     personForm: personForm.value,
     selectedPerson: selectedPerson.value,
-    isEditing: isEditing.value,
   })
 
   // Validate email format before saving
@@ -175,15 +169,8 @@ const handleSavePerson = async () => {
     return
   }
 
-  const actionLabel = isEditing.value ? 'Updating' : 'Creating'
-  toast.info(`${actionLabel} person...`, { id: 'save-person' })
-
-  let success: boolean
-  if (isEditing.value) {
-    success = await updatePerson()
-  } else {
-    success = await savePerson()
-  }
+  toast.info('Creating person...', { id: 'save-person' })
+  const success = await savePerson()
 
   toast.dismiss('save-person')
 
@@ -194,35 +181,28 @@ const handleSavePerson = async () => {
   })
 
   if (success) {
-    toast.success(`Person ${isEditing.value ? 'updated' : 'created'} successfully!`, {
+    toast.success('Person created successfully!', {
       dismissible: true,
       position: 'top-left',
     })
-  } else {
-    toast.error(
-      `Failed to ${isEditing.value ? 'update' : 'create'} person. Please check the form and try again.`,
-    )
+  } else if (!phoneOwnership.value) {
+    toast.error('Failed to create person. Please check the form and try again.')
   }
 }
 
-const handleEditPerson = (person: CompanyPersonLink) => {
-  debugLog('PersonSelector - handleEditPerson:', person)
-  startEditPerson(person)
+const handleLinkPerson = async (person: PhonePersonMatch) => {
+  toast.info('Linking existing person...', { id: 'save-person' })
+  const success = await linkExistingPerson(person)
+  toast.dismiss('save-person')
+  if (success) toast.success('Existing person linked successfully')
 }
 
-const handleDeletePerson = async (personLinkId: string) => {
-  debugLog('PersonSelector - handleDeletePerson:', personLinkId)
-  toast.info('Deleting person...', { id: 'delete-person' })
-
-  const success = await deletePerson(personLinkId)
-
-  toast.dismiss('delete-person')
-
-  if (success) {
-    toast.success('Person removed successfully')
-  } else {
-    toast.error('Failed to remove person. Please try again.')
-  }
+const handleCreateSeparatePerson = async () => {
+  toast.info('Creating separate person...', { id: 'save-person' })
+  const success = await createNewPerson(true)
+  toast.dismiss('save-person')
+  if (success) toast.success('Person created successfully')
+  else toast.error('Failed to create separate person')
 }
 
 // Email validation helper
@@ -316,7 +296,7 @@ watch(
   async ([companyId, initialId]) => {
     debugLog('PersonSelector - unified watch:', { companyId, initialId })
 
-    // Quando mudar o cliente: limpe estado local (sem emitir)
+    // Clear local selection without emitting when the company changes.
     suppressEmit.value = true
     displayValue.value = ''
     selectedPerson.value = null
@@ -331,7 +311,7 @@ watch(
     // Evitar corridas: token local
     const token = ++loadToken
 
-    // Carrega contatos do cliente atual
+    // Load people linked to the current company.
     await loadPeopleOnly(companyId)
     if (token !== loadToken) return // request antigo, ignora
 
@@ -343,7 +323,7 @@ watch(
     // (auto-selection should not trigger saves - only user actions should)
     const decideAndSelect = () => {
       const choose =
-        (initialId && people.value.find((c: CompanyPersonLink) => c.person === initialId)) ||
+        (initialId && people.value.find((person) => person.person_id === initialId)) ||
         (!initialId && findPrimaryPerson()) ||
         null
 

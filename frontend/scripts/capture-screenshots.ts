@@ -200,11 +200,17 @@ const SCREENSHOTS: ScreenshotDef[] = [
     fullPage: true,
   },
 
-  // === CLIENTS ===
+  // === CRM ===
   {
-    id: 'clients-list',
-    description: 'Client list with search and filters',
-    route: '/crm/clients',
+    id: 'companies-list',
+    description: 'Company list with search and filters',
+    route: '/crm/companies',
+    waitFor: 'main',
+  },
+  {
+    id: 'people-list',
+    description: 'People directory with company relationships',
+    route: '/crm/people',
     waitFor: 'main',
   },
 

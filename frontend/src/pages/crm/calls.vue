@@ -122,7 +122,11 @@
               :disabled="!selectedCompanyId"
             >
               <option value="">No specific person</option>
-              <option v-for="person in personOptions" :key="person.id" :value="person.person">
+              <option
+                v-for="person in personOptions"
+                :key="person.person_id"
+                :value="person.person_id"
+              >
                 {{ person.person_name }}
               </option>
             </select>
@@ -211,7 +215,7 @@ const {
   suggestions: companyOptions,
   people: personOptions,
   browseCompanies: searchCompanies,
-  loadCompanyPersonLinks,
+  loadCompanyPeople,
   logSelectedCompanyClick,
 } = useCompanyLookup()
 
@@ -348,7 +352,7 @@ watch(selectedCompanyId, (companyId) => {
   if (!companyId) {
     selectedPersonId.value = ''
   }
-  void loadCompanyPersonLinks(companyId)
+  void loadCompanyPeople(companyId)
 })
 
 onMounted(() => {

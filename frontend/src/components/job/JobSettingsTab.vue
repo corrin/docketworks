@@ -384,7 +384,7 @@ import { onConcurrencyRetry } from '@/composables/useConcurrencyEvents'
 import { useSaveFeedback } from '@/composables/useSaveFeedback'
 import { requiredNumber } from '@/utils/requiredNumber'
 
-type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
+type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
 
 // Use the existing JobHeaderResponse schema from generated API
 type Job = z.infer<typeof schemas.JobHeaderResponse>
@@ -1155,30 +1155,30 @@ const handleCompanyUpdated = (updatedCompany: Company) => {
   toast.success('Company updated successfully')
 }
 
-const handlePersonSelected = async (personLink: CompanyPersonLink | null) => {
+const handlePersonSelected = async (personLink: CompanyPerson | null) => {
   if (personLink) {
     // Skip API call if person is already set to this value
     // This handles:
     // - Scenario 4: Company change - backend sets person in response, no duplicate API call needed
     // - User re-selecting the same person
-    if (localJobData.value.person_id === personLink.person) {
+    if (localJobData.value.person_id === personLink.person_id) {
       // Still update display value in case it's stale
       localJobData.value.person_name = personLink.person_name
       personDisplayValue.value = personLink.person_name
       jobsStore.patchHeader(props.jobId, {
-        person_id: personLink.person,
+        person_id: personLink.person_id,
         person_name: personLink.person_name,
       })
       return
     }
 
-    localJobData.value.person_id = personLink.person
+    localJobData.value.person_id = personLink.person_id
     localJobData.value.person_name = personLink.person_name
     personDisplayValue.value = personLink.person_name
 
     // Ensure all fields are present for Zod validation (convert undefined to null)
     const personToSend = {
-      id: personLink.person,
+      id: personLink.person_id,
       name: personLink.person_name,
       email: personLink.person_email ?? null,
     } satisfies z.input<typeof schemas.JobPersonUpdateRequest>
@@ -1188,10 +1188,10 @@ const handlePersonSelected = async (personLink: CompanyPersonLink | null) => {
       await api.companies_jobs_person_update(personToSend, {
         params: { job_id: props.jobId },
       })
-      serverBaseline.value.person_id = personLink.person
+      serverBaseline.value.person_id = personLink.person_id
       serverBaseline.value.person_name = personLink.person_name
       jobsStore.patchHeader(props.jobId, {
-        person_id: personLink.person,
+        person_id: personLink.person_id,
         person_name: personLink.person_name,
       })
       toast.success('Person updated successfully')

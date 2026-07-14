@@ -19,6 +19,8 @@ const TITLES: Record<string, string> = {
   '/xero': 'Xero Sync - DocketWorks',
   '/crm/companies': 'Companies - DocketWorks',
   '/crm/companies/:id': 'Company Details - DocketWorks',
+  '/crm/people': 'People - DocketWorks',
+  '/crm/people/:id': 'Person Details - DocketWorks',
   '/crm/calls': 'Calls - DocketWorks',
   '/purchasing/po': 'Purchase Orders - DocketWorks',
   '/purchasing/po/create': 'Create Purchase Order - DocketWorks',

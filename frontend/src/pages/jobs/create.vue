@@ -252,7 +252,7 @@ import { z } from 'zod'
 import { debugLog } from '@/utils/debug'
 
 type CompanySearchResult = z.infer<typeof schemas.CompanySearchResult>
-type CompanyPersonLink = z.infer<typeof schemas.CompanyPersonLink>
+type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
 import { toast } from 'vue-sonner'
 
 const personSelectorRef = ref<InstanceType<typeof PersonSelector> | null>(null)
@@ -311,7 +311,7 @@ const formData = ref<JobCreateData>({
 const companyDisplayName = ref('')
 
 const selectedCompany = ref<CompanySearchResult | null>(null)
-const selectedPerson = ref<CompanyPersonLink | null>(null)
+const selectedPerson = ref<CompanyPerson | null>(null)
 const personDisplayName = ref('')
 
 const errors = ref<Record<string, string>>({})
@@ -364,11 +364,11 @@ const handleCompanySelection = async (company: CompanySearchResult | null) => {
   }
 }
 
-const updateSelectedPerson = (personLink: CompanyPersonLink | null) => {
+const updateSelectedPerson = (personLink: CompanyPerson | null) => {
   selectedPerson.value = personLink
   if (personLink) {
     // Save the person ID for the API and display name for the UI
-    formData.value.person_id = personLink.person
+    formData.value.person_id = personLink.person_id
     personDisplayName.value = personLink.person_name
   } else {
     formData.value.person_id = null

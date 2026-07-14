@@ -5,60 +5,55 @@ import { useCompanyStore } from '@/stores/companyStore'
 
 vi.mock('@/api/client', () => ({
   api: {
-    companies_person_links_list: vi.fn(),
+    companies_people_list: vi.fn(),
   },
 }))
 
 const mockedApi = vi.mocked(api)
 
-describe('company store people links', () => {
+describe('company store people', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
   })
 
-  it('fetchCompanyPersonLinks updates companyPeople as a side effect', async () => {
+  it('fetchCompanyPeople updates companyPeople as a side effect', async () => {
     const store = useCompanyStore()
     const previousCompanyPeople = store.companyPeople
     const people = [
       {
-        id: 'link-1',
-        company: 'company-1',
-        person: 'person-1',
+        person_id: 'person-1',
         person_name: 'Jane Doe',
         person_email: 'jane@example.com',
         position: null,
         is_primary: true,
         notes: null,
-        is_active: true,
-        created_at: '2026-01-01T00:00:00+00:00',
-        updated_at: '2026-01-01T00:00:00+00:00',
-        phone: '+64 21 555 0100',
+        primary_phone: '+64 21 555 0100',
       },
     ]
-    mockedApi.companies_person_links_list.mockResolvedValueOnce(people)
+    mockedApi.companies_people_list.mockResolvedValueOnce(people)
 
-    const result = await store.fetchCompanyPersonLinks('company-1')
+    const result = await store.fetchCompanyPeople('company-1')
 
     expect(result).toBeUndefined()
     expect(store.companyPeople).not.toBe(previousCompanyPeople)
     expect(store.companyPeople['company-1']).toEqual(people)
   })
 
-  it('getCompanyPersonLinks uses cached state and otherwise fetches as a side effect', async () => {
+  it('getCompanyPeople uses cached state and otherwise fetches as a side effect', async () => {
     const store = useCompanyStore()
-    mockedApi.companies_person_links_list.mockResolvedValueOnce([])
+    mockedApi.companies_people_list.mockResolvedValueOnce([])
 
-    const result = await store.getCompanyPersonLinks('company-1')
+    const result = await store.getCompanyPeople('company-1')
 
     expect(result).toBeUndefined()
-    expect(mockedApi.companies_person_links_list).toHaveBeenCalledWith({
-      queries: { company_id: 'company-1' },
+    expect(mockedApi.companies_people_list).toHaveBeenCalledWith({
+      params: { company_id: 'company-1' },
     })
     expect(store.companyPeople['company-1']).toEqual([])
 
-    await store.getCompanyPersonLinks('company-1')
+    await store.getCompanyPeople('company-1')
 
-    expect(mockedApi.companies_person_links_list).toHaveBeenCalledTimes(1)
+    expect(mockedApi.companies_people_list).toHaveBeenCalledTimes(1)
   })
 })

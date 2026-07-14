@@ -816,7 +816,9 @@ def assign_phone_number(
             person = Person.objects.get(id=person_uuid, is_active=True)
         except Person.DoesNotExist as exc:
             raise ValueError("Person not found") from exc
-        if not person.company_links.filter(company_id=company_uuid).exists():
+        if not person.company_links.filter(
+            company_id=company_uuid, is_active=True
+        ).exists():
             raise ValueError("Person is not linked to the selected company")
         owner_filter = {
             "person": person,

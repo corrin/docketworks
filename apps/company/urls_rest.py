@@ -21,7 +21,10 @@ from apps.company.views.company_rest_views import (
     JobPersonRestView,
 )
 from apps.company.views.contact_method_viewset import ContactMethodViewSet
-from apps.company.views.contact_viewset import CompanyPersonLinkViewSet
+from apps.company.views.person_views import (
+    CompanyPeopleView,
+    CompanyPersonPhoneOwnershipView,
+)
 from apps.company.views.supplier_pickup_address_viewset import (
     SupplierPickupAddressViewSet,
 )
@@ -38,9 +41,6 @@ router.register(
     "contact-methods",
     ContactMethodViewSet,
     basename="contact-method",
-)
-router.register(
-    "person-links", CompanyPersonLinkViewSet, basename="company-person-link"
 )
 router.register(
     "pickup-addresses", SupplierPickupAddressViewSet, basename="supplier-pickup-address"
@@ -82,6 +82,16 @@ urlpatterns = [
         "<uuid:company_id>/jobs/",
         CompanyJobsRestView.as_view(),
         name="company_jobs_rest",
+    ),
+    path(
+        "<uuid:company_id>/people/",
+        CompanyPeopleView.as_view(),
+        name="company_people_rest",
+    ),
+    path(
+        "<uuid:company_id>/people/phone-ownership/",
+        CompanyPersonPhoneOwnershipView.as_view(),
+        name="company_person_phone_ownership_rest",
     ),
     path(
         "<uuid:company_id>/supplier-aliases/",

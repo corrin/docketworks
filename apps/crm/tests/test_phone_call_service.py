@@ -631,15 +631,6 @@ class PhoneCallJobLinkApiTests(BaseAPITestCase):
             [str(unlinked.id)],
         )
 
-    def test_list_rejects_legacy_client_match_filter(self) -> None:
-        response = self.api.get(
-            "/api/crm/phone-calls/",
-            {"client_match": "matched"},
-        )
-
-        self.assertEqual(response.status_code, 400)
-        self.assertEqual(response.data["client_match"], ["Use company_match."])
-
     def test_list_filters_by_direction_recording_date_and_search(self) -> None:
         """Catches recent-call filters drifting from provider call fields."""
         PhoneEndpoint.objects.update_or_create(

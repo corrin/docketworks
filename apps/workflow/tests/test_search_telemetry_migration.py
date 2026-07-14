@@ -10,7 +10,7 @@ class SearchTelemetryTerminologyMigrationTests(TransactionTestCase):
         ("workflow", "0007_rename_search_telemetry_client_domain"),
     )
     migrate_to: ClassVar[tuple[tuple[str, str], ...]] = (
-        ("workflow", "0008_rename_search_telemetry_company_lookup_source"),
+        ("workflow", "0009_rename_remaining_crm_telemetry_sources"),
     )
 
     def setUp(self) -> None:
@@ -35,6 +35,20 @@ class SearchTelemetryTerminologyMigrationTests(TransactionTestCase):
             query="Acme",
             normalized_query="acme",
         )
+        companies_table = SearchTelemetryEvent.objects.create(
+            event_type="click",
+            domain="company",
+            source="crm_clients_table",
+            query="Beta",
+            normalized_query="beta",
+        )
+        company_detail = SearchTelemetryEvent.objects.create(
+            event_type="click",
+            domain="company",
+            source="crm_client_detail_phone_numbers",
+            query="Gamma",
+            normalized_query="gamma",
+        )
 
         self.executor.loader.build_graph()
         self.executor.migrate(self.migrate_to)
@@ -43,6 +57,14 @@ class SearchTelemetryTerminologyMigrationTests(TransactionTestCase):
 
         event = SearchTelemetryEvent.objects.get(pk=event.pk)
         self.assertEqual(event.source, "company_lookup")
+        self.assertEqual(
+            SearchTelemetryEvent.objects.get(pk=companies_table.pk).source,
+            "crm_companies_table",
+        )
+        self.assertEqual(
+            SearchTelemetryEvent.objects.get(pk=company_detail.pk).source,
+            "crm_company_detail_phone_numbers",
+        )
 
         self.executor.loader.build_graph()
         self.executor.migrate(self.migrate_from)
@@ -53,3 +75,11 @@ class SearchTelemetryTerminologyMigrationTests(TransactionTestCase):
 
         event = SearchTelemetryEvent.objects.get(pk=event.pk)
         self.assertEqual(event.source, "client_lookup")
+        self.assertEqual(
+            SearchTelemetryEvent.objects.get(pk=companies_table.pk).source,
+            "crm_clients_table",
+        )
+        self.assertEqual(
+            SearchTelemetryEvent.objects.get(pk=company_detail.pk).source,
+            "crm_client_detail_phone_numbers",
+        )
