@@ -201,10 +201,9 @@
               </button>
               <button
                 type="submit"
-                :disabled="isSubmitting || !canSubmit || hasCreationError"
+                :disabled="isSubmitting || !canSubmit"
                 data-automation-id="JobCreateView-submit"
                 class="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                :class="{ 'bg-red-600 hover:bg-red-700': hasCreationError }"
               >
                 <span v-if="isSubmitting" class="flex items-center">
                   <svg
@@ -250,6 +249,7 @@ import { jobService, type JobCreateData } from '@/services/job.service'
 import { schemas } from '@/api/generated/api'
 import { z } from 'zod'
 import { debugLog } from '@/utils/debug'
+import { extractErrorMessage, createErrorToast, logError } from '@/utils/error-handler'
 
 type CompanySearchResult = z.infer<typeof schemas.CompanySearchResult>
 type CompanyPerson = z.infer<typeof schemas.CompanyPerson>
@@ -316,7 +316,6 @@ const personDisplayName = ref('')
 
 const errors = ref<Record<string, string>>({})
 const isSubmitting = ref(false)
-const hasCreationError = ref(false)
 
 const handleCompanySelection = async (company: CompanySearchResult | null) => {
   debugLog('JobCreateView - handleCompanySelection:', {
@@ -460,36 +459,44 @@ const handleSubmit = async () => {
   toast.info('Creating job…', { id: 'create-job' })
   debugLog('FormData: ', formData.value)
 
+  // Step 1: create the job. A failure here means no job exists — surface it and let the user retry.
+  let result: Awaited<ReturnType<typeof jobService.createJob>>
   try {
-    const result = await jobService.createJob(formData.value)
-
-    if (result.success && result.job_id) {
-      toast.success('Job created!')
-      toast.dismiss('create-job')
-
-      // Redirect to quote tab for fixed price jobs, estimate to t&m jobs
-      const defaultTab = formData.value.pricing_methodology === 'fixed_price' ? 'quote' : 'estimate'
-      await router.push({
-        name: '/jobs/[id]/(index)',
-        params: { id: result.job_id },
-        query: { new: 'true', tab: defaultTab },
-      })
-    } else {
-      throw new Error(result.message || 'Failed to create job')
-    }
+    result = await jobService.createJob(formData.value)
   } catch (error: unknown) {
-    const errorMessage = (error as Error).message || String(error)
-    // Save form data and error state in localStorage, then reload the page
-    localStorage.setItem('jobCreationFormData', JSON.stringify(formData.value))
-    localStorage.setItem('hasJobCreationError', 'true')
-    localStorage.setItem('jobCreationErrorMessage', errorMessage)
-    localStorage.setItem('selectedCompany', JSON.stringify(selectedCompany.value))
-
-    window.location.reload()
-    debugLog('Job creation error:', error)
     toast.dismiss('create-job')
+    logError('job creation', error)
+    toast.error(extractErrorMessage(error), createErrorToast())
+    isSubmitting.value = false
+    return
+  }
 
-    hasCreationError.value = true
+  if (!result.success || !result.job_id) {
+    toast.dismiss('create-job')
+    toast.error(result.message || 'Failed to create job', createErrorToast())
+    isSubmitting.value = false
+    return
+  }
+
+  toast.success('Job created!')
+  toast.dismiss('create-job')
+
+  // Step 2: navigate to the new job. The job already exists — a navigation failure must NOT
+  // read as a creation failure, and must never silently reload (which is what masked the real
+  // error as an E2E timeout).
+  const defaultTab = formData.value.pricing_methodology === 'fixed_price' ? 'quote' : 'estimate'
+  try {
+    await router.push({
+      name: '/jobs/[id]/(index)',
+      params: { id: result.job_id },
+      query: { new: 'true', tab: defaultTab },
+    })
+  } catch (error: unknown) {
+    logError('navigate to created job', error)
+    toast.error(
+      `Job #${result.job_number} was created but the page did not open — find it on the jobs list.`,
+      createErrorToast(),
+    )
     isSubmitting.value = false
   }
 }
@@ -499,36 +506,15 @@ watch(formData.value, () => {
 })
 
 onMounted(() => {
-  const hasError = localStorage.getItem('hasJobCreationError') === 'true'
-  const errorMessage = localStorage.getItem('jobCreationErrorMessage') || 'Unknown error'
-  const storedFormData = localStorage.getItem('jobCreationFormData')
-
-  if (hasError) {
-    formData.value = storedFormData ? JSON.parse(storedFormData) : formData.value
-    selectedCompany.value = localStorage.getItem('selectedCompany')
-      ? JSON.parse(localStorage.getItem('selectedCompany') as string)
-      : null
-    handleCompanySelection(selectedCompany.value)
-    localStorage.removeItem('jobCreationFormData')
-    localStorage.removeItem('hasJobCreationError')
-    localStorage.removeItem('selectedCompany')
-    toast.error('Previous job creation failed', {
-      description: `Page reloaded and state saved. Original error: ${errorMessage}`,
-      dismissible: true,
-    })
-    debugLog('Restored form data after error:', formData.value)
-    debugLog('Restored selected company after error:', selectedCompany.value)
-  } else {
-    formData.value.name = ''
-    formData.value.company_id = ''
-    companyDisplayName.value = ''
-    formData.value.description = ''
-    formData.value.order_number = ''
-    formData.value.notes = ''
-    formData.value.person_id = null
-    formData.value.estimated_materials = 0
-    formData.value.estimated_time = 0
-    formData.value.pricing_methodology = 'time_materials'
-  }
+  formData.value.name = ''
+  formData.value.company_id = ''
+  companyDisplayName.value = ''
+  formData.value.description = ''
+  formData.value.order_number = ''
+  formData.value.notes = ''
+  formData.value.person_id = null
+  formData.value.estimated_materials = 0
+  formData.value.estimated_time = 0
+  formData.value.pricing_methodology = 'time_materials'
 })
 </script>
