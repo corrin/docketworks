@@ -116,7 +116,6 @@ def wipe_tokens_and_quota(app: XeroApp) -> None:
     from Xero's perspective; old tokens and quota state are invalid).
     """
     XeroApp.objects.filter(id=app.id).update(
-        tenant_id=None,
         token_type=None,
         access_token=None,
         refresh_token=None,

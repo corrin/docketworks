@@ -2557,15 +2557,15 @@ const CompanyLinkWriteRequest = z
 const PersonContactMethodWriteRequest = z.object({
   method_type: ContactMethodTypeEnum,
   value: z.string().min(1).max(255),
-  label: z.string().optional().default(''),
   is_primary: z.boolean().optional().default(false),
+  label: z.string().optional().default(''),
 })
 const PatchedPersonContactMethodWriteRequest = z
   .object({
     method_type: ContactMethodTypeEnum,
     value: z.string().min(1).max(255),
-    label: z.string().default(''),
     is_primary: z.boolean().default(false),
+    label: z.string().default(''),
   })
   .partial()
 const CategoriesResponse = z.object({
@@ -3550,7 +3550,6 @@ const XeroApp = z.object({
   redirect_uri: z.string().max(512),
   is_active: z.boolean(),
   has_tokens: z.boolean(),
-  tenant_id: z.string().nullable(),
   day_remaining: z.number().int().nullable(),
   minute_remaining: z.number().int().nullable(),
   snapshot_at: z.string().datetime({ offset: true }).nullable(),
@@ -3572,7 +3571,6 @@ const XeroAppCreate = z.object({
   redirect_uri: z.string().max(512),
   is_active: z.boolean(),
   has_tokens: z.boolean(),
-  tenant_id: z.string().nullable(),
   day_remaining: z.number().int().nullable(),
   minute_remaining: z.number().int().nullable(),
   snapshot_at: z.string().datetime({ offset: true }).nullable(),

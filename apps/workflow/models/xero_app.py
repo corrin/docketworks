@@ -31,7 +31,6 @@ class XeroApp(models.Model):
 
     is_active = models.BooleanField(default=False)
 
-    tenant_id = models.CharField(max_length=100, null=True, blank=True)
     token_type = models.CharField(max_length=50, null=True, blank=True)
     access_token = models.TextField(null=True, blank=True)
     refresh_token = models.TextField(null=True, blank=True)

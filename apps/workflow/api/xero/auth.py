@@ -145,15 +145,9 @@ def _make_token_saver(app_id) -> Callable[[Dict[str, Any]], None]:
     here, NOT to whichever row is currently active. This is what makes
     credential swaps safe under concurrent refreshes.
 
-    The saver writes tokens only — never tenant_id. tenant_id is per-app
-    and a connections lookup needs an ApiClient; the only ApiClient
-    available here is the global ``api_client`` proxy, which resolves to
-    the currently active row, not necessarily ``app_id``. Writing the
-    proxy's tenant onto ``app_id``'s row would corrupt the row→tenant
-    binding the moment ``app_id`` isn't the active one (e.g. a refresh
-    in flight when an operator swaps active apps). XeroApp.tenant_id is
-    informational; live calls read CompanyDefaults.xero_tenant_id and the
-    global TENANT_ID_CACHE_KEY, not this column.
+    The saver writes token fields only. The active tenant lives on
+    CompanyDefaults.xero_tenant_id and the global TENANT_ID_CACHE_KEY —
+    resolved per call by get_tenant_id(), never stored on the app row.
     """
 
     def _save(token: Dict[str, Any]) -> None:
