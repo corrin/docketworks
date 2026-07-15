@@ -105,6 +105,11 @@ urlpatterns = [
         name="stream_xero_sync",
     ),
     path(
+        "xero/branding-themes/",
+        xero_view.list_xero_branding_themes,
+        name="xero_branding_themes_list",
+    ),
+    path(
         "xero/create_invoice/<uuid:job_id>",
         xero_view.create_xero_invoice,
         name="create_invoice",

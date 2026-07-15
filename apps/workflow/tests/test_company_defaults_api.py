@@ -1,3 +1,5 @@
+import uuid
+
 from django.db import connection
 from django.test.utils import CaptureQueriesContext
 from rest_framework import status
@@ -51,3 +53,29 @@ class CompanyDefaultsAPITests(BaseTestCase):
         self.assertIsNone(company_defaults.master_quote_template_url)
         self.assertIsNone(company_defaults.gdrive_quotes_folder_url)
         self.assertIsNone(company_defaults.company_url)
+
+    def test_patch_persists_and_clears_xero_sales_branding_theme(self) -> None:
+        """Admins can operate the required Xero document theme setting."""
+        theme_id = uuid.uuid4()
+        client = APIClient()
+        client.force_authenticate(user=self.test_staff)
+
+        response = client.patch(
+            "/api/company-defaults/",
+            {"xero_sales_branding_theme_id": str(theme_id)},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertEqual(payload["xero_sales_branding_theme_id"], str(theme_id))
+
+        response = client.patch(
+            "/api/company-defaults/",
+            {"xero_sales_branding_theme_id": None},
+            format="json",
+        )
+        payload = response.json()
+
+        self.assertEqual(response.status_code, status.HTTP_200_OK)
+        self.assertIsNone(payload["xero_sales_branding_theme_id"])

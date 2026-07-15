@@ -241,7 +241,9 @@ python manage.py xero --setup
 Configures all required Xero settings in CompanyDefaults:
 1. Sets `xero_tenant_id` from connected organisation
 2. Sets `xero_shortcode` for deep linking
-3. Looks up payroll calendar by name and sets `xero_payroll_calendar_id`
+3. Preserves a live sales branding theme selection or replaces a restored,
+   cross-tenant ID with the destination organisation's real default theme
+4. Looks up payroll calendar by name and sets `xero_payroll_calendar_id`
 
 **Expected output:**
 
@@ -249,6 +251,7 @@ Configures all required Xero settings in CompanyDefaults:
 Using organisation: [Tenant Name]
 Tenant ID: [tenant-id-uuid]
 Shortcode: [shortcode]
+Sales Branding Theme: [theme name] ([theme-uuid])
 Payroll Calendar: Weekly Testing ([calendar-uuid])
 Xero setup complete.
 ```
@@ -349,6 +352,10 @@ python scripts/restore_checks/test_kanban_api.py
 ```
 API working: 174 active jobs, 23 archived
 ```
+
+Open one recreated quote and one recreated invoice in Xero and confirm their
+PDFs use the selected destination branding theme and contain the required
+terms. A successful API seed alone does not verify document presentation.
 
 #### Snapshot Verified Database
 

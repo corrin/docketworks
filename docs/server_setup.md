@@ -213,6 +213,10 @@ For a prospect trying DocketWorks with their own Xero:
    scripts/server/dw-run.sh <name> python manage.py start_xero_sync --entity accounts
    ```
 
+   `xero --setup` stores the connected organisation's real default sales
+   branding theme. In Admin > Settings, select the terms-bearing theme if the
+   organisation uses a different theme for customer documents.
+
 5. **Import staff from Xero**
 
    ```bash
@@ -226,7 +230,9 @@ For a prospect trying DocketWorks with their own Xero:
    This pulls employees from Xero Payroll and creates Staff records with their
    wage rates and working hours. All imported staff get `password_needs_reset=True`.
 
-6. **Verify** — log in as admin, check Staff list, mark office staff via admin UI
+6. **Verify** — log in as admin, check Staff list, mark office staff via admin
+   UI, then create a quote and invoice and confirm their Xero PDFs contain the
+   required terms
 
 ---
 

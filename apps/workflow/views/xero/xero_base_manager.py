@@ -8,6 +8,7 @@ from apps.company.models import Company
 # Import models used in type hints or logic
 from apps.job.models import Job
 from apps.workflow.accounting.registry import get_provider
+from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
 logger = logging.getLogger("xero")
@@ -92,6 +93,14 @@ class XeroDocumentManager(ABC):
         Returns the account code for the given account name.
         """
         return self.provider.get_account_code(account_name)
+
+    @staticmethod
+    def get_xero_sales_branding_theme_id() -> str | None:
+        """Return the configured Xero theme used for sales documents."""
+        theme_id = CompanyDefaults.get_solo().xero_sales_branding_theme_id
+        if theme_id is None:
+            return None
+        return str(theme_id)
 
     def validate_company(self):
         """

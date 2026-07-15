@@ -91,3 +91,61 @@ test('test company defaults edit and save', async ({ authenticatedPage: page }) 
 
   console.log(`Restored company email to: ${originalValue}`)
 })
+
+test('test Xero sales branding theme save, reload, and restore', async ({
+  authenticatedPage: page,
+}) => {
+  await page.goto('/admin/company/xero')
+
+  const selector = page.locator(
+    '[data-automation-id="SectionForm-xero-field-xero_sales_branding_theme_id"]',
+  )
+  await expect(selector).toBeVisible({ timeout: 15000 })
+  await expect(selector).toBeEnabled({ timeout: 15000 })
+
+  const originalValue = await selector.inputValue()
+  const availableThemeIds = await selector
+    .locator('option')
+    .evaluateAll((options) =>
+      options
+        .filter(
+          (option) => option.value !== '' && !option.textContent?.startsWith('Unavailable theme'),
+        )
+        .map((option) => option.value),
+    )
+  test.skip(availableThemeIds.length === 0, 'The connected Xero tenant has no branding themes')
+
+  const differentThemeId = availableThemeIds.find((id) => id !== originalValue)
+  const testValue = differentThemeId ?? ''
+  let changed = false
+
+  try {
+    await selector.selectOption(testValue)
+    changed = testValue !== originalValue
+    await expect(
+      page.locator('[data-automation-id="AdminCompanySectionView-save-button"]'),
+    ).toBeEnabled()
+    await page.click('[data-automation-id="AdminCompanySectionView-save-button"]')
+    await expect(
+      page.locator('[data-automation-id="AdminCompanySectionView-save-button"]'),
+    ).toBeDisabled({ timeout: 10000 })
+
+    await page.reload()
+    await expect(selector).toBeVisible({ timeout: 15000 })
+    await expect(selector).toHaveValue(testValue)
+  } finally {
+    if (changed) {
+      await page.goto('/admin/company/xero')
+      await expect(selector).toBeEnabled({ timeout: 15000 })
+      if ((await selector.inputValue()) !== originalValue) {
+        await selector.selectOption(originalValue)
+        await page.click('[data-automation-id="AdminCompanySectionView-save-button"]')
+        await expect(
+          page.locator('[data-automation-id="AdminCompanySectionView-save-button"]'),
+        ).toBeDisabled({ timeout: 10000 })
+        await page.reload()
+        await expect(selector).toHaveValue(originalValue)
+      }
+    }
+  }
+})

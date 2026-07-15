@@ -125,6 +125,16 @@ class CompanyDefaults(SingletonModel):
         blank=True,
         help_text="Xero organisation shortcode for deep linking (e.g., '!8-5Xl')",
     )
+    xero_sales_branding_theme_id = models.UUIDField(
+        null=True,
+        blank=True,
+        verbose_name="Xero sales branding theme",
+        help_text=(
+            "Branding theme applied to every quote and sales invoice created in "
+            "Xero. Select a theme containing the required terms and conditions; "
+            "document creation is blocked until one is selected."
+        ),
+    )
     enable_xero_sync = models.BooleanField(
         default=True,
         help_text="Gate for Xero sync. Defaults True (prod). Dev fixture sets False; seed_xero_from_database sets True after prod IDs are cleared.",

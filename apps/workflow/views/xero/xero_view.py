@@ -41,6 +41,7 @@ from apps.accounts.models import Staff
 from apps.job.models import Job
 from apps.job.permissions import IsOfficeStaff
 from apps.purchasing.models import PurchaseOrder
+from apps.workflow.accounting.registry import get_provider
 from apps.workflow.api.pagination import FiftyPerPagePagination
 from apps.workflow.api.xero.active_app import (
     NoActiveXeroApp,
@@ -62,6 +63,7 @@ from apps.workflow.exceptions import (
 from apps.workflow.models import XeroError, XeroPayItem
 from apps.workflow.serializers import (
     XeroAuthenticationErrorResponseSerializer,
+    XeroBrandingThemeSerializer,
     XeroDocumentErrorResponseSerializer,
     XeroDocumentSuccessResponseSerializer,
     XeroErrorSerializer,
@@ -413,6 +415,46 @@ def ensure_xero_authentication() -> XeroAuthenticationResult:
             status_code=status.HTTP_401_UNAUTHORIZED,
         )
     return XeroAuthenticationResult(tenant_id=tenant_id)
+
+
+@extend_schema(
+    operation_id="xero_branding_themes_list",
+    tags=["Xero"],
+    request=None,
+    responses={
+        200: XeroBrandingThemeSerializer(many=True),
+        401: XeroAuthenticationErrorResponseSerializer,
+        500: XeroDocumentErrorResponseSerializer,
+    },
+    description="Lists Xero branding themes available for quotes and sales invoices.",
+)
+@api_view(["GET"])
+@permission_classes([IsAuthenticated, IsOfficeStaff])
+def list_xero_branding_themes(request: Request) -> Response:
+    """Return selectable document themes from the connected Xero organisation."""
+    auth_result = ensure_xero_authentication()
+    if auth_result.error_data is not None:
+        return Response(auth_result.error_data, status=auth_result.status_code)
+
+    try:
+        themes = get_provider().list_document_themes()
+        serialized_themes = [
+            XeroBrandingThemeSerializer(theme).data for theme in themes
+        ]
+        return Response(serialized_themes, status=status.HTTP_200_OK)
+    except AlreadyLoggedException as exc:
+        return Response(
+            _build_xero_error_payload(exc),
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        )
+    except Exception as exc:
+        try:
+            persist_and_raise(exc, user_id=str(request.user.id))
+        except AlreadyLoggedException as logged_exc:
+            return Response(
+                _build_xero_error_payload(logged_exc),
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
 
 
 @csrf_exempt
@@ -956,6 +998,7 @@ def delete_xero_purchase_order(
             error_data = _build_xero_error_payload(logged_exc)
             messages.error(request, f"An unexpected error occurred: {str(exc)}")
             return Response(error_data, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+        raise AssertionError("persist_and_raise returned without raising")
 
 
 @extend_schema(

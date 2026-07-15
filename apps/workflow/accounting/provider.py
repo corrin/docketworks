@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from .types import (
         ContactResult,
         DocumentResult,
+        DocumentTheme,
         InvoicePayload,
         POPayload,
         QuotePayload,
@@ -74,6 +75,10 @@ class AccountingProvider(Protocol):
         ...
 
     # --- Documents ---
+
+    def list_document_themes(self) -> list[DocumentTheme]:
+        """List selectable document themes from the accounting system."""
+        ...
 
     def create_invoice(self, payload: InvoicePayload) -> DocumentResult:
         """Create an invoice in the accounting system."""

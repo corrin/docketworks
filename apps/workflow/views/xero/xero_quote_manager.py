@@ -127,7 +127,12 @@ class XeroQuoteManager(XeroDocumentManager):
                 )
             ]
 
-    def build_payload(self, breakdown: bool = True) -> QuotePayload:
+    def build_payload(
+        self,
+        breakdown: bool = True,
+        *,
+        document_theme_external_id: str,
+    ) -> QuotePayload:
         """Build a provider-agnostic quote payload from the job and company."""
         if not self.job:
             raise ValueError("Job is required to build quote payload.")
@@ -141,6 +146,7 @@ class XeroQuoteManager(XeroDocumentManager):
             line_items=line_items,
             date=today,
             expiry_date=today + timedelta(days=30),
+            document_theme_external_id=document_theme_external_id,
             reference=(
                 self.job.order_number
                 if hasattr(self.job, "order_number") and self.job.order_number
@@ -161,7 +167,22 @@ class XeroQuoteManager(XeroDocumentManager):
             if not self.state_valid_for_xero():
                 raise ValueError("Document is not in a valid state for submission.")
 
-            payload = self.build_payload(breakdown=breakdown)
+            document_theme_external_id = self.get_xero_sales_branding_theme_id()
+            if document_theme_external_id is None:
+                return {
+                    "success": False,
+                    "error": (
+                        "Select a Xero sales branding theme in Company Settings "
+                        "before creating a quote."
+                    ),
+                    "error_type": "configuration_error",
+                    "status": 400,
+                }
+
+            payload = self.build_payload(
+                breakdown=breakdown,
+                document_theme_external_id=document_theme_external_id,
+            )
             result = self.provider.create_quote(payload)
 
             if not result.success:

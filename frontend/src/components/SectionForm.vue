@@ -99,6 +99,41 @@
           </option>
         </select>
 
+        <div v-else-if="field.type === 'xero_branding_theme'" class="flex flex-col gap-1">
+          <select
+            :value="brandingThemeValue(field.key)"
+            class="h-9 text-sm rounded-md border border-input bg-background px-3 py-1"
+            :class="{
+              'bg-gray-100 cursor-not-allowed':
+                field.readOnly || brandingThemesLoading || brandingThemesError,
+            }"
+            :data-automation-id="`SectionForm-${section}-field-${field.key}`"
+            :disabled="field.readOnly || brandingThemesLoading || brandingThemesError !== null"
+            @change="onBrandingThemeChange(field.key, $event)"
+          >
+            <option value="">
+              {{ brandingThemesLoading ? 'Loading Xero branding themes…' : 'No theme selected' }}
+            </option>
+            <option v-if="unavailableBrandingThemeId" :value="unavailableBrandingThemeId">
+              Unavailable theme ({{ unavailableBrandingThemeId }})
+            </option>
+            <option
+              v-for="theme in brandingThemes"
+              :key="theme.branding_theme_id"
+              :value="theme.branding_theme_id"
+            >
+              {{ theme.name }}{{ theme.is_default ? ' (Xero default)' : '' }}
+            </option>
+          </select>
+          <p
+            v-if="brandingThemesError"
+            class="text-xs text-red-600"
+            :data-automation-id="`SectionForm-${section}-field-${field.key}-error`"
+          >
+            {{ brandingThemesError }}
+          </p>
+        </div>
+
         <Textarea
           v-else-if="field.type === 'textarea'"
           v-model="localForm[field.key] as string | undefined"
@@ -213,11 +248,16 @@ const FIELD_COL_SPAN_OVERRIDES: Record<string, 2> = {
   gdrive_reference_library_folder_id: 2,
   xero_tenant_id: 2,
   xero_payroll_calendar_id: 2,
+  xero_sales_branding_theme_id: 2,
 }
 
 const logoErrors = ref<Record<string, string>>({})
 const companyOptions = ref<CompanyOption[]>([])
 const companyOptionsLoading = ref(false)
+const brandingThemes = ref<Awaited<ReturnType<typeof api.xero_branding_themes_list>>>([])
+const brandingThemesLoading = ref(false)
+const brandingThemesError = ref<string | null>(null)
+const brandingThemesLoadAttempted = ref(false)
 
 const LOGO_ASPECT_RULES: Record<
   string,
@@ -475,6 +515,42 @@ async function loadCompanyOptions() {
   }
 }
 
+async function loadBrandingThemes() {
+  brandingThemesLoadAttempted.value = true
+  brandingThemesLoading.value = true
+  brandingThemesError.value = null
+  try {
+    brandingThemes.value = await api.xero_branding_themes_list()
+  } catch (e) {
+    console.error('Xero branding themes load failed:', e)
+    brandingThemesError.value =
+      'Could not load branding themes from Xero. Check the Xero connection and try again.'
+    toast.error('Failed to load Xero branding themes')
+  } finally {
+    brandingThemesLoading.value = false
+  }
+}
+
+function brandingThemeValue(fieldKey: string): string {
+  const value = localForm.value[fieldKey]
+  return typeof value === 'string' ? value : ''
+}
+
+const unavailableBrandingThemeId = computed(() => {
+  const configuredId = brandingThemeValue('xero_sales_branding_theme_id')
+  if (!configuredId) return null
+  const isAvailable = brandingThemes.value.some((theme) => theme.branding_theme_id === configuredId)
+  return isAvailable ? null : configuredId
+})
+
+function onBrandingThemeChange(fieldKey: string, event: Event) {
+  const value = (event.target as HTMLSelectElement).value
+  localForm.value = {
+    ...localForm.value,
+    [fieldKey]: value || null,
+  }
+}
+
 watch(
   sectionFields,
   (fields) => {
@@ -487,6 +563,16 @@ watch(
     }
 
     void loadCompanyOptions()
+  },
+  { immediate: true },
+)
+
+watch(
+  sectionFields,
+  (fields) => {
+    if (!fields.some((field) => field.type === 'xero_branding_theme')) return
+    if (brandingThemesLoadAttempted.value) return
+    void loadBrandingThemes()
   },
   { immediate: true },
 )
