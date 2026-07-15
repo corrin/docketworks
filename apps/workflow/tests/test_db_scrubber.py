@@ -1,14 +1,22 @@
-"""Unit tests for db_scrubber collision-safe value generation.
+"""Unit tests for production database scrubbing contracts.
 
 The full scrub runs against the ``scrub`` DB alias (a restored prod copy) and is
 not exercised here; these tests pin the novel logic that keeps the scrub from
 aborting on a normalized-value collision.
 """
 
+from unittest.mock import MagicMock, patch
+
 from django.test import SimpleTestCase
 
 from apps.company.models import ContactMethod
-from apps.workflow.services.db_scrubber import _unique_scrub_value
+from apps.workflow.exceptions import AlreadyLoggedException
+from apps.workflow.services.db_scrubber import (
+    _PRIVATE_CONFIG_TABLES,
+    _assert_private_config_removed,
+    _unique_scrub_value,
+    scrub,
+)
 
 PHONE = ContactMethod.MethodType.PHONE
 
@@ -37,3 +45,88 @@ class UniqueScrubValueTests(SimpleTestCase):
         _unique_scrub_value(lambda: "021 111 111", PHONE, used)  # seed `used`
         with self.assertRaises(RuntimeError):
             _unique_scrub_value(lambda: "021 111 111", PHONE, used)
+
+
+class PrivateConfigurationScrubTests(SimpleTestCase):
+    def test_external_credentials_are_part_of_the_scrub_contract(self) -> None:
+        self.assertEqual(
+            set(_PRIVATE_CONFIG_TABLES),
+            {
+                "workflow_aiprovider",
+                "workflow_xeroapp",
+                "workflow_serviceapikey",
+                "crm_phoneprovidersettings",
+                "quoting_suppliercredential",
+            },
+        )
+
+    @patch("apps.workflow.services.db_scrubber.connections")
+    def test_private_config_postcondition_accepts_empty_tables(
+        self, connections: MagicMock
+    ) -> None:
+        cursor = connections.__getitem__.return_value.cursor.return_value.__enter__
+        cursor.return_value.fetchone.side_effect = [(0,)] * len(_PRIVATE_CONFIG_TABLES)
+
+        _assert_private_config_removed()
+
+    @patch("apps.workflow.services.db_scrubber.connections")
+    def test_private_config_postcondition_reports_counts_not_values(
+        self, connections: MagicMock
+    ) -> None:
+        cursor = connections.__getitem__.return_value.cursor.return_value.__enter__
+        cursor.return_value.fetchone.side_effect = [
+            (2,) if table == "workflow_aiprovider" else (0,)
+            for table in _PRIVATE_CONFIG_TABLES
+        ]
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            r"workflow_aiprovider=2",
+        ) as raised:
+            _assert_private_config_removed()
+
+        self.assertNotIn("api_key", str(raised.exception))
+
+
+class ScrubErrorPersistenceTests(SimpleTestCase):
+    @patch("apps.workflow.services.db_scrubber._assert_scrub_alias_is_safe")
+    @patch("apps.workflow.services.db_scrubber.transaction.atomic")
+    @patch("apps.workflow.services.db_scrubber._scrub_staff")
+    @patch("apps.workflow.services.db_scrubber.persist_app_error")
+    def test_new_failure_is_persisted_and_wrapped_once(
+        self,
+        persist_app_error: MagicMock,
+        scrub_staff: MagicMock,
+        _atomic: MagicMock,
+        _assert_safe: MagicMock,
+    ) -> None:
+        failure = RuntimeError("scrub failed")
+        scrub_staff.side_effect = failure
+        persist_app_error.return_value.id = "error-123"
+
+        with self.assertRaises(AlreadyLoggedException) as raised:
+            scrub()
+
+        self.assertIs(raised.exception.original, failure)
+        self.assertEqual(raised.exception.app_error_id, "error-123")
+        persist_app_error.assert_called_once_with(failure)
+
+    @patch("apps.workflow.services.db_scrubber._assert_scrub_alias_is_safe")
+    @patch("apps.workflow.services.db_scrubber.transaction.atomic")
+    @patch("apps.workflow.services.db_scrubber._scrub_staff")
+    @patch("apps.workflow.services.db_scrubber.persist_app_error")
+    def test_prelogged_failure_passes_through_unchanged(
+        self,
+        persist_app_error: MagicMock,
+        scrub_staff: MagicMock,
+        _atomic: MagicMock,
+        _assert_safe: MagicMock,
+    ) -> None:
+        failure = AlreadyLoggedException(RuntimeError("scrub failed"), "error-123")
+        scrub_staff.side_effect = failure
+
+        with self.assertRaises(AlreadyLoggedException) as raised:
+            scrub()
+
+        self.assertIs(raised.exception, failure)
+        persist_app_error.assert_not_called()

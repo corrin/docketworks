@@ -3,6 +3,10 @@
 Runs before `migrate` (deploy.sh calls it for every instance). Idempotent:
 keys off django_migrations rows still recorded under the old label.
 
+TEMPORARY KAN-278: remove this command and its deploy hook after every
+production instance has completed the cutover and produced a verified
+company-schema backup.
+
 The historic pre-squash rows (0001_initial .. 0023_drop_scalar_phone_fields)
 are DELETED rather than relabelled: with the squash's `replaces` lists gone,
 a blanket relabel would strand ("company", "0001_initial")-style ghost rows

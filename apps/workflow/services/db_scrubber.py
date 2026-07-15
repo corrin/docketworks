@@ -6,9 +6,9 @@ Reproduces three behaviours from the legacy backport_data_backup command:
   2. Delete the unlinked accounting records that _filter_unlinked_accounting_records dropped.
   3. Truncate the tables in EXCLUDE_MODELS (minus framework tables).
 
-Anything beyond that is OUT OF SCOPE for this task and must NOT be added without
-a separate ticket — see docs/plans/2026-04-25-pg-dump-backport-refresh-plan.md
-"Strict like-for-like contract".
+It additionally excludes DB-backed external-system credentials introduced
+after the legacy command. A scrubbed backup must never carry configuration that
+could authenticate against production services.
 
 Safety: refuses to run unless settings.DATABASES["scrub"]["NAME"] ends in
 "_scrub" — last line of defence against a misconfigured SCRUB_DB_NAME pointing
@@ -18,7 +18,7 @@ at prod.
 from collections.abc import Callable
 
 from django.conf import settings
-from django.db import transaction
+from django.db import connections, transaction
 from faker import Faker
 
 from apps.accounting.models import (
@@ -32,6 +32,7 @@ from apps.accounting.models import (
 from apps.accounts.models import SYSTEM_AUTOMATION_EMAIL, Staff
 from apps.accounts.staff_anonymization import create_staff_profile
 from apps.company.models import Company, ContactMethod, Person
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
 
@@ -265,14 +266,20 @@ def _delete_unlinked_accounting() -> None:
 # xeropayitem would cascade through Job.default_xero_pay_item and
 # CostLine.xero_pay_item and erase every Job and CostLine in the dump.
 # Pay item names aren't PII; letting prod's set through is harmless.
+_PRIVATE_CONFIG_TABLES = (
+    "workflow_aiprovider",
+    "workflow_xeroapp",
+    "workflow_serviceapikey",
+    "crm_phoneprovidersettings",
+    "quoting_suppliercredential",
+)
+
 _EXCLUDED_TABLES = (
     # In joined-table inheritance, child tables have FKs back to parent.
     # TRUNCATE parent WITH CASCADE will cascade to children. Do NOT include
     # child tables — workflow_xeroerror will be cascaded from workflow_apperror.
     "workflow_apperror",  # Parent; CASCADE will delete xeroerror children
-    "workflow_xeroapp",
-    "workflow_serviceapikey",
-    "quoting_suppliercredential",
+    *_PRIVATE_CONFIG_TABLES,
     "accounts_historicalstaff",
     "process_historicalform",
     "process_historicalformentry",
@@ -282,11 +289,24 @@ _EXCLUDED_TABLES = (
 
 def _truncate_excluded_tables() -> None:
     """Mirror legacy EXCLUDE_MODELS by emptying these tables in the scrub DB."""
-    from django.db import connections
-
     with connections[SCRUB_ALIAS].cursor() as cur:
         for table in _EXCLUDED_TABLES:
             cur.execute(f'TRUNCATE TABLE "{table}" RESTART IDENTITY CASCADE')
+
+
+def _assert_private_config_removed() -> None:
+    """Fail closed if a scrubbed DB still contains external credentials."""
+    remaining: list[str] = []
+    with connections[SCRUB_ALIAS].cursor() as cur:
+        for table in _PRIVATE_CONFIG_TABLES:
+            cur.execute(f'SELECT COUNT(*) FROM "{table}"')
+            count = cur.fetchone()[0]
+            if count:
+                remaining.append(f"{table}={count}")
+    if remaining:
+        raise RuntimeError(
+            "Private configuration remained after scrubbing: " + ", ".join(remaining)
+        )
 
 
 def scrub() -> None:
@@ -303,6 +323,9 @@ def scrub() -> None:
             _scrub_accounting_contacts()
             _delete_unlinked_accounting()
             _truncate_excluded_tables()
-    except Exception as exc:
-        persist_app_error(exc)
+            _assert_private_config_removed()
+    except AlreadyLoggedException:
         raise
+    except Exception as exc:
+        err = persist_app_error(exc)
+        raise AlreadyLoggedException(exc, err.id) from exc
