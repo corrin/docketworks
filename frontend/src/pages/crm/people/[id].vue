@@ -233,6 +233,12 @@
   </AppLayout>
 </template>
 
+<route lang="json">
+{
+  "props": true
+}
+</route>
+
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
