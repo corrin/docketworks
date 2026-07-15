@@ -546,9 +546,9 @@ REVIEWED_COMPANY_MERGES: tuple[CompanyMergeDecision, ...] = (
     ),
     CompanyMergeDecision(
         canonical_name="Irving",
-        names=("CASH SALE - IRVING", "CASH SALE -Irving", "Irving"),
+        names=("CASH SALE - IRVING PATCHETT", "CASH SALE -Irving", "Irving"),
         expected_rows=3,
-        evidence="production jobs CASH SALE - IRVING=2, CASH SALE -Irving=1, Irving=0; shared contact irving; shared email herbpatch20@gmail.com; shared phone +6421378335",
+        evidence="production: 'CASH SALE - IRVING' since renamed to 'CASH SALE - IRVING PATCHETT'; shared email herbpatch20@gmail.com; shared phone +6421378335",
     ),
     CompanyMergeDecision(
         canonical_name="Jack Lum and Co Limited",
@@ -672,10 +672,10 @@ REVIEWED_COMPANY_MERGES: tuple[CompanyMergeDecision, ...] = (
         evidence="production jobs Handro=1, MATERIAL HANDLING SOLUTIONS=1; shared phone +64212892852",
     ),
     CompanyMergeDecision(
-        canonical_name="MC ALPINE HUSSMANN",
-        names=("CASH SALE - MCALPINE HUSSMANN", "MC ALPINE HUSSMANN"),
+        canonical_name="MCALPINE HUSSMANN",
+        names=("CASH SALE - MCALPINE HUSSMANN", "MCALPINE HUSSMANN"),
         expected_rows=2,
-        evidence="production jobs CASH SALE - MCALPINE HUSSMANN=0, MC ALPINE HUSSMANN=5; shared email domain hussmann.com; shared email tim.moore@hussmann.com; shared phone +64272240844",
+        evidence="production: 'MC ALPINE HUSSMANN' since renamed to 'MCALPINE HUSSMANN'; shared email domain hussmann.com; shared email tim.moore@hussmann.com; shared phone +64272240844",
     ),
     CompanyMergeDecision(
         canonical_name="McConnell Dowell Constructors Limited",
@@ -1168,6 +1168,20 @@ REVIEWED_COMPANY_MERGES: tuple[CompanyMergeDecision, ...] = (
         names=("CASH SALE - YOSHIKI FUJIMOTO", "Yoshiki Fujimoto"),
         expected_rows=2,
         evidence="production jobs CASH SALE - YOSHIKI FUJIMOTO=0, Yoshiki Fujimoto=2",
+    ),
+    # KAN-278 drift refresh (human-reviewed 2026-07-15): duplicates that appeared
+    # in production after the original dataset was frozen.
+    CompanyMergeDecision(
+        canonical_name="Pinnacle Build",
+        names=("CASH SALE - PINNACLE BUILDS LTD - TOBY FOUNTAIN", "Pinnacle Build"),
+        expected_rows=2,
+        evidence="shared email toby@pinnaclebuildltd.co.nz (contact Toby Fountain); cash-sale alias of 'Pinnacle Build'",
+    ),
+    CompanyMergeDecision(
+        canonical_name="Limbrother Ltd",
+        names=("CASH SALE - YAN - 021809004", "Limbrother Ltd"),
+        expected_rows=2,
+        evidence="cash-sale alias for Yan Lim (yan@limbro.com, phone 021809004) of 'Limbrother Ltd'; analyzer flagged review, human-confirmed merge",
     ),
 )
 
@@ -1797,13 +1811,19 @@ REVIEWED_PERSON_MERGES: tuple[PersonMergeDecision, ...] = (
         evidence="production jobs IAIN MATTHEW=1, IAN MATTHEW=1; shared phone +64274754864",
     ),
     PersonMergeDecision(
-        canonical=PersonSelector("IRVING", None, "CASH SALE - IRVING"),
+        canonical=PersonSelector(
+            "IRVING PATCHETT", "herbpatch20@gmail.com", "CASH SALE - IRVING PATCHETT"
+        ),
         members=(
-            PersonSelector("IRVING", None, "CASH SALE - IRVING"),
+            PersonSelector(
+                "IRVING PATCHETT",
+                "herbpatch20@gmail.com",
+                "CASH SALE - IRVING PATCHETT",
+            ),
             PersonSelector("Irving", None, "CASH SALE -Irving"),
         ),
         expected_people=2,
-        evidence="production jobs IRVING=2, Irving=1; shared phone +6421378335",
+        evidence="production: 'IRVING'@'CASH SALE - IRVING' since renamed to 'IRVING PATCHETT'@'CASH SALE - IRVING PATCHETT' with email herbpatch20@gmail.com; shared phone +6421378335",
     ),
     PersonMergeDecision(
         canonical=PersonSelector("Jason Hu", None, "Free Co Flooring"),
@@ -2369,9 +2389,12 @@ REVIEWED_PERSON_MERGES: tuple[PersonMergeDecision, ...] = (
             PersonSelector(
                 "SIMON ROSE", "simon.rose@proclimb.co.nz", "CASH SALE - SIMON ROSE"
             ),
+            # KAN-278 drift refresh (human-reviewed 2026-07-15): third row at
+            # Proclimb with a transposed phone (+64276442307) appeared after freeze.
+            PersonSelector("SIMON ROSE", "simon.rose@proclimb.co.nz", "Proclimb"),
         ),
-        expected_people=2,
-        evidence="production jobs Simon Rose=1, SIMON ROSE=1; shared email simon.rose@proclimb.co.nz; shared phone +64276642307",
+        expected_people=3,
+        evidence="production jobs Simon Rose=1, SIMON ROSE=1; shared email simon.rose@proclimb.co.nz; shared phone +64276642307 (third row +64276442307, transposed)",
     ),
     PersonMergeDecision(
         canonical=PersonSelector(
@@ -2449,21 +2472,9 @@ REVIEWED_PERSON_MERGES: tuple[PersonMergeDecision, ...] = (
         expected_people=2,
         evidence="production jobs Thomas=1, tom=0; shared phone +64220446045",
     ),
-    PersonMergeDecision(
-        canonical=PersonSelector(
-            "Timothy Moore", "tim.moore@hussmann.com", "MC ALPINE HUSSMANN"
-        ),
-        members=(
-            PersonSelector(
-                "TIM MOORE", "tim.moore@hussmann.com", "CASH SALE - MCALPINE HUSSMANN"
-            ),
-            PersonSelector(
-                "Timothy Moore", "tim.moore@hussmann.com", "MC ALPINE HUSSMANN"
-            ),
-        ),
-        expected_people=2,
-        evidence="production jobs TIM MOORE=2, Timothy Moore=2; shared email tim.moore@hussmann.com; shared phone +64272240844",
-    ),
+    # KAN-278: 'TIM MOORE'@'CASH SALE - MCALPINE HUSSMANN' duplicate already
+    # resolved in production — only a single 'Timothy Moore'@'MCALPINE HUSSMANN'
+    # remains, so there is nothing left to merge.
     PersonMergeDecision(
         canonical=PersonSelector(
             "Toby Andrews", "tobias.andrews@ventia.com", "Ventia NZ Limited"
@@ -2544,6 +2555,17 @@ REVIEWED_PERSON_MERGES: tuple[PersonMergeDecision, ...] = (
         ),
         expected_people=2,
         evidence="production jobs ZACH=1, ZACH LINDSAY=1; shared phone +64212216699",
+    ),
+    # KAN-278 drift refresh (human-reviewed 2026-07-15): duplicate that appeared
+    # in production after the original dataset was frozen.
+    PersonMergeDecision(
+        canonical=PersonSelector("YAN LIM", "yan@limbro.com", "Limbrother Ltd"),
+        members=(
+            PersonSelector("YAN LIM", "yan@limbro.com", "Limbrother Ltd"),
+            PersonSelector("Yan", "yan@limbro.com", "CASH SALE - YAN - 021809004"),
+        ),
+        expected_people=2,
+        evidence="shared yan@limbro.com; 'Yan' is the cash-sale alias of 'YAN LIM' at Limbrother Ltd",
     ),
 )
 
