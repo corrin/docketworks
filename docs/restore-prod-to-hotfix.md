@@ -17,7 +17,7 @@ owner recorded in every production dump. Keeping the role name identical to prod
 means prod dumps restore **verbatim** — no ownership rewriting — and the app operates as
 the table owner exactly as production does. One-time setup (needs superuser):
 
-```
+```bash
 sudo -u postgres psql \
   -c "CREATE ROLE dw_msm_prod LOGIN CREATEDB PASSWORD '<the .env DB_PASSWORD>';"
 ```
