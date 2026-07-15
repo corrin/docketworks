@@ -10,6 +10,21 @@ Xero org) is [restore-prod-to-nonprod.md](restore-prod-to-nonprod.md). A hotfix
 restore keeps real production data; the safety concern is different: the copy
 must never **act on** production's external systems.
 
+## Database role
+
+This checkout connects as the **`dw_msm_prod`** role (`.env` `DB_USER`), matching the
+owner recorded in every production dump. Keeping the role name identical to production
+means prod dumps restore **verbatim** — no ownership rewriting — and the app operates as
+the table owner exactly as production does. One-time setup (needs superuser):
+
+```
+sudo -u postgres psql \
+  -c "CREATE ROLE dw_msm_prod LOGIN CREATEDB PASSWORD '<the .env DB_PASSWORD>';"
+```
+
+The DB is owned by this role, so re-restores (drop + recreate `docketworks_prod`) need no
+further superuser access.
+
 ## Mandatory steps when restoring production into this checkout
 
 1. **Back up the production DB.** Take and retain a fresh backup of production
