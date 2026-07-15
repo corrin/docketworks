@@ -186,7 +186,6 @@ class WipeTokensAndQuotaTests(TestCase):
 
         row = _row(
             client_id="a1",
-            tenant_id="t",
             access_token="aaa",
             refresh_token="rrr",
             token_type="Bearer",
@@ -200,7 +199,6 @@ class WipeTokensAndQuotaTests(TestCase):
         wipe_tokens_and_quota(row)
         row.refresh_from_db()
         for field in [
-            "tenant_id",
             "access_token",
             "refresh_token",
             "token_type",
@@ -222,7 +220,7 @@ class WipeTokensAndQuotaTests(TestCase):
         from apps.workflow.api.xero.active_app import wipe_tokens_and_quota
         from apps.workflow.api.xero.constants import TENANT_ID_CACHE_KEY
 
-        row = _row(client_id="a1", tenant_id="t-1")
+        row = _row(client_id="a1")
         cache.set(TENANT_ID_CACHE_KEY, "stale-tenant")
         wipe_tokens_and_quota(row)
         self.assertIsNone(cache.get(TENANT_ID_CACHE_KEY))
