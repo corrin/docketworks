@@ -23538,10 +23538,6 @@ components:
         has_tokens:
           type: boolean
           readOnly: true
-        tenant_id:
-          type: string
-          readOnly: true
-          nullable: true
         day_remaining:
           type: integer
           readOnly: true
@@ -23580,7 +23576,6 @@ components:
         - minute_remaining
         - redirect_uri
         - snapshot_at
-        - tenant_id
         - updated_at
     XeroAppConfig:
       type: object
@@ -23623,10 +23618,6 @@ components:
         has_tokens:
           type: boolean
           readOnly: true
-        tenant_id:
-          type: string
-          readOnly: true
-          nullable: true
         day_remaining:
           type: integer
           readOnly: true
@@ -23665,7 +23656,6 @@ components:
         - minute_remaining
         - redirect_uri
         - snapshot_at
-        - tenant_id
         - updated_at
     XeroAppCreateRequest:
       type: object
