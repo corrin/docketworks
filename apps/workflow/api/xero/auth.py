@@ -364,8 +364,11 @@ def exchange_code_for_token(
 
 
 def get_tenant_id() -> str:
-    """Retrieve the tenant ID, refreshing the token or fetching from Xero
-    connections if needed."""
+    """Return the active Xero tenant ID (cached in TENANT_ID_CACHE_KEY).
+
+    Source of truth is CompanyDefaults.xero_tenant_id; the cache only avoids
+    re-reading it. An unset value is a configuration error, not a fallback case.
+    """
     tenant_id = cache.get(TENANT_ID_CACHE_KEY)
 
     payload = get_valid_token()
@@ -379,20 +382,15 @@ def get_tenant_id() -> str:
         return tenant_id
 
     company_defaults = CompanyDefaults.get_solo()
-    if company_defaults.xero_tenant_id:
-        tenant_id = company_defaults.xero_tenant_id
-        cache.set(TENANT_ID_CACHE_KEY, tenant_id)
-        logger.info("Xero tenant ID resolved from CompanyDefaults and cached")
-        return tenant_id
-
-    try:
-        tenant_id = get_tenant_id_from_connections()
-        cache.set(TENANT_ID_CACHE_KEY, tenant_id)
-        logger.info("Xero tenant ID resolved from Xero connections and cached")
-    except AlreadyLoggedException:
-        raise
-    except Exception as exc:
+    if not company_defaults.xero_tenant_id:
+        exc = RuntimeError(
+            "No Xero tenant ID configured in company defaults. "
+            "Please set this up first."
+        )
         err = persist_app_error(exc)
         raise AlreadyLoggedException(exc, err.id) from exc
 
+    tenant_id = company_defaults.xero_tenant_id
+    cache.set(TENANT_ID_CACHE_KEY, tenant_id)
+    logger.info("Xero tenant ID resolved from CompanyDefaults and cached")
     return tenant_id
