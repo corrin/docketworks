@@ -1,6 +1,6 @@
 # Restore Production to the Hotfix Checkout
 
-This checkout (`~/src/docketworks_prod`) is the MSM **hotfix environment**: its
+This checkout (`~/src/docketworks_hotfix`) is the MSM **hotfix environment**: its
 database is refreshed by restoring the production DB into it, it is served via
 the `docketworks-msm-hotfix` ngrok domain, and the E2E suite runs here to verify
 prod hotfixes.
@@ -48,10 +48,10 @@ further superuser access.
    `session-replays/`.
 
    Source: `/opt/docketworks/instances/msm-prod/` on MSM. Targets:
-   `MEDIA_ROOT=/home/corrin/src/docketworks_prod/mediafiles`,
-   `PHONE_RECORDING_STORAGE_ROOT=/home/corrin/src/docketworks_prod/.local/phone-recordings`,
+   `MEDIA_ROOT=/home/corrin/src/docketworks_hotfix/mediafiles`,
+   `PHONE_RECORDING_STORAGE_ROOT=/home/corrin/src/docketworks_hotfix/.local/phone-recordings`,
    and
-   `SESSION_REPLAY_STORAGE_ROOT=/home/corrin/src/docketworks_prod/.local/session-replays`.
+   `SESSION_REPLAY_STORAGE_ROOT=/home/corrin/src/docketworks_hotfix/.local/session-replays`.
    Do not point any of these at `~/src/docketworks`. Verify representative
    DB-backed files, especially logos and phone recordings, before running E2E.
 
