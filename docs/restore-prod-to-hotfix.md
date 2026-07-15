@@ -43,17 +43,21 @@ further superuser access.
 
 4. **Restore production-owned files referenced by the DB.** The DB restore
    brings file paths, not the files. Copy the mutable production instance
-   directories into this checkout before testing anything that renders files.
-   This includes at least `mediafiles/`, `phone-recordings/`, and
-   `session-replays/`.
+   directories into this checkout before testing anything that renders files:
+   `mediafiles/`, `phone-recordings/`, and `session-replays/`.
 
-   Source: `/opt/docketworks/instances/msm-prod/` on MSM. Targets:
-   `MEDIA_ROOT=/home/corrin/src/docketworks_hotfix/mediafiles`,
-   `PHONE_RECORDING_STORAGE_ROOT=/home/corrin/src/docketworks_hotfix/.local/phone-recordings`,
-   and
-   `SESSION_REPLAY_STORAGE_ROOT=/home/corrin/src/docketworks_hotfix/.local/session-replays`.
-   Do not point any of these at `~/src/docketworks`. Verify representative
-   DB-backed files, especially logos and phone recordings, before running E2E.
+   Run `scripts/pull_prod_files.sh` (defaults to `MSM dw_msm_prod`). It
+   incrementally rsyncs those three dirs from the instance user's home
+   (`/opt/docketworks/instances/msm-prod/` on MSM) into the local storage roots
+   read from `.env` — `MEDIA_ROOT`, `PHONE_RECORDING_STORAGE_ROOT`, and
+   `SESSION_REPLAY_STORAGE_ROOT`. The files are instance-user-owned, so the
+   remote rsync escalates via `sudo -iu dw_msm_prod`. Re-runs copy only
+   new/changed files, so it is cheap to run after every DB restore.
+
+   Keep those `.env` roots inside this checkout (`.local/...` and
+   `mediafiles/`); never point them at `~/src/docketworks`. Verify
+   representative DB-backed files, especially logos and phone recordings,
+   before running E2E.
 
 5. **Run the hotfix processes with `XERO_READONLY=True`** so that even a
    reconnected Xero cannot write to MSM's real organisation. This is
