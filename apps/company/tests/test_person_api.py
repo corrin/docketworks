@@ -197,8 +197,23 @@ class PersonApiTests(BaseAPITestCase):
 
         self.assertEqual(response.status_code, 204)
         self.assertTrue(Person.objects.filter(id=person.id).exists())
+        person.refresh_from_db()
+        self.assertTrue(person.is_active)
         other.refresh_from_db()
         self.assertTrue(other.is_active)
+
+    def test_removing_last_link_archives_person(self) -> None:
+        """Unlinking a person's only employer archives the now-orphaned identity."""
+        person = self._person(company=self.company_a)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            response = self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        self.assertEqual(response.status_code, 204)
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
 
     def test_removing_link_is_blocked_when_phone_would_cross_companies(self) -> None:
         """Relationship edits must not create the duplicate-phone problem they manage."""

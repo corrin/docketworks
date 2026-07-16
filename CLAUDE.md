@@ -25,6 +25,10 @@ Examples:
 - If asked whether a bug is fixed, verify the behavior that matters to the user, not only that a unit test passed.
 - If asked to review a proposal, assess whether it solves the problem and what risks remain, not only whether the text is internally consistent.
 
+## No feature removal
+
+Replacing or rewriting any component, page, model, or endpoint requires a **Feature Parity Inventory** first: enumerate every capability the old version exposed (buttons, actions, fields, shortcuts, edge cases — sourced from its template/emits, its tests, E2E specs, ADRs) with a keep/drop/defer decision for each. Default is keep; dropping a feature needs explicit user sign-off. A silently dropped capability is a release-blocking regression. Plans for such work must carry the inventory as a section (see the template in `docs/plans/`).
+
 ## Tokens are precious
 
 Every single line in CLAUDE.md will make agents worse at unrelated tasks.  Every single word must have significant lasting benefit or it must not be added.  Do not repeat yourself, do not add lines even if you screw up, if it is unlikely a similar screw up will happen again.  Always give the most general fix, to increase the likelihood the guidence is future-directed.

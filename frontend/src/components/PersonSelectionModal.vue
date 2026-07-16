@@ -81,6 +81,48 @@
         >
           <!-- Existing People Section -->
           <div class="people-section flex-1 min-h-0 flex flex-col relative">
+            <!-- Delete Confirmation Overlay -->
+            <div
+              v-if="showDeleteConfirm"
+              class="absolute inset-0 bg-white/95 z-30 flex items-center justify-center rounded-lg"
+            >
+              <div class="text-center p-6 max-w-sm">
+                <div
+                  class="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center mx-auto mb-4"
+                >
+                  <AlertTriangle class="w-6 h-6 text-red-600" />
+                </div>
+                <h4 class="text-lg font-semibold text-gray-900 mb-2">Delete Person?</h4>
+                <p class="text-sm text-gray-600 mb-4">
+                  Are you sure you want to remove
+                  <strong>{{ personToDelete?.person_name }}</strong
+                  >? The person will be marked as inactive.
+                </p>
+                <p
+                  v-if="personToDelete?.is_primary"
+                  class="text-sm text-amber-600 font-medium mb-4"
+                >
+                  This is the primary person for this company.
+                </p>
+                <div class="flex gap-3 justify-center">
+                  <button
+                    class="px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-md hover:bg-gray-50"
+                    data-automation-id="PersonSelectionModal-cancel-delete"
+                    @click="cancelDelete"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    class="px-4 py-2 text-sm font-medium text-white bg-red-600 rounded-md hover:bg-red-700"
+                    data-automation-id="PersonSelectionModal-confirm-delete"
+                    @click="executeDelete"
+                  >
+                    Delete
+                  </button>
+                </div>
+              </div>
+            </div>
+
             <div v-if="isLoading" class="flex-1 flex items-center justify-center">
               <div class="text-center">
                 <div
@@ -109,7 +151,11 @@
                       :class="{
                         'ring-2 ring-blue-500 bg-blue-50 border-blue-500 shadow-md mt-1':
                           selectedPerson?.person_id === person.person_id,
-                        'hover:bg-gray-50': selectedPerson?.person_id !== person.person_id,
+                        'ring-2 ring-amber-500 bg-amber-50 border-amber-500':
+                          editingPerson?.person_id === person.person_id,
+                        'hover:bg-gray-50':
+                          selectedPerson?.person_id !== person.person_id &&
+                          editingPerson?.person_id !== person.person_id,
                       }"
                       @click="selectPerson(person)"
                     >
@@ -180,6 +226,22 @@
                         >
                           Select
                         </button>
+                        <button
+                          class="p-1.5 text-xs font-medium bg-gray-600 text-white rounded-md shadow-sm hover:bg-gray-700 transition-colors"
+                          data-automation-id="PersonSelectionModal-edit-button"
+                          @click.stop="emit('edit-person', person)"
+                          title="Edit person"
+                        >
+                          <PencilLine class="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          class="p-1.5 text-xs font-medium bg-red-600 text-white rounded-md shadow-sm hover:bg-red-700 transition-colors"
+                          data-automation-id="PersonSelectionModal-delete-button"
+                          @click.stop="confirmDeletePerson(person)"
+                          title="Delete person"
+                        >
+                          <Trash2 class="w-3.5 h-3.5" />
+                        </button>
                       </div>
                     </div>
                   </div>
@@ -201,7 +263,17 @@
             class="create-person-section w-full xl:w-80 2xl:w-96 flex-shrink-0 border-t xl:border-t-0 xl:border-l border-gray-200 pt-4 xl:pt-0 xl:pl-6"
           >
             <div class="flex items-center justify-between mb-4">
-              <h4 class="section-title text-sm font-semibold text-gray-900">Create New Person</h4>
+              <h4 class="section-title text-sm font-semibold text-gray-900">
+                {{ isEditing ? 'Edit Person' : 'Create New Person' }}
+              </h4>
+              <button
+                v-if="isEditing"
+                type="button"
+                class="text-xs text-gray-500 hover:text-gray-700 underline"
+                @click="emit('cancel-edit')"
+              >
+                Cancel edit
+              </button>
             </div>
 
             <div class="space-y-4">
@@ -295,7 +367,7 @@
             @click="handleSave"
             :disabled="isLoading || !localPersonForm.name.trim()"
           >
-            {{ isLoading ? 'Saving...' : 'Create Person' }}
+            {{ isLoading ? 'Saving...' : isEditing ? 'Update Person' : 'Create Person' }}
           </button>
         </DialogFooter>
       </div>
@@ -305,7 +377,7 @@
 
 <script setup lang="ts">
 import { ref, watch, reactive } from 'vue'
-import { Users } from 'lucide-vue-next'
+import { Users, PencilLine, Trash2, AlertTriangle } from 'lucide-vue-next'
 import { schemas } from '../api/generated/api'
 import { z } from 'zod'
 import type { PersonFormData } from '@/composables/usePersonManagement'
@@ -332,6 +404,8 @@ const props = defineProps<{
   isLoading: boolean
   personForm: PersonFormData
   phoneOwnership: PhoneOwnership | null
+  editingPerson: CompanyPerson | null
+  isEditing: boolean
 }>()
 const emit = defineEmits<{
   close: []
@@ -340,6 +414,9 @@ const emit = defineEmits<{
   'link-person': [person: PhonePersonMatch]
   'create-separate-person': []
   'update:personForm': [personForm: PersonFormData]
+  'edit-person': [person: CompanyPerson]
+  'delete-person': [person: CompanyPerson]
+  'cancel-edit': []
 }>()
 
 const nameError = ref('')
@@ -387,6 +464,25 @@ const handleSave = () => {
 
 const selectPerson = (person: CompanyPerson) => {
   emit('select-person', person)
+}
+
+// Delete confirmation state
+const personToDelete = ref<CompanyPerson | null>(null)
+const showDeleteConfirm = ref(false)
+
+const confirmDeletePerson = (person: CompanyPerson) => {
+  personToDelete.value = person
+  showDeleteConfirm.value = true
+}
+
+const cancelDelete = () => {
+  personToDelete.value = null
+  showDeleteConfirm.value = false
+}
+
+const executeDelete = () => {
+  if (personToDelete.value) emit('delete-person', personToDelete.value)
+  cancelDelete()
 }
 
 const matchAction = (match: PhonePersonMatch): string => {

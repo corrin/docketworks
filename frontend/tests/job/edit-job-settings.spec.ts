@@ -499,6 +499,155 @@ test.describe.serial('edit job', () => {
     })
   })
 
+  test('edit an existing person from the selection modal', async ({ authenticatedPage: page }) => {
+    // Dedicated job — this mutates the company's people list, so isolate it.
+    const jobUrl = await createTestJob(page, 'Edit Person')
+    await page.goto(jobUrl)
+    await page.waitForLoadState('networkidle')
+
+    await autoId(page, 'JobViewTabs-jobSettings').click()
+    await autoId(page, 'PersonSelector-modal-button').waitFor({ timeout: 10000 })
+    await waitForSettingsInitialized(page)
+
+    const timestamp = Date.now()
+    const originalName = `Edit Target ${timestamp}`
+    const updatedName = `Edited Name ${timestamp}`
+
+    await test.step('create a person to edit', async () => {
+      await autoId(page, 'PersonSelector-modal-button').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+      const submitButton = autoId(page, 'PersonSelectionModal-submit')
+      await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+      await autoId(page, 'PersonSelectionModal-name-input').fill(originalName)
+      await autoId(page, 'PersonSelectionModal-email-input').fill(`edit${timestamp}@example.com`)
+      await submitButton.click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({
+        state: 'hidden',
+        timeout: 10000,
+      })
+    })
+
+    await expectStepUnder(
+      'reopen modal and enter edit mode',
+      EDIT_JOB_BUDGET_MS.createOrSwitchPerson,
+      async () => {
+        await autoId(page, 'PersonSelector-modal-button').click()
+        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+        const card = page
+          .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+          .filter({ hasText: originalName })
+          .first()
+        await card.waitFor({ timeout: 10000 })
+        await card.hover()
+        await card.locator('[data-automation-id="PersonSelectionModal-edit-button"]').click()
+
+        // Form flips to edit mode: submit label + prefilled name prove it.
+        await expect(autoId(page, 'PersonSelectionModal-submit')).toHaveText('Update Person', {
+          timeout: 10000,
+        })
+        await expect(autoId(page, 'PersonSelectionModal-name-input')).toHaveValue(originalName)
+      },
+    )
+
+    await test.step('change the name and save', async () => {
+      const nameInput = autoId(page, 'PersonSelectionModal-name-input')
+      await nameInput.clear()
+      await nameInput.pressSequentially(updatedName, { delay: 10 })
+      await autoId(page, 'PersonSelectionModal-submit').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({
+        state: 'hidden',
+        timeout: 10000,
+      })
+    })
+
+    await expectStepUnder(
+      'verify the edit persisted',
+      EDIT_JOB_BUDGET_MS.verifyAfterRefresh,
+      async () => {
+        // Selected person display reflects the new name.
+        await expect(autoId(page, 'PersonSelector-display')).toHaveValue(new RegExp(updatedName), {
+          timeout: 10000,
+        })
+
+        // And the list shows the renamed person, not the old name.
+        await autoId(page, 'PersonSelector-modal-button').click()
+        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+        await expect(
+          page
+            .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+            .filter({ hasText: updatedName }),
+        ).toHaveCount(1, { timeout: 10000 })
+        await expect(
+          page
+            .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+            .filter({ hasText: originalName }),
+        ).toHaveCount(0)
+      },
+    )
+  })
+
+  test('delete (archive) a person from the selection modal', async ({
+    authenticatedPage: page,
+  }) => {
+    const jobUrl = await createTestJob(page, 'Delete Person')
+    await page.goto(jobUrl)
+    await page.waitForLoadState('networkidle')
+
+    await autoId(page, 'JobViewTabs-jobSettings').click()
+    await autoId(page, 'PersonSelector-modal-button').waitFor({ timeout: 10000 })
+    await waitForSettingsInitialized(page)
+
+    const timestamp = Date.now()
+    const personName = `Delete Target ${timestamp}`
+
+    await test.step('create a person to delete', async () => {
+      await autoId(page, 'PersonSelector-modal-button').click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+      const submitButton = autoId(page, 'PersonSelectionModal-submit')
+      await expect(submitButton).toHaveText('Create Person', { timeout: 10000 })
+      await autoId(page, 'PersonSelectionModal-name-input').fill(personName)
+      await autoId(page, 'PersonSelectionModal-email-input').fill(`delete${timestamp}@example.com`)
+      await submitButton.click()
+      await autoId(page, 'PersonSelectionModal-container').waitFor({
+        state: 'hidden',
+        timeout: 10000,
+      })
+    })
+
+    await expectStepUnder(
+      'reopen modal and delete the person',
+      EDIT_JOB_BUDGET_MS.createOrSwitchPerson,
+      async () => {
+        await autoId(page, 'PersonSelector-modal-button').click()
+        await autoId(page, 'PersonSelectionModal-container').waitFor({ timeout: 10000 })
+
+        const card = page
+          .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+          .filter({ hasText: personName })
+          .first()
+        await card.waitFor({ timeout: 10000 })
+        await card.hover()
+        await card.locator('[data-automation-id="PersonSelectionModal-delete-button"]').click()
+
+        // Confirmation overlay, then confirm.
+        await expect(page.getByText('Delete Person?')).toBeVisible({ timeout: 10000 })
+        await autoId(page, 'PersonSelectionModal-confirm-delete').click()
+      },
+    )
+
+    await test.step('verify the person is removed from the list', async () => {
+      // Modal stays open; the archived person drops out of the company's list.
+      await expect(
+        page
+          .locator('[data-automation-id^="PersonSelectionModal-card-"]')
+          .filter({ hasText: personName }),
+      ).toHaveCount(0, { timeout: 10000 })
+    })
+  })
+
   test('change company', async ({ authenticatedPage: page }) => {
     // Create a dedicated job for this test — changing company mutates state
     // that would break other tests sharing sharedEditJobUrl
