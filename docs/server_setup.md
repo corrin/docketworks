@@ -126,7 +126,7 @@ sudo scripts/server/instance.sh create <client> <env>
 # Re-run after root-owned credential/config edits
 sudo scripts/server/instance.sh reconfigure <client> <env>
 
-# Or with demo fixtures:
+# Or create a demo with CompanyDefaults and 11 dummy staff:
 sudo scripts/server/instance.sh create <client> <env> --seed
 ```
 
@@ -171,8 +171,8 @@ SQL
 
 ## Part C.1: Post-Create Setup
 
-After `instance.sh create` completes, the instance has infrastructure but no data.
-Choose the path that matches your scenario:
+After `instance.sh create` completes without `--seed`, the instance has
+infrastructure but no tenant data. Choose the path that matches your scenario:
 
 ### Path A: Backup Restore (e.g. MSM demo)
 

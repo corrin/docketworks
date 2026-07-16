@@ -38,20 +38,16 @@ render and load the initial XeroApp fixture.
 ## Step 2: Create Instance
 
 ```bash
-sudo scripts/server/instance.sh create <client> uat
+sudo scripts/server/instance.sh create <client> uat --seed
 ```
 
-**Check:** `https://<client>-uat.docketworks.site` shows login page.
+This loads the demo CompanyDefaults and 11 dummy staff. The initial admin is
+created separately by the provisioning script, so it is not part of the demo
+fixture.
 
-## Step 3: Load Demo Data
+**Check:** `https://<client>-uat.docketworks.site` shows the login page.
 
-```bash
-# Company settings (starting point — will be customised in Step 5)
-scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fixtures/company_defaults.json
-
-# Demo staff (11 dummy employees + admin)
-scripts/server/dw-run.sh <client>-uat python manage.py loaddata apps/workflow/fixtures/initial_data.json
-```
+## Step 3: Verify Demo Data
 
 **Check:**
 ```bash

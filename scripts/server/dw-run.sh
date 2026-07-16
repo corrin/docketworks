@@ -7,7 +7,7 @@ set -euo pipefail
 # Usage: dw-run <instance> <command> [args...]
 # Examples:
 #   dw-run msm-uat python manage.py migrate --no-input
-#   dw-run msm-uat python manage.py loaddata demo_fixtures
+#   dw-run msm-uat python manage.py loaddata company_defaults
 #   dw-run msm-uat python scripts/setup_dev_logins.py
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"

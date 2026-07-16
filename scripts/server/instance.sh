@@ -571,7 +571,9 @@ EOSQL
 
         if [[ "$SEED" == "true" ]]; then
             log "Loading demo fixtures..."
-            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata demo_fixtures
+            "$SCRIPT_DIR/dw-run.sh" "$INSTANCE" python manage.py loaddata \
+                apps/workflow/fixtures/company_defaults.json \
+                apps/workflow/fixtures/initial_data.json
         fi
     fi
 

@@ -1,12 +1,15 @@
 import json
 import subprocess
 import tempfile
+from decimal import Decimal
 from pathlib import Path
 
 from django.core import serializers
-from django.test import SimpleTestCase
+from django.core.management import call_command
+from django.test import SimpleTestCase, TestCase
 
-from apps.workflow.models import XeroApp
+from apps.accounts.models import Staff
+from apps.workflow.models import CompanyDefaults, XeroApp
 
 REPO_ROOT = Path(__file__).resolve().parents[3]
 CREDENTIALS_TEMPLATE = (
@@ -72,6 +75,43 @@ BACKUP_FILES_TEMPLATE = (
     / "backup-files-instance.service.template"
 )
 SETTINGS_FILE = REPO_ROOT / "docketworks" / "settings.py"
+COMPANY_DEFAULTS_FIXTURE = (
+    REPO_ROOT / "apps" / "workflow" / "fixtures" / "company_defaults.json"
+)
+INITIAL_DATA_FIXTURE = (
+    REPO_ROOT / "apps" / "workflow" / "fixtures" / "initial_data.json"
+)
+
+
+class DemoSeedFixtureTests(TestCase):
+    def test_demo_seed_fixtures_load_current_demo_contract(self) -> None:
+        """Schema changes must not break demo creation or its advertised logins."""
+        call_command(
+            "loaddata",
+            str(COMPANY_DEFAULTS_FIXTURE),
+            str(INITIAL_DATA_FIXTURE),
+            verbosity=0,
+        )
+
+        demo_staff = Staff.objects.filter(email__endswith="@example.com")
+        self.assertEqual(demo_staff.count(), 11)
+        self.assertFalse(
+            Staff.objects.filter(email="defaultadmin@example.com").exists()
+        )
+        self.assertTrue(
+            all(staff.check_password("Default-staff-password") for staff in demo_staff)
+        )
+
+        charles = demo_staff.get(email="charles.baker@example.com")
+        self.assertEqual(charles.base_wage_rate, Decimal("35.80"))
+        self.assertEqual(charles.wage_rate, Decimal("42.96"))
+
+        defaults = CompanyDefaults.objects.get(pk=1)
+        self.assertEqual(defaults.company_name, "Demo Company")
+        self.assertEqual(
+            str(defaults.shop_company_id),
+            "00000000-0000-0000-0000-000000000001",
+        )
 
 
 class XeroInstanceTemplateTests(SimpleTestCase):
@@ -239,6 +279,14 @@ class XeroInstanceTemplateTests(SimpleTestCase):
 
         self.assertIn('[[ "$IS_EXISTING" == "true" && "$SEED" == "true" ]]', content)
         self.assertIn("--seed is only valid when creating a new instance", content)
+
+    def test_instance_script_loads_canonical_demo_seed_fixtures(self) -> None:
+        """Renaming fixtures must not leave --seed pointing at a missing label."""
+        content = INSTANCE_SCRIPT.read_text()
+
+        self.assertIn("apps/workflow/fixtures/company_defaults.json", content)
+        self.assertIn("apps/workflow/fixtures/initial_data.json", content)
+        self.assertNotIn("demo_fixtures", content)
 
     def test_instance_script_rejects_config_without_release_link(self) -> None:
         content = INSTANCE_SCRIPT.read_text()

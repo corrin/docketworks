@@ -69,7 +69,8 @@ sudo ./scripts/server/instance.sh create mycompany uat
 sudo ./scripts/server/instance.sh reconfigure mycompany uat
 ```
 
-Add `--seed` to load demo fixture data:
+Add `--seed` to load the demo CompanyDefaults and 11 dummy staff. The dummy
+staff use the documented `Default-staff-password` login:
 
 ```bash
 sudo ./scripts/server/instance.sh create mycompany uat --seed
