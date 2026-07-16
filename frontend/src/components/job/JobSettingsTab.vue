@@ -845,11 +845,17 @@ watch(
       person_name: localJobData.value.person_name ?? null,
     }
 
-    localJobData.value.person_id = newJobData.person_id ?? null
-    localJobData.value.person_name = newJobData.person_name ?? null
+    localJobData.value = {
+      ...localJobData.value,
+      person_id: newJobData.person_id ?? null,
+      person_name: newJobData.person_name ?? null,
+    }
     personDisplayValue.value = newJobData.person_name ?? ''
-    serverBaseline.value.person_id = newJobData.person_id ?? null
-    serverBaseline.value.person_name = newJobData.person_name ?? null
+    serverBaseline.value = {
+      ...serverBaseline.value,
+      person_id: newJobData.person_id ?? null,
+      person_name: newJobData.person_name ?? null,
+    }
     if (newJobData.job_id) {
       jobsStore.patchHeader(newJobData.job_id, {
         person_id: newJobData.person_id ?? null,
