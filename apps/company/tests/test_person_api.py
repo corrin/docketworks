@@ -287,3 +287,34 @@ class PersonApiTests(BaseAPITestCase):
         response = self.client.get("/api/companies/person-links/")
 
         self.assertEqual(response.status_code, 404)
+
+    def test_detail_returns_an_archived_person(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+
+        response = self.client.get(f"/api/people/{person.id}/")
+        self.assertEqual(response.status_code, 200)
+        self.assertFalse(response.json()["is_active"])
+
+    def test_restore_link_over_http_unarchives_archived_person(self) -> None:
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            response = self.client.put(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/",
+                data={"position": "", "notes": "", "is_primary": False},
+                format="json",
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.json()["is_active"])
+        person.refresh_from_db()
+        self.assertTrue(person.is_active)

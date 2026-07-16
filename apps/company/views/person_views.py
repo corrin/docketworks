@@ -73,7 +73,7 @@ class PersonListView(generics.ListAPIView[Person]):
 class PersonDetailView(generics.RetrieveUpdateAPIView[Person]):
     """Retrieve or update a Person's identity fields."""
 
-    queryset = Person.objects.filter(is_active=True)
+    queryset = Person.objects.all()
     permission_classes = PERSON_PERMISSIONS
     lookup_url_kwarg = "person_id"
 
@@ -158,7 +158,7 @@ class PersonCompanyLinksView(APIView):
 
     @extend_schema(responses={200: PersonCompanyLinkSerializer(many=True)})
     def get(self, request: Request, person_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         links = PersonDirectoryService.company_links(person)
         return Response(PersonCompanyLinkSerializer(links, many=True).data)
 
@@ -173,7 +173,7 @@ class PersonCompanyLinkDetailView(APIView):
         responses={200: PersonCompanyLinkSerializer},
     )
     def put(self, request: Request, person_id: str, company_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         company = get_object_or_404(Company, id=company_id)
         payload = CompanyLinkWriteSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
@@ -194,7 +194,7 @@ class PersonCompanyLinkDetailView(APIView):
 
     @extend_schema(responses={204: None})
     def delete(self, request: Request, person_id: str, company_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         company = get_object_or_404(Company, id=company_id)
         try:
             remove_company_link(person=person, company=company)
