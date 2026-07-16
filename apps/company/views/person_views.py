@@ -243,7 +243,7 @@ class PersonContactMethodsView(APIView):
 
     @extend_schema(responses={200: ContactMethodSerializer(many=True)})
     def get(self, request: Request, person_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         methods = person.contact_methods.order_by(
             "method_type", "-is_primary", "label", "value"
         )
@@ -254,7 +254,7 @@ class PersonContactMethodsView(APIView):
         responses={201: ContactMethodSerializer},
     )
     def post(self, request: Request, person_id: str) -> Response:
-        person = get_object_or_404(Person, id=person_id, is_active=True)
+        person = get_object_or_404(Person, id=person_id)
         payload = PersonContactMethodWriteSerializer(data=request.data)
         payload.is_valid(raise_exception=True)
         serializer = ContactMethodSerializer(

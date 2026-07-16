@@ -356,3 +356,54 @@ class PersonApiTests(BaseAPITestCase):
         rows = {row["id"]: row for row in response.json()["results"]}
         self.assertIn(str(person.id), rows)
         self.assertFalse(rows[str(person.id)]["is_active"])
+
+    def test_contact_methods_are_reachable_for_an_archived_person(self) -> None:
+        """The PersonDetail page loads contact-methods alongside the person; a 404
+        here fails the whole Promise.all and hides the restore-link button."""
+        person = self._person(company=self.company_a)
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        response = self.client.get(f"/api/people/{person.id}/contact-methods/")
+
+        self.assertEqual(response.status_code, 200)
+
+    def test_phone_ownership_offers_restore_for_an_archived_person(self) -> None:
+        """An archived person who still owns a phone must come back as status
+        'people' (not 'company') so the modal can offer to restore the link."""
+        person = self._person(company=self.company_a)
+        ContactMethod.objects.create(
+            person=person,
+            method_type=ContactMethod.MethodType.PHONE,
+            value="021 222 2222",
+            is_primary=True,
+        )
+        with patch("apps.crm.tasks.rematch_phone_calls_task.delay"):
+            self.client.delete(
+                f"/api/people/{person.id}/company-links/{self.company_a.id}/"
+            )
+        person.refresh_from_db()
+        self.assertFalse(person.is_active)
+
+        response = self.client.post(
+            f"/api/companies/{self.company_a.id}/people/phone-ownership/",
+            {"phone": "0212222222"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, 200)
+        body = response.json()
+        self.assertEqual(body["status"], "people")
+        self.assertEqual(body["people"][0]["person_id"], str(person.id))
+        company_links = body["people"][0]["company_links"]
+        self.assertFalse(
+            next(
+                link
+                for link in company_links
+                if link["company_id"] == str(self.company_a.id)
+            )["is_active"]
+        )

@@ -438,7 +438,7 @@ async function removeLink(companyId: string): Promise<void> {
     await api.people_company_links_destroy(undefined, {
       params: { person_id: props.id, company_id: companyId },
     })
-    companyLinks.value = await api.people_company_links_list({ params: { person_id: props.id } })
+    await loadPerson()
     toast.success('Company link removed')
   } catch (err) {
     toast.error(`Company link not removed: ${extractErrorMessage(err)}`)
@@ -463,7 +463,7 @@ async function archivePerson(): Promise<void> {
     toast.success('Person archived')
     await loadPerson()
   } catch (err) {
-    toast.error(err instanceof Error ? err.message : 'Failed to archive person')
+    toast.error(extractErrorMessage(err))
   } finally {
     archiving.value = false
   }

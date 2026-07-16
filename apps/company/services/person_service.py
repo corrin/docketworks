@@ -175,7 +175,7 @@ def classify_phone_ownership(
     for method in methods:
         if method.person_id is not None:
             person = method.person
-            if person is None or not person.is_active:
+            if person is None:
                 continue
             people_by_id.setdefault(
                 person.id,
