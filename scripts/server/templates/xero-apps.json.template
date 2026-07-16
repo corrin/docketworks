@@ -9,7 +9,6 @@
       "redirect_uri": "__XERO_REDIRECT_URI__",
       "webhook_key": "__XERO_WEBHOOK_KEY__",
       "is_active": true,
-      "tenant_id": null,
       "token_type": null,
       "access_token": null,
       "refresh_token": null,

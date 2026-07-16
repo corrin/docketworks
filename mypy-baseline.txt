@@ -271,8 +271,6 @@ apps/workflow/tests/test_xero_instance_templates.py:0: error: Function is missin
 apps/workflow/tests/test_xero_instance_templates.py:0: note: Use "-> None" if function does not return a value
 apps/workflow/tests/test_xero_instance_templates.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/workflow/tests/test_xero_instance_templates.py:0: note: Use "-> None" if function does not return a value
-apps/workflow/tests/test_xero_instance_templates.py:0: error: Function is missing a return type annotation  [no-untyped-def]
-apps/workflow/tests/test_xero_instance_templates.py:0: note: Use "-> None" if function does not return a value
 apps/company/tests/test_get_company_for_xero.py:0: error: Function is missing a type annotation  [no-untyped-def]
 apps/company/tests/test_get_company_for_xero.py:0: error: Function is missing a return type annotation  [no-untyped-def]
 apps/company/tests/test_get_company_for_xero.py:0: note: Use "-> None" if function does not return a value
