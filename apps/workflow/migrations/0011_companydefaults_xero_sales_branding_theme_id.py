@@ -17,8 +17,9 @@ class Migration(migrations.Migration):
                 help_text=(
                     "Branding theme applied to every quote and sales invoice "
                     "created in Xero. Select a theme containing the required "
-                    "terms and conditions; document creation is blocked until "
-                    "one is selected."
+                    "terms and conditions; if unset, the first Xero theme is "
+                    "selected automatically when the next sales document is "
+                    "created."
                 ),
                 null=True,
                 verbose_name="Xero sales branding theme",

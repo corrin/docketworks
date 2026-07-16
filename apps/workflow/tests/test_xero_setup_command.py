@@ -3,7 +3,6 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
-from uuid import UUID
 
 from django.core.management.base import CommandError
 from django.test import TestCase
@@ -175,6 +174,10 @@ class EnsureDemoXeroItemsExistTests(TestCase):
 
 
 class RunSetupTests(TestCase):
+    @patch(
+        "apps.workflow.management.commands.xero."
+        "resolve_and_persist_sales_branding_theme"
+    )
     @patch("apps.workflow.management.commands.xero.get_provider")
     @patch("apps.workflow.management.commands.xero.cache.set")
     @patch("apps.workflow.management.commands.xero.get_payroll_calendars")
@@ -189,6 +192,7 @@ class RunSetupTests(TestCase):
         mock_get_payroll_calendars,
         _mock_cache_set,
         mock_get_provider,
+        mock_resolve_theme,
     ):
         company = SimpleNamespace(
             xero_tenant_id=None,
@@ -212,13 +216,12 @@ class RunSetupTests(TestCase):
         mock_get_payroll_calendars.return_value = [
             {"name": "Weekly Testing", "id": "calendar-123"}
         ]
-        mock_get_provider.return_value.list_document_themes.return_value = [
-            DocumentTheme(
-                external_id="11111111-2222-3333-4444-555555555555",
-                name="Standard",
-                is_default=True,
-            )
-        ]
+        selected_theme = DocumentTheme(
+            external_id="11111111-2222-3333-4444-555555555555",
+            name="Standard",
+            is_default=True,
+        )
+        mock_resolve_theme.return_value = selected_theme
 
         cmd = Command()
         cmd._ensure_demo_xero_items_exist = Mock()
@@ -228,103 +231,13 @@ class RunSetupTests(TestCase):
         cmd._ensure_demo_xero_items_exist.assert_called_once_with(
             "Weekly Testing", "tenant-123"
         )
+        mock_resolve_theme.assert_called_once_with(
+            mock_get_provider.return_value, company
+        )
         self.assertEqual(
-            company.xero_sales_branding_theme_id,
-            "11111111-2222-3333-4444-555555555555",
+            company.save.call_args_list[-1].kwargs["update_fields"],
+            ["xero_shortcode", "xero_payroll_calendar_id"],
         )
-
-    @patch("apps.workflow.management.commands.xero.get_provider")
-    def test_resolve_sales_branding_theme_selects_default_when_unconfigured(
-        self, mock_get_provider: Mock
-    ) -> None:
-        default_theme = DocumentTheme(
-            external_id="11111111-2222-3333-4444-555555555555",
-            name="Standard",
-            is_default=True,
-        )
-        mock_get_provider.return_value.list_document_themes.return_value = [
-            DocumentTheme(
-                external_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-                name="Custom",
-                is_default=False,
-            ),
-            default_theme,
-        ]
-        selected = Command._resolve_sales_branding_theme(None)
-
-        self.assertEqual(selected, default_theme)
-
-    @patch("apps.workflow.management.commands.xero.get_provider")
-    def test_resolve_sales_branding_theme_preserves_live_custom_selection(
-        self, mock_get_provider: Mock
-    ) -> None:
-        custom_theme = DocumentTheme(
-            external_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-            name="Terms",
-            is_default=False,
-        )
-        mock_get_provider.return_value.list_document_themes.return_value = [
-            DocumentTheme(
-                external_id="11111111-2222-3333-4444-555555555555",
-                name="Standard",
-                is_default=True,
-            ),
-            custom_theme,
-        ]
-        selected = Command._resolve_sales_branding_theme(UUID(custom_theme.external_id))
-
-        self.assertEqual(selected, custom_theme)
-
-    @patch("apps.workflow.management.commands.xero.get_provider")
-    def test_resolve_sales_branding_theme_replaces_stale_tenant_selection(
-        self, mock_get_provider: Mock
-    ) -> None:
-        default_theme = DocumentTheme(
-            external_id="11111111-2222-3333-4444-555555555555",
-            name="Standard",
-            is_default=True,
-        )
-        mock_get_provider.return_value.list_document_themes.return_value = [
-            default_theme
-        ]
-        stale_theme_id = UUID("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa")
-
-        selected = Command._resolve_sales_branding_theme(stale_theme_id)
-
-        self.assertEqual(selected, default_theme)
-
-    @patch("apps.workflow.management.commands.xero.get_provider")
-    def test_resolve_sales_branding_theme_requires_one_default(
-        self, mock_get_provider: Mock
-    ) -> None:
-        custom_theme = DocumentTheme(
-            external_id="aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-            name="Custom",
-            is_default=False,
-        )
-        default_themes = [
-            DocumentTheme(
-                external_id="11111111-2222-3333-4444-555555555555",
-                name="Default One",
-                is_default=True,
-            ),
-            DocumentTheme(
-                external_id="66666666-7777-8888-9999-000000000000",
-                name="Default Two",
-                is_default=True,
-            ),
-        ]
-
-        for themes in ([custom_theme], default_themes):
-            with self.subTest(default_count=sum(theme.is_default for theme in themes)):
-                mock_get_provider.return_value.list_document_themes.return_value = (
-                    themes
-                )
-                with self.assertRaisesMessage(
-                    CommandError,
-                    "Xero must return exactly one default branding theme",
-                ):
-                    Command._resolve_sales_branding_theme(None)
 
     def test_removed_create_missing_xero_items_flag_is_rejected(self):
         parser = Command().create_parser("manage.py", "xero")

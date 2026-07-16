@@ -242,7 +242,8 @@ Configures all required Xero settings in CompanyDefaults:
 1. Sets `xero_tenant_id` from connected organisation
 2. Sets `xero_shortcode` for deep linking
 3. Preserves a live sales branding theme selection or replaces a restored,
-   cross-tenant ID with the destination organisation's real default theme
+   cross-tenant ID with the first theme in the destination organisation's Xero
+   order
 4. Looks up payroll calendar by name and sets `xero_payroll_calendar_id`
 
 **Expected output:**

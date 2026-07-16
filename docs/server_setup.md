@@ -213,9 +213,13 @@ For a prospect trying DocketWorks with their own Xero:
    scripts/server/dw-run.sh <name> python manage.py start_xero_sync --entity accounts
    ```
 
-   `xero --setup` stores the connected organisation's real default sales
-   branding theme. In Admin > Settings, select the terms-bearing theme if the
-   organisation uses a different theme for customer documents.
+   `xero --setup` stores the first sales branding theme in the connected
+   organisation's Xero order. In Admin > Settings, select the terms-bearing
+   theme if the organisation uses a different theme for customer documents.
+
+   Existing installations that receive the branding-theme schema migration do
+   not need to rerun setup: their first new quote or invoice selects and stores
+   that same first Xero theme automatically.
 
 5. **Import staff from Xero**
 

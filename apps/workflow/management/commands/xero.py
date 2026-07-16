@@ -1,5 +1,4 @@
 import datetime
-from uuid import UUID
 
 import requests
 from django.core.cache import cache
@@ -13,8 +12,10 @@ from xero_python.project import ProjectApi
 
 from apps.accounts.models import Staff
 from apps.timesheet.services import PayrollEmployeeSyncService
+from apps.workflow.accounting.document_theme_service import (
+    resolve_and_persist_sales_branding_theme,
+)
 from apps.workflow.accounting.registry import get_provider
-from apps.workflow.accounting.types import DocumentTheme
 from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
 from apps.workflow.api.xero.payroll import (
     get_earnings_rates,
@@ -432,27 +433,6 @@ class Command(BaseCommand):
                     )
                 )
 
-    @staticmethod
-    def _resolve_sales_branding_theme(configured_id: UUID | None) -> DocumentTheme:
-        """Preserve a live selection or choose the connected tenant's default."""
-        themes = get_provider().list_document_themes()
-        default_themes = [theme for theme in themes if theme.is_default]
-        if len(default_themes) != 1:
-            raise CommandError(
-                "Xero must return exactly one default branding theme; "
-                f"received {len(default_themes)} from {len(themes)} themes."
-            )
-
-        if configured_id is not None:
-            configured_theme = next(
-                (theme for theme in themes if theme.external_id == str(configured_id)),
-                None,
-            )
-            if configured_theme is not None:
-                return configured_theme
-
-        return default_themes[0]
-
     def run_setup(self):
         """Configure Xero tenant, theme, shortcode, and payroll calendar."""
         self.stdout.write("Setting up Xero connection...")
@@ -523,9 +503,14 @@ class Command(BaseCommand):
         shortcode = org_response.organisations[0].short_code
 
         # Step 5: Select a live sales branding theme for this tenant
-        sales_branding_theme = self._resolve_sales_branding_theme(
-            company.xero_sales_branding_theme_id
+        sales_branding_theme = resolve_and_persist_sales_branding_theme(
+            get_provider(), company
         )
+        if sales_branding_theme is None:
+            raise CommandError(
+                "Xero returned no branding themes. Create a branding theme in "
+                "Xero before running setup."
+            )
 
         # Step 6: Fetch payroll calendar ID
         calendar_name = company.xero_payroll_calendar_name
@@ -554,11 +539,14 @@ class Command(BaseCommand):
             payroll_calendar_id = matching_calendar["id"]
 
         # Step 7: Save to CompanyDefaults
-        company.xero_tenant_id = tenant_id
         company.xero_shortcode = shortcode
-        company.xero_sales_branding_theme_id = sales_branding_theme.external_id
         company.xero_payroll_calendar_id = payroll_calendar_id
-        company.save()
+        company.save(
+            update_fields=[
+                "xero_shortcode",
+                "xero_payroll_calendar_id",
+            ]
+        )
 
         self.stdout.write(self.style.SUCCESS(f"Tenant ID: {tenant_id}"))
         self.stdout.write(self.style.SUCCESS(f"Shortcode: {shortcode}"))

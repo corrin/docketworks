@@ -105,14 +105,22 @@
             class="h-9 text-sm rounded-md border border-input bg-background px-3 py-1"
             :class="{
               'bg-gray-100 cursor-not-allowed':
-                field.readOnly || brandingThemesLoading || brandingThemesError,
+                field.readOnly ||
+                brandingThemesLoading ||
+                brandingThemesError ||
+                brandingThemesUnavailable,
             }"
             :data-automation-id="`SectionForm-${section}-field-${field.key}`"
-            :disabled="field.readOnly || brandingThemesLoading || brandingThemesError !== null"
+            :disabled="
+              field.readOnly ||
+              brandingThemesLoading ||
+              brandingThemesError !== null ||
+              brandingThemesUnavailable
+            "
             @change="onBrandingThemeChange(field.key, $event)"
           >
-            <option value="">
-              {{ brandingThemesLoading ? 'Loading Xero branding themes…' : 'No theme selected' }}
+            <option v-if="showBrandingThemePlaceholder" value="" disabled>
+              {{ brandingThemePlaceholder }}
             </option>
             <option v-if="unavailableBrandingThemeId" :value="unavailableBrandingThemeId">
               Unavailable theme ({{ unavailableBrandingThemeId }})
@@ -131,6 +139,13 @@
             :data-automation-id="`SectionForm-${section}-field-${field.key}-error`"
           >
             {{ brandingThemesError }}
+          </p>
+          <p
+            v-else-if="brandingThemesUnavailable"
+            class="text-xs text-amber-700"
+            :data-automation-id="`SectionForm-${section}-field-${field.key}-empty`"
+          >
+            No branding themes are available in the connected Xero organisation.
           </p>
         </div>
 
@@ -258,6 +273,13 @@ const brandingThemes = ref<Awaited<ReturnType<typeof api.xero_branding_themes_li
 const brandingThemesLoading = ref(false)
 const brandingThemesError = ref<string | null>(null)
 const brandingThemesLoadAttempted = ref(false)
+const brandingThemesUnavailable = computed(
+  () =>
+    brandingThemesLoadAttempted.value &&
+    !brandingThemesLoading.value &&
+    brandingThemesError.value === null &&
+    brandingThemes.value.length === 0,
+)
 
 const LOGO_ASPECT_RULES: Record<
   string,
@@ -536,6 +558,23 @@ function brandingThemeValue(fieldKey: string): string {
   return typeof value === 'string' ? value : ''
 }
 
+const showBrandingThemePlaceholder = computed(
+  () =>
+    brandingThemesLoading.value ||
+    brandingThemesUnavailable.value ||
+    brandingThemeValue('xero_sales_branding_theme_id') === '',
+)
+
+const brandingThemePlaceholder = computed(() => {
+  if (brandingThemesLoading.value) return 'Loading Xero branding themes…'
+  if (brandingThemesUnavailable.value) return 'No Xero branding themes available'
+  const automaticTheme = brandingThemes.value[0]
+  if (automaticTheme) {
+    return `Not configured — first document will use ${automaticTheme.name}`
+  }
+  return 'Not configured — first document will select a Xero branding theme'
+})
+
 const unavailableBrandingThemeId = computed(() => {
   const configuredId = brandingThemeValue('xero_sales_branding_theme_id')
   if (!configuredId) return null
@@ -545,9 +584,10 @@ const unavailableBrandingThemeId = computed(() => {
 
 function onBrandingThemeChange(fieldKey: string, event: Event) {
   const value = (event.target as HTMLSelectElement).value
+  if (!value) return
   localForm.value = {
     ...localForm.value,
-    [fieldKey]: value || null,
+    [fieldKey]: value,
   }
 }
 

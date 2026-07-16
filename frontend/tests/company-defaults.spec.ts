@@ -116,12 +116,15 @@ test('test Xero sales branding theme save, reload, and restore', async ({
   test.skip(availableThemeIds.length === 0, 'The connected Xero tenant has no branding themes')
 
   const differentThemeId = availableThemeIds.find((id) => id !== originalValue)
-  const testValue = differentThemeId ?? ''
-  let changed = false
+  const testValue = originalValue === '' ? availableThemeIds[0] : differentThemeId
+  test.skip(
+    testValue === undefined,
+    'The connected Xero tenant has no alternative branding theme to exercise',
+  )
+  if (testValue === undefined) return
 
   try {
     await selector.selectOption(testValue)
-    changed = testValue !== originalValue
     await expect(
       page.locator('[data-automation-id="AdminCompanySectionView-save-button"]'),
     ).toBeEnabled()
@@ -134,7 +137,9 @@ test('test Xero sales branding theme save, reload, and restore', async ({
     await expect(selector).toBeVisible({ timeout: 15000 })
     await expect(selector).toHaveValue(testValue)
   } finally {
-    if (changed) {
+    // A null starting value is an unattended-install state. Selecting the first
+    // live theme legitimately initializes it, so never deliberately restore null.
+    if (originalValue !== '') {
       await page.goto('/admin/company/xero')
       await expect(selector).toBeEnabled({ timeout: 15000 })
       if ((await selector.inputValue()) !== originalValue) {

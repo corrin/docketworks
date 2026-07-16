@@ -92,8 +92,8 @@ The client needs a Xero subscription. DocketWorks handles jobs and delegates inv
 **Sales Branding Theme** (Settings > Invoice settings):
 - Ensure one branding theme contains the terms and conditions required on both
   quotes and invoices
-- Prefer making that theme the Xero default; DocketWorks imports the default
-  during `xero --setup`
+- Prefer making that theme first in Xero's branding-theme order; DocketWorks
+  imports the first theme during `xero --setup`
 - If another theme must remain the Xero default, select the terms-bearing theme
   later in DocketWorks Company Settings
 
@@ -246,9 +246,9 @@ Once the instance is running:
    python manage.py start_xero_sync
    ```
 
-`xero --setup` imports the connected organisation's real default sales branding
-theme. It preserves a previously selected theme when that theme still exists in
-the connected organisation.
+`xero --setup` imports the first sales branding theme returned in the connected
+organisation's Xero order. It preserves a previously selected theme when that
+theme still exists in the connected organisation.
 
 ### 7b. Company Settings
 

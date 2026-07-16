@@ -106,7 +106,7 @@ describe('SectionForm', () => {
     expect(modelValue.shop_company).toBe('00000000-0000-0000-0000-000000000001')
   })
 
-  it('loads Xero branding themes, identifies the default, and clears to null', async () => {
+  it('shows automatic initialization and allows selecting a live Xero branding theme', async () => {
     settingsFields.splice(0, settingsFields.length, {
       key: 'xero_sales_branding_theme_id',
       label: 'Sales Branding Theme',
@@ -144,16 +144,13 @@ describe('SectionForm', () => {
     expect(selector.element.tagName).toBe('SELECT')
     expect(selector.text()).toContain('Standard (Xero default)')
     expect(selector.text()).toContain('Terms Footer')
+    expect(selector.text()).toContain('Not configured — first document will use Standard')
+    expect(selector.find('option[value=""]').attributes('disabled')).toBeDefined()
     expect(selector.element.closest('label')?.className).toContain('md:col-span-2')
 
     await selector.setValue('33333333-3333-3333-3333-333333333333')
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([
       { xero_sales_branding_theme_id: '33333333-3333-3333-3333-333333333333' },
-    ])
-
-    await selector.setValue('')
-    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual([
-      { xero_sales_branding_theme_id: null },
     ])
   })
 
@@ -168,7 +165,13 @@ describe('SectionForm', () => {
       icon: 'span',
       readOnly: false,
     })
-    xeroBrandingThemesList.mockResolvedValue([])
+    xeroBrandingThemesList.mockResolvedValue([
+      {
+        branding_theme_id: '22222222-2222-2222-2222-222222222222',
+        name: 'Current Default',
+        is_default: true,
+      },
+    ])
     const unavailableId = '44444444-4444-4444-4444-444444444444'
 
     const wrapper = mount(SectionForm, {
@@ -184,6 +187,39 @@ describe('SectionForm', () => {
     )
     expect((selector.element as HTMLSelectElement).value).toBe(unavailableId)
     expect(selector.text()).toContain(`Unavailable theme (${unavailableId})`)
+    expect((selector.element as HTMLSelectElement).disabled).toBe(false)
+  })
+
+  it('disables the selector when Xero returns no branding themes', async () => {
+    settingsFields.splice(0, settingsFields.length, {
+      key: 'xero_sales_branding_theme_id',
+      label: 'Sales Branding Theme',
+      type: 'xero_branding_theme',
+      required: false,
+      help_text: '',
+      section: 'xero',
+      icon: 'span',
+      readOnly: false,
+    })
+    xeroBrandingThemesList.mockResolvedValue([])
+
+    const wrapper = mount(SectionForm, {
+      props: {
+        section: 'xero',
+        modelValue: { xero_sales_branding_theme_id: null },
+      },
+    })
+    await flushPromises()
+
+    const selector = wrapper.get(
+      '[data-automation-id="SectionForm-xero-field-xero_sales_branding_theme_id"]',
+    )
+    expect((selector.element as HTMLSelectElement).disabled).toBe(true)
+    expect(
+      wrapper
+        .get('[data-automation-id="SectionForm-xero-field-xero_sales_branding_theme_id-empty"]')
+        .text(),
+    ).toContain('No branding themes are available')
   })
 
   it('disables the branding theme selector and explains a Xero loading failure', async () => {

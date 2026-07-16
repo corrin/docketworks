@@ -65,8 +65,8 @@ scripts/server/dw-run.sh <client>-prod python manage.py xero --setup
 ```
 
 Sets `xero_tenant_id`, `xero_shortcode`, `xero_payroll_calendar_id`, and the
-connected organisation's real default sales branding theme. A valid existing
-custom theme selection is preserved.
+first sales branding theme in the connected organisation's Xero order. A valid
+existing custom theme selection is preserved.
 
 **Requires:** The payroll calendar must already exist in Xero (created during client onboarding Phase 2a).
 
@@ -82,7 +82,7 @@ In Admin > Settings, set all values collected in Phase 1 of client_onboarding.md
 - Google Drive folder IDs (Shared Drive, How We Work, SOPs, Reference Library)
 - Quote template ID and quotes folder ID (if applicable)
 - Xero sales branding theme — select the terms-bearing theme if it is not the
-  Xero default imported by `xero --setup`
+  first theme imported by `xero --setup`
 
 Upload logos: Admin > Settings > Company > Logo and Logo Wide.
 

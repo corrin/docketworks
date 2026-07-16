@@ -16,6 +16,7 @@ from apps.job.models import Job
 from apps.job.models.costing import CostSet
 from apps.job.services.workshop_pdf_service import create_workshop_pdf
 from apps.workflow.accounting.types import DocumentLineItem, InvoicePayload
+from apps.workflow.exceptions import AlreadyLoggedException
 from apps.workflow.services.error_persistence import persist_app_error
 
 # Import base class and helpers
@@ -218,8 +219,8 @@ class XeroInvoiceManager(XeroDocumentManager):
                 return {
                     "success": False,
                     "error": (
-                        "Select a Xero sales branding theme in Company Settings "
-                        "before creating an invoice."
+                        "Xero returned no branding themes. Create a branding "
+                        "theme in Xero before creating an invoice."
                     ),
                     "error_type": "configuration_error",
                     "status": 400,
@@ -324,6 +325,8 @@ class XeroInvoiceManager(XeroDocumentManager):
                 result_dict["messages"] = messages_list
             return result_dict
 
+        except AlreadyLoggedException:
+            raise
         except Exception as exc:
             persist_app_error(exc)
             job_id = self.job.id if self.job else "Unknown"
