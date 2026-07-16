@@ -1283,8 +1283,10 @@ const autosave = createJobAutosave({
         return v
       }
 
+      const DISPLAY_ONLY_JOB_FIELDS = new Set(['person_name'])
       const partialPayload: Record<string, unknown> = {}
       for (const [k, v] of Object.entries(patch)) {
+        if (DISPLAY_ONLY_JOB_FIELDS.has(k)) continue
         partialPayload[k] = normalise(k, v)
       }
 
