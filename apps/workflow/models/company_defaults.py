@@ -132,8 +132,8 @@ class CompanyDefaults(SingletonModel):
         help_text=(
             "Branding theme applied to every quote and sales invoice created in "
             "Xero. Select a theme containing the required terms and conditions; "
-            "if unset, the first Xero theme is selected automatically when the "
-            "next sales document is created."
+            "it is configured during Xero setup and required before sales "
+            "documents can be created."
         ),
     )
     enable_xero_sync = models.BooleanField(

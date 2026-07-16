@@ -1,4 +1,5 @@
 import datetime
+from uuid import UUID
 
 import requests
 from django.core.cache import cache
@@ -13,7 +14,7 @@ from xero_python.project import ProjectApi
 from apps.accounts.models import Staff
 from apps.timesheet.services import PayrollEmployeeSyncService
 from apps.workflow.accounting.document_theme_service import (
-    resolve_and_persist_sales_branding_theme,
+    resolve_sales_branding_theme,
 )
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.api.xero.auth import api_client, get_tenant_id, get_valid_token
@@ -503,8 +504,8 @@ class Command(BaseCommand):
         shortcode = org_response.organisations[0].short_code
 
         # Step 5: Select a live sales branding theme for this tenant
-        sales_branding_theme = resolve_and_persist_sales_branding_theme(
-            get_provider(), company
+        sales_branding_theme = resolve_sales_branding_theme(
+            get_provider(), company.xero_sales_branding_theme_id
         )
         if sales_branding_theme is None:
             raise CommandError(
@@ -540,10 +541,12 @@ class Command(BaseCommand):
 
         # Step 7: Save to CompanyDefaults
         company.xero_shortcode = shortcode
+        company.xero_sales_branding_theme_id = UUID(sales_branding_theme.external_id)
         company.xero_payroll_calendar_id = payroll_calendar_id
         company.save(
             update_fields=[
                 "xero_shortcode",
+                "xero_sales_branding_theme_id",
                 "xero_payroll_calendar_id",
             ]
         )

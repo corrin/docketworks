@@ -3,6 +3,7 @@ from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
+from uuid import UUID
 
 from django.core.management.base import CommandError
 from django.test import TestCase
@@ -174,10 +175,7 @@ class EnsureDemoXeroItemsExistTests(TestCase):
 
 
 class RunSetupTests(TestCase):
-    @patch(
-        "apps.workflow.management.commands.xero."
-        "resolve_and_persist_sales_branding_theme"
-    )
+    @patch("apps.workflow.management.commands.xero.resolve_sales_branding_theme")
     @patch("apps.workflow.management.commands.xero.get_provider")
     @patch("apps.workflow.management.commands.xero.cache.set")
     @patch("apps.workflow.management.commands.xero.get_payroll_calendars")
@@ -231,12 +229,18 @@ class RunSetupTests(TestCase):
         cmd._ensure_demo_xero_items_exist.assert_called_once_with(
             "Weekly Testing", "tenant-123"
         )
-        mock_resolve_theme.assert_called_once_with(
-            mock_get_provider.return_value, company
+        mock_resolve_theme.assert_called_once_with(mock_get_provider.return_value, None)
+        self.assertEqual(
+            company.xero_sales_branding_theme_id,
+            UUID(selected_theme.external_id),
         )
         self.assertEqual(
             company.save.call_args_list[-1].kwargs["update_fields"],
-            ["xero_shortcode", "xero_payroll_calendar_id"],
+            [
+                "xero_shortcode",
+                "xero_sales_branding_theme_id",
+                "xero_payroll_calendar_id",
+            ],
         )
 
     def test_removed_create_missing_xero_items_flag_is_rejected(self):

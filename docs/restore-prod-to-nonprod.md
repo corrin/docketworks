@@ -152,6 +152,10 @@ client→company table cutover, Person/link ownership, job and call references,
 merge structure, and persisted terminology. Any mismatch is a migration
 failure; do not continue.
 
+The branding-theme migration deliberately skips a scrubbed restore because its
+Xero OAuth tokens have been removed. The destination theme is populated later
+by the required `xero --setup` step after destination OAuth is connected.
+
 #### Load Company Defaults Fixture
 
 For demo restores only, this replaces your real company name and logos with the

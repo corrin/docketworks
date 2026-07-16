@@ -7,9 +7,6 @@ from apps.company.models import Company
 
 # Import models used in type hints or logic
 from apps.job.models import Job
-from apps.workflow.accounting.document_theme_service import (
-    resolve_and_persist_sales_branding_theme,
-)
 from apps.workflow.accounting.registry import get_provider
 from apps.workflow.models import CompanyDefaults
 from apps.workflow.services.error_persistence import persist_app_error
@@ -97,19 +94,13 @@ class XeroDocumentManager(ABC):
         """
         return self.provider.get_account_code(account_name)
 
-    def get_xero_sales_branding_theme_id(self) -> str | None:
-        """Return or initialise the Xero theme used for sales documents."""
-        company_defaults = CompanyDefaults.get_solo()
-        theme_id = company_defaults.xero_sales_branding_theme_id
-        if theme_id is not None:
-            return str(theme_id)
-
-        theme = resolve_and_persist_sales_branding_theme(
-            self.provider, company_defaults
-        )
-        if theme is None:
+    @staticmethod
+    def get_xero_sales_branding_theme_id() -> str | None:
+        """Return the configured Xero theme used for sales documents."""
+        theme_id = CompanyDefaults.get_solo().xero_sales_branding_theme_id
+        if theme_id is None:
             return None
-        return theme.external_id
+        return str(theme_id)
 
     def validate_company(self):
         """

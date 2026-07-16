@@ -568,11 +568,7 @@ const showBrandingThemePlaceholder = computed(
 const brandingThemePlaceholder = computed(() => {
   if (brandingThemesLoading.value) return 'Loading Xero branding themes…'
   if (brandingThemesUnavailable.value) return 'No Xero branding themes available'
-  const automaticTheme = brandingThemes.value[0]
-  if (automaticTheme) {
-    return `Not configured — first document will use ${automaticTheme.name}`
-  }
-  return 'Not configured — first document will select a Xero branding theme'
+  return 'Xero setup incomplete — select a branding theme'
 })
 
 const unavailableBrandingThemeId = computed(() => {

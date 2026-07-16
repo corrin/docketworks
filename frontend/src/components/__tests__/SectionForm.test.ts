@@ -106,7 +106,7 @@ describe('SectionForm', () => {
     expect(modelValue.shop_company).toBe('00000000-0000-0000-0000-000000000001')
   })
 
-  it('shows automatic initialization and allows selecting a live Xero branding theme', async () => {
+  it('shows incomplete Xero setup and allows selecting a live branding theme', async () => {
     settingsFields.splice(0, settingsFields.length, {
       key: 'xero_sales_branding_theme_id',
       label: 'Sales Branding Theme',
@@ -144,7 +144,7 @@ describe('SectionForm', () => {
     expect(selector.element.tagName).toBe('SELECT')
     expect(selector.text()).toContain('Standard (Xero default)')
     expect(selector.text()).toContain('Terms Footer')
-    expect(selector.text()).toContain('Not configured — first document will use Standard')
+    expect(selector.text()).toContain('Xero setup incomplete — select a branding theme')
     expect(selector.find('option[value=""]').attributes('disabled')).toBeDefined()
     expect(selector.element.closest('label')?.className).toContain('md:col-span-2')
 

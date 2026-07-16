@@ -219,8 +219,9 @@ class XeroInvoiceManager(XeroDocumentManager):
                 return {
                     "success": False,
                     "error": (
-                        "Xero returned no branding themes. Create a branding "
-                        "theme in Xero before creating an invoice."
+                        "Configure the Xero sales branding theme by running Xero "
+                        "setup or selecting it in Company Settings before "
+                        "creating an invoice."
                     ),
                     "error_type": "configuration_error",
                     "status": 400,

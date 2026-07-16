@@ -137,8 +137,8 @@ test('test Xero sales branding theme save, reload, and restore', async ({
     await expect(selector).toBeVisible({ timeout: 15000 })
     await expect(selector).toHaveValue(testValue)
   } finally {
-    // A null starting value is an unattended-install state. Selecting the first
-    // live theme legitimately initializes it, so never deliberately restore null.
+    // Null means Xero setup is incomplete. Selecting the first live theme
+    // completes setup, so never deliberately restore the invalid null state.
     if (originalValue !== '') {
       await page.goto('/admin/company/xero')
       await expect(selector).toBeEnabled({ timeout: 15000 })

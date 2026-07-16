@@ -217,9 +217,10 @@ For a prospect trying DocketWorks with their own Xero:
    organisation's Xero order. In Admin > Settings, select the terms-bearing
    theme if the organisation uses a different theme for customer documents.
 
-   Existing installations that receive the branding-theme schema migration do
-   not need to rerun setup: their first new quote or invoice selects and stores
-   that same first Xero theme automatically.
+   Existing connected installations do not need to rerun setup when they
+   receive the branding-theme migration: the migration selects and stores the
+   first live Xero theme before services restart. If Xero is unavailable, the
+   migration fails and the deployment must be retried.
 
 5. **Import staff from Xero**
 
